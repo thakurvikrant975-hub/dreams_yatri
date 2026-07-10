@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
-    CalendarClock, XCircle, Eye, Phone, Mail,
+    CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
-    RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck, CheckCircle2,
-    CircleX
+    RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
+    CircleX, Package
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -19,19 +19,20 @@ import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge } from "./Salesquerybadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
-import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
 import { reopenSalesQuery, getSalesQueryById } from "./actions";
-import type { PackageQueryType, CloseReason, PackageRequirements } from "../../(marketing)/queries/actions";
+import type { SalesQueryRow } from "./actions";
+import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
+import { cn } from "@/app/lib/utils";
 import Image from "next/image";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type SalesQueryWithDetails = PackageQueryType & {
+type SalesQueryWithDetails = SalesQueryRow & {
     // queryFollowUps from DB mapped to followUps for the sheet
     followUps: Array<{
         id: string;
@@ -42,12 +43,12 @@ type SalesQueryWithDetails = PackageQueryType & {
         createdByName: string | null;
     }>;
     notes: Array<{ id: string; content: string; createdAt: Date }>;
-    timeline: Array<{ id: string; actorName: string | null; event: string; createdAt: Date }>;
 };
 
 type Props = {
-    queries: PackageQueryType[];
+    queries: SalesQueryRow[];
     closeReasons: CloseReason[];
+    rejectionReasons: RejectionReason[];
 };
 
 const PAGE_SIZE = 10;
@@ -69,11 +70,9 @@ function isConvertedStatus(status: SalesQueryStatus) {
 
 function ActionCell({
     query,
-    closeReasons,
     onView,
 }: {
     query: PackageQueryType;
-    closeReasons: CloseReason[];
     onView: () => void;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
@@ -91,6 +90,7 @@ function ActionCell({
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
+
                 {!closed && !converted && (
                     <>
 
@@ -130,27 +130,6 @@ function ActionCell({
                                     </TooltipTrigger>
                                     <TooltipContent>Add Follow-Up</TooltipContent>
                                 </Tooltip>
-
-                                {/* Close Query */}
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <span onClick={(e) => e.stopPropagation()}>
-                                            <CloseQueryDialog
-                                                salesQueryId={query.id}
-                                                leadName={query.name}
-                                                closeReasons={closeReasons}
-                                            >
-                                                <Button
-                                                    variant="ghost" size="icon"
-                                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                >
-                                                    <XCircle className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </CloseQueryDialog>
-                                        </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Close Query</TooltipContent>
-                                </Tooltip>
                             </>
                 )}
 
@@ -177,7 +156,7 @@ function ActionCell({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function SalesQueriesTable({ queries, closeReasons }: Props) {
+export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: Props) {
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
     const [page, setPage] = useState(1);
@@ -196,11 +175,11 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             if (!full) return;
 
             const normalized: SalesQueryWithDetails = {
-                ...(full as unknown as PackageQueryType),
+                ...(full as unknown as SalesQueryRow),
                 // Map queryFollowUps → followUps for the detail sheet
                 followUps: (full as any).queryFollowUps ?? [],
                 notes: (full as any).notes ?? [],
-                timeline: (full as any).timeline ?? [],
+                customPackage: (full as any).custom_packages ?? null,
             };
 
             setDetailQuery(normalized);
@@ -239,6 +218,8 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
 
     const inProgress = queries.filter(q => isActiveStatus(q.status as SalesQueryStatus)).length;
 
+    const followUpCount = queries.filter(q => q.status === "FOLLOW_UP").length;
+
     const submitted = queries.filter(q => q.status === "SUBMITTED").length;
 
     const closedCount = queries.filter(q => isClosedStatus(q.status as SalesQueryStatus)).length;
@@ -249,7 +230,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
     const convRate = totalCount > 0 ? Math.round((bookedCount / totalCount) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
-    const columns: ColumnDef<PackageQueryType>[] = [
+    const columns: ColumnDef<SalesQueryRow>[] = [
         {
             header: "Lead",
             width: "w-[200px]",
@@ -290,11 +271,55 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                         </div>
                     )}
                     {q.packageName && (
-                        <p className="text-xs text-muted-foreground truncate max-w-[160px]">{q.packageName}</p>
+                        q.packageUrl ? (
+                            <a
+                                href={q.packageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs text-primary hover:underline truncate max-w-40 block"
+                            >
+                                {q.packageName}
+                            </a>
+                        ) : (
+                            <p className="text-xs text-muted-foreground truncate max-w-40">{q.packageName}</p>
+                        )
                     )}
                     {!q.destination && !q.packageName && (
                         <span className="text-xs text-muted-foreground italic">—</span>
                     )}
+                </div>
+            ),
+        },
+        {
+            header: "Package",
+            align: "center" as const,
+            width: "w-[140px]",
+            cell: (q) => (
+                <div onClick={(e) => e.stopPropagation()}>
+                    <a
+                        href={`/dashboard/package-builder/${q.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                            "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
+                            !q.customPackage
+                                ? "text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                : q.customPackage.status === "SENT"
+                                    ? "text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-900 dark:bg-green-950/30"
+                                    : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/20"
+                        )}
+                    >
+                        {!q.customPackage ? (
+                            <>
+                                <Package className="h-3 w-3" /> Create Package
+                            </>
+                        ) : (
+                            <>
+                                <Eye className="h-3 w-3" /> View Package
+                            </>
+                        )}
+                    </a>
                 </div>
             ),
         },
@@ -386,7 +411,6 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             cell: (q) => (
                 <ActionCell
                     query={q}
-                    closeReasons={closeReasons}
                     onView={() => openDetail(q)}
                 />
             ),
@@ -397,7 +421,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         <>
             <div className="space-y-4">
                 {/* Stats — matches requested: total, new today, in progress, closed, booked, conv% */}
-                <StatGrid cols={6}>
+                <StatGrid cols={7}>
                     <StatCard
                         label="Total Queries"
                         value={totalCount}
@@ -416,6 +440,13 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                         value={inProgress}
                         icon={Clock}
                         iconText="text-dashboard-warning"
+                    />
+                    <StatCard
+                        label="Follow Up"
+                        value={followUpCount}
+                        icon={CalendarClock}
+                        iconText="text-amber-600"
+                        muted={followUpCount === 0}
                     />
                     <StatCard
                         label="Closed"
@@ -457,6 +488,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                             options: [
                                 { label: "All Queries", value: "all" },
                                 { label: "In Progress", value: "IN_PROGRESS" },
+                                { label: "Follow Up", value: "FOLLOW_UP" },
                                 { label: "Package Sent", value: "PACKAGE_SENT" },
                                 { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
                                 { label: "Client Declined", value: "CLIENT_DECLINED" },
@@ -493,6 +525,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                     onRowClick={(q) => openDetail(q)}
                     rowClassName={(q) => {
                         if (isClosedStatus(q.status as SalesQueryStatus)) return "opacity-60 hover:opacity-80";
+                        if (q.customPackage?.status === "SENT") return "bg-green-50/60 dark:bg-green-950/20 hover:bg-green-100/70 dark:hover:bg-green-900/30";
                         if (q.status === "SUBMITTED") return "bg-amber-50/40 dark:bg-amber-950/10";
                         return "";
                     }}
@@ -517,6 +550,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             <SalesQueryDetailSheet
                 query={loadingDetail ? null : detailQuery}
                 closeReasons={closeReasons}
+                rejectionReasons={rejectionReasons}
                 open={sheetOpen}
                 onOpenChange={setSheetOpen}
                 onRefresh={() => openDetail(detailQuery as PackageQueryType)}

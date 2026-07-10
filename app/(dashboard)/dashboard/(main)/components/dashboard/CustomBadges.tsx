@@ -19,6 +19,7 @@ import {
   CreditCard,
   Star,
   Lock,
+  CalendarClock,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ export type QueryStatus =
   | "REJECTED"
   | "ASSIGNED"
   | "IN_PROGRESS"
+  | "FOLLOW_UP"
   | "PACKAGE_SENT"
   | "CLIENT_ACCEPTED"
   | "CLIENT_DECLINED"
@@ -85,6 +87,12 @@ const STATUS_CONFIG: Record<
     icon: Clock,
     className:
       "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700",
+  },
+  FOLLOW_UP: {
+    label: "Follow Up",
+    icon: CalendarClock,
+    className:
+      "bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-700",
   },
   PACKAGE_SENT: {
     label: "Package Sent",

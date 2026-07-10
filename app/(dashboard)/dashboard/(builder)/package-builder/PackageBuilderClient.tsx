@@ -1,19 +1,20 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
     MapPin, Calendar, Users, Phone,
-    Package, Clock, ArrowRight, RefreshCw, Briefcase,
+    Package, Clock, ArrowRight, RefreshCw, Briefcase, ArrowLeft,
 } from "lucide-react";
-import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
-import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
+import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
+import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
+import { DataTable, type ColumnDef } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/Datatable";
 import { getPackageBuilderQueries, type QueryRow, type PaginatedQueries } from "./action";
 import type { Metadata } from "next";
-import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
-import { TableFilters, type FilterConfig } from "../../components/dashboard/Tablefilters";
-import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
-import { PageHeader } from "../../components/dashboard/PageHeader";
+import { StatCard, StatGrid } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/Statcard";
+import { TableFilters, type FilterConfig } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/Tablefilters";
+import { TableEmptyState } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/TableEmptyState";
+import { PageHeader } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/PageHeader";
 
 export const metadata: Metadata = {
     title: "Package Builder - Dashboard",
@@ -314,9 +315,15 @@ export default function PackageBuilderClientPage() {
     const today  = data?.queries.filter((q) => daysSince(q.updatedAt) === 0).length ?? 0;
 
     return (
-        <div className="flex flex-col gap-6 max-w-screen-2xl mx-auto">
-  
-                
+        <div className="flex flex-col gap-6 max-w-screen-2xl mx-auto p-6">
+
+            <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-1.5 text-xs text-dashboard-base-content/60 hover:text-dashboard-base-content transition-colors w-fit"
+            >
+                <ArrowLeft size={13} /> Back to Dashboard
+            </Link>
+
             <PageHeader
                 title="Package Builder"
                 description="Queries pending custom package creation"

@@ -3,11 +3,10 @@
 import { useState, useTransition } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
-    CheckCircle2, XCircle,
+    CheckCircle2,
     Phone, MapPin, StickyNote,
     Inbox, UserCheck, Send, Clock, TrendingUp
 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../../components/ui/tooltip";
@@ -15,9 +14,9 @@ import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable"
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
 import { QueryStatusBadge, QuerySourceBadge } from "../../components/dashboard/CustomBadges";
-import { RejectQueryDialog } from "./Rejectquerydialog";
 import { QueryDetailSheet } from "./Querydetailsheet";
-import { verifyQuery, getQueryById } from "./actions";
+import { QueryTimelineSheet } from "./QueryTimelineSheet";
+import { getQueryById } from "./actions";
 import type { PackageQuery, RejectionReason } from "./actions";
 import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";
@@ -41,6 +40,7 @@ const STATUS_FILTER_OPTIONS = [
     { label: "Rejected", value: "REJECTED" },
     { label: "Assigned", value: "ASSIGNED" },
     { label: "In Progress", value: "IN_PROGRESS" },
+    { label: "Follow Up", value: "FOLLOW_UP" },
     { label: "Package Sent", value: "PACKAGE_SENT" },
     { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
     { label: "Client Declined", value: "CLIENT_DECLINED" },
@@ -61,60 +61,25 @@ const SOURCE_FILTER_OPTIONS = [
 // ── Action Cell ───────────────────────────────────────────────────────────────
 
 function ActionCell({
-    query, reasons, onView,
-}: { query: PackageQuery; reasons: RejectionReason[]; onView: () => void }) {
-    const [isPendingV, startVerify] = useTransition();
+    query, onView,
+}: { query: PackageQuery; onView: () => void }) {
     const [isPendingP, startProgress] = useTransition();
 
     const isTerminal = query.status === "SUBMITTED";
-    const canVerify = query.status === "SUBMITTED";
-
-    function handleVerify(e: React.MouseEvent) {
-        e.stopPropagation();
-        startVerify(async () => {
-            const r = await verifyQuery(query.id);
-            if (r.success) toast.success(r.message);
-            else toast.error(r.message);
-        });
-    }
 
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
 
-                {/* Verify */}
-                {canVerify && (
-                    <>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost" size="icon"
-                                className="h-8 w-8 text-dashboard-success hover:text-dashboard-success hover:bg-dashboard-success/10"
-                                onClick={handleVerify} disabled={isPendingV}
-                            >
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Verify Lead</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <span onClick={(e) => e.stopPropagation()}>
-                                <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
-                                    <Button
-                                        variant="ghost" size="icon"
-                                        className="h-8 w-8 text-dashboard-error hover:text-dashboard-error hover:bg-dashboard-error/10"
-                                    >
-                                        <XCircle className="h-3.5 w-3.5" />
-                                    </Button>
-                                </RejectQueryDialog>
-                            </span>
-                        </TooltipTrigger>
-                        <TooltipContent>Reject Query</TooltipContent>
-                    </Tooltip>
-                    </>
-                )}
+                {/* Timeline */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span onClick={(e) => e.stopPropagation()}>
+                            <QueryTimelineSheet queryId={query.id} leadName={query.name} />
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>View Timeline</TooltipContent>
+                </Tooltip>
 
                 {/* Edit */}
                 <Tooltip>
@@ -363,6 +328,7 @@ export function QueriesTable({ queries, reasons }: Props) {
                 {new Date(q.createdAt).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
+                    hour12: true,
                 })}
             </span>
         </div>
@@ -373,7 +339,7 @@ export function QueriesTable({ queries, reasons }: Props) {
             align: "right",
             width: "w-[160px]",
             cell: (q) => (
-                <ActionCell query={q} reasons={reasons} onView={() => openDetail(q)} />
+                <ActionCell query={q} onView={() => openDetail(q)} />
             ),
         },
     ];

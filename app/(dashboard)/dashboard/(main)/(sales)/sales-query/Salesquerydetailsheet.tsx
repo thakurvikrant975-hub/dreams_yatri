@@ -6,6 +6,7 @@ import {
     Phone, Mail, MapPin, Users, Calendar,
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
+    Package, CheckCircle2, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -20,10 +21,12 @@ import {
   QueryStatusBadge, QuerySourceBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
+import { RejectQueryDialog } from "./Rejectquerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { reopenSalesQuery } from "./actions";
+import type { SentPackageInfo } from "./actions";
 import { PackageRequirements } from "../../(marketing)/queries/actions";
-import { CloseReason } from "../../(marketing)/queries/actions";
+import { CloseReason, RejectionReason } from "../../(marketing)/queries/actions";
 
 type FollowUpItem = {
     id: string;
@@ -37,12 +40,12 @@ type FollowUpItem = {
 type SalesQueryWithDetails = SalesQuery & {
     followUps: FollowUpItem[];
     notes: Array<{ id: string; content: string; createdAt: Date }>;
-    timeline: Array<{ id: string; actorName: string | null; event: string; createdAt: Date }>;
 };
 
 type Props = {
     query: SalesQueryWithDetails | null;
     closeReasons: CloseReason[];
+    rejectionReasons: RejectionReason[];
     open: boolean;
     onOpenChange: (v: boolean) => void;
     onRefresh?: () => void;
@@ -56,6 +59,7 @@ export type SalesQuery = {
   email: string | null;
   destination: string | null;
   packageName: string | null;
+  packageUrl: string | null;
   groupSize: number | null;
   travelDate: Date | null;
   message: string | null;
@@ -69,6 +73,7 @@ export type SalesQuery = {
   closedAt: Date | null;
   requirements: unknown;
   _count: { queryFollowUps: number };
+  customPackage: SentPackageInfo | null;
 };
 
 function InfoRow({
@@ -94,19 +99,10 @@ function InfoRow({
     );
 }
 
-function timelineDot(event: string) {
-    if (event.includes("✅") || event.includes("Verified")) return "bg-green-500";
-    if (event.includes("❌") || event.includes("Closed")) return "bg-destructive";
-    if (event.includes("📞") || event.includes("Follow")) return "bg-amber-500";
-    if (event.includes("📋") || event.includes("requirements")) return "bg-primary";
-    if (event.includes("📝") || event.includes("Note")) return "bg-blue-500";
-    if (event.includes("🔄") || event.includes("Reopen")) return "bg-green-500";
-    return "bg-muted-foreground/40";
-}
-
 export function SalesQueryDetailSheet({
     query,
     closeReasons,
+    rejectionReasons,
     open,
     onOpenChange,
     onRefresh,
@@ -195,6 +191,21 @@ export function SalesQueryDetailSheet({
                                     <XCircle className="h-3.5 w-3.5" /> Close Query
                                 </Button>
                             </CloseQueryDialog>
+
+                            <RejectQueryDialog
+                                queryId={query.id}
+                                leadName={query.name}
+                                reasons={rejectionReasons}
+                                onDone={onRefresh}
+                            >
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                >
+                                    <XCircle className="h-3.5 w-3.5" /> Reject Query
+                                </Button>
+                            </RejectQueryDialog>
                         </div>
                     )}
 
@@ -247,6 +258,61 @@ export function SalesQueryDetailSheet({
                             </p>
                         </div>
                     )}
+
+                    {/* Custom package status */}
+                    {query.customPackage && (
+                        <div
+                            className={`mt-2 rounded-lg border px-3 py-2 ${
+                                query.customPackage.status === "SENT"
+                                    ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30"
+                                    : "border-border bg-muted/40"
+                            }`}
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <p
+                                    className={`text-[11px] font-semibold uppercase tracking-wide mb-0.5 flex items-center gap-1 ${
+                                        query.customPackage.status === "SENT"
+                                            ? "text-green-700 dark:text-green-400"
+                                            : "text-muted-foreground"
+                                    }`}
+                                >
+                                    {query.customPackage.status === "SENT" ? (
+                                        <CheckCircle2 className="h-3 w-3" />
+                                    ) : (
+                                        <Package className="h-3 w-3" />
+                                    )}
+                                    {query.customPackage.status === "SENT" ? "Package Sent" : "Package Draft"}
+                                </p>
+                                <a
+                                    href={`/dashboard/package-builder/${query.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[11px] text-primary hover:underline shrink-0"
+                                >
+                                    Open Builder
+                                </a>
+                            </div>
+                            <p className="text-sm font-medium">{query.customPackage.title}</p>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                {query.customPackage.totalPrice != null && (
+                                    <span>₹{Number(query.customPackage.totalPrice).toLocaleString("en-IN")}</span>
+                                )}
+                                {query.customPackage.sentAt && (
+                                    <span>· Sent {formatDistanceToNow(new Date(query.customPackage.sentAt), { addSuffix: true })}</span>
+                                )}
+                                {query.customPackage.pdfUrl && (
+                                    <a
+                                        href={query.customPackage.pdfUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-0.5 text-primary hover:underline"
+                                    >
+                                        <FileText className="h-3 w-3" /> PDF
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </SheetHeader>
 
                 <ScrollArea className="flex-1">
@@ -261,7 +327,23 @@ export function SalesQueryDetailSheet({
                                 <InfoRow icon={Phone} label="Phone" value={query.phone} />
                                 <InfoRow icon={Mail} label="Email" value={query.email} />
                                 <InfoRow icon={MapPin} label="Destination" value={query.destination} />
-                                <InfoRow icon={Globe} label="Package" value={query.packageName} />
+                                <InfoRow
+                                    icon={Globe}
+                                    label="Package"
+                                    value={
+                                        query.packageName && query.packageUrl ? (
+                                            <a
+                                                href={query.packageUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-primary hover:underline"
+                                            >
+                                                {query.packageName}
+                                            </a>
+                                        ) : query.packageName
+                                    }
+                                />
                                 <InfoRow
                                     icon={Users}
                                     label="Group Size"
@@ -322,6 +404,9 @@ export function SalesQueryDetailSheet({
                                             )}
                                             {reqs.transport.includeFlights && (
                                                 <Badge variant="secondary" className="text-xs">✈ Flights</Badge>
+                                            )}
+                                            {reqs.transport.includeTrain && (
+                                                <Badge variant="secondary" className="text-xs">🚆 Train</Badge>
                                             )}
                                         </div>
                                         {reqs.journey.destinations.length > 0 && (
@@ -404,37 +489,6 @@ export function SalesQueryDetailSheet({
                                     </Button>
                                 </AddFollowUpDialog>
                             )}
-                        </section>
-
-                        <Separator />
-
-                        {/* Activity Timeline */}
-                        <section className="pb-6">
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-                                Activity Timeline
-                            </h3>
-                            <div className="relative pl-4 space-y-4">
-                                <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
-                                {(query.timeline ?? []).map((t) => (
-                                    <div key={t.id} className="relative flex gap-3 items-start">
-                                        <div
-                                            className={`absolute -left-3 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background shrink-0 ${timelineDot(t.event)}`}
-                                        />
-                                        <div className="min-w-0 pl-1 space-y-0.5">
-                                            <p className="text-sm leading-snug">{t.event}</p>
-                                            <p className="text-[10px] text-muted-foreground">
-                                                {formatDistanceToNow(new Date(t.createdAt), { addSuffix: true })}
-                                                {t.actorName && (
-                                                    <span className="ml-1 font-medium">by {t.actorName}</span>
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                                {(query.timeline ?? []).length === 0 && (
-                                    <p className="text-xs text-muted-foreground italic pl-1">No activity yet</p>
-                                )}
-                            </div>
                         </section>
 
                     </div>

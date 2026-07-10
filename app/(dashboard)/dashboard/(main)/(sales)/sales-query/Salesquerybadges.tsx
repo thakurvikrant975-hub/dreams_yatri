@@ -4,7 +4,7 @@ import { Badge } from "../../components/ui/badge";
 import {
     Inbox, PhoneCall, XCircle, UserCheck,
     ClipboardList, Send, ThumbsUp, ThumbsDown,
-    CreditCard, CheckCircle2, Lock,
+    CreditCard, CheckCircle2, Lock, CalendarClock,
 } from "lucide-react";
 import type { QueryStatus } from "./query-status";
 
@@ -39,6 +39,11 @@ const STATUS_CONFIG: Record<QueryStatus, StatusConfig> = {
         label: "In Progress",
         icon: PhoneCall,
         className: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800",
+    },
+    FOLLOW_UP: {
+        label: "Follow Up",
+        icon: CalendarClock,
+        className: "bg-orange-500/10 text-orange-600 border-orange-200 dark:border-orange-800",
     },
     PACKAGE_SENT: {
         label: "Package Sent",

@@ -1,16 +1,15 @@
 "use server";
 
 // (marketing)/queries/actions.ts
-
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
+import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
 export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
     | { success: false; data?: never; message: string; errors?: Record<string, string[]> };
@@ -18,6 +17,7 @@ export type ActionResult<T = void> =
 export type QueryStatus =
     | "SUBMITTED"
     | "IN_PROGRESS"
+    | "FOLLOW_UP"
     | "VERIFIED"
     | "REJECTED"
     | "ASSIGNED"
@@ -75,6 +75,7 @@ export type PackageRequirements = {
         required: boolean;
         cabTypes: string[];
         includeFlights: boolean;
+        includeTrain: boolean;
         specialDemands?: string;
     };
     activities: {
@@ -282,7 +283,7 @@ export async function getSalesMembers(): Promise<SalesMember[]> {
     // FIX 1: Only active sales team members
     const members = await db.teamMember.findMany({
         where: {
-            teamRole: { name: { equals: "Sales", mode: "insensitive" } },
+            teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } },
             isActive: true, // ← was missing; was returning inactive members too
         },
         select: { id: true, name: true, email: true, profilePicUrl: true },
@@ -305,6 +306,7 @@ export async function getSalesMembers(): Promise<SalesMember[]> {
                     in: [
                         "ASSIGNED",
                         "IN_PROGRESS",
+                        "FOLLOW_UP",
                         "PACKAGE_SENT",
                         "CLIENT_ACCEPTED",
                         "CLIENT_DECLINED",
@@ -397,8 +399,8 @@ export async function assignQuery(
             data: {
                 queryId,
                 event: memberId
-                    ? `👤 Assigned to ${assigneeName ?? "team member"}`
-                    : `👤 Assignment removed`,
+                    ? `Assigned to ${assigneeName ?? "team member"}`
+                    : `Assignment removed`,
                 actorId: actorId ?? null,
                 actorName: actorName ?? null,
                 meta: { assignedTo: memberId, assigneeName } as Prisma.InputJsonValue,
@@ -416,6 +418,28 @@ export async function assignQuery(
         const msg = e instanceof Error ? e.message : String(e);
         console.error("[assignQuery] FAILED:", msg);
         return { success: false, message: `Failed to assign query: ${msg}` };
+    }
+}
+
+// ── Auto-assign toggle ─────────────────────────────────────────────────────────
+
+export async function getAutoAssignSetting(): Promise<boolean> {
+    return getBoolSetting(SETTINGS_KEYS.autoAssignQueries, true);
+}
+
+export async function setAutoAssignSetting(enabled: boolean): Promise<ActionResult<{ enabled: boolean }>> {
+    try {
+        const { teamMemberId } = await getCurrentActor();
+        await setBoolSetting(SETTINGS_KEYS.autoAssignQueries, enabled, teamMemberId);
+        revalidatePath("/dashboard/queries");
+        return {
+            success: true,
+            data: { enabled },
+            message: enabled ? "Auto-assign turned on" : "Auto-assign turned off — assign leads manually",
+        };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -522,13 +546,14 @@ export async function rejectQuery(queryId: string, formData: FormData): Promise<
 
         await logTimeline(
             queryId,
-            `❌ Query Rejected — ${reason?.label ?? "Unknown reason"}${parsed.data.rejectionNote ? ` · Note: ${parsed.data.rejectionNote}` : ""}`,
+            `Query Rejected — ${reason?.label ?? "Unknown reason"}${parsed.data.rejectionNote ? ` · Note: ${parsed.data.rejectionNote}` : ""}`,
             actor?.id,
             actor?.name ?? undefined,
             { reason: reason?.label, note: parsed.data.rejectionNote },
         );
 
         revalidatePath("/dashboard/queries");
+        revalidatePath("/dashboard/sales-query");
         return { success: true, data: undefined, message: "Query rejected" };
     } catch (e) {
         console.error(e);

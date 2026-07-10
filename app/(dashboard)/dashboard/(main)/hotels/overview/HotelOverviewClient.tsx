@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  MapPin, Search, X, Star, Building2, Globe2, Map,
-  BedDouble, ImageIcon, CheckCircle2, XCircle, ChevronRight,
-  Filter, LayoutGrid, List, Layers,
+  MapPin, Search, X, Building2, Globe2, Map,
+  BedDouble, CheckCircle2, XCircle, ChevronRight, Filter,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { CATEGORIES, STAY_TYPES } from "../constants";
+import { CATEGORIES } from "../constants";
+import { HotelTeamSheet } from "./HotelTeamSheet";
+
+const UNCATEGORIZED = "__uncategorized__";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -387,7 +389,10 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
     const src = selState ? hotels.filter((h) => h.state === selState) : (selCountry ? hotels.filter((h) => h.country === selCountry) : hotels);
     return [...new Set(src.map((h) => h.city).filter(Boolean) as string[])].sort();
   }, [hotels, selCountry, selState]);
-  const categories = useMemo(() => [...new Set(hotels.map((h) => h.category).filter(Boolean) as string[])].sort(), [hotels]);
+  const categories = useMemo(() => {
+    const vals = [...new Set(hotels.map((h) => h.category).filter(Boolean) as string[])].sort();
+    return hotels.some((h) => !h.category) ? [...vals, UNCATEGORIZED] : vals;
+  }, [hotels]);
   const stars      = useMemo(() => {
     const vals = [...new Set(hotels.map((h) => starLabel(h.stay_type)))];
     return vals.sort((a, b) => STAR_ORDER.indexOf(a) - STAR_ORDER.indexOf(b));
@@ -410,7 +415,7 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
     if (selCountry)  list = list.filter((h) => h.country  === selCountry);
     if (selState)    list = list.filter((h) => h.state    === selState);
     if (selCity)     list = list.filter((h) => h.city     === selCity);
-    if (selCategory) list = list.filter((h) => h.category === selCategory);
+    if (selCategory) list = list.filter((h) => (selCategory === UNCATEGORIZED ? !h.category : h.category === selCategory));
     if (selStar)     list = list.filter((h) => starLabel(h.stay_type) === selStar);
     return list;
   }, [hotels, search, selCountry, selState, selCity, selCategory, selStar]);
@@ -433,10 +438,22 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
       if (dim === "country")  return h.country  === val;
       if (dim === "state")    return h.state    === val;
       if (dim === "city")     return h.city     === val;
-      if (dim === "category") return h.category === val;
+      if (dim === "category") return val === UNCATEGORIZED ? !h.category : h.category === val;
       if (dim === "star")     return starLabel(h.stay_type) === val;
       return false;
     }).length;
+  }
+
+  // Switching which dimension you're browsing by resets the other dimensions'
+  // selections — otherwise a leftover filter from a previous tab silently keeps
+  // narrowing the list while its pills are no longer visible anywhere.
+  function switchGroupBy(dim: GroupDimension) {
+    setGroupBy(dim);
+    setSelCountry(null);
+    setSelState(null);
+    setSelCity(null);
+    setSelCategory(null);
+    setSelStar(null);
   }
 
   function clearFilters() {
@@ -470,6 +487,8 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <HotelTeamSheet totalHotels={stats.total} />
+
             <button
               type="button"
               onClick={() => setMapVisible((v) => !v)}
@@ -546,7 +565,7 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
                 <button
                   key={dim}
                   type="button"
-                  onClick={() => setGroupBy(dim)}
+                  onClick={() => switchGroupBy(dim)}
                   className={cn(
                     "px-2.5 py-1 rounded-md text-xs font-medium border transition-colors capitalize",
                     groupBy === dim
@@ -599,7 +618,7 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
                   onClick={() => setSelCity(selCity === v ? null : v)} />
               ))}
               {groupBy === "category" && categories.map((v) => (
-                <Pill key={v} label={catLabel(v)} count={countIn("category", v)}
+                <Pill key={v} label={v === UNCATEGORIZED ? "Uncategorized" : catLabel(v)} count={countIn("category", v)}
                   active={selCategory === v}
                   onClick={() => setSelCategory(selCategory === v ? null : v)} />
               ))}
@@ -666,21 +685,29 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
             />
 
             {/* Map overlay: no-coords notice */}
-            {filtered.filter((h) => h.lat && h.lng).length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="bg-background/90 backdrop-blur-sm border rounded-xl px-5 py-4 text-center shadow-lg">
-                  <Map className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm font-medium text-foreground">No coordinates available</p>
-                  <p className="text-xs text-muted-foreground mt-1">Hotels need a location pin to appear on map</p>
+            {filtered.length > 0 && filtered.filter((h) => h.lat && h.lng).length === 0 && (
+              <div className="absolute inset-x-0 top-4 flex justify-center pointer-events-none">
+                <div className="bg-background/95 backdrop-blur-sm border rounded-xl px-4 py-2.5 text-center shadow-md flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                    <MapPin className="h-3.5 w-3.5 text-amber-600" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-medium text-foreground">No location pins yet</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {filtered.length} hotel{filtered.length !== 1 ? "s" : ""} in view need{filtered.length === 1 ? "s" : ""} a map location
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Count badge */}
-            <div className="absolute top-3 right-3 bg-background/90 backdrop-blur-sm border rounded-lg px-3 py-1.5 text-xs font-medium text-foreground shadow-sm flex items-center gap-1.5">
-              <MapPin className="h-3 w-3 text-primary" />
-              {filtered.filter((h) => h.lat && h.lng).length} pinned
-            </div>
+            {filtered.filter((h) => h.lat && h.lng).length > 0 && (
+              <div className="absolute top-3 right-3 bg-background/90 backdrop-blur-sm border rounded-lg px-3 py-1.5 text-xs font-medium text-foreground shadow-sm flex items-center gap-1.5">
+                <MapPin className="h-3 w-3 text-primary" />
+                {filtered.filter((h) => h.lat && h.lng).length} pinned
+              </div>
+            )}
           </div>
         )}
       </div>

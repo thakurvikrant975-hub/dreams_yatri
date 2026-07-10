@@ -8,7 +8,6 @@ import {
 } from "../../components/ui/breadcrumb";
 import { getMyFollowUps } from "../sales-query/actions";
 import { MyFollowUpsTable } from "./Myfollowupstable";
-import { Stats } from "../../components/dashboard/Stats";
 import { isPast, isToday } from "date-fns";
 import type { Metadata } from "next";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
@@ -43,12 +42,6 @@ async function MyFollowUpsContent() {
 
     return (
         <>
-            <Stats
-                cols={4}
-                rows={[
-
-                ]}
-            />
             <StatGrid cols={4}>
                 <StatCard
                     label="Total Follow-Ups"

@@ -1,6 +1,7 @@
 'use server'
 
 import { db } from '@/app/lib/db'
+import { autoAssignLead } from '@/app/lib/queries/auto-assign'
 import { enquirySchema, type EnquiryInput, type EnquiryErrors } from './schema'
 
 type SubmitResult =
@@ -77,7 +78,7 @@ export async function submitPackageEnquiry(raw: EnquiryInput): Promise<SubmitRes
             },
         })
 
-        await db.package_queries.create({
+        const created = await db.package_queries.create({
             data: {
                 name,
                 phone,
@@ -95,6 +96,8 @@ export async function submitPackageEnquiry(raw: EnquiryInput): Promise<SubmitRes
                 leadProfileId: profile.id,
             },
         })
+
+        await autoAssignLead(created.id)
 
         return { ok: true }
     } catch {
