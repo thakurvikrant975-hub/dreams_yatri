@@ -33,7 +33,7 @@ export default function MarketingTopbar() {
   if (!mounted || dismissed) return null;
 
   return (
-    <div className="relative bg-white bg-linear-to-r from-primary-500 to-rose-600 text-white">
+    <div className="relative bg-white bg-linear-to-r from-red-400 via-red-600/80 to-red-600/90 text-white">
       <div className="screen-space flex items-center justify-center gap-2 sm:gap-3 py-2 pr-8 text-xs sm:text-sm font-medium text-center">
         <BuildingOffice2Icon className="hidden sm:block w-4 h-4 shrink-0" />
         <span className="truncate">
@@ -44,7 +44,7 @@ export default function MarketingTopbar() {
         </span>
         <Link
           href="/hotel-connect/signup"
-          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-white/15 hover:bg-white/25 px-3 py-1 font-semibold transition-colors"
+          className="shrink-0 inline-flex items-center gap-1 rounded-full text-primary-600 bg-white  hover:bg-primary-100 px-3 py-1 font-semibold transition-colors"
         >
           List Your Property →
         </Link>
@@ -53,7 +53,7 @@ export default function MarketingTopbar() {
         type="button"
         onClick={handleDismiss}
         aria-label="Dismiss"
-        className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/15 transition-colors"
+        className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-1 rounded-full  hover:bg-white/15 transition-colors"
       >
         <XMarkIcon className="w-4 h-4" />
       </button>

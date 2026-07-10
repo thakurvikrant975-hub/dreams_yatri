@@ -776,6 +776,7 @@ body {
     /* Firefox */
 }
 
+
 .scrollbar-none::-webkit-scrollbar {
     display: none;
     /* Chrome, Safari */

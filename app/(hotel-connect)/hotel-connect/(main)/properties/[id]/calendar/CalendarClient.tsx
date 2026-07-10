@@ -456,17 +456,17 @@ function EditPanel({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className={label}>Min LOS</label>
+                <label className={label}>Minimum Length of Stay</label>
                 <input type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" className={input} />
               </div>
               <div>
-                <label className={label}>Max LOS</label>
+                <label className={label}>Maximum Length of Stay</label>
                 <input type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" className={input} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className={label}>CTA</label>
+                <label className={label}>Closed to Arrival</label>
                 <SearchSelect
                   options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
                   value={cta}
@@ -475,7 +475,7 @@ function EditPanel({
                 />
               </div>
               <div>
-                <label className={label}>CTD</label>
+                <label className={label}>Closed to Departure</label>
                 <SearchSelect
                   options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
                   value={ctd}
