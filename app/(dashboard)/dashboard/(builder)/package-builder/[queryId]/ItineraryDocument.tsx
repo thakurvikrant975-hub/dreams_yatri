@@ -273,23 +273,21 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
                 )}
 
                 {(day.transportPickup || day.transportDrop) && (
-                  <div className="flex gap-2">
-                    <div className="flex flex-col items-center pt-1">
-                      <span className="size-2 rounded-full border-2 border-primary-500 shrink-0" />
-                      <span className="w-px flex-1 bg-neutral-300 my-0.5" />
-                      <span className="size-2 rounded-full border-2 border-primary-500 shrink-0" />
+                  <div className="flex gap-2.5">
+                    <div className="flex flex-col items-center">
+                      <MapPin size={13} className="text-neutral-400 shrink-0" />
+                      <span className="w-0.5 flex-1 min-h-6 bg-primary-200 my-1" />
+                      <MapPin size={13} className="text-neutral-400 shrink-0" />
                     </div>
-                    <div className="flex-1 min-w-0 flex flex-col justify-between text-[11px] py-0.5">
-                      <p className="text-neutral-600">
-                        <span className="text-neutral-400">Pickup: </span>
-                        <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
+                    <div className="flex-1 min-w-0 flex flex-col justify-between text-xs py-0.5">
+                      <p className="text-neutral-500">
+                        Pickup Point: <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
                       </p>
                       {day.transportDistanceKm && (
-                        <p className="text-neutral-400">{day.transportDistanceKm} km</p>
+                        <p className="text-[11px] text-neutral-400 py-1">{day.transportDistanceKm} km</p>
                       )}
-                      <p className="text-neutral-600">
-                        <span className="text-neutral-400">Drop: </span>
-                        <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
+                      <p className="text-neutral-500">
+                        Drop Point: <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
                       </p>
                     </div>
                   </div>
