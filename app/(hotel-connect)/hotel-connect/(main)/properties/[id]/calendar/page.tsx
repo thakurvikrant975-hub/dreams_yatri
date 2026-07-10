@@ -46,7 +46,7 @@ export default async function CalendarPage({
         where: { is_active: true },
         orderBy: { sort_order: "asc" },
         select: {
-          id: true, name: true, num_rooms: true,
+          id: true, name: true, num_rooms: true, max_adults: true,
           pricing: {
             where: { is_active: true },
             orderBy: { sort_order: "asc" },
@@ -62,6 +62,7 @@ export default async function CalendarPage({
     id: r.id,
     name: r.name,
     num_rooms: r.num_rooms,
+    max_adults: r.max_adults,
     plans: r.pricing.map((p) => ({ id: p.id, label: p.plan_name || p.meal_type?.name || "Room Only" })),
   }));
 

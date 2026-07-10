@@ -6,11 +6,14 @@ import { cn } from "@/app/lib/utils";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
   NoSymbolIcon,
   TagIcon,
   ListBulletIcon,
 } from "@heroicons/react/24/outline";
 import { fetchRoomCalendar, saveAvailabilityRange, type RangePatch } from "./calendar-actions";
+import { getRoomRateDetail, saveRoomRates, type RoomRateDetail, type RoomRatesPatch } from "../rates/[roomId]/rate-actions";
+import { occupancyTiers } from "../rates/rate-fields";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 
 type DayCell = {
@@ -30,7 +33,106 @@ type DayCell = {
 };
 
 type RatePlanOption = { id: number; label: string };
-type Room = { id: number; name: string; num_rooms: number; plans: RatePlanOption[] };
+type Room = { id: number; name: string; num_rooms: number; max_adults: number; plans: RatePlanOption[] };
+
+// ── Per-plan pricing form state (bulk edit) ───────────────────────────────────
+
+type PlanFormState = {
+  basePrice: string;
+  occupancyPrices: Record<number, string>;
+  childRate: string;
+  extraAdultRate: string;
+};
+
+const EMPTY_PLAN_FORM: PlanFormState = { basePrice: "", occupancyPrices: {}, childRate: "", extraAdultRate: "" };
+
+function detailToFormState(detail: RoomRateDetail): PlanFormState {
+  const occupancyPrices: Record<number, string> = {};
+  for (const [occStr, price] of Object.entries(detail.occupancyPrices)) {
+    occupancyPrices[Number(occStr)] = price != null ? String(price) : "";
+  }
+  return {
+    basePrice: detail.basePrice != null ? String(detail.basePrice) : "",
+    occupancyPrices,
+    childRate: detail.childRate != null ? String(detail.childRate) : "",
+    extraAdultRate: detail.extraAdultRate != null ? String(detail.extraAdultRate) : "",
+  };
+}
+
+type PlanRatesPatch = { planId: number; input: RoomRatesPatch };
+
+function MoneyTile({
+  label, value, onChange, placeholder = "Enter",
+}: {
+  label: string; value: string; onChange: (raw: string) => void; placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-neutral-500 mb-1">{label}</label>
+      <div className="h-9 rounded-lg border border-neutral-300 bg-white flex items-center px-2 gap-1 text-sm">
+        <span className="text-neutral-400">₹</span>
+        <input
+          type="number" min={0} step="1"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-full outline-none bg-transparent"
+        />
+      </div>
+    </div>
+  );
+}
+
+function PlanRateCard({
+  plan, maxAdults, value, loading, expanded, onToggle, onChange,
+}: {
+  plan: RatePlanOption;
+  maxAdults: number;
+  value: PlanFormState;
+  loading: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onChange: (patch: Partial<PlanFormState>) => void;
+}) {
+  const tiers = occupancyTiers(maxAdults);
+  return (
+    <div className="rounded-lg border border-neutral-200 overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-3 py-2 bg-neutral-50 hover:bg-neutral-100 transition-colors text-left"
+      >
+        <span className="text-xs font-bold text-neutral-700">{plan.label}</span>
+        <ChevronDownIcon className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", expanded && "rotate-180")} />
+      </button>
+      {expanded && (
+        <div className="p-3 space-y-2.5">
+          {loading ? (
+            <p className="text-[11px] text-neutral-400">Loading current rates…</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <MoneyTile label="2 Adults (Base)" value={value.basePrice} onChange={(v) => onChange({ basePrice: v })} placeholder="Leave blank to skip" />
+                {tiers.map((n) => (
+                  <MoneyTile
+                    key={n}
+                    label={`${n} Adult${n === 1 ? "" : "s"}`}
+                    value={value.occupancyPrices[n] ?? ""}
+                    onChange={(v) => onChange({ occupancyPrices: { ...value.occupancyPrices, [n]: v } })}
+                  />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
+                <MoneyTile label="Per Child (7-17y)" value={value.childRate} onChange={(v) => onChange({ childRate: v })} />
+                <MoneyTile label="Extra Adult" value={value.extraAdultRate} onChange={(v) => onChange({ extraAdultRate: v })} />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -149,6 +251,8 @@ export default function CalendarClient({
     return m;
   }, [days]);
 
+  const currentRoom = useMemo(() => rooms.find((r) => r.id === roomId), [rooms, roomId]);
+
   const [rangeLo, rangeHi] = selStart && selEnd
     ? selStart <= selEnd ? [selStart, selEnd] : [selEnd, selStart]
     : selStart ? [selStart, selStart] : [null, null];
@@ -239,19 +343,15 @@ export default function CalendarClient({
               className="w-56"
             />
           )}
-          {(() => {
-            const currentRoom = rooms.find((r) => r.id === roomId);
-            if (!currentRoom || currentRoom.plans.length <= 1) return null;
-            return (
-              <SearchSelect
-                options={currentRoom.plans.map((p) => ({ value: String(p.id), label: p.label }))}
-                value={planId != null ? String(planId) : undefined}
-                onChange={(v) => pickPlan(Number(v))}
-                showSearch={false}
-                className="w-48"
-              />
-            );
-          })()}
+          {currentRoom && currentRoom.plans.length > 1 && (
+            <SearchSelect
+              options={currentRoom.plans.map((p) => ({ value: String(p.id), label: p.label }))}
+              value={planId != null ? String(planId) : undefined}
+              onChange={(v) => pickPlan(Number(v))}
+              showSearch={false}
+              className="w-48"
+            />
+          )}
         </div>
       </div>
 
@@ -306,14 +406,20 @@ export default function CalendarClient({
             hotelId={hotelId}
             roomId={roomId}
             planId={planId}
-            multiPlan={(rooms.find((r) => r.id === roomId)?.plans.length ?? 0) > 1}
+            plans={currentRoom?.plans ?? []}
+            maxAdults={currentRoom?.max_adults ?? 2}
+            multiPlan={(currentRoom?.plans.length ?? 0) > 1}
             rangeLo={rangeLo}
             rangeHi={rangeHi}
             saving={saving}
             msg={msg}
             onClear={() => { setSelStart(null); setSelEnd(null); }}
-            onSave={(patch) => {
+            onSave={(patch, planRates) => {
               if (roomId == null || !rangeLo || !rangeHi) return;
+              if (Object.keys(patch).length === 0 && planRates.length === 0) {
+                setMsg("Nothing to update.");
+                return;
+              }
               const targetRoomId = roomId;
               const lo = rangeLo, hi = rangeHi;
 
@@ -350,14 +456,29 @@ export default function CalendarClient({
               setSelStart(null); setSelEnd(null);
 
               startSave(async () => {
-                const res = await saveAvailabilityRange(hotelId, targetRoomId, lo, hi, patch);
-                if (res.error) {
-                  setDays(snapshot); // undo the optimistic change
-                  setMsg(res.error);
-                  return;
+                if (Object.keys(patch).length > 0) {
+                  const res = await saveAvailabilityRange(hotelId, targetRoomId, lo, hi, patch);
+                  if (res.error) {
+                    setDays(snapshot); // undo the optimistic change
+                    setMsg(res.error);
+                    return;
+                  }
                 }
+
+                if (planRates.length > 0) {
+                  const rateResults = await Promise.all(
+                    planRates.map((pr) => saveRoomRates(hotelId, targetRoomId, pr.planId, lo, hi, pr.input)),
+                  );
+                  const firstError = rateResults.find((r) => r.error)?.error;
+                  if (firstError) {
+                    loadYear(targetRoomId, year, planId);
+                    setMsg(firstError);
+                    return;
+                  }
+                }
+
                 loadYear(targetRoomId, year, planId);
-                setMsg(`Updated ${res.updated} night${res.updated === 1 ? "" : "s"}.`);
+                setMsg("Saved.");
               });
             }}
           />
@@ -371,6 +492,8 @@ function EditPanel({
   hotelId,
   roomId,
   planId,
+  plans,
+  maxAdults,
   multiPlan,
   rangeLo,
   rangeHi,
@@ -382,12 +505,14 @@ function EditPanel({
   hotelId: number;
   roomId: number | null;
   planId: number | null;
+  plans: RatePlanOption[];
+  maxAdults: number;
   multiPlan: boolean;
   rangeLo: string | null;
   rangeHi: string | null;
   saving: boolean;
   msg: string | null;
-  onSave: (patch: RangePatch) => void;
+  onSave: (patch: RangePatch, planRates: PlanRatesPatch[]) => void;
   onClear: () => void;
 }) {
   const [price, setPrice] = useState("");
@@ -397,8 +522,46 @@ function EditPanel({
   const [maxLos, setMaxLos] = useState("");
   const [cta, setCta] = useState<"" | "yes" | "no">("");
   const [ctd, setCtd] = useState<"" | "yes" | "no">("");
+  const [planForms, setPlanForms] = useState<Record<number, PlanFormState>>({});
+  const [expandedPlans, setExpandedPlans] = useState<Set<number>>(new Set());
+  const [loadingRates, setLoadingRates] = useState(false);
 
   const active = rangeLo != null && rangeHi != null;
+  const planIds = plans.map((p) => p.id).join(",");
+
+  // Fetch each active plan's currently-saved rate for this exact range
+  // whenever the range (or room) changes — mirrors ManageRatesClient's
+  // per-range fetch, just for every plan on the room at once.
+  useEffect(() => {
+    if (!active || roomId == null || plans.length === 0) { setPlanForms({}); return; }
+    setExpandedPlans(new Set(planId != null ? [planId] : []));
+    let cancelled = false;
+    setLoadingRates(true);
+    Promise.all(plans.map((p) => getRoomRateDetail(hotelId, roomId, p.id, rangeLo!, rangeHi!)))
+      .then((results) => {
+        if (cancelled) return;
+        const next: Record<number, PlanFormState> = {};
+        results.forEach((res, i) => {
+          next[plans[i].id] = res.detail ? detailToFormState(res.detail) : EMPTY_PLAN_FORM;
+        });
+        setPlanForms(next);
+      })
+      .finally(() => { if (!cancelled) setLoadingRates(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, rangeLo, rangeHi, roomId, planIds]);
+
+  function updatePlanForm(pId: number, patch: Partial<PlanFormState>) {
+    setPlanForms((prev) => ({ ...prev, [pId]: { ...(prev[pId] ?? EMPTY_PLAN_FORM), ...patch } }));
+  }
+
+  function togglePlan(pId: number) {
+    setExpandedPlans((prev) => {
+      const next = new Set(prev);
+      if (next.has(pId)) next.delete(pId); else next.add(pId);
+      return next;
+    });
+  }
   const nights = active ? Math.round((Date.parse(rangeHi!) - Date.parse(rangeLo!)) / 86400000) + 1 : 0;
 
   function submit() {
@@ -410,7 +573,27 @@ function EditPanel({
     if (maxLos.trim() !== "") patch.maxLos = Number(maxLos);
     if (cta) patch.closedToArrival = cta === "yes";
     if (ctd) patch.closedToDeparture = ctd === "yes";
-    onSave(patch);
+
+    const planRates: PlanRatesPatch[] = [];
+    for (const p of plans) {
+      const form = planForms[p.id];
+      if (!form || form.basePrice.trim() === "") continue; // untouched — leave this plan's rate alone
+      const occupancyPrices: Record<number, number | null> = {};
+      for (const [occStr, raw] of Object.entries(form.occupancyPrices)) {
+        occupancyPrices[Number(occStr)] = raw.trim() === "" ? null : Number(raw);
+      }
+      planRates.push({
+        planId: p.id,
+        input: {
+          basePrice: Number(form.basePrice),
+          occupancyPrices,
+          childRate: form.childRate.trim() === "" ? null : Number(form.childRate),
+          extraAdultRate: form.extraAdultRate.trim() === "" ? null : Number(form.extraAdultRate),
+        },
+      });
+    }
+
+    onSave(patch, planRates);
   }
 
   const label = "block text-[11px] font-semibold text-neutral-600 mb-1";
@@ -454,6 +637,31 @@ function EditPanel({
                 showSearch={false}
               />
             </div>
+
+            {plans.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className={label}>Rate Plan Pricing</p>
+                  {loadingRates && <span className="text-[10px] text-neutral-400">loading…</span>}
+                </div>
+                <div className="space-y-2">
+                  {plans.map((p) => (
+                    <PlanRateCard
+                      key={p.id}
+                      plan={p}
+                      maxAdults={maxAdults}
+                      value={planForms[p.id] ?? EMPTY_PLAN_FORM}
+                      loading={loadingRates}
+                      expanded={expandedPlans.has(p.id)}
+                      onToggle={() => togglePlan(p.id)}
+                      onChange={(patch) => updatePlanForm(p.id, patch)}
+                    />
+                  ))}
+                </div>
+                <p className="text-[10px] text-neutral-400 mt-1.5">Leave a plan&apos;s &quot;2 Adults&quot; blank to leave its rate for this range untouched.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={label}>Minimum Length of Stay</label>

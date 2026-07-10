@@ -10,7 +10,7 @@ import {
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/pricing-range-calendar";
 import { saveAvailabilityRange } from "../../calendar/calendar-actions";
 import { getRoomRateDetail, saveRoomRates, type RoomRateDetail } from "./rate-actions";
-import { RateField, RestrictionField } from "../rate-fields";
+import { RateField, RestrictionField, occupancyTiers, OccupancyField } from "../rate-fields";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -20,10 +20,12 @@ const fromISOToDate = (s: string) => {
   return new Date(y, m - 1, d);
 };
 
-const EMPTY_DETAIL: RoomRateDetail = {
-  basePrice: null, oneAdultPrice: null, childRate: null, extraAdultRate: null,
-  minLos: null, maxLos: null, minAdvanceDays: null, maxAdvanceDays: null,
-};
+function emptyDetail(maxAdults: number): RoomRateDetail {
+  return {
+    basePrice: null, occupancyPrices: {}, childRate: null, extraAdultRate: null,
+    minLos: null, maxLos: null, minAdvanceDays: null, maxAdvanceDays: null, maxAdults,
+  };
+}
 
 export type RatePlanOption = { id: number; label: string };
 
@@ -33,6 +35,7 @@ export default function ManageRatesClient({
   roomName,
   pricingId,
   plans,
+  maxAdults,
   initialFrom,
   initialTo,
   initialDetail,
@@ -42,6 +45,7 @@ export default function ManageRatesClient({
   roomName: string;
   pricingId: number;
   plans: RatePlanOption[];
+  maxAdults: number;
   initialFrom: string | null;
   initialTo: string | null;
   initialDetail: RoomRateDetail | null;
@@ -50,7 +54,7 @@ export default function ManageRatesClient({
   const [range, setRange] = useState<DateRange | undefined>(
     initialFrom && initialTo ? { from: fromISOToDate(initialFrom), to: fromISOToDate(initialTo) } : undefined,
   );
-  const [detail, setDetail] = useState<RoomRateDetail>(initialDetail ?? EMPTY_DETAIL);
+  const [detail, setDetail] = useState<RoomRateDetail>(initialDetail ?? emptyDetail(maxAdults));
   const [loading, startLoad] = useTransition();
   const [saving, startSave] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -72,16 +76,23 @@ export default function ManageRatesClient({
     setMsg(null);
     const f = next?.from ? toISO(next.from) : null;
     const t = next?.to ? toISO(next.to) : null;
-    if (!f || !t) { setDetail(EMPTY_DETAIL); return; }
+    if (!f || !t) { setDetail(emptyDetail(maxAdults)); return; }
     startLoad(async () => {
       const res = await getRoomRateDetail(hotelId, roomId, pricingId, f, t);
-      if (res.error) { setMsg(res.error); setDetail(EMPTY_DETAIL); return; }
-      setDetail(res.detail ?? EMPTY_DETAIL);
+      if (res.error) { setMsg(res.error); setDetail(emptyDetail(maxAdults)); return; }
+      setDetail(res.detail ?? emptyDetail(maxAdults));
     });
   }
 
-  function setField<K extends keyof RoomRateDetail>(key: K, raw: string) {
+  function setField<K extends Exclude<keyof RoomRateDetail, "occupancyPrices" | "maxAdults">>(key: K, raw: string) {
     setDetail((prev) => ({ ...prev, [key]: raw.trim() === "" ? null : Number(raw) }));
+  }
+
+  function setOccupancy(occupancy: number, raw: string) {
+    setDetail((prev) => ({
+      ...prev,
+      occupancyPrices: { ...prev.occupancyPrices, [occupancy]: raw.trim() === "" ? null : Number(raw) },
+    }));
   }
 
   async function handleSave() {
@@ -91,7 +102,7 @@ export default function ManageRatesClient({
     startSave(async () => {
       const rateRes = await saveRoomRates(hotelId, roomId, pricingId, fromISO, toISOStr, {
         basePrice: detail.basePrice!,
-        oneAdultPrice: detail.oneAdultPrice,
+        occupancyPrices: detail.occupancyPrices,
         childRate: detail.childRate,
         extraAdultRate: detail.extraAdultRate,
       });
@@ -151,12 +162,20 @@ export default function ManageRatesClient({
               <p className="text-sm font-bold text-neutral-800">Nightly Rate</p>
               <p className="text-xs text-neutral-400 mt-0.5">{fromISO} → {toISOStr}</p>
             </div>
-            <div className="px-4 py-1">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400 pt-3">Rates</p>
-              <RateField value={detail.basePrice} title="2 Adults" subtitle="Base" onChange={(v) => setField("basePrice", v)} />
-              <RateField value={detail.oneAdultPrice} title="1 Adult" onChange={(v) => setField("oneAdultPrice", v)} />
-              <RateField value={detail.childRate} title="Per child (7-17yrs)" subtitle="Child (0-6) — Free" onChange={(v) => setField("childRate", v)} />
-              <RateField value={detail.extraAdultRate} title="Per Extra Adult" onChange={(v) => setField("extraAdultRate", v)} />
+            <div className="px-4 py-3 space-y-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400 mb-2">Rates by Occupancy</p>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                  <OccupancyField occupancy={2} value={detail.basePrice} onChange={(v) => setField("basePrice", v)} />
+                  {occupancyTiers(maxAdults).map((n) => (
+                    <OccupancyField key={n} occupancy={n} value={detail.occupancyPrices[n] ?? null} onChange={(v) => setOccupancy(n, v)} />
+                  ))}
+                </div>
+              </div>
+              <div className="pt-1 border-t border-neutral-100">
+                <RateField value={detail.childRate} title="Per child (7-17yrs)" subtitle="Child (0-6) — Free" onChange={(v) => setField("childRate", v)} />
+                <RateField value={detail.extraAdultRate} title="Per Extra Adult" onChange={(v) => setField("extraAdultRate", v)} />
+              </div>
             </div>
             <div className="flex items-start gap-2 mx-4 mb-4 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
               <InformationCircleIcon className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />

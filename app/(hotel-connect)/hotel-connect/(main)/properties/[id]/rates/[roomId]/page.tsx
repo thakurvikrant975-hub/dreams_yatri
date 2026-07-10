@@ -30,7 +30,7 @@ export default async function ManageRatesPage({
   const room = await db.hotel_rooms.findFirst({
     where: { id: roomId, hotel_id: hotelId, is_active: true },
     select: {
-      id: true, name: true,
+      id: true, name: true, max_adults: true,
       pricing: {
         orderBy: { sort_order: "asc" },
         select: { id: true, plan_name: true, is_active: true, meal_type: { select: { name: true } } },
@@ -71,6 +71,7 @@ export default async function ManageRatesPage({
             roomName={room.name}
             pricingId={pricingId}
             plans={plans}
+            maxAdults={room.max_adults}
             initialFrom={hasRange ? from! : null}
             initialTo={hasRange ? to! : null}
             initialDetail={initialDetail}

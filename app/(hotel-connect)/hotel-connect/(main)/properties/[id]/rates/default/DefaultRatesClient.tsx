@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { saveDefaultRates, setDefaultInventory, type DefaultRatesDetail } from "../[roomId]/plan-actions";
-import { RateField } from "../rate-fields";
+import { RateField, occupancyTiers, OccupancyField } from "../rate-fields";
 
 export type RoomDefaultData = {
   id: number;
@@ -13,37 +13,6 @@ export type RoomDefaultData = {
   maxAdults: number;
   plans: { id: number; label: string; detail: DefaultRatesDetail }[];
 };
-
-// Base occupancy (2 adults) lives on price_per_night itself — every other
-// adult count from 1 up to the room's max is a hotel_room_occupancy_prices
-// tier, edited alongside it here.
-function occupancyTiers(maxAdults: number): number[] {
-  const tiers = [1];
-  for (let n = 3; n <= maxAdults; n++) tiers.push(n);
-  return tiers;
-}
-
-function OccupancyField({
-  occupancy, value, onChange,
-}: {
-  occupancy: number; value: number | null; onChange: (raw: string) => void;
-}) {
-  return (
-    <div>
-      <label className="block text-[11px] font-semibold text-neutral-500 mb-1">{occupancy} Adult{occupancy === 1 ? "" : "s"}</label>
-      <div className="h-9 rounded-lg border border-neutral-300 bg-white flex items-center px-2 gap-1 text-sm">
-        <span className="text-neutral-400">₹</span>
-        <input
-          type="number" min={0} step="1"
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Enter"
-          className="w-full outline-none bg-transparent"
-        />
-      </div>
-    </div>
-  );
-}
 
 function PlanDefaultRatesForm({
   hotelId, roomId, planId, label, initial,
