@@ -96,6 +96,8 @@ type PricingPlan = {
   seasons: HotelSeason[];
 };
 
+type OccupancyEntry = { occupancy: number; price: string; original: string };
+
 // Local season entry (before save) — only the fields we need
 type SeasonEntry = {
   tempId:                  string;
@@ -104,9 +106,8 @@ type SeasonEntry = {
   price_per_night:         string;
   weekend_price_per_night: string;
   extra_bed_rate:          string;
+  occupancy_prices:        OccupancyEntry[];
 };
-
-type OccupancyEntry = { occupancy: number; price: string; original: string };
 
 type PricingFormState = {
   room_id:             string;
@@ -142,6 +143,7 @@ const EMPTY_SEASON: Omit<SeasonEntry, "tempId"> = {
   price_per_night:         "",
   weekend_price_per_night: "",
   extra_bed_rate:          "",
+  occupancy_prices:        [],
 };
 
 const OCCUPANCY_LABELS: Record<number, string> = {
@@ -218,6 +220,11 @@ function toFormState(p: PricingPlan): PricingFormState {
       price_per_night:         String(s.price_per_night),
       weekend_price_per_night: s.weekend_price_per_night ? String(s.weekend_price_per_night) : "",
       extra_bed_rate:          s.extra_bed_rate ? String(s.extra_bed_rate) : "",
+      occupancy_prices:        (s.occupancy_prices ?? []).map(op => ({
+        occupancy: op.occupancy,
+        price:     String(op.price_per_night),
+        original:  op.original_price != null ? String(op.original_price) : "",
+      })),
     })),
   };
 }
@@ -383,6 +390,50 @@ function SeasonsInlineList({
                   onChange={e => updSeason(s.tempId, "weekend_price_per_night", e.target.value)}
                 />
               )}
+            </div>
+
+            {/* Occupancy prices for this season — same 1/2/3/4P tiers as the
+                plan-level fallback, but scoped to just this date range. */}
+            <div className="space-y-1.5 border-t border-dashboard-base-content/10 pt-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                <Users className="h-3 w-3" /> Occupancy Prices for this range
+                <span className="font-normal normal-case text-muted-foreground/60">— optional</span>
+              </p>
+              {OCCUPANCY_OPTIONS.map(occ => {
+                const entry = s.occupancy_prices.find(e => e.occupancy === occ.value);
+                return (
+                  <div key={occ.value} className="flex items-center gap-2">
+                    <span className="text-xs w-20 shrink-0 text-muted-foreground">{occ.label}</span>
+                    <Input
+                      type="number"
+                      className="h-7 text-xs flex-1"
+                      placeholder="Price"
+                      value={entry?.price ?? ""}
+                      onChange={e => {
+                        const price = e.target.value;
+                        const rest = s.occupancy_prices.filter(x => x.occupancy !== occ.value);
+                        const next = price
+                          ? [...rest, { occupancy: occ.value, price, original: entry?.original ?? "" }].sort((a, b) => a.occupancy - b.occupancy)
+                          : rest;
+                        updSeason(s.tempId, "occupancy_prices", next);
+                      }}
+                    />
+                    <Input
+                      type="number"
+                      className="h-7 text-xs flex-1"
+                      placeholder="MRP (optional)"
+                      value={entry?.original ?? ""}
+                      onChange={e => {
+                        const original = e.target.value;
+                        if (!entry?.price) return;
+                        const rest = s.occupancy_prices.filter(x => x.occupancy !== occ.value);
+                        const next = [...rest, { occupancy: occ.value, price: entry.price, original }].sort((a, b) => a.occupancy - b.occupancy);
+                        updSeason(s.tempId, "occupancy_prices", next);
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             {/* Calendar date range picker */}
@@ -810,17 +861,27 @@ function SeasonsSummaryPanel({ seasons }: { seasons: HotelSeason[] }) {
         <Calendar className="h-3 w-3" /> Seasonal Pricing
       </p>
       {seasons.map(s => (
-        <div key={s.id} className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs bg-dashboard-base-200">
-          <span className="text-dashboard-base-content/60 shrink-0">
-            {fmtMonthDay(toISODate(s.valid_from))} → {fmtMonthDay(toISODate(s.valid_to))}
-          </span>
-          <span className="font-semibold ml-2 text-dashboard-base-content">₹{Number(s.price_per_night).toLocaleString()}/night</span>
-          {s.weekend_price_per_night ? (
-            <span className="text-dashboard-base-content/50 shrink-0">· ₹{Number(s.weekend_price_per_night).toLocaleString()} wknd</span>
-          ) : null}
-          {s.extra_bed_rate ? (
-            <span className="text-dashboard-base-content/50 shrink-0">+₹{Number(s.extra_bed_rate).toLocaleString()} EB</span>
-          ) : null}
+        <div key={s.id} className="rounded-lg px-3 py-1.5 bg-dashboard-base-200 space-y-1">
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <span className="text-dashboard-base-content/60 shrink-0">
+              {fmtMonthDay(toISODate(s.valid_from))} → {fmtMonthDay(toISODate(s.valid_to))}
+            </span>
+            <span className="font-semibold ml-2 text-dashboard-base-content">₹{Number(s.price_per_night).toLocaleString()}/night</span>
+            {s.weekend_price_per_night ? (
+              <span className="text-dashboard-base-content/50 shrink-0">· ₹{Number(s.weekend_price_per_night).toLocaleString()} wknd</span>
+            ) : null}
+            {s.extra_bed_rate ? (
+              <span className="text-dashboard-base-content/50 shrink-0">+₹{Number(s.extra_bed_rate).toLocaleString()} EB</span>
+            ) : null}
+          </div>
+          {s.occupancy_prices.length > 0 && (
+            <p className="text-[10px] text-dashboard-primary/70 flex items-center gap-1">
+              <Users className="h-2.5 w-2.5" />
+              {s.occupancy_prices
+                .map(op => `${OCCUPANCY_LABELS[op.occupancy] ?? `${op.occupancy}P`}: ₹${Number(op.price_per_night).toLocaleString()}`)
+                .join(" · ")}
+            </p>
+          )}
         </div>
       ))}
     </div>
@@ -997,7 +1058,13 @@ export function PricingTab({
       original_price:          null,
       extra_bed_rate:          s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
       is_active:               true,
-      occupancy_prices:        [],
+      occupancy_prices:        s.occupancy_prices
+        .filter(e => e.price && Number(e.price) > 0)
+        .map(e => ({
+          occupancy:       e.occupancy,
+          price_per_night: Number(e.price),
+          original_price:  e.original ? Number(e.original) : null,
+        })),
     }));
   }
 
@@ -1018,7 +1085,13 @@ export function PricingTab({
       extra_bed_rate:          s.extra_bed_rate ?? null,
       is_active:               true,
       sort_order:      i,
-      occupancy_prices: [],
+      occupancy_prices: (s.occupancy_prices ?? []).map((op, j) => ({
+        id:              baseTime + i * 100 + j,
+        season_id:       baseTime + i,
+        occupancy:       op.occupancy,
+        price_per_night: op.price_per_night,
+        original_price:  op.original_price ?? null,
+      })),
     }));
   }
 
