@@ -40,6 +40,7 @@ import {
   type PackageCopyPayload,
 } from "../action";
 import { ItineraryDocument } from "./ItineraryDocument";
+import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -883,10 +884,17 @@ interface PackageForm {
   termsNotes: string;
   flightsIncluded: boolean;
   flightNotes: string;
+  flightFrom: string;
+  flightTo: string;
   trainIncluded: boolean;
   trainNotes: string;
+  trainFrom: string;
+  trainTo: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
+  execName: string;
+  execEmail: string;
+  execDesignation: string;
 }
 
 /** Sum of stop nights → total nights/days + a joined destination string. */
@@ -958,10 +966,15 @@ export default function PackageBuilderDetailPage() {
     termsNotes: "Package price is subject to availability. 50% advance required to confirm booking.",
     flightsIncluded: false,
     flightNotes: "",
+    flightFrom: "",
+    flightTo: "",
     trainIncluded: false,
     trainNotes: "",
+    trainFrom: "",
+    trainTo: "",
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
+    execName: "", execEmail: "", execDesignation: "",
   });
 
   // ── Load query ─────────────────────────────────────────────────────────────
@@ -1000,6 +1013,9 @@ export default function PackageBuilderDetailPage() {
         flightsIncluded: tr?.includeFlights ?? f.flightsIncluded,
         trainIncluded: tr?.includeTrain ?? f.trainIncluded,
         itineraries: Array.from({ length: j?.noOfDays ?? 3 }, (_, i) => emptyDay(i + 1)),
+        execName: data.assignedToName ?? "",
+        execEmail: data.execEmail ?? "",
+        execDesignation: data.execDesignation ?? "",
       }));
 
       if (data.customPackage) {
@@ -1014,8 +1030,12 @@ export default function PackageBuilderDetailPage() {
           totalPrice: cp.totalPrice?.toString() ?? "",
           flightsIncluded: cp.flightsIncluded,
           flightNotes: cp.flightNotes ?? "",
+          flightFrom: cp.flightFrom ?? "",
+          flightTo: cp.flightTo ?? "",
           trainIncluded: cp.trainIncluded,
           trainNotes: cp.trainNotes ?? "",
+          trainFrom: cp.trainFrom ?? "",
+          trainTo: cp.trainTo ?? "",
           stops: cp.stops,
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
         }));
@@ -1224,6 +1244,24 @@ export default function PackageBuilderDetailPage() {
               <Eye size={13} />
               <span className="text-xs">Preview</span>
             </Button>
+
+            <CreatePackageDialog
+              queryId={query.id}
+              destination={j?.destinations?.join(", ") ?? query.destination ?? null}
+              travelDate={j?.travelDate ?? (query.travelDate ? new Date(query.travelDate).toISOString().slice(0, 10) : null)}
+              travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
+              budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
+              duration={j?.noOfDays ? { days: j.noOfDays, nights: j.noOfNights } : null}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+              >
+                <Package size={13} />
+                <span className="hidden sm:inline text-xs">Change Template</span>
+              </Button>
+            </CreatePackageDialog>
 
             <Button
               variant="outline"
@@ -1503,12 +1541,28 @@ export default function PackageBuilderDetailPage() {
                     />
                   </div>
                   {form.flightsIncluded && (
-                    <Input
-                      value={form.flightNotes}
-                      onChange={field("flightNotes")}
-                      placeholder="e.g. Delhi ⇄ Leh round-trip economy class"
-                      className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                    />
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          value={form.flightFrom}
+                          onChange={field("flightFrom")}
+                          placeholder={`From (defaults to ${form.startingPoint || "starting point"})`}
+                          className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        />
+                        <Input
+                          value={form.flightTo}
+                          onChange={field("flightTo")}
+                          placeholder="To, e.g. Kochi — shown on the map"
+                          className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        />
+                      </div>
+                      <Input
+                        value={form.flightNotes}
+                        onChange={field("flightNotes")}
+                        placeholder="e.g. Delhi ⇄ Leh round-trip economy class"
+                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                      />
+                    </>
                   )}
                   <div className="flex items-center justify-between gap-3 pt-1 border-t border-dashboard-base-300">
                     <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1.5 pt-3">
@@ -1522,12 +1576,28 @@ export default function PackageBuilderDetailPage() {
                     </div>
                   </div>
                   {form.trainIncluded && (
-                    <Input
-                      value={form.trainNotes}
-                      onChange={field("trainNotes")}
-                      placeholder="e.g. AC 2-tier, New Delhi ⇄ Udhampur"
-                      className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                    />
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          value={form.trainFrom}
+                          onChange={field("trainFrom")}
+                          placeholder={`From (defaults to ${form.startingPoint || "starting point"})`}
+                          className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        />
+                        <Input
+                          value={form.trainTo}
+                          onChange={field("trainTo")}
+                          placeholder="To, e.g. Ernakulam — shown on the map"
+                          className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        />
+                      </div>
+                      <Input
+                        value={form.trainNotes}
+                        onChange={field("trainNotes")}
+                        placeholder="e.g. AC 2-tier, New Delhi ⇄ Udhampur"
+                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                      />
+                    </>
                   )}
                 </div>
               </TabsContent>

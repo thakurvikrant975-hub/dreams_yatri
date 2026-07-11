@@ -55,10 +55,17 @@ export interface PreviewData {
   termsNotes: string;
   flightsIncluded: boolean;
   flightNotes: string;
+  flightFrom: string;
+  flightTo: string;
   trainIncluded: boolean;
   trainNotes: string;
+  trainFrom: string;
+  trainTo: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
+  execName: string;
+  execEmail: string;
+  execDesignation: string;
 }
 
 function Kicker({ label }: { label: string }) {
@@ -142,6 +149,35 @@ function MealsRow({ meals }: { meals: string[] }) {
       {extras.length > 0 && (
         <p className="text-[10px] text-neutral-500">+ {extras.join(", ")}</p>
       )}
+    </div>
+  );
+}
+
+/** Compact "Day | Hotel | Meals | Cab" grid so the pattern across the whole
+ * trip is visible at a glance, ahead of the detailed per-day cards below. */
+function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
+  return (
+    <div className="rounded-xl border border-neutral-200 overflow-hidden">
+      <table className="w-full text-[11px]">
+        <thead>
+          <tr className="bg-neutral-50 text-neutral-500 uppercase tracking-wide text-[9px]">
+            <th className="text-left px-3 py-2 font-semibold">Day</th>
+            <th className="text-left px-3 py-2 font-semibold">Hotel</th>
+            <th className="text-left px-3 py-2 font-semibold">Meals</th>
+            <th className="text-left px-3 py-2 font-semibold">Cab</th>
+          </tr>
+        </thead>
+        <tbody>
+          {itineraries.map((d) => (
+            <tr key={d.day} className="border-t border-neutral-100">
+              <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">Day {d.day}</td>
+              <td className="px-3 py-2 text-neutral-600">{d.accommodation || "—"}</td>
+              <td className="px-3 py-2 text-neutral-600">{d.meals.length > 0 ? d.meals.join(", ") : "—"}</td>
+              <td className="px-3 py-2 text-neutral-600">{d.transport || d.transportVehicleType || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -269,23 +305,21 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
                 )}
 
                 {(day.transportPickup || day.transportDrop) && (
-                  <div className="flex gap-2">
-                    <div className="flex flex-col items-center pt-1">
-                      <span className="size-2 rounded-full border-2 border-primary-500 shrink-0" />
-                      <span className="w-px flex-1 bg-neutral-300 my-0.5" />
-                      <span className="size-2 rounded-full border-2 border-primary-500 shrink-0" />
+                  <div className="flex gap-2.5">
+                    <div className="flex flex-col items-center">
+                      <MapPin size={13} className="text-neutral-400 shrink-0" />
+                      <span className="w-0.5 flex-1 min-h-6 bg-primary-200 my-1" />
+                      <MapPin size={13} className="text-neutral-400 shrink-0" />
                     </div>
-                    <div className="flex-1 min-w-0 flex flex-col justify-between text-[11px] py-0.5">
-                      <p className="text-neutral-600">
-                        <span className="text-neutral-400">Pickup: </span>
-                        <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
+                    <div className="flex-1 min-w-0 flex flex-col justify-between text-xs py-0.5">
+                      <p className="text-neutral-500">
+                        Pickup Point: <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
                       </p>
                       {day.transportDistanceKm && (
-                        <p className="text-neutral-400">{day.transportDistanceKm} km</p>
+                        <p className="text-[11px] text-neutral-400 py-1">{day.transportDistanceKm} km</p>
                       )}
-                      <p className="text-neutral-600">
-                        <span className="text-neutral-400">Drop: </span>
-                        <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
+                      <p className="text-neutral-500">
+                        Drop Point: <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
                       </p>
                     </div>
                   </div>
@@ -421,6 +455,23 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
             </div>
           </div>
 
+          {form.execName && (
+            <div className="rounded-xl border border-primary-100 bg-white p-3 flex items-center justify-between gap-3 text-xs flex-wrap">
+              <div>
+                <p className="text-[10px] text-primary-600/70 font-medium uppercase tracking-wide mb-0.5">Your Travel Manager</p>
+                <p className="font-bold text-neutral-800">
+                  {form.execName}
+                  {form.execDesignation && <span className="font-normal text-neutral-500"> · {form.execDesignation}</span>}
+                </p>
+              </div>
+              {form.execEmail && (
+                <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-primary-600 hover:underline shrink-0">
+                  <Mail size={11} /> {form.execEmail}
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Flights & Train inclusion */}
           {(form.flightsIncluded || form.trainIncluded) && (
             <div className="flex flex-wrap gap-2">
@@ -442,6 +493,11 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
           )}
 
           <div className="space-y-3">
+            <Kicker label="Day-wise Summary" />
+            <DaySummaryTable itineraries={form.itineraries} />
+          </div>
+
+          <div className="space-y-3">
             <Kicker label="Itinerary" />
             <div className="space-y-3">
               {form.itineraries.map((d) => (
@@ -454,9 +510,15 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
             startingPoint={form.startingPoint}
             stops={form.stops}
             itineraries={form.itineraries}
+            flightsIncluded={form.flightsIncluded}
+            flightFrom={form.flightFrom}
+            flightTo={form.flightTo}
+            trainIncluded={form.trainIncluded}
+            trainFrom={form.trainFrom}
+            trainTo={form.trainTo}
           />
 
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid gap-4">
             <div className="rounded-xl border border-neutral-200 bg-white p-4">
               <h3 className="text-xs font-bold uppercase tracking-wide text-emerald-700 mb-2.5 flex items-center gap-1.5">
                 <span className="flex items-center justify-center size-5 rounded-full bg-emerald-100"><CheckCircle size={12} className="text-emerald-600" /></span>

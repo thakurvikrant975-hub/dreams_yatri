@@ -2370,8 +2370,12 @@ model custom_packages {
   pdfUrl          String?
   flightsIncluded Boolean              @default(false)
   flightNotes     String?
+  flightFrom      String?
+  flightTo        String?
   trainIncluded   Boolean              @default(false)
   trainNotes      String?
+  trainFrom       String?
+  trainTo         String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   itineraries     custom_itineraries[]

@@ -9,6 +9,7 @@
 
 import { db } from "@/app/lib/db";
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
+import { computePackagePrice } from "@/app/services/package-pricing.service";
 
 export type LibraryPackage = {
     id:              number;
@@ -66,6 +67,223 @@ export async function getSalesPackageLibrary(params: {
         durationSlug:    r.durations[0]?.slug ?? null,
         routeSlug:       r.durations[0]?.routes[0]?.slug ?? null,
     }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Create Package" popup — a searchable, paginated (load-more) package list
+// with enough of a summary (route, stay categories, duration) to pick a
+// template without leaving the dialog. Search matches title, destination, and
+// region, so pre-filling it with a query's destination gets a relevant first
+// page while staying editable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type StayCategoryOption = { id: number; label: string; isDefault: boolean };
+
+export type TemplatePackage = LibraryPackage & {
+    totalDays:           number | null;
+    totalNights:         number | null;
+    routeSummary:        string | null;
+    stayCategorySummary: string | null;
+    stayCategoryOptions: StayCategoryOption[];
+    selectedStayCategoryId: number | null;
+    estimatedPrice:      number | null;
+    pricePerAdult:       number | null;
+    /** Price fits inside the query's stated budget (per-adult vs. total, per `budgetType`) — null when no budget was given. */
+    withinBudget:        boolean | null;
+};
+
+async function priceForPackage(
+    row: {
+        id: number;
+        durations: { id: number; routes: { id: number }[] }[];
+    },
+    stayCategoryId: number | undefined,
+    opts: { adults: number; children: number; infants: number; travelDate: string | null },
+): Promise<{ estimatedPrice: number | null; pricePerAdult: number | null }> {
+    const duration = row.durations[0];
+    const route = duration?.routes[0];
+    if (!duration || !route || !stayCategoryId) return { estimatedPrice: null, pricePerAdult: null };
+
+    try {
+        const breakdown = await computePackagePrice({
+            package_id:       row.id,
+            duration_id:      duration.id,
+            route_id:         route.id,
+            stay_category_id: stayCategoryId,
+            adults:      opts.adults,
+            children:    opts.children,
+            infants:     opts.infants,
+            travel_date: opts.travelDate,
+        });
+        if (breakdown.missing_pricing_config) return { estimatedPrice: null, pricePerAdult: null };
+        return { estimatedPrice: breakdown.final_price, pricePerAdult: breakdown.price_per_adult };
+    } catch {
+        // Pricing config incomplete for this package/variant — show it without a price.
+        return { estimatedPrice: null, pricePerAdult: null };
+    }
+}
+
+/** Recomputes a single package's price against a different stay category —
+ * used when the sales exec switches the stay-category dropdown on a
+ * "Create Package" card instead of accepting the catalog default. */
+export async function getTemplatePackagePriceForCategory(params: {
+    packageId:      number;
+    durationSlug:   string;
+    routeSlug:      string;
+    stayCategoryId: number;
+    travelDate?:    string | null;
+    adults?:        number;
+    children?:      number;
+    infants?:       number;
+}): Promise<{ estimatedPrice: number | null; pricePerAdult: number | null }> {
+    const { packageId, durationSlug, routeSlug, stayCategoryId, travelDate = null, adults = 2, children = 0, infants = 0 } = params;
+
+    const duration = await db.package_durations.findFirst({
+        where:  { package_id: packageId, slug: durationSlug },
+        select: { id: true, routes: { where: { slug: routeSlug }, select: { id: true } } },
+    });
+    if (!duration || !duration.routes[0]) return { estimatedPrice: null, pricePerAdult: null };
+
+    return priceForPackage(
+        { id: packageId, durations: [{ id: duration.id, routes: [{ id: duration.routes[0].id }] }] },
+        stayCategoryId,
+        { adults, children, infants, travelDate },
+    );
+}
+
+export async function searchPackageLibraryForTemplate(params: {
+    search?:     string;
+    page?:       number;
+    size?:       number;
+    travelDate?: string | null;
+    adults?:     number;
+    children?:   number;
+    infants?:    number;
+    /** When set, matching packages are sorted "within budget" first. */
+    budgetMin?:  number;
+    budgetMax?:  number;
+    budgetType?: "PER_PERSON" | "TOTAL";
+} = {}): Promise<{ packages: TemplatePackage[]; total: number }> {
+    const {
+        search = "", page = 1, size = 12,
+        travelDate = null, adults = 2, children = 0, infants = 0,
+        budgetMin, budgetMax, budgetType = "PER_PERSON",
+    } = params;
+    const safeSize = Math.min(size, 50);
+    const hasBudget = budgetMin != null || budgetMax != null;
+    // With a budget filter we price every match (catalog is small — capped for
+    // safety) so "within budget" packages can be sorted first across the whole
+    // result set, not just whichever page happened to load first.
+    const PRICE_ALL_CAP = 200;
+
+    const where = {
+        is_active: true,
+        ...(search ? {
+            OR: [
+                { title:       { contains: search, mode: "insensitive" as const } },
+                { destination: { name: { contains: search, mode: "insensitive" as const } } },
+                { destination: { region: { name: { contains: search, mode: "insensitive" as const } } } },
+            ],
+        } : {}),
+    };
+
+    const [total, rows] = await Promise.all([
+        db.packages.count({ where }),
+        db.packages.findMany({
+            where,
+            orderBy: { title: "asc" },
+            ...(hasBudget
+                ? { take: PRICE_ALL_CAP }
+                : { skip: (page - 1) * safeSize, take: safeSize }),
+            select: {
+                id:          true,
+                title:       true,
+                slug:        true,
+                thumbnail:   true,
+                description: true,
+                destination: { select: { name: true, region: { select: { name: true } } } },
+                stay_categories: {
+                    where:   { is_active: true },
+                    orderBy: { sort_order: "asc" },
+                    select:  { id: true, label: true, is_default: true },
+                },
+                durations: {
+                    where:  { is_default: true },
+                    take:   1,
+                    select: {
+                        id: true, slug: true, days: true, nights: true,
+                        routes: {
+                            orderBy: { sort_order: "asc" },
+                            take:    1,
+                            select:  {
+                                id:    true,
+                                slug:  true,
+                                stops: { orderBy: { sort_order: "asc" }, select: { place_name: true } },
+                            },
+                        },
+                    },
+                },
+            },
+        }),
+    ]);
+
+    const packages: TemplatePackage[] = await Promise.all(rows.map(async (r) => {
+        const duration = r.durations[0];
+        const route = duration?.routes[0];
+        const stayCategory = r.stay_categories.find((s) => s.is_default) ?? r.stay_categories[0];
+
+        const { estimatedPrice, pricePerAdult } = await priceForPackage(r, stayCategory?.id, { adults, children, infants, travelDate });
+
+        let withinBudget: boolean | null = null;
+        if (hasBudget && estimatedPrice != null) {
+            const compareValue = budgetType === "PER_PERSON" ? (pricePerAdult ?? estimatedPrice) : estimatedPrice;
+            withinBudget = (budgetMin == null || compareValue >= budgetMin) && (budgetMax == null || compareValue <= budgetMax);
+        }
+
+        return {
+            id:              r.id,
+            title:           r.title,
+            slug:            r.slug,
+            thumbnail:       r.thumbnail,
+            description:     r.description,
+            destinationName: r.destination.name,
+            regionName:      r.destination.region?.name ?? null,
+            durationSlug:    duration?.slug ?? null,
+            routeSlug:       route?.slug ?? null,
+            totalDays:       duration?.days ?? null,
+            totalNights:     duration?.nights ?? null,
+            routeSummary:    route?.stops.map((s) => s.place_name).join(" → ") || null,
+            stayCategorySummary: r.stay_categories.map((s) => s.label).join(", ") || null,
+            stayCategoryOptions: r.stay_categories.map((s) => ({ id: s.id, label: s.label, isDefault: s.is_default })),
+            selectedStayCategoryId: stayCategory?.id ?? null,
+            estimatedPrice,
+            pricePerAdult,
+            withinBudget,
+        };
+    }));
+
+    if (!hasBudget) {
+        return { packages, total };
+    }
+
+    // Sort within-budget first, then by how close the price is to the budget
+    // (packages with no computed price sort last — we can't tell if they fit).
+    const compareValue = (pkg: TemplatePackage) => budgetType === "PER_PERSON" ? (pkg.pricePerAdult ?? pkg.estimatedPrice) : pkg.estimatedPrice;
+    const sorted = [...packages].sort((a, b) => {
+        if (a.withinBudget !== b.withinBudget) {
+            if (a.withinBudget == null) return 1;
+            if (b.withinBudget == null) return -1;
+            return a.withinBudget ? -1 : 1;
+        }
+        const av = compareValue(a);
+        const bv = compareValue(b);
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return av - bv;
+    });
+
+    const start = (page - 1) * safeSize;
+    return { packages: sorted.slice(start, start + safeSize), total };
 }
 
 export async function getDestinationsForLibraryFilter(): Promise<DestinationFilterOption[]> {
