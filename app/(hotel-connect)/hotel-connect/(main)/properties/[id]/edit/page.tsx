@@ -192,7 +192,10 @@ export default async function EditPropertyPage({
   });
   if (!hotel) notFound();
 
-  // Fetch owner profile for HomestayBasicInfoTab host-details section
+  // Fetch owner profile for HomestayBasicInfoTab host-details section. Also
+  // pulls email_verified here for homestays instead of a second round-trip
+  // to the same row — the Submit for Review strip needs it regardless of
+  // property type, so hotels still fetch it via the fallback below.
   const ownerRecord = hotel.property_category === "HOMESTAY_VILLA"
     ? await db.hotelOwner.findUnique({
         where: { id: ownerId },
@@ -204,18 +207,14 @@ export default async function EditPropertyPage({
           gender: true, languages: true,
           founded_year: true, property_count: true,
           business_description: true,
+          email_verified: true,
         },
       })
     : null;
 
-  // Account email verification is encouraged but doesn't block the wizard —
-  // fetched separately (not just on the homestay-only ownerRecord above) so
-  // the Submit for Review strip can show a reminder regardless of property type.
-  const owner = await db.hotelOwner.findUnique({
-    where: { id: ownerId },
-    select: { email_verified: true },
-  });
-  const ownerEmailVerified = owner?.email_verified ?? false;
+  const ownerEmailVerified = ownerRecord
+    ? ownerRecord.email_verified
+    : (await db.hotelOwner.findUnique({ where: { id: ownerId }, select: { email_verified: true } }))?.email_verified ?? false;
 
   // Prisma returns Decimal objects for lat/lng and pricing fields — convert to
   // plain primitives so they serialize across the RSC boundary.
