@@ -76,6 +76,33 @@ const CAB_LABELS: Record<string, string> = {
   SEDAN: "Sedan", SUV: "SUV", TEMPO: "Tempo Traveller", BUS: "Bus",
 };
 
+// Geocodes the day's search-city text (Mapbox, India-scoped) so hotel search
+// results can show "X km from {city}" — cached in module scope, same pattern
+// as ItineraryMap.tsx, since the same city gets searched repeatedly across days.
+const cityGeocodeCache = new Map<string, { lat: number; lng: number } | null>();
+async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
+  const key = query.trim().toLowerCase();
+  if (!key) return null;
+  if (cityGeocodeCache.has(key)) return cityGeocodeCache.get(key) ?? null;
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  if (!token) return null;
+  try {
+    const res = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
+      `?access_token=${token}&limit=1&country=IN&proximity=78.9629,20.5937`,
+    );
+    if (!res.ok) { cityGeocodeCache.set(key, null); return null; }
+    const data = await res.json();
+    const center = data.features?.[0]?.center as [number, number] | undefined; // [lng, lat]
+    const result = center ? { lat: center[1], lng: center[0] } : null;
+    cityGeocodeCache.set(key, result);
+    return result;
+  } catch {
+    cityGeocodeCache.set(key, null);
+    return null;
+  }
+}
+
 const DEFAULT_INCLUSIONS = [
   "Accommodation as per itinerary",
   "Daily breakfast",
@@ -579,6 +606,21 @@ function DayCard({
     setSearchCity(location ?? "");
   }
 
+  // Geocodes the search city so hotel results can show distance-from-town —
+  // debounced since searchCity is a free-text input the exec can retype.
+  const [cityCoords, setCityCoords] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    // Nothing to geocode, and fetchHotelRooms already short-circuits on an
+    // empty searchCity — no need to clear cityCoords synchronously here.
+    if (!searchCity) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const coords = await geocodeCity(searchCity);
+      if (!cancelled) setCityCoords(coords);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchCity]);
+
   function toggleMeal(m: string) {
     const meals = data.meals.includes(m)
       ? data.meals.filter((x) => x !== m)
@@ -588,11 +630,15 @@ function DayCard({
 
   async function fetchHotelRooms(query: string): Promise<Option[]> {
     if (!searchCity) return [];
-    const results = await searchHotelRoomsForBuilder(searchCity, query);
+    const results = await searchHotelRoomsForBuilder(searchCity, query, cityCoords);
     return results.map((r): Option & { raw: HotelRoomResult } => ({
       id: r.id,
       label: `${r.hotelName} — ${r.roomName}`,
-      description: `₹${r.pricePerNight.toLocaleString("en-IN")}/night${r.mealPlanName ? ` · ${r.mealPlanName}` : ""}`,
+      description: [
+        `₹${r.pricePerNight.toLocaleString("en-IN")}/night`,
+        r.mealPlanName,
+        r.distanceKm != null ? `${r.distanceKm} km from ${searchCity}` : null,
+      ].filter(Boolean).join(" · "),
       thumbnail: r.thumbnail ?? undefined,
       badge: r.category ?? undefined,
       raw: r,
@@ -601,7 +647,16 @@ function DayCard({
 
   function handleHotelRoomSelect(_id: number | null, option?: Option) {
     const raw = (option as (Option & { raw: HotelRoomResult }) | undefined)?.raw;
-    if (!raw) return;
+    if (!raw) {
+      // The SearchSelect's "×" clear button — reset just the hotel-specific
+      // fields so a stale roomPricingId doesn't linger against blanked-out text.
+      onChange({
+        ...data,
+        accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+        roomPricingId: null,
+      });
+      return;
+    }
     // Fetch which meals this room's plan actually covers instead of leaving
     // the exec to toggle them by hand — falls back to whatever was already
     // set if the plan has no structured meals configured (e.g. room-only).
@@ -724,13 +779,15 @@ function DayCard({
               {searchCity ? (
                 <>
                   <SearchSelect
-                    value={null}
+                    value={data.roomPricingId}
+                    initialLabel={data.accommodation}
                     onChange={handleHotelRoomSelect}
                     fetchOptions={fetchHotelRooms}
                     placeholder={`Search hotel rooms in ${searchCity}…`}
                   />
                   <p className="text-[10px] text-dashboard-base-content/40 mt-1">
-                    Searches real inventory in {searchCity} — picking a result fills in the fields below
+                    {data.accommodation ? `Currently: ${data.accommodation} — click above to change it. ` : ""}
+                    Searches real inventory in {searchCity}
                   </p>
                 </>
               ) : (
@@ -1579,7 +1636,7 @@ export default function PackageBuilderDetailPage() {
           {/* Right */}
           <div className="flex items-center gap-2 shrink-0">
             <Button
-              variant="outline "
+              variant="outline"
               size="sm"
               className="lg:hidden h-8 gap-1 border-dashboard-base-300 hover:bg-dashboard-base-200 rounded-md"
               onClick={() => setMobilePreviewOpen(true)}

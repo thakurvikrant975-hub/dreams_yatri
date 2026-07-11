@@ -45,6 +45,14 @@ export function SearchSelect({
   const fetchRef = useRef(fetchOptions);
   useEffect(() => { fetchRef.current = fetchOptions; });
 
+  // Resyncs the trigger label when the selection changes from *outside* this
+  // component (e.g. a parent bulk-applying the same pick to other days) —
+  // without this, the button silently keeps showing the placeholder even
+  // after a real selection is in place, making it look like nothing happened.
+  useEffect(() => {
+    setSelectedLabel(initialLabel);
+  }, [initialLabel]);
+
   // Reset state on close; focus input on open
   useEffect(() => {
     if (open) {
@@ -72,7 +80,7 @@ export function SearchSelect({
       }
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [query, open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query, open]);
 
   function handleSelect(opt: Option) {
     setSelectedLabel(opt.label);

@@ -39,6 +39,7 @@ const HOTEL_ROOM_SELECT = {
     select: {
       name: true, category: true, thumbnail: true, city: true, state: true,
       images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 1 },
+      location: { select: { latitude: true, longitude: true } },
     },
   },
   room: {
@@ -68,9 +69,28 @@ export interface HotelRoomResult {
   /** e.g. "1 Double Bed | Mountain View | 250 sq.ft" */
   roomSpecs:     string | null;
   roomCapacity:  number | null;
+  /** Straight-line distance in km from the searched destination — null when
+   * either point couldn't be resolved (no ref coords given, or this hotel
+   * has no stored location). */
+  distanceKm:    number | null;
 }
 
-export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, query: string): Promise<HotelRoomResult[]> {
+/** Haversine straight-line distance in km — good enough for "how far from
+ * town" context; not a driving distance. */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export async function searchHotelRoomsForBuilder(
+  cityOrDestinationName: string,
+  query: string,
+  refCoords?: { lat: number; lng: number } | null,
+): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   if (!city) return [];
 
@@ -97,6 +117,13 @@ export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, 
     const rawThumbnail = rawRoomPhotos[0] ?? rawHotelPhoto ?? null;
     const roomSpecs = [item.room?.bed_type, item.room?.view_type, item.room?.area_sqft ? `${item.room.area_sqft} sq.ft` : null]
       .filter(Boolean).join(" | ") || null;
+
+    const hotelLat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
+    const hotelLng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
+    const distanceKm = (refCoords && hotelLat != null && hotelLng != null)
+      ? Math.round(haversineKm(refCoords.lat, refCoords.lng, hotelLat, hotelLng) * 10) / 10
+      : null;
+
     return {
       id:            item.id,
       hotelName:     item.hotel.name,
@@ -111,6 +138,7 @@ export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, 
       location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
       roomSpecs,
       roomCapacity:  item.room?.max_occupancy ?? null,
+      distanceKm,
     };
   });
 }
