@@ -4,6 +4,8 @@
 // inline function component gets a new identity every parent render, which
 // makes React unmount/remount the <input> (and its focus) on every keystroke.
 
+import { useId } from "react";
+
 export const FIELD_LABEL = "text-sm font-medium text-neutral-800";
 export const FIELD_SUB = "text-xs text-neutral-400";
 export const FIELD_INPUT_WRAP = "h-10 w-36 rounded-lg border flex items-center px-2.5 gap-1 text-sm";
@@ -23,12 +25,14 @@ export function OccupancyField({
 }: {
   occupancy: number; value: number | null; onChange: (raw: string) => void;
 }) {
+  const inputId = useId();
   return (
     <div>
-      <label className="block text-[11px] font-semibold text-neutral-500 mb-1">{occupancy} Adult{occupancy === 1 ? "" : "s"}</label>
+      <label htmlFor={inputId} className="block text-[11px] font-semibold text-neutral-500 mb-1">{occupancy} Adult{occupancy === 1 ? "" : "s"}</label>
       <div className="h-9 rounded-lg border border-neutral-300 bg-white flex items-center px-2 gap-1 text-sm">
         <span className="text-neutral-400">₹</span>
         <input
+          id={inputId}
           type="number" min={0} step="1"
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
@@ -45,15 +49,17 @@ export function RateField({
 }: {
   value: number | null; title: string; subtitle?: string; onChange: (raw: string) => void;
 }) {
+  const inputId = useId();
   return (
     <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
       <div>
-        <p className={FIELD_LABEL}>{title}</p>
+        <label htmlFor={inputId} className={FIELD_LABEL}>{title}</label>
         {subtitle && <p className={FIELD_SUB}>{subtitle}</p>}
       </div>
       <div className={`${FIELD_INPUT_WRAP} border-red-200`}>
         <span className="text-neutral-400">₹</span>
         <input
+          id={inputId}
           type="number"
           min={0}
           step="1"
@@ -72,14 +78,16 @@ export function RestrictionField({
 }: {
   value: number | null; title: string; subtitle?: string; onChange: (raw: string) => void;
 }) {
+  const inputId = useId();
   return (
     <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
       <div>
-        <p className={FIELD_LABEL}>{title}</p>
+        <label htmlFor={inputId} className={FIELD_LABEL}>{title}</label>
         {subtitle && <p className={FIELD_SUB}>{subtitle}</p>}
       </div>
       <div className={`${FIELD_INPUT_WRAP} border-neutral-300`}>
         <input
+          id={inputId}
           type="number"
           min={0}
           step="1"

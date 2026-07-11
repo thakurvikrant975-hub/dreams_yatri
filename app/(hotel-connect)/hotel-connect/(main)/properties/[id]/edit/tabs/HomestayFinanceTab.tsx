@@ -96,9 +96,9 @@ const INDIAN_BANKS = [
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 
-function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+function FieldLabel({ children, required, htmlFor }: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
   return (
-    <Label className="mb-1.5">
+    <Label htmlFor={htmlFor} className="mb-1.5">
       {children}
       {required && <span className="text-red-400 ml-0.5">*</span>}
     </Label>
@@ -234,9 +234,9 @@ function UploadCard({
 
         <div className="flex items-center gap-2 shrink-0">
           {url && (
-            <button type="button" disabled={removing} onClick={handleRemove}
+            <button type="button" disabled={removing} onClick={handleRemove} aria-label={`Remove ${label}`}
               className="size-7 rounded-lg border border-neutral-200 flex items-center justify-center text-neutral-500 hover:text-red-500 hover:border-red-200 transition-colors disabled:opacity-50">
-              <TrashIcon size={12} />
+              <TrashIcon size={12} aria-hidden="true" />
             </button>
           )}
           <input ref={ref} type="file" className="hidden"
@@ -523,9 +523,10 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
               </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <FieldLabel required>Account Number</FieldLabel>
+                  <FieldLabel required htmlFor="hfin-account-number">Account Number</FieldLabel>
                   <div className="relative">
                     <Input
+                      id="hfin-account-number"
                       type={showAcct ? "text" : "password"}
                       value={accountNo}
                       onChange={(e) => setAccountNo(e.target.value)}
@@ -535,15 +536,17 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                     <button
                       type="button"
                       onClick={() => setShowAcct((v) => !v)}
+                      aria-label={showAcct ? "Hide account number" : "Show account number"}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
                     >
-                      {showAcct ? <EyeSlashIcon size={14} /> : <EyeIcon size={14} />}
+                      {showAcct ? <EyeSlashIcon size={14} aria-hidden="true" /> : <EyeIcon size={14} aria-hidden="true" />}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <FieldLabel required>Re-enter Account Number</FieldLabel>
+                  <FieldLabel required htmlFor="hfin-confirm-account-number">Re-enter Account Number</FieldLabel>
                   <Input
+                    id="hfin-confirm-account-number"
                     value={accountConf}
                     onChange={(e) => setAccountConf(e.target.value)}
                     placeholder="Enter Account Number"
@@ -556,8 +559,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <FieldLabel>IFSC Code</FieldLabel>
+                  <FieldLabel htmlFor="hfin-ifsc">IFSC Code</FieldLabel>
                   <Input
+                    id="hfin-ifsc"
                     value={ifsc}
                     onChange={(e) => handleIfsc(e.target.value)}
                     placeholder="Enter IFSC Code"
@@ -566,8 +570,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                   />
                 </div>
                 <div>
-                  <FieldLabel>Bank Name</FieldLabel>
+                  <FieldLabel htmlFor="hfin-bank-name">Bank Name</FieldLabel>
                   <SearchSelect
+                    id="hfin-bank-name"
                     options={INDIAN_BANKS}
                     value={bankName}
                     onChange={setBankName}
@@ -582,8 +587,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
             {/* PAN — always required for payouts/tax reporting, regardless of GSTIN */}
             <div>
-              <FieldLabel required>PAN Number</FieldLabel>
+              <FieldLabel required htmlFor="hfin-pan">PAN Number</FieldLabel>
               <Input
+                id="hfin-pan"
                 value={panNumber}
                 onChange={(e) => setPanNumber(e.target.value.toUpperCase().slice(0, 10))}
                 placeholder="ABCDE1234F"
@@ -597,15 +603,15 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
             {/* GSTIN (optional) */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-4">
-                <Label>Do you have a GSTIN?</Label>
-                <div className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
-                  <button type="button" onClick={() => { setHasGstin(false); setGstin(""); }}
+                <Label id="hfin-has-gstin-label">Do you have a GSTIN?</Label>
+                <div role="group" aria-labelledby="hfin-has-gstin-label" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+                  <button type="button" aria-pressed={!hasGstin} onClick={() => { setHasGstin(false); setGstin(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
                       !hasGstin ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
                     No
                   </button>
                   <div className="w-px bg-neutral-200" />
-                  <button type="button" onClick={() => setHasGstin(true)}
+                  <button type="button" aria-pressed={hasGstin} onClick={() => setHasGstin(true)}
                     className={cn("px-4 py-1.5 transition-colors",
                       hasGstin ? "bg-primary-500 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
                     Yes
@@ -615,8 +621,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
               {hasGstin && (
                 <div>
-                  <FieldLabel>Enter GSTIN</FieldLabel>
+                  <FieldLabel htmlFor="hfin-gstin">Enter GSTIN</FieldLabel>
                   <Input
+                    id="hfin-gstin"
                     value={gstin}
                     onChange={(e) => handleGstin(e.target.value)}
                     placeholder="Enter the 15-digit GSTIN"
@@ -633,15 +640,15 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
             {/* TAN */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-4">
-                <Label>Do you have a TAN?</Label>
-                <div className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
-                  <button type="button" onClick={() => { setHasTan(false); setTanNumber(""); }}
+                <Label id="hfin-has-tan-label">Do you have a TAN?</Label>
+                <div role="group" aria-labelledby="hfin-has-tan-label" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+                  <button type="button" aria-pressed={!hasTan} onClick={() => { setHasTan(false); setTanNumber(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
                       !hasTan ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
                     No
                   </button>
                   <div className="w-px bg-neutral-200" />
-                  <button type="button" onClick={() => setHasTan(true)}
+                  <button type="button" aria-pressed={hasTan} onClick={() => setHasTan(true)}
                     className={cn("px-4 py-1.5 transition-colors",
                       hasTan ? "bg-primary-500 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
                     Yes
@@ -651,8 +658,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
               {hasTan && (
                 <div className="max-w-xs">
-                  <FieldLabel>Enter TAN</FieldLabel>
+                  <FieldLabel htmlFor="hfin-tan">Enter TAN</FieldLabel>
                   <Input
+                    id="hfin-tan"
                     value={tanNumber}
                     onChange={(e) => setTanNumber(e.target.value.toUpperCase())}
                     placeholder="Enter 10-digit TAN"

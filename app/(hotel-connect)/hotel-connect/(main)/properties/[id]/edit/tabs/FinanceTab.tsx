@@ -138,9 +138,9 @@ export type FinanceHotelData = {
 
 // ── UI components ─────────────────────────────────────────────────────────────
 
-function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+function FieldLabel({ children, required, htmlFor }: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
   return (
-    <Label className="mb-1.5">
+    <Label htmlFor={htmlFor} className="mb-1.5">
       {children}
       {required && <span className="text-red-400 ml-0.5">*</span>}
     </Label>
@@ -277,9 +277,10 @@ function DocumentCard({
             type="button"
             disabled={removing}
             onClick={handleRemove}
+            aria-label={`Remove ${label}`}
             className="size-7 rounded-lg border border-neutral-200 flex items-center justify-center text-neutral-500 hover:text-red-500 hover:border-red-200 transition-colors disabled:opacity-50"
           >
-            <TrashIcon size={12} />
+            <TrashIcon size={12} aria-hidden="true" />
           </button>
         ) : null}
 
@@ -409,8 +410,9 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           {/* Account number */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <FieldLabel required>Bank Account Number</FieldLabel>
+              <FieldLabel required htmlFor="fin-account-number">Bank Account Number</FieldLabel>
               <Input
+                id="fin-account-number"
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="1234567890123456"
@@ -418,8 +420,9 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
               />
             </div>
             <div>
-              <FieldLabel required>Re-Enter Bank Account Number</FieldLabel>
+              <FieldLabel required htmlFor="fin-confirm-account-number">Re-Enter Bank Account Number</FieldLabel>
               <Input
+                id="fin-confirm-account-number"
                 value={confirmAccountNumber}
                 onChange={(e) => setConfirmAccountNumber(e.target.value)}
                 placeholder="1234567890123456"
@@ -434,19 +437,21 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           {/* IFSC + Bank name */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <FieldLabel required>Bank IFSC Code</FieldLabel>
+              <FieldLabel required htmlFor="fin-ifsc">Bank IFSC Code</FieldLabel>
               <p className="text-[10px] text-neutral-400 mb-1.5 leading-snug">
                 You can find this on your cheque book or bank statement
               </p>
               <Input
+                id="fin-ifsc"
                 value={ifscCode}
                 onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
                 placeholder="HDFC0001234"
               />
             </div>
             <div>
-              <FieldLabel required>Bank Name</FieldLabel>
+              <FieldLabel required htmlFor="fin-bank-name">Bank Name</FieldLabel>
               <SearchSelect
+                id="fin-bank-name"
                 options={INDIAN_BANKS}
                 value={bankName}
                 onChange={setBankName}
@@ -458,7 +463,13 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
 
           {/* Consent declaration */}
           <div
+            role="checkbox"
+            aria-checked={consentGiven}
+            tabIndex={0}
             onClick={() => setConsentGiven((v) => !v)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setConsentGiven((v) => !v); }
+            }}
             className={cn(
               "flex items-start gap-3 rounded-xl border-2 p-4 cursor-pointer transition-colors select-none",
               consentGiven ? "border-emerald-400 bg-emerald-50/60" : "border-neutral-200 bg-neutral-50/50 hover:border-neutral-300"
@@ -491,16 +502,18 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           {/* PAN + Business type */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <FieldLabel required>PAN Number</FieldLabel>
+              <FieldLabel required htmlFor="fin-pan">PAN Number</FieldLabel>
               <Input
+                id="fin-pan"
                 value={panNumber}
                 onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
                 placeholder="ABCDE1234F"
               />
             </div>
             <div>
-              <FieldLabel required>Business Type</FieldLabel>
+              <FieldLabel required htmlFor="fin-business-type">Business Type</FieldLabel>
               <SearchSelect
+                id="fin-business-type"
                 value={businessType}
                 onChange={setBusinessType}
                 options={Object.entries(BUSINESS_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
@@ -514,12 +527,13 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <Label>GST Registered?</Label>
+                <Label id="fin-gst-registered-label">GST Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Required if your annual turnover exceeds ₹20 lakhs</p>
               </div>
-              <div className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
+              <div role="group" aria-labelledby="fin-gst-registered-label" className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
                 <button
                   type="button"
+                  aria-pressed={gstRegistered === false}
                   onClick={() => setGstRegistered(false)}
                   className={cn("px-4 py-1.5 transition-colors", gstRegistered === false ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}
                 >
@@ -528,6 +542,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
                 <div className="w-px bg-neutral-200" />
                 <button
                   type="button"
+                  aria-pressed={gstRegistered === true}
                   onClick={() => setGstRegistered(true)}
                   className={cn("px-4 py-1.5 transition-colors", gstRegistered === true ? "bg-primary-500 text-white" : "text-neutral-500 hover:bg-neutral-50")}
                 >
@@ -537,8 +552,9 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
             </div>
             {gstRegistered === true && (
               <div>
-                <FieldLabel>GSTIN Number</FieldLabel>
+                <FieldLabel htmlFor="fin-gstin">GSTIN Number</FieldLabel>
                 <Input
+                  id="fin-gstin"
                   value={gstinNumber}
                   onChange={(e) => setGstinNumber(e.target.value.toUpperCase())}
                   placeholder="22AAAAA0000A1Z5"
@@ -551,12 +567,13 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <Label>MSME / Udyam Registered?</Label>
+                <Label id="fin-msme-registered-label">MSME / Udyam Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Optional — helps unlock government scheme benefits</p>
               </div>
-              <div className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
+              <div role="group" aria-labelledby="fin-msme-registered-label" className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
                 <button
                   type="button"
+                  aria-pressed={msmeRegistered === false}
                   onClick={() => setMsmeRegistered(false)}
                   className={cn("px-4 py-1.5 transition-colors", msmeRegistered === false ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}
                 >
@@ -565,6 +582,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
                 <div className="w-px bg-neutral-200" />
                 <button
                   type="button"
+                  aria-pressed={msmeRegistered === true}
                   onClick={() => setMsmeRegistered(true)}
                   className={cn("px-4 py-1.5 transition-colors", msmeRegistered === true ? "bg-primary-500 text-white" : "text-neutral-500 hover:bg-neutral-50")}
                 >
@@ -574,8 +592,9 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
             </div>
             {msmeRegistered === true && (
               <div>
-                <FieldLabel>MSME / Udyam Registration Number</FieldLabel>
+                <FieldLabel htmlFor="fin-msme-number">MSME / Udyam Registration Number</FieldLabel>
                 <Input
+                  id="fin-msme-number"
                   value={msmeNumber}
                   onChange={(e) => setMsmeNumber(e.target.value)}
                   placeholder="UDYAM-XX-00-0000000"

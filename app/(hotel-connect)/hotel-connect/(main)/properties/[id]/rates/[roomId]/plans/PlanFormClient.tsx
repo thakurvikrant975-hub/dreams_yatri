@@ -119,8 +119,9 @@ export default function PlanFormClient({
 
       <SectionCard title="Rate Plan Details">
         <div>
-          <Label className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Rate Plan Name *</Label>
+          <Label htmlFor="plan-name" className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Rate Plan Name *</Label>
           <Input
+            id="plan-name"
             type="text"
             value={planName}
             onChange={(e) => { setPlanName(e.target.value); setNameTouched(true); }}
@@ -129,8 +130,9 @@ export default function PlanFormClient({
         </div>
 
         <div>
-          <Label className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Meal Plan</Label>
+          <Label htmlFor="plan-meal-type" className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Meal Plan</Label>
           <SearchSelect
+            id="plan-meal-type"
             options={[{ value: "", label: "Room Only (no meals)" }, ...mealTypes.map((m) => ({ value: String(m.id), label: m.name }))]}
             value={mealTypeId != null ? String(mealTypeId) : ""}
             onChange={onMealTypeChange}
@@ -138,8 +140,9 @@ export default function PlanFormClient({
         </div>
 
         <div>
-          <Label className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Diet Type</Label>
+          <Label htmlFor="plan-diet-type" className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Diet Type</Label>
           <SearchSelect
+            id="plan-diet-type"
             options={[{ value: "", label: "Not specified" }, ...dietTypes.map((d) => ({ value: String(d.id), label: d.name }))]}
             value={dietTypeId != null ? String(dietTypeId) : ""}
             onChange={(v) => setDietTypeId(v === "" ? null : Number(v))}
@@ -148,8 +151,9 @@ export default function PlanFormClient({
         </div>
 
         <div>
-          <Label className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Cancellation Policy</Label>
+          <Label htmlFor="plan-cancellation-policy" className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Cancellation Policy</Label>
           <SearchSelect
+            id="plan-cancellation-policy"
             options={[{ value: "", label: "Same as hotel policy" }, ...CANCELLATION_POLICIES.map((p) => ({ value: p, label: cancellationLabel(p) }))]}
             value={cancellationPolicy || ""}
             onChange={(v) => setCancellationPolicy(v as CancellationPolicy | "")}
@@ -158,8 +162,9 @@ export default function PlanFormClient({
         </div>
 
         <div className="flex items-center justify-between py-1">
-          <Label className="normal-case tracking-normal text-sm text-neutral-800">GST %</Label>
+          <Label htmlFor="plan-gst" className="normal-case tracking-normal text-sm text-neutral-800">GST %</Label>
           <Input
+            id="plan-gst"
             type="number"
             min={0}
             max={100}
@@ -176,7 +181,7 @@ export default function PlanFormClient({
       </SectionCard>
 
       {error && (
-        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+        <p role="alert" className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
       )}
 
       <div className="flex items-center justify-between gap-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { cn } from "@/app/lib/utils";
 import {
@@ -70,12 +70,14 @@ function MoneyTile({
 }: {
   label: string; value: string; onChange: (raw: string) => void; placeholder?: string;
 }) {
+  const inputId = useId();
   return (
     <div className="space-y-1">
-      <Label>{label}</Label>
+      <Label htmlFor={inputId}>{label}</Label>
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">₹</span>
         <Input
+          id={inputId}
           type="number" min={0} step="1"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -180,15 +182,15 @@ function MonthGrid({
               onClick={() => onClickDay(date)}
               disabled={past}
               className={cn(
-                "aspect-square border-b border-r border-neutral-100 p-1 sm:p-1.5 text-left flex flex-col transition-colors relative",
+                "aspect-square border border-neutral-200/80 p-1 sm:p-1.5 text-left flex flex-col transition-colors relative -mb-px -mr-px",
                 past ? "bg-neutral-50/60 text-neutral-300 cursor-not-allowed" : "hover:bg-primary-50/40",
                 selected && "bg-primary-100/70 ring-1 ring-inset ring-primary-300",
               )}
             >
-              <span className={cn("text-[11px] font-semibold", !past && "text-neutral-600")}>{dayNum}</span>
+              <span className={cn("text-xs font-bold font-heading", !past && "text-neutral-400")}>{dayNum}</span>
               {cell && !past && (
                 <>
-                  <span className={cn("mt-auto text-[11px] font-bold leading-tight", soldOut ? "text-red-500" : "text-neutral-800")}>
+                  <span className={cn("mt-auto text-sm font-semibold font-heading leading-tight", soldOut ? "text-red-500" : "text-neutral-800")}>
                     {cell.price != null ? money(cell.price) : "—"}
                   </span>
                   <span className={cn("text-[9px] leading-tight flex items-center gap-0.5", soldOut ? "text-red-400" : "text-neutral-400")}>
@@ -579,10 +581,10 @@ function EditPanel({
       ) : (
         <>
           <div>
-            <Label>Price / night (₹)</Label>
+            <Label htmlFor="bulk-price">Price / night (₹)</Label>
             <div className="relative mt-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">₹</span>
-              <Input type="number" min={1} step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank to keep" className="pl-7" />
+              <Input id="bulk-price" type="number" min={1} step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank to keep" className="pl-7" />
             </div>
             {price.trim() !== "" && (
               <button onClick={() => setPrice("")} className="text-[10px] text-neutral-400 hover:text-primary-600 mt-1">clear override → use season price</button>
@@ -592,12 +594,13 @@ function EditPanel({
             )}
           </div>
           <div>
-            <Label>Rooms available (total)</Label>
-            <Input type="number" min={0} step="1" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Leave blank to keep" className="mt-1" />
+            <Label htmlFor="bulk-units">Rooms available (total)</Label>
+            <Input id="bulk-units" type="number" min={0} step="1" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Leave blank to keep" className="mt-1" />
           </div>
           <div>
-            <Label className="mb-1">Availability</Label>
+            <Label htmlFor="bulk-availability" className="mb-1">Availability</Label>
             <SearchSelect
+              id="bulk-availability"
               options={[{ value: "", label: "Unchanged" }, { value: "open", label: "Open for sale" }, { value: "closed", label: "Stop sell (close)" }]}
               value={openState}
               onChange={(v) => setOpenState(v as "" | "open" | "closed")}
@@ -629,18 +632,19 @@ function EditPanel({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="mb-1">Minimum Length of Stay</Label>
-              <Input type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" />
+              <Label htmlFor="bulk-min-los" className="mb-1 text-[9px]">Minimum Length of Stay</Label>
+              <Input id="bulk-min-los" type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" />
             </div>
             <div>
-              <Label className="mb-1">Maximum Length of Stay</Label>
-              <Input type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" />
+              <Label htmlFor="bulk-max-los" className="mb-1 text-[9px]">Maximum Length of Stay</Label>
+              <Input id="bulk-max-los" type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="mb-1">Closed to Arrival</Label>
+              <Label htmlFor="bulk-cta" className="mb-1 text-[9px]">Closed to Arrival</Label>
               <SearchSelect
+                id="bulk-cta"
                 options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
                 value={cta}
                 onChange={(v) => setCta(v as "" | "yes" | "no")}
@@ -648,8 +652,9 @@ function EditPanel({
               />
             </div>
             <div>
-              <Label className="mb-1">Closed to Departure</Label>
+              <Label htmlFor="bulk-ctd" className="mb-1 text-[9px]">Closed to Departure</Label>
               <SearchSelect
+                id="bulk-ctd"
                 options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
                 value={ctd}
                 onChange={(v) => setCtd(v as "" | "yes" | "no")}

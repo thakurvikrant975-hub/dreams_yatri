@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import React, { useActionState, useId, useState, useEffect } from "react";
 import { saveBasicInfo } from "./basic-info-actions";
 import { sendEmailOtp, verifyEmailOtp } from "./verification-actions";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
@@ -205,9 +205,9 @@ function isValidMobile(cc: string, v: string) {
   return /^\d{5,15}$/.test(v.trim());
 }
 
-function FieldError({ errors }: { errors?: string[] }) {
+function FieldError({ id, errors }: { id?: string; errors?: string[] }) {
   if (!errors?.length) return null;
-  return <p data-field-error className="text-xs text-red-500">{errors[0]}</p>;
+  return <p id={id} data-field-error role="alert" className="text-xs text-red-500">{errors[0]}</p>;
 }
 
 function FieldRow({
@@ -225,18 +225,37 @@ function FieldRow({
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const labelId = useId();
+  const errorId = useId();
+  const describedBy = error?.[0] ? errorId : undefined;
+
+  // Single-control rows get a direct htmlFor→id association (the strongest
+  // signal for screen readers); multi-control rows (e.g. country code + number)
+  // fall back to a labelled group, since there's no single element to target.
+  const onlyChild = React.Children.count(children) === 1 ? React.Children.only(children) : null;
+  const isFieldElement = React.isValidElement(onlyChild) && typeof onlyChild.type !== "string";
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <Label>
+        <Label htmlFor={isFieldElement ? labelId : undefined} id={isFieldElement ? undefined : labelId}>
           {label}
           {required && <span className="text-red-400 ml-0.5">*</span>}
         </Label>
         {action}
       </div>
       {hint && <p className="text-xs text-neutral-500 -mt-0.5">{hint}</p>}
-      {children}
-      <FieldError errors={error} />
+      {isFieldElement
+        ? React.cloneElement(onlyChild as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+            id: labelId,
+            "aria-describedby": describedBy,
+          })
+        : (
+          <div role="group" aria-labelledby={labelId} aria-describedby={describedBy}>
+            {children}
+          </div>
+        )}
+      <FieldError id={errorId} errors={error} />
     </div>
   );
 }

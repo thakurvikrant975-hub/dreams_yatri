@@ -284,16 +284,18 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
 
             {/* Pool Name */}
             <div data-pool-error={errors.name ? "" : undefined}>
-              <Label className="mb-1.5 block">
+              <Label htmlFor="pool-name" className="mb-1.5 block">
                 Pool Name <span className="text-red-500">*</span>
               </Label>
               <Input
+                id="pool-name"
                 value={pool.name}
                 onChange={(e) => update("name", e.target.value)}
                 placeholder="e.g. Rooftop Infinity Pool"
                 aria-invalid={!!errors.name}
+                aria-describedby={errors.name ? "pool-name-error" : undefined}
               />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+              {errors.name && <p id="pool-name-error" role="alert" className="text-xs text-red-500 mt-1">{errors.name}</p>}
             </div>
 
             {/* Pool Type */}

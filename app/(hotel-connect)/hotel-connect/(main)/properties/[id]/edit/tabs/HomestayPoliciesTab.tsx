@@ -222,16 +222,18 @@ function SubRow({
   );
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <PLabel className="mb-1.5">{children}</PLabel>;
+function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+  return <PLabel htmlFor={htmlFor} className="mb-1.5">{children}</PLabel>;
 }
 
 function SelectField({
+  id,
   value,
   onChange,
   options,
   placeholder,
 }: {
+  id?: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
@@ -239,6 +241,7 @@ function SelectField({
 }) {
   return (
     <SearchSelect
+      id={id}
       options={options}
       value={value}
       onChange={onChange}
@@ -404,7 +407,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
         <input type="hidden" name="custom_policy"           value={customPolicy} />
 
         {state?.error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700">
+          <div role="alert" className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700">
             {state.error}
           </div>
         )}
@@ -413,8 +416,9 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
         <SectionCard title="Check-in & Check-out Time">
           <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <PLabel className="mb-1.5">Check-in Time</PLabel>
+              <PLabel htmlFor="hpol-checkin-time" className="mb-1.5">Check-in Time</PLabel>
               <SearchSelect
+                id="hpol-checkin-time"
                 options={TIME_OPTIONS}
                 value={checkInTime}
                 onChange={setCheckInTime}
@@ -423,8 +427,9 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
               />
             </div>
             <div>
-              <PLabel className="mb-1.5">Check-out Time</PLabel>
+              <PLabel htmlFor="hpol-checkout-time" className="mb-1.5">Check-out Time</PLabel>
               <SearchSelect
+                id="hpol-checkout-time"
                 options={TIME_OPTIONS}
                 value={checkOutTime}
                 onChange={setCheckOutTime}
@@ -445,8 +450,9 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
             </label>
             {hasEndTime && (
               <div className="max-w-xs ml-6">
-                <PLabel className="mb-1.5">Check-in End Time</PLabel>
+                <PLabel htmlFor="hpol-checkin-end-time" className="mb-1.5">Check-in End Time</PLabel>
                 <SearchSelect
+                  id="hpol-checkin-end-time"
                   options={TIME_OPTIONS}
                   value={checkInEndTime}
                   onChange={setCheckInEndTime}
@@ -528,8 +534,9 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           <PolicyRow label="Can guests invite outside visitors?" value={outsideVisitors} onChange={setOutsideVisitors} />
 
           <div className="px-5 py-3.5">
-            <PLabel className="mb-1.5">Music / Noise Policy</PLabel>
+            <PLabel htmlFor="hpol-noise-policy" className="mb-1.5">Music / Noise Policy</PLabel>
             <Input
+              id="hpol-noise-policy"
               type="text"
               value={noisePolicy}
               onChange={(e) => setNoisePolicy(e.target.value)}
@@ -584,8 +591,9 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           </PolicyRow>
 
           <div className="px-5 py-3.5 space-y-3">
-            <PLabel>Pets restricted in these areas</PLabel>
+            <PLabel htmlFor="hpol-pets-restrict-areas">Pets restricted in these areas</PLabel>
             <MultiSearchSelect
+              id="hpol-pets-restrict-areas"
               options={PET_AREA_OPTIONS}
               value={petsRestrictAreas ? petsRestrictAreas.split(",").map((s) => s.trim()).filter(Boolean) : []}
               onChange={(arr) => setPetsRestrictAreas(arr.join(","))}
@@ -596,8 +604,9 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           <PolicyRow label="Are pets allowed to roam without leash?" value={petsWithoutLeash} onChange={setPetsWithoutLeash} />
 
           <div className="px-5 py-3.5">
-            <PLabel className="mb-1.5">No. of pets allowed</PLabel>
+            <PLabel htmlFor="hpol-pet-count" className="mb-1.5">No. of pets allowed</PLabel>
             <Input
+              id="hpol-pet-count"
               type="number"
               min="0"
               value={petCount}
@@ -616,8 +625,9 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
         {/* ── 6. Caretaker Information ──────────────────────────────────── */}
         <SectionCard title="Caretaker Information">
           <PolicyRow label="Does the caretaker stay at the property?" value={caretakerStays} onChange={(v) => { setCaretakerStays(v); if (!v) setCaretakerDetails(""); }}>
-            <FieldLabel>Caretaker details</FieldLabel>
+            <FieldLabel htmlFor="hpol-caretaker-details">Caretaker details</FieldLabel>
             <Textarea
+              id="hpol-caretaker-details"
               value={caretakerDetails}
               onChange={(e) => setCaretakerDetails(e.target.value)}
               rows={3}
@@ -626,8 +636,9 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           </PolicyRow>
 
           <div className="px-5 py-3.5">
-            <PLabel className="mb-1.5">Caretaker availability</PLabel>
+            <PLabel htmlFor="hpol-caretaker-avail" className="mb-1.5">Caretaker availability</PLabel>
             <SelectField
+              id="hpol-caretaker-avail"
               value={caretakerAvail}
               onChange={setCaretakerAvail}
               options={CARETAKER_AVAIL_OPTIONS}

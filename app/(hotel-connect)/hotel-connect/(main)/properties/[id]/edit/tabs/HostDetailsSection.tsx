@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useRef, useEffect } from "react";
+import React, { useActionState, useId, useState, useRef, useEffect } from "react";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react/dist/ssr";
 import { saveHostDetails, uploadOwnerLogo, type HostDetailsState } from "./host-details-actions";
 import {
@@ -135,15 +135,33 @@ function FieldRow({
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const labelId = useId();
+  const errorId = useId();
+  const describedBy = error?.[0] ? errorId : undefined;
+
+  // Single-control rows get a direct htmlFor→id association; multi-control
+  // rows (e.g. country code + number) fall back to a labelled group.
+  const onlyChild = React.Children.count(children) === 1 ? React.Children.only(children) : null;
+  const isFieldElement = React.isValidElement(onlyChild) && typeof onlyChild.type !== "string";
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <Label>{label}</Label>
+        <Label htmlFor={isFieldElement ? labelId : undefined} id={isFieldElement ? undefined : labelId}>{label}</Label>
         {action}
       </div>
       {hint && <p className="text-xs text-neutral-500 -mt-0.5 leading-snug">{hint}</p>}
-      {children}
-      {error?.[0] && <p data-field-error className="text-xs text-red-500">{error[0]}</p>}
+      {isFieldElement
+        ? React.cloneElement(onlyChild as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+            id: labelId,
+            "aria-describedby": describedBy,
+          })
+        : (
+          <div role="group" aria-labelledby={labelId} aria-describedby={describedBy}>
+            {children}
+          </div>
+        )}
+      {error?.[0] && <p id={errorId} data-field-error role="alert" className="text-xs text-red-500">{error[0]}</p>}
     </div>
   );
 }
@@ -193,7 +211,7 @@ function OtpEntry({ otp, devOtp, loading, error, onChange, onConfirm }: {
         <Input
           type="text" inputMode="numeric" maxLength={6} value={otp}
           onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
-          placeholder="6-digit OTP" className="max-w-37.5 font-mono tracking-widest"
+          placeholder="6-digit OTP" aria-label="One-time passcode" className="max-w-37.5 font-mono tracking-widest"
         />
         <button
           type="button" disabled={otp.length !== 6 || loading} onClick={onConfirm}
@@ -409,7 +427,7 @@ export default function HostDetailsSection({ owner, locked = false, onSaved }: {
             <input type="hidden" name="property_count" value={String(propCount)} />
 
             {state.error && (
-              <div className="rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+              <div role="alert" className="rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
                 {state.error}
               </div>
             )}

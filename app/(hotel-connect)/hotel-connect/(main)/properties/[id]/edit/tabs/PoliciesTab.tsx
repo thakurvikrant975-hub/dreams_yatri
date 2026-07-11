@@ -190,11 +190,12 @@ function ChargeInput({
 }) {
   return (
     <div className="rounded-lg border border-neutral-100 bg-white p-3">
-      <PLabel className="mb-0.5">{label}</PLabel>
+      <PLabel htmlFor={name} className="mb-0.5">{label}</PLabel>
       {note && <p className="text-[10px] text-neutral-400 leading-snug mb-2">{note}</p>}
       <div className="flex items-center gap-1.5 mt-1">
         <span className="text-xs text-neutral-400 font-medium">₹</span>
         <Input
+          id={name}
           type="text"
           name={name}
           value={value}
@@ -330,8 +331,9 @@ function ExtraBedPolicies(props: ExtraBedPoliciesProps) {
             {props.bedAdultsAvail === "yes" && (
               <div className="px-5 pb-5 pt-1 bg-primary-50/20 border-t border-neutral-100 space-y-3">
                 <div>
-                  <PLabel className="mb-1.5">Please mention the type of extra bed provided to adults</PLabel>
+                  <PLabel htmlFor="pol-extra-bed-adult-types" className="mb-1.5">Please mention the type of extra bed provided to adults</PLabel>
                   <MultiSearchSelect
+                    id="pol-extra-bed-adult-types"
                     options={EXTRA_BED_TYPES_ADULT}
                     value={props.bedAdultsTypes}
                     onChange={props.setBedAdultsTypes}
@@ -361,8 +363,9 @@ function ExtraBedPolicies(props: ExtraBedPoliciesProps) {
             {props.bedKidsAvail === "yes" && (
               <div className="px-5 pb-5 pt-1 bg-primary-50/20 border-t border-neutral-100 space-y-3">
                 <div>
-                  <PLabel className="mb-1.5">Please mention the type of extra bed provided to kids</PLabel>
+                  <PLabel htmlFor="pol-extra-bed-kids-types" className="mb-1.5">Please mention the type of extra bed provided to kids</PLabel>
                   <MultiSearchSelect
+                    id="pol-extra-bed-kids-types"
                     options={EXTRA_BED_TYPES_CHILD}
                     value={props.bedKidsTypes}
                     onChange={props.setBedKidsTypes}
@@ -430,10 +433,11 @@ function MealRackPrices({
         <div className="divide-y divide-neutral-100">
           {meals.map((meal) => (
             <div key={meal.label} className="flex items-center justify-between gap-6 px-5 py-3.5">
-              <PLabel className="flex-1 min-w-0">{meal.label}</PLabel>
+              <PLabel htmlFor={meal.name} className="flex-1 min-w-0">{meal.label}</PLabel>
               <div className="flex items-center gap-1.5 shrink-0 w-48 max-w-[40%]">
                 <span className="text-xs text-neutral-400 font-medium shrink-0">₹</span>
                 <Input
+                  id={meal.name}
                   type="text"
                   name={meal.name}
                   value={meal.value}
@@ -572,8 +576,9 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
       <SectionCard title="Check-in & Check-out Time">
         <div className="px-5 py-4 grid grid-cols-2 gap-5">
           <div>
-            <PLabel className="mb-1.5">Check-in Time</PLabel>
+            <PLabel htmlFor="pol-checkin-time" className="mb-1.5">Check-in Time</PLabel>
             <SearchSelect
+              id="pol-checkin-time"
               options={TIME_OPTIONS}
               value={checkInTime}
               onChange={setCheckInTime}
@@ -582,8 +587,9 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
             />
           </div>
           <div>
-            <PLabel className="mb-1.5">Check-out Time</PLabel>
+            <PLabel htmlFor="pol-checkout-time" className="mb-1.5">Check-out Time</PLabel>
             <SearchSelect
+              id="pol-checkout-time"
               options={TIME_OPTIONS}
               value={checkOutTime}
               onChange={setCheckOutTime}
@@ -710,8 +716,9 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
           </div>
           <SubRow label="Are there any extra charges for pets?" value={petExtraCharges} onChange={setPetExtraCharges} />
           <div>
-            <PLabel className="mb-1.5">Pets are restricted/not allowed in these areas?</PLabel>
+            <PLabel htmlFor="pol-pets-restricted-areas" className="mb-1.5">Pets are restricted/not allowed in these areas?</PLabel>
             <Input
+              id="pol-pets-restricted-areas"
               value={petsRestrictedAreas}
               onChange={(e) => setPetsRestrictedAreas(e.target.value)}
               placeholder="e.g. Restaurant, Pool area, Lobby"

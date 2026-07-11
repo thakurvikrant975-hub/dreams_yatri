@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useActionState, useState, useRef, useEffect, useCallback } from "react";
+import React, { useActionState, useId, useState, useRef, useEffect, useCallback } from "react";
 import { saveLocation } from "./location-actions";
 import type { LocationState, LocationValues } from "./location-schema";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
@@ -118,10 +118,10 @@ function extractLocation(s: GeoSuggestion) {
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 
-function FieldError({ errors }: { errors?: string[] }) {
+function FieldError({ id, errors }: { id?: string; errors?: string[] }) {
   if (!errors?.length) return null;
   return (
-    <p data-field-error className="text-xs text-red-500 mt-0.5 flex items-center gap-1">
+    <p id={id} data-field-error role="alert" className="text-xs text-red-500 mt-0.5 flex items-center gap-1">
       <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
       </svg>
@@ -141,14 +141,32 @@ function FieldRow({
   error?: string[];
   children: React.ReactNode;
 }) {
+  const labelId = useId();
+  const errorId = useId();
+  const describedBy = error?.[0] ? errorId : undefined;
+
+  // Single-control rows get a direct htmlFor→id association; multi-control
+  // rows fall back to a labelled group.
+  const onlyChild = React.Children.count(children) === 1 ? React.Children.only(children) : null;
+  const isFieldElement = React.isValidElement(onlyChild) && typeof onlyChild.type !== "string";
+
   return (
     <div className="flex flex-col gap-1.5">
-      <Label>
+      <Label htmlFor={isFieldElement ? labelId : undefined} id={isFieldElement ? undefined : labelId}>
         {label}
         {required && <span className="text-red-400 ml-0.5">*</span>}
       </Label>
-      {children}
-      <FieldError errors={error} />
+      {isFieldElement
+        ? React.cloneElement(onlyChild as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+            id: labelId,
+            "aria-describedby": describedBy,
+          })
+        : (
+          <div role="group" aria-labelledby={labelId} aria-describedby={describedBy}>
+            {children}
+          </div>
+        )}
+      <FieldError id={errorId} errors={error} />
     </div>
   );
 }

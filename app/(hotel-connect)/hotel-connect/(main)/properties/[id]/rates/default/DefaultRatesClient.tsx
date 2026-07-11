@@ -96,11 +96,13 @@ function DefaultInventoryField({ hotelId, room }: { hotelId: number; room: RoomD
     });
   }
 
+  const inputId = `default-inventory-${room.id}`;
   return (
     <div className="flex items-end gap-2">
       <div>
-        <Label className="mb-1">Default Inventory</Label>
+        <Label htmlFor={inputId} className="mb-1">Default Inventory</Label>
         <Input
+          id={inputId}
           type="number" min={1} step="1"
           value={value}
           onChange={(e) => setValue(e.target.value)}

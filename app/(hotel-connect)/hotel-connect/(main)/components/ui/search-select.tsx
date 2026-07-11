@@ -39,6 +39,8 @@ interface SearchSelectProps {
   value?: string;
   onChange: (value: string) => void;
   name?: string;
+  /** Sets the id on the trigger button — pair with a <Label htmlFor> for an accessible name */
+  id?: string;
   placeholder?: string;
   searchPlaceholder?: string;
   showSearch?: boolean;
@@ -58,6 +60,7 @@ export function SearchSelect({
   value,
   onChange,
   name,
+  id,
   placeholder = "Select...",
   searchPlaceholder = "Search...",
   showSearch = true,
@@ -239,6 +242,7 @@ export function SearchSelect({
       {/* Trigger */}
       <button
         type="button"
+        id={id}
         ref={(el) => {
           refs.setReference(el);
           (triggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = el;
@@ -282,6 +286,8 @@ interface MultiSearchSelectProps {
   options: RawOption[];
   value: string[];
   onChange: (value: string[]) => void;
+  /** Sets the id on the combobox trigger — pair with a <Label htmlFor> for an accessible name */
+  id?: string;
   placeholder?: string;
   searchPlaceholder?: string;
   showSearch?: boolean;
@@ -293,6 +299,7 @@ export function MultiSearchSelect({
   options,
   value,
   onChange,
+  id,
   placeholder = "Select...",
   searchPlaceholder = "Search...",
   showSearch = true,
@@ -424,8 +431,10 @@ export function MultiSearchSelect({
   return (
     <div className={cn("relative w-full", className)}>
       <div
+        id={id}
         ref={refs.setReference as React.RefCallback<HTMLDivElement>}
         role="combobox"
+        tabIndex={disabled ? undefined : 0}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
