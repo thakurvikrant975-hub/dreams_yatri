@@ -11,6 +11,9 @@ import { saveBedroomStep } from "./bedroom-actions";
 import type { BedroomDetail } from "./bedroom-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { Textarea } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/textarea";
+import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -258,22 +261,17 @@ export default function BedroomEditTab({
         >
             <div>
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Room Name</label>
-              <input
+              <Input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 disabled={isPending}
-                className="w-full max-w-xs px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400"
+                className="max-w-xs"
               />
             </div>
-            <button
-              type="button"
-              disabled={isPending || !name.trim()}
-              onClick={() => save({ name: name.trim() }, 1, 2)}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
+            <Button variant="primary" size="sm" disabled={isPending || !name.trim()} onClick={() => save({ name: name.trim() }, 1, 2)}>
               Next
-            </button>
+            </Button>
         </StepSection>
 
         {/* ── Step 2: Sleeping Arrangement ───────────────────────── */}
@@ -368,17 +366,16 @@ export default function BedroomEditTab({
               </div>
             </div>
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending || (hasExtraBed && !extraBedType)}
               onClick={() => save({
                 beds, has_extra_bed: hasExtraBed, extra_bed_type: extraBedType,
                 base_adults: baseAdults, max_adults: maxAdults,
               }, 2, 3)}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               Next
-            </button>
+            </Button>
         </StepSection>
 
         {/* ── Step 3: Facilities ──────────────────────────────────── */}
@@ -465,18 +462,17 @@ export default function BedroomEditTab({
               )}
             </div>
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending || (hasBathroom && !bathroomType)}
               onClick={() => save({
                 has_bathroom: hasBathroom, bathroom_type: bathroomType,
                 has_balcony: hasBalcony, balcony_furniture: balconyFurniture,
                 amenities,
               }, 3, 4)}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               Next
-            </button>
+            </Button>
         </StepSection>
 
         {/* ── Step 4: Additional Details ──────────────────────────── */}
@@ -490,12 +486,11 @@ export default function BedroomEditTab({
               <label className="block text-sm font-semibold text-neutral-800 mb-1.5">
                 Room Description <span className="font-normal text-neutral-400">(Optional)</span>
               </label>
-              <textarea
+              <Textarea
                 value={description}
                 onChange={e => setDescription(e.target.value.slice(0, 500))}
                 rows={4}
                 placeholder="Please add details"
-                className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-300"
               />
               <p className="text-right text-xs text-neutral-400 mt-1">{description.length} of 500</p>
             </div>
@@ -520,13 +515,13 @@ export default function BedroomEditTab({
                   <span className="block font-normal text-neutral-400">Define room area, don&apos;t include any other property area</span>
                 </label>
                 <div className="flex items-center gap-0">
-                  <input
+                  <Input
                     type="number"
                     value={sizeValue}
                     onChange={e => { if (e.target.value === "" || /^\d*\.?\d*$/.test(e.target.value)) setSizeValue(e.target.value); }}
                     placeholder="00"
                     min={0}
-                    className="w-16 px-2 py-2 text-sm border border-r-0 border-neutral-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
+                    className="w-16 rounded-r-none border-r-0"
                   />
                   {(["sqm", "sqft"] as const).map(u => (
                     <button
@@ -558,18 +553,18 @@ export default function BedroomEditTab({
               />
             </div>
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending}
+              loading={isPending}
               onClick={() => save({
                 description, view,
                 size_value: sizeValue ? Number(sizeValue) : null,
                 size_unit: sizeUnit, floor_level: floorLevel,
               }, 4, "back")}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {isPending ? "Saving…" : "Save & Continue"}
-            </button>
+            </Button>
         </StepSection>
       </div>
       </SectionCard>

@@ -38,6 +38,8 @@ import {
 } from "./amenities-data";
 import SwimmingPoolModal, { PoolCountPrompt } from "./SwimmingPoolModal";
 import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { Card } from "@/app/components/ui/Card";
 import { cn } from "@/app/lib/utils";
 
 export type HotelAmenitiesInfo = {
@@ -980,18 +982,18 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
 
         {/* Global search */}
         <div className="mb-3">
-          <input
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search all amenities…"
-            className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-2.5 placeholder:text-neutral-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-colors bg-white shadow-sm"
+            className="rounded-xl"
           />
         </div>
 
         {sq ? (
           /* Global search results */
-          <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-sm">
+          <Card variant="elevated" radius="md" padding="none" className="overflow-hidden">
             {searchResults.length === 0 ? (
               <p className="px-6 py-10 text-center text-sm text-neutral-400">
                 No amenities match &ldquo;{search}&rdquo;
@@ -1022,11 +1024,11 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
                 );
               })
             )}
-          </div>
+          </Card>
         ) : (
 
         /* Sidebar + Content */
-        <div className="flex bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-sm">
+        <Card variant="elevated" radius="md" padding="none" className="flex overflow-hidden">
 
           {/* Sidebar */}
           <aside className="w-64 shrink-0  self-start sticky top-0 h-full overflow-y-auto">
@@ -1287,7 +1289,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
             </div>
 
           </div>
-        </div>
+        </Card>
         )} {/* end sq ternary */}
       </form>
 

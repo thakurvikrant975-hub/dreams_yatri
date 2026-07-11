@@ -6,6 +6,7 @@ import { cn } from "@/app/lib/utils";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { SearchSelect } from "../../../../components/ui/search-select";
+import { Button } from "@/app/components/ui/Button";
 import type { PoolConfig } from "./amenities-data";
 import {
   POOL_FEATURES,
@@ -538,24 +539,20 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
 
           {/* Footer */}
           <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-3 shrink-0 bg-neutral-50">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-5 py-2 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
-            >
+            <Button variant="outline" size="md" onClick={handleCancel}>
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
               onClick={() => { if (validate()) { setSessionUploadedIds([]); onSave(pool); } }}
-              className="px-5 py-2 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm shadow-primary-500/30"
             >
               {initial
                 ? "Save Changes"
                 : poolTarget && poolNumber < poolTarget
                   ? "Save & Continue"
                   : "Add Pool"}
-            </button>
+            </Button>
           </div>
 
         </div>
@@ -627,20 +624,12 @@ export function PoolCountPrompt({
           </div>
 
           <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-3 bg-neutral-50">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
-            >
+            <Button variant="outline" size="md" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => onConfirm(count)}
-              className="px-5 py-2 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm shadow-primary-500/30"
-            >
+            </Button>
+            <Button variant="primary" size="md" onClick={() => onConfirm(count)}>
               Continue
-            </button>
+            </Button>
           </div>
         </div>
       </div>

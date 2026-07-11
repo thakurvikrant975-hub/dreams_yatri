@@ -12,6 +12,8 @@ import { saveAvailabilityRange } from "../../calendar/calendar-actions";
 import { getRoomRateDetail, saveRoomRates, type RoomRateDetail } from "./rate-actions";
 import { RateField, RestrictionField, occupancyTiers, OccupancyField } from "../rate-fields";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { Button } from "@/app/components/ui/Button";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -141,15 +143,14 @@ export default function ManageRatesClient({
         )}
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-4">
-        <p className="text-xs font-semibold text-neutral-600 mb-2">Date range</p>
+      <SectionCard title="Date range">
         <PricingRangeCalendarPicker
           value={range}
           onChange={handleRangeChange}
           placeholder="Select a date range"
         />
-        {loading && <p className="text-xs text-neutral-400 mt-2">Loading existing rates…</p>}
-      </div>
+        {loading && <p className="text-xs text-neutral-400">Loading existing rates…</p>}
+      </SectionCard>
 
       {!hasRange ? (
         <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
@@ -157,27 +158,21 @@ export default function ManageRatesClient({
         </div>
       ) : (
         <>
-          <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-neutral-100">
-              <p className="text-sm font-bold text-neutral-800">Nightly Rate</p>
-              <p className="text-xs text-neutral-400 mt-0.5">{fromISO} → {toISOStr}</p>
-            </div>
-            <div className="px-4 py-3 space-y-3">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400 mb-2">Rates by Occupancy</p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                  <OccupancyField occupancy={2} value={detail.basePrice} onChange={(v) => setField("basePrice", v)} />
-                  {occupancyTiers(maxAdults).map((n) => (
-                    <OccupancyField key={n} occupancy={n} value={detail.occupancyPrices[n] ?? null} onChange={(v) => setOccupancy(n, v)} />
-                  ))}
-                </div>
-              </div>
-              <div className="pt-1 border-t border-neutral-100">
-                <RateField value={detail.childRate} title="Per child (7-17yrs)" subtitle="Child (0-6) — Free" onChange={(v) => setField("childRate", v)} />
-                <RateField value={detail.extraAdultRate} title="Per Extra Adult" onChange={(v) => setField("extraAdultRate", v)} />
+          <SectionCard title="Nightly Rate" desc={`${fromISO} → ${toISOStr}`}>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400 mb-2">Rates by Occupancy</p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                <OccupancyField occupancy={2} value={detail.basePrice} onChange={(v) => setField("basePrice", v)} />
+                {occupancyTiers(maxAdults).map((n) => (
+                  <OccupancyField key={n} occupancy={n} value={detail.occupancyPrices[n] ?? null} onChange={(v) => setOccupancy(n, v)} />
+                ))}
               </div>
             </div>
-            <div className="flex items-start gap-2 mx-4 mb-4 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+            <div className="pt-1 border-t border-neutral-100">
+              <RateField value={detail.childRate} title="Per child (7-17yrs)" subtitle="Child (0-6) — Free" onChange={(v) => setField("childRate", v)} />
+              <RateField value={detail.extraAdultRate} title="Per Extra Adult" onChange={(v) => setField("extraAdultRate", v)} />
+            </div>
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
               <InformationCircleIcon className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[11px] text-amber-700 leading-relaxed">
                 These rates are saved and ready, but direct guest bookings currently charge the base
@@ -185,28 +180,19 @@ export default function ManageRatesClient({
                 separate upcoming update.
               </p>
             </div>
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-neutral-100">
-              <p className="text-sm font-bold text-neutral-800">Restrictions</p>
-            </div>
-            <div className="px-4 py-1">
-              <RestrictionField value={detail.minAdvanceDays} title="Minimum Advance Booking Window" subtitle="Days before check-in a booking must be made" onChange={(v) => setField("minAdvanceDays", v)} />
-              <RestrictionField value={detail.maxAdvanceDays} title="Maximum Advance Booking Window" subtitle="Number of days" onChange={(v) => setField("maxAdvanceDays", v)} />
-              <RestrictionField value={detail.minLos} title="Minimum Length of Stay" subtitle="Number of nights" onChange={(v) => setField("minLos", v)} />
-              <RestrictionField value={detail.maxLos} title="Maximum Length of Stay" subtitle="Number of nights" onChange={(v) => setField("maxLos", v)} />
-            </div>
-          </div>
+          <SectionCard title="Restrictions">
+            <RestrictionField value={detail.minAdvanceDays} title="Minimum Advance Booking Window" subtitle="Days before check-in a booking must be made" onChange={(v) => setField("minAdvanceDays", v)} />
+            <RestrictionField value={detail.maxAdvanceDays} title="Maximum Advance Booking Window" subtitle="Number of days" onChange={(v) => setField("maxAdvanceDays", v)} />
+            <RestrictionField value={detail.minLos} title="Minimum Length of Stay" subtitle="Number of nights" onChange={(v) => setField("minLos", v)} />
+            <RestrictionField value={detail.maxLos} title="Maximum Length of Stay" subtitle="Number of nights" onChange={(v) => setField("maxLos", v)} />
+          </SectionCard>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="h-11 px-6 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold disabled:opacity-60"
-            >
+            <Button variant="primary" size="lg" onClick={handleSave} loading={saving}>
               {saving ? "Saving…" : "Save"}
-            </button>
+            </Button>
             {msg && <p className="text-xs text-neutral-500">{msg}</p>}
           </div>
         </>

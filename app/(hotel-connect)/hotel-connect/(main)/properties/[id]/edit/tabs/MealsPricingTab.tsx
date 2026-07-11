@@ -165,9 +165,9 @@ function CurrencyInput({
   placeholder?: string;
 }) {
   return (
-    <div className="flex items-center h-10 rounded-lg border border-neutral-300 bg-white shadow-sm overflow-hidden transition-colors focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20">
-      <span className="pl-3 pr-1.5 text-sm text-neutral-400 font-medium select-none">₹</span>
-      <input
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400 font-medium select-none pointer-events-none">₹</span>
+      <Input
         id={id}
         name={name}
         type="number"
@@ -176,7 +176,7 @@ function CurrencyInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? "Add Rate"}
-        className="flex-1 h-full pr-3 text-sm text-neutral-900 outline-none bg-transparent placeholder:text-neutral-400"
+        className="pl-7"
       />
     </div>
   );

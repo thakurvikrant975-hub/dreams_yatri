@@ -6,7 +6,6 @@ import { cn } from "@/app/lib/utils";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  ChevronDownIcon,
   NoSymbolIcon,
   TagIcon,
   ListBulletIcon,
@@ -15,6 +14,11 @@ import { fetchRoomCalendar, saveAvailabilityRange, type RangePatch } from "./cal
 import { getRoomRateDetail, saveRoomRates, type RoomRateDetail, type RoomRatesPatch } from "../rates/[roomId]/rate-actions";
 import { occupancyTiers } from "../rates/rate-fields";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { Label } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/label";
+import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { Card } from "@/app/components/ui/Card";
+import { Button, buttonVariants } from "@/app/components/ui/Button";
 
 type DayCell = {
   date: string;
@@ -67,16 +71,16 @@ function MoneyTile({
   label: string; value: string; onChange: (raw: string) => void; placeholder?: string;
 }) {
   return (
-    <div>
-      <label className="block text-[11px] font-semibold text-neutral-500 mb-1">{label}</label>
-      <div className="h-9 rounded-lg border border-neutral-300 bg-white flex items-center px-2 gap-1 text-sm">
-        <span className="text-neutral-400">₹</span>
-        <input
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">₹</span>
+        <Input
           type="number" min={0} step="1"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full outline-none bg-transparent"
+          className="pl-7 h-9 text-sm"
         />
       </div>
     </div>
@@ -84,53 +88,38 @@ function MoneyTile({
 }
 
 function PlanRateCard({
-  plan, maxAdults, value, loading, expanded, onToggle, onChange,
+  maxAdults, value, loading, onChange,
 }: {
-  plan: RatePlanOption;
   maxAdults: number;
   value: PlanFormState;
   loading: boolean;
-  expanded: boolean;
-  onToggle: () => void;
   onChange: (patch: Partial<PlanFormState>) => void;
 }) {
   const tiers = occupancyTiers(maxAdults);
   return (
-    <div className="rounded-lg border border-neutral-200 overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-3 py-2 bg-neutral-50 hover:bg-neutral-100 transition-colors text-left"
-      >
-        <span className="text-xs font-bold text-neutral-700">{plan.label}</span>
-        <ChevronDownIcon className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", expanded && "rotate-180")} />
-      </button>
-      {expanded && (
-        <div className="p-3 space-y-2.5">
-          {loading ? (
-            <p className="text-[11px] text-neutral-400">Loading current rates…</p>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-2">
-                <MoneyTile label="2 Adults (Base)" value={value.basePrice} onChange={(v) => onChange({ basePrice: v })} placeholder="Leave blank to skip" />
-                {tiers.map((n) => (
-                  <MoneyTile
-                    key={n}
-                    label={`${n} Adult${n === 1 ? "" : "s"}`}
-                    value={value.occupancyPrices[n] ?? ""}
-                    onChange={(v) => onChange({ occupancyPrices: { ...value.occupancyPrices, [n]: v } })}
-                  />
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
-                <MoneyTile label="Per Child (7-17y)" value={value.childRate} onChange={(v) => onChange({ childRate: v })} />
-                <MoneyTile label="Extra Adult" value={value.extraAdultRate} onChange={(v) => onChange({ extraAdultRate: v })} />
-              </div>
-            </>
-          )}
-        </div>
+    <Card variant="default" radius="sm" padding="sm" className="space-y-2.5">
+      {loading ? (
+        <p className="text-[11px] text-neutral-400">Loading current rates…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <MoneyTile label="2 Adults (Base)" value={value.basePrice} onChange={(v) => onChange({ basePrice: v })} placeholder="Leave blank to skip" />
+            {tiers.map((n) => (
+              <MoneyTile
+                key={n}
+                label={`${n} Adult${n === 1 ? "" : "s"}`}
+                value={value.occupancyPrices[n] ?? ""}
+                onChange={(v) => onChange({ occupancyPrices: { ...value.occupancyPrices, [n]: v } })}
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
+            <MoneyTile label="Per Child (7-17y)" value={value.childRate} onChange={(v) => onChange({ childRate: v })} />
+            <MoneyTile label="Extra Adult" value={value.extraAdultRate} onChange={(v) => onChange({ extraAdultRate: v })} />
+          </div>
+        </>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -329,7 +318,7 @@ export default function CalendarClient({
         <div className="flex items-center gap-2">
           <Link
             href={`/hotel-connect/properties/${hotelId}/rates`}
-            className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+            className={buttonVariants({ variant: "outline", size: "md", className: "gap-1.5" })}
           >
             <ListBulletIcon className="w-4 h-4" />
             List View
@@ -360,9 +349,9 @@ export default function CalendarClient({
           No active rooms yet. Add a room to manage its rates & inventory.
         </div>
       ) : (
-        <div className="grid lg:grid-cols-[1fr_300px] gap-5">
+        <div className="grid lg:grid-cols-[1fr_400px] gap-5">
           {/* Calendar — one year's months stacked, buttons to switch years */}
-          <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+          <Card variant="elevated" radius="lg" padding="none" className="overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
               <button onClick={() => changeYear(-1)} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
                 <ChevronLeftIcon className="w-4 h-4 text-neutral-600" />
@@ -399,14 +388,14 @@ export default function CalendarClient({
               <span className="flex items-center gap-1"><NoSymbolIcon className="w-3 h-3 text-red-400" /> stop-sell</span>
               <span>N/M left = available / total</span>
             </div>
-          </div>
+          </Card>
 
           {/* Edit panel */}
           <EditPanel
             hotelId={hotelId}
             roomId={roomId}
             planId={planId}
-            plans={currentRoom?.plans ?? []}
+            planLabel={currentRoom?.plans.find((p) => p.id === planId)?.label ?? null}
             maxAdults={currentRoom?.max_adults ?? 2}
             multiPlan={(currentRoom?.plans.length ?? 0) > 1}
             rangeLo={rangeLo}
@@ -492,7 +481,7 @@ function EditPanel({
   hotelId,
   roomId,
   planId,
-  plans,
+  planLabel,
   maxAdults,
   multiPlan,
   rangeLo,
@@ -505,7 +494,7 @@ function EditPanel({
   hotelId: number;
   roomId: number | null;
   planId: number | null;
-  plans: RatePlanOption[];
+  planLabel: string | null;
   maxAdults: number;
   multiPlan: boolean;
   rangeLo: string | null;
@@ -522,46 +511,27 @@ function EditPanel({
   const [maxLos, setMaxLos] = useState("");
   const [cta, setCta] = useState<"" | "yes" | "no">("");
   const [ctd, setCtd] = useState<"" | "yes" | "no">("");
-  const [planForms, setPlanForms] = useState<Record<number, PlanFormState>>({});
-  const [expandedPlans, setExpandedPlans] = useState<Set<number>>(new Set());
+  const [planForm, setPlanForm] = useState<PlanFormState>(EMPTY_PLAN_FORM);
   const [loadingRates, setLoadingRates] = useState(false);
 
   const active = rangeLo != null && rangeHi != null;
-  const planIds = plans.map((p) => p.id).join(",");
 
-  // Fetch each active plan's currently-saved rate for this exact range
-  // whenever the range (or room) changes — mirrors ManageRatesClient's
-  // per-range fetch, just for every plan on the room at once.
+  // Fetch the *currently selected* plan's saved rate for this exact range —
+  // matches the plan switcher above the calendar, which already scopes the
+  // whole view (grid prices, restrictions) to one plan at a time.
   useEffect(() => {
-    if (!active || roomId == null || plans.length === 0) { setPlanForms({}); return; }
-    setExpandedPlans(new Set(planId != null ? [planId] : []));
+    if (!active || roomId == null || planId == null) { setPlanForm(EMPTY_PLAN_FORM); return; }
     let cancelled = false;
     setLoadingRates(true);
-    Promise.all(plans.map((p) => getRoomRateDetail(hotelId, roomId, p.id, rangeLo!, rangeHi!)))
-      .then((results) => {
+    getRoomRateDetail(hotelId, roomId, planId, rangeLo!, rangeHi!)
+      .then((res) => {
         if (cancelled) return;
-        const next: Record<number, PlanFormState> = {};
-        results.forEach((res, i) => {
-          next[plans[i].id] = res.detail ? detailToFormState(res.detail) : EMPTY_PLAN_FORM;
-        });
-        setPlanForms(next);
+        setPlanForm(res.detail ? detailToFormState(res.detail) : EMPTY_PLAN_FORM);
       })
       .finally(() => { if (!cancelled) setLoadingRates(false); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, rangeLo, rangeHi, roomId, planIds]);
+  }, [active, rangeLo, rangeHi, roomId, planId, hotelId]);
 
-  function updatePlanForm(pId: number, patch: Partial<PlanFormState>) {
-    setPlanForms((prev) => ({ ...prev, [pId]: { ...(prev[pId] ?? EMPTY_PLAN_FORM), ...patch } }));
-  }
-
-  function togglePlan(pId: number) {
-    setExpandedPlans((prev) => {
-      const next = new Set(prev);
-      if (next.has(pId)) next.delete(pId); else next.add(pId);
-      return next;
-    });
-  }
   const nights = active ? Math.round((Date.parse(rangeHi!) - Date.parse(rangeLo!)) / 86400000) + 1 : 0;
 
   function submit() {
@@ -575,20 +545,18 @@ function EditPanel({
     if (ctd) patch.closedToDeparture = ctd === "yes";
 
     const planRates: PlanRatesPatch[] = [];
-    for (const p of plans) {
-      const form = planForms[p.id];
-      if (!form || form.basePrice.trim() === "") continue; // untouched — leave this plan's rate alone
+    if (planId != null && planForm.basePrice.trim() !== "") {
       const occupancyPrices: Record<number, number | null> = {};
-      for (const [occStr, raw] of Object.entries(form.occupancyPrices)) {
+      for (const [occStr, raw] of Object.entries(planForm.occupancyPrices)) {
         occupancyPrices[Number(occStr)] = raw.trim() === "" ? null : Number(raw);
       }
       planRates.push({
-        planId: p.id,
+        planId,
         input: {
-          basePrice: Number(form.basePrice),
+          basePrice: Number(planForm.basePrice),
           occupancyPrices,
-          childRate: form.childRate.trim() === "" ? null : Number(form.childRate),
-          extraAdultRate: form.extraAdultRate.trim() === "" ? null : Number(form.extraAdultRate),
+          childRate: planForm.childRate.trim() === "" ? null : Number(planForm.childRate),
+          extraAdultRate: planForm.extraAdultRate.trim() === "" ? null : Number(planForm.extraAdultRate),
         },
       });
     }
@@ -596,120 +564,116 @@ function EditPanel({
     onSave(patch, planRates);
   }
 
-  const label = "block text-[11px] font-semibold text-neutral-600 mb-1";
-  const input = "h-9 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm shadow-sm focus:ring-2 focus:ring-primary-500/20";
-
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-4 h-fit lg:sticky lg:top-4">
-      <p className="text-sm font-bold text-neutral-800">Bulk edit</p>
+    <SectionCard
+      title="Bulk Edit"
+      desc={active ? `${rangeLo} → ${rangeHi} · ${nights} night${nights === 1 ? "" : "s"}` : undefined}
+      className="h-fit lg:sticky lg:top-4"
+    >
       {!active ? (
-        <p className="text-xs text-neutral-500 mt-2 leading-relaxed">
+        <p className="text-xs text-neutral-500 leading-relaxed">
           Click a start date, then an end date — even in a different month — to select a range,
           then set rates &amp; inventory here. Use the arrows above the calendar to switch years
           if your range crosses a year boundary.
         </p>
       ) : (
         <>
-          <p className="text-xs text-primary-600 font-medium mt-1 mb-3">
-            {rangeLo} → {rangeHi} · {nights} night{nights === 1 ? "" : "s"}
-          </p>
-          <div className="space-y-3">
+          <div>
+            <Label>Price / night (₹)</Label>
+            <div className="relative mt-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">₹</span>
+              <Input type="number" min={1} step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank to keep" className="pl-7" />
+            </div>
+            {price.trim() !== "" && (
+              <button onClick={() => setPrice("")} className="text-[10px] text-neutral-400 hover:text-primary-600 mt-1">clear override → use season price</button>
+            )}
+            {multiPlan && (
+              <p className="text-[10px] text-amber-600 mt-1">This overrides the price shown for every rate plan on these dates.</p>
+            )}
+          </div>
+          <div>
+            <Label>Rooms available (total)</Label>
+            <Input type="number" min={0} step="1" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Leave blank to keep" className="mt-1" />
+          </div>
+          <div>
+            <Label className="mb-1">Availability</Label>
+            <SearchSelect
+              options={[{ value: "", label: "Unchanged" }, { value: "open", label: "Open for sale" }, { value: "closed", label: "Stop sell (close)" }]}
+              value={openState}
+              onChange={(v) => setOpenState(v as "" | "open" | "closed")}
+              showSearch={false}
+            />
+          </div>
+
+          {planId != null && (
             <div>
-              <label className={label}>Price / night (₹)</label>
-              <input type="number" min={1} step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank to keep" className={input} />
-              {price.trim() !== "" && (
-                <button onClick={() => setPrice("")} className="text-[10px] text-neutral-400 hover:text-primary-600 mt-1">clear override → use season price</button>
-              )}
-              {multiPlan && (
-                <p className="text-[10px] text-amber-600 mt-1">This overrides the price shown for every rate plan on these dates.</p>
-              )}
+              <div className="flex items-center justify-between mb-1.5">
+                <Label>
+                  Rate Plan Pricing
+                  {planLabel && <span className="font-normal normal-case text-neutral-400"> · {planLabel}</span>}
+                </Label>
+                {loadingRates && <span className="text-[10px] text-neutral-400">loading…</span>}
+              </div>
+              <PlanRateCard
+                maxAdults={maxAdults}
+                value={planForm}
+                loading={loadingRates}
+                onChange={(patch) => setPlanForm((prev) => ({ ...prev, ...patch }))}
+              />
+              <p className="text-[10px] text-neutral-400 mt-1.5">
+                Leave &quot;2 Adults&quot; blank to leave this plan&apos;s rate for this range untouched.
+                {multiPlan && " Switch the rate plan above to edit a different plan's pricing."}
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="mb-1">Minimum Length of Stay</Label>
+              <Input type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" />
             </div>
             <div>
-              <label className={label}>Rooms available (total)</label>
-              <input type="number" min={0} step="1" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Leave blank to keep" className={input} />
+              <Label className="mb-1">Maximum Length of Stay</Label>
+              <Input type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className={label}>Availability</label>
+              <Label className="mb-1">Closed to Arrival</Label>
               <SearchSelect
-                options={[{ value: "", label: "Unchanged" }, { value: "open", label: "Open for sale" }, { value: "closed", label: "Stop sell (close)" }]}
-                value={openState}
-                onChange={(v) => setOpenState(v as "" | "open" | "closed")}
+                options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
+                value={cta}
+                onChange={(v) => setCta(v as "" | "yes" | "no")}
                 showSearch={false}
               />
             </div>
-
-            {plans.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className={label}>Rate Plan Pricing</p>
-                  {loadingRates && <span className="text-[10px] text-neutral-400">loading…</span>}
-                </div>
-                <div className="space-y-2">
-                  {plans.map((p) => (
-                    <PlanRateCard
-                      key={p.id}
-                      plan={p}
-                      maxAdults={maxAdults}
-                      value={planForms[p.id] ?? EMPTY_PLAN_FORM}
-                      loading={loadingRates}
-                      expanded={expandedPlans.has(p.id)}
-                      onToggle={() => togglePlan(p.id)}
-                      onChange={(patch) => updatePlanForm(p.id, patch)}
-                    />
-                  ))}
-                </div>
-                <p className="text-[10px] text-neutral-400 mt-1.5">Leave a plan&apos;s &quot;2 Adults&quot; blank to leave its rate for this range untouched.</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className={label}>Minimum Length of Stay</label>
-                <input type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" className={input} />
-              </div>
-              <div>
-                <label className={label}>Maximum Length of Stay</label>
-                <input type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" className={input} />
-              </div>
+            <div>
+              <Label className="mb-1">Closed to Departure</Label>
+              <SearchSelect
+                options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
+                value={ctd}
+                onChange={(v) => setCtd(v as "" | "yes" | "no")}
+                showSearch={false}
+              />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className={label}>Closed to Arrival</label>
-                <SearchSelect
-                  options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
-                  value={cta}
-                  onChange={(v) => setCta(v as "" | "yes" | "no")}
-                  showSearch={false}
-                />
-              </div>
-              <div>
-                <label className={label}>Closed to Departure</label>
-                <SearchSelect
-                  options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
-                  value={ctd}
-                  onChange={(v) => setCtd(v as "" | "yes" | "no")}
-                  showSearch={false}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button onClick={submit} disabled={saving} className="flex-1 h-10 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold disabled:opacity-60">
-                {saving ? "Saving…" : "Apply"}
-              </button>
-              <button onClick={onClear} className="h-10 px-3 rounded-lg border border-neutral-200 text-sm text-neutral-600 hover:bg-neutral-50">Clear</button>
-            </div>
-            {roomId != null && (
-              <Link
-                href={`/hotel-connect/properties/${hotelId}/rates/${roomId}?${planId != null ? `plan=${planId}&` : ""}from=${rangeLo}&to=${rangeHi}`}
-                className="block text-center text-xs font-semibold text-primary-600 hover:text-primary-700 mt-2"
-              >
-                Manage Rates for this range →
-              </Link>
-            )}
           </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="primary" size="md" onClick={submit} loading={saving} className="flex-1">
+              {saving ? "Saving…" : "Apply"}
+            </Button>
+            <Button variant="outline" size="md" onClick={onClear}>Clear</Button>
+          </div>
+          {roomId != null && (
+            <Link
+              href={`/hotel-connect/properties/${hotelId}/rates/${roomId}?${planId != null ? `plan=${planId}&` : ""}from=${rangeLo}&to=${rangeHi}`}
+              className="block text-center text-xs font-semibold text-primary-600 hover:text-primary-700"
+            >
+              Manage Rates for this range →
+            </Link>
+          )}
         </>
       )}
-      {msg && <p className="text-xs text-neutral-500 mt-3">{msg}</p>}
-    </div>
+      {msg && <p className="text-xs text-neutral-500">{msg}</p>}
+    </SectionCard>
   );
 }
