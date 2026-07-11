@@ -22,9 +22,13 @@ export type ReviewsData = {
   stats: { average: number; total: number; breakdown: Record<1 | 2 | 3 | 4 | 5, number> };
   completedBookings: number;
   hasProperties: boolean;
+  page: number;
+  totalPages: number;
 };
 
-export async function getOwnerReviews(): Promise<ReviewsData> {
+const PAGE_SIZE = 20;
+
+export async function getOwnerReviews(page = 1): Promise<ReviewsData> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
   const ownerId = session.user.id;
@@ -33,29 +37,40 @@ export async function getOwnerReviews(): Promise<ReviewsData> {
   const hotelIds = hotels.map((h) => h.id);
   const empty: ReviewsData = {
     reviews: [], stats: { average: 0, total: 0, breakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
-    completedBookings: 0, hasProperties: hotelIds.length > 0,
+    completedBookings: 0, hasProperties: hotelIds.length > 0, page: 1, totalPages: 1,
   };
   if (!hotelIds.length) return empty;
 
-  const [rawReviews, completedBookings] = await Promise.all([
+  const where = { hotel_id: { in: hotelIds } };
+  const safePage = Math.max(1, Math.trunc(page) || 1);
+
+  // Stats need every review's rating, but not the full row (comment, guest
+  // name, etc) — a group-by keeps that cheap regardless of review count,
+  // instead of loading every row just to tally rating counts client-side.
+  const [ratingGroups, totalCount, completedBookings, rawReviews] = await Promise.all([
+    db.hotel_review.groupBy({ by: ["rating"], where, _count: { _all: true } }),
+    db.hotel_review.count({ where }),
+    db.bookingHotel.count({ where: { hotelId: { in: hotelIds }, booking: { status: "COMPLETED" } } }),
     db.hotel_review.findMany({
-      where: { hotel_id: { in: hotelIds } },
+      where,
       orderBy: { created_at: "desc" },
+      skip: (safePage - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
       select: {
         id: true, hotel_id: true, rating: true, comment: true, guest_name: true,
         host_response: true, host_response_at: true, created_at: true,
         hotel: { select: { name: true } },
       },
     }),
-    db.bookingHotel.count({ where: { hotelId: { in: hotelIds }, booking: { status: "COMPLETED" } } }),
   ]);
 
   const breakdown: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  for (const r of rawReviews) {
-    if (r.rating >= 1 && r.rating <= 5) breakdown[r.rating as 1 | 2 | 3 | 4 | 5]++;
+  let ratingSum = 0;
+  for (const g of ratingGroups) {
+    if (g.rating >= 1 && g.rating <= 5) breakdown[g.rating as 1 | 2 | 3 | 4 | 5] += g._count._all;
+    ratingSum += g.rating * g._count._all;
   }
-  const total = rawReviews.length;
-  const average = total > 0 ? rawReviews.reduce((s, r) => s + r.rating, 0) / total : 0;
+  const average = totalCount > 0 ? ratingSum / totalCount : 0;
 
   return {
     reviews: rawReviews.map((r) => ({
@@ -69,9 +84,11 @@ export async function getOwnerReviews(): Promise<ReviewsData> {
       hostResponseAt: r.host_response_at,
       createdAt: r.created_at,
     })),
-    stats: { average, total, breakdown },
+    stats: { average, total: totalCount, breakdown },
     completedBookings,
     hasProperties: true,
+    page: safePage,
+    totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
   };
 }
 

@@ -7,6 +7,7 @@ import {
   ArrowRightIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import { cn } from "@/app/lib/utils";
 import { getOwnerReviews } from "./reviews-actions";
 import ReviewCard from "./ReviewCard";
 
@@ -30,8 +31,14 @@ function StarRow({ label, count, total }: { label: string; count: number; total:
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function ReviewsPage() {
-  const { reviews, stats, completedBookings, hasProperties } = await getOwnerReviews();
+export default async function ReviewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const { reviews, stats, completedBookings, hasProperties, totalPages } = await getOwnerReviews(page);
 
   return (
     <>
@@ -99,6 +106,36 @@ export default async function ReviewsPage() {
                 {reviews.map((r) => (
                   <ReviewCard key={r.id} review={r} />
                 ))}
+              </div>
+            )}
+
+            {reviews.length > 0 && totalPages > 1 && (
+              <div className="px-5 py-3 border-t border-neutral-100 bg-neutral-50/50 flex items-center justify-end gap-2">
+                <Link
+                  href={`?page=${Math.max(1, page - 1)}`}
+                  aria-disabled={page <= 1}
+                  className={cn(
+                    "text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors",
+                    page <= 1
+                      ? "text-neutral-300 border-neutral-100 pointer-events-none"
+                      : "text-neutral-600 border-neutral-200 hover:bg-neutral-100"
+                  )}
+                >
+                  Previous
+                </Link>
+                <span className="text-xs text-neutral-400">Page {page} of {totalPages}</span>
+                <Link
+                  href={`?page=${Math.min(totalPages, page + 1)}`}
+                  aria-disabled={page >= totalPages}
+                  className={cn(
+                    "text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors",
+                    page >= totalPages
+                      ? "text-neutral-300 border-neutral-100 pointer-events-none"
+                      : "text-neutral-600 border-neutral-200 hover:bg-neutral-100"
+                  )}
+                >
+                  Next
+                </Link>
               </div>
             )}
           </Card>

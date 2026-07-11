@@ -54,9 +54,13 @@ export async function getOwnerConversations(): Promise<ConversationSummary[]> {
   const hotelIds = ownerHotels.map((h) => h.id);
   if (!hotelIds.length) return [];
 
-  // Every (booking, hotel) pair this owner's properties are part of —
-  // this is the full universe of possible conversations, whether or not a
-  // guest (or host) has actually sent a message yet.
+  // Every (booking, hotel) pair this owner's properties are part of — the
+  // full universe of possible conversations, whether or not a guest (or
+  // host) has actually sent a message yet. Capped to the most recent
+  // bookings so an owner with years of history doesn't load their entire
+  // booking log just to open the inbox; the client's own search/filter
+  // then operates over this recent window.
+  const CONVERSATION_WINDOW = 200;
   const links = await db.bookingHotel.findMany({
     where: { hotelId: { in: hotelIds } },
     select: {
@@ -67,11 +71,14 @@ export async function getOwnerConversations(): Promise<ConversationSummary[]> {
         select: {
           bookingNumber: true,
           contactEmail: true,
+          createdAt: true,
           travellersList: { where: { isLead: true }, take: 1, select: { fullName: true, firstName: true } },
         },
       },
     },
     distinct: ["bookingId", "hotelId"],
+    orderBy: { booking: { createdAt: "desc" } },
+    take: CONVERSATION_WINDOW,
   });
   if (!links.length) return [];
 
