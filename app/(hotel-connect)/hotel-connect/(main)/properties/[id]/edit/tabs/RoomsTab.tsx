@@ -956,10 +956,11 @@ function Section4({ data, onChange, errors }: {
 
 function RoomYesNo({ selected, onChange }: { selected: boolean | undefined; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium shrink-0">
+    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium shrink-0">
       <button
         type="button"
         onClick={() => onChange(false)}
+        aria-pressed={selected === false}
         className={cn(
           "px-3.5 py-1.5 transition-colors",
           selected === false ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50",
@@ -971,6 +972,7 @@ function RoomYesNo({ selected, onChange }: { selected: boolean | undefined; onCh
       <button
         type="button"
         onClick={() => onChange(true)}
+        aria-pressed={selected === true}
         className={cn(
           "px-3.5 py-1.5 transition-colors",
           selected === true ? "bg-primary-500 text-white" : "text-neutral-500 hover:bg-neutral-50",

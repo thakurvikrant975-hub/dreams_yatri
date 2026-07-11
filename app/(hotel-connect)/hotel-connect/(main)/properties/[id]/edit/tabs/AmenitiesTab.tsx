@@ -62,11 +62,12 @@ function YesNoButtons({
   disabled: boolean;
 }) {
   return (
-    <div className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium shrink-0">
+    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium shrink-0">
       <button
         type="button"
         onClick={() => onChange(false)}
         disabled={disabled}
+        aria-pressed={value === false}
         className={cn(
           "px-3.5 py-1.5 transition-colors disabled:opacity-50",
           value === false
@@ -81,6 +82,7 @@ function YesNoButtons({
         type="button"
         onClick={() => onChange(true)}
         disabled={disabled}
+        aria-pressed={value === true}
         className={cn(
           "px-3.5 py-1.5 transition-colors disabled:opacity-50",
           value === true
@@ -113,6 +115,7 @@ function CategoryNavItem({
     <button
       type="button"
       onClick={onClick}
+      aria-current={active ? "true" : undefined}
       className={cn(
         "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
         active

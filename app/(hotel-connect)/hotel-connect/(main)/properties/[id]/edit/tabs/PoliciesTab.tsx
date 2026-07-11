@@ -113,10 +113,11 @@ function YesNoButtons({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
       <button
         type="button"
         onClick={() => onChange(false)}
+        aria-pressed={value === false}
         className={cn(
           "px-4 py-1.5 transition-colors",
           value === false ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50"
@@ -128,6 +129,7 @@ function YesNoButtons({
       <button
         type="button"
         onClick={() => onChange(true)}
+        aria-pressed={value === true}
         className={cn(
           "px-4 py-1.5 transition-colors",
           value === true ? "bg-primary-500 text-white" : "text-neutral-500 hover:bg-neutral-50"
@@ -152,6 +154,7 @@ function TriStateButtons({
     <button
       type="button"
       onClick={() => onChange(v)}
+      aria-pressed={value === v}
       className={cn(
         "px-3.5 py-1.5 text-xs font-medium transition-colors",
         value === v
@@ -165,7 +168,7 @@ function TriStateButtons({
     </button>
   );
   return (
-    <div className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
       {btn("no", "No")}
       <div className="w-px bg-neutral-200" />
       {btn("yes", "Yes")}
@@ -267,6 +270,7 @@ function Pill({
     <button
       type="button"
       onClick={onToggle}
+      aria-pressed={checked}
       className={cn(
         "inline-flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 border transition-colors",
         checked
@@ -274,7 +278,7 @@ function Pill({
           : "border-neutral-200 text-neutral-600 hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50"
       )}
     >
-      {checked && <CheckIcon size={10} weight="bold" />}
+      {checked && <CheckIcon size={10} weight="bold" aria-hidden="true" />}
       {label}
     </button>
   );

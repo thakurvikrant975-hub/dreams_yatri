@@ -153,10 +153,11 @@ function YesNoButtons({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
       <button
         type="button"
         onClick={() => onChange(false)}
+        aria-pressed={value === false}
         className={cn(
           "px-4 py-1.5 transition-colors",
           value === false ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50",
@@ -168,6 +169,7 @@ function YesNoButtons({
       <button
         type="button"
         onClick={() => onChange(true)}
+        aria-pressed={value === true}
         className={cn(
           "px-4 py-1.5 transition-colors",
           value === true ? "bg-primary-500 text-white" : "text-neutral-500 hover:bg-neutral-50",
@@ -276,6 +278,7 @@ function CheckboxGroup({
             key={opt}
             type="button"
             onClick={() => toggle(opt)}
+            aria-pressed={active}
             className={cn(
               "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
               active

@@ -81,6 +81,7 @@ function TagToggle({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "px-3 py-1.5 rounded-full border text-xs font-medium transition-colors",
         active
@@ -108,6 +109,7 @@ function OptionCard({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-sm font-semibold transition-all",
         active
@@ -378,12 +380,13 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
                 <SnowflakeIcon size={16} className="text-neutral-400" />
                 Is the pool accessible during the winter season?
               </p>
-              <div className="flex gap-3">
+              <div role="group" className="flex gap-3">
                 {([false, true] as const).map((val) => (
                   <button
                     key={String(val)}
                     type="button"
                     onClick={() => update("winterAccess", val)}
+                    aria-pressed={pool.winterAccess === val}
                     className={cn(
                       "px-6 py-2 rounded-full border text-sm font-medium transition-all",
                       pool.winterAccess === val
@@ -526,12 +529,13 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
               </div>
               <div>
                 <p className="text-[11px] text-neutral-500 mb-1.5">Non-operational days</p>
-                <div className="flex flex-wrap gap-2">
+                <div role="group" aria-label="Non-operational days" className="flex flex-wrap gap-2">
                   {WEEK_DAYS.map((d) => (
                     <button
                       key={d}
                       type="button"
                       onClick={() => toggleArray("nonOpDays", d)}
+                      aria-pressed={pool.nonOpDays.includes(d)}
                       className={cn(
                         "w-10 h-10 rounded-full border text-xs font-semibold transition-all",
                         pool.nonOpDays.includes(d)
