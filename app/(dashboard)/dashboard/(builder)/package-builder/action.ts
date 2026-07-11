@@ -271,6 +271,10 @@ export interface DayItinerary {
   accommodationLocation: string;
   accommodationRoomSpecs: string;
   accommodationRoomCapacity: number | null;
+  /** The exact `hotel_room_pricing` row picked for this night — lets the
+   * package price be computed from real, date/occupancy-aware hotel rates
+   * instead of typed in by hand. Null when the hotel was entered as free text. */
+  roomPricingId:      number | null;
   hotelCheckIn:       string;
   hotelCheckOut:      string;
   hotelMealPlan:      string;
@@ -399,6 +403,10 @@ export async function copyPackageIntoDraft(
       accommodationLocation: day.hotel?.location ?? "",
       accommodationRoomSpecs: roomSpecs,
       accommodationRoomCapacity: day.hotel?.room_capacity ?? null,
+      // The catalog's public page-data fetcher doesn't expose the raw
+      // hotel_room_pricing id, so a copied template needs the exec to
+      // re-pick the room via search before it counts toward auto pricing.
+      roomPricingId:      null,
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
       hotelCheckOut:      day.hotel?.check_out_time ?? "",
       hotelMealPlan:      day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
@@ -545,6 +553,7 @@ function normalizeItinerary(it: {
   id: string; day: number; title: string; description: string | null; meals: string[];
   accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
   accommodationLocation: string | null; accommodationRoomSpecs: string | null; accommodationRoomCapacity: number | null;
+  roomPricingId: number | null;
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null; transportDrop: string | null;
@@ -564,6 +573,7 @@ function normalizeItinerary(it: {
     accommodationLocation:     it.accommodationLocation ?? "",
     accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
     accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
+    roomPricingId:             it.roomPricingId ?? null,
     hotelCheckIn:              it.hotelCheckIn ?? "",
     hotelCheckOut:             it.hotelCheckOut ?? "",
     hotelMealPlan:             it.hotelMealPlan ?? "",
@@ -638,6 +648,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               accommodationLocation: true,
               accommodationRoomSpecs: true,
               accommodationRoomCapacity: true,
+              roomPricingId:      true,
               hotelCheckIn:       true,
               hotelCheckOut:      true,
               hotelMealPlan:      true,
@@ -805,6 +816,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               accommodationLocation: it.accommodationLocation || null,
               accommodationRoomSpecs: it.accommodationRoomSpecs || null,
               accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
+              roomPricingId:      it.roomPricingId ?? null,
               hotelCheckIn:       it.hotelCheckIn || null,
               hotelCheckOut:      it.hotelCheckOut || null,
               hotelMealPlan:      it.hotelMealPlan || null,

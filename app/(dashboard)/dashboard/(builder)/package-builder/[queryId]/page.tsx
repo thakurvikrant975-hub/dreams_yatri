@@ -39,6 +39,7 @@ import {
   type VehicleResult,
   type PackageCopyPayload,
 } from "../action";
+import { computeBuilderHotelPricing, type BuilderHotelPricingResult } from "@/app/services/package-pricing.service";
 import { ItineraryDocument } from "./ItineraryDocument";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 
@@ -568,6 +569,9 @@ function DayCard({ day, data, location, onChange, onRemove }: {
       accommodationRoomSpecs: raw.roomSpecs ?? data.accommodationRoomSpecs,
       accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
+      // Links this night to the real hotel_room_pricing row so the package
+      // price can be computed from its actual date/occupancy-aware rate.
+      roomPricingId: raw.id,
     });
   }
 
@@ -931,6 +935,7 @@ const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
   meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
   accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+  roomPricingId: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportDrop: "", transportDistanceKm: null,
@@ -951,6 +956,8 @@ export default function PackageBuilderDetailPage() {
   const [packageId, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
+  const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
+  const [computingPrice, setComputingPrice] = useState(false);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -1092,6 +1099,41 @@ export default function PackageBuilderDetailPage() {
       setForm((f) => ({ ...f, totalPrice: String(pp * (f.adults + f.children)) }));
     }
   }, [form.pricePerPerson, form.adults, form.children]);
+
+  // ── Auto-price from travel date + hotel selected + pax counts ──────────────
+  // Recomputes the real hotel cost (season/occupancy-aware) whenever any of
+  // those three inputs change — the sales exec still applies it manually via
+  // the "Use this price" button so an already-typed price isn't clobbered.
+  const roomPricingKey = form.itineraries.map((it) => `${it.day}:${it.roomPricingId ?? ""}`).join("|");
+  useEffect(() => {
+    const days = form.itineraries.map((it) => ({ day: it.day, roomPricingId: it.roomPricingId }));
+    if (days.every((d) => d.roomPricingId == null)) {
+      setHotelPricing(null);
+      return;
+    }
+    let cancelled = false;
+    setComputingPrice(true);
+    const timer = setTimeout(async () => {
+      const result = await computeBuilderHotelPricing({
+        travelDate: form.travelDate || null,
+        adults: form.adults,
+        children: form.children,
+        days,
+      });
+      if (cancelled) return;
+      setHotelPricing(result);
+      setComputingPrice(false);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.travelDate, form.adults, form.children, roomPricingKey]);
+
+  function applyHotelPricing() {
+    if (!hotelPricing || hotelPricing.hotelSubtotal <= 0) return;
+    const totalPax = form.adults + form.children;
+    const perPerson = totalPax > 0 ? Math.round(hotelPricing.hotelSubtotal / totalPax) : Math.round(hotelPricing.hotelSubtotal);
+    setForm((f) => ({ ...f, pricePerPerson: String(perPerson) }));
+  }
 
   // ── Save ───────────────────────────────────────────────────────────────────
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
@@ -1524,6 +1566,33 @@ export default function PackageBuilderDetailPage() {
                       />
                     </div>
                   </div>
+
+                  {computingPrice ? (
+                    <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
+                      <Loader2 size={12} className="animate-spin" /> Calculating price from hotels + dates…
+                    </div>
+                  ) : hotelPricing && hotelPricing.hotelSubtotal > 0 ? (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-dashboard-primary/30 bg-dashboard-primary/5 px-3 py-2.5">
+                      <div className="text-xs text-dashboard-base-content">
+                        <span className="font-semibold">Computed hotel cost: ₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</span>
+                        <span className="text-dashboard-base-content/60">
+                          {" "}— {hotelPricing.nightsCounted} night{hotelPricing.nightsCounted !== 1 ? "s" : ""}, {form.adults + form.children} pax
+                          {form.travelDate ? `, from ${new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}
+                        </span>
+                      </div>
+                      <Button
+                        type="button" size="sm" variant="outline"
+                        className="h-7 text-xs shrink-0 border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10"
+                        onClick={applyHotelPricing}
+                      >
+                        Use this price
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-dashboard-base-content/50">
+                      Pick hotels via the room search below to auto-calculate price from real, date-aware rates.
+                    </p>
+                  )}
                 </div>
 
                 {/* Flights & Train */}

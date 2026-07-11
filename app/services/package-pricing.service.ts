@@ -1020,3 +1020,115 @@ export async function computePackagePrice(
     missing_pricing_config: !pricingConfig,
   };
 }
+
+// ── Package Builder hotel pricing ───────────────────────────────────────────
+// A builder itinerary is bespoke (no package_id/duration_id/stay_category_id
+// to drive the full computePackagePrice engine above), but each day's hotel
+// pick already references a real hotel_room_pricing row once selected via the
+// builder's own search — so its date/occupancy-aware rate can still be priced
+// exactly the same way a catalog stay is, just without the cab/activity/permit
+// layers that only exist for catalog packages.
+
+export type BuilderHotelDayLine = {
+  day: number;
+  hotelName: string;
+  roomName: string;
+  pricePerRoom: number;
+  roomsNeeded: number;
+  mattresses: number;
+  extraBedRate: number;
+  total: number;
+};
+
+export type BuilderHotelPricingResult = {
+  days: BuilderHotelDayLine[];
+  hotelSubtotal: number;
+  nightsCounted: number;
+};
+
+export async function computeBuilderHotelPricing(input: {
+  travelDate: string | null;
+  adults: number;
+  children: number;
+  days: { day: number; roomPricingId: number | null }[];
+}): Promise<BuilderHotelPricingResult> {
+  const { travelDate, adults, children, days } = input;
+  const travelDateObj = travelDate ? new Date(travelDate) : null;
+
+  const roomPricingIds = [
+    ...new Set(days.map((d) => d.roomPricingId).filter((id): id is number => id != null)),
+  ];
+  if (roomPricingIds.length === 0) {
+    return { days: [], hotelSubtotal: 0, nightsCounted: 0 };
+  }
+
+  const rows = await db.hotel_room_pricing.findMany({
+    where: { id: { in: roomPricingIds } },
+    select: {
+      id: true,
+      price_per_night: true,
+      extra_bed_rate: true,
+      hotel: { select: { name: true } },
+      room: { select: { name: true, max_occupancy: true, extra_bed_capacity: true } },
+      occupancy_prices: {
+        orderBy: { occupancy: "asc" },
+        select: { occupancy: true, price_per_night: true },
+      },
+      seasons: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: {
+          valid_from: true, valid_to: true, price_per_night: true, weekend_price_per_night: true,
+          occupancy_prices: { select: { occupancy: true, price_per_night: true } },
+        },
+      },
+    },
+  });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  const persons = Math.max(adults + children, 1);
+  const lines: BuilderHotelDayLine[] = [];
+  let hotelSubtotal = 0;
+
+  for (const d of days) {
+    if (d.roomPricingId == null) continue;
+    const rp = byId.get(d.roomPricingId);
+    if (!rp) continue;
+
+    const dayDate = travelDateObj
+      ? new Date(travelDateObj.getTime() + (d.day - 1) * 24 * 60 * 60 * 1000)
+      : null;
+
+    const bedCapacity = rp.room?.max_occupancy ?? 2;
+    const extraBedCap = rp.room?.extra_bed_capacity ?? 1;
+    const effectiveCap = bedCapacity + extraBedCap;
+    const roomsNeeded = Math.ceil(persons / effectiveCap);
+    const mattresses = Math.max(0, persons - roomsNeeded * bedCapacity);
+    const extraBedRate = rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
+
+    const typicalOccupancy = Math.min(adults, bedCapacity);
+    const { basePrice, occPrices } = resolveHotelSeasonPricing(rp, dayDate);
+    let pricePerRoom = basePrice;
+    if (occPrices.length > 0) {
+      const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
+      const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
+      pricePerRoom = Number(match.price_per_night);
+    }
+
+    const total = roomsNeeded * pricePerRoom + mattresses * extraBedRate;
+    hotelSubtotal += total;
+
+    lines.push({
+      day: d.day,
+      hotelName: rp.hotel.name,
+      roomName: rp.room?.name ?? "Room",
+      pricePerRoom,
+      roomsNeeded,
+      mattresses,
+      extraBedRate,
+      total,
+    });
+  }
+
+  return { days: lines, hotelSubtotal, nightsCounted: lines.length };
+}
