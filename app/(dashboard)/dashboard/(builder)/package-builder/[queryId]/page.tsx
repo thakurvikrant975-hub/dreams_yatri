@@ -1579,7 +1579,7 @@ export default function PackageBuilderDetailPage() {
           {/* Right */}
           <div className="flex items-center gap-2 shrink-0">
             <Button
-              variant="outline"
+              variant="outline "
               size="sm"
               className="lg:hidden h-8 gap-1 border-dashboard-base-300 hover:bg-dashboard-base-200 rounded-md"
               onClick={() => setMobilePreviewOpen(true)}
