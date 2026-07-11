@@ -355,14 +355,14 @@ export default function CalendarClient({
           {/* Calendar — one year's months stacked, buttons to switch years */}
           <Card variant="elevated" radius="lg" padding="none" className="overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
-              <button onClick={() => changeYear(-1)} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
-                <ChevronLeftIcon className="w-4 h-4 text-neutral-600" />
+              <button onClick={() => changeYear(-1)} aria-label="Previous year" className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
+                <ChevronLeftIcon className="w-4 h-4 text-neutral-600" aria-hidden="true" />
               </button>
               <p className="text-sm font-semibold text-neutral-800">
                 {year} {loading && <span className="text-neutral-400 font-normal">· loading…</span>}
               </p>
-              <button onClick={() => changeYear(1)} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
-                <ChevronRightIcon className="w-4 h-4 text-neutral-600" />
+              <button onClick={() => changeYear(1)} aria-label="Next year" className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
+                <ChevronRightIcon className="w-4 h-4 text-neutral-600" aria-hidden="true" />
               </button>
             </div>
 

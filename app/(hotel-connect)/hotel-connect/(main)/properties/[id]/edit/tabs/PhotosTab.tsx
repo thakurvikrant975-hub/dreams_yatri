@@ -112,9 +112,10 @@ function PhotoPreviewModal({
         <button
           type="button"
           onClick={onClose}
+          aria-label="Close photo preview"
           className="absolute top-2.5 right-2.5 z-10 size-7 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
         >
-          <XIcon size={13} weight="bold" />
+          <XIcon size={13} weight="bold" aria-hidden="true" />
         </button>
 
         {/* Large image */}
@@ -741,11 +742,11 @@ export default function PhotosTab({
     return (
       <div className="space-y-3">
         {(uploadError || tagError) && (
-          <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-            <WarningIcon size={15} className="shrink-0 mt-0.5" />
+          <div role="alert" className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+            <WarningIcon size={15} className="shrink-0 mt-0.5" aria-hidden="true" />
             <span className="flex-1">{tagError ?? uploadError}</span>
-            <button type="button" onClick={() => { setUploadError(null); setTagError(null); }} className="shrink-0 text-red-400 hover:text-red-600">
-              <XIcon size={13} />
+            <button type="button" onClick={() => { setUploadError(null); setTagError(null); }} aria-label="Dismiss error" className="shrink-0 text-red-400 hover:text-red-600">
+              <XIcon size={13} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -771,8 +772,8 @@ export default function PhotosTab({
 
       {/* Tag validation error banner */}
       {tagError && (
-        <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-          <WarningIcon size={15} className="shrink-0 mt-0.5" />
+        <div role="alert" className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <WarningIcon size={15} className="shrink-0 mt-0.5" aria-hidden="true" />
           <div className="flex-1">
             <p className="font-semibold">Photos need tags</p>
             <p className="text-xs mt-0.5">{tagError}</p>
@@ -786,19 +787,19 @@ export default function PhotosTab({
               </button>
             )}
           </div>
-          <button type="button" onClick={() => setTagError(null)} className="shrink-0 text-red-400 hover:text-red-600">
-            <XIcon size={13} />
+          <button type="button" onClick={() => setTagError(null)} aria-label="Dismiss error" className="shrink-0 text-red-400 hover:text-red-600">
+            <XIcon size={13} aria-hidden="true" />
           </button>
         </div>
       )}
 
       {/* Upload error banner */}
       {uploadError && (
-        <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-          <WarningIcon size={15} className="shrink-0 mt-0.5" />
+        <div role="alert" className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <WarningIcon size={15} className="shrink-0 mt-0.5" aria-hidden="true" />
           <span className="flex-1">{uploadError}</span>
-          <button type="button" onClick={() => setUploadError(null)} className="shrink-0 text-red-400 hover:text-red-600">
-            <XIcon size={13} />
+          <button type="button" onClick={() => setUploadError(null)} aria-label="Dismiss error" className="shrink-0 text-red-400 hover:text-red-600">
+            <XIcon size={13} aria-hidden="true" />
           </button>
         </div>
       )}

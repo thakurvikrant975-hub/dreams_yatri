@@ -460,6 +460,7 @@ export function MultiSearchSelect({
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onChange(value.filter((x) => x !== v)); }}
                   disabled={disabled}
+                  aria-label={`Remove ${label}`}
                   className="text-primary-400 hover:text-primary-700 leading-none ml-0.5"
                 >
                   ×

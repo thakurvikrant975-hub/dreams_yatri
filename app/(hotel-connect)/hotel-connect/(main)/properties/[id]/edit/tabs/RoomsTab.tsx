@@ -436,9 +436,9 @@ function BedroomCard({
 
               {/* Remove bed button */}
               {beds.length > 1 && (
-                <button type="button" onClick={() => onRemoveBed(i)}
+                <button type="button" onClick={() => onRemoveBed(i)} aria-label={`Remove bed type ${i + 1}`}
                   className="size-10 rounded-lg border border-neutral-200 text-neutral-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 flex items-center justify-center transition-colors shrink-0 mb-0.5">
-                  <XIcon size={14} />
+                  <XIcon size={14} aria-hidden="true" />
                 </button>
               )}
 
@@ -1522,9 +1522,9 @@ function RoomsList({
               <Button variant="outline" size="xs" onClick={() => onEdit(room.id)}>
                 Edit
               </Button>
-              <button type="button" onClick={() => handleDelete(room.id)} disabled={deletingId === room.id}
+              <button type="button" onClick={() => handleDelete(room.id)} disabled={deletingId === room.id} aria-label={`Delete room type ${room.name}`}
                 className="size-8 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-40">
-                <TrashIcon size={14} />
+                <TrashIcon size={14} aria-hidden="true" />
               </button>
             </div>
           </Card>

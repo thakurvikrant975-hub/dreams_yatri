@@ -387,10 +387,11 @@ export default function LocationTab({ hotel }: { hotel: HotelLocationInfo }) {
             {!searchLoading && searchQuery && (
               <button
                 type="button"
+                aria-label="Clear address search"
                 className="absolute right-3 text-neutral-400 hover:text-neutral-600"
                 onClick={() => { setSearchQuery(""); setSuggestions([]); setShowSuggestions(false); }}
               >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>

@@ -249,8 +249,8 @@ export default function GroupInbox({ initialConversations }: { initialConversati
               className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-neutral-200 bg-neutral-50 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                <XIcon size={12} className="text-neutral-400" />
+              <button onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                <XIcon size={12} className="text-neutral-400" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -309,8 +309,9 @@ export default function GroupInbox({ initialConversations }: { initialConversati
               <button
                 className="md:hidden shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 transition-colors"
                 onClick={() => setShowList(true)}
+                aria-label="Back to conversation list"
               >
-                <ArrowLeftIcon size={15} weight="bold" />
+                <ArrowLeftIcon size={15} weight="bold" aria-hidden="true" />
               </button>
 
               <div className="size-9 rounded-full flex items-center justify-center shrink-0 text-sm font-bold bg-neutral-100 text-neutral-600">
