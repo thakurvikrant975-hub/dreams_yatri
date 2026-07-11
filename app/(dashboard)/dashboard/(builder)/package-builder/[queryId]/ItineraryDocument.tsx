@@ -119,33 +119,31 @@ const MEAL_CHIPS = [
   { key: "dinner", label: "Dinner", icon: UtensilsCrossed },
 ] as const;
 
+/** Only shows meals actually included — an excluded meal (e.g. no breakfast
+ * on this plan) is simply left out, not shown crossed-out/disabled. */
 function MealsRow({ meals }: { meals: string[] }) {
+  const included = MEAL_CHIPS.filter(({ key }) => meals.some((m) => m.toLowerCase().includes(key)));
   const extras = meals.filter((m) => !MEAL_CHIPS.some((c) => m.toLowerCase().includes(c.key)));
+  if (included.length === 0 && extras.length === 0) return null;
+
   return (
     <div className="space-y-1.5">
-      <div className="flex items-stretch gap-1.5">
-        {MEAL_CHIPS.map(({ key, label, icon: Icon }) => {
-          const included = meals.some((m) => m.toLowerCase().includes(key));
-          return (
+      {included.length > 0 && (
+        <div className="flex items-stretch gap-1.5">
+          {included.map(({ key, label, icon: Icon }) => (
             <div
               key={key}
-              className={`flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium ${
-                included
-                  ? "bg-emerald-50/60 border-emerald-200 text-neutral-700"
-                  : "bg-neutral-50 border-neutral-200 text-neutral-400"
-              }`}
+              className="flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium bg-emerald-50/60 border-emerald-200 text-neutral-700"
             >
               <span className="flex items-center gap-1">
-                <Icon size={12} className={included ? "text-emerald-600" : "text-neutral-400"} />
+                <Icon size={12} className="text-emerald-600" />
                 {label}
               </span>
-              {included
-                ? <CheckCircle size={12} className="text-emerald-600 shrink-0" />
-                : <XCircle size={12} className="text-neutral-300 shrink-0" />}
+              <CheckCircle size={12} className="text-emerald-600 shrink-0" />
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
       {extras.length > 0 && (
         <p className="text-[10px] text-neutral-500">+ {extras.join(", ")}</p>
       )}

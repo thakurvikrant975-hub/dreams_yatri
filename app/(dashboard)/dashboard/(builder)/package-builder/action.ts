@@ -5,6 +5,15 @@ import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
+import { sendEmail } from "@/app/lib/functions/sendEmail";
+import type { Prisma } from "@/app/generated/prisma";
+
+// meal_types.covered_meals / itinerary_stays.active_meals store lowercase
+// keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
+// builder's own meal toggle chips use (see MEAL_OPTIONS in page.tsx).
+const MEAL_KEY_LABELS: Record<string, string> = {
+  breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Real hotel-room / activity search, scoped by city name.
@@ -25,7 +34,7 @@ const HOTEL_ROOM_SELECT = {
   id: true,
   plan_name: true,
   price_per_night: true,
-  meal_type: { select: { name: true } },
+  meal_type: { select: { name: true, covered_meals: true } },
   hotel: {
     select: {
       name: true, category: true, thumbnail: true, city: true, state: true,
@@ -45,6 +54,8 @@ export interface HotelRoomResult {
   hotelName:     string;
   roomName:      string;
   mealPlanName:  string | null;
+  /** Lowercase meal keys actually covered by this room's plan — e.g. ["breakfast", "dinner"] — sourced from meal_types.covered_meals, not guessed from the plan name text. */
+  coveredMeals:  string[];
   pricePerNight: number;
   thumbnail:     string | null;
   /** The hotel's own main photo — shown first in the picked-hotel gallery. */
@@ -91,6 +102,7 @@ export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, 
       hotelName:     item.hotel.name,
       roomName:      item.room?.name ?? "Room",
       mealPlanName:  item.meal_type?.name ?? null,
+      coveredMeals:  item.meal_type?.covered_meals ?? [],
       pricePerNight: Number(item.price_per_night),
       thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
       hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
@@ -224,6 +236,12 @@ export interface QueryDetail extends QueryRow {
   customPackage: {
     id:              string;
     status:          string;
+    sentAt:          Date | null;
+    viewedAt:        Date | null;
+    viewCount:       number;
+    /** Snapshot of the last-SENT version, captured right before an edit
+     * overwrites it — see PreviousSnapshot in page.tsx for the shape. */
+    previousSnapshot: unknown;
     title:           string;
     description:     string | null;
     coverImage:      string | null;
@@ -396,7 +414,12 @@ export async function copyPackageIntoDraft(
           photoLabels,
         };
       }),
-      meals:              day.meals,
+      // Prefer the hotel's actual covered meals over the catalog day's
+      // manually-added meal keys, when the hotel has them — same source of
+      // truth the live builder search now uses.
+      meals: day.hotel?.active_meals && day.hotel.active_meals.length > 0
+        ? day.hotel.active_meals.map((k) => MEAL_KEY_LABELS[k] ?? k)
+        : day.meals,
       accommodation:      day.hotel ? [day.hotel.name, day.hotel.room_name].filter(Boolean).join(" — ") : "",
       accommodationPhoto: rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : "",
       accommodationRoomPhotos: rawRoomPhotos.map((u) => getThumbnailImage(u)),
@@ -617,6 +640,10 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
         select: {
           id:              true,
           status:          true,
+          sentAt:          true,
+          viewedAt:        true,
+          viewCount:       true,
+          previousSnapshot: true,
           title:           true,
           description:     true,
           coverImage:      true,
@@ -711,6 +738,45 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     const builtBy = teamMemberId ?? "unknown";
     const builtByName = teamMemberName ?? "Sales Executive";
 
+    // If a package was already SENT to the client, snapshot what they were
+    // actually shown before this save overwrites it — otherwise an exec
+    // editing after send has no way to see what changed from the version
+    // the customer has in hand.
+    let previousSnapshot: Prisma.InputJsonValue | undefined;
+    const existing = await db.custom_packages.findUnique({
+      where:  { queryId },
+      select: {
+        status: true, title: true, totalDays: true, totalNights: true, travelDate: true,
+        adults: true, children: true, infants: true, pricePerPerson: true, totalPrice: true,
+        stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true } },
+        itineraries: {
+          orderBy: { day: "asc" },
+          select: {
+            day: true, title: true, description: true, meals: true,
+            accommodation: true, hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
+            transport: true, transportVehicleType: true, transportPickup: true, transportDrop: true,
+            notes: true,
+          },
+        },
+      },
+    });
+    if (existing?.status === "SENT") {
+      previousSnapshot = {
+        savedAt:        new Date().toISOString(),
+        title:          existing.title,
+        totalDays:      existing.totalDays,
+        totalNights:    existing.totalNights,
+        travelDate:     existing.travelDate?.toISOString() ?? null,
+        adults:         existing.adults,
+        children:       existing.children,
+        infants:        existing.infants,
+        pricePerPerson: existing.pricePerPerson,
+        totalPrice:     existing.totalPrice,
+        stops:          existing.stops,
+        itineraries:    existing.itineraries,
+      } as unknown as Prisma.InputJsonValue;
+    }
+
     // Upsert the custom package (unique on queryId)
     const pkg = await db.custom_packages.upsert({
       where:  { queryId },
@@ -773,6 +839,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         trainTo:         trainTo || null,
         status,
         builtByName:     builtByName || null,
+        ...(previousSnapshot ? { previousSnapshot } : {}),
       },
     });
 
@@ -861,6 +928,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
 export async function sendPackageToClient(packageId: string): Promise<{
   success:      boolean;
   whatsappUrl?: string;
+  shareUrl?:    string;
   error?:       string;
 }> {
   try {
@@ -873,6 +941,9 @@ export async function sendPackageToClient(packageId: string): Promise<{
     });
 
     if (!pkg) return { success: false, error: "Package not found" };
+
+    const baseUrl  = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+    const shareUrl = `${baseUrl}/itinerary/${packageId}`;
 
     // ── Build WhatsApp deep-link ─────────────────────────────────────────────
     const rawPhone  = pkg.query.phone.replace(/\D/g, "");
@@ -912,7 +983,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
       `💰 *Total Price:* ${priceStr}`,
       ...(transportLine ? [transportLine] : []),
       ``,
-      `Please check your email for the detailed itinerary PDF.`,
+      `View your full itinerary here: ${shareUrl}`,
       `Let us know if you'd like any changes! 🙏`,
     ].join("\n");
 
@@ -930,14 +1001,36 @@ export async function sendPackageToClient(packageId: string): Promise<{
       }),
     ]);
 
-    // ── Trigger email (plug in your email service here) ──────────────────────
-    // if (pkg.query.email) {
-    //   await sendPackageEmail({ to: pkg.query.email, name: pkg.query.name, pkg });
-    // }
+    // ── Email the client a link to the live itinerary ─────────────────────────
+    // Best-effort — a failed/missing email should never block the WhatsApp
+    // send, since that's already been handed back to the exec by this point.
+    if (pkg.query.email) {
+      const emailHtml = [
+        `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;">`,
+        `<h2 style="color:#1a1a1a;">Hi ${pkg.query.name} 👋</h2>`,
+        `<p style="color:#444;font-size:15px;">Your customised <strong>${pkg.title}</strong> package is ready!</p>`,
+        `<p style="color:#444;font-size:15px;">`,
+        `📍 <strong>Destination:</strong> ${pkg.destination}<br/>`,
+        `📅 <strong>Travel Date:</strong> ${travelDateStr}<br/>`,
+        `🌙 <strong>Duration:</strong> ${pkg.totalDays} Days / ${pkg.totalNights} Nights<br/>`,
+        `👥 <strong>Travellers:</strong> ${paxLine}<br/>`,
+        `💰 <strong>Total Price:</strong> ${priceStr}`,
+        `</p>`,
+        `<a href="${shareUrl}" style="display:inline-block;margin-top:12px;padding:12px 24px;background:#e11d48;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">View Your Itinerary</a>`,
+        `<p style="color:#888;font-size:12px;margin-top:24px;">Let us know if you'd like any changes!</p>`,
+        `</div>`,
+      ].join("");
+
+      await sendEmail({
+        to:      pkg.query.email,
+        subject: `Your ${pkg.title} itinerary is ready!`,
+        html:    emailHtml,
+      }).catch((err) => console.error("[sendPackageToClient] email failed:", err));
+    }
 
     revalidatePath("/dashboard/package-builder");
 
-    return { success: true, whatsappUrl };
+    return { success: true, whatsappUrl, shareUrl };
   } catch (err) {
     console.error("[sendPackageToClient]", err);
     return { success: false, error: "Failed to send package" };

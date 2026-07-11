@@ -10,14 +10,17 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
-  Image as ImageIcon, Printer,
-} from "lucide-react"; 
+  Image as ImageIcon, Printer, X, Sparkles,
+} from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
 import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs"; 
 import { Switch } from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
 import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
@@ -47,6 +50,13 @@ import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner", "Tea & Snacks"];
+
+// hotel_room_pricing's meal_type.covered_meals comes back as lowercase keys
+// ("breakfast", "lunch", "dinner") — map to the same labels MEAL_OPTIONS uses
+// so the toggle chips light up correctly once a room is picked.
+const MEAL_KEY_LABELS: Record<string, string> = {
+  breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
+};
 
 const ACTIVITY_LABELS: Record<string, string> = {
   PARAGLIDING: "Paragliding",
@@ -516,14 +526,46 @@ function RouteStopsEditor({ stops, onChange }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // Day Itinerary Card
 // ─────────────────────────────────────────────────────────────────────────────
-function DayCard({ day, data, location, onChange, onRemove }: {
+function DayCard({
+  day, data, location, totalDays, onChange, onRemove,
+  onApplyVehicleToDays, onApplyRoomToDays,
+}: {
   day: number;
   data: DayItinerary;
   location?: string;
+  totalDays: number;
   onChange: (d: DayItinerary) => void;
   onRemove: () => void;
+  onApplyVehicleToDays: (vehicle: VehicleResult, dayNumbers: number[]) => void;
+  onApplyRoomToDays: (room: HotelRoomResult, dayNumbers: number[]) => void;
 }) {
   const [open, setOpen] = useState(true);
+
+  // After picking a cab, offer to reuse it across the rest of the trip
+  // instead of re-searching it for every day.
+  const [lastVehicle, setLastVehicle] = useState<VehicleResult | null>(null);
+  const [showApplyPrompt, setShowApplyPrompt] = useState(false);
+  const [customDaysOpen, setCustomDaysOpen] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+
+  function dismissApplyPrompt() {
+    setShowApplyPrompt(false);
+    setCustomDaysOpen(false);
+    setSelectedDays([]);
+  }
+
+  // Same pattern as the cab prompt above, but for reusing one hotel room
+  // across the other nights of a multi-night stay.
+  const [lastRoom, setLastRoom] = useState<HotelRoomResult | null>(null);
+  const [showRoomApplyPrompt, setShowRoomApplyPrompt] = useState(false);
+  const [roomCustomDaysOpen, setRoomCustomDaysOpen] = useState(false);
+  const [roomSelectedDays, setRoomSelectedDays] = useState<number[]>([]);
+
+  function dismissRoomApplyPrompt() {
+    setShowRoomApplyPrompt(false);
+    setRoomCustomDaysOpen(false);
+    setRoomSelectedDays([]);
+  }
 
   // Defaults to the day's auto-derived stop, but stays editable — lets a
   // sales exec search hotels/activities in a different city than the one
@@ -560,6 +602,10 @@ function DayCard({ day, data, location, onChange, onRemove }: {
   function handleHotelRoomSelect(_id: number | null, option?: Option) {
     const raw = (option as (Option & { raw: HotelRoomResult }) | undefined)?.raw;
     if (!raw) return;
+    // Fetch which meals this room's plan actually covers instead of leaving
+    // the exec to toggle them by hand — falls back to whatever was already
+    // set if the plan has no structured meals configured (e.g. room-only).
+    const hotelMeals = raw.coveredMeals.map((k) => MEAL_KEY_LABELS[k]).filter((v): v is string => !!v);
     onChange({
       ...data,
       accommodation: `${raw.hotelName} — ${raw.roomName}`,
@@ -569,10 +615,15 @@ function DayCard({ day, data, location, onChange, onRemove }: {
       accommodationRoomSpecs: raw.roomSpecs ?? data.accommodationRoomSpecs,
       accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
+      meals: hotelMeals.length > 0 ? hotelMeals : data.meals,
       // Links this night to the real hotel_room_pricing row so the package
       // price can be computed from its actual date/occupancy-aware rate.
       roomPricingId: raw.id,
     });
+    if (totalDays > 1) {
+      setLastRoom(raw);
+      setShowRoomApplyPrompt(true);
+    }
   }
 
   async function fetchVehicleOptions(query: string): Promise<Option[]> {
@@ -596,6 +647,10 @@ function DayCard({ day, data, location, onChange, onRemove }: {
       transportVehicleType: CAB_LABELS[raw.type] ?? raw.type,
       transportSeats: raw.passengerCapacity,
     });
+    if (totalDays > 1) {
+      setLastVehicle(raw);
+      setShowApplyPrompt(true);
+    }
   }
 
   return (
@@ -684,6 +739,82 @@ function DayCard({ day, data, location, onChange, onRemove }: {
                 </p>
               )}
             </div>
+
+            {showRoomApplyPrompt && lastRoom && (
+              <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-dashboard-base-content/80">
+                    Use <span className="font-medium">{lastRoom.hotelName} — {lastRoom.roomName}</span> for other nights too?
+                  </p>
+                  <button
+                    type="button"
+                    onClick={dismissRoomApplyPrompt}
+                    className="text-dashboard-base-content/40 hover:text-dashboard-base-content/70 shrink-0"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="h-6 text-[11px] px-2"
+                    onClick={() => {
+                      onApplyRoomToDays(lastRoom, Array.from({ length: totalDays }, (_, i) => i + 1));
+                      dismissRoomApplyPrompt();
+                    }}
+                  >
+                    All {totalDays} days
+                  </Button>
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="h-6 text-[11px] px-2"
+                    onClick={() => setRoomCustomDaysOpen((v) => !v)}
+                  >
+                    Custom days…
+                  </Button>
+                  <Button
+                    type="button" size="sm" variant="ghost"
+                    className="h-6 text-[11px] px-2"
+                    onClick={dismissRoomApplyPrompt}
+                  >
+                    Just this day
+                  </Button>
+                </div>
+                {roomCustomDaysOpen && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-dashboard-primary/20">
+                    {Array.from({ length: totalDays }, (_, i) => i + 1).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setRoomSelectedDays((prev) =>
+                          prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
+                        )}
+                        className={cn(
+                          "h-6 w-6 rounded-md border text-[11px] font-medium transition-colors",
+                          roomSelectedDays.includes(d)
+                            ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
+                            : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200",
+                        )}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                    <Button
+                      type="button" size="sm"
+                      className="h-6 text-[11px] px-2 ml-1"
+                      disabled={roomSelectedDays.length === 0}
+                      onClick={() => {
+                        onApplyRoomToDays(lastRoom, roomSelectedDays);
+                        dismissRoomApplyPrompt();
+                      }}
+                    >
+                      Apply to {roomSelectedDays.length || ""} day{roomSelectedDays.length !== 1 ? "s" : ""}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <HotelPhotoGallery
               hotelPhoto={data.accommodationPhoto || undefined}
               roomPhotos={data.accommodationRoomPhotos}
@@ -764,6 +895,82 @@ function DayCard({ day, data, location, onChange, onRemove }: {
                 placeholder="Search cab / vehicle fleet…"
               />
             </div>
+
+            {showApplyPrompt && lastVehicle && (
+              <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-dashboard-base-content/80">
+                    Use <span className="font-medium">{lastVehicle.name}</span> for other days too?
+                  </p>
+                  <button
+                    type="button"
+                    onClick={dismissApplyPrompt}
+                    className="text-dashboard-base-content/40 hover:text-dashboard-base-content/70 shrink-0"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="h-6 text-[11px] px-2"
+                    onClick={() => {
+                      onApplyVehicleToDays(lastVehicle, Array.from({ length: totalDays }, (_, i) => i + 1));
+                      dismissApplyPrompt();
+                    }}
+                  >
+                    All {totalDays} days
+                  </Button>
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="h-6 text-[11px] px-2"
+                    onClick={() => setCustomDaysOpen((v) => !v)}
+                  >
+                    Custom days…
+                  </Button>
+                  <Button
+                    type="button" size="sm" variant="ghost"
+                    className="h-6 text-[11px] px-2"
+                    onClick={dismissApplyPrompt}
+                  >
+                    Just this day
+                  </Button>
+                </div>
+                {customDaysOpen && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-dashboard-primary/20">
+                    {Array.from({ length: totalDays }, (_, i) => i + 1).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setSelectedDays((prev) =>
+                          prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
+                        )}
+                        className={cn(
+                          "h-6 w-6 rounded-md border text-[11px] font-medium transition-colors",
+                          selectedDays.includes(d)
+                            ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
+                            : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200",
+                        )}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                    <Button
+                      type="button" size="sm"
+                      className="h-6 text-[11px] px-2 ml-1"
+                      disabled={selectedDays.length === 0}
+                      onClick={() => {
+                        onApplyVehicleToDays(lastVehicle, selectedDays);
+                        dismissApplyPrompt();
+                      }}
+                    >
+                      Apply to {selectedDays.length || ""} day{selectedDays.length !== 1 ? "s" : ""}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {data.transportPhoto && (
               <div className="mb-2">
                 <PhotoPreview
@@ -929,6 +1136,20 @@ function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
   const lastStopName = stops[stops.length - 1]?.name ?? "";
   while (locations.length < totalDays) locations.push(lastStopName);
   return locations;
+}
+
+/** "2h 15m" / "1d 4h" — how long it took to go from assignment to sent,
+ * so an exec (and later, reporting) can see whether this tool is actually
+ * making things faster. */
+function formatDuration(ms: number): string {
+  if (ms < 0) return "—";
+  const minutes = Math.floor(ms / 60000);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = minutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
 }
 
 const emptyDay = (day: number): DayItinerary => ({
@@ -1172,6 +1393,16 @@ export default function PackageBuilderDetailPage() {
       const result = await sendPackageToClient(pkgId);
       if (result.success && result.whatsappUrl) {
         window.open(result.whatsappUrl, "_blank");
+        if (result.shareUrl) {
+          const link = result.shareUrl;
+          toast.success("Sent! Client link ready.", {
+            description: link,
+            action: {
+              label: "Copy link",
+              onClick: () => navigator.clipboard.writeText(link),
+            },
+          });
+        }
       }
     });
   }
@@ -1203,6 +1434,76 @@ export default function PackageBuilderDetailPage() {
       const its = [...f.itineraries];
       its[idx] = day;
       return { ...f, itineraries: its };
+    });
+  }
+
+  /** Reuses one picked cab across multiple days — only the vehicle itself
+   * carries over; pickup/drop/distance stay per-day since those are route-specific. */
+  function applyVehicleToDays(vehicle: VehicleResult, dayNumbers: number[]) {
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        dayNumbers.includes(it.day)
+          ? {
+              ...it,
+              transport: vehicle.name,
+              transportPhoto: vehicle.thumbnail ?? it.transportPhoto,
+              transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
+              transportSeats: vehicle.passengerCapacity,
+            }
+          : it,
+      ),
+    }));
+  }
+
+  /** Reuses one picked hotel room across multiple nights — mirrors
+   * applyVehicleToDays above, so a 3-night stay at the same hotel doesn't
+   * need re-searching for every single day. */
+  function applyRoomToDays(room: HotelRoomResult, dayNumbers: number[]) {
+    const hotelMeals = room.coveredMeals.map((k) => MEAL_KEY_LABELS[k]).filter((v): v is string => !!v);
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        dayNumbers.includes(it.day)
+          ? {
+              ...it,
+              accommodation: `${room.hotelName} — ${room.roomName}`,
+              accommodationPhoto: room.hotelPhoto ?? it.accommodationPhoto,
+              accommodationRoomPhotos: room.roomPhotos.length > 0 ? room.roomPhotos : it.accommodationRoomPhotos,
+              accommodationLocation: room.location ?? it.accommodationLocation,
+              accommodationRoomSpecs: room.roomSpecs ?? it.accommodationRoomSpecs,
+              accommodationRoomCapacity: room.roomCapacity ?? it.accommodationRoomCapacity,
+              hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
+              meals: hotelMeals.length > 0 ? hotelMeals : it.meals,
+              roomPricingId: room.id,
+            }
+          : it,
+      ),
+    }));
+  }
+
+  /** Fills in a sensible starting title for any day that doesn't already
+   * have one — pure templating from the route stops, no AI call. Never
+   * touches a day that already has a title, so it's safe to run repeatedly
+   * (e.g. after adding a day) without clobbering manual edits. */
+  function autoFillDayTitles() {
+    setForm((f) => {
+      const locations = deriveDayLocations(f.stops, f.itineraries.length);
+      return {
+        ...f,
+        itineraries: f.itineraries.map((it, idx) => {
+          if (it.title.trim()) return it;
+          const loc = locations[idx] || f.destination || "your destination";
+          const isFirst = idx === 0;
+          const isLast = idx === f.itineraries.length - 1 && f.itineraries.length > 1;
+          const title = isFirst
+            ? `Arrival in ${loc}`
+            : isLast
+              ? `Departure from ${loc}`
+              : `${loc} Sightseeing`;
+          return { ...it, title };
+        }),
+      };
     });
   }
 
@@ -1469,7 +1770,7 @@ export default function PackageBuilderDetailPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Starting Point</label>
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Pickup Point</label>
                       <Input
                         value={form.startingPoint}
                         onChange={field("startingPoint")}
@@ -1681,14 +1982,25 @@ export default function PackageBuilderDetailPage() {
                       {form.itineraries.length} days
                     </Badge>
                   </h2>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1 border-dashboard-base-300 duration-300 transition-transform hover:scale-105 text-dashboard-base-content rounded-md"
-                    onClick={addDay}
-                  >
-                    <Plus size={13} /> Add Day
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1 border-dashboard-base-300 text-dashboard-base-content rounded-md"
+                      onClick={autoFillDayTitles}
+                      title="Fills a starting title for any day that doesn't have one yet — never overwrites an existing title"
+                    >
+                      <Sparkles size={13} /> Auto-fill Titles
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1 border-dashboard-base-300 duration-300 transition-transform hover:scale-105 text-dashboard-base-content rounded-md"
+                      onClick={addDay}
+                    >
+                      <Plus size={13} /> Add Day
+                    </Button>
+                  </div>
                 </div>
 
                 {form.itineraries.map((day, idx) => (
@@ -1697,8 +2009,11 @@ export default function PackageBuilderDetailPage() {
                     day={day.day}
                     data={day}
                     location={dayLocations[idx]}
+                    totalDays={form.itineraries.length}
                     onChange={(d) => updateDay(idx, d)}
                     onRemove={() => removeDay(idx)}
+                    onApplyVehicleToDays={applyVehicleToDays}
+                    onApplyRoomToDays={applyRoomToDays}
                   />
                 ))}
               </TabsContent>
@@ -1775,6 +2090,74 @@ export default function PackageBuilderDetailPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Previous (last-sent) version — read-only summary, so an exec editing a
+// package that's already been delivered can see what the client actually
+// received before this edit changes it. Matches the shape saveCustomPackage
+// snapshots in action.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+type PreviousSnapshot = {
+  savedAt: string;
+  title: string;
+  totalDays: number; totalNights: number; travelDate: string | null;
+  adults: number; children: number; infants: number;
+  pricePerPerson: number | null; totalPrice: number | null;
+  stops: { name: string; nights: number }[];
+  itineraries: {
+    day: number; title: string; description: string | null; meals: string[];
+    accommodation: string | null; hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
+    transport: string | null; transportVehicleType: string | null; transportPickup: string | null; transportDrop: string | null;
+    notes: string | null;
+  }[];
+};
+
+function PreviousVersionDialog({ snapshot }: { snapshot: unknown }) {
+  const v = snapshot as PreviousSnapshot | null;
+  if (!v) return null;
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 w-full mt-1">
+          <Eye size={12} /> View last sent version
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-sm">Last Sent Version</DialogTitle>
+          <DialogDescription className="text-xs">
+            Captured {new Date(v.savedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} —
+            what the client saw before your latest edit.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-xs">
+          <div className="rounded-lg border border-dashboard-base-300 p-3 space-y-1">
+            <p className="font-semibold text-sm">{v.title}</p>
+            <p className="text-dashboard-base-content/60">
+              {v.totalDays}D / {v.totalNights}N · {v.adults}A {v.children > 0 && `${v.children}C `}{v.infants > 0 && `${v.infants}I`}
+              {v.travelDate && ` · ${new Date(v.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`}
+            </p>
+            {v.pricePerPerson != null && (
+              <p className="text-dashboard-base-content/60">
+                ₹{v.pricePerPerson.toLocaleString("en-IN")}/person · Total ₹{v.totalPrice?.toLocaleString("en-IN")}
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            {v.itineraries.map((it) => (
+              <div key={it.day} className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+                <p className="font-medium">Day {it.day}: {it.title || "—"}</p>
+                {it.accommodation && <p className="text-dashboard-base-content/60">🏨 {it.accommodation}</p>}
+                {it.transport && <p className="text-dashboard-base-content/60">🚗 {it.transport}{it.transportVehicleType ? ` · ${it.transportVehicleType}` : ""}</p>}
+                {it.meals.length > 0 && <p className="text-dashboard-base-content/60">🍽️ {it.meals.join(", ")}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sidebar content
 // ─────────────────────────────────────────────────────────────────────────────
 function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
@@ -1809,10 +2192,38 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
         {query.assignedToName && <InfoRow label="Exec" value={query.assignedToName} />}
         {query.message && (
           <div className="mt-2 rounded-lg bg-dashboard-base-200 border border-dashboard-base-300 px-3 py-2">
-            <p className="text-xs text-dashboard-base-content/50 italic">"{query.message}"</p>
+            <p className="text-xs text-dashboard-base-content/50 italic">&quot;{query.message}&quot;</p>
           </div>
         )}
       </SectionCard>
+
+      {query.customPackage?.sentAt && (
+        <SectionCard title="Package Status" icon={<Send size={14} />}>
+          <InfoRow
+            label="Sent"
+            value={new Date(query.customPackage.sentAt).toLocaleString("en-IN", {
+              day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+            })}
+          />
+          {query.assignedAt && (
+            <InfoRow
+              label="Time to send"
+              value={formatDuration(new Date(query.customPackage.sentAt).getTime() - new Date(query.assignedAt).getTime())}
+            />
+          )}
+          <InfoRow
+            label="Client viewed"
+            value={
+              query.customPackage.viewedAt
+                ? `Yes — ${new Date(query.customPackage.viewedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} (${query.customPackage.viewCount}×)`
+                : "Not yet"
+            }
+          />
+          {query.customPackage.previousSnapshot != null && (
+            <PreviousVersionDialog snapshot={query.customPackage.previousSnapshot} />
+          )}
+        </SectionCard>
+      )}
 
       {j && (
         <SectionCard title="Journey" icon={<MapPin size={14} />}>

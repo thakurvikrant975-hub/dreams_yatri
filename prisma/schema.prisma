@@ -2368,6 +2368,9 @@ model custom_packages {
   builtByName     String?
   sentAt          DateTime?
   pdfUrl          String?
+  viewedAt        DateTime?
+  viewCount       Int                  @default(0)
+  previousSnapshot Json?
   flightsIncluded Boolean              @default(false)
   flightNotes     String?
   flightFrom      String?
