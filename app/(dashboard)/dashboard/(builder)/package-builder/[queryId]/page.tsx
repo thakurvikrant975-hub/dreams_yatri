@@ -40,6 +40,7 @@ import {
   type PackageCopyPayload,
 } from "../action";
 import { ItineraryDocument } from "./ItineraryDocument";
+import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -1243,6 +1244,24 @@ export default function PackageBuilderDetailPage() {
               <Eye size={13} />
               <span className="text-xs">Preview</span>
             </Button>
+
+            <CreatePackageDialog
+              queryId={query.id}
+              destination={j?.destinations?.join(", ") ?? query.destination ?? null}
+              travelDate={j?.travelDate ?? (query.travelDate ? new Date(query.travelDate).toISOString().slice(0, 10) : null)}
+              travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
+              budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
+              duration={j?.noOfDays ? { days: j.noOfDays, nights: j.noOfNights } : null}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+              >
+                <Package size={13} />
+                <span className="hidden sm:inline text-xs">Change Template</span>
+              </Button>
+            </CreatePackageDialog>
 
             <Button
               variant="outline"

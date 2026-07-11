@@ -42,9 +42,18 @@ const MEAL_TYPES = [
     { value: "VEGAN", label: "Vegan" },
 ];
 
-// Human-readable fallback for cabTypes values saved before this form switched
-// to real vehicle IDs from `/dashboard/vehicles` — keeps old selections visible
-// instead of showing a raw enum string.
+// Matches the `VehicleType` enum in schema.prisma — human-readable labels for
+// the vehicle *types* fetched from `/dashboard/vehicles` (grouped, not one
+// chip per individual vehicle).
+const VEHICLE_TYPE_LABELS: Record<string, string> = {
+    HATCHBACK: "Hatchback", SEDAN: "Sedan", SUV: "SUV",
+    LUXURY_SEDAN: "Luxury Sedan", LUXURY_SUV: "Luxury SUV",
+    TEMPO_TRAVELLER: "Tempo Traveller", MINI_BUS: "Mini Bus", BUS: "Bus",
+    Rikshaw: "Rickshaw",
+};
+
+// Fallback for cabTypes values saved before this list came from the fleet —
+// keeps old selections visible instead of showing a raw string.
 const LEGACY_CAB_LABELS: Record<string, string> = {
     SEDAN: "Sedan", SUV: "SUV", BOLERO: "Bolero", INNOVA: "Innova/Crysta",
     TEMPO: "Tempo Traveller", VOLVO: "Volvo Bus", MINI_BUS: "Mini Bus", BIKE: "Bike Rental",
@@ -897,31 +906,40 @@ export function PackageDetailsDialog({
                                     <>
                                         <div className="space-y-2">
                                             <Label>
-                                                Vehicle / Cab Type
+                                                Vehicle Type
                                                 <span className="text-muted-foreground text-xs font-normal ml-1.5">from the fleet — select all that apply</span>
                                             </Label>
                                             {loadingVehicles ? (
                                                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading vehicles…
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading vehicle types…
                                                 </div>
                                             ) : (
-                                                <MultiToggle
-                                                    options={[
-                                                        ...vehicles
-                                                            .filter(v => v.is_active)
-                                                            .map(v => ({
-                                                                value: String(v.id),
-                                                                label: `${v.name}${v.has_ac ? " · AC" : ""} · ${v.passenger_capacity} seats`,
-                                                            })),
-                                                        // Legacy selections saved before this list came from `/dashboard/vehicles` —
-                                                        // keep them visible (as a readable label) instead of losing the selection.
-                                                        ...reqs.transport.cabTypes
-                                                            .filter(v => !vehicles.some(veh => String(veh.id) === v))
-                                                            .map(v => ({ value: v, label: LEGACY_CAB_LABELS[v] ?? v })),
-                                                    ]}
-                                                    selected={reqs.transport.cabTypes}
-                                                    onChange={v => update("transport", { cabTypes: v })}
-                                                />
+                                                (() => {
+                                                    // Group active vehicles by type — one chip per type, not per vehicle,
+                                                    // with the largest capacity in that type as a helpful hint.
+                                                    const maxCapacityByType = new Map<string, number>();
+                                                    for (const v of vehicles) {
+                                                        if (!v.is_active) continue;
+                                                        maxCapacityByType.set(v.type, Math.max(maxCapacityByType.get(v.type) ?? 0, v.passenger_capacity));
+                                                    }
+                                                    const typeOptions = Array.from(maxCapacityByType.entries()).map(([type, maxSeats]) => ({
+                                                        value: type,
+                                                        label: `${VEHICLE_TYPE_LABELS[type] ?? type} · up to ${maxSeats} seats`,
+                                                    }));
+                                                    // Legacy selections saved before this list came from `/dashboard/vehicles` —
+                                                    // keep them visible (as a readable label) instead of losing the selection.
+                                                    const legacyOptions = reqs.transport.cabTypes
+                                                        .filter(v => !maxCapacityByType.has(v))
+                                                        .map(v => ({ value: v, label: LEGACY_CAB_LABELS[v] ?? v }));
+
+                                                    return (
+                                                        <MultiToggle
+                                                            options={[...typeOptions, ...legacyOptions]}
+                                                            selected={reqs.transport.cabTypes}
+                                                            onChange={v => update("transport", { cabTypes: v })}
+                                                        />
+                                                    );
+                                                })()
                                             )}
                                         </div>
 

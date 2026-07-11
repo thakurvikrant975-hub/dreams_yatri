@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
     Package, Search, MapPin, Route, BedDouble, CalendarDays, Loader2, Sparkles, ArrowRight, IndianRupee,
+    Users, Calendar,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -20,23 +21,72 @@ import { copyPackageIntoDraft } from "@/app/(dashboard)/dashboard/(builder)/pack
 
 const PAGE_SIZE = 12;
 
+const LOADING_MESSAGES = [
+    "Hold on... we're doing full Indian-level jugaad to get you the best deal. 😎",
+    "One sec... even our calculator is negotiating the prices. 💸",
+    "Good things take time. Great Indian deals take a little longer. 😉",
+    "Please wait... we're finding prices your dad would approve of. 😂",
+    "Loading... because 'cheap and best' isn't found in one click. 😏",
+    "Relax, bro. We're cooking your perfect trip. 🍳",
+    "Our servers are working harder than students one night before exams. 📚",
+    "Almost there... just convincing the discounts to cooperate. 🤝",
+    "Finding a better deal than your cousin's travel agent... give us a second. 😄",
+    "Patience! Even Indian trains don't always arrive instantly. 🚆",
+    "We're squeezing every last rupee out of these prices. 💰",
+    "Trust the process... this itinerary is getting the VIP treatment. ✨",
+    "Your package is loading faster than your relatives ask, 'When are you getting married?' 😂",
+    "We're doing the maths so you don't have to. No tuition required. 📊",
+    "One chai break later, your trip will be ready. ☕",
+    "Still loading... because legendary trips aren't made in a hurry. 🔥",
+    "Finding hidden deals like your mom finds things you thought were lost. 😅",
+    "Almost done... adding a little extra paisa vasool. 💯",
+    "Our system is in full jugaad mode. Sit tight! 🚀",
+    "Just a moment... we're making sure every rupee works overtime. 💸",
+    "If I finish too quickly, you'll never know how much effort we developers put into building this. 😏",
+    "Hold on... I'm flirting with the pricing engine. 💸",
+    "Don't stare at the loading screen... you'll make me uncomfortable. Besharam 🫣",
+    "You click fast. I think we should slow this relationship down. 😉",
+    "Let me work harder than the sales team at month end. 📈",
+    "If this itinerary gets approved, you owe me a coffee date. ☕😏",
+    "Lol! The client's gonna think you spent hours building this itinerary. 🤫🤣🤣",
+    "I built this itinerary—don't take my credit. 🙏🙏",
+    "This itinerary has 45,000 margin and i will send you 10,000 we will half half it.",
+    "This itinerary has a ₹45,000 margin. I'll send you ₹10,000—we'll split it 50-50. 💸🤑💰",
+    "This loading is fake... I was busy thinking about you instead of coding. 😏❤️",
+    "One more click and I'm telling Developers that you abused me. 😤",
+    "If this closes the deal, I expect a momo party. ",
+    "Your mouse clicks are giving me performance anxiety. 😭",
+    "Hold on... I'm talking with the developers. ❤️🫂",
+    "If I crash now, remember me as a legend. 🫡",
+    "Don't worry... I won't tell the client we made this in under a minute. 🤐",
+    "If this booking converts, I expect at least one thank-you. 🥹",
+    "You're staring at me again... should we make this official? 😏❤️",
+    "Generating an itinerary hotter than your CPU. 🔥",
+    "Working overtime so you don't have to. You're welcome. 😌"
+];
+
+function randomLoadingMessage() {
+    return LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)];
+}
+
 export type QueryBudget = { min?: number; max?: number; type: "PER_PERSON" | "TOTAL" };
 
-export function CreatePackageDialog({ queryId, destination, travelDate, travellers, budget, children }: {
-    queryId:     string;
+export function CreatePackageDialog({ queryId, destination, travelDate, travellers, budget, duration, children }: {
+    queryId: string;
     destination: string | null;
     travelDate?: string | null;
     travellers?: { adults: number; children: number; infants: number } | null;
-    budget?:     QueryBudget | null;
-    children:    React.ReactNode;
+    budget?: QueryBudget | null;
+    duration?: { days: number; nights: number } | null;
+    children: React.ReactNode;
 }) {
     const router = useRouter();
     const [open, setOpen] = useState(false);
 
     const pax = {
-        adults:   travellers?.adults ?? 2,
+        adults: travellers?.adults ?? 2,
         children: travellers?.children ?? 0,
-        infants:  travellers?.infants ?? 0,
+        infants: travellers?.infants ?? 0,
     };
     const hasBudget = budget != null && (budget.min != null || budget.max != null);
 
@@ -45,6 +95,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState(randomLoadingMessage);
     const [loadingMore, setLoadingMore] = useState(false);
     const [applyingSlug, setApplyingSlug] = useState<string | null>(null);
     const [recomputingId, setRecomputingId] = useState<number | null>(null);
@@ -63,6 +114,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
         if (!open) return;
         const id = ++requestId.current;
         setLoading(true);
+        setLoadingMessage(randomLoadingMessage());
         const timer = setTimeout(async () => {
             const result = await searchPackageLibraryForTemplate({
                 search, page: 1, size: PAGE_SIZE,
@@ -103,7 +155,11 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                 sessionStorage.setItem(`pkgCopyPayload:${queryId}`, JSON.stringify(payload));
             }
             setOpen(false);
-            router.push(`/dashboard/package-builder/${queryId}`);
+            // Hard navigation (not router.push) — this dialog can be opened from
+            // the builder page itself to swap an already-copied template, and a
+            // soft push to the same route wouldn't remount the page, so the
+            // builder's "apply sessionStorage payload" effect would never re-run.
+            window.location.href = `/dashboard/package-builder/${queryId}`;
         } finally {
             setApplyingSlug(null);
         }
@@ -113,9 +169,9 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
         setRecomputingId(pkg.id);
         try {
             const { estimatedPrice, pricePerAdult } = await getTemplatePackagePriceForCategory({
-                packageId:    pkg.id,
+                packageId: pkg.id,
                 durationSlug: pkg.durationSlug ?? "",
-                routeSlug:    pkg.routeSlug ?? "",
+                routeSlug: pkg.routeSlug ?? "",
                 stayCategoryId,
                 travelDate, ...pax,
             });
@@ -150,6 +206,43 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                     </DialogDescription>
                 </DialogHeader>
 
+                {(duration || travelDate || travellers || hasBudget || destination) && (
+                    <div className="shrink-0 flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                        {duration && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary">
+                                <CalendarDays size={11} /> {duration.days}D / {duration.nights}N
+                            </span>
+                        )}
+                        {travelDate && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-background text-muted-foreground border border-border">
+                                <Calendar size={11} />
+                                {new Date(travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                            </span>
+                        )}
+                        {travellers && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-background text-muted-foreground border border-border">
+                                <Users size={11} />
+                                {travellers.adults}A
+                                {travellers.children > 0 && ` ${travellers.children}C`}
+                                {travellers.infants > 0 && ` ${travellers.infants}I`}
+                            </span>
+                        )}
+                        {hasBudget && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">
+                                <IndianRupee size={11} />
+                                {budget?.min != null ? budget.min.toLocaleString("en-IN") : "0"}
+                                {budget?.max != null ? ` – ${budget.max.toLocaleString("en-IN")}` : "+"}
+                                <span className="font-normal opacity-80">/{budget?.type === "TOTAL" ? "total" : "person"}</span>
+                            </span>
+                        )}
+                        {destination && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-background text-muted-foreground border border-border">
+                                <MapPin size={11} /> {destination}
+                            </span>
+                        )}
+                    </div>
+                )}
+
                 <div className="relative shrink-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -162,8 +255,11 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
 
                 <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
                     {loading ? (
-                        <div className="flex items-center justify-center py-10 text-muted-foreground text-sm gap-2">
-                            <Loader2 size={14} className="animate-spin" /> Loading templates…
+                        <div className="flex flex-col items-center justify-center gap-2.5 py-12 px-8 text-center">
+                            <Loader2 size={18} className="animate-spin text-primary" />
+                            <p className="text-xl font-semibold text-muted-foreground  max-w-sm leading-relaxed">
+                                &ldquo;{loadingMessage}&rdquo;
+                            </p>
                         </div>
                     ) : packages.length === 0 ? (
                         <div className="py-6">
@@ -233,11 +329,10 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                                                     </span>
                                                 </p>
                                                 {pkg.withinBudget != null && (
-                                                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
-                                                        pkg.withinBudget
+                                                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${pkg.withinBudget
                                                             ? "bg-emerald-100 text-emerald-700"
                                                             : "bg-amber-100 text-amber-700"
-                                                    }`}>
+                                                        }`}>
                                                         {pkg.withinBudget ? "Within budget" : "Over budget"}
                                                     </span>
                                                 )}

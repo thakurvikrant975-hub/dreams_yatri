@@ -6,7 +6,7 @@ import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
-    CircleX, Package
+    CircleX, Package, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -296,48 +296,66 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
             header: "Package",
             align: "center" as const,
             width: "w-[140px]",
-            cell: (q) => (
-                <div onClick={(e) => e.stopPropagation()}>
-                    {!q.customPackage ? (
-                        <CreatePackageDialog
-                            queryId={q.id}
-                            destination={q.destination}
-                            travelDate={q.travelDate ? q.travelDate.toISOString().slice(0, 10) : q.requirements?.journey.travelDate ?? null}
-                            travellers={q.requirements?.travellers ? {
-                                adults: q.requirements.travellers.adults,
-                                children: q.requirements.travellers.children,
-                                infants: q.requirements.travellers.infants,
-                            } : null}
-                            budget={q.requirements?.budget && (q.requirements.budget.min != null || q.requirements.budget.max != null) ? {
-                                min:  q.requirements.budget.min,
-                                max:  q.requirements.budget.max,
-                                type: q.requirements.budget.type,
-                            } : null}
-                        >
-                            <button
-                                type="button"
-                                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
-                            >
-                                <Package className="h-3 w-3" /> Create Package
-                            </button>
-                        </CreatePackageDialog>
-                    ) : (
-                        <a
-                            href={`/dashboard/package-builder/${q.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={cn(
-                                "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
-                                q.customPackage.status === "SENT"
-                                    ? "text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-900 dark:bg-green-950/30"
-                                    : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/20"
-                            )}
-                        >
-                            <Eye className="h-3 w-3" /> View Package
-                        </a>
-                    )}
-                </div>
-            ),
+            cell: (q) => {
+                const dialogProps = {
+                    queryId: q.id,
+                    destination: q.destination,
+                    travelDate: q.travelDate ? q.travelDate.toISOString().slice(0, 10) : q.requirements?.journey.travelDate ?? null,
+                    travellers: q.requirements?.travellers ? {
+                        adults: q.requirements.travellers.adults,
+                        children: q.requirements.travellers.children,
+                        infants: q.requirements.travellers.infants,
+                    } : null,
+                    budget: q.requirements?.budget && (q.requirements.budget.min != null || q.requirements.budget.max != null) ? {
+                        min:  q.requirements.budget.min,
+                        max:  q.requirements.budget.max,
+                        type: q.requirements.budget.type,
+                    } : null,
+                    duration: q.requirements?.journey?.noOfDays ? {
+                        days:   q.requirements.journey.noOfDays,
+                        nights: q.requirements.journey.noOfNights,
+                    } : null,
+                };
+                return (
+                    <div onClick={(e) => e.stopPropagation()} className="flex items-center justify-center gap-1.5">
+                        {!q.customPackage ? (
+                            <CreatePackageDialog {...dialogProps}>
+                                <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                >
+                                    <Package className="h-3 w-3" /> Create Package
+                                </button>
+                            </CreatePackageDialog>
+                        ) : (
+                            <>
+                                <a
+                                    href={`/dashboard/package-builder/${q.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={cn(
+                                        "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
+                                        q.customPackage.status === "SENT"
+                                            ? "text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-900 dark:bg-green-950/30"
+                                            : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/20"
+                                    )}
+                                >
+                                    <Eye className="h-3 w-3" /> View Package
+                                </a>
+                                <CreatePackageDialog {...dialogProps}>
+                                    <button
+                                        type="button"
+                                        title="Pick a different library template — replaces the current draft"
+                                        className="inline-flex items-center justify-center h-6.5 w-6.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                                    >
+                                        <RefreshCw className="h-3 w-3" />
+                                    </button>
+                                </CreatePackageDialog>
+                            </>
+                        )}
+                    </div>
+                );
+            },
         },
         {
             header: "Status",

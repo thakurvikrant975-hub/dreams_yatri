@@ -25,10 +25,12 @@ interface GeocodedPoint extends MapPoint {
   lng: number;
 }
 
+// start/stop/end share one color — the map shows travel order as numbers
+// (1, 2, 3…), not a start/end distinction, so route points read as one series.
 const KIND_COLOR: Record<PointKind, string> = {
-  start:    "#16a34a", // green
+  start:    "#2563eb", // blue
   stop:     "#2563eb", // blue
-  end:      "#dc2626", // red
+  end:      "#2563eb", // blue
   hotel:    "#d97706", // amber
   activity: "#9333ea", // purple
   flight:   "#0ea5e9", // sky
@@ -36,13 +38,28 @@ const KIND_COLOR: Record<PointKind, string> = {
 };
 
 const KIND_LEGEND: Record<PointKind, string> = {
-  start: "Starting point", stop: "Stop", end: "Ending point",
+  start: "Stop (in travel order)", stop: "Stop (in travel order)", end: "Stop (in travel order)",
   hotel: "Hotel", activity: "Activity", flight: "Flight arrival", train: "Train arrival",
 };
 
 const KIND_SYMBOL: Record<PointKind, string> = {
   start: "S", stop: "•", end: "E", hotel: "H", activity: "A", flight: "✈", train: "T",
 };
+
+/** Maps each route point (start/stop/end, in travel order) to its 1-based
+ * stop number — e.g. Delhi(1) → Munnar(2) → Alappuzha(3) — so the map shows
+ * the sequence travellers actually follow instead of a start/end distinction. */
+function buildRouteOrder(points: MapPoint[]): Map<string, number> {
+  const order = new Map<string, number>();
+  let n = 0;
+  for (const p of points) {
+    if (p.kind === "start" || p.kind === "stop" || p.kind === "end") {
+      n++;
+      order.set(p.query.trim().toLowerCase(), n);
+    }
+  }
+  return order;
+}
 
 /** Finds an existing point matching `label` (case-insensitive) and reuses its
  * coordinates/kind, or appends a new point with the given `kind` — so e.g. a
@@ -179,6 +196,7 @@ export function ItineraryMap({
   // stop needs its own marker geocoded too.
   const flightLeg = buildLeg(flightsIncluded, flightFrom, flightTo, startingPoint, points, "flight");
   const trainLeg  = buildLeg(trainIncluded, trainFrom, trainTo, startingPoint, points, "train");
+  const routeOrder = buildRouteOrder(points);
   const pointsKey = points.map((p) => `${p.kind}:${p.query}`).join("|");
   const legsKey = `${flightLeg?.[0].query ?? ""}>${flightLeg?.[1].query ?? ""}|${trainLeg?.[0].query ?? ""}>${trainLeg?.[1].query ?? ""}`;
 
@@ -255,14 +273,18 @@ export function ItineraryMap({
         : null;
 
       geocoded.forEach((p) => {
+        const isRoutePoint = p.kind === "start" || p.kind === "stop" || p.kind === "end";
+        const stopNumber = routeOrder.get(p.query.trim().toLowerCase());
+        const symbol = isRoutePoint && stopNumber != null ? String(stopNumber) : KIND_SYMBOL[p.kind];
         const icon = L.divIcon({
           className: "",
-          html: markerHtml(KIND_COLOR[p.kind], KIND_SYMBOL[p.kind]),
+          html: markerHtml(KIND_COLOR[p.kind], symbol),
           iconSize: [28, 28],
           iconAnchor: [14, 14],
           popupAnchor: [0, -16],
         });
-        const popup = `<strong style="font-size:12px">${p.label}</strong><br/><span style="font-size:10px;color:#666">${KIND_LEGEND[p.kind]}</span>`;
+        const legendText = isRoutePoint && stopNumber != null ? `Stop ${stopNumber}` : KIND_LEGEND[p.kind];
+        const popup = `<strong style="font-size:12px">${p.label}</strong><br/><span style="font-size:10px;color:#666">${legendText}</span>`;
         L.marker([p.lat, p.lng], { icon }).addTo(map).bindPopup(popup);
       });
 
@@ -349,9 +371,10 @@ export function ItineraryMap({
 
   // Marker kinds actually present, plus flight/train legs even when they
   // reuse an existing start/stop/end marker (so the line color still gets a
-  // legend entry).
+  // legend entry). start/stop/end collapse into one "stop" entry — they're
+  // no longer visually distinct, just numbered in travel order.
   const usedKinds = Array.from(new Set([
-    ...(geocoded ?? []).map((p) => p.kind),
+    ...(geocoded ?? []).map((p) => (p.kind === "start" || p.kind === "end" ? "stop" : p.kind)),
     ...(flightLeg ? (["flight"] as const) : []),
     ...(trainLeg ? (["train"] as const) : []),
   ]));
