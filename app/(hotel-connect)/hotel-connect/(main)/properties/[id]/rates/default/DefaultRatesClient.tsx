@@ -5,6 +5,11 @@ import Link from "next/link";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { saveDefaultRates, setDefaultInventory, type DefaultRatesDetail } from "../[roomId]/plan-actions";
 import { RateField, occupancyTiers, OccupancyField } from "../rate-fields";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { Label } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/label";
+import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { Card } from "@/app/components/ui/Card";
+import { Button, buttonVariants } from "@/app/components/ui/Button";
 
 export type RoomDefaultData = {
   id: number;
@@ -44,7 +49,7 @@ function PlanDefaultRatesForm({
   const tiers = occupancyTiers(initial.maxAdults);
 
   return (
-    <div className="rounded-xl border border-neutral-200 p-3.5 space-y-3">
+    <Card variant="default" radius="sm" padding="sm" className="space-y-3">
       <p className="text-sm font-bold text-neutral-800">{label}</p>
 
       <div>
@@ -59,7 +64,7 @@ function PlanDefaultRatesForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 border-t border-neutral-100">
         <div>
-          <label className="block text-[11px] font-semibold text-neutral-500 mb-1">Free Child Rate (0-6 years)</label>
+          <Label className="mb-1">Free Child Rate (0-6 years)</Label>
           <div className="h-9 rounded-lg border border-neutral-200 bg-neutral-50 flex items-center px-2.5 text-sm text-neutral-400">Free</div>
         </div>
         <RateField value={extraChildRate} title="Paid Child Rate" subtitle="7-17 years" onChange={(v) => setExtraChildRate(v.trim() === "" ? null : Number(v))} />
@@ -67,16 +72,12 @@ function PlanDefaultRatesForm({
       </div>
 
       <div className="flex items-center gap-3 pt-1">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="h-9 px-4 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold disabled:opacity-60"
-        >
+        <Button variant="primary" size="sm" onClick={handleSave} loading={saving}>
           {saving ? "Saving…" : "Save"}
-        </button>
+        </Button>
         {msg && <p className="text-xs text-neutral-500">{msg}</p>}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -98,21 +99,17 @@ function DefaultInventoryField({ hotelId, room }: { hotelId: number; room: RoomD
   return (
     <div className="flex items-end gap-2">
       <div>
-        <label className="block text-[11px] font-semibold text-neutral-500 mb-1">Default Inventory</label>
-        <input
+        <Label className="mb-1">Default Inventory</Label>
+        <Input
           type="number" min={1} step="1"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="h-9 w-28 rounded-lg border border-neutral-300 bg-white px-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500/20"
+          className="w-28 h-9"
         />
       </div>
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="h-9 px-3 rounded-lg border border-neutral-300 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 disabled:opacity-60"
-      >
+      <Button variant="outline" size="sm" onClick={handleSave} loading={saving}>
         {saving ? "Saving…" : "Save"}
-      </button>
+      </Button>
       {msg && <p className="text-xs text-neutral-500">{msg}</p>}
     </div>
   );
@@ -132,7 +129,7 @@ export default function DefaultRatesClient({
         </div>
         <Link
           href={`/hotel-connect/properties/${hotelId}/rates`}
-          className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+          className={buttonVariants({ variant: "outline", size: "md" })}
         >
           ← Back to Rates & Inventory
         </Link>
@@ -154,32 +151,27 @@ export default function DefaultRatesClient({
       ) : (
         <div className="space-y-5">
           {rooms.map((room) => (
-            <div key={room.id} className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-4 space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-3 pb-1 border-b border-neutral-100">
-                <div>
-                  <p className="text-sm font-bold text-neutral-800">{room.name}</p>
-                  <p className="text-xs text-neutral-400">Max {room.maxAdults} adults</p>
-                </div>
-                <DefaultInventoryField hotelId={hotelId} room={room} />
-              </div>
-
+            <SectionCard
+              key={room.id}
+              title={room.name}
+              desc={`Max ${room.maxAdults} adults`}
+              headerAction={<DefaultInventoryField hotelId={hotelId} room={room} />}
+            >
               {room.plans.length === 0 ? (
                 <p className="text-xs text-red-600">No active rate plans on this room yet.</p>
               ) : (
-                <div className="space-y-3">
-                  {room.plans.map((plan) => (
-                    <PlanDefaultRatesForm
-                      key={plan.id}
-                      hotelId={hotelId}
-                      roomId={room.id}
-                      planId={plan.id}
-                      label={plan.label}
-                      initial={plan.detail}
-                    />
-                  ))}
-                </div>
+                room.plans.map((plan) => (
+                  <PlanDefaultRatesForm
+                    key={plan.id}
+                    hotelId={hotelId}
+                    roomId={room.id}
+                    planId={plan.id}
+                    label={plan.label}
+                    initial={plan.detail}
+                  />
+                ))
               )}
-            </div>
+            </SectionCard>
           ))}
         </div>
       )}

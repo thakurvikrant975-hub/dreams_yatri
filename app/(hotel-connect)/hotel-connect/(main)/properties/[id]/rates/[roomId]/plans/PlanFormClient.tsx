@@ -7,6 +7,10 @@ import { cancellationLabel, type CancellationPolicy } from "@/app/lib/hotel-inve
 import { createRatePlan, updateRatePlanDetails, setRatePlanActive, type RatePlanInput } from "../plan-actions";
 import { RateField } from "../../rate-fields";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { Label } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/label";
+import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { Button } from "@/app/components/ui/Button";
 
 const CANCELLATION_POLICIES: CancellationPolicy[] = [
   "FREE_TILL_CHECKIN", "FREE_TILL_24H", "FREE_TILL_48H", "FREE_TILL_72H", "FREE_TILL_7D", "NON_REFUNDABLE",
@@ -113,20 +117,19 @@ export default function PlanFormClient({
         <h1 className="text-lg font-bold text-neutral-800 mt-1">{isEdit ? "Edit Rate Plan" : "Add Rate Plan"}</h1>
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-4 space-y-4">
+      <SectionCard title="Rate Plan Details">
         <div>
-          <label className="block text-sm font-medium text-neutral-800 mb-1">Rate Plan Name *</label>
-          <input
+          <Label className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Rate Plan Name *</Label>
+          <Input
             type="text"
             value={planName}
             onChange={(e) => { setPlanName(e.target.value); setNameTouched(true); }}
             placeholder="e.g. Room With Free Breakfast"
-            className="h-10 w-full rounded-lg border border-neutral-300 px-3 text-sm outline-none focus:ring-2 focus:ring-primary-500/20"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-800 mb-1">Meal Plan</label>
+          <Label className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Meal Plan</Label>
           <SearchSelect
             options={[{ value: "", label: "Room Only (no meals)" }, ...mealTypes.map((m) => ({ value: String(m.id), label: m.name }))]}
             value={mealTypeId != null ? String(mealTypeId) : ""}
@@ -135,7 +138,7 @@ export default function PlanFormClient({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-800 mb-1">Diet Type</label>
+          <Label className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Diet Type</Label>
           <SearchSelect
             options={[{ value: "", label: "Not specified" }, ...dietTypes.map((d) => ({ value: String(d.id), label: d.name }))]}
             value={dietTypeId != null ? String(dietTypeId) : ""}
@@ -145,7 +148,7 @@ export default function PlanFormClient({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-800 mb-1">Cancellation Policy</label>
+          <Label className="mb-1 normal-case tracking-normal text-sm text-neutral-800">Cancellation Policy</Label>
           <SearchSelect
             options={[{ value: "", label: "Same as hotel policy" }, ...CANCELLATION_POLICIES.map((p) => ({ value: p, label: cancellationLabel(p) }))]}
             value={cancellationPolicy || ""}
@@ -155,22 +158,22 @@ export default function PlanFormClient({
         </div>
 
         <div className="flex items-center justify-between py-1">
-          <label className="text-sm font-medium text-neutral-800">GST %</label>
-          <input
+          <Label className="normal-case tracking-normal text-sm text-neutral-800">GST %</Label>
+          <Input
             type="number"
             min={0}
             max={100}
             step="1"
             value={gstPercentage}
             onChange={(e) => setGstPercentage(e.target.value)}
-            className="h-10 w-24 rounded-lg border border-neutral-300 px-2.5 text-sm text-right outline-none focus:ring-2 focus:ring-primary-500/20"
+            className="w-24 text-right"
           />
         </div>
 
         <div className="border-t border-neutral-100 pt-1">
           <RateField value={basePrice} title="Base Rate" subtitle="Per night, 2 adults" onChange={(v) => setBasePrice(v.trim() === "" ? null : Number(v))} />
         </div>
-      </div>
+      </SectionCard>
 
       {error && (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
@@ -178,22 +181,14 @@ export default function PlanFormClient({
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="h-11 px-6 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold disabled:opacity-60"
-          >
+          <Button variant="primary" size="lg" onClick={handleSubmit} loading={saving}>
             {saving ? "Saving…" : isEdit ? "Save Changes" : "Create Rate Plan"}
-          </button>
+          </Button>
         </div>
         {isEdit && isActive && (
-          <button
-            onClick={handleDeactivate}
-            disabled={deactivating}
-            className="h-11 px-4 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold disabled:opacity-60"
-          >
+          <Button variant="ghost" size="lg" onClick={handleDeactivate} loading={deactivating}>
             {deactivating ? "…" : "Deactivate Plan"}
-          </button>
+          </Button>
         )}
         {isEdit && !isActive && (
           <span className="text-xs text-neutral-400 font-medium">This plan is deactivated.</span>

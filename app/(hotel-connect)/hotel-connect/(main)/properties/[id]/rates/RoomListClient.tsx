@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Card } from "@/app/components/ui/Card";
+import { buttonVariants } from "@/app/components/ui/Button";
 import { setRoomBookable } from "../edit/tabs/room-actions";
 import { setRatePlanActive } from "./[roomId]/plan-actions";
 import {
@@ -202,13 +203,13 @@ export default function RoomListClient({
           <div className="flex items-center gap-2">
             <Link
               href={`/hotel-connect/properties/${hotelId}/rates/default`}
-              className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+              className={buttonVariants({ variant: "outline", size: "md" })}
             >
               Default Rates & Inventory
             </Link>
             <Link
               href={`/hotel-connect/properties/${hotelId}/calendar?room=${rooms[0].id}`}
-              className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+              className={buttonVariants({ variant: "outline", size: "md", className: "gap-1.5" })}
             >
               <CalendarBlankIcon size={16} />
               Calendar View
