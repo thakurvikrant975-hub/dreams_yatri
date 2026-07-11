@@ -71,7 +71,7 @@ export async function saveHomestayRoomCounts(
     hasKitchen: boolean;
     spaceCounts: Record<string, number>;
   }
-): Promise<void> {
+): Promise<{ error?: string }> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
 
@@ -134,7 +134,7 @@ export async function saveHomestayRoomCounts(
     });
   } catch (err) {
     console.error("[saveHomestayRoomCounts]", err);
-    redirect(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
+    return { error: "Couldn't save your rooms & spaces. Please try again." };
   }
 
   redirect(`/hotel-connect/properties/${hotelId}/edit?tab=4`);

@@ -88,6 +88,7 @@ function FaqItem({ q, a, defaultOpen = false }: { q: string; a: string; defaultO
 function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
 
   const [bedrooms,   setBedrooms]   = useState(hotel.hs_bedrooms  ?? 1);
   const [bathrooms,  setBathrooms]  = useState(hotel.hs_bathrooms ?? 1);
@@ -101,10 +102,12 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
   }
 
   function handleSave() {
+    setError(null);
     startTransition(async () => {
-      await saveHomestayRoomCounts(hotel.id, {
+      const result = await saveHomestayRoomCounts(hotel.id, {
         bedrooms, bathrooms, hasKitchen, spaceCounts: spaces,
       });
+      if (result?.error) setError(result.error);
     });
   }
 
@@ -192,7 +195,8 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
           </Card>
 
           {/* Save button */}
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-3">
+            {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
             <Button variant="primary" size="md" disabled={isPending} onClick={handleSave}>
               {isPending ? "Saving…" : "Save"}
             </Button>
