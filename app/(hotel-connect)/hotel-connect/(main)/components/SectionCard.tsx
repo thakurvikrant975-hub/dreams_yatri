@@ -5,14 +5,16 @@ export default function SectionCard({
   desc,
   headerAction,
   children,
+  className,
 }: {
   title: string;
   desc?: string;
   headerAction?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
+    <Card variant="elevated" radius="md" className={`overflow-hidden p-px ${className ?? ""}`}>
       <div className="px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b rounded-t-[inherit] bg-neutral-50 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-neutral-800">{title}</h3>
