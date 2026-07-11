@@ -46,12 +46,19 @@ export type CallOutcome =
     | "VOICEMAIL"
     | "CALL_BACK_LATER";
 
+export type TravellerMember = {
+    type: "ADULT" | "CHILD" | "INFANT";
+    name: string;
+    age: number;
+};
+
 export type PackageRequirements = {
     travellers: {
         leadName: string;
         adults: number;
         children: number;
         infants: number;
+        members?: TravellerMember[];
         specialDemands?: string;
     };
     journey: {

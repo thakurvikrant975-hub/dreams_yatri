@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -15,11 +15,11 @@ import {
 import {
     Users, MapPin, Hotel, Car, Zap, Wallet,
     Plus, X, AlertCircle, ChevronRight, ChevronLeft,
-    CheckCircle2, CalendarDays,
+    CheckCircle2, CalendarDays, Loader2,
 } from "lucide-react";
 import { savePackageRequirements } from "./actions";
-import type { PackageQueryType, PackageRequirements } from "../../(marketing)/queries/actions";
-import { number } from "zod";
+import type { PackageQueryType, PackageRequirements, TravellerMember } from "../../(marketing)/queries/actions";
+import { getVehiclesWithRates, type VehicleFull } from "../../(cabs)/vehicles/actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -42,16 +42,22 @@ const MEAL_TYPES = [
     { value: "VEGAN", label: "Vegan" },
 ];
 
-const CAB_TYPES = [
-    { value: "SEDAN", label: "Sedan" },
-    { value: "SUV", label: "SUV" },
-    { value: "BOLERO", label: "Bolero" },
-    { value: "INNOVA", label: "Innova/Crysta" },
-    { value: "TEMPO", label: "Tempo Traveller" },
-    { value: "VOLVO", label: "Volvo Bus" },
-    { value: "MINI_BUS", label: "Mini Bus" },
-    { value: "BIKE", label: "Bike Rental" },
-];
+// Matches the `VehicleType` enum in schema.prisma — human-readable labels for
+// the vehicle *types* fetched from `/dashboard/vehicles` (grouped, not one
+// chip per individual vehicle).
+const VEHICLE_TYPE_LABELS: Record<string, string> = {
+    HATCHBACK: "Hatchback", SEDAN: "Sedan", SUV: "SUV",
+    LUXURY_SEDAN: "Luxury Sedan", LUXURY_SUV: "Luxury SUV",
+    TEMPO_TRAVELLER: "Tempo Traveller", MINI_BUS: "Mini Bus", BUS: "Bus",
+    Rikshaw: "Rickshaw",
+};
+
+// Fallback for cabTypes values saved before this list came from the fleet —
+// keeps old selections visible instead of showing a raw string.
+const LEGACY_CAB_LABELS: Record<string, string> = {
+    SEDAN: "Sedan", SUV: "SUV", BOLERO: "Bolero", INNOVA: "Innova/Crysta",
+    TEMPO: "Tempo Traveller", VOLVO: "Volvo Bus", MINI_BUS: "Mini Bus", BIKE: "Bike Rental",
+};
 
 const PRESET_ACTIVITIES = [
     { value: "PARAGLIDING", label: "Paragliding" },
@@ -89,6 +95,41 @@ type TabId = typeof TABS[number]["id"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Rebuilds the per-traveller name/age list when adult/child/infant counts
+ * change — preserves existing entries (matched by type, in order) so editing
+ * a count doesn't wipe out names already typed in for the other travellers. */
+function rebuildMembers(
+    prevMembers: TravellerMember[],
+    adults: number, children: number, infants: number,
+): TravellerMember[] {
+    const queues: Record<TravellerMember["type"], TravellerMember[]> = { ADULT: [], CHILD: [], INFANT: [] };
+    for (const m of prevMembers) queues[m.type].push(m);
+    const take = (type: TravellerMember["type"], defaultAge: number): TravellerMember =>
+        queues[type].shift() ?? { type, name: "", age: defaultAge };
+
+    const members: TravellerMember[] = [];
+    for (let i = 0; i < adults; i++) members.push(take("ADULT", 30));
+    for (let i = 0; i < children; i++) members.push(take("CHILD", 8));
+    for (let i = 0; i < infants; i++) members.push(take("INFANT", 1));
+    return members;
+}
+
+/** Ensures `travellers.members` exists and matches the current pax counts —
+ * needed both for a brand-new form and for requirements saved before the
+ * member list existed. */
+function normalizeRequirements(reqs: PackageRequirements): PackageRequirements {
+    const { adults, children, infants, members } = reqs.travellers;
+    return {
+        ...reqs,
+        travellers: {
+            ...reqs.travellers,
+            members: members && members.length === adults + children + infants
+                ? members
+                : rebuildMembers(members ?? [], adults, children, infants),
+        },
+    };
+}
+
 function defaultRequirements(query: PackageQueryType): PackageRequirements {
     return {
         travellers: {
@@ -96,6 +137,7 @@ function defaultRequirements(query: PackageQueryType): PackageRequirements {
             adults: query.groupSize ?? 1,
             children: 0,
             infants: 0,
+            members: rebuildMembers([], query.groupSize ?? 1, 0, 0),
             specialDemands: "",
         },
         journey: {
@@ -292,8 +334,13 @@ export function PackageDetailsDialog({
     const [activeTab, setActiveTab] = useState<TabId>("travellers");
     const [isPending, startTransition] = useTransition();
     const [reqs, setReqs] = useState<PackageRequirements>(() =>
-        initialRequirements ?? defaultRequirements(query),
+        normalizeRequirements(initialRequirements ?? defaultRequirements(query)),
     );
+
+    // Vehicle catalog for the Transport tab — fetched from `/dashboard/vehicles`
+    // so the sales exec picks from what the fleet actually has, not a hardcoded list.
+    const [vehicles, setVehicles] = useState<VehicleFull[]>([]);
+    const [loadingVehicles, setLoadingVehicles] = useState(true);
 
     // Inline input states (not stored in reqs until "Add" is clicked)
     const [destInput, setDestInput] = useState("");
@@ -308,6 +355,18 @@ export function PackageDetailsDialog({
             ...prev,
             [section]: { ...prev[section], ...patch },
         }));
+    }
+
+    /** Updates adult/child/infant counts and keeps the name/age list in sync. */
+    function updateTravellerCounts(patch: Partial<Pick<PackageRequirements["travellers"], "adults" | "children" | "infants">>) {
+        setReqs(prev => {
+            const travellers = { ...prev.travellers, ...patch };
+            const members = rebuildMembers(
+                prev.travellers.members ?? [],
+                travellers.adults, travellers.children, travellers.infants,
+            );
+            return { ...prev, travellers: { ...travellers, members } };
+        });
     }
 
     function addDestination() {
@@ -331,6 +390,13 @@ export function PackageDetailsDialog({
     function removeCustomActivity(i: number) {
         update("activities", { custom: reqs.activities.custom.filter((_, idx) => idx !== i) });
     }
+
+    useEffect(() => {
+        if (!open || vehicles.length > 0) return;
+        getVehiclesWithRates()
+            .then(setVehicles)
+            .finally(() => setLoadingVehicles(false));
+    }, [open, vehicles.length]);
 
     function goToTab(id: TabId) {
         setActiveTab(id);
@@ -369,7 +435,7 @@ export function PackageDetailsDialog({
             onOpenChange={(v) => {
                 setOpen(v);
                 if (v) {
-                    setReqs(initialRequirements ?? defaultRequirements(query));
+                    setReqs(normalizeRequirements(initialRequirements ?? defaultRequirements(query)));
                     setActiveTab("travellers");
                 }
             }}
@@ -457,7 +523,7 @@ export function PackageDetailsDialog({
                                             type="number"
                                             min={1}
                                             value={reqs.travellers.adults}
-                                            onChange={e => update("travellers", { adults: Math.max(1, parseInt(e.target.value) || 1) })}
+                                            onChange={e => updateTravellerCounts({ adults: Math.max(1, parseInt(e.target.value) || 1) })}
                                         />
                                     </div>
                                     <div className="space-y-1.5">
@@ -470,7 +536,7 @@ export function PackageDetailsDialog({
                                             type="number"
                                             min={0}
                                             value={reqs.travellers.children}
-                                            onChange={e => update("travellers", { children: Math.max(0, parseInt(e.target.value) || 0) })}
+                                            onChange={e => updateTravellerCounts({ children: Math.max(0, parseInt(e.target.value) || 0) })}
                                         />
                                     </div>
                                     <div className="space-y-1.5">
@@ -483,7 +549,7 @@ export function PackageDetailsDialog({
                                             type="number"
                                             min={0}
                                             value={reqs.travellers.infants}
-                                            onChange={e => update("travellers", { infants: Math.max(0, parseInt(e.target.value) || 0) })}
+                                            onChange={e => updateTravellerCounts({ infants: Math.max(0, parseInt(e.target.value) || 0) })}
                                         />
                                     </div>
                                 </div>
@@ -501,6 +567,47 @@ export function PackageDetailsDialog({
                                         </span>
                                     </p>
                                 </div>
+
+                                {(reqs.travellers.members ?? []).length > 0 && (
+                                    <div className="space-y-2 pt-2">
+                                        <Label>Traveller Names &amp; Ages</Label>
+                                        <div className="space-y-2">
+                                            {(reqs.travellers.members ?? []).map((m, i) => (
+                                                <div key={i} className="flex items-center gap-2">
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className="w-16 justify-center shrink-0 text-[10px] font-normal"
+                                                    >
+                                                        {m.type === "ADULT" ? "Adult" : m.type === "CHILD" ? "Child" : "Infant"}
+                                                    </Badge>
+                                                    <Input
+                                                        value={m.name}
+                                                        onChange={e => {
+                                                            const members = [...(reqs.travellers.members ?? [])];
+                                                            members[i] = { ...members[i], name: e.target.value };
+                                                            update("travellers", { members });
+                                                        }}
+                                                        placeholder={`Traveller ${i + 1} name`}
+                                                        className="flex-1"
+                                                    />
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        max={120}
+                                                        value={m.age}
+                                                        onChange={e => {
+                                                            const members = [...(reqs.travellers.members ?? [])];
+                                                            members[i] = { ...members[i], age: Math.max(0, parseInt(e.target.value) || 0) };
+                                                            update("travellers", { members });
+                                                        }}
+                                                        placeholder="Age"
+                                                        className="w-20 shrink-0"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <SpecialDemands
                                     value={reqs.travellers.specialDemands ?? ""}
@@ -799,14 +906,41 @@ export function PackageDetailsDialog({
                                     <>
                                         <div className="space-y-2">
                                             <Label>
-                                                Vehicle / Cab Type
-                                                <span className="text-muted-foreground text-xs font-normal ml-1.5">select all that apply</span>
+                                                Vehicle Type
+                                                <span className="text-muted-foreground text-xs font-normal ml-1.5">from the fleet — select all that apply</span>
                                             </Label>
-                                            <MultiToggle
-                                                options={CAB_TYPES}
-                                                selected={reqs.transport.cabTypes}
-                                                onChange={v => update("transport", { cabTypes: v })}
-                                            />
+                                            {loadingVehicles ? (
+                                                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading vehicle types…
+                                                </div>
+                                            ) : (
+                                                (() => {
+                                                    // Group active vehicles by type — one chip per type, not per vehicle,
+                                                    // with the largest capacity in that type as a helpful hint.
+                                                    const maxCapacityByType = new Map<string, number>();
+                                                    for (const v of vehicles) {
+                                                        if (!v.is_active) continue;
+                                                        maxCapacityByType.set(v.type, Math.max(maxCapacityByType.get(v.type) ?? 0, v.passenger_capacity));
+                                                    }
+                                                    const typeOptions = Array.from(maxCapacityByType.entries()).map(([type, maxSeats]) => ({
+                                                        value: type,
+                                                        label: `${VEHICLE_TYPE_LABELS[type] ?? type} · up to ${maxSeats} seats`,
+                                                    }));
+                                                    // Legacy selections saved before this list came from `/dashboard/vehicles` —
+                                                    // keep them visible (as a readable label) instead of losing the selection.
+                                                    const legacyOptions = reqs.transport.cabTypes
+                                                        .filter(v => !maxCapacityByType.has(v))
+                                                        .map(v => ({ value: v, label: LEGACY_CAB_LABELS[v] ?? v }));
+
+                                                    return (
+                                                        <MultiToggle
+                                                            options={[...typeOptions, ...legacyOptions]}
+                                                            selected={reqs.transport.cabTypes}
+                                                            onChange={v => update("transport", { cabTypes: v })}
+                                                        />
+                                                    );
+                                                })()
+                                            )}
                                         </div>
 
                                         <div className="space-y-2">
