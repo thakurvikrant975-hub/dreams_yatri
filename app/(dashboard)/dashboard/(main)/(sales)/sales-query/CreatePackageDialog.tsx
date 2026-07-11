@@ -20,7 +20,7 @@ import {
 import { copyPackageIntoDraft } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 const PAGE_SIZE = 12;
-
+ 
 const LOADING_MESSAGES = [
     "Hold on... we're doing full Indian-level jugaad to get you the best deal. 😎",
     "One sec... even our calculator is negotiating the prices. 💸",
