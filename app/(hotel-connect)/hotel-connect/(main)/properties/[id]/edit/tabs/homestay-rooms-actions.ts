@@ -47,10 +47,15 @@ export async function saveHomestayRooms(
     return { error: `Please add details for: ${missing.join(", ")} before continuing.` };
   }
 
-  await db.hotels.update({
-    where: { id: hotelId },
-    data: { wizard_step: Math.max(hotel.wizard_step, 4) },
-  });
+  try {
+    await db.hotels.update({
+      where: { id: hotelId },
+      data: { wizard_step: Math.max(hotel.wizard_step, 4) },
+    });
+  } catch (err) {
+    console.error("[saveHomestayRooms]", err);
+    return { error: "Couldn't save your progress. Please try again." };
+  }
 
   return { ok: true };
 }

@@ -96,30 +96,35 @@ export async function createRatePlan(
   const validationError = validateRatePlanInput(input);
   if (validationError) return { error: validationError };
 
-  const maxSort = await db.hotel_room_pricing.aggregate({
-    where: { room_id: roomId },
-    _max: { sort_order: true },
-  });
+  try {
+    const maxSort = await db.hotel_room_pricing.aggregate({
+      where: { room_id: roomId },
+      _max: { sort_order: true },
+    });
 
-  const created = await db.hotel_room_pricing.create({
-    data: {
-      hotel_id: hotelId,
-      room_id: roomId,
-      plan_name: input.planName.trim(),
-      meal_type_id: input.mealTypeId,
-      diet_type_id: input.dietTypeId,
-      cancellation_policy: input.cancellationPolicy,
-      gst_percentage: input.gstPercentage,
-      price_per_night: input.basePrice,
-      sort_order: (maxSort._max.sort_order ?? -1) + 1,
-      is_active: true,
-    },
-    select: { id: true },
-  });
+    const created = await db.hotel_room_pricing.create({
+      data: {
+        hotel_id: hotelId,
+        room_id: roomId,
+        plan_name: input.planName.trim(),
+        meal_type_id: input.mealTypeId,
+        diet_type_id: input.dietTypeId,
+        cancellation_policy: input.cancellationPolicy,
+        gst_percentage: input.gstPercentage,
+        price_per_night: input.basePrice,
+        sort_order: (maxSort._max.sort_order ?? -1) + 1,
+        is_active: true,
+      },
+      select: { id: true },
+    });
 
-  revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
-  revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);
-  return { planId: created.id };
+    revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
+    revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);
+    return { planId: created.id };
+  } catch (err) {
+    console.error("[createRatePlan]", err);
+    return { error: "Couldn't create the rate plan. Please try again." };
+  }
 }
 
 export async function updateRatePlanDetails(
@@ -141,17 +146,22 @@ export async function updateRatePlanDetails(
   });
   if (!pricing) return { error: "Rate plan not found." };
 
-  await db.hotel_room_pricing.update({
-    where: { id: pricingId },
-    data: {
-      plan_name: input.planName.trim(),
-      meal_type_id: input.mealTypeId,
-      diet_type_id: input.dietTypeId,
-      cancellation_policy: input.cancellationPolicy,
-      gst_percentage: input.gstPercentage,
-      price_per_night: input.basePrice,
-    },
-  });
+  try {
+    await db.hotel_room_pricing.update({
+      where: { id: pricingId },
+      data: {
+        plan_name: input.planName.trim(),
+        meal_type_id: input.mealTypeId,
+        diet_type_id: input.dietTypeId,
+        cancellation_policy: input.cancellationPolicy,
+        gst_percentage: input.gstPercentage,
+        price_per_night: input.basePrice,
+      },
+    });
+  } catch (err) {
+    console.error("[updateRatePlanDetails]", err);
+    return { error: "Couldn't save the rate plan. Please try again." };
+  }
 
   revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
   revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);
@@ -185,10 +195,15 @@ export async function setRatePlanActive(
     }
   }
 
-  await db.hotel_room_pricing.update({
-    where: { id: pricingId },
-    data: { is_active: active },
-  });
+  try {
+    await db.hotel_room_pricing.update({
+      where: { id: pricingId },
+      data: { is_active: active },
+    });
+  } catch (err) {
+    console.error("[setRatePlanActive]", err);
+    return { error: "Couldn't update the rate plan. Please try again." };
+  }
 
   revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
   revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);
@@ -292,29 +307,34 @@ export async function saveDefaultRates(
   });
   if (!pricing) return { error: "Rate plan not found." };
 
-  await db.$transaction(async (tx) => {
-    await tx.hotel_room_pricing.update({
-      where: { id: pricingId },
-      data: {
-        price_per_night: input.basePrice,
-        extra_bed_rate: input.extraAdultRate,
-        extra_child_rate: input.extraChildRate,
-      },
-    });
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.hotel_room_pricing.update({
+        where: { id: pricingId },
+        data: {
+          price_per_night: input.basePrice,
+          extra_bed_rate: input.extraAdultRate,
+          extra_child_rate: input.extraChildRate,
+        },
+      });
 
-    for (const [occStr, price] of Object.entries(input.occupancyPrices)) {
-      const occupancy = Number(occStr);
-      if (price == null) {
-        await tx.hotel_room_occupancy_prices.deleteMany({ where: { pricing_id: pricingId, occupancy } });
-      } else {
-        await tx.hotel_room_occupancy_prices.upsert({
-          where: { pricing_id_occupancy: { pricing_id: pricingId, occupancy } },
-          update: { price_per_night: price },
-          create: { pricing_id: pricingId, occupancy, price_per_night: price },
-        });
+      for (const [occStr, price] of Object.entries(input.occupancyPrices)) {
+        const occupancy = Number(occStr);
+        if (price == null) {
+          await tx.hotel_room_occupancy_prices.deleteMany({ where: { pricing_id: pricingId, occupancy } });
+        } else {
+          await tx.hotel_room_occupancy_prices.upsert({
+            where: { pricing_id_occupancy: { pricing_id: pricingId, occupancy } },
+            update: { price_per_night: price },
+            create: { pricing_id: pricingId, occupancy, price_per_night: price },
+          });
+        }
       }
-    }
-  });
+    });
+  } catch (err) {
+    console.error("[saveDefaultRates]", err);
+    return { error: "Couldn't save the default rates. Please try again." };
+  }
 
   revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
   revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);
@@ -336,10 +356,15 @@ export async function setDefaultInventory(
     return { error: "Default inventory must be a whole number of at least 1." };
   }
 
-  await db.hotel_rooms.update({
-    where: { id: roomId },
-    data: { num_rooms: numRooms },
-  });
+  try {
+    await db.hotel_rooms.update({
+      where: { id: roomId },
+      data: { num_rooms: numRooms },
+    });
+  } catch (err) {
+    console.error("[setDefaultInventory]", err);
+    return { error: "Couldn't save the default inventory. Please try again." };
+  }
 
   revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
   revalidatePath(`/hotel-connect/properties/${hotelId}/rates/default`);

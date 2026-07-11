@@ -148,44 +148,49 @@ export async function saveRoomRates(
   const validFrom = new Date(`${fromISO}T00:00:00.000Z`);
   const validTo = new Date(`${toISO}T00:00:00.000Z`);
 
-  await db.$transaction(async (tx) => {
-    const existing = await tx.hotel_room_pricing_season.findFirst({
-      where: { pricing_id: pricingId, valid_from: validFrom, valid_to: validTo },
-      select: { id: true },
-    });
+  try {
+    await db.$transaction(async (tx) => {
+      const existing = await tx.hotel_room_pricing_season.findFirst({
+        where: { pricing_id: pricingId, valid_from: validFrom, valid_to: validTo },
+        select: { id: true },
+      });
 
-    const seasonData = {
-      season_name: `${fromISO} to ${toISO}`,
-      price_per_night: patch.basePrice,
-      extra_bed_rate: patch.extraAdultRate ?? null,
-      extra_child_rate: patch.childRate ?? null,
-      is_active: true,
-    };
+      const seasonData = {
+        season_name: `${fromISO} to ${toISO}`,
+        price_per_night: patch.basePrice,
+        extra_bed_rate: patch.extraAdultRate ?? null,
+        extra_child_rate: patch.childRate ?? null,
+        is_active: true,
+      };
 
-    const seasonId = existing
-      ? (await tx.hotel_room_pricing_season.update({
-          where: { id: existing.id },
-          data: seasonData,
-          select: { id: true },
-        })).id
-      : (await tx.hotel_room_pricing_season.create({
-          data: { pricing_id: pricingId, valid_from: validFrom, valid_to: validTo, ...seasonData },
-          select: { id: true },
-        })).id;
+      const seasonId = existing
+        ? (await tx.hotel_room_pricing_season.update({
+            where: { id: existing.id },
+            data: seasonData,
+            select: { id: true },
+          })).id
+        : (await tx.hotel_room_pricing_season.create({
+            data: { pricing_id: pricingId, valid_from: validFrom, valid_to: validTo, ...seasonData },
+            select: { id: true },
+          })).id;
 
-    for (const [occStr, price] of Object.entries(patch.occupancyPrices ?? {})) {
-      const occupancy = Number(occStr);
-      if (price == null) {
-        await tx.hotel_room_pricing_season_occupancy.deleteMany({ where: { season_id: seasonId, occupancy } });
-      } else {
-        await tx.hotel_room_pricing_season_occupancy.upsert({
-          where: { season_id_occupancy: { season_id: seasonId, occupancy } },
-          update: { price_per_night: price },
-          create: { season_id: seasonId, occupancy, price_per_night: price },
-        });
+      for (const [occStr, price] of Object.entries(patch.occupancyPrices ?? {})) {
+        const occupancy = Number(occStr);
+        if (price == null) {
+          await tx.hotel_room_pricing_season_occupancy.deleteMany({ where: { season_id: seasonId, occupancy } });
+        } else {
+          await tx.hotel_room_pricing_season_occupancy.upsert({
+            where: { season_id_occupancy: { season_id: seasonId, occupancy } },
+            update: { price_per_night: price },
+            create: { season_id: seasonId, occupancy, price_per_night: price },
+          });
+        }
       }
-    }
-  });
+    });
+  } catch (err) {
+    console.error("[saveRoomRates]", err);
+    return { error: "Couldn't save the rates. Please try again." };
+  }
 
   revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
   revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);

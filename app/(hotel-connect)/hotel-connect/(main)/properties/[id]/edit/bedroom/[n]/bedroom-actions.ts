@@ -41,10 +41,15 @@ export async function saveBedroomStep(
   );
   updated[idx] = { ...updated[idx], ...patch };
 
-  await db.hotels.update({
-    where: { id: hotelId },
-    data: { hs_bedroom_details: updated },
-  });
+  try {
+    await db.hotels.update({
+      where: { id: hotelId },
+      data: { hs_bedroom_details: updated },
+    });
+  } catch (err) {
+    console.error("[saveBedroomStep]", err);
+    return { ok: false };
+  }
 
   return { ok: true };
 }

@@ -72,22 +72,27 @@ export async function saveHostDetails(
     ? d.languages.split(",").map((l) => l.trim()).filter(Boolean)
     : [];
 
-  await db.hotelOwner.update({
-    where: { id: session.user.id },
-    data: {
-      businessName:         d.businessName         || null,
-      phone_cc:             d.phone_cc,
-      phone:                d.phone                || null,
-      whatsapp_cc:          d.whatsapp_cc,
-      whatsapp:             d.whatsapp             || null,
-      gender:               d.gender               ?? null,
-      languages:            langs,
-      founded_year:         d.founded_year         ?? null,
-      property_count:       d.property_count,
-      business_description: d.business_description || null,
-      logo_url:             d.logo_url             || null,
-    },
-  });
+  try {
+    await db.hotelOwner.update({
+      where: { id: session.user.id },
+      data: {
+        businessName:         d.businessName         || null,
+        phone_cc:             d.phone_cc,
+        phone:                d.phone                || null,
+        whatsapp_cc:          d.whatsapp_cc,
+        whatsapp:             d.whatsapp             || null,
+        gender:               d.gender               ?? null,
+        languages:            langs,
+        founded_year:         d.founded_year         ?? null,
+        property_count:       d.property_count,
+        business_description: d.business_description || null,
+        logo_url:             d.logo_url             || null,
+      },
+    });
+  } catch (err) {
+    console.error("[saveHostDetails]", err);
+    return { error: "Couldn't save your host details. Please try again." };
+  }
 
   return { ok: true };
 }
@@ -106,18 +111,23 @@ export async function uploadOwnerLogo(
   if (file.size < 100 * 1024)       return { error: "File must be at least 100 KB." };
   if (file.size > 15 * 1024 * 1024) return { error: "File must be under 15 MB." };
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const { url } = await uploadToR2({
-    file: buffer,
-    folder: "avatars",
-    fileName: file.name,
-    contentType: file.type,
-  });
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { url } = await uploadToR2({
+      file: buffer,
+      folder: "avatars",
+      fileName: file.name,
+      contentType: file.type,
+    });
 
-  await db.hotelOwner.update({
-    where: { id: session.user.id },
-    data: { logo_url: url },
-  });
+    await db.hotelOwner.update({
+      where: { id: session.user.id },
+      data: { logo_url: url },
+    });
 
-  return { url };
+    return { url };
+  } catch (err) {
+    console.error("[uploadOwnerLogo]", err);
+    return { error: "Couldn't upload your logo. Please try again." };
+  }
 }
