@@ -6,7 +6,6 @@ import { cn } from "@/app/lib/utils";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  ChevronDownIcon,
   NoSymbolIcon,
   TagIcon,
   ListBulletIcon,
@@ -84,51 +83,36 @@ function MoneyTile({
 }
 
 function PlanRateCard({
-  plan, maxAdults, value, loading, expanded, onToggle, onChange,
+  maxAdults, value, loading, onChange,
 }: {
-  plan: RatePlanOption;
   maxAdults: number;
   value: PlanFormState;
   loading: boolean;
-  expanded: boolean;
-  onToggle: () => void;
   onChange: (patch: Partial<PlanFormState>) => void;
 }) {
   const tiers = occupancyTiers(maxAdults);
   return (
-    <div className="rounded-lg border border-neutral-200 overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-3 py-2 bg-neutral-50 hover:bg-neutral-100 transition-colors text-left"
-      >
-        <span className="text-xs font-bold text-neutral-700">{plan.label}</span>
-        <ChevronDownIcon className={cn("w-3.5 h-3.5 text-neutral-400 transition-transform shrink-0", expanded && "rotate-180")} />
-      </button>
-      {expanded && (
-        <div className="p-3 space-y-2.5">
-          {loading ? (
-            <p className="text-[11px] text-neutral-400">Loading current rates…</p>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-2">
-                <MoneyTile label="2 Adults (Base)" value={value.basePrice} onChange={(v) => onChange({ basePrice: v })} placeholder="Leave blank to skip" />
-                {tiers.map((n) => (
-                  <MoneyTile
-                    key={n}
-                    label={`${n} Adult${n === 1 ? "" : "s"}`}
-                    value={value.occupancyPrices[n] ?? ""}
-                    onChange={(v) => onChange({ occupancyPrices: { ...value.occupancyPrices, [n]: v } })}
-                  />
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
-                <MoneyTile label="Per Child (7-17y)" value={value.childRate} onChange={(v) => onChange({ childRate: v })} />
-                <MoneyTile label="Extra Adult" value={value.extraAdultRate} onChange={(v) => onChange({ extraAdultRate: v })} />
-              </div>
-            </>
-          )}
-        </div>
+    <div className="rounded-lg border border-neutral-200 p-3 space-y-2.5">
+      {loading ? (
+        <p className="text-[11px] text-neutral-400">Loading current rates…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <MoneyTile label="2 Adults (Base)" value={value.basePrice} onChange={(v) => onChange({ basePrice: v })} placeholder="Leave blank to skip" />
+            {tiers.map((n) => (
+              <MoneyTile
+                key={n}
+                label={`${n} Adult${n === 1 ? "" : "s"}`}
+                value={value.occupancyPrices[n] ?? ""}
+                onChange={(v) => onChange({ occupancyPrices: { ...value.occupancyPrices, [n]: v } })}
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
+            <MoneyTile label="Per Child (7-17y)" value={value.childRate} onChange={(v) => onChange({ childRate: v })} />
+            <MoneyTile label="Extra Adult" value={value.extraAdultRate} onChange={(v) => onChange({ extraAdultRate: v })} />
+          </div>
+        </>
       )}
     </div>
   );
@@ -406,7 +390,7 @@ export default function CalendarClient({
             hotelId={hotelId}
             roomId={roomId}
             planId={planId}
-            plans={currentRoom?.plans ?? []}
+            planLabel={currentRoom?.plans.find((p) => p.id === planId)?.label ?? null}
             maxAdults={currentRoom?.max_adults ?? 2}
             multiPlan={(currentRoom?.plans.length ?? 0) > 1}
             rangeLo={rangeLo}
@@ -492,7 +476,7 @@ function EditPanel({
   hotelId,
   roomId,
   planId,
-  plans,
+  planLabel,
   maxAdults,
   multiPlan,
   rangeLo,
@@ -505,7 +489,7 @@ function EditPanel({
   hotelId: number;
   roomId: number | null;
   planId: number | null;
-  plans: RatePlanOption[];
+  planLabel: string | null;
   maxAdults: number;
   multiPlan: boolean;
   rangeLo: string | null;
@@ -522,46 +506,27 @@ function EditPanel({
   const [maxLos, setMaxLos] = useState("");
   const [cta, setCta] = useState<"" | "yes" | "no">("");
   const [ctd, setCtd] = useState<"" | "yes" | "no">("");
-  const [planForms, setPlanForms] = useState<Record<number, PlanFormState>>({});
-  const [expandedPlans, setExpandedPlans] = useState<Set<number>>(new Set());
+  const [planForm, setPlanForm] = useState<PlanFormState>(EMPTY_PLAN_FORM);
   const [loadingRates, setLoadingRates] = useState(false);
 
   const active = rangeLo != null && rangeHi != null;
-  const planIds = plans.map((p) => p.id).join(",");
 
-  // Fetch each active plan's currently-saved rate for this exact range
-  // whenever the range (or room) changes — mirrors ManageRatesClient's
-  // per-range fetch, just for every plan on the room at once.
+  // Fetch the *currently selected* plan's saved rate for this exact range —
+  // matches the plan switcher above the calendar, which already scopes the
+  // whole view (grid prices, restrictions) to one plan at a time.
   useEffect(() => {
-    if (!active || roomId == null || plans.length === 0) { setPlanForms({}); return; }
-    setExpandedPlans(new Set(planId != null ? [planId] : []));
+    if (!active || roomId == null || planId == null) { setPlanForm(EMPTY_PLAN_FORM); return; }
     let cancelled = false;
     setLoadingRates(true);
-    Promise.all(plans.map((p) => getRoomRateDetail(hotelId, roomId, p.id, rangeLo!, rangeHi!)))
-      .then((results) => {
+    getRoomRateDetail(hotelId, roomId, planId, rangeLo!, rangeHi!)
+      .then((res) => {
         if (cancelled) return;
-        const next: Record<number, PlanFormState> = {};
-        results.forEach((res, i) => {
-          next[plans[i].id] = res.detail ? detailToFormState(res.detail) : EMPTY_PLAN_FORM;
-        });
-        setPlanForms(next);
+        setPlanForm(res.detail ? detailToFormState(res.detail) : EMPTY_PLAN_FORM);
       })
       .finally(() => { if (!cancelled) setLoadingRates(false); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, rangeLo, rangeHi, roomId, planIds]);
+  }, [active, rangeLo, rangeHi, roomId, planId, hotelId]);
 
-  function updatePlanForm(pId: number, patch: Partial<PlanFormState>) {
-    setPlanForms((prev) => ({ ...prev, [pId]: { ...(prev[pId] ?? EMPTY_PLAN_FORM), ...patch } }));
-  }
-
-  function togglePlan(pId: number) {
-    setExpandedPlans((prev) => {
-      const next = new Set(prev);
-      if (next.has(pId)) next.delete(pId); else next.add(pId);
-      return next;
-    });
-  }
   const nights = active ? Math.round((Date.parse(rangeHi!) - Date.parse(rangeLo!)) / 86400000) + 1 : 0;
 
   function submit() {
@@ -575,20 +540,18 @@ function EditPanel({
     if (ctd) patch.closedToDeparture = ctd === "yes";
 
     const planRates: PlanRatesPatch[] = [];
-    for (const p of plans) {
-      const form = planForms[p.id];
-      if (!form || form.basePrice.trim() === "") continue; // untouched — leave this plan's rate alone
+    if (planId != null && planForm.basePrice.trim() !== "") {
       const occupancyPrices: Record<number, number | null> = {};
-      for (const [occStr, raw] of Object.entries(form.occupancyPrices)) {
+      for (const [occStr, raw] of Object.entries(planForm.occupancyPrices)) {
         occupancyPrices[Number(occStr)] = raw.trim() === "" ? null : Number(raw);
       }
       planRates.push({
-        planId: p.id,
+        planId,
         input: {
-          basePrice: Number(form.basePrice),
+          basePrice: Number(planForm.basePrice),
           occupancyPrices,
-          childRate: form.childRate.trim() === "" ? null : Number(form.childRate),
-          extraAdultRate: form.extraAdultRate.trim() === "" ? null : Number(form.extraAdultRate),
+          childRate: planForm.childRate.trim() === "" ? null : Number(planForm.childRate),
+          extraAdultRate: planForm.extraAdultRate.trim() === "" ? null : Number(planForm.extraAdultRate),
         },
       });
     }
@@ -638,27 +601,25 @@ function EditPanel({
               />
             </div>
 
-            {plans.length > 0 && (
+            {planId != null && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className={label}>Rate Plan Pricing</p>
+                  <p className={label}>
+                    Rate Plan Pricing
+                    {planLabel && <span className="font-normal normal-case text-neutral-400"> · {planLabel}</span>}
+                  </p>
                   {loadingRates && <span className="text-[10px] text-neutral-400">loading…</span>}
                 </div>
-                <div className="space-y-2">
-                  {plans.map((p) => (
-                    <PlanRateCard
-                      key={p.id}
-                      plan={p}
-                      maxAdults={maxAdults}
-                      value={planForms[p.id] ?? EMPTY_PLAN_FORM}
-                      loading={loadingRates}
-                      expanded={expandedPlans.has(p.id)}
-                      onToggle={() => togglePlan(p.id)}
-                      onChange={(patch) => updatePlanForm(p.id, patch)}
-                    />
-                  ))}
-                </div>
-                <p className="text-[10px] text-neutral-400 mt-1.5">Leave a plan&apos;s &quot;2 Adults&quot; blank to leave its rate for this range untouched.</p>
+                <PlanRateCard
+                  maxAdults={maxAdults}
+                  value={planForm}
+                  loading={loadingRates}
+                  onChange={(patch) => setPlanForm((prev) => ({ ...prev, ...patch }))}
+                />
+                <p className="text-[10px] text-neutral-400 mt-1.5">
+                  Leave &quot;2 Adults&quot; blank to leave this plan&apos;s rate for this range untouched.
+                  {multiPlan && " Switch the rate plan above to edit a different plan's pricing."}
+                </p>
               </div>
             )}
 
