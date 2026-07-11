@@ -1388,7 +1388,7 @@ export default function PackageBuilderDetailPage() {
     if (days.every((d) => d.roomPricingId == null)) {
       setHotelPricing(null);
       return;
-    }
+    }  
     let cancelled = false;
     setComputingPrice(true);
     const timer = setTimeout(async () => {
