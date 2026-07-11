@@ -571,7 +571,7 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
       <input type="hidden" name="meal_price_dinner"          value={mealDinner} />
 
       {state?.error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700">
+        <div role="alert" className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700">
           {state.error}
         </div>
       )}

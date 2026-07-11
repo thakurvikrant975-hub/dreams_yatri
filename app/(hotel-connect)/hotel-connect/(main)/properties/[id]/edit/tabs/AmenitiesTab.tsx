@@ -969,7 +969,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
         <input type="hidden" name="amenities_json" value={JSON.stringify(amenities)} />
 
         {(state.error || validationError) && (
-          <div className="mb-4 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <div role="alert" className="mb-4 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
             <p>{validationError ?? state.error}</p>
             {validationError && activeCategory !== "Mandatory" && (
               <button

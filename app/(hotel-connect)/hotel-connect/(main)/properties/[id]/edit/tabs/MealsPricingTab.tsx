@@ -234,7 +234,7 @@ export default function MealsPricingTab({ hotel }: { hotel: MealsPricingHotelDat
         <input type="hidden" name="prop_avail_to"       value={availTo   ? availTo.toISOString()   : ""} />
 
         {state.error && (
-          <div className="mb-4 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <div role="alert" className="mb-4 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
             {state.error}
           </div>
         )}

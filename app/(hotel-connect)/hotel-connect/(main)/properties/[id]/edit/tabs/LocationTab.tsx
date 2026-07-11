@@ -157,9 +157,10 @@ function FieldRow({
         {required && <span className="text-red-400 ml-0.5">*</span>}
       </Label>
       {isFieldElement
-        ? React.cloneElement(onlyChild as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+        ? React.cloneElement(onlyChild as React.ReactElement<{ id?: string; "aria-describedby"?: string; "aria-invalid"?: boolean }>, {
             id: labelId,
             "aria-describedby": describedBy,
+            "aria-invalid": error?.[0] ? true : undefined,
           })
         : (
           <div role="group" aria-labelledby={labelId} aria-describedby={describedBy}>

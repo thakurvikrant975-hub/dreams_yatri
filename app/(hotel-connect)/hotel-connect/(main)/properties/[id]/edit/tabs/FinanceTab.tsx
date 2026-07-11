@@ -391,8 +391,8 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
       <input type="hidden" name="msme_number"         value={msmeRegistered ? msmeNumber : ""} />
 
       {state?.error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 flex items-center gap-2">
-          <WarningCircleIcon size={14} className="shrink-0" />
+        <div role="alert" className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 flex items-center gap-2">
+          <WarningCircleIcon size={14} className="shrink-0" aria-hidden="true" />
           {state.error}
         </div>
       )}

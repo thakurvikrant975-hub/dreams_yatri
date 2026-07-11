@@ -246,9 +246,10 @@ function FieldRow({
       </div>
       {hint && <p className="text-xs text-neutral-500 -mt-0.5">{hint}</p>}
       {isFieldElement
-        ? React.cloneElement(onlyChild as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+        ? React.cloneElement(onlyChild as React.ReactElement<{ id?: string; "aria-describedby"?: string; "aria-invalid"?: boolean }>, {
             id: labelId,
             "aria-describedby": describedBy,
+            "aria-invalid": error?.[0] ? true : undefined,
           })
         : (
           <div role="group" aria-labelledby={labelId} aria-describedby={describedBy}>

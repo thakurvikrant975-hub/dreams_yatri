@@ -379,7 +379,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
         <input type="hidden" name="tan_number"            value={hasTan ? tanNumber : ""} />
 
         {state.error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 mb-3">
+          <div role="alert" className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 mb-3">
             {state.error}
           </div>
         )}
