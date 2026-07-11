@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import { cn } from "@/app/lib/utils";
 import { Input } from "../../../../components/ui/input";
@@ -141,6 +141,8 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
   // linger permanently tagged "Swimming Pool" with nothing pointing at them.
   const [sessionUploadedIds, setSessionUploadedIds] = useState<number[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     let cancelled = false;
@@ -193,10 +195,38 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
     onClose();
   }
 
-  // Esc to close
+  // Focus the dialog once on open, and restore focus to the trigger element
+  // once on close — must run only on mount/unmount, not on every state change.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => { previouslyFocused?.focus(); };
+  }, []);
+
+  // Trap Tab within the dialog, and close on Escape.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") handleCancel();
+      if (e.key === "Escape") { handleCancel(); return; }
+      if (e.key !== "Tab" || !panelRef.current) return;
+
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      // The panel itself holds initial focus (tabIndex=-1, not part of
+      // `focusable`) — Shift+Tab from there must also wrap to the end,
+      // otherwise it escapes into the page behind the dialog.
+      const atStart = document.activeElement === first || document.activeElement === panelRef.current;
+
+      if (e.shiftKey && atStart) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -246,16 +276,23 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
 
       {/* Modal */}
       <div className="fixed inset-0 z-60 flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden pointer-events-auto ring-1 ring-neutral-200">
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
+          className="bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden pointer-events-auto ring-1 ring-neutral-200 outline-none"
+        >
 
           {/* Header */}
           <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 shrink-0">
             <div className="flex items-center gap-3 min-w-0">
               <span className="flex items-center justify-center size-9 rounded-xl bg-primary-50 text-primary-500 ring-1 ring-inset ring-primary-100 shrink-0">
-                <SwimmingPoolIcon size={19} weight="fill" />
+                <SwimmingPoolIcon size={19} weight="fill" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <h2 className="text-sm font-bold text-neutral-800 truncate">
+                <h2 id={titleId} className="text-sm font-bold text-neutral-800 truncate">
                   {initial
                     ? `Edit Pool ${poolNumber}`
                     : poolTarget
@@ -404,9 +441,9 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
                         type="button"
                         onClick={() => handlePhotoDelete(photo.id)}
                         className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
-                        title="Remove photo"
+                        aria-label="Remove photo"
                       >
-                        <TrashIcon size={16} />
+                        <TrashIcon size={16} aria-hidden="true" />
                       </button>
                     </div>
                   ))
@@ -575,11 +612,36 @@ export function PoolCountPrompt({
   onClose: () => void;
 }) {
   const [count, setCount] = useState(1);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => { previouslyFocused?.focus(); };
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Enter") onConfirm(count);
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Enter") { onConfirm(count); return; }
+      if (e.key !== "Tab" || !panelRef.current) return;
+
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const atStart = document.activeElement === first || document.activeElement === panelRef.current;
+
+      if (e.shiftKey && atStart) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -590,12 +652,19 @@ export function PoolCountPrompt({
     <>
       <div className="fixed inset-0 bg-neutral-900/50 z-60 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-60 flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-sm pointer-events-auto ring-1 ring-neutral-200 overflow-hidden">
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
+          className="bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-sm pointer-events-auto ring-1 ring-neutral-200 overflow-hidden outline-none"
+        >
           <div className="flex items-center gap-3 px-6 pt-6">
             <span className="flex items-center justify-center size-9 rounded-xl bg-primary-50 text-primary-500 ring-1 ring-inset ring-primary-100 shrink-0">
-              <SwimmingPoolIcon size={19} weight="fill" />
+              <SwimmingPoolIcon size={19} weight="fill" aria-hidden="true" />
             </span>
-            <h2 className="text-sm font-bold text-neutral-800">
+            <h2 id={titleId} className="text-sm font-bold text-neutral-800">
               How many swimming pools does this property have?
             </h2>
           </div>
