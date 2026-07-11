@@ -25,40 +25,34 @@ export default async function CalendarPage({
   const session = await hotelConnectAuth();
   const ownerId = session!.user.id;
 
-  const hotelCheck = await db.hotels.findFirst({
-    where: { id: hotelId, owner_id: ownerId },
-    select: { property_category: true },
-  });
-  if (!hotelCheck) notFound();
-
-  // See rates/page.tsx for why this is needed — homestays only get a
-  // hotel_rooms row from the wizard at Submit for Review otherwise.
-  if (hotelCheck.property_category === "HOMESTAY_VILLA") {
-    await ensureHomestayRoom(hotelId);
-  }
-
   const hotel = await db.hotels.findFirst({
     where: { id: hotelId, owner_id: ownerId },
-    select: {
-      id: true,
-      name: true,
-      hotelRooms: {
-        where: { is_active: true },
-        orderBy: { sort_order: "asc" },
-        select: {
-          id: true, name: true, num_rooms: true, max_adults: true,
-          pricing: {
-            where: { is_active: true },
-            orderBy: { sort_order: "asc" },
-            select: { id: true, plan_name: true, meal_type: { select: { name: true } } },
-          },
-        },
-      },
-    },
+    select: { id: true, name: true, property_category: true },
   });
   if (!hotel) notFound();
 
-  const rooms = hotel.hotelRooms.map((r) => ({
+  // See rates/page.tsx for why this is needed — homestays only get a
+  // hotel_rooms row from the wizard at Submit for Review otherwise.
+  if (hotel.property_category === "HOMESTAY_VILLA") {
+    await ensureHomestayRoom(hotelId);
+  }
+
+  // Ownership already verified above — scope directly to hotel_id rather
+  // than re-fetching the whole hotel row a second time.
+  const hotelRooms = await db.hotel_rooms.findMany({
+    where: { hotel_id: hotelId, is_active: true },
+    orderBy: { sort_order: "asc" },
+    select: {
+      id: true, name: true, num_rooms: true, max_adults: true,
+      pricing: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: { id: true, plan_name: true, meal_type: { select: { name: true } } },
+      },
+    },
+  });
+
+  const rooms = hotelRooms.map((r) => ({
     id: r.id,
     name: r.name,
     num_rooms: r.num_rooms,
