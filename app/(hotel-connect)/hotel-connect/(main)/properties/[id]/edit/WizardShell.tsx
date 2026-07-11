@@ -13,7 +13,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
-import Button from "@/app/components/ui/Button";
+import Button, { buttonVariants } from "@/app/components/ui/Button";
 import SubmitReviewStrip from "./SubmitReviewStrip";
 import { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
 
@@ -208,7 +208,7 @@ function ReviewBanner({
             <Link
               href={url}
               target="_blank"
-              className="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg px-3 py-1.5 transition-colors"
+              className={buttonVariants({ variant: "success", size: "xs", className: "ml-auto shrink-0" })}
             >
               View live page
             </Link>

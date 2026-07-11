@@ -22,6 +22,8 @@ import {
 } from "./homestay-rooms-types";
 import type { BedroomDetail } from "../bedroom/[n]/bedroom-types";
 import { cn } from "@/app/lib/utils";
+import { Card } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -120,7 +122,7 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
         <div className="lg:col-span-2 space-y-3">
 
           {/* Bedrooms */}
-          <div className="bg-white rounded-xl border border-neutral-200 px-5 py-4 flex items-center justify-between gap-4">
+          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
                 <BedIcon size={18} className="text-primary-500" />
@@ -131,10 +133,10 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
               </div>
             </div>
             <Stepper value={bedrooms} onChange={setBedrooms} min={1} disabled={isPending} />
-          </div>
+          </Card>
 
           {/* Bathrooms */}
-          <div className="bg-white rounded-xl border border-neutral-200 px-5 py-4 flex items-center justify-between gap-4">
+          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
                 <BathtubIcon size={18} className="text-primary-500" />
@@ -142,10 +144,10 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
               <p className="text-sm font-semibold text-neutral-800">Bathrooms</p>
             </div>
             <Stepper value={bathrooms} onChange={setBathrooms} min={1} disabled={isPending} />
-          </div>
+          </Card>
 
           {/* Kitchen */}
-          <div className="bg-white rounded-xl border border-neutral-200 px-5 py-4 flex items-center justify-between gap-4">
+          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
                 <ForkKnifeIcon size={18} className="text-primary-500" />
@@ -164,10 +166,10 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
                 </label>
               ))}
             </div>
-          </div>
+          </Card>
 
           {/* Additional Spaces */}
-          <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+          <Card variant="default" radius="sm" padding="none" className="overflow-hidden">
             <div className="px-5 py-4 border-b border-neutral-100">
               <p className="text-sm font-semibold text-neutral-800">Additional Spaces</p>
               <p className="text-xs text-neutral-400 mt-0.5">
@@ -187,18 +189,13 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
           {/* Save button */}
           <div className="flex justify-end">
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={handleSave}
-              className="px-6 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
-            >
+            <Button variant="primary" size="md" disabled={isPending} onClick={handleSave}>
               {isPending ? "Saving…" : "Save"}
-            </button>
+            </Button>
           </div>
 
         </div>
@@ -214,7 +211,7 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
               It will help your guests learn the layout of your property.
             </p>
           </div>
-          <div className="bg-white rounded-xl border border-neutral-200 px-5 py-2">
+          <Card variant="default" radius="sm" padding="none" className="px-5 py-2">
             <div className="flex items-center justify-between py-3 border-b border-neutral-100">
               <p className="text-xs font-bold text-neutral-700 uppercase tracking-wide">Frequently Asked Questions</p>
             </div>
@@ -230,7 +227,7 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
               q="Can I personalise the names & descriptions for rooms & spaces?"
               a="Yes — after setting the counts, you'll be able to add individual details for each room and space."
             />
-          </div>
+          </Card>
         </aside>
       </div>
     </div>
@@ -363,7 +360,7 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
       )}
 
       {/* ── Bedrooms ── */}
-      <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+      <Card variant="default" radius="sm" padding="none" className="overflow-hidden">
         <SectionHeader
           icon={<BedIcon size={16} />}
           title="Bedrooms"
@@ -397,10 +394,10 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
             </div>
           </>
         )}
-      </div>
+      </Card>
 
       {/* ── Bathrooms ── */}
-      <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+      <Card variant="default" radius="sm" padding="none" className="overflow-hidden">
         <SectionHeader
           icon={<BathtubIcon size={16} />}
           title="Bathrooms"
@@ -434,11 +431,11 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
             </div>
           </>
         )}
-      </div>
+      </Card>
 
       {/* ── Kitchen ── */}
       {hotel.hs_has_kitchen && (
-        <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+        <Card variant="default" radius="sm" padding="none" className="overflow-hidden">
           <SectionHeader
             icon={<ForkKnifeIcon size={16} />}
             title="Kitchen"
@@ -470,12 +467,12 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
               )}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {/* ── Additional Spaces ── */}
       {spaces.length > 0 && (
-        <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+        <Card variant="default" radius="sm" padding="none" className="overflow-hidden">
           <SectionHeader
             icon={<span className="text-xs font-bold">⊞</span>}
             title="Additional Spaces"
@@ -518,7 +515,7 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
               </div>
             </>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );

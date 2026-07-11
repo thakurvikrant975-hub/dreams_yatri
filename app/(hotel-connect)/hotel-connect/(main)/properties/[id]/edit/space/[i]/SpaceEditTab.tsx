@@ -11,6 +11,9 @@ import { saveHomestaySpaceDetail, deleteHomestaySpace } from "../../tabs/homesta
 import { BED_TYPES } from "../../tabs/homestay-rooms-types";
 import type { SpaceItem } from "../../tabs/homestay-rooms-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { Textarea } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/textarea";
+import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
 
 // ── Space types that include a Sleeping Arrangement step ──────────────────────
@@ -397,12 +400,11 @@ function PoolSpaceForm({
         <div className="space-y-1.5">
           <p className="text-sm font-semibold text-neutral-800">Pool Name</p>
           <p className="text-xs text-neutral-400">Give this pool a name to identify it on the property</p>
-          <input
+          <Input
             type="text"
             value={poolName}
             onChange={e => setPoolName(e.target.value)}
             placeholder={`e.g. Swimming Pool ${item.instance}`}
-            className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 placeholder:text-neutral-400"
           />
         </div>
 
@@ -449,8 +451,8 @@ function PoolSpaceForm({
           </div>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="primary" size="sm"
           disabled={poolPending || isPending || !step1Valid}
           onClick={() => save(
             {
@@ -461,10 +463,9 @@ function PoolSpaceForm({
             },
             1, 2,
           )}
-          className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           Next
-        </button>
+        </Button>
       </StepSection>
 
       {/* ── Step 2: Pool Details ──────────────────────────────────── */}
@@ -529,8 +530,8 @@ function PoolSpaceForm({
           </div>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="primary" size="sm"
           disabled={poolPending || isPending || !step2Valid}
           onClick={() => save(
             {
@@ -544,10 +545,9 @@ function PoolSpaceForm({
             },
             2, 3,
           )}
-          className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           Next
-        </button>
+        </Button>
       </StepSection>
 
       {/* ── Step 3: Facilities & Rules ────────────────────────────── */}
@@ -614,21 +614,21 @@ function PoolSpaceForm({
             <div className="flex items-center gap-3 pt-1">
               <div className="space-y-1">
                 <p className="text-xs text-neutral-500">Opens at</p>
-                <input
+                <Input
                   type="time"
                   value={hoursOpen}
                   onChange={e => setHoursOpen(e.target.value)}
-                  className="px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
+                  className="w-auto"
                 />
               </div>
               <div className="pt-5 text-neutral-400 text-sm">to</div>
               <div className="space-y-1">
                 <p className="text-xs text-neutral-500">Closes at</p>
-                <input
+                <Input
                   type="time"
                   value={hoursClose}
                   onChange={e => setHoursClose(e.target.value)}
-                  className="px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
+                  className="w-auto"
                 />
               </div>
             </div>
@@ -664,18 +664,18 @@ function PoolSpaceForm({
             Additional Notes{" "}
             <span className="text-xs font-normal text-neutral-400">— optional</span>
           </p>
-          <textarea
+          <Textarea
             value={description}
             onChange={e => setDescription(e.target.value)}
             rows={3}
             placeholder="e.g. Pool is heated in winter. Guests should inform the host before use."
-            className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 placeholder:text-neutral-400"
           />
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="primary" size="sm"
           disabled={poolPending || isPending}
+          loading={poolPending || isPending}
           onClick={() => save(
             {
               amenities: features,
@@ -695,10 +695,9 @@ function PoolSpaceForm({
             },
             3, "back",
           )}
-          className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
         >
           {poolPending || isPending ? "Saving…" : "Save & Continue"}
-        </button>
+        </Button>
       </StepSection>
     </div>
   );
@@ -824,15 +823,10 @@ export default function SpaceEditTab({
       <SectionCard
         title={`${item.label} ${item.instance}`}
         headerAction={
-          <button
-            type="button"
-            onClick={handleDeactivate}
-            disabled={isPending}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
-          >
+          <Button variant="ghost" size="sm" onClick={handleDeactivate} disabled={isPending} className="gap-1.5">
             <TrashIcon size={14} weight="fill" />
             Deactivate Space
-          </button>
+          </Button>
         }
       >
         {item.space_type === "swimming_pool" ? (
@@ -851,12 +845,11 @@ export default function SpaceEditTab({
             <div className="space-y-1.5">
               <p className="text-sm font-semibold text-neutral-800">Space Name</p>
               <p className="text-xs text-neutral-400">Give this space a name to identify it on the property</p>
-              <input
+              <Input
                 type="text"
                 value={spaceName}
                 onChange={e => setSpaceName(e.target.value)}
                 placeholder={`e.g. ${item.label} ${item.instance}`}
-                className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 placeholder:text-neutral-400"
               />
             </div>
 
@@ -947,8 +940,8 @@ export default function SpaceEditTab({
               </div>
             )}
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending || !step1Valid}
               onClick={() => save(
                 {
@@ -961,10 +954,9 @@ export default function SpaceEditTab({
                 1,
                 hasSleepingStep ? 2 : S_FACILITIES,
               )}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
-            </button>
+            </Button>
           </StepSection>
 
           {/* ── Step 2: Sleeping Arrangement (sleeping spaces only) ── */}
@@ -1042,14 +1034,13 @@ export default function SpaceEditTab({
                 </div>
               </div>
 
-              <button
-                type="button"
+              <Button
+                variant="primary" size="sm"
                 disabled={isPending}
                 onClick={() => save({ beds, base_adults: baseAdults, max_adults: maxAdults }, S_SLEEPING, S_FACILITIES)}
-                className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
               >
                 Next
-              </button>
+              </Button>
             </StepSection>
           )}
 
@@ -1188,9 +1179,10 @@ export default function SpaceEditTab({
               })}
             </div>
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending}
+              loading={isPending}
               onClick={() => save(
                 {
                   amenities,
@@ -1200,10 +1192,9 @@ export default function SpaceEditTab({
                 },
                 S_FACILITIES, "back"
               )}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {isPending ? "Saving…" : "Save & Continue"}
-            </button>
+            </Button>
           </StepSection>
         </div>
         )}

@@ -18,6 +18,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import { Card } from "@/app/components/ui/Card";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import {
   uploadHotelPhotos,
@@ -169,12 +170,12 @@ function PhotoPreviewModal({
             {/* Search */}
             <div className="relative mb-3">
               <MagnifyingGlassIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-              <input
+              <Input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search tags…"
-                className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-neutral-200 bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 placeholder:text-neutral-400"
+                className="pl-8 h-9 text-xs bg-neutral-50"
               />
             </div>
 
@@ -423,12 +424,12 @@ function PhotoCard({
 
                 <div className="relative">
                   <MagnifyingGlassIcon size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-                  <input
+                  <Input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search…"
-                    className="w-full pl-7 pr-3 py-1.5 text-[11px] rounded-lg border border-neutral-200 bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 placeholder:text-neutral-400"
+                    className="pl-7 h-8 text-[11px] bg-neutral-50"
                   />
                 </div>
               </div>

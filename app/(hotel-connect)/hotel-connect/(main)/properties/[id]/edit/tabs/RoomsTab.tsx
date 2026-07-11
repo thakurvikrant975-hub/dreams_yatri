@@ -9,6 +9,9 @@ import {
 import { cn } from "@/app/lib/utils";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { Card } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { Textarea } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/textarea";
 import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { PricingRangeCalendarPicker, type DateRange } from "@/app/(dashboard)/dashboard/(main)/components/ui/pricing-range-calendar";
 import { createRoom, updateRoom, deleteRoom, fetchRoomForEdit, type RoomEditPayload } from "./room-actions";
@@ -16,9 +19,6 @@ import {
   ROOM_TYPES, GUEST_HOUSE_ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
   MEAL_PLANS, ROOM_AMENITY_GROUPS, ROOM_MANDATORY_CONFIG, ROOM_POPULAR_CONFIG, ROOM_FEATURES_CONFIG, ROOM_FOOD_DRINKS_CONFIG, ROOM_KITCHEN_CONFIG, ROOM_BEDS_BLANKET_CONFIG, ROOM_OTHER_FACILITIES_CONFIG, type RoomAmenityConfig,
 } from "./room-data";
-
-const inputBase =
-  "w-full border border-neutral-300 bg-white px-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -307,12 +307,12 @@ function Section1({ data, onChange, errors, roomTypes }: {
 
       <FormRow label="Room Size" desc="Total carpet area of the room">
         <div className="flex gap-2">
-          <input
+          <Input
             type="number"
             value={data.area}
             onChange={(e) => setField("area", e.target.value)}
             placeholder="e.g. 350"
-            className={cn(inputBase, "h-10 rounded-lg text-sm flex-1")}
+            className="flex-1"
           />
           <div className="flex rounded-lg border border-neutral-300 overflow-hidden shrink-0 h-10 bg-white">
             {(["sqft", "sqm"] as const).map((u) => (
@@ -329,57 +329,52 @@ function Section1({ data, onChange, errors, roomTypes }: {
       </FormRow>
 
       <FormRow label="Room Name" required desc="Name displayed to travellers on booking platforms" error={errors.name}>
-        <input
+        <Input
           value={data.name}
           onChange={(e) => setField("name", e.target.value)}
           placeholder="e.g. Deluxe King Room"
           aria-invalid={!!errors.name}
-          className={cn(inputBase, "h-10 rounded-lg text-sm", errors.name && "border-red-400")}
         />
       </FormRow>
 
       {isMultiRoom && (
         <>
           <FormRow label="No. of Bedrooms" required desc="Number of separate bedroom spaces in the unit" error={errors.num_bedrooms}>
-            <input
+            <Input
               type="number"
               value={data.num_bedrooms}
               onChange={(e) => setField("num_bedrooms", e.target.value)}
               placeholder="1"
               aria-invalid={!!errors.num_bedrooms}
-              className={cn(inputBase, "h-10 rounded-lg text-sm", errors.num_bedrooms && "border-red-400")}
             />
           </FormRow>
           <FormRow label="No. of Living Rooms" desc="Separate living or sitting areas, if any">
-            <input
+            <Input
               type="number"
               value={data.num_living_rooms}
               onChange={(e) => setField("num_living_rooms", e.target.value)}
               placeholder="0"
-              className={cn(inputBase, "h-10 rounded-lg text-sm")}
             />
           </FormRow>
         </>
       )}
 
       <FormRow label="No. of Rooms" required desc="Total inventory of this room type at the property" error={errors.num_rooms}>
-        <input
+        <Input
           type="number"
           value={data.num_rooms}
           onChange={(e) => setField("num_rooms", e.target.value)}
           placeholder="1"
           aria-invalid={!!errors.num_rooms}
-          className={cn(inputBase, "h-10 rounded-lg text-sm", errors.num_rooms && "border-red-400")}
         />
       </FormRow>
 
       <FormRow label="Description" desc="Additional highlights or features to show guests">
-        <textarea
+        <Textarea
           value={data.description}
           onChange={(e) => setField("description", e.target.value)}
           rows={3}
           placeholder="Briefly describe this room type..."
-          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 shadow-sm outline-none transition-colors placeholder:text-neutral-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 resize-none"
         />
       </FormRow>
     </div>
@@ -630,7 +625,7 @@ function Section2({ data, onChange, errors }: {
         <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
           Occupancy details have been pre-filled based on the selected bed arrangement above
         </p>
-        <div className="rounded-xl border border-neutral-200 divide-y divide-neutral-100 overflow-hidden bg-white">
+        <Card variant="default" radius="sm" padding="none" className="divide-y divide-neutral-100 overflow-hidden">
           {([
             { key: "base_adults"   as const, label: "Base adults",       desc: "Ideal number of adults supported by the standard sleeping arrangement",      highlight: true  },
             { key: "max_adults"    as const, label: "Maximum adults",     desc: "Maximum number of adults that can be accommodated in this room",             highlight: false },
@@ -650,7 +645,7 @@ function Section2({ data, onChange, errors }: {
               />
             </div>
           ))}
-        </div>
+        </Card>
         {errors.max_adults && (
           <p className="text-xs text-red-500 mt-2">{errors.max_adults}</p>
         )}
@@ -885,13 +880,13 @@ function Section4({ data, onChange, errors }: {
         >
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-neutral-500 pointer-events-none">₹</span>
-            <input
+            <Input
               type="number"
               min={0}
               placeholder="Enter base rate"
               value={data.base_rate}
               onChange={(e) => set("base_rate", e.target.value)}
-              className={cn(inputBase, "h-10 rounded-lg pl-7")}
+              className="pl-7"
             />
           </div>
         </FieldRow>
@@ -900,26 +895,26 @@ function Section4({ data, onChange, errors }: {
           <FieldRow label="Extra Adult Charge" hint="Per adult beyond base" error={errors.extra_adult_charge}>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-neutral-500 pointer-events-none">₹</span>
-              <input
+              <Input
                 type="number"
                 min={0}
                 placeholder="Enter extra adult charge"
                 value={data.extra_adult_charge}
                 onChange={(e) => set("extra_adult_charge", e.target.value)}
-                className={cn(inputBase, "h-10 rounded-lg pl-7")}
+                className="pl-7"
               />
             </div>
           </FieldRow>
           <FieldRow label="Paid Child Charge" hint="Ages 7–17 years">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-neutral-500 pointer-events-none">₹</span>
-              <input
+              <Input
                 type="number"
                 min={0}
                 placeholder="Enter charge for child"
                 value={data.paid_child_charge}
                 onChange={(e) => set("paid_child_charge", e.target.value)}
-                className={cn(inputBase, "h-10 rounded-lg pl-7")}
+                className="pl-7"
               />
             </div>
           </FieldRow>
@@ -1437,11 +1432,10 @@ function RoomWizardForm({
                           Back
                         </button>
                       )}
-                      <button type="button" onClick={advance} disabled={isPending}
-                        className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-60 transition-colors">
+                      <Button variant="primary" size="sm" onClick={advance} loading={isPending} className="gap-1.5">
                         {isPending ? "Saving…" : step === 5 ? (isEditing ? "Update Room" : "Save Room") : "Next"}
                         {!isPending && step < 5 && <ArrowRightIcon size={13} weight="bold" />}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -1467,11 +1461,10 @@ function EmptyRooms({ onAdd }: { onAdd: () => void }) {
         <p className="text-xs text-neutral-500 max-w-xs mb-5">
           Add your first room type to showcase what&apos;s available at your property.
         </p>
-        <button type="button" onClick={onAdd}
-          className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors">
+        <Button variant="primary" size="sm" onClick={onAdd} className="gap-2">
           <PlusIcon size={14} weight="bold" />
           Create Room Type
-        </button>
+        </Button>
       </div>
     </SectionCard>
   );
@@ -1502,16 +1495,14 @@ function RoomsList({
       )}
       <div className="flex items-center justify-between -mt-1 mb-1">
         <p className="text-xs text-neutral-500">{rooms.length} room type{rooms.length !== 1 ? "s" : ""} added</p>
-        <button type="button" onClick={onAdd}
-          className="flex items-center gap-1.5 h-7 px-3 rounded-lg border border-primary-300 bg-primary-50 text-primary-700 text-xs font-semibold hover:bg-primary-100 transition-colors">
+        <Button variant="primary" size="xs" onClick={onAdd} className="gap-1.5">
           <PlusIcon size={11} weight="bold" />
           Add Room
-        </button>
+        </Button>
       </div>
       <div className="space-y-2">
         {rooms.map((room) => (
-          <div key={room.id}
-            className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+          <Card key={room.id} variant="default" radius="sm" padding="sm" className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="size-9 rounded-lg bg-neutral-100 flex items-center justify-center shrink-0">
                 <BedIcon size={16} className="text-neutral-500" />
@@ -1528,16 +1519,15 @@ function RoomsList({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button type="button" onClick={() => onEdit(room.id)}
-                className="h-7 px-3 rounded-lg border border-neutral-200 text-xs font-medium text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 transition-colors">
+              <Button variant="outline" size="xs" onClick={() => onEdit(room.id)}>
                 Edit
-              </button>
+              </Button>
               <button type="button" onClick={() => handleDelete(room.id)} disabled={deletingId === room.id}
                 className="size-8 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-40">
                 <TrashIcon size={14} />
               </button>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </SectionCard>

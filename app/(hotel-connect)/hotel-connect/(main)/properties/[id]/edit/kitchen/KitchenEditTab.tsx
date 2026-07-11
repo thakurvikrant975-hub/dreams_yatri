@@ -8,6 +8,8 @@ import { saveHomestayKitchenDetail } from "../tabs/homestay-rooms-crud-actions";
 import type { KitchenDetail } from "../tabs/homestay-rooms-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Textarea } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/textarea";
+import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -332,17 +334,16 @@ export default function KitchenEditTab({
               </div>
             </div>
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending || !type}
               onClick={() => save(
                 { is_accessible: isAccessible, type, meal_types: mealTypes, staff_help: staffHelp },
                 1, 2
               )}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
-            </button>
+            </Button>
           </StepSection>
 
           {/* ── Step 2: Amenities ──────────────────────────────────── */}
@@ -430,24 +431,23 @@ export default function KitchenEditTab({
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                 Description <span className="font-normal text-neutral-400">(Optional)</span>
               </label>
-              <textarea
+              <Textarea
                 value={description}
                 onChange={e => setDescription(e.target.value.slice(0, 300))}
                 rows={3}
                 placeholder="Describe the kitchen facilities available for guests…"
-                className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-300"
               />
               <p className="text-right text-xs text-neutral-400 mt-0.5">{description.length} of 300</p>
             </div>
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending}
+              loading={isPending}
               onClick={() => save({ appliances, appliance_details: applianceDetails, description }, 2, "back")}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {isPending ? "Saving…" : "Save & Continue"}
-            </button>
+            </Button>
           </StepSection>
         </div>
       </SectionCard>

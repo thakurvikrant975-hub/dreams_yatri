@@ -8,6 +8,8 @@ import {
 } from "./verification-actions";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
+import { Textarea } from "../../../../components/ui/textarea";
+import { Button } from "@/app/components/ui/Button";
 import { SearchSelect } from "../../../../components/ui/search-select";
 import { MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { Card } from "@/app/components/ui/Card";
@@ -575,13 +577,12 @@ export default function HostDetailsSection({ owner, locked = false, onSaved }: {
                       Do not share any sensitive information, contact details or any other inappropriate content
                     </p>
                   </div>
-                  <textarea
+                  <Textarea
                     name="business_description"
                     defaultValue={owner.business_description ?? ""}
                     rows={6}
                     disabled={isPending}
                     placeholder={`• Origin (Eg: Business was founded in 2016 by ABC Group to offer luxury stays in India)\n• Philosophy (Eg: Offering luxury stays with personalized experiences tailored to guests' preferences.)\n• Uniqueness (Eg: Offering unique stays like historic villas located in offbeat locations)`}
-                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none disabled:opacity-60"
                   />
                 </FieldRow>
 
@@ -590,13 +591,9 @@ export default function HostDetailsSection({ owner, locked = false, onSaved }: {
 
             {/* ── Save button ── */}
             <div className="flex justify-end pt-1">
-              <button
-                type="submit"
-                disabled={isPending}
-                className="h-10 px-6 rounded-xl text-sm font-semibold text-white bg-primary-500 hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
+              <Button type="submit" variant="primary" size="md" loading={isPending}>
                 {isPending ? "Saving…" : "Save Host Details"}
-              </button>
+              </Button>
             </div>
 
           </form>

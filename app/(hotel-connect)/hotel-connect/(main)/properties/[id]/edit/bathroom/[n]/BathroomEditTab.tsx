@@ -13,6 +13,8 @@ import { saveHomestayBathroomDetail } from "../../tabs/homestay-rooms-crud-actio
 import type { BathroomDetail } from "../../tabs/homestay-rooms-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
 
 // ── Amenity data ──────────────────────────────────────────────────────────────
@@ -326,16 +328,16 @@ export default function BathroomEditTab({
               </div>
             )}
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={!accessType || isPending}
+              loading={isPending}
               onClick={() => advance(1, {
                 type: accessType === "Private" ? "Private Bathroom" : "Shared Bathroom",
               })}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isPending ? "Saving…" : "Next"}
-            </button>
+            </Button>
           </StepSection>
 
           {/* ── Step 2: Amenities ── */}
@@ -430,14 +432,14 @@ export default function BathroomEditTab({
               </div>
             </CategorySection>
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending}
+              loading={isPending}
               onClick={() => advance(2, { amenities, ...toDetailFields(amenities) })}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {isPending ? "Saving…" : "Next"}
-            </button>
+            </Button>
           </StepSection>
 
           {/* ── Step 3: Additional Details ── */}
@@ -449,12 +451,12 @@ export default function BathroomEditTab({
             {/* Bathroom Name */}
             <div>
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Bathroom Name</label>
-              <input
+              <Input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="e.g. Master Bathroom"
-                className="w-full max-w-sm px-3 py-2.5 text-sm border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400"
+                className="max-w-sm"
               />
               <p className="text-xs text-neutral-400 mt-1">Give it a descriptive name guests can recognise.</p>
             </div>
@@ -466,13 +468,13 @@ export default function BathroomEditTab({
                   Room Size <span className="font-normal text-neutral-400">(Optional)</span>
                 </label>
                 <div className="flex items-center">
-                  <input
+                  <Input
                     type="number"
                     value={sizeValue}
                     onChange={e => { if (e.target.value === "" || /^\d*\.?\d*$/.test(e.target.value)) setSizeValue(e.target.value); }}
                     placeholder="00"
                     min={0}
-                    className="w-20 px-2 py-2 text-sm border border-r-0 border-neutral-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
+                    className="w-20 rounded-r-none border-r-0"
                   />
                   {(["sqm", "sqft"] as const).map(u => (
                     <button
@@ -503,14 +505,14 @@ export default function BathroomEditTab({
               </div>
             </div>
 
-            <button
-              type="button"
+            <Button
+              variant="primary" size="sm"
               disabled={isPending || !name.trim()}
+              loading={isPending}
               onClick={handleSave}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isPending ? "Saving…" : "Save & Continue"}
-            </button>
+            </Button>
           </StepSection>
 
         </div>
