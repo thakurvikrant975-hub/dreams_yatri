@@ -19,7 +19,7 @@ function occupancyText(capacity: number | null, adults: number, children: number
 
 /** Parses free-text meal-plan strings ("MAP - Breakfast & Dinner") into a
  * clean "Breakfast & Dinner included" summary line. */
-function mealIncludedText(planText: string): string | null {
+function mealIncludedText(planText: string): string | null { 
   if (!planText) return null;
   const lower = planText.toLowerCase();
   const found: string[] = [];
