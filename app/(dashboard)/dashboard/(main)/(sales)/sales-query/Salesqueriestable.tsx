@@ -315,6 +315,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                         days:   q.requirements.journey.noOfDays,
                         nights: q.requirements.journey.noOfNights,
                     } : null,
+                    queryReceivedAt: q.createdAt,
                 };
                 return (
                     <div onClick={(e) => e.stopPropagation()} className="flex items-center justify-center gap-1.5">

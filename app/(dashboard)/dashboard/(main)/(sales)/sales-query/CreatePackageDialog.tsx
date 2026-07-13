@@ -71,13 +71,16 @@ function randomLoadingMessage() {
 
 export type QueryBudget = { min?: number; max?: number; type: "PER_PERSON" | "TOTAL" };
 
-export function CreatePackageDialog({ queryId, destination, travelDate, travellers, budget, duration, children }: {
+export function CreatePackageDialog({ queryId, destination, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
     queryId: string;
     destination: string | null;
     travelDate?: string | null;
     travellers?: { adults: number; children: number; infants: number } | null;
     budget?: QueryBudget | null;
     duration?: { days: number; nights: number } | null;
+    /** When the customer's query itself came in — shown on the matching
+     * template's card so the exec can see how fresh the lead is at a glance. */
+    queryReceivedAt?: Date | string | null;
     children: React.ReactNode;
 }) {
     const router = useRouter();
@@ -120,6 +123,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                 search, page: 1, size: PAGE_SIZE,
                 travelDate, ...pax,
                 budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
+                queryDestination: destination ?? undefined,
             });
             if (id !== requestId.current) return;
             setPackages(result.packages);
@@ -140,6 +144,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
             search, page: next, size: PAGE_SIZE,
             travelDate, ...pax,
             budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
+            queryDestination: destination ?? undefined,
         });
         setPackages((prev) => [...prev, ...result.packages]);
         setTotal(result.total);
@@ -270,10 +275,17 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-1">
-                            {packages.map((pkg) => (
+                            {packages.map((pkg, idx) => {
+                                const isQueryMatch = idx === 0 && !!destination
+                                    && pkg.destinationName.trim().toLowerCase() === destination.trim().toLowerCase();
+                                return (
                                 <div
                                     key={pkg.id}
-                                    className="rounded-xl border border-border overflow-hidden hover:shadow-sm transition-shadow flex flex-col"
+                                    className={
+                                        isQueryMatch
+                                            ? "rounded-xl border-2 border-amber-400 overflow-hidden shadow-sm flex flex-col"
+                                            : "rounded-xl border border-border overflow-hidden hover:shadow-sm transition-shadow flex flex-col"
+                                    }
                                 >
                                     <div className="h-28 bg-muted relative shrink-0">
                                         {pkg.thumbnail ? (
@@ -282,6 +294,11 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                                             <div className="h-full w-full flex items-center justify-center text-muted-foreground/40">
                                                 <Package size={20} />
                                             </div>
+                                        )}
+                                        {isQueryMatch && queryReceivedAt && (
+                                            <span className="absolute top-1.5 right-1.5 z-10 rounded-full bg-amber-400 text-amber-950 text-[9px] font-semibold px-2 py-0.5 shadow-sm">
+                                                Query received {new Date(queryReceivedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                                            </span>
                                         )}
                                     </div>
                                     <div className="p-3 space-y-1.5 flex-1 flex flex-col">
@@ -359,7 +376,8 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 

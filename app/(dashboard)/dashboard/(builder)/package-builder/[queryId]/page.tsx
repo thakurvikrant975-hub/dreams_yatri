@@ -23,7 +23,7 @@ import {
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
-import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
+import { ROUTE_STOP_TYPES, TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { cn } from "@/app/lib/utils";
 import {
   getQueryDetail,
@@ -33,6 +33,7 @@ import {
   searchHotelRoomsForBuilder,
   searchActivitiesForBuilder,
   searchVehiclesForBuilder,
+  searchCabsForBuilder,
   type QueryDetail,
   type DayItinerary,
   type ActivityInput,
@@ -40,6 +41,7 @@ import {
   type HotelRoomResult,
   type ActivityResult,
   type VehicleResult,
+  type CabPricingResult,
   type PackageCopyPayload,
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult } from "@/app/services/package-pricing.service";
@@ -621,6 +623,27 @@ function DayCard({
     return () => { cancelled = true; clearTimeout(timer); };
   }, [searchCity]);
 
+  // Same pattern as searchCity/cityCoords above, for the cab search below —
+  // kept independent since an exec may want to price cabs from a different
+  // city than the hotel (e.g. an arrival-day transfer from the airport city).
+  const [searchCabCity, setSearchCabCity] = useState(location ?? "");
+  const [prevCabLocation, setPrevCabLocation] = useState(location);
+  if (location !== prevCabLocation) {
+    setPrevCabLocation(location);
+    setSearchCabCity(location ?? "");
+  }
+
+  const [cabCityCoords, setCabCityCoords] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!searchCabCity) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const coords = await geocodeCity(searchCabCity);
+      if (!cancelled) setCabCityCoords(coords);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchCabCity]);
+
   function toggleMeal(m: string) {
     const meals = data.meals.includes(m)
       ? data.meals.filter((x) => x !== m)
@@ -628,9 +651,9 @@ function DayCard({
     onChange({ ...data, meals });
   }
 
-  async function fetchHotelRooms(query: string): Promise<Option[]> {
+  async function fetchHotelRooms(query: string, page = 1): Promise<Option[]> {
     if (!searchCity) return [];
-    const results = await searchHotelRoomsForBuilder(searchCity, query, cityCoords);
+    const results = await searchHotelRoomsForBuilder(searchCity, query, cityCoords, page);
     return results.map((r): Option & { raw: HotelRoomResult } => ({
       id: r.id,
       label: `${r.hotelName} — ${r.roomName}`,
@@ -681,29 +704,66 @@ function DayCard({
     }
   }
 
-  async function fetchVehicleOptions(query: string): Promise<Option[]> {
-    const results = await searchVehiclesForBuilder(query);
-    return results.map((v): Option & { raw: VehicleResult } => ({
-      id: v.id,
-      label: v.name,
-      description: `${CAB_LABELS[v.type] ?? v.type} · ${v.passengerCapacity} seats${v.hasAc ? " · AC" : ""}`,
-      thumbnail: v.thumbnail ?? undefined,
-      raw: v,
+  // Falls back to the unscoped fleet catalog only when there's neither a
+  // city nor an exact pickup point to price against yet (e.g. route stops
+  // not filled in) — once either is available, cab_pricing (real, bookable
+  // rates) takes over.
+  async function fetchCabOptions(query: string): Promise<Option[]> {
+    const hasPickupPoint = data.transportPickupLat != null && data.transportPickupLng != null;
+    if (!searchCabCity && !hasPickupPoint) {
+      const results = await searchVehiclesForBuilder(query);
+      return results.map((v): Option & { raw: VehicleResult } => ({
+        id: v.id,
+        label: v.name,
+        description: `${CAB_LABELS[v.type] ?? v.type} · ${v.passengerCapacity} seats${v.hasAc ? " · AC" : ""}`,
+        thumbnail: v.thumbnail ?? undefined,
+        raw: v,
+      }));
+    }
+    // Prefer the exact pickup point (chosen from the Location catalog) over
+    // a geocoded guess of the city name — real coordinates make the
+    // nearest-priced-city fallback and displayed distances actually accurate.
+    // searchCabsForBuilder tolerates an empty city string as long as
+    // refCoords is set, going straight to the nearest-priced-city fallback.
+    const refCoords = hasPickupPoint
+      ? { lat: data.transportPickupLat as number, lng: data.transportPickupLng as number }
+      : cabCityCoords;
+    const distanceRefLabel = hasPickupPoint ? data.transportPickup : searchCabCity;
+
+    const results = await searchCabsForBuilder(searchCabCity, query, refCoords);
+    return results.map((r): Option & { raw: CabPricingResult } => ({
+      id: r.id,
+      label: r.vehicleName,
+      description: [
+        `₹${r.price.toLocaleString("en-IN")}/${r.pricingType === "PER_DAY" ? "day" : r.pricingType.toLowerCase()}`,
+        `${CAB_LABELS[r.vehicleType] ?? r.vehicleType} · ${r.passengerCapacity} seats${r.hasAc ? " · AC" : ""}`,
+        r.cityName && r.cityName.toLowerCase() !== searchCabCity.toLowerCase()
+          ? `nearest priced city: ${r.cityName}${r.distanceKm != null ? ` (${r.distanceKm} km away)` : ""}`
+          : (r.distanceKm != null ? `${r.distanceKm} km from ${distanceRefLabel}` : null),
+      ].filter(Boolean).join(" · "),
+      thumbnail: r.thumbnail ?? undefined,
+      raw: r,
     }));
   }
 
-  function handleVehicleSelect(_id: number | null, option?: Option) {
-    const raw = (option as (Option & { raw: VehicleResult }) | undefined)?.raw;
+  function handleCabSelect(_id: number | null, option?: Option) {
+    const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
     if (!raw) return;
+    const vehicle: VehicleResult = "vehicleName" in raw
+      ? {
+          id: raw.id, name: raw.vehicleName, type: raw.vehicleType,
+          passengerCapacity: raw.passengerCapacity, hasAc: raw.hasAc, thumbnail: raw.thumbnail,
+        }
+      : raw;
     onChange({
       ...data,
-      transport: raw.name,
-      transportPhoto: raw.thumbnail ?? data.transportPhoto,
-      transportVehicleType: CAB_LABELS[raw.type] ?? raw.type,
-      transportSeats: raw.passengerCapacity,
+      transport: vehicle.name,
+      transportPhoto: vehicle.thumbnail ?? data.transportPhoto,
+      transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
+      transportSeats: vehicle.passengerCapacity,
     });
     if (totalDays > 1) {
-      setLastVehicle(raw);
+      setLastVehicle(vehicle);
       setShowApplyPrompt(true);
     }
   }
@@ -783,6 +843,7 @@ function DayCard({
                     initialLabel={data.accommodation}
                     onChange={handleHotelRoomSelect}
                     fetchOptions={fetchHotelRooms}
+                    pageSize={20}
                     placeholder={`Search hotel rooms in ${searchCity}…`}
                   />
                   <p className="text-[10px] text-dashboard-base-content/40 mt-1">
@@ -944,13 +1005,68 @@ function DayCard({
             <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
               <Car size={11} /> Transport
             </label>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Pickup Point</label>
+                <LocationSearchSelect
+                  value={data.transportPickup
+                    ? {
+                        id: "pickup", name: data.transportPickup, type: "AREA",
+                        breadcrumb: data.transportPickup, slug: "",
+                        latitude: data.transportPickupLat, longitude: data.transportPickupLng,
+                      }
+                    : null}
+                  onChange={(loc: LocationValue | null) => onChange({
+                    ...data,
+                    transportPickup:    loc?.name ?? "",
+                    transportPickupLat: loc?.latitude ?? null,
+                    transportPickupLng: loc?.longitude ?? null,
+                  })}
+                  types={TRANSFER_TYPES}
+                  placeholder="Search a pickup location…"
+                />
+                {data.transportPickupLat != null && (
+                  <p className="text-[10px] text-dashboard-base-content/40 mt-1">
+                    Located — cab search below prioritizes this exact point.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Drop Point</label>
+                <Input
+                  value={data.transportDrop}
+                  onChange={(e) => onChange({ ...data, transportDrop: e.target.value })}
+                  placeholder="Drop point"
+                  className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+            </div>
+
             <div className="mb-2">
+              <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">
+                Search location (city) — defaults to this day&apos;s stop, editable
+              </label>
+              <Input
+                value={searchCabCity}
+                onChange={(e) => setSearchCabCity(e.target.value)}
+                placeholder="e.g. Manali"
+                className="text-sm h-8 mb-2 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
               <SearchSelect
                 value={null}
-                onChange={handleVehicleSelect}
-                fetchOptions={fetchVehicleOptions}
-                placeholder="Search cab / vehicle fleet…"
+                onChange={handleCabSelect}
+                fetchOptions={fetchCabOptions}
+                placeholder={
+                  searchCabCity ? `Search cabs in ${searchCabCity}…`
+                    : data.transportPickup ? `Search cabs near ${data.transportPickup}…`
+                    : "Search cab / vehicle fleet…"
+                }
               />
+              {(searchCabCity || data.transportPickup) && (
+                <p className="text-[10px] text-dashboard-base-content/40 mt-1">
+                  Shows real cab pricing for {searchCabCity || data.transportPickup} — or the nearest city with rates configured, if none exist there yet.
+                </p>
+              )}
             </div>
 
             {showApplyPrompt && lastVehicle && (
@@ -1048,20 +1164,6 @@ function DayCard({
                 value={data.transportVehicleType}
                 onChange={(e) => onChange({ ...data, transportVehicleType: e.target.value })}
                 placeholder="Type, e.g. SUV"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <Input
-                value={data.transportPickup}
-                onChange={(e) => onChange({ ...data, transportPickup: e.target.value })}
-                placeholder="Pickup point"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <Input
-                value={data.transportDrop}
-                onChange={(e) => onChange({ ...data, transportDrop: e.target.value })}
-                placeholder="Drop point"
                 className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
@@ -1216,7 +1318,8 @@ const emptyDay = (day: number): DayItinerary => ({
   roomPricingId: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
-  transportPickup: "", transportDrop: "", transportDistanceKm: null,
+  transportPickup: "", transportPickupLat: null, transportPickupLng: null,
+  transportDrop: "", transportDistanceKm: null,
   notes: "",
 });
 
@@ -1285,7 +1388,9 @@ export default function PackageBuilderDetailPage() {
         ...f,
         title: `${j?.destinations?.[0] ?? data.destination ?? "Custom"} Tour Package`,
         destination: j?.destinations?.join(", ") ?? data.destination ?? "",
-        startingPoint: j?.startingPoint ?? "",
+        // departurePoints is the current field; pickupPoints is kept as a
+        // fallback for requirements saved before the two were split apart.
+        startingPoint: j?.departurePoints?.join(", ") ?? j?.pickupPoints?.join(", ") ?? "",
         totalDays: j?.noOfDays ?? 3,
         totalNights: j?.noOfNights ?? 2,
         travelDate: j?.travelDate ?? (data.travelDate ? new Date(data.travelDate).toISOString().split("T")[0] : ""),
@@ -1652,6 +1757,7 @@ export default function PackageBuilderDetailPage() {
               travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
               budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
               duration={j?.noOfDays ? { days: j.noOfDays, nights: j.noOfNights } : null}
+              queryReceivedAt={query.createdAt}
             >
               <Button
                 variant="outline"
@@ -1746,6 +1852,9 @@ export default function PackageBuilderDetailPage() {
                 </TabsTrigger>
                 <TabsTrigger value="itinerary" className="gap-1.5">
                   <Calendar size={13} /> Itinerary
+                </TabsTrigger>
+                <TabsTrigger value="pricing" className="gap-1.5">
+                  <IndianRupee size={13} /> Pricing Breakdown
                 </TabsTrigger>
                 <TabsTrigger value="inclusions" className="gap-1.5">
                   <ListChecks size={13} /> Inclusions & Terms
@@ -2073,6 +2182,94 @@ export default function PackageBuilderDetailPage() {
                     onApplyRoomToDays={applyRoomToDays}
                   />
                 ))}
+              </TabsContent>
+
+              {/* ── Tab: Pricing Breakdown ───────────────────────────────────────── */}
+              <TabsContent value="pricing" className="space-y-4">
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <IndianRupee size={15} className="text-dashboard-primary" /> Pricing Breakdown
+                  </h2>
+
+                  {computingPrice ? (
+                    <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
+                      <Loader2 size={12} className="animate-spin" /> Calculating price from hotels + dates…
+                    </div>
+                  ) : hotelPricing && hotelPricing.days.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Hotel Subtotal</p>
+                          <p className="text-base font-bold text-dashboard-base-content">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</p>
+                        </div>
+                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Nights Priced</p>
+                          <p className="text-base font-bold text-dashboard-base-content">{hotelPricing.nightsCounted}</p>
+                        </div>
+                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Per Person (auto)</p>
+                          <p className="text-base font-bold text-dashboard-base-content">
+                            ₹{(form.adults + form.children) > 0
+                              ? Math.round(hotelPricing.hotelSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
+                              : hotelPricing.hotelSubtotal.toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
+                              <th className="text-left px-3 py-2 font-semibold">Day</th>
+                              <th className="text-left px-3 py-2 font-semibold">Hotel</th>
+                              <th className="text-right px-3 py-2 font-semibold">Rooms</th>
+                              <th className="text-right px-3 py-2 font-semibold">₹/Room</th>
+                              <th className="text-right px-3 py-2 font-semibold">Extra Beds</th>
+                              <th className="text-right px-3 py-2 font-semibold">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {hotelPricing.days.map((d) => (
+                              <tr key={d.day} className="border-t border-dashboard-base-300">
+                                <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
+                                <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
+                                <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
+                                <td className="px-3 py-2 text-right">₹{d.pricePerRoom.toLocaleString("en-IN")}</td>
+                                <td className="px-3 py-2 text-right">{d.mattresses > 0 ? `${d.mattresses} × ₹${d.extraBedRate.toLocaleString("en-IN")}` : "—"}</td>
+                                <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
+                              <td colSpan={5} className="px-3 py-2 text-right font-semibold">Hotel Subtotal</td>
+                              <td className="px-3 py-2 text-right font-bold">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+
+                      <p className="text-[11px] text-dashboard-base-content/50">
+                        Computed from each day&apos;s selected hotel room (season/occupancy-aware rate), the travel date, and adult/child count.
+                        Cabs, activities, and margin aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details.
+                      </p>
+
+                      <Button
+                        type="button" size="sm" variant="outline"
+                        className="border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10"
+                        onClick={applyHotelPricing}
+                      >
+                        Use ₹{(form.adults + form.children) > 0
+                          ? Math.round(hotelPricing.hotelSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
+                          : hotelPricing.hotelSubtotal.toLocaleString("en-IN")} as Price Per Person
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-xs text-dashboard-base-content/50">
+                      No hotel rooms picked yet — search and select real hotel rooms in the Itinerary tab to see a computed breakdown here.
+                    </p>
+                  )}
+                </div>
               </TabsContent>
 
               {/* ── Tab: Inclusions & Terms ──────────────────────────────────────── */}

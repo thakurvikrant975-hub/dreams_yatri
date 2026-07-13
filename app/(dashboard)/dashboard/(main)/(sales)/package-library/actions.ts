@@ -163,17 +163,24 @@ export async function searchPackageLibraryForTemplate(params: {
     budgetMin?:  number;
     budgetMax?:  number;
     budgetType?: "PER_PERSON" | "TOTAL";
+    /** The query's own destination — an exact-matching package is sorted to
+     * the very top, ahead of budget fit, since it's the most directly
+     * relevant template for what this lead actually asked about. */
+    queryDestination?: string;
 } = {}): Promise<{ packages: TemplatePackage[]; total: number }> {
     const {
         search = "", page = 1, size = 12,
         travelDate = null, adults = 2, children = 0, infants = 0,
         budgetMin, budgetMax, budgetType = "PER_PERSON",
+        queryDestination,
     } = params;
     const safeSize = Math.min(size, 50);
     const hasBudget = budgetMin != null || budgetMax != null;
-    // With a budget filter we price every match (catalog is small — capped for
-    // safety) so "within budget" packages can be sorted first across the whole
-    // result set, not just whichever page happened to load first.
+    const hasDestinationPriority = !!queryDestination?.trim();
+    const needsInMemorySort = hasBudget || hasDestinationPriority;
+    // With a budget or destination-priority sort, we price/sort every match
+    // (catalog is small — capped for safety) instead of just whichever page
+    // happened to load first from the DB's own ordering.
     const PRICE_ALL_CAP = 200;
 
     const where = {
@@ -192,7 +199,7 @@ export async function searchPackageLibraryForTemplate(params: {
         db.packages.findMany({
             where,
             orderBy: { title: "asc" },
-            ...(hasBudget
+            ...(needsInMemorySort
                 ? { take: PRICE_ALL_CAP }
                 : { skip: (page - 1) * safeSize, take: safeSize }),
             select: {
@@ -262,14 +269,24 @@ export async function searchPackageLibraryForTemplate(params: {
         };
     }));
 
-    if (!hasBudget) {
+    if (!needsInMemorySort) {
         return { packages, total };
     }
 
-    // Sort within-budget first, then by how close the price is to the budget
-    // (packages with no computed price sort last — we can't tell if they fit).
+    // Sort exact-destination-match first (the package this lead's query is
+    // actually about), then within-budget, then by how close the price is to
+    // the budget (packages with no computed price sort last for the budget
+    // tiebreak — we can't tell if they fit).
+    const destKey = queryDestination?.trim().toLowerCase();
+    const isDestMatch = (pkg: TemplatePackage) => !!destKey && pkg.destinationName.trim().toLowerCase() === destKey;
     const compareValue = (pkg: TemplatePackage) => budgetType === "PER_PERSON" ? (pkg.pricePerAdult ?? pkg.estimatedPrice) : pkg.estimatedPrice;
     const sorted = [...packages].sort((a, b) => {
+        if (hasDestinationPriority) {
+            const aMatch = isDestMatch(a);
+            const bMatch = isDestMatch(b);
+            if (aMatch !== bMatch) return aMatch ? -1 : 1;
+        }
+        if (!hasBudget) return a.title.localeCompare(b.title);
         if (a.withinBudget !== b.withinBudget) {
             if (a.withinBudget == null) return 1;
             if (b.withinBudget == null) return -1;
