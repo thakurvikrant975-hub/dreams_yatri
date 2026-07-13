@@ -13,7 +13,7 @@ import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
 import { Textarea } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/textarea";
 import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
-import { PricingRangeCalendarPicker, type DateRange } from "@/app/(dashboard)/dashboard/(main)/components/ui/pricing-range-calendar";
+import DateRangePickerField, { type DateRangeValue } from "@/app/components/ui/DateRangePickerField";
 import { createRoom, updateRoom, deleteRoom, fetchRoomForEdit, type RoomEditPayload } from "./room-actions";
 import {
   ROOM_TYPES, GUEST_HOUSE_ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
@@ -934,8 +934,8 @@ function Section4({ data, onChange, errors }: {
           required
           error={errors.rate_start_date ?? errors.rate_end_date}
         >
-          <PricingRangeCalendarPicker
-            value={{ from: toDateObj(data.rate_start_date), to: toDateObj(data.rate_end_date) } as DateRange}
+          <DateRangePickerField
+            value={{ from: toDateObj(data.rate_start_date), to: toDateObj(data.rate_end_date) } as DateRangeValue}
             onChange={(range) => onChange({
               ...data,
               rate_start_date: fromDateObj(range?.from),
