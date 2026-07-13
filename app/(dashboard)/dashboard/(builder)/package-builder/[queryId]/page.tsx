@@ -23,7 +23,7 @@ import {
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
-import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
+import { ROUTE_STOP_TYPES, TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { cn } from "@/app/lib/utils";
 import {
   getQueryDetail,
@@ -704,11 +704,13 @@ function DayCard({
     }
   }
 
-  // Falls back to the unscoped fleet catalog only when there's no city to
-  // price against yet (e.g. route stops not filled in) — once a city is
-  // entered, cab_pricing (real, bookable rates) takes over.
+  // Falls back to the unscoped fleet catalog only when there's neither a
+  // city nor an exact pickup point to price against yet (e.g. route stops
+  // not filled in) — once either is available, cab_pricing (real, bookable
+  // rates) takes over.
   async function fetchCabOptions(query: string): Promise<Option[]> {
-    if (!searchCabCity) {
+    const hasPickupPoint = data.transportPickupLat != null && data.transportPickupLng != null;
+    if (!searchCabCity && !hasPickupPoint) {
       const results = await searchVehiclesForBuilder(query);
       return results.map((v): Option & { raw: VehicleResult } => ({
         id: v.id,
@@ -718,7 +720,17 @@ function DayCard({
         raw: v,
       }));
     }
-    const results = await searchCabsForBuilder(searchCabCity, query, cabCityCoords);
+    // Prefer the exact pickup point (chosen from the Location catalog) over
+    // a geocoded guess of the city name — real coordinates make the
+    // nearest-priced-city fallback and displayed distances actually accurate.
+    // searchCabsForBuilder tolerates an empty city string as long as
+    // refCoords is set, going straight to the nearest-priced-city fallback.
+    const refCoords = hasPickupPoint
+      ? { lat: data.transportPickupLat as number, lng: data.transportPickupLng as number }
+      : cabCityCoords;
+    const distanceRefLabel = hasPickupPoint ? data.transportPickup : searchCabCity;
+
+    const results = await searchCabsForBuilder(searchCabCity, query, refCoords);
     return results.map((r): Option & { raw: CabPricingResult } => ({
       id: r.id,
       label: r.vehicleName,
@@ -727,7 +739,7 @@ function DayCard({
         `${CAB_LABELS[r.vehicleType] ?? r.vehicleType} · ${r.passengerCapacity} seats${r.hasAc ? " · AC" : ""}`,
         r.cityName && r.cityName.toLowerCase() !== searchCabCity.toLowerCase()
           ? `nearest priced city: ${r.cityName}${r.distanceKm != null ? ` (${r.distanceKm} km away)` : ""}`
-          : (r.distanceKm != null ? `${r.distanceKm} km from ${searchCabCity}` : null),
+          : (r.distanceKm != null ? `${r.distanceKm} km from ${distanceRefLabel}` : null),
       ].filter(Boolean).join(" · "),
       thumbnail: r.thumbnail ?? undefined,
       raw: r,
@@ -993,6 +1005,43 @@ function DayCard({
             <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
               <Car size={11} /> Transport
             </label>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Pickup Point</label>
+                <LocationSearchSelect
+                  value={data.transportPickup
+                    ? {
+                        id: "pickup", name: data.transportPickup, type: "AREA",
+                        breadcrumb: data.transportPickup, slug: "",
+                        latitude: data.transportPickupLat, longitude: data.transportPickupLng,
+                      }
+                    : null}
+                  onChange={(loc: LocationValue | null) => onChange({
+                    ...data,
+                    transportPickup:    loc?.name ?? "",
+                    transportPickupLat: loc?.latitude ?? null,
+                    transportPickupLng: loc?.longitude ?? null,
+                  })}
+                  types={TRANSFER_TYPES}
+                  placeholder="Search a pickup location…"
+                />
+                {data.transportPickupLat != null && (
+                  <p className="text-[10px] text-dashboard-base-content/40 mt-1">
+                    Located — cab search below prioritizes this exact point.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Drop Point</label>
+                <Input
+                  value={data.transportDrop}
+                  onChange={(e) => onChange({ ...data, transportDrop: e.target.value })}
+                  placeholder="Drop point"
+                  className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+            </div>
+
             <div className="mb-2">
               <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">
                 Search location (city) — defaults to this day&apos;s stop, editable
@@ -1007,11 +1056,15 @@ function DayCard({
                 value={null}
                 onChange={handleCabSelect}
                 fetchOptions={fetchCabOptions}
-                placeholder={searchCabCity ? `Search cabs in ${searchCabCity}…` : "Search cab / vehicle fleet…"}
+                placeholder={
+                  searchCabCity ? `Search cabs in ${searchCabCity}…`
+                    : data.transportPickup ? `Search cabs near ${data.transportPickup}…`
+                    : "Search cab / vehicle fleet…"
+                }
               />
-              {searchCabCity && (
+              {(searchCabCity || data.transportPickup) && (
                 <p className="text-[10px] text-dashboard-base-content/40 mt-1">
-                  Shows real cab pricing for {searchCabCity} — or the nearest city with rates configured, if none exist there yet.
+                  Shows real cab pricing for {searchCabCity || data.transportPickup} — or the nearest city with rates configured, if none exist there yet.
                 </p>
               )}
             </div>
@@ -1111,20 +1164,6 @@ function DayCard({
                 value={data.transportVehicleType}
                 onChange={(e) => onChange({ ...data, transportVehicleType: e.target.value })}
                 placeholder="Type, e.g. SUV"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <Input
-                value={data.transportPickup}
-                onChange={(e) => onChange({ ...data, transportPickup: e.target.value })}
-                placeholder="Pickup point"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <Input
-                value={data.transportDrop}
-                onChange={(e) => onChange({ ...data, transportDrop: e.target.value })}
-                placeholder="Drop point"
                 className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
@@ -1279,7 +1318,8 @@ const emptyDay = (day: number): DayItinerary => ({
   roomPricingId: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
-  transportPickup: "", transportDrop: "", transportDistanceKm: null,
+  transportPickup: "", transportPickupLat: null, transportPickupLng: null,
+  transportDrop: "", transportDistanceKm: null,
   notes: "",
 });
 
@@ -1348,7 +1388,7 @@ export default function PackageBuilderDetailPage() {
         ...f,
         title: `${j?.destinations?.[0] ?? data.destination ?? "Custom"} Tour Package`,
         destination: j?.destinations?.join(", ") ?? data.destination ?? "",
-        startingPoint: j?.startingPoint ?? "",
+        startingPoint: j?.pickupPoints?.join(", ") ?? "",
         totalDays: j?.noOfDays ?? 3,
         totalNights: j?.noOfNights ?? 2,
         travelDate: j?.travelDate ?? (data.travelDate ? new Date(data.travelDate).toISOString().split("T")[0] : ""),

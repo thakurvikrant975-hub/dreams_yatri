@@ -114,11 +114,13 @@ function rebuildMembers(
     return members;
 }
 
-/** Ensures `travellers.members` exists and matches the current pax counts —
- * needed both for a brand-new form and for requirements saved before the
- * member list existed. */
+/** Ensures `travellers.members` exists and matches the current pax counts,
+ * and that `journey.pickupPoints` exists — needed both for a brand-new form
+ * and for requirements saved before either field existed (older records
+ * stored a single `journey.startingPoint` string instead). */
 function normalizeRequirements(reqs: PackageRequirements): PackageRequirements {
     const { adults, children, infants, members } = reqs.travellers;
+    const legacyStartingPoint = (reqs.journey as unknown as { startingPoint?: string }).startingPoint;
     return {
         ...reqs,
         travellers: {
@@ -126,6 +128,11 @@ function normalizeRequirements(reqs: PackageRequirements): PackageRequirements {
             members: members && members.length === adults + children + infants
                 ? members
                 : rebuildMembers(members ?? [], adults, children, infants),
+        },
+        journey: {
+            ...reqs.journey,
+            pickupPoints: reqs.journey.pickupPoints
+                ?? (legacyStartingPoint ? [legacyStartingPoint] : []),
         },
     };
 }
@@ -141,7 +148,7 @@ function defaultRequirements(query: PackageQueryType): PackageRequirements {
             specialDemands: "",
         },
         journey: {
-            startingPoint: "",
+            pickupPoints: [],
             dateType: "FIXED",
             travelDate: query.travelDate
                 ? new Date(query.travelDate).toISOString().split("T")[0]
@@ -344,6 +351,7 @@ export function PackageDetailsDialog({
 
     // Inline input states (not stored in reqs until "Add" is clicked)
     const [destInput, setDestInput] = useState("");
+    const [pickupInput, setPickupInput] = useState("");
     const [customActivityInput, setCustomActivityInput] = useState("");
     const [customMealInput, setCustomMealInput] = useState("");
 
@@ -378,6 +386,17 @@ export function PackageDetailsDialog({
 
     function removeDestination(i: number) {
         update("journey", { destinations: reqs.journey.destinations.filter((_, idx) => idx !== i) });
+    }
+
+    function addPickupPoint() {
+        const val = pickupInput.trim();
+        if (!val || reqs.journey.pickupPoints.includes(val)) return;
+        update("journey", { pickupPoints: [...reqs.journey.pickupPoints, val] });
+        setPickupInput("");
+    }
+
+    function removePickupPoint(i: number) {
+        update("journey", { pickupPoints: reqs.journey.pickupPoints.filter((_, idx) => idx !== i) });
     }
 
     function addCustomActivity() {
@@ -627,13 +646,40 @@ export function PackageDetailsDialog({
                                 />
 
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="startingPoint">Departure / Starting Point</Label>
-                                    <Input
-                                        id="startingPoint"
-                                        value={reqs.journey.startingPoint}
-                                        onChange={e => update("journey", { startingPoint: e.target.value })}
-                                        placeholder="e.g. Delhi, Mumbai, Chandigarh..."
-                                    />
+                                    <Label>
+                                        Departure / Pickup Point(s)
+                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">add one or more — e.g. a family flying in from different cities</span>
+                                    </Label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={pickupInput}
+                                            onChange={e => setPickupInput(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === "Enter") { e.preventDefault(); addPickupPoint(); }
+                                            }}
+                                            placeholder="e.g. Delhi, Mumbai, Chandigarh..."
+                                        />
+                                        <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={addPickupPoint}>
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    {reqs.journey.pickupPoints.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 pt-1">
+                                            {reqs.journey.pickupPoints.map((p, i) => (
+                                                <Badge key={i} variant="secondary" className="gap-1.5 pr-1">
+                                                    <MapPin className="h-2.5 w-2.5 text-green-600" />
+                                                    {p}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePickupPoint(i)}
+                                                        className="ml-0.5 rounded-full hover:text-destructive transition-colors"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">

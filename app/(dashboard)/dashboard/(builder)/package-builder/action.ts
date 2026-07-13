@@ -449,6 +449,12 @@ export interface DayItinerary {
   transportVehicleType: string;
   transportSeats:     number | null;
   transportPickup:    string;
+  /** Coordinates of the pickup point, when it was chosen from the Location
+   * catalog (via LocationSearchSelect) rather than typed as free text — lets
+   * cab search find the nearest priced city from the real pickup spot instead
+   * of a geocoded guess of the day's city. Null for free-text/legacy pickups. */
+  transportPickupLat: number | null;
+  transportPickupLng: number | null;
   transportDrop:      string;
   transportDistanceKm: number | null;
   notes:              string;
@@ -609,6 +615,11 @@ export async function copyPackageIntoDraft(
       transportVehicleType: transfer?.vehicle_type ?? "",
       transportSeats:     transfer?.vehicle_capacity ?? null,
       transportPickup:    transfer?.pickup_name ?? "",
+      // fetchPackagePageData doesn't expose the transfer route's raw lat/lng —
+      // left null on copy, same as roomPricingId used to be; the exec can
+      // re-pick the pickup point via the location search to back-fill it.
+      transportPickupLat: null,
+      transportPickupLng: null,
       transportDrop:      transfer?.drop_name ?? "",
       transportDistanceKm: transfer?.distance_km ?? null,
       notes:              day.notes.map((n) => n.message).join(" "),
@@ -750,7 +761,9 @@ function normalizeItinerary(it: {
   roomPricingId: number | null;
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
-  transportSeats: number | null; transportPickup: string | null; transportDrop: string | null;
+  transportSeats: number | null; transportPickup: string | null;
+  transportPickupLat: number | null; transportPickupLng: number | null;
+  transportDrop: string | null;
   transportDistanceKm: number | null; notes: string | null;
   activities: Parameters<typeof normalizeActivity>[0][];
 }): DayItinerary {
@@ -776,6 +789,8 @@ function normalizeItinerary(it: {
     transportVehicleType:      it.transportVehicleType ?? "",
     transportSeats:            it.transportSeats ?? null,
     transportPickup:           it.transportPickup ?? "",
+    transportPickupLat:        it.transportPickupLat ?? null,
+    transportPickupLng:        it.transportPickupLng ?? null,
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
     notes:                     it.notes ?? "",
@@ -856,6 +871,8 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               transportVehicleType: true,
               transportSeats:     true,
               transportPickup:    true,
+              transportPickupLat: true,
+              transportPickupLng: true,
               transportDrop:      true,
               transportDistanceKm: true,
               notes:              true,
@@ -1064,6 +1081,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               transportVehicleType: it.transportVehicleType || null,
               transportSeats:     it.transportSeats ?? null,
               transportPickup:    it.transportPickup || null,
+              transportPickupLat: it.transportPickupLat ?? null,
+              transportPickupLng: it.transportPickupLng ?? null,
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,
               notes:              it.notes || null,
