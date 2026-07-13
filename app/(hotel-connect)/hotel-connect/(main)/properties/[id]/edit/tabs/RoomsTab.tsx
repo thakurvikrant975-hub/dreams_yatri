@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   BedIcon, PlusIcon, TrashIcon, CheckIcon, ArrowRightIcon, ArrowLeftIcon, WarningIcon, XIcon,
-  CaretDownIcon,
+  CaretDownIcon, CaretUpIcon, LockSimpleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
@@ -1286,6 +1286,18 @@ function stepSummary(id: number, d: RoomFormData): string {
 
 // ── Room Wizard Form (create + edit) ─────────────────────────────────────────
 
+// A brand-new room doesn't exist in the DB until every section validates
+// (createRoom writes the whole room + pricing row in one strict-schema
+// transaction — there's no partial/draft row to incrementally patch without
+// that draft leaking into the Rooms list, Calendar, and Rates queries, which
+// all already filter `is_active: true`). So in-progress form state for a NEW
+// room is persisted client-side instead — sessionStorage, scoped per hotel,
+// cleared on successful save or explicit Cancel, and naturally discarded
+// when the tab/browser closes.
+function draftKey(hotelId: number, roomId?: number): string {
+  return `hc-room-draft-${hotelId}-${roomId ?? "new"}`;
+}
+
 function RoomWizardForm({
   hotelId,
   roomId,
@@ -1300,8 +1312,30 @@ function RoomWizardForm({
   roomTypes: string[];
 }) {
   const router = useRouter();
-  const [step, setStep]               = useState(1);
+  const isEditing = roomId !== undefined;
+
+  const restored = (() => {
+    if (isEditing || typeof window === "undefined") return null;
+    try {
+      const raw = sessionStorage.getItem(draftKey(hotelId, roomId));
+      return raw ? (JSON.parse(raw) as { data: RoomFormData; unlockedThrough: number }) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  // Existing rooms were already fully validated on their last save — nothing
+  // should be locked when reopening one to edit. New rooms start at section 1
+  // (or wherever a restored draft left off).
+  // 6 (one past the last real section) rather than 5 — so section 5 itself
+  // also reads as "completed" (isCompleted checks sec.id < unlockedThrough),
+  // not just unlocked-but-not-yet-done.
+  const [unlockedThrough, setUnlockedThrough] = useState(isEditing ? 6 : restored?.unlockedThrough ?? 1);
+  // Resuming a draft reopens at the frontier section (where they left off),
+  // not back at section 1.
+  const [openSection, setOpenSection] = useState<number | null>(restored?.unlockedThrough ?? 1);
   const [data, setData]               = useState<RoomFormData>(() => {
+    if (restored) return restored.data;
     if (!initialData) return DEFAULT_FORM;
     const base = initialData as unknown as RoomFormData;
     // When editing an existing room, treat all mandatory items not in room_amenities as explicitly "No"
@@ -1314,14 +1348,39 @@ function RoomWizardForm({
   const [globalError, setGlobalError] = useState("");
   const [isPending, startTransition]  = useTransition();
 
-  const isEditing = roomId !== undefined;
+  // Persist create-mode progress so a reload/navigation-away doesn't lose it.
+  useEffect(() => {
+    if (isEditing) return;
+    try {
+      sessionStorage.setItem(draftKey(hotelId, roomId), JSON.stringify({ data, unlockedThrough }));
+    } catch {
+      // sessionStorage unavailable (private browsing, quota) — draft simply won't persist.
+    }
+  }, [isEditing, hotelId, roomId, data, unlockedThrough]);
+
+  function clearDraft() {
+    try {
+      sessionStorage.removeItem(draftKey(hotelId, roomId));
+    } catch {
+      // ignore
+    }
+  }
+
+  function toggleSection(id: number) {
+    if (id > unlockedThrough) return; // locked — no-op
+    setErrors({});
+    setOpenSection((cur) => (cur === id ? null : id));
+  }
 
   function advance() {
-    if (step < 5) {
-      const errs = VALIDATORS[step - 1]?.(data) ?? {};
+    if (!openSection) return;
+    const sec = openSection;
+    if (sec < 5) {
+      const errs = VALIDATORS[sec - 1]?.(data) ?? {};
       if (Object.keys(errs).length > 0) { setErrors(errs); return; }
       setErrors({});
-      setStep(step + 1);
+      setUnlockedThrough((u) => Math.max(u, sec + 1));
+      setOpenSection(sec + 1);
     } else {
       handleSave();
     }
@@ -1345,7 +1404,8 @@ function RoomWizardForm({
       const errs = VALIDATORS[i](data);
       if (Object.keys(errs).length > 0) {
         setErrors(errs);
-        setStep(i + 1);
+        setUnlockedThrough((u) => Math.max(u, i + 1));
+        setOpenSection(i + 1);
         return;
       }
     }
@@ -1356,6 +1416,7 @@ function RoomWizardForm({
           ? await updateRoom(hotelId, roomId, buildPayload())
           : await createRoom(hotelId, buildPayload());
         if (result.roomId) {
+          clearDraft();
           router.refresh();
           onDone();
         } else if (result.error) {
@@ -1391,32 +1452,41 @@ function RoomWizardForm({
 
       <div className="divide-y divide-neutral-100 bg-white">
         {SECTIONS.map((sec) => {
-          const isActive = sec.id === step;
-          const isDone   = sec.id < step;
-          const isLocked = sec.id > step;
+          const isOpen      = sec.id === openSection;
+          const isCompleted = sec.id < unlockedThrough;
+          const isLocked    = sec.id > unlockedThrough;
 
           return (
             <div key={sec.id}>
-              <div className="flex items-center gap-3 px-5 py-4">
-                <StepCircle n={sec.id} active={isActive} done={isDone} />
+              <button
+                type="button"
+                onClick={() => toggleSection(sec.id)}
+                disabled={isLocked}
+                aria-expanded={isOpen}
+                className={cn(
+                  "w-full flex items-center gap-3 px-5 py-4 text-left transition-colors",
+                  isLocked ? "cursor-not-allowed" : "cursor-pointer hover:bg-neutral-50/70",
+                )}
+              >
+                <StepCircle n={sec.id} active={isOpen} done={isCompleted} />
                 <div className="flex-1 min-w-0">
                   <p className={cn("text-sm font-semibold leading-snug", isLocked ? "text-neutral-400" : "text-neutral-800")}>
                     {sec.title}
                   </p>
-                  <p className={cn("text-xs mt-0.5 truncate", isDone ? "text-neutral-500" : isLocked ? "text-neutral-400" : "text-neutral-500")}>
-                    {isDone ? stepSummary(sec.id, data) : sec.sub}
+                  <p className={cn("text-xs mt-0.5 truncate", isLocked ? "text-neutral-400" : "text-neutral-500")}>
+                    {isCompleted && !isOpen ? stepSummary(sec.id, data) : sec.sub}
                   </p>
                 </div>
-                {isDone && (
-                  <button type="button"
-                    onClick={() => { setErrors({}); setStep(sec.id); }}
-                    className="shrink-0 text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors">
-                    Edit
-                  </button>
+                {isLocked ? (
+                  <LockSimpleIcon size={16} className="text-neutral-300 shrink-0" aria-hidden="true" />
+                ) : isOpen ? (
+                  <CaretUpIcon size={16} className="text-neutral-400 shrink-0" aria-hidden="true" />
+                ) : (
+                  <CaretDownIcon size={16} className="text-neutral-400 shrink-0" aria-hidden="true" />
                 )}
-              </div>
+              </button>
 
-              {isActive && (
+              {isOpen && (
                 <div className="border-t border-neutral-100">
                   {globalError && (
                     <div className="mx-5 mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -1426,21 +1496,21 @@ function RoomWizardForm({
                   )}
                   {sectionContent(sec.id)}
                   <div className="flex items-center justify-between px-5 py-3.5 border-t border-neutral-100">
-                    <button type="button" onClick={onDone}
+                    <button type="button" onClick={() => { clearDraft(); onDone(); }}
                       className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors">
                       Cancel
                     </button>
                     <div className="flex items-center gap-3">
-                      {step > 1 && (
-                        <button type="button" onClick={() => { setErrors({}); setStep(step - 1); }}
+                      {sec.id > 1 && (
+                        <button type="button" onClick={() => { setErrors({}); setOpenSection(sec.id - 1); }}
                           className="flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900 font-medium transition-colors">
                           <ArrowLeftIcon size={13} weight="bold" />
                           Back
                         </button>
                       )}
                       <Button variant="primary" size="sm" onClick={advance} loading={isPending} className="gap-1.5">
-                        {isPending ? "Saving…" : step === 5 ? (isEditing ? "Update Room" : "Save Room") : "Next"}
-                        {!isPending && step < 5 && <ArrowRightIcon size={13} weight="bold" />}
+                        {isPending ? "Saving…" : sec.id === 5 ? (isEditing ? "Update Room" : "Save Room") : "Next"}
+                        {!isPending && sec.id < 5 && <ArrowRightIcon size={13} weight="bold" />}
                       </Button>
                     </div>
                   </div>
