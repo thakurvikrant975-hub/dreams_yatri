@@ -418,6 +418,32 @@ export async function copyPackageIntoDraft(
     nights: s.stay_days,
   }));
 
+  // fetchPackagePageData (shared with the public website) doesn't expose the
+  // raw hotel_room_pricing id, so it's looked up separately here — lets a
+  // copied template count toward auto-computed pricing immediately, instead
+  // of requiring the exec to re-pick every room via search first.
+  const roomPricingByDay = new Map<number, number>();
+  if (data.selectedRoute && data.selectedStay) {
+    const stayRows = await db.package_itineraries.findMany({
+      where: {
+        package_id: data.id,
+        duration_id: data.currentDuration.id,
+        route_id: data.selectedRoute.id,
+      },
+      select: {
+        day: true,
+        itineraryStays: {
+          where: { stay_category_id: data.selectedStay.id },
+          select: { room_pricing_id: true },
+        },
+      },
+    });
+    for (const row of stayRows) {
+      const roomPricingId = row.itineraryStays[0]?.room_pricing_id;
+      if (roomPricingId != null) roomPricingByDay.set(row.day, roomPricingId);
+    }
+  }
+
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
 
@@ -462,10 +488,7 @@ export async function copyPackageIntoDraft(
       accommodationLocation: day.hotel?.location ?? "",
       accommodationRoomSpecs: roomSpecs,
       accommodationRoomCapacity: day.hotel?.room_capacity ?? null,
-      // The catalog's public page-data fetcher doesn't expose the raw
-      // hotel_room_pricing id, so a copied template needs the exec to
-      // re-pick the room via search before it counts toward auto pricing.
-      roomPricingId:      null,
+      roomPricingId:      roomPricingByDay.get(day.day) ?? null,
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
       hotelCheckOut:      day.hotel?.check_out_time ?? "",
       hotelMealPlan:      day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
