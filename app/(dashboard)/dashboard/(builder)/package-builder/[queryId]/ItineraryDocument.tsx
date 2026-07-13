@@ -131,7 +131,7 @@ function MealsRow({ meals }: { meals: string[] }) {
       {included.length > 0 && (
         <div className="flex items-stretch gap-1.5">
           {included.map(({ key, label, icon: Icon }) => (
-            <div
+            <div 
               key={key}
               className="flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium bg-emerald-50/60 border-emerald-200 text-neutral-700"
             >
