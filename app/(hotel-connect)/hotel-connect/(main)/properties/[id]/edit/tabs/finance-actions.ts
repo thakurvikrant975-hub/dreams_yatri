@@ -52,6 +52,10 @@ export async function saveFinance(
       : null;
   const msme_number = (formData.get("msme_number") as string | null)?.trim() || null;
 
+  const relationship_doc_type = (formData.get("relationship_doc_type") as string | null) || null;
+  const ownership_type        = (formData.get("ownership_type")        as string | null) || null;
+  const id_proof_type         = (formData.get("id_proof_type")         as string | null) || null;
+
   // Format validation — mirrors homestay-finance-actions.ts's rules so both
   // wizard paths agree on what a valid bank account/IFSC/GSTIN/PAN looks like.
   if (bank_account_number && !/^\d{6,20}$/.test(bank_account_number)) {
@@ -79,6 +83,9 @@ export async function saveFinance(
         pan_number,
         business_type,
         msme_number,
+        relationship_doc_type,
+        ownership_type,
+        id_proof_type,
         wizard_step: Math.max(hotel.wizard_step, 7),
       },
     });
