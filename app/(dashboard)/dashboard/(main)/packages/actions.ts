@@ -59,7 +59,12 @@ export async function getPackageForBuilder(id: number) {
       },
       permits: {
         orderBy: [{ duration_id: "asc" }, { sort_order: "asc" }],
-        select: { id: true, duration_id: true, name: true, price: true, price_type: true, is_included: true, sort_order: true },
+        select: {
+          id: true, duration_id: true, name: true, price: true, price_type: true,
+          is_included: true, sort_order: true, permit_id: true, cab_type_id: true,
+          permitRef: { select: { vehicleRates: { select: { vehicle_id: true, price_per_vehicle: true } } } },
+          cabType:   { select: { vehicle: { select: { id: true, name: true } } } },
+        },
       },
       cabTypes: {
         orderBy: [{ duration_id: "asc" }, { sort_order: "asc" }],
@@ -136,15 +141,25 @@ export async function getPackageForBuilder(id: number) {
       margin_percentage: Number(p.margin_percentage),
       gst_percentage: Number(p.gst_percentage),
     })),
-    permits: pkg.permits.map((p) => ({
-      id:          p.id,
-      duration_id: p.duration_id,
-      name:        p.name,
-      price:       Number(p.price),
-      price_type:  (p.price_type ?? "FLAT") as "FLAT" | "PER_PERSON" | "PER_VEHICLE",
-      is_included: p.is_included,
-      sort_order:  p.sort_order,
-    })),
+    permits: pkg.permits.map((p) => {
+      const vehicleId = p.cabType?.vehicle.id ?? null;
+      const rate = vehicleId != null
+        ? p.permitRef?.vehicleRates.find((vr) => vr.vehicle_id === vehicleId)
+        : undefined;
+      return {
+        id:          p.id,
+        duration_id: p.duration_id,
+        name:        p.name,
+        price:       Number(p.price),
+        price_type:  (p.price_type ?? "FLAT") as "FLAT" | "PER_PERSON" | "PER_VEHICLE",
+        is_included: p.is_included,
+        sort_order:  p.sort_order,
+        permit_id:   p.permit_id,
+        cab_type_id: p.cab_type_id,
+        resolved_price:        rate ? Number(rate.price_per_vehicle) : null,
+        resolved_vehicle_name: p.cabType?.vehicle.name ?? null,
+      };
+    }),
     cabTypes: pkg.cabTypes.map((ct) => ({
       id: ct.id,
       duration_id: ct.duration_id,

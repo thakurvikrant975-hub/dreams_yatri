@@ -15,11 +15,11 @@ function occupancyText(capacity: number | null, adults: number, children: number
   const rooms = capacity && capacity > 0 ? Math.max(1, Math.ceil(totalPax / capacity)) : 1;
   return `${rooms} Room${rooms !== 1 ? "s" : ""} | ${adults} Adult${adults !== 1 ? "s" : ""}` +
     (children > 0 ? `, ${children} Child${children !== 1 ? "ren" : ""}` : "");
-}
+} 
 
 /** Parses free-text meal-plan strings ("MAP - Breakfast & Dinner") into a
  * clean "Breakfast & Dinner included" summary line. */
-function mealIncludedText(planText: string): string | null {
+function mealIncludedText(planText: string): string | null { 
   if (!planText) return null;
   const lower = planText.toLowerCase();
   const found: string[] = [];

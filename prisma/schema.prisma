@@ -1961,6 +1961,7 @@ model vehicles {
   transfers          itinerary_transfers[]
   cabTypes           package_cab_types[]
   rates              vehicle_rates[]
+  permitRates        permit_vehicle_rates[]
 }
 
 model cab_drivers {
@@ -2212,6 +2213,7 @@ model package_cab_types {
   duration    package_durations      @relation(fields: [duration_id], references: [id], onDelete: Cascade)
   package     packages               @relation(fields: [package_id], references: [id], onDelete: Cascade)
   vehicle     vehicles               @relation(fields: [vehicle_id], references: [id])
+  permits     package_permits[]
 
   @@unique([package_id, duration_id, vehicle_id])
   @@index([package_id, duration_id])
@@ -2219,20 +2221,31 @@ model package_cab_types {
 }
 
 model package_permits {
-  id          Int               @id @default(autoincrement())
+  id          Int                @id @default(autoincrement())
   package_id  Int
   duration_id Int
   name        String
-  price       Decimal           @default(0) @db.Decimal(10, 2)
-  price_type  String            @default("FLAT")
-  is_included Boolean           @default(true)
-  sort_order  Int               @default(0)
-  created_at  DateTime          @default(now())
-  updated_at  DateTime          @updatedAt
-  duration    package_durations @relation(fields: [duration_id], references: [id], onDelete: Cascade)
-  package     packages          @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  // Fallback/manual price — used as-is when this permit isn't linked to a
+  // catalog permit + cab type below; otherwise the live per-vehicle rate
+  // (permitRef.vehicleRates, matched against cabType.vehicle_id) always wins,
+  // so the price automatically tracks whichever vehicle the package's cab
+  // type currently points to.
+  price       Decimal            @default(0) @db.Decimal(10, 2)
+  price_type  String             @default("FLAT")
+  is_included Boolean            @default(true)
+  sort_order  Int                @default(0)
+  permit_id   Int?
+  cab_type_id Int?
+  created_at  DateTime           @default(now())
+  updated_at  DateTime           @updatedAt
+  duration    package_durations  @relation(fields: [duration_id], references: [id], onDelete: Cascade)
+  package     packages           @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  permitRef   permits?           @relation(fields: [permit_id], references: [id], onDelete: SetNull)
+  cabType     package_cab_types? @relation(fields: [cab_type_id], references: [id], onDelete: SetNull)
 
   @@index([package_id, duration_id])
+  @@index([permit_id])
+  @@index([cab_type_id])
 }
 
 model package_cab_segments {
@@ -2991,28 +3004,54 @@ enum PermitValidityType {
 }
 
 model permits {
-  id                Int                @id @default(autoincrement())
+  id                Int                    @id @default(autoincrement())
   name              String
-  category          PermitCategory     @default(OTHER)
+  category          PermitCategory         @default(OTHER)
   location_id       BigInt?
   issuing_authority String?
-  price_per_vehicle Decimal            @default(0) @db.Decimal(10, 2)
-  price_per_person  Decimal?           @db.Decimal(10, 2)
-  validity_type     PermitValidityType @default(SINGLE_TRIP)
+  // Legacy flat rates — superseded by vehicleRates (per-vehicle, per-km) below,
+  // kept only so the older catalog-package pricing engine (which still reads
+  // these two columns directly) doesn't break; the admin Permits page no
+  // longer collects them and always writes 0/null going forward.
+  price_per_vehicle Decimal                @default(0) @db.Decimal(10, 2)
+  price_per_person  Decimal?               @db.Decimal(10, 2)
+  validity_type     PermitValidityType     @default(SINGLE_TRIP)
   validity_days     Int?
   custom_category   String?
   notes             String?
-  is_active         Boolean            @default(true)
+  is_active         Boolean                @default(true)
   created_by        String?
   updated_by        String?
-  created_at        DateTime           @default(now())
-  updated_at        DateTime           @updatedAt
-  location          Location?          @relation(fields: [location_id], references: [id], onDelete: SetNull)
+  created_at        DateTime               @default(now())
+  updated_at        DateTime               @updatedAt
+  location          Location?              @relation(fields: [location_id], references: [id], onDelete: SetNull)
+  vehicleRates      permit_vehicle_rates[]
+  packagePermits    package_permits[]
 
   @@index([location_id])
   @@index([category])
   @@index([is_active])
   @@map("permits")
+}
+
+// Per-vehicle permit rate — a mountain pass like Rohtang charges a different
+// flat amount per vehicle type (SUV vs Sedan vs Bus, etc.); an optional
+// per-km rate covers permits that instead scale with distance travelled.
+model permit_vehicle_rates {
+  id                Int      @id @default(autoincrement())
+  permit_id         Int
+  vehicle_id        Int
+  price_per_vehicle Decimal  @db.Decimal(10, 2)
+  price_per_km      Decimal? @db.Decimal(10, 2)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  permit            permits  @relation(fields: [permit_id], references: [id], onDelete: Cascade)
+  vehicle           vehicles @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@unique([permit_id, vehicle_id])
+  @@index([permit_id])
+  @@index([vehicle_id])
+  @@map("permit_vehicle_rates")
 }
 
 // Generic key-value store for small, global toggles (e.g. "is auto-assign on?")

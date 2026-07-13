@@ -181,22 +181,27 @@ export function PermitsTable({
       ),
     },
     {
-      header: "Vehicle Price",
+      header: "Vehicle Rates",
       align:  "right",
-      sortKey: (r) => r.price_per_vehicle,
-      cell: (r) => (
-        <span className="text-sm font-medium tabular-nums">₹{fmt(r.price_per_vehicle)}</span>
-      ),
-    },
-    {
-      header: "Per Person",
-      align:  "right",
-      sortKey: (r) => r.price_per_person ?? -1,
-      cell: (r) => r.price_per_person != null ? (
-        <span className="text-sm tabular-nums">₹{fmt(r.price_per_person)}</span>
-      ) : (
-        <span className="text-xs text-muted-foreground/40">—</span>
-      ),
+      sortKey: (r) => r.vehicle_rates.length,
+      cell: (r) => {
+        if (r.vehicle_rates.length === 0) {
+          return <span className="text-xs text-muted-foreground/40">No vehicles priced</span>;
+        }
+        const rates = r.vehicle_rates.map((v) => v.price_per_vehicle);
+        const min = Math.min(...rates);
+        const max = Math.max(...rates);
+        return (
+          <div className="text-right">
+            <p className="text-sm font-medium tabular-nums">
+              ₹{fmt(min)}{min !== max ? `–₹${fmt(max)}` : ""}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {r.vehicle_rates.length} vehicle{r.vehicle_rates.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+        );
+      },
     },
     {
       header: "Validity",
