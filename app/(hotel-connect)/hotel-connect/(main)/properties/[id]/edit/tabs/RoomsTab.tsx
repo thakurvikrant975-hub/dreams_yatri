@@ -2,9 +2,10 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   BedIcon, PlusIcon, TrashIcon, CheckIcon, ArrowRightIcon, ArrowLeftIcon, WarningIcon, XIcon,
-  CaretDownIcon, CaretUpIcon, LockSimpleIcon,
+  CaretDownIcon, CaretUpIcon, LockSimpleIcon, ImageIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
@@ -15,6 +16,9 @@ import { Textarea } from "@/app/(hotel-connect)/hotel-connect/(main)/components/
 import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import DateRangePickerField, { type DateRangeValue } from "@/app/components/ui/DateRangePickerField";
 import { createRoom, updateRoom, deleteRoom, fetchRoomForEdit, type RoomEditPayload } from "./room-actions";
+import { listRoomPhotos, uploadRoomPhotos, deleteRoomPhoto, type RoomPhoto } from "./room-photo-actions";
+
+const MIN_ROOM_PHOTOS = 2;
 import {
   ROOM_TYPES, GUEST_HOUSE_ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
   MEAL_PLANS, ROOM_AMENITY_GROUPS, ROOM_MANDATORY_CONFIG, ROOM_POPULAR_CONFIG, ROOM_FEATURES_CONFIG, ROOM_FOOD_DRINKS_CONFIG, ROOM_KITCHEN_CONFIG, ROOM_BEDS_BLANKET_CONFIG, ROOM_OTHER_FACILITIES_CONFIG, type RoomAmenityConfig,
@@ -29,6 +33,7 @@ export type RoomSummary = {
   num_rooms: number;
   num_bedrooms: number | null;
   is_active: boolean;
+  photoCount: number;
 };
 
 type BedEntry = { type: string; count: number };
@@ -1524,6 +1529,120 @@ function RoomWizardForm({
   );
 }
 
+// ── Room photo strip — per-room images, uploaded/assigned directly from the
+// Rooms list rather than the hotel-wide Photos tab (hotel_room_images, not
+// hotel_images) ─────────────────────────────────────────────────────────────
+
+function RoomPhotoStrip({
+  hotelId, roomId, initialCount,
+}: {
+  hotelId: number; roomId: number; initialCount: number;
+}) {
+  const router = useRouter();
+  const [photos, setPhotos] = useState<RoomPhoto[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function load() {
+    setLoading(true);
+    const result = await listRoomPhotos(hotelId, roomId);
+    setLoading(false);
+    if (result.photos) {
+      setPhotos(result.photos);
+    } else if (result.error) {
+      setError(result.error);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files?.length) return;
+    setUploading(true);
+    setError(null);
+    const fd = new FormData();
+    for (const f of files) fd.append("photos", f);
+    const result = await uploadRoomPhotos(hotelId, roomId, fd);
+    setUploading(false);
+    e.target.value = "";
+    if (result.photos?.length) {
+      setPhotos((prev) => [...(prev ?? []), ...result.photos!]);
+      // Keeps the server-sourced room list (and its photoCount, used to gate
+      // "Save & Continue") in sync with this client-only upload.
+      router.refresh();
+    }
+    if (result.error) setError(result.error);
+  }
+
+  async function handleDelete(photoId: number) {
+    setDeletingId(photoId);
+    const result = await deleteRoomPhoto(hotelId, roomId, photoId);
+    setDeletingId(null);
+    if (result.error) { setError(result.error); return; }
+    setPhotos((prev) => (prev ?? []).filter((p) => p.id !== photoId));
+    router.refresh();
+  }
+
+  const count = photos?.length ?? initialCount;
+  const met = count >= MIN_ROOM_PHOTOS;
+
+  return (
+    <div className="px-3 pb-3 pt-1 border-t border-neutral-100">
+      <div className="flex items-center justify-between mb-2">
+        <p className={cn("text-[11px] font-medium", met ? "text-emerald-600" : "text-amber-600")}>
+          {met ? <CheckIcon size={11} weight="bold" className="inline mr-1 -mt-0.5" aria-hidden="true" />
+                : <WarningIcon size={11} weight="bold" className="inline mr-1 -mt-0.5" aria-hidden="true" />}
+          {count} of {MIN_ROOM_PHOTOS} required photos
+        </p>
+        {error && <p className="text-[11px] text-red-500 truncate max-w-[50%]">{error}</p>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {loading && photos === null ? (
+          <div className="w-16 h-14 rounded-lg bg-neutral-100 animate-pulse" />
+        ) : (
+          (photos ?? []).map((photo) => (
+            <div key={photo.id} className="relative group w-16 h-14 rounded-lg overflow-hidden bg-neutral-100 shrink-0">
+              <Image src={photo.url} alt="Room photo" fill sizes="64px" className="object-cover" />
+              <button
+                type="button"
+                onClick={() => handleDelete(photo.id)}
+                disabled={deletingId === photo.id}
+                aria-label="Remove photo"
+                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white disabled:opacity-60"
+              >
+                <TrashIcon size={14} aria-hidden="true" />
+              </button>
+            </div>
+          ))
+        )}
+        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+          className="flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 transition-colors disabled:opacity-60 shrink-0"
+        >
+          {uploading ? (
+            <span className="text-[9px] font-medium">…</span>
+          ) : (
+            <>
+              <PlusIcon size={14} weight="bold" aria-hidden="true" />
+              <span className="text-[9px] font-semibold">Add</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Rooms list ────────────────────────────────────────────────────────────────
 
 function EmptyRooms({ onAdd }: { onAdd: () => void }) {
@@ -1578,31 +1697,38 @@ function RoomsList({
       </div>
       <div className="space-y-2">
         {rooms.map((room) => (
-          <Card key={room.id} variant="default" radius="sm" padding="sm" className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="size-9 rounded-lg bg-neutral-100 flex items-center justify-center shrink-0">
-                <BedIcon size={16} className="text-neutral-500" />
+          <Card key={room.id} variant="default" radius="sm" padding="none">
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center gap-3">
+                <div className="size-9 rounded-lg bg-neutral-100 flex items-center justify-center shrink-0">
+                  <BedIcon size={16} className="text-neutral-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900">{room.name}</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {[
+                      room.room_type,
+                      room.num_bedrooms != null ? `${room.num_bedrooms} bedroom${room.num_bedrooms !== 1 ? "s" : ""}` : null,
+                      `${room.num_rooms} unit${room.num_rooms !== 1 ? "s" : ""}`,
+                    ].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-neutral-900">{room.name}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  {[
-                    room.room_type,
-                    room.num_bedrooms != null ? `${room.num_bedrooms} bedroom${room.num_bedrooms !== 1 ? "s" : ""}` : null,
-                    `${room.num_rooms} unit${room.num_rooms !== 1 ? "s" : ""}`,
-                  ].filter(Boolean).join(" · ")}
-                </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="outline" size="xs" onClick={() => onEdit(room.id)}>
+                  Edit
+                </Button>
+                <button type="button" onClick={() => handleDelete(room.id)} disabled={deletingId === room.id} aria-label={`Delete room type ${room.name}`}
+                  className="size-8 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-40">
+                  <TrashIcon size={14} aria-hidden="true" />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="xs" onClick={() => onEdit(room.id)}>
-                Edit
-              </Button>
-              <button type="button" onClick={() => handleDelete(room.id)} disabled={deletingId === room.id} aria-label={`Delete room type ${room.name}`}
-                className="size-8 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-40">
-                <TrashIcon size={14} aria-hidden="true" />
-              </button>
-            </div>
+            <RoomPhotoStrip
+              hotelId={hotelId}
+              roomId={room.id}
+              initialCount={room.photoCount}
+            />
           </Card>
         ))}
       </div>
@@ -1632,6 +1758,13 @@ export default function RoomsTab({ hotelId, rooms, propertySubType }: { hotelId:
     e.preventDefault();
     if (rooms.length === 0) {
       setContinueError("Add at least one room type before continuing.");
+      return;
+    }
+    const short = rooms.filter((r) => r.photoCount < MIN_ROOM_PHOTOS);
+    if (short.length > 0) {
+      setContinueError(
+        `Add at least ${MIN_ROOM_PHOTOS} photos to ${short.length === 1 ? short[0].name : `${short.length} room types`} before continuing.`
+      );
       return;
     }
     setContinueError(null);
