@@ -628,9 +628,9 @@ function DayCard({
     onChange({ ...data, meals });
   }
 
-  async function fetchHotelRooms(query: string): Promise<Option[]> {
+  async function fetchHotelRooms(query: string, page = 1): Promise<Option[]> {
     if (!searchCity) return [];
-    const results = await searchHotelRoomsForBuilder(searchCity, query, cityCoords);
+    const results = await searchHotelRoomsForBuilder(searchCity, query, cityCoords, page);
     return results.map((r): Option & { raw: HotelRoomResult } => ({
       id: r.id,
       label: `${r.hotelName} — ${r.roomName}`,
@@ -783,6 +783,7 @@ function DayCard({
                     initialLabel={data.accommodation}
                     onChange={handleHotelRoomSelect}
                     fetchOptions={fetchHotelRooms}
+                    pageSize={20}
                     placeholder={`Search hotel rooms in ${searchCity}…`}
                   />
                   <p className="text-[10px] text-dashboard-base-content/40 mt-1">
@@ -1747,6 +1748,9 @@ export default function PackageBuilderDetailPage() {
                 <TabsTrigger value="itinerary" className="gap-1.5">
                   <Calendar size={13} /> Itinerary
                 </TabsTrigger>
+                <TabsTrigger value="pricing" className="gap-1.5">
+                  <IndianRupee size={13} /> Pricing Breakdown
+                </TabsTrigger>
                 <TabsTrigger value="inclusions" className="gap-1.5">
                   <ListChecks size={13} /> Inclusions & Terms
                 </TabsTrigger>
@@ -2073,6 +2077,94 @@ export default function PackageBuilderDetailPage() {
                     onApplyRoomToDays={applyRoomToDays}
                   />
                 ))}
+              </TabsContent>
+
+              {/* ── Tab: Pricing Breakdown ───────────────────────────────────────── */}
+              <TabsContent value="pricing" className="space-y-4">
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <IndianRupee size={15} className="text-dashboard-primary" /> Pricing Breakdown
+                  </h2>
+
+                  {computingPrice ? (
+                    <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
+                      <Loader2 size={12} className="animate-spin" /> Calculating price from hotels + dates…
+                    </div>
+                  ) : hotelPricing && hotelPricing.days.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Hotel Subtotal</p>
+                          <p className="text-base font-bold text-dashboard-base-content">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</p>
+                        </div>
+                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Nights Priced</p>
+                          <p className="text-base font-bold text-dashboard-base-content">{hotelPricing.nightsCounted}</p>
+                        </div>
+                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Per Person (auto)</p>
+                          <p className="text-base font-bold text-dashboard-base-content">
+                            ₹{(form.adults + form.children) > 0
+                              ? Math.round(hotelPricing.hotelSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
+                              : hotelPricing.hotelSubtotal.toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
+                              <th className="text-left px-3 py-2 font-semibold">Day</th>
+                              <th className="text-left px-3 py-2 font-semibold">Hotel</th>
+                              <th className="text-right px-3 py-2 font-semibold">Rooms</th>
+                              <th className="text-right px-3 py-2 font-semibold">₹/Room</th>
+                              <th className="text-right px-3 py-2 font-semibold">Extra Beds</th>
+                              <th className="text-right px-3 py-2 font-semibold">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {hotelPricing.days.map((d) => (
+                              <tr key={d.day} className="border-t border-dashboard-base-300">
+                                <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
+                                <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
+                                <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
+                                <td className="px-3 py-2 text-right">₹{d.pricePerRoom.toLocaleString("en-IN")}</td>
+                                <td className="px-3 py-2 text-right">{d.mattresses > 0 ? `${d.mattresses} × ₹${d.extraBedRate.toLocaleString("en-IN")}` : "—"}</td>
+                                <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
+                              <td colSpan={5} className="px-3 py-2 text-right font-semibold">Hotel Subtotal</td>
+                              <td className="px-3 py-2 text-right font-bold">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+
+                      <p className="text-[11px] text-dashboard-base-content/50">
+                        Computed from each day&apos;s selected hotel room (season/occupancy-aware rate), the travel date, and adult/child count.
+                        Cabs, activities, and margin aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details.
+                      </p>
+
+                      <Button
+                        type="button" size="sm" variant="outline"
+                        className="border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10"
+                        onClick={applyHotelPricing}
+                      >
+                        Use ₹{(form.adults + form.children) > 0
+                          ? Math.round(hotelPricing.hotelSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
+                          : hotelPricing.hotelSubtotal.toLocaleString("en-IN")} as Price Per Person
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-xs text-dashboard-base-content/50">
+                      No hotel rooms picked yet — search and select real hotel rooms in the Itinerary tab to see a computed breakdown here.
+                    </p>
+                  )}
+                </div>
               </TabsContent>
 
               {/* ── Tab: Inclusions & Terms ──────────────────────────────────────── */}

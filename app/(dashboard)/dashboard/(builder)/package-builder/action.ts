@@ -86,10 +86,16 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// "use server" files may only export async functions — kept module-private
+// and mirrored as a local constant in page.tsx (matches the pageSize passed
+// to <SearchSelect>, see CAB_LABELS/MEAL_KEY_LABELS for the same pattern).
+const HOTEL_SEARCH_PAGE_SIZE = 20;
+
 export async function searchHotelRoomsForBuilder(
   cityOrDestinationName: string,
   query: string,
   refCoords?: { lat: number; lng: number } | null,
+  page: number = 1,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   if (!city) return [];
@@ -107,7 +113,8 @@ export async function searchHotelRoomsForBuilder(
       },
     },
     select: HOTEL_ROOM_SELECT,
-    take: 20,
+    take: HOTEL_SEARCH_PAGE_SIZE,
+    skip: (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE,
     orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
   });
 

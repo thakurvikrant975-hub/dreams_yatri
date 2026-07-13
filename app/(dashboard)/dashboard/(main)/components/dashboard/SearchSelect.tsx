@@ -19,10 +19,16 @@ export type Option = {
 type SearchSelectProps = {
   value?:        number | null;
   onChange:      (val: number | null, option?: Option) => void;
-  fetchOptions:  (query: string) => Promise<Option[]>;
+  /** `page` is 1-based and optional — existing callers that ignore it keep
+   * working unchanged; only pass `pageSize` below to opt into "Load more". */
+  fetchOptions:  (query: string, page?: number) => Promise<Option[]>;
   placeholder?:  string;
   initialLabel?: string;
   disabled?:     boolean;
+  /** Enables "Load more" — a page is assumed to have more results available
+   * whenever it comes back with exactly this many items. Omit to keep the
+   * previous single-shot behaviour (no pagination UI). */
+  pageSize?:     number;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -34,11 +40,15 @@ export function SearchSelect({
   placeholder  = "Search...",
   initialLabel = "",
   disabled     = false,
+  pageSize,
 }: SearchSelectProps) {
   const [open,          setOpen]          = useState(false);
   const [query,         setQuery]         = useState("");
   const [options,       setOptions]       = useState<Option[]>([]);
   const [loading,       setLoading]       = useState(false);
+  const [loadingMore,   setLoadingMore]   = useState(false);
+  const [page,          setPage]          = useState(1);
+  const [hasMore,       setHasMore]       = useState(false);
   const [selectedLabel, setSelectedLabel] = useState(initialLabel);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,7 +73,8 @@ export function SearchSelect({
     }
   }, [open]);
 
-  // Debounced fetch: immediate for empty query, 300 ms for typed queries
+  // Debounced fetch: immediate for empty query, 300 ms for typed queries.
+  // Always fetches page 1 — a new query/reopen starts the result set over.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -71,16 +82,35 @@ export function SearchSelect({
     const delay = query === "" ? 0 : 300;
     const timer = setTimeout(async () => {
       try {
-        const results = await fetchRef.current(query);
-        if (!cancelled) setOptions(results);
+        const results = await fetchRef.current(query, 1);
+        if (!cancelled) {
+          setOptions(results);
+          setPage(1);
+          setHasMore(pageSize != null && results.length >= pageSize);
+        }
       } catch {
-        if (!cancelled) setOptions([]);
+        if (!cancelled) { setOptions([]); setHasMore(false); }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, open]);
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const results = await fetchRef.current(query, nextPage);
+      setOptions((prev) => [...prev, ...results]);
+      setPage(nextPage);
+      setHasMore(pageSize != null && results.length >= pageSize);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   function handleSelect(opt: Option) {
     setSelectedLabel(opt.label);
@@ -224,6 +254,17 @@ export function SearchSelect({
                   </button>
                 );
               })
+            )}
+            {hasMore && options.length > 0 && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="flex w-full items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-primary hover:bg-muted/60 transition-colors disabled:opacity-50"
+              >
+                {loadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+                Load more
+              </button>
             )}
           </div>
         </PopoverPrimitive.Content>
