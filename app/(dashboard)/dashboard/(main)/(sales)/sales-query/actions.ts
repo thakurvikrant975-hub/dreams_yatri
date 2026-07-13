@@ -386,6 +386,7 @@ const packageRequirementsSchema = z.object({
         specialDemands: z.string().optional(),
     }),
     journey: z.object({
+        departurePoints: z.array(z.string()),
         pickupPoints:   z.array(z.string()),
         dateType:       z.enum(["FIXED", "FLEXIBLE"]),
         travelDate:     z.string().optional(),

@@ -15,11 +15,13 @@ import {
 import {
     Users, MapPin, Hotel, Car, Zap, Wallet,
     Plus, X, AlertCircle, ChevronRight, ChevronLeft,
-    CheckCircle2, CalendarDays, Loader2,
+    CheckCircle2, CalendarDays, Loader2, Pencil,
 } from "lucide-react";
 import { savePackageRequirements } from "./actions";
 import type { PackageQueryType, PackageRequirements, TravellerMember } from "../../(marketing)/queries/actions";
 import { getVehiclesWithRates, type VehicleFull } from "../../(cabs)/vehicles/actions";
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import { ROUTE_STOP_TYPES, TRANSFER_TYPES, type LocationValue } from "../../components/location/location.types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -115,12 +117,26 @@ function rebuildMembers(
 }
 
 /** Ensures `travellers.members` exists and matches the current pax counts,
- * and that `journey.pickupPoints` exists — needed both for a brand-new form
- * and for requirements saved before either field existed (older records
- * stored a single `journey.startingPoint` string instead). */
+ * and that `journey.departurePoints`/`journey.pickupPoints` exist — needed
+ * both for a brand-new form and for requirements saved before either field
+ * existed in its current shape. Two older generations are migrated here:
+ *   1. the original single `journey.startingPoint` string
+ *   2. a single `journey.pickupPoints: string[]` that conflated departure
+ *      and pickup before the two were split into separate fields — treated
+ *      as departure points on upgrade, since that's what it represented. */
 function normalizeRequirements(reqs: PackageRequirements): PackageRequirements {
     const { adults, children, infants, members } = reqs.travellers;
-    const legacyStartingPoint = (reqs.journey as unknown as { startingPoint?: string }).startingPoint;
+    const rawJourney = reqs.journey as unknown as {
+        startingPoint?: string;
+        pickupPoints?: string[];
+        departurePoints?: string[];
+    };
+    const isPreSplitFormat = rawJourney.departurePoints === undefined;
+    const departurePoints = isPreSplitFormat
+        ? (rawJourney.pickupPoints ?? (rawJourney.startingPoint ? [rawJourney.startingPoint] : []))
+        : (rawJourney.departurePoints ?? []);
+    const pickupPoints = isPreSplitFormat ? [] : (rawJourney.pickupPoints ?? []);
+
     return {
         ...reqs,
         travellers: {
@@ -131,8 +147,8 @@ function normalizeRequirements(reqs: PackageRequirements): PackageRequirements {
         },
         journey: {
             ...reqs.journey,
-            pickupPoints: reqs.journey.pickupPoints
-                ?? (legacyStartingPoint ? [legacyStartingPoint] : []),
+            departurePoints,
+            pickupPoints,
         },
     };
 }
@@ -148,6 +164,7 @@ function defaultRequirements(query: PackageQueryType): PackageRequirements {
             specialDemands: "",
         },
         journey: {
+            departurePoints: [],
             pickupPoints: [],
             dateType: "FIXED",
             travelDate: query.travelDate
@@ -351,9 +368,16 @@ export function PackageDetailsDialog({
 
     // Inline input states (not stored in reqs until "Add" is clicked)
     const [destInput, setDestInput] = useState("");
-    const [pickupInput, setPickupInput] = useState("");
     const [customActivityInput, setCustomActivityInput] = useState("");
     const [customMealInput, setCustomMealInput] = useState("");
+
+    // Departure/Pickup points each toggle between a real-location picker and
+    // a plain free-text fallback (e.g. "Mumbai Airport") that's stored as-is
+    // and never written to the Location table — see the toggle buttons below.
+    const [departureInput, setDepartureInput] = useState("");
+    const [departureManual, setDepartureManual] = useState(false);
+    const [pickupInput, setPickupInput] = useState("");
+    const [pickupManual, setPickupManual] = useState(false);
 
     function update<K extends keyof PackageRequirements>(
         section: K,
@@ -388,8 +412,22 @@ export function PackageDetailsDialog({
         update("journey", { destinations: reqs.journey.destinations.filter((_, idx) => idx !== i) });
     }
 
-    function addPickupPoint() {
-        const val = pickupInput.trim();
+    /** `directValue` comes from picking a real location (auto-adds on
+     * selection); with no argument, falls back to the manual-mode text
+     * input, which requires an explicit Enter/+ to add. */
+    function addDeparturePoint(directValue?: string) {
+        const val = (directValue ?? departureInput).trim();
+        if (!val || reqs.journey.departurePoints.includes(val)) return;
+        update("journey", { departurePoints: [...reqs.journey.departurePoints, val] });
+        setDepartureInput("");
+    }
+
+    function removeDeparturePoint(i: number) {
+        update("journey", { departurePoints: reqs.journey.departurePoints.filter((_, idx) => idx !== i) });
+    }
+
+    function addPickupPoint(directValue?: string) {
+        const val = (directValue ?? pickupInput).trim();
         if (!val || reqs.journey.pickupPoints.includes(val)) return;
         update("journey", { pickupPoints: [...reqs.journey.pickupPoints, val] });
         setPickupInput("");
@@ -647,21 +685,100 @@ export function PackageDetailsDialog({
 
                                 <div className="space-y-1.5">
                                     <Label>
-                                        Departure / Pickup Point(s)
-                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">add one or more — e.g. a family flying in from different cities</span>
+                                        Departure Point(s)
+                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">the city/cities they're travelling from — add one or more</span>
                                     </Label>
                                     <div className="flex gap-2">
-                                        <Input
-                                            value={pickupInput}
-                                            onChange={e => setPickupInput(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === "Enter") { e.preventDefault(); addPickupPoint(); }
-                                            }}
-                                            placeholder="e.g. Delhi, Mumbai, Chandigarh..."
-                                        />
-                                        <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={addPickupPoint}>
-                                            <Plus className="h-4 w-4" />
+                                        <div className="flex-1">
+                                            {departureManual ? (
+                                                <Input
+                                                    value={departureInput}
+                                                    onChange={e => setDepartureInput(e.target.value)}
+                                                    onKeyDown={e => {
+                                                        if (e.key === "Enter") { e.preventDefault(); addDeparturePoint(); }
+                                                    }}
+                                                    placeholder='Type manually, e.g. "Mumbai"'
+                                                />
+                                            ) : (
+                                                <LocationSearchSelect
+                                                    value={null}
+                                                    onChange={(loc: LocationValue | null) => { if (loc) addDeparturePoint(loc.name); }}
+                                                    types={ROUTE_STOP_TYPES}
+                                                    disableExternalSearch
+                                                    placeholder="Search a location…"
+                                                />
+                                            )}
+                                        </div>
+                                        <Button
+                                            type="button" variant="outline" size="icon" className="shrink-0"
+                                            title={departureManual ? "Choose from locations" : "Can't find it? Type it instead"}
+                                            onClick={() => setDepartureManual(v => !v)}
+                                        >
+                                            {departureManual ? <MapPin className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
                                         </Button>
+                                        {departureManual && (
+                                            <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => addDeparturePoint()}>
+                                                <Plus className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                    {reqs.journey.departurePoints.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 pt-1">
+                                            {reqs.journey.departurePoints.map((p, i) => (
+                                                <Badge key={i} variant="secondary" className="gap-1.5 pr-1">
+                                                    <MapPin className="h-2.5 w-2.5 text-green-600" />
+                                                    {p}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeDeparturePoint(i)}
+                                                        className="ml-0.5 rounded-full hover:text-destructive transition-colors"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label>
+                                        Pickup Point(s)
+                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">specific pickup spot — airport, hotel, landmark</span>
+                                    </Label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            {pickupManual ? (
+                                                <Input
+                                                    value={pickupInput}
+                                                    onChange={e => setPickupInput(e.target.value)}
+                                                    onKeyDown={e => {
+                                                        if (e.key === "Enter") { e.preventDefault(); addPickupPoint(); }
+                                                    }}
+                                                    placeholder='Type manually, e.g. "Mumbai Airport"'
+                                                />
+                                            ) : (
+                                                <LocationSearchSelect
+                                                    value={null}
+                                                    onChange={(loc: LocationValue | null) => { if (loc) addPickupPoint(loc.name); }}
+                                                    types={TRANSFER_TYPES}
+                                                    disableExternalSearch
+                                                    placeholder="Search a location…"
+                                                />
+                                            )}
+                                        </div>
+                                        <Button
+                                            type="button" variant="outline" size="icon" className="shrink-0"
+                                            title={pickupManual ? "Choose from locations" : "Can't find it? Type it instead"}
+                                            onClick={() => setPickupManual(v => !v)}
+                                        >
+                                            {pickupManual ? <MapPin className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                                        </Button>
+                                        {pickupManual && (
+                                            <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => addPickupPoint()}>
+                                                <Plus className="h-4 w-4" />
+                                            </Button>
+                                        )}
                                     </div>
                                     {reqs.journey.pickupPoints.length > 0 && (
                                         <div className="flex flex-wrap gap-2 pt-1">

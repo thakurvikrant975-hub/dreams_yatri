@@ -1388,7 +1388,9 @@ export default function PackageBuilderDetailPage() {
         ...f,
         title: `${j?.destinations?.[0] ?? data.destination ?? "Custom"} Tour Package`,
         destination: j?.destinations?.join(", ") ?? data.destination ?? "",
-        startingPoint: j?.pickupPoints?.join(", ") ?? "",
+        // departurePoints is the current field; pickupPoints is kept as a
+        // fallback for requirements saved before the two were split apart.
+        startingPoint: j?.departurePoints?.join(", ") ?? j?.pickupPoints?.join(", ") ?? "",
         totalDays: j?.noOfDays ?? 3,
         totalNights: j?.noOfNights ?? 2,
         travelDate: j?.travelDate ?? (data.travelDate ? new Date(data.travelDate).toISOString().split("T")[0] : ""),
