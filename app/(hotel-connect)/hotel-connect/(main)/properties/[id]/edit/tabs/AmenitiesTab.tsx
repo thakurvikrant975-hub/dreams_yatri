@@ -973,11 +973,21 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
 
   return (
     <>
-      <form id="wizard-form" action={formAction} onSubmit={handleSubmit}>
+      {/* Fixed to the viewport space between the tab bar and the footer nav —
+          the sidebar/content pane below already scroll internally, so this
+          outer height stops the whole tab from ALSO scrolling the page
+          (which would otherwise double-scroll and leave a gap above the
+          footer). Matches WizardShell's header + tab bar + footer chrome. */}
+      <form
+        id="wizard-form"
+        action={formAction}
+        onSubmit={handleSubmit}
+        className="flex flex-col h-[calc(100vh-263px)] min-h-125"
+      >
         <input type="hidden" name="amenities_json" value={JSON.stringify(amenities)} />
 
         {(state.error || validationError) && (
-          <div role="alert" className="mb-4 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <div role="alert" className="mb-4 shrink-0 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
             <p>{validationError ?? state.error}</p>
             {validationError && activeCategory !== "Mandatory" && (
               <button
@@ -992,7 +1002,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
         )}
 
         {/* Global search */}
-        <div className="mb-3">
+        <div className="mb-3 shrink-0">
           <Input
             type="text"
             value={search}
@@ -1004,7 +1014,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
 
         {sq ? (
           /* Global search results */
-          <Card variant="elevated" radius="md" padding="none" className="overflow-hidden">
+          <Card variant="elevated" radius="md" padding="none" className="flex-1 min-h-0 overflow-y-auto scrollbar-slim">
             {searchResults.length === 0 ? (
               <p className="px-6 py-10 text-center text-sm text-neutral-400">
                 No amenities match &ldquo;{search}&rdquo;
@@ -1038,12 +1048,12 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           </Card>
         ) : (
 
-        /* Sidebar + Content — fixed height so the sidebar's category list and
-           the content pane always share one scroll viewport; without this,
-           whichever pane is naturally taller dictates the container height
-           and the shorter pane's own scroll never engages, silently clipping
-           rows outside it. */
-        <Card variant="elevated" radius="md" padding="none" className="flex h-[calc(100vh-260px)] min-h-125 overflow-hidden">
+        /* Sidebar + Content — share the form's flex-1 height so the sidebar's
+           category list and the content pane always share one scroll
+           viewport; without this, whichever pane is naturally taller
+           dictates the container height and the shorter pane's own scroll
+           never engages, silently clipping rows outside it. */
+        <Card variant="elevated" radius="md" padding="none" className="flex flex-1 min-h-0 overflow-hidden">
 
           {/* Sidebar */}
           <aside className="w-64 shrink-0 h-full overflow-y-auto scrollbar-slim">
