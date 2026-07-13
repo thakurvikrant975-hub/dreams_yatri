@@ -33,6 +33,7 @@ import {
   searchHotelRoomsForBuilder,
   searchActivitiesForBuilder,
   searchVehiclesForBuilder,
+  searchCabsForBuilder,
   type QueryDetail,
   type DayItinerary,
   type ActivityInput,
@@ -40,6 +41,7 @@ import {
   type HotelRoomResult,
   type ActivityResult,
   type VehicleResult,
+  type CabPricingResult,
   type PackageCopyPayload,
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult } from "@/app/services/package-pricing.service";
@@ -621,6 +623,27 @@ function DayCard({
     return () => { cancelled = true; clearTimeout(timer); };
   }, [searchCity]);
 
+  // Same pattern as searchCity/cityCoords above, for the cab search below —
+  // kept independent since an exec may want to price cabs from a different
+  // city than the hotel (e.g. an arrival-day transfer from the airport city).
+  const [searchCabCity, setSearchCabCity] = useState(location ?? "");
+  const [prevCabLocation, setPrevCabLocation] = useState(location);
+  if (location !== prevCabLocation) {
+    setPrevCabLocation(location);
+    setSearchCabCity(location ?? "");
+  }
+
+  const [cabCityCoords, setCabCityCoords] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!searchCabCity) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const coords = await geocodeCity(searchCabCity);
+      if (!cancelled) setCabCityCoords(coords);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchCabCity]);
+
   function toggleMeal(m: string) {
     const meals = data.meals.includes(m)
       ? data.meals.filter((x) => x !== m)
@@ -681,29 +704,54 @@ function DayCard({
     }
   }
 
-  async function fetchVehicleOptions(query: string): Promise<Option[]> {
-    const results = await searchVehiclesForBuilder(query);
-    return results.map((v): Option & { raw: VehicleResult } => ({
-      id: v.id,
-      label: v.name,
-      description: `${CAB_LABELS[v.type] ?? v.type} · ${v.passengerCapacity} seats${v.hasAc ? " · AC" : ""}`,
-      thumbnail: v.thumbnail ?? undefined,
-      raw: v,
+  // Falls back to the unscoped fleet catalog only when there's no city to
+  // price against yet (e.g. route stops not filled in) — once a city is
+  // entered, cab_pricing (real, bookable rates) takes over.
+  async function fetchCabOptions(query: string): Promise<Option[]> {
+    if (!searchCabCity) {
+      const results = await searchVehiclesForBuilder(query);
+      return results.map((v): Option & { raw: VehicleResult } => ({
+        id: v.id,
+        label: v.name,
+        description: `${CAB_LABELS[v.type] ?? v.type} · ${v.passengerCapacity} seats${v.hasAc ? " · AC" : ""}`,
+        thumbnail: v.thumbnail ?? undefined,
+        raw: v,
+      }));
+    }
+    const results = await searchCabsForBuilder(searchCabCity, query, cabCityCoords);
+    return results.map((r): Option & { raw: CabPricingResult } => ({
+      id: r.id,
+      label: r.vehicleName,
+      description: [
+        `₹${r.price.toLocaleString("en-IN")}/${r.pricingType === "PER_DAY" ? "day" : r.pricingType.toLowerCase()}`,
+        `${CAB_LABELS[r.vehicleType] ?? r.vehicleType} · ${r.passengerCapacity} seats${r.hasAc ? " · AC" : ""}`,
+        r.cityName && r.cityName.toLowerCase() !== searchCabCity.toLowerCase()
+          ? `nearest priced city: ${r.cityName}${r.distanceKm != null ? ` (${r.distanceKm} km away)` : ""}`
+          : (r.distanceKm != null ? `${r.distanceKm} km from ${searchCabCity}` : null),
+      ].filter(Boolean).join(" · "),
+      thumbnail: r.thumbnail ?? undefined,
+      raw: r,
     }));
   }
 
-  function handleVehicleSelect(_id: number | null, option?: Option) {
-    const raw = (option as (Option & { raw: VehicleResult }) | undefined)?.raw;
+  function handleCabSelect(_id: number | null, option?: Option) {
+    const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
     if (!raw) return;
+    const vehicle: VehicleResult = "vehicleName" in raw
+      ? {
+          id: raw.id, name: raw.vehicleName, type: raw.vehicleType,
+          passengerCapacity: raw.passengerCapacity, hasAc: raw.hasAc, thumbnail: raw.thumbnail,
+        }
+      : raw;
     onChange({
       ...data,
-      transport: raw.name,
-      transportPhoto: raw.thumbnail ?? data.transportPhoto,
-      transportVehicleType: CAB_LABELS[raw.type] ?? raw.type,
-      transportSeats: raw.passengerCapacity,
+      transport: vehicle.name,
+      transportPhoto: vehicle.thumbnail ?? data.transportPhoto,
+      transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
+      transportSeats: vehicle.passengerCapacity,
     });
     if (totalDays > 1) {
-      setLastVehicle(raw);
+      setLastVehicle(vehicle);
       setShowApplyPrompt(true);
     }
   }
@@ -946,12 +994,26 @@ function DayCard({
               <Car size={11} /> Transport
             </label>
             <div className="mb-2">
+              <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">
+                Search location (city) — defaults to this day&apos;s stop, editable
+              </label>
+              <Input
+                value={searchCabCity}
+                onChange={(e) => setSearchCabCity(e.target.value)}
+                placeholder="e.g. Manali"
+                className="text-sm h-8 mb-2 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
               <SearchSelect
                 value={null}
-                onChange={handleVehicleSelect}
-                fetchOptions={fetchVehicleOptions}
-                placeholder="Search cab / vehicle fleet…"
+                onChange={handleCabSelect}
+                fetchOptions={fetchCabOptions}
+                placeholder={searchCabCity ? `Search cabs in ${searchCabCity}…` : "Search cab / vehicle fleet…"}
               />
+              {searchCabCity && (
+                <p className="text-[10px] text-dashboard-base-content/40 mt-1">
+                  Shows real cab pricing for {searchCabCity} — or the nearest city with rates configured, if none exist there yet.
+                </p>
+              )}
             </div>
 
             {showApplyPrompt && lastVehicle && (

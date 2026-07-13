@@ -244,6 +244,118 @@ export async function searchVehiclesForBuilder(query: string): Promise<VehicleRe
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// City-scoped cab pricing — cab_pricing rows are tied to a destination/
+// Location (100% of active rows have a location with lat/lng), unlike the
+// vehicles catalog above. Exact city match first; if a searched city has no
+// pricing configured (real gap — only ~39 destinations have cab rates today),
+// falls back to whichever priced city sits nearest by straight-line distance,
+// so the exec always sees real, bookable cab rates instead of nothing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CabPricingResult {
+  id:                number;
+  vehicleName:       string;
+  vehicleType:       string;
+  passengerCapacity: number;
+  hasAc:             boolean;
+  thumbnail:         string | null;
+  price:             number;
+  pricingType:       string;
+  /** The destination/location this rate is actually priced for — may differ
+   * from the searched city when falling back to the nearest priced one. */
+  cityName:          string;
+  distanceKm:        number | null;
+}
+
+const CAB_PRICING_SELECT = {
+  id: true, price: true, pricing_type: true,
+  destination: { select: { name: true } },
+  location: { select: { name: true, latitude: true, longitude: true } },
+  vehicle: { select: { name: true, type: true, passenger_capacity: true, has_ac: true, image_key: true } },
+} as const;
+
+function toCabPricingResult(
+  item: Prisma.cab_pricingGetPayload<{ select: typeof CAB_PRICING_SELECT }>,
+  refCoords?: { lat: number; lng: number } | null,
+): CabPricingResult {
+  const lat = item.location?.latitude != null ? Number(item.location.latitude) : null;
+  const lng = item.location?.longitude != null ? Number(item.location.longitude) : null;
+  const distanceKm = (refCoords && lat != null && lng != null)
+    ? Math.round(haversineKm(refCoords.lat, refCoords.lng, lat, lng) * 10) / 10
+    : null;
+
+  return {
+    id:                item.id,
+    vehicleName:       item.vehicle.name,
+    vehicleType:       item.vehicle.type,
+    passengerCapacity: item.vehicle.passenger_capacity,
+    hasAc:             item.vehicle.has_ac,
+    thumbnail:         item.vehicle.image_key ? getThumbnailImage(item.vehicle.image_key) : null,
+    price:             Number(item.price),
+    pricingType:       item.pricing_type,
+    cityName:          item.destination?.name ?? item.location?.name ?? "",
+    distanceKm,
+  };
+}
+
+export async function searchCabsForBuilder(
+  cityOrDestinationName: string,
+  query: string,
+  refCoords?: { lat: number; lng: number } | null,
+): Promise<CabPricingResult[]> {
+  const city = cityOrDestinationName.split(",")[0]?.trim();
+
+  if (city) {
+    const list = await db.cab_pricing.findMany({
+      where: {
+        is_active: true,
+        OR: [
+          { destination: { name: { contains: city, mode: "insensitive" } } },
+          { location: { name: { contains: city, mode: "insensitive" } } },
+        ],
+        ...(query ? { vehicle: { name: { contains: query, mode: "insensitive" } } } : {}),
+      },
+      select: CAB_PRICING_SELECT,
+      orderBy: [{ price: "asc" }],
+    });
+    if (list.length > 0) return list.map((item) => toCabPricingResult(item, refCoords));
+  }
+
+  // No pricing configured for this exact city — find the nearest one that
+  // does have it, using refCoords (geocoded from the searched city name).
+  if (!refCoords) return [];
+
+  const all = await db.cab_pricing.findMany({
+    where: {
+      is_active: true,
+      location: { latitude: { not: null }, longitude: { not: null } },
+      ...(query ? { vehicle: { name: { contains: query, mode: "insensitive" } } } : {}),
+    },
+    select: CAB_PRICING_SELECT,
+  });
+  if (all.length === 0) return [];
+
+  let nearestCityName: string | null = null;
+  let minDist = Infinity;
+  for (const item of all) {
+    const lat = item.location?.latitude != null ? Number(item.location.latitude) : null;
+    const lng = item.location?.longitude != null ? Number(item.location.longitude) : null;
+    if (lat == null || lng == null) continue;
+    const d = haversineKm(refCoords.lat, refCoords.lng, lat, lng);
+    if (d < minDist) {
+      minDist = d;
+      nearestCityName = item.destination?.name ?? item.location?.name ?? null;
+    }
+  }
+  if (!nearestCityName) return [];
+
+  return all
+    .filter((item) => (item.destination?.name ?? item.location?.name) === nearestCityName)
+    .map((item) => toCabPricingResult(item, refCoords))
+    .sort((a, b) => a.price - b.price);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Shared Types (exported so pages can import them)
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -383,6 +383,10 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
     ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}`
     : "To be confirmed";
 
+  const perPersonStr = form.pricePerPerson
+    ? `${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
+    : null;
+
   return (
     <div>
       <style>{PRINT_STYLES}</style>
@@ -515,6 +519,26 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
             trainFrom={form.trainFrom}
             trainTo={form.trainTo}
           />
+
+          <div className="rounded-xl border-2 border-primary-500 bg-primary-50/50 p-4">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-primary-700 mb-3 flex items-center gap-1.5">
+              <span className="flex items-center justify-center size-5 rounded-full bg-primary-100"><IndianRupee size={12} className="text-primary-600" /></span>
+              Price Summary
+            </h3>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-neutral-600">{paxLine}</p>
+                {perPersonStr && <p className="text-xs text-neutral-500">{perPersonStr}</p>}
+                {form.infants > 0 && (
+                  <p className="text-[10px] text-neutral-400">Infant charges as applicable / on request</p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-neutral-500 uppercase tracking-wide font-medium">Total Package Price</p>
+                <p className="text-2xl font-bold text-primary-700">{priceStr}</p>
+              </div>
+            </div>
+          </div>
 
           <div className="grid gap-4">
             <div className="rounded-xl border border-neutral-200 bg-white p-4">

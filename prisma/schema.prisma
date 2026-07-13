@@ -2428,6 +2428,8 @@ model custom_itineraries {
   transportVehicleType String?
   transportSeats  Int?
   transportPickup String?
+  transportPickupLat Float?
+  transportPickupLng Float?
   transportDrop   String?
   transportDistanceKm Float?
   notes           String?
