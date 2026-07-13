@@ -36,7 +36,8 @@ function mapRow(r: {
   issuing_authority: string | null;
   vehicleRates: {
     vehicle_id: number;
-    price_per_km: { toNumber(): number };
+    price_per_vehicle: { toNumber(): number };
+    price_per_km: { toNumber(): number } | null;
     vehicle: {
       id: number; name: string; type: string;
       passenger_capacity: number; has_ac: boolean; image_key: string | null;
@@ -66,7 +67,8 @@ function mapRow(r: {
       passenger_capacity: vr.vehicle.passenger_capacity,
       has_ac:             vr.vehicle.has_ac,
       thumbnail:          vr.vehicle.image_key ? getThumbnailImage(vr.vehicle.image_key) : null,
-      price_per_km:       vr.price_per_km.toNumber(),
+      price_per_vehicle:  vr.price_per_vehicle.toNumber(),
+      price_per_km:       vr.price_per_km?.toNumber() ?? null,
     })),
     validity_type:     r.validity_type as PermitValidityType,
     validity_days:     r.validity_days,
@@ -189,8 +191,9 @@ export async function createPermit(input: PermitInput) {
         // their schema default (0/null) for the older catalog pricing engine.
         vehicleRates: {
           create: input.vehicle_rates.map((v) => ({
-            vehicle_id:   v.vehicle_id,
-            price_per_km: v.price_per_km,
+            vehicle_id:        v.vehicle_id,
+            price_per_vehicle: v.price_per_vehicle,
+            price_per_km:      v.price_per_km,
           })),
         },
       },
@@ -239,8 +242,9 @@ export async function updatePermit(id: number, input: PermitInput) {
         vehicleRates: {
           deleteMany: {},
           create: input.vehicle_rates.map((v) => ({
-            vehicle_id:   v.vehicle_id,
-            price_per_km: v.price_per_km,
+            vehicle_id:        v.vehicle_id,
+            price_per_vehicle: v.price_per_vehicle,
+            price_per_km:      v.price_per_km,
           })),
         },
       },

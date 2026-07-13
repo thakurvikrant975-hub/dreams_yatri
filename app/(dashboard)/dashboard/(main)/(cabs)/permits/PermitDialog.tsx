@@ -147,10 +147,13 @@ export function PermitDialog({
     }
 
     if (form.vehicle_rates.length === 0) {
-      setError("Add at least one vehicle and its per-km rate"); return null;
+      setError("Add at least one vehicle and its price"); return null;
     }
     for (const v of form.vehicle_rates) {
-      if (isNaN(v.price_per_km) || v.price_per_km < 0) {
+      if (isNaN(v.price_per_vehicle) || v.price_per_vehicle < 0) {
+        setError(`Enter a valid per-vehicle price for ${v.vehicle_name}`); return null;
+      }
+      if (v.price_per_km != null && (isNaN(v.price_per_km) || v.price_per_km < 0)) {
         setError(`Enter a valid per-km rate for ${v.vehicle_name}`); return null;
       }
     }
@@ -168,7 +171,11 @@ export function PermitDialog({
       custom_category:    customCategory,
       location_id:        form.location?.id ?? null,
       issuing_authority:  form.issuing_authority.trim() || null,
-      vehicle_rates:      form.vehicle_rates.map((v) => ({ vehicle_id: v.vehicle_id, price_per_km: v.price_per_km })),
+      vehicle_rates:      form.vehicle_rates.map((v) => ({
+        vehicle_id:        v.vehicle_id,
+        price_per_vehicle: v.price_per_vehicle,
+        price_per_km:      v.price_per_km,
+      })),
       validity_type:      form.validity_type,
       validity_days:      vDays,
       notes:              form.notes.trim() || null,
@@ -315,7 +322,7 @@ export function PermitDialog({
             <SectionHeader
               icon={<IndianRupee className="h-4 w-4" />}
               title="Vehicle Rates"
-              description="Permit cost per km — varies by vehicle (SUV, Sedan, Bus, etc.)"
+              description="Permit cost per vehicle — varies by type (SUV, Sedan, Bus, etc.); per-km rate is optional"
             />
             <VehicleRatesPicker
               permitLocationId={form.location?.id ?? null}

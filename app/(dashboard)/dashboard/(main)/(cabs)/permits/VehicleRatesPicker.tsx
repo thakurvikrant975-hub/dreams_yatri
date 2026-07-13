@@ -82,7 +82,8 @@ export function VehicleRatesPicker({
           passenger_capacity: c.passenger_capacity,
           has_ac:             c.has_ac,
           thumbnail:          c.thumbnail,
-          price_per_km:       0,
+          price_per_vehicle:  0,
+          price_per_km:       null,
         }));
       onChange([...value, ...additions]);
       closePicker();
@@ -91,9 +92,14 @@ export function VehicleRatesPicker({
     }
   }
 
-  function setRate(vehicleId: number, priceStr: string) {
+  function setPerVehicle(vehicleId: number, priceStr: string) {
     const price = priceStr === "" ? 0 : parseFloat(priceStr);
-    onChange(value.map((v) => (v.vehicle_id === vehicleId ? { ...v, price_per_km: isNaN(price) ? 0 : price } : v)));
+    onChange(value.map((v) => (v.vehicle_id === vehicleId ? { ...v, price_per_vehicle: isNaN(price) ? 0 : price } : v)));
+  }
+
+  function setPerKm(vehicleId: number, priceStr: string) {
+    const price = priceStr === "" ? null : parseFloat(priceStr);
+    onChange(value.map((v) => (v.vehicle_id === vehicleId ? { ...v, price_per_km: price === null || isNaN(price) ? null : price } : v)));
   }
 
   function removeVehicle(vehicleId: number) {
@@ -210,17 +216,32 @@ export function VehicleRatesPicker({
                   {VEHICLE_TYPE_LABELS[v.vehicle_type] ?? v.vehicle_type} · {v.passenger_capacity} seats{v.has_ac ? " · AC" : ""}
                 </p>
               </div>
-              <div className="relative shrink-0 w-28">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
-                <Input
-                  type="number" min="0" step="0.01"
-                  className="pl-6 h-8 text-sm"
-                  value={v.price_per_km || ""}
-                  onChange={(e) => setRate(v.vehicle_id, e.target.value)}
-                  placeholder="0"
-                />
+              <div className="flex items-center gap-1 shrink-0">
+                <div className="relative w-24">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                  <Input
+                    type="number" min="0" step="0.01"
+                    className="pl-6 h-8 text-sm"
+                    value={v.price_per_vehicle || ""}
+                    onChange={(e) => setPerVehicle(v.vehicle_id, e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <span className="text-[11px] text-muted-foreground">/vehicle</span>
               </div>
-              <span className="text-[11px] text-muted-foreground shrink-0">/km</span>
+              <div className="flex items-center gap-1 shrink-0">
+                <div className="relative w-24">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                  <Input
+                    type="number" min="0" step="0.01"
+                    className="pl-6 h-8 text-sm"
+                    value={v.price_per_km ?? ""}
+                    onChange={(e) => setPerKm(v.vehicle_id, e.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
+                <span className="text-[11px] text-muted-foreground">/km</span>
+              </div>
               <button
                 type="button"
                 onClick={() => removeVehicle(v.vehicle_id)}

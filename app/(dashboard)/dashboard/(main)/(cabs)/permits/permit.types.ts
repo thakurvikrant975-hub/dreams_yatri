@@ -35,7 +35,8 @@ export const VALIDITY_LABELS: Record<PermitValidityType, string> = {
 };
 
 // A permit's price for one specific vehicle — e.g. Rohtang Pass costs a
-// different amount for an SUV than a Sedan or a Bus, priced per km driven.
+// different flat amount for an SUV than a Sedan or a Bus. price_per_km is
+// an optional secondary rate for permits that instead scale with distance.
 export type PermitVehicleRate = {
   vehicle_id:         number;
   vehicle_name:       string;
@@ -43,7 +44,8 @@ export type PermitVehicleRate = {
   passenger_capacity: number;
   has_ac:             boolean;
   thumbnail:          string | null;
-  price_per_km:       number;
+  price_per_vehicle:  number;
+  price_per_km:       number | null;
 };
 
 export type PermitRow = {
@@ -71,7 +73,7 @@ export type PermitInput = {
   custom_category?:   string | null;
   location_id?:       string | null;
   issuing_authority?: string | null;
-  vehicle_rates:      { vehicle_id: number; price_per_km: number }[];
+  vehicle_rates:      { vehicle_id: number; price_per_vehicle: number; price_per_km: number | null }[];
   validity_type:      PermitValidityType;
   validity_days?:     number | null;
   notes?:             string | null;

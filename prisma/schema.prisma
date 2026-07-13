@@ -3021,18 +3021,19 @@ model permits {
   @@map("permits")
 }
 
-// Per-vehicle, per-km permit rate — a mountain pass like Rohtang charges a
-// different amount per vehicle type (SUV vs Sedan vs Bus, etc.), so pricing
-// is modeled per vehicle rather than as one flat permit-level price.
+// Per-vehicle permit rate — a mountain pass like Rohtang charges a different
+// flat amount per vehicle type (SUV vs Sedan vs Bus, etc.); an optional
+// per-km rate covers permits that instead scale with distance travelled.
 model permit_vehicle_rates {
-  id           Int      @id @default(autoincrement())
-  permit_id    Int
-  vehicle_id   Int
-  price_per_km Decimal  @db.Decimal(10, 2)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
-  permit       permits  @relation(fields: [permit_id], references: [id], onDelete: Cascade)
-  vehicle      vehicles @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  id                Int      @id @default(autoincrement())
+  permit_id         Int
+  vehicle_id        Int
+  price_per_vehicle Decimal  @db.Decimal(10, 2)
+  price_per_km      Decimal? @db.Decimal(10, 2)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  permit            permits  @relation(fields: [permit_id], references: [id], onDelete: Cascade)
+  vehicle           vehicles @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
 
   @@unique([permit_id, vehicle_id])
   @@index([permit_id])
