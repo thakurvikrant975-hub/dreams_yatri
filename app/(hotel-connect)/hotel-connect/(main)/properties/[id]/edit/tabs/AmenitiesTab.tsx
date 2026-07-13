@@ -1058,12 +1058,12 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           ) : (
 
           /* Sidebar + Content row */
-          <div className="flex flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-1 min-h-0 overflow-hidden px-px">
 
             {/* Sidebar */}
-          <aside className="w-64 shrink-0 h-full overflow-y-auto scrollbar-slim">
+          <aside className="w-64 shrink-0 h-full overflow-y-auto scrollbar-slim ">
             <div className="px-4 py-2.5 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
-              <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Categories</p>
+              <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider ">Categories</p>
             </div>
             {AMENITY_CATEGORIES.map((cat) => {
               const { answered, total } = getStats(cat.items);

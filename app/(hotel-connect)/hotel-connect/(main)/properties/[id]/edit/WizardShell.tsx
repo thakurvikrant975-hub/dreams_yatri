@@ -344,7 +344,7 @@ export default function WizardShell({
       </div>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
-      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate mb-6">
+      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate">
         <div className="max-w-4xl mx-auto w-full ">
           <ReviewBanner listing_status={hotel.listing_status} slug={hotel.slug} rejection_reason={hotel.rejection_reason} />
           {children}
