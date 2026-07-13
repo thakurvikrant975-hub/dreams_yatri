@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   BedIcon, PlusIcon, TrashIcon, CheckIcon, ArrowRightIcon, ArrowLeftIcon, WarningIcon, XIcon,
-  CaretDownIcon,
+  CaretDownIcon, CaretUpIcon, LockSimpleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
@@ -13,7 +13,7 @@ import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
 import { Textarea } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/textarea";
 import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
-import { PricingRangeCalendarPicker, type DateRange } from "@/app/(dashboard)/dashboard/(main)/components/ui/pricing-range-calendar";
+import DateRangePickerField, { type DateRangeValue } from "@/app/components/ui/DateRangePickerField";
 import { createRoom, updateRoom, deleteRoom, fetchRoomForEdit, type RoomEditPayload } from "./room-actions";
 import {
   ROOM_TYPES, GUEST_HOUSE_ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
@@ -29,6 +29,7 @@ export type RoomSummary = {
   num_rooms: number;
   num_bedrooms: number | null;
   is_active: boolean;
+  photoCount: number;
 };
 
 type BedEntry = { type: string; count: number };
@@ -934,8 +935,8 @@ function Section4({ data, onChange, errors }: {
           required
           error={errors.rate_start_date ?? errors.rate_end_date}
         >
-          <PricingRangeCalendarPicker
-            value={{ from: toDateObj(data.rate_start_date), to: toDateObj(data.rate_end_date) } as DateRange}
+          <DateRangePickerField
+            value={{ from: toDateObj(data.rate_start_date), to: toDateObj(data.rate_end_date) } as DateRangeValue}
             onChange={(range) => onChange({
               ...data,
               rate_start_date: fromDateObj(range?.from),
@@ -989,6 +990,14 @@ function Section5({ data, onChange, mandatoryError }: {
 }) {
   const [activeCategory, setActiveCategory] = useState(ROOM_AMENITY_GROUPS[0].label);
   const [search, setSearch] = useState("");
+  const amenityListRef = useRef<HTMLDivElement>(null);
+
+  // Switching categories should always start the list from the top instead
+  // of keeping whatever scroll position the previous category was at.
+  function selectAmenityCategory(label: string) {
+    setActiveCategory(label);
+    if (amenityListRef.current) amenityListRef.current.scrollTop = 0;
+  }
 
   const activeGroup = ROOM_AMENITY_GROUPS.find((g) => g.label === activeCategory) ?? ROOM_AMENITY_GROUPS[0];
   const configMap: Record<string, RoomAmenityConfig[] | undefined> = {
@@ -1101,7 +1110,7 @@ function Section5({ data, onChange, mandatoryError }: {
           {activeCategory !== "Mandatory" && (
             <button
               type="button"
-              onClick={() => setActiveCategory("Mandatory")}
+              onClick={() => selectAmenityCategory("Mandatory")}
               className="mt-1 text-red-600 underline underline-offset-2 text-xs hover:text-red-800"
             >
               Jump to Mandatory →
@@ -1168,11 +1177,15 @@ function Section5({ data, onChange, mandatoryError }: {
           )}
         </div>
       ) : (
-        /* ── Normal sidebar + panel ── */
-        <div className="flex divide-x divide-neutral-100" style={{ minHeight: 340 }}>
+        /* ── Normal sidebar + panel ──
+           Fixed height so the sidebar's category list and the content panel
+           always share one scroll viewport — otherwise whichever pane is
+           naturally taller dictates the row's height and the shorter pane's
+           own scroll never engages, silently clipping rows outside it. */
+        <div className="flex h-105 divide-x divide-neutral-100">
 
           {/* Sidebar */}
-          <div className="w-44 shrink-0 overflow-y-auto border-r border-neutral-100">
+          <div className="w-44 shrink-0 h-full overflow-y-auto scrollbar-slim border-r border-neutral-100">
             {ROOM_AMENITY_GROUPS.map((group) => {
               const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
               const isActive = activeCategory === group.label;
@@ -1180,7 +1193,7 @@ function Section5({ data, onChange, mandatoryError }: {
                 <button
                   key={group.label}
                   type="button"
-                  onClick={() => setActiveCategory(group.label)}
+                  onClick={() => selectAmenityCategory(group.label)}
                   className={cn(
                     "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
                     isActive
@@ -1203,7 +1216,7 @@ function Section5({ data, onChange, mandatoryError }: {
           </div>
 
           {/* Content panel */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 h-full flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-5 py-2.5 border-b border-neutral-100 bg-neutral-50/60 shrink-0">
               <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
                 {activeCategory}
@@ -1217,7 +1230,7 @@ function Section5({ data, onChange, mandatoryError }: {
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1">
+            <div ref={amenityListRef} className="overflow-y-auto scrollbar-slim flex-1">
               {activeConfig
                 ? activeConfig.map((config) => renderRow(config, config.name, activeCategory === "Mandatory"))
                 : activeGroup.items.map((item) => {
@@ -1282,6 +1295,18 @@ function stepSummary(id: number, d: RoomFormData): string {
 
 // ── Room Wizard Form (create + edit) ─────────────────────────────────────────
 
+// A brand-new room doesn't exist in the DB until every section validates
+// (createRoom writes the whole room + pricing row in one strict-schema
+// transaction — there's no partial/draft row to incrementally patch without
+// that draft leaking into the Rooms list, Calendar, and Rates queries, which
+// all already filter `is_active: true`). So in-progress form state for a NEW
+// room is persisted client-side instead — sessionStorage, scoped per hotel,
+// cleared on successful save or explicit Cancel, and naturally discarded
+// when the tab/browser closes.
+function draftKey(hotelId: number, roomId?: number): string {
+  return `hc-room-draft-${hotelId}-${roomId ?? "new"}`;
+}
+
 function RoomWizardForm({
   hotelId,
   roomId,
@@ -1296,8 +1321,30 @@ function RoomWizardForm({
   roomTypes: string[];
 }) {
   const router = useRouter();
-  const [step, setStep]               = useState(1);
+  const isEditing = roomId !== undefined;
+
+  const restored = (() => {
+    if (isEditing || typeof window === "undefined") return null;
+    try {
+      const raw = sessionStorage.getItem(draftKey(hotelId, roomId));
+      return raw ? (JSON.parse(raw) as { data: RoomFormData; unlockedThrough: number }) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  // Existing rooms were already fully validated on their last save — nothing
+  // should be locked when reopening one to edit. New rooms start at section 1
+  // (or wherever a restored draft left off).
+  // 6 (one past the last real section) rather than 5 — so section 5 itself
+  // also reads as "completed" (isCompleted checks sec.id < unlockedThrough),
+  // not just unlocked-but-not-yet-done.
+  const [unlockedThrough, setUnlockedThrough] = useState(isEditing ? 6 : restored?.unlockedThrough ?? 1);
+  // Resuming a draft reopens at the frontier section (where they left off),
+  // not back at section 1.
+  const [openSection, setOpenSection] = useState<number | null>(restored?.unlockedThrough ?? 1);
   const [data, setData]               = useState<RoomFormData>(() => {
+    if (restored) return restored.data;
     if (!initialData) return DEFAULT_FORM;
     const base = initialData as unknown as RoomFormData;
     // When editing an existing room, treat all mandatory items not in room_amenities as explicitly "No"
@@ -1310,14 +1357,39 @@ function RoomWizardForm({
   const [globalError, setGlobalError] = useState("");
   const [isPending, startTransition]  = useTransition();
 
-  const isEditing = roomId !== undefined;
+  // Persist create-mode progress so a reload/navigation-away doesn't lose it.
+  useEffect(() => {
+    if (isEditing) return;
+    try {
+      sessionStorage.setItem(draftKey(hotelId, roomId), JSON.stringify({ data, unlockedThrough }));
+    } catch {
+      // sessionStorage unavailable (private browsing, quota) — draft simply won't persist.
+    }
+  }, [isEditing, hotelId, roomId, data, unlockedThrough]);
+
+  function clearDraft() {
+    try {
+      sessionStorage.removeItem(draftKey(hotelId, roomId));
+    } catch {
+      // ignore
+    }
+  }
+
+  function toggleSection(id: number) {
+    if (id > unlockedThrough) return; // locked — no-op
+    setErrors({});
+    setOpenSection((cur) => (cur === id ? null : id));
+  }
 
   function advance() {
-    if (step < 5) {
-      const errs = VALIDATORS[step - 1]?.(data) ?? {};
+    if (!openSection) return;
+    const sec = openSection;
+    if (sec < 5) {
+      const errs = VALIDATORS[sec - 1]?.(data) ?? {};
       if (Object.keys(errs).length > 0) { setErrors(errs); return; }
       setErrors({});
-      setStep(step + 1);
+      setUnlockedThrough((u) => Math.max(u, sec + 1));
+      setOpenSection(sec + 1);
     } else {
       handleSave();
     }
@@ -1341,7 +1413,8 @@ function RoomWizardForm({
       const errs = VALIDATORS[i](data);
       if (Object.keys(errs).length > 0) {
         setErrors(errs);
-        setStep(i + 1);
+        setUnlockedThrough((u) => Math.max(u, i + 1));
+        setOpenSection(i + 1);
         return;
       }
     }
@@ -1352,6 +1425,7 @@ function RoomWizardForm({
           ? await updateRoom(hotelId, roomId, buildPayload())
           : await createRoom(hotelId, buildPayload());
         if (result.roomId) {
+          clearDraft();
           router.refresh();
           onDone();
         } else if (result.error) {
@@ -1387,32 +1461,41 @@ function RoomWizardForm({
 
       <div className="divide-y divide-neutral-100 bg-white">
         {SECTIONS.map((sec) => {
-          const isActive = sec.id === step;
-          const isDone   = sec.id < step;
-          const isLocked = sec.id > step;
+          const isOpen      = sec.id === openSection;
+          const isCompleted = sec.id < unlockedThrough;
+          const isLocked    = sec.id > unlockedThrough;
 
           return (
             <div key={sec.id}>
-              <div className="flex items-center gap-3 px-5 py-4">
-                <StepCircle n={sec.id} active={isActive} done={isDone} />
+              <button
+                type="button"
+                onClick={() => toggleSection(sec.id)}
+                disabled={isLocked}
+                aria-expanded={isOpen}
+                className={cn(
+                  "w-full flex items-center gap-3 px-5 py-4 text-left transition-colors",
+                  isLocked ? "cursor-not-allowed" : "cursor-pointer hover:bg-neutral-50/70",
+                )}
+              >
+                <StepCircle n={sec.id} active={isOpen} done={isCompleted} />
                 <div className="flex-1 min-w-0">
                   <p className={cn("text-sm font-semibold leading-snug", isLocked ? "text-neutral-400" : "text-neutral-800")}>
                     {sec.title}
                   </p>
-                  <p className={cn("text-xs mt-0.5 truncate", isDone ? "text-neutral-500" : isLocked ? "text-neutral-400" : "text-neutral-500")}>
-                    {isDone ? stepSummary(sec.id, data) : sec.sub}
+                  <p className={cn("text-xs mt-0.5 truncate", isLocked ? "text-neutral-400" : "text-neutral-500")}>
+                    {isCompleted && !isOpen ? stepSummary(sec.id, data) : sec.sub}
                   </p>
                 </div>
-                {isDone && (
-                  <button type="button"
-                    onClick={() => { setErrors({}); setStep(sec.id); }}
-                    className="shrink-0 text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors">
-                    Edit
-                  </button>
+                {isLocked ? (
+                  <LockSimpleIcon size={16} className="text-neutral-300 shrink-0" aria-hidden="true" />
+                ) : isOpen ? (
+                  <CaretUpIcon size={16} className="text-neutral-400 shrink-0" aria-hidden="true" />
+                ) : (
+                  <CaretDownIcon size={16} className="text-neutral-400 shrink-0" aria-hidden="true" />
                 )}
-              </div>
+              </button>
 
-              {isActive && (
+              {isOpen && (
                 <div className="border-t border-neutral-100">
                   {globalError && (
                     <div className="mx-5 mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -1422,21 +1505,21 @@ function RoomWizardForm({
                   )}
                   {sectionContent(sec.id)}
                   <div className="flex items-center justify-between px-5 py-3.5 border-t border-neutral-100">
-                    <button type="button" onClick={onDone}
+                    <button type="button" onClick={() => { clearDraft(); onDone(); }}
                       className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors">
                       Cancel
                     </button>
                     <div className="flex items-center gap-3">
-                      {step > 1 && (
-                        <button type="button" onClick={() => { setErrors({}); setStep(step - 1); }}
+                      {sec.id > 1 && (
+                        <button type="button" onClick={() => { setErrors({}); setOpenSection(sec.id - 1); }}
                           className="flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900 font-medium transition-colors">
                           <ArrowLeftIcon size={13} weight="bold" />
                           Back
                         </button>
                       )}
                       <Button variant="primary" size="sm" onClick={advance} loading={isPending} className="gap-1.5">
-                        {isPending ? "Saving…" : step === 5 ? (isEditing ? "Update Room" : "Save Room") : "Next"}
-                        {!isPending && step < 5 && <ArrowRightIcon size={13} weight="bold" />}
+                        {isPending ? "Saving…" : sec.id === 5 ? (isEditing ? "Update Room" : "Save Room") : "Next"}
+                        {!isPending && sec.id < 5 && <ArrowRightIcon size={13} weight="bold" />}
                       </Button>
                     </div>
                   </div>
@@ -1504,30 +1587,32 @@ function RoomsList({
       </div>
       <div className="space-y-2">
         {rooms.map((room) => (
-          <Card key={room.id} variant="default" radius="sm" padding="sm" className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="size-9 rounded-lg bg-neutral-100 flex items-center justify-center shrink-0">
-                <BedIcon size={16} className="text-neutral-500" />
+          <Card key={room.id} variant="default" radius="sm" padding="none">
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center gap-3">
+                <div className="size-9 rounded-lg bg-neutral-100 flex items-center justify-center shrink-0">
+                  <BedIcon size={16} className="text-neutral-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900">{room.name}</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {[
+                      room.room_type,
+                      room.num_bedrooms != null ? `${room.num_bedrooms} bedroom${room.num_bedrooms !== 1 ? "s" : ""}` : null,
+                      `${room.num_rooms} unit${room.num_rooms !== 1 ? "s" : ""}`,
+                    ].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-neutral-900">{room.name}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  {[
-                    room.room_type,
-                    room.num_bedrooms != null ? `${room.num_bedrooms} bedroom${room.num_bedrooms !== 1 ? "s" : ""}` : null,
-                    `${room.num_rooms} unit${room.num_rooms !== 1 ? "s" : ""}`,
-                  ].filter(Boolean).join(" · ")}
-                </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="outline" size="xs" onClick={() => onEdit(room.id)}>
+                  Edit
+                </Button>
+                <button type="button" onClick={() => handleDelete(room.id)} disabled={deletingId === room.id} aria-label={`Delete room type ${room.name}`}
+                  className="size-8 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-40">
+                  <TrashIcon size={14} aria-hidden="true" />
+                </button>
               </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="xs" onClick={() => onEdit(room.id)}>
-                Edit
-              </Button>
-              <button type="button" onClick={() => handleDelete(room.id)} disabled={deletingId === room.id} aria-label={`Delete room type ${room.name}`}
-                className="size-8 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-40">
-                <TrashIcon size={14} aria-hidden="true" />
-              </button>
             </div>
           </Card>
         ))}

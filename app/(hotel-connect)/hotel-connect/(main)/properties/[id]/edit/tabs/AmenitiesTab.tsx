@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useRef } from "react";
 import { saveAmenities, type AmenitiesState } from "./amenities-actions";
 import {
   AMENITY_CATEGORIES,
@@ -413,6 +413,14 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     () => (hotel.property_amenities as AmenitiesMap) ?? {}
   );
   const [activeCategory, setActiveCategory] = useState(AMENITY_CATEGORIES[0].label);
+  const contentScrollRef = useRef<HTMLDivElement>(null);
+
+  // Switching categories should always start the content pane from the top —
+  // otherwise it keeps whatever scroll position the previous category was at.
+  function selectCategory(label: string) {
+    setActiveCategory(label);
+    if (contentScrollRef.current) contentScrollRef.current.scrollTop = 0;
+  }
   const [search, setSearch] = useState("");
   const [poolModal, setPoolModal] = useState<{ editingPool: PoolConfig | null } | null>(null);
   const [poolCountPrompt, setPoolCountPrompt] = useState(false);
@@ -434,7 +442,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
         `${unanswered.length} mandatory amenit${unanswered.length === 1 ? "y has" : "ies have"} no answer. Please select Yes or No for every item in the Mandatory category.`
       );
       setShowMandatoryErrors(true);
-      setActiveCategory("Mandatory");
+      selectCategory("Mandatory");
       return;
     }
     if (yesCount < 3) {
@@ -442,7 +450,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
       setValidationError(
         `At least 3 mandatory amenities must be marked "Yes". Currently only ${yesCount} ${yesCount === 1 ? "is" : "are"} selected.`
       );
-      setActiveCategory("Mandatory");
+      selectCategory("Mandatory");
       return;
     }
     setValidationError(null);
@@ -965,16 +973,26 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
 
   return (
     <>
-      <form id="wizard-form" action={formAction} onSubmit={handleSubmit}>
+      {/* Fixed to the viewport space between the tab bar and the footer nav —
+          the sidebar/content pane below already scroll internally, so this
+          outer height stops the whole tab from ALSO scrolling the page
+          (which would otherwise double-scroll and leave a gap above the
+          footer). Matches WizardShell's header + tab bar + footer chrome. */}
+      <form
+        id="wizard-form"
+        action={formAction}
+        onSubmit={handleSubmit}
+        className="flex flex-col h-[calc(100vh-263px)] min-h-125"
+      >
         <input type="hidden" name="amenities_json" value={JSON.stringify(amenities)} />
 
         {(state.error || validationError) && (
-          <div role="alert" className="mb-4 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <div role="alert" className="mb-4 shrink-0 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
             <p>{validationError ?? state.error}</p>
             {validationError && activeCategory !== "Mandatory" && (
               <button
                 type="button"
-                onClick={() => setActiveCategory("Mandatory")}
+                onClick={() => selectCategory("Mandatory")}
                 className="mt-1 text-red-600 underline underline-offset-2 text-xs hover:text-red-800"
               >
                 Jump to Mandatory section →
@@ -983,60 +1001,69 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           </div>
         )}
 
-        {/* Global search */}
-        <div className="mb-3">
-          <Input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search all amenities…"
-            className="rounded-xl"
-          />
-        </div>
+        {/* Sidebar + Content / Search — one Card so the search input's focus
+            ring sits inside the card's own padding instead of being clipped
+            by its overflow-hidden edge. The sidebar's category list and the
+            content pane below still share one scroll viewport; without that,
+            whichever pane is naturally taller dictates the container height
+            and the shorter pane's own scroll never engages, silently
+            clipping rows outside it. */}
+        <Card variant="elevated" radius="md" padding="none" className="flex flex-col flex-1 min-h-0 overflow-hidden">
 
-        {sq ? (
-          /* Global search results */
-          <Card variant="elevated" radius="md" padding="none" className="overflow-hidden">
-            {searchResults.length === 0 ? (
-              <p className="px-6 py-10 text-center text-sm text-neutral-400">
-                No amenities match &ldquo;{search}&rdquo;
-              </p>
-            ) : (
-              searchResults.map(({ name, category }) => {
-                const value = amenities[name];
-                const yes = isYesValue(value);
-                const no  = isNoValue(value);
-                return (
-                  <div
-                    key={`${category}::${name}`}
-                    className={cn(
-                      "flex items-center justify-between px-6 py-3.5 border-b border-neutral-100 last:border-0",
-                      yes ? "bg-emerald-50/40" : no ? "bg-neutral-50/40" : "",
-                    )}
-                  >
-                    <div className="flex-1 min-w-0 pr-4">
-                      <p className="text-sm text-neutral-700">{name}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5">{category}</p>
+          {/* Global search */}
+          <div className="p-4 border-b border-neutral-200 shrink-0">
+            <Input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search all amenities…"
+              className="rounded-xl"
+            />
+          </div>
+
+          {sq ? (
+            /* Global search results */
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-slim">
+              {searchResults.length === 0 ? (
+                <p className="px-6 py-10 text-center text-sm text-neutral-400">
+                  No amenities match &ldquo;{search}&rdquo;
+                </p>
+              ) : (
+                searchResults.map(({ name, category }) => {
+                  const value = amenities[name];
+                  const yes = isYesValue(value);
+                  const no  = isNoValue(value);
+                  return (
+                    <div
+                      key={`${category}::${name}`}
+                      className={cn(
+                        "flex items-center justify-between px-6 py-3.5 border-b border-neutral-100 last:border-0",
+                        yes ? "bg-emerald-50/40" : no ? "bg-neutral-50/40" : "",
+                      )}
+                    >
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="text-sm text-neutral-700">{name}</p>
+                        <p className="text-xs text-neutral-400 mt-0.5">{category}</p>
+                      </div>
+                      <YesNoButtons
+                        value={yes ? true : no ? false : undefined}
+                        onChange={(val) => setAmenityValue(name, val)}
+                        disabled={isPending}
+                      />
                     </div>
-                    <YesNoButtons
-                      value={yes ? true : no ? false : undefined}
-                      onChange={(val) => setAmenityValue(name, val)}
-                      disabled={isPending}
-                    />
-                  </div>
-                );
-              })
-            )}
-          </Card>
-        ) : (
+                  );
+                })
+              )}
+            </div>
+          ) : (
 
-        /* Sidebar + Content */
-        <Card variant="elevated" radius="md" padding="none" className="flex overflow-hidden">
+          /* Sidebar + Content row */
+          <div className="flex flex-1 min-h-0 overflow-hidden px-px">
 
-          {/* Sidebar */}
-          <aside className="w-64 shrink-0  self-start sticky top-0 h-full overflow-y-auto">
-            <div className="px-4 py-2.5 border-b border-neutral-200 bg-white sticky top-0">
-              <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Categories</p>
+            {/* Sidebar */}
+          <aside className="w-64 shrink-0 h-full overflow-y-auto scrollbar-slim ">
+            <div className="px-4 py-2.5 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
+              <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider ">Categories</p>
             </div>
             {AMENITY_CATEGORIES.map((cat) => {
               const { answered, total } = getStats(cat.items);
@@ -1047,17 +1074,17 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
                   answered={answered}
                   total={total}
                   active={cat.label === activeCategory}
-                  onClick={() => setActiveCategory(cat.label)}
+                  onClick={() => selectCategory(cat.label)}
                 />
               );
             })}
           </aside>
 
           {/* Content */}
-          <div className="flex-1 min-w-0 flex flex-col border-l border-neutral-200 ">
+          <div ref={contentScrollRef} className="flex-1 min-w-0 h-full overflow-y-auto scrollbar-slim flex flex-col border-l border-neutral-200 ">
 
             {/* Category header */}
-            <div className="px-6 py-4 border-b border-neutral-200 bg-white sticky top-0 z-10">
+            <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-bold text-neutral-800">{activeCat.label}</h2>
@@ -1292,8 +1319,9 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
             </div>
 
           </div>
+          </div>
+          )} {/* end sq ternary */}
         </Card>
-        )} {/* end sq ternary */}
       </form>
 
       {poolCountPrompt && (

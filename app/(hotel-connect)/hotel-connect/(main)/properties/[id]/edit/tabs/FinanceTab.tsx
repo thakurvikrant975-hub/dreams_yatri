@@ -88,38 +88,37 @@ const BUSINESS_TYPE_LABELS: Record<HotelBusinessType, string> = {
   HUF:             "HUF (Hindu Undivided Family)",
 };
 
-const DOCUMENT_TYPES = [
-  {
-    key: "property_deed",
-    label: "Property Ownership Proof",
-    description: "Property deed, sale deed, or lease agreement",
-    required: true,
-  },
-  {
-    key: "trade_license",
-    label: "Trade License",
-    description: "Business/trade license issued by local authority",
-    required: true,
-  },
-  {
-    key: "gst_certificate",
-    label: "GST Certificate",
-    description: "GST registration certificate (leave blank if not applicable)",
-    required: false,
-  },
-  {
-    key: "pan_card",
-    label: "PAN Card",
-    description: "PAN card of the owner or business entity",
-    required: true,
-  },
-  {
-    key: "id_proof",
-    label: "Owner's Identity Proof",
-    description: "Aadhaar card, passport, or voter ID",
-    required: true,
-  },
+const RELATIONSHIP_DOC_TYPES = [
+  { value: "UTILITY_BILL",      label: "Utility Bill (Electricity / Water / Gas / Broadband — within 60–90 days)" },
+  { value: "GST_CERTIFICATE",   label: "GST Certificate" },
+  { value: "TRADE_LICENSE",     label: "Trade License" },
+  { value: "GUMASTA",           label: "Gumasta / Shop & Establishment Certificate" },
+  { value: "UDYAM",             label: "Udyam Registration" },
+  { value: "TOURISM_CERT",      label: "Tourism Certificate" },
+  { value: "FIRE_CERT",         label: "Fire Certificate (for hotels/commercial properties)" },
+  { value: "COMPLETION_CERT",   label: "Building Completion Certificate (if available)" },
 ];
+
+const OWNERSHIP_TYPES = [
+  { value: "OWNED",   label: "Owned Property (Individual ownership)" },
+  { value: "LEASED",  label: "Leased Property (Rented/leased premises)" },
+  { value: "MANAGED", label: "Managed Property (Third party managed premises)" },
+];
+
+const OWNERSHIP_DOC_TYPES: Record<string, { value: string; label: string }[]> = {
+  OWNED: [
+    { value: "PROPERTY_REGISTRATION", label: "Property Registration Document" },
+    { value: "SALE_DEED",             label: "Sale Deed" },
+    { value: "LAND_DOCUMENT",         label: "Land Document (Khasra / Khatami)" },
+  ],
+  LEASED: [
+    { value: "LEASE_AGREEMENT",       label: "Lease Agreement" },
+    { value: "LEAVE_LICENSE",         label: "Leave & License Agreement (must be valid & signed)" },
+  ],
+  MANAGED: [
+    { value: "MANAGEMENT_AGREEMENT",  label: "Management Agreement" },
+  ],
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -134,6 +133,9 @@ export type FinanceHotelData = {
   business_type: HotelBusinessType | null;
   msme_number: string | null;
   property_documents: Record<string, string> | null;
+  relationship_doc_type: string | null;
+  ownership_type: string | null;
+  id_proof_type: string | null;
 };
 
 // ── UI components ─────────────────────────────────────────────────────────────
@@ -368,8 +370,16 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
     router.refresh();
   }
 
-  const requiredDocs = DOCUMENT_TYPES.filter((d) => d.required).map((d) => d.key);
-  const docsSectionComplete = requiredDocs.every((k) => !!docs[k]);
+  const [relDocType, setRelDocType] = useState(hotel.relationship_doc_type ?? "");
+  const [ownershipType, setOwnershipType] = useState(hotel.ownership_type ?? "");
+  const [ownershipDocType, setOwnershipDocType] = useState(hotel.id_proof_type ?? "");
+
+  function handleOwnershipTypeChange(value: string) {
+    setOwnershipType(value);
+    setOwnershipDocType("");
+  }
+
+  const docsSectionComplete = !!docs.address_proof && !!docs.ownership_proof;
 
   function handleSubmit(e: React.FormEvent) {
     if (accountMismatch) {
@@ -389,6 +399,9 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
       <input type="hidden" name="pan_number"          value={panNumber} />
       <input type="hidden" name="business_type"       value={businessType} />
       <input type="hidden" name="msme_number"         value={msmeRegistered ? msmeNumber : ""} />
+      <input type="hidden" name="relationship_doc_type" value={relDocType} />
+      <input type="hidden" name="ownership_type"       value={ownershipType} />
+      <input type="hidden" name="id_proof_type"        value={ownershipDocType} />
 
       {state?.error && (
         <div role="alert" className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 flex items-center gap-2">
@@ -614,22 +627,69 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
         onToggle={() => toggle(3)}
         complete={docsSectionComplete}
       >
-        <div className="px-5 py-5 space-y-3">
+        <div className="px-5 py-5 space-y-5">
           <p className="text-[11px] text-neutral-500 mb-1">
             Upload clear scanned copies or photos. Accepted formats: PDF, JPG, PNG (max 10 MB each).
           </p>
-          {DOCUMENT_TYPES.map((doc) => (
-            <DocumentCard
-              key={doc.key}
-              hotelId={hotel.id}
-              docKey={doc.key}
-              label={doc.label}
-              description={doc.description}
-              required={doc.required}
-              url={docs[doc.key]}
-              onUpdate={handleDocUpdate}
+
+          {/* Address cum Relationship Proof */}
+          <div className="space-y-2">
+            <FieldLabel required htmlFor="fin-rel-doc-type">
+              Select Address cum Relationship Proof Document Type to Upload
+            </FieldLabel>
+            <SearchSelect
+              id="fin-rel-doc-type"
+              options={RELATIONSHIP_DOC_TYPES}
+              value={relDocType}
+              onChange={setRelDocType}
+              placeholder="Select document type"
+              searchPlaceholder="Search…"
             />
-          ))}
+            {relDocType && (
+              <DocumentCard
+                hotelId={hotel.id}
+                docKey="address_proof"
+                label={RELATIONSHIP_DOC_TYPES.find((d) => d.value === relDocType)?.label ?? "Address Proof"}
+                description="Upload the selected document type"
+                required
+                url={docs.address_proof}
+                onUpdate={handleDocUpdate}
+              />
+            )}
+          </div>
+
+          {/* Business Ownership Type */}
+          <div className="space-y-2">
+            <FieldLabel required htmlFor="fin-ownership-type">Select Business Ownership Type</FieldLabel>
+            <SearchSelect
+              id="fin-ownership-type"
+              options={OWNERSHIP_TYPES}
+              value={ownershipType}
+              onChange={handleOwnershipTypeChange}
+              placeholder="Select ownership type"
+              showSearch={false}
+            />
+            {ownershipType && (
+              <SearchSelect
+                options={OWNERSHIP_DOC_TYPES[ownershipType] ?? []}
+                value={ownershipDocType}
+                onChange={setOwnershipDocType}
+                placeholder="Select document type"
+                showSearch={false}
+              />
+            )}
+            {ownershipType && ownershipDocType && (
+              <DocumentCard
+                hotelId={hotel.id}
+                docKey="ownership_proof"
+                label={OWNERSHIP_DOC_TYPES[ownershipType]?.find((d) => d.value === ownershipDocType)?.label ?? "Ownership Proof"}
+                description="Upload the selected document type"
+                required
+                url={docs.ownership_proof}
+                onUpdate={handleDocUpdate}
+              />
+            )}
+          </div>
         </div>
       </Section>
     </form>

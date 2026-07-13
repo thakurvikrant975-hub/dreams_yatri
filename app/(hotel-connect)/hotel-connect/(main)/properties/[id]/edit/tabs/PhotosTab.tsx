@@ -18,7 +18,9 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import { Card } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import {
   uploadHotelPhotos,
@@ -29,6 +31,7 @@ import {
   type HotelPhoto,
   type PhotoCategory,
 } from "./photo-actions";
+import { listRoomPhotos, uploadRoomPhotos, deleteRoomPhoto, type RoomPhoto } from "./room-photo-actions";
 
 // ── Tag data ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +52,12 @@ const MAX_TAGS = 3;
 const MIN_TOTAL_PHOTOS = 6;
 const MIN_ROOM_TAGGED_PHOTOS = 2;
 const ROOM_TAG = "Bedroom";
+const MIN_ROOM_PHOTOS = 2;
+
+// Room type option passed in from the Rooms tab's created-room list — kept
+// minimal (structurally compatible with RoomSummary) so this file doesn't
+// need to import RoomsTab's full type.
+export type RoomOption = { id: number; name: string; room_type: string | null };
 
 function groupPhotosByTag(photos: HotelPhoto[]): { tag: string; photos: HotelPhoto[] }[] {
   const map = new Map<string, HotelPhoto[]>();
@@ -69,6 +78,31 @@ function PhotoSkeleton() {
       <div className="w-22 h-15 rounded-lg bg-neutral-200 animate-pulse" />
       <div className="w-12 h-2 rounded-full bg-neutral-200 animate-pulse mt-0.5" />
     </div>
+  );
+}
+
+// ── Image with a skeleton that stays up until the bitmap actually finishes
+// loading — the grid's containers paint instantly, but without this a
+// server-resolved photo list still leaves a blank gap per thumbnail while
+// its bytes stream in, between the layout appearing and pixels showing up.
+function ImageWithSkeleton({
+  src, alt, priority, className,
+}: {
+  src: string; alt: string; priority?: boolean; className?: string;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      {!loaded && <div className="absolute inset-0 bg-neutral-200 animate-pulse" />}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        priority={priority}
+        className={cn(className, "transition-opacity duration-200", loaded ? "opacity-100" : "opacity-0")}
+        onLoad={() => setLoaded(true)}
+      />
+    </>
   );
 }
 
@@ -121,7 +155,7 @@ function PhotoPreviewModal({
         {/* Large image */}
         <div className="relative w-full bg-black flex-none" style={{ aspectRatio: "16/9" }}>
           {photo.url ? (
-            <Image src={photo.url} alt="Preview" fill className="object-contain" />
+            <ImageWithSkeleton src={photo.url} alt="Preview" className="object-contain" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <ImageIcon size={40} className="text-neutral-600" />
@@ -304,7 +338,7 @@ function PhotoCard({
             onClick={() => setPreviewOpen(true)}
           >
             {photo.url ? (
-              <Image src={photo.url} alt={tags.join(", ") || "Photo"} fill className="object-cover" />
+              <ImageWithSkeleton src={photo.url} alt={tags.join(", ") || "Photo"} className="object-cover" />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <ImageIcon size={14} className="text-neutral-300" />
@@ -556,6 +590,154 @@ function UploadButton({
   );
 }
 
+// ── Room images — per-room photos (hotel_room_images), assigned to a
+// specific room type selected from a dropdown, rather than the general
+// tag-based hotel_images gallery above ──────────────────────────────────────
+
+function RoomPhotoManager({ hotelId, roomId }: { hotelId: number; roomId: number }) {
+  const router = useRouter();
+  const [photos, setPhotos] = useState<RoomPhoto[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setPhotos(null);
+    listRoomPhotos(hotelId, roomId).then((result) => {
+      if (cancelled) return;
+      setLoading(false);
+      if (result.photos) setPhotos(result.photos);
+      else if (result.error) setError(result.error);
+    });
+    return () => { cancelled = true; };
+  }, [hotelId, roomId]);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files?.length) return;
+    setUploading(true);
+    setError(null);
+    const fd = new FormData();
+    for (const f of files) fd.append("photos", f);
+    const result = await uploadRoomPhotos(hotelId, roomId, fd);
+    setUploading(false);
+    e.target.value = "";
+    if (result.photos?.length) {
+      setPhotos((prev) => [...(prev ?? []), ...result.photos!]);
+      router.refresh();
+    }
+    if (result.error) setError(result.error);
+  }
+
+  async function handleDelete(photoId: number) {
+    setDeletingId(photoId);
+    const result = await deleteRoomPhoto(hotelId, roomId, photoId);
+    setDeletingId(null);
+    if (result.error) { setError(result.error); return; }
+    setPhotos((prev) => (prev ?? []).filter((p) => p.id !== photoId));
+    router.refresh();
+  }
+
+  const count = photos?.length ?? 0;
+  const met = count >= MIN_ROOM_PHOTOS;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-neutral-100">
+      <div className="flex items-center justify-between mb-2">
+        <p className={cn("text-[11px] font-medium", met ? "text-emerald-600" : "text-amber-600")}>
+          {met ? <CheckIcon size={11} weight="bold" className="inline mr-1 -mt-0.5" aria-hidden="true" />
+                : <WarningIcon size={11} weight="bold" className="inline mr-1 -mt-0.5" aria-hidden="true" />}
+          {count} of {MIN_ROOM_PHOTOS} recommended photos
+        </p>
+        {error && <p className="text-[11px] text-red-500 truncate max-w-[50%]">{error}</p>}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {loading ? (
+          <PhotoSkeleton />
+        ) : (
+          (photos ?? []).map((photo) => (
+            <div key={photo.id} className="relative group w-22 h-15 rounded-lg overflow-hidden bg-neutral-100 shrink-0">
+              <ImageWithSkeleton src={photo.url} alt="Room photo" className="object-cover" />
+              <button
+                type="button"
+                onClick={() => handleDelete(photo.id)}
+                disabled={deletingId === photo.id}
+                aria-label="Remove photo"
+                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white disabled:opacity-60"
+              >
+                <TrashIcon size={14} aria-hidden="true" />
+              </button>
+            </div>
+          ))
+        )}
+        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+          className="flex flex-col items-center justify-center gap-0.5 w-22 h-15 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 transition-colors disabled:opacity-60 shrink-0"
+        >
+          {uploading ? (
+            <span className="text-[9px] font-medium">…</span>
+          ) : (
+            <>
+              <PlusIcon size={16} weight="bold" aria-hidden="true" />
+              <span className="text-[9px] font-semibold">Add</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RoomImagesSection({ hotelId, rooms }: { hotelId: number; rooms: RoomOption[] }) {
+  const [open, setOpen] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+
+  return (
+    <SectionCard
+      title="Room Images"
+      desc="Assign photos to a specific room type"
+      headerAction={
+        rooms.length > 0 ? (
+          <Button variant="primary" size="xs" onClick={() => setOpen(true)} className="gap-1.5">
+            <PlusIcon size={11} weight="bold" />
+            Add Room Images
+          </Button>
+        ) : undefined
+      }
+    >
+      {rooms.length === 0 ? (
+        <p className="text-xs text-neutral-500">
+          No room types yet. Add rooms in the Rooms tab first, then come back here to add their photos.
+        </p>
+      ) : !open ? (
+        <p className="text-xs text-neutral-500">
+          Click <strong>Add Room Images</strong> to select a room type and upload its photos.
+        </p>
+      ) : (
+        <div>
+          <SearchSelect
+            options={rooms.map((r) => ({ value: String(r.id), label: r.name }))}
+            value={selectedRoomId != null ? String(selectedRoomId) : undefined}
+            onChange={(v) => setSelectedRoomId(Number(v))}
+            placeholder="Select a room to add images"
+            showSearch={rooms.length > 6}
+          />
+          {selectedRoomId != null && (
+            <RoomPhotoManager key={selectedRoomId} hotelId={hotelId} roomId={selectedRoomId} />
+          )}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 // ── Main tab ──────────────────────────────────────────────────────────────────
 
 export type { HotelPhoto, PhotoCategory };
@@ -564,10 +746,12 @@ export default function PhotosTab({
   hotelId,
   categories,
   propertySubType,
+  rooms = [],
 }: {
   hotelId: number;
   categories: PhotoCategory[];
   propertySubType: string | null;
+  rooms?: RoomOption[];
 }) {
   const router = useRouter();
 
@@ -760,6 +944,7 @@ export default function PhotosTab({
           </p>
           <UploadButton hotelId={hotelId} label="Upload Photos" onStart={handleUploadStart} onEnd={handleUploadEnd} />
         </div>
+        <RoomImagesSection hotelId={hotelId} rooms={rooms} />
         <form id="wizard-form" action={formAction} onSubmit={handleFormSubmit} className="hidden" />
       </div>
     );
@@ -831,7 +1016,7 @@ export default function PhotosTab({
         </div>
         <div className="relative w-full" style={{ aspectRatio: "16/5" }}>
           {coverPhoto?.url ? (
-            <Image src={coverPhoto.url} alt="Property cover" fill className="object-cover" priority />
+            <ImageWithSkeleton src={coverPhoto.url} alt="Property cover" className="object-cover" priority />
           ) : (
             <div className="absolute inset-0 bg-neutral-100 flex items-center justify-center">
               <ImageIcon size={32} className="text-neutral-300" />
@@ -879,6 +1064,9 @@ export default function PhotosTab({
           </div>
         )}
       </SectionCard>
+
+      {/* Room Images */}
+      <RoomImagesSection hotelId={hotelId} rooms={rooms} />
 
       {/* Untagged section */}
       {untagged.length > 0 && (

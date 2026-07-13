@@ -182,6 +182,7 @@ export default async function EditPropertyPage({
         select: {
           id: true, name: true, room_type: true,
           num_rooms: true, num_bedrooms: true, is_active: true,
+          _count: { select: { images: true } },
         },
         where:   { is_active: true },
         orderBy: { sort_order: "asc" },
@@ -227,7 +228,15 @@ export default async function EditPropertyPage({
     prop_child_rate:  hotel.prop_child_rate  != null ? hotel.prop_child_rate.toFixed(2)   : null,
   };
 
-  const rooms = hotel.hotelRooms as RoomSummary[];
+  const rooms: RoomSummary[] = hotel.hotelRooms.map((r) => ({
+    id: r.id,
+    name: r.name,
+    room_type: r.room_type,
+    num_rooms: r.num_rooms,
+    num_bedrooms: r.num_bedrooms,
+    is_active: r.is_active,
+    photoCount: r._count.images,
+  }));
   const isHomestay = h.property_category === "HOMESTAY_VILLA";
   // Hotels have 7 tabs (no Pricing tab); Homestay/Villa have 8 tabs (Pricing at tab 6)
   const maxTab = isHomestay ? 8 : 7;
@@ -325,7 +334,7 @@ export default async function EditPropertyPage({
     ) : currentTab === 4 ? (
       <HomestayRoomsTab hotel={h as unknown as HomestayRoomsData} />
     ) : currentTab === 5 ? (
-      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} />
+      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} rooms={rooms} />
     ) : currentTab === 6 ? (
       <MealsPricingTab hotel={pricingData} />
     ) : currentTab === 7 ? (
@@ -345,7 +354,7 @@ export default async function EditPropertyPage({
     ) : currentTab === 4 ? (
       <RoomsTab hotelId={h.id} rooms={rooms} propertySubType={h.property_sub_type} />
     ) : currentTab === 5 ? (
-      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} />
+      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} rooms={rooms} />
     ) : currentTab === 6 ? (
       <PoliciesTab hotel={h as unknown as PoliciesHotelData} />
     ) : currentTab === 7 ? (
