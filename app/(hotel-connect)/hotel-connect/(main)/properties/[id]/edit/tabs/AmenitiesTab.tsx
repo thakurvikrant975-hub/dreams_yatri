@@ -1001,61 +1001,66 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           </div>
         )}
 
-        {/* Global search */}
-        <div className="mb-3 shrink-0">
-          <Input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search all amenities…"
-            className="rounded-xl"
-          />
-        </div>
+        {/* Sidebar + Content / Search — one Card so the search input's focus
+            ring sits inside the card's own padding instead of being clipped
+            by its overflow-hidden edge. The sidebar's category list and the
+            content pane below still share one scroll viewport; without that,
+            whichever pane is naturally taller dictates the container height
+            and the shorter pane's own scroll never engages, silently
+            clipping rows outside it. */}
+        <Card variant="elevated" radius="md" padding="none" className="flex flex-col flex-1 min-h-0 overflow-hidden">
 
-        {sq ? (
-          /* Global search results */
-          <Card variant="elevated" radius="md" padding="none" className="flex-1 min-h-0 overflow-y-auto scrollbar-slim">
-            {searchResults.length === 0 ? (
-              <p className="px-6 py-10 text-center text-sm text-neutral-400">
-                No amenities match &ldquo;{search}&rdquo;
-              </p>
-            ) : (
-              searchResults.map(({ name, category }) => {
-                const value = amenities[name];
-                const yes = isYesValue(value);
-                const no  = isNoValue(value);
-                return (
-                  <div
-                    key={`${category}::${name}`}
-                    className={cn(
-                      "flex items-center justify-between px-6 py-3.5 border-b border-neutral-100 last:border-0",
-                      yes ? "bg-emerald-50/40" : no ? "bg-neutral-50/40" : "",
-                    )}
-                  >
-                    <div className="flex-1 min-w-0 pr-4">
-                      <p className="text-sm text-neutral-700">{name}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5">{category}</p>
+          {/* Global search */}
+          <div className="p-4 border-b border-neutral-200 shrink-0">
+            <Input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search all amenities…"
+              className="rounded-xl"
+            />
+          </div>
+
+          {sq ? (
+            /* Global search results */
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-slim">
+              {searchResults.length === 0 ? (
+                <p className="px-6 py-10 text-center text-sm text-neutral-400">
+                  No amenities match &ldquo;{search}&rdquo;
+                </p>
+              ) : (
+                searchResults.map(({ name, category }) => {
+                  const value = amenities[name];
+                  const yes = isYesValue(value);
+                  const no  = isNoValue(value);
+                  return (
+                    <div
+                      key={`${category}::${name}`}
+                      className={cn(
+                        "flex items-center justify-between px-6 py-3.5 border-b border-neutral-100 last:border-0",
+                        yes ? "bg-emerald-50/40" : no ? "bg-neutral-50/40" : "",
+                      )}
+                    >
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="text-sm text-neutral-700">{name}</p>
+                        <p className="text-xs text-neutral-400 mt-0.5">{category}</p>
+                      </div>
+                      <YesNoButtons
+                        value={yes ? true : no ? false : undefined}
+                        onChange={(val) => setAmenityValue(name, val)}
+                        disabled={isPending}
+                      />
                     </div>
-                    <YesNoButtons
-                      value={yes ? true : no ? false : undefined}
-                      onChange={(val) => setAmenityValue(name, val)}
-                      disabled={isPending}
-                    />
-                  </div>
-                );
-              })
-            )}
-          </Card>
-        ) : (
+                  );
+                })
+              )}
+            </div>
+          ) : (
 
-        /* Sidebar + Content — share the form's flex-1 height so the sidebar's
-           category list and the content pane always share one scroll
-           viewport; without this, whichever pane is naturally taller
-           dictates the container height and the shorter pane's own scroll
-           never engages, silently clipping rows outside it. */
-        <Card variant="elevated" radius="md" padding="none" className="flex flex-1 min-h-0 overflow-hidden">
+          /* Sidebar + Content row */
+          <div className="flex flex-1 min-h-0 overflow-hidden">
 
-          {/* Sidebar */}
+            {/* Sidebar */}
           <aside className="w-64 shrink-0 h-full overflow-y-auto scrollbar-slim">
             <div className="px-4 py-2.5 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
               <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Categories</p>
@@ -1314,8 +1319,9 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
             </div>
 
           </div>
+          </div>
+          )} {/* end sq ternary */}
         </Card>
-        )} {/* end sq ternary */}
       </form>
 
       {poolCountPrompt && (
