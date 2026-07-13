@@ -463,11 +463,18 @@ export async function computePackagePrice(
         },
       },
     }),
-    // Permits included in the package price for this duration
+    // Permits included in the package price for this duration — permit_id/
+    // cab_type_id (+ the joined vehicle rates) let a permit's real price track
+    // whichever vehicle the matching cab type currently resolves to, instead
+    // of the flat price/price_type fallback columns.
     db.package_permits.findMany({
       where: { package_id, duration_id, is_included: true },
       orderBy: { sort_order: "asc" },
-      select: { name: true, price: true, price_type: true },
+      select: {
+        name: true, price: true, price_type: true,
+        permit_id: true, cab_type_id: true,
+        permitRef: { select: { vehicleRates: { select: { vehicle_id: true, price_per_vehicle: true } } } },
+      },
     }),
   ]);
 
@@ -982,9 +989,30 @@ export async function computePackagePrice(
 
   const pax_count = adults + children;
   const permits = includedPermits.map((p) => {
-    const unit_price = Number(p.price);
-    const price_type = (p.price_type ?? "FLAT") as string;
-    const quantity   = price_type === "PER_PERSON" ? pax_count : 1;
+    let unit_price = Number(p.price);
+    let price_type = (p.price_type ?? "FLAT") as string;
+
+    // Linked to a catalog permit + a specific cab type — resolve the price
+    // from that cab type's EFFECTIVE vehicle (post cab-upgrade logic above),
+    // so it always tracks whichever vehicle actually ends up being used,
+    // not just whatever was configured at add-time.
+    if (p.permit_id != null && p.cab_type_id != null) {
+      const configuredCab = loadedCabTypes.find((ct) => ct.id === p.cab_type_id);
+      const firstSeg = configuredCab?.segments[0];
+      const rangeKey = firstSeg ? `${firstSeg.day_from}-${firstSeg.day_to}` : null;
+      const effectiveVehicleId = (rangeKey ? effectiveCabMap.get(rangeKey)?.cab.vehicle_id : null)
+        ?? configuredCab?.vehicle_id
+        ?? null;
+      const rate = effectiveVehicleId != null
+        ? p.permitRef?.vehicleRates.find((vr) => vr.vehicle_id === effectiveVehicleId)
+        : undefined;
+      if (rate) {
+        unit_price = Number(rate.price_per_vehicle);
+        price_type = "PER_VEHICLE";
+      }
+    }
+
+    const quantity = price_type === "PER_PERSON" ? pax_count : 1;
     return { name: p.name, unit_price, price_type, quantity, total: unit_price * quantity };
   });
   const permit_subtotal = permits.reduce((sum, p) => sum + p.total, 0);

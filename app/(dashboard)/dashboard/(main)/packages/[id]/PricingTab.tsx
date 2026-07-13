@@ -1576,11 +1576,13 @@ function CabTypesSection({
 function PermitRow({
   permit,
   packageId,
+  cabTypes,
   onUpdated,
   onDeleted,
 }: {
   permit: PackagePermit;
   packageId: number;
+  cabTypes: CabType[];
   onUpdated: (updated: PackagePermit) => void;
   onDeleted: (id: number) => void;
 }) {
@@ -1588,8 +1590,12 @@ function PermitRow({
   const [name,      setName]      = useState(permit.name);
   const [price,     setPrice]     = useState(String(permit.price));
   const [priceType, setPriceType] = useState<PermitPriceType>(permit.price_type);
+  const [cabTypeId, setCabTypeId] = useState<number | null>(permit.cab_type_id);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  const isTracking = permit.permit_id != null && permit.cab_type_id != null;
+  const displayPrice = isTracking && permit.resolved_price != null ? permit.resolved_price : permit.price;
 
   function handleToggleIncluded(val: boolean) {
     startTransition(async () => {
@@ -1607,6 +1613,7 @@ function PermitRow({
     setName(permit.name);
     setPrice(String(permit.price));
     setPriceType(permit.price_type);
+    setCabTypeId(permit.cab_type_id);
     setEditing(true);
   }
 
@@ -1615,6 +1622,7 @@ function PermitRow({
     setName(permit.name);
     setPrice(String(permit.price));
     setPriceType(permit.price_type);
+    setCabTypeId(permit.cab_type_id);
   }
 
   function handleSaveEdit() {
@@ -1622,10 +1630,15 @@ function PermitRow({
     if (!name.trim()) { toast.error("Enter a permit name"); return; }
     if (isNaN(p) || p < 0) { toast.error("Enter a valid non-negative price"); return; }
     startTransition(async () => {
-      const res = await updatePackagePermit(permit.id, packageId, { name: name.trim(), price: p, price_type: priceType });
+      const res = await updatePackagePermit(permit.id, packageId, {
+        name: name.trim(), price: p, price_type: priceType, cab_type_id: cabTypeId,
+      });
       if (res.success) {
         toast.success("Permit updated");
-        onUpdated({ ...permit, name: name.trim(), price: p, price_type: priceType });
+        onUpdated({
+          ...permit, name: name.trim(), price: p, price_type: priceType, cab_type_id: cabTypeId,
+          resolved_price: res.data.resolved_price, resolved_vehicle_name: res.data.resolved_vehicle_name,
+        });
         setEditing(false);
         router.refresh();
       } else {
@@ -1662,7 +1675,8 @@ function PermitRow({
                   onChange={(e) => setPrice(e.target.value)}
                   className="h-7 text-xs pl-5"
                   placeholder="0"
-                  disabled={isPending}
+                  disabled={isPending || cabTypeId != null}
+                  title={cabTypeId != null ? "Price is resolved automatically from the tracked cab type's vehicle" : undefined}
                 />
               </div>
               <Button
@@ -1682,29 +1696,65 @@ function PermitRow({
                 <X className="h-3 w-3" />
               </Button>
             </div>
-            <div className="flex items-center gap-1">
-              {(["FLAT", "PER_PERSON", "PER_VEHICLE"] as const).map((t) => (
-                <button key={t} type="button" disabled={isPending} onClick={() => setPriceType(t)}
-                  className={cn("px-2 py-0.5 rounded text-[10px] font-medium border transition-colors",
-                    priceType === t ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted text-muted-foreground border-border hover:bg-muted/70"
-                  )}>
-                  {t === "FLAT" ? "Flat" : t === "PER_PERSON" ? "Per Person" : "Per Vehicle"}
-                </button>
-              ))}
-            </div>
+            {permit.permit_id != null && cabTypes.length > 0 ? (
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">
+                  Track cab type <span className="text-muted-foreground/70">— untrack to set price manually</span>
+                </Label>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button" disabled={isPending} onClick={() => setCabTypeId(null)}
+                    className={cn("px-2 py-0.5 rounded text-[10px] font-medium border transition-colors",
+                      cabTypeId === null ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/70")}
+                  >
+                    None (manual)
+                  </button>
+                  {cabTypes.map((ct) => (
+                    <button
+                      key={ct.id} type="button" disabled={isPending} onClick={() => setCabTypeId(ct.id)}
+                      className={cn("px-2 py-0.5 rounded text-[10px] font-medium border transition-colors",
+                        cabTypeId === ct.id ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted text-muted-foreground border-border hover:bg-muted/70")}
+                    >
+                      {cabTypeTrackLabel(ct)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                {(["FLAT", "PER_PERSON", "PER_VEHICLE"] as const).map((t) => (
+                  <button key={t} type="button" disabled={isPending} onClick={() => setPriceType(t)}
+                    className={cn("px-2 py-0.5 rounded text-[10px] font-medium border transition-colors",
+                      priceType === t ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/70"
+                    )}>
+                    {t === "FLAT" ? "Flat" : t === "PER_PERSON" ? "Per Person" : "Per Vehicle"}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-sm font-medium leading-tight">{permit.name}</span>
-            <span className="text-[11px] text-muted-foreground">₹{fmt(permit.price)}</span>
-            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0",
-              permit.price_type === "PER_PERSON"  ? "border-blue-200 text-blue-600 bg-blue-50"  :
-              permit.price_type === "PER_VEHICLE" ? "border-orange-200 text-orange-600 bg-orange-50" :
-              "border-muted text-muted-foreground"
-            )}>
-              {permit.price_type === "PER_PERSON" ? "×/person" : permit.price_type === "PER_VEHICLE" ? "×/vehicle" : "flat"}
-            </Badge>
+            <span className="text-[11px] text-muted-foreground">₹{fmt(displayPrice)}</span>
+            {isTracking ? (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-orange-200 text-orange-600 bg-orange-50">
+                {permit.resolved_price != null
+                  ? `tracks ${permit.resolved_vehicle_name}`
+                  : `no rate for ${permit.resolved_vehicle_name} — using fallback`}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0",
+                permit.price_type === "PER_PERSON"  ? "border-blue-200 text-blue-600 bg-blue-50"  :
+                permit.price_type === "PER_VEHICLE" ? "border-orange-200 text-orange-600 bg-orange-50" :
+                "border-muted text-muted-foreground"
+              )}>
+                {permit.price_type === "PER_PERSON" ? "×/person" : permit.price_type === "PER_VEHICLE" ? "×/vehicle" : "flat"}
+              </Badge>
+            )}
             {!permit.is_included && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Not included</Badge>
             )}
@@ -1781,20 +1831,32 @@ function PermitRow({
 
 // ── AddPermitForm ──────────────────────────────────────────────────────────
 
+/** "Sedan · Days 1-3" — label for the cab-type-tracking dropdown, built
+ * from the same day-range grouping CabTypesSection uses. */
+function cabTypeTrackLabel(ct: CabType): string {
+  const seg = ct.segments[0];
+  const range = seg ? ` · Days ${seg.day_from}-${seg.day_to}` : "";
+  return `${ct.vehicle.name}${range}`;
+}
+
 function AddPermitForm({
   packageId,
   duration,
   stopCoords,
+  cabTypes,
   onAdded,
   onCancel,
 }: {
   packageId: number;
   duration: { id: number };
   stopCoords: Array<{ lat: number; lng: number; name?: string }>;
+  cabTypes: CabType[];
   onAdded: (permit: PackagePermit) => void;
   onCancel: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedOption, setSelectedOption] = useState<PermitOption | null>(null);
+  const [cabTypeId,  setCabTypeId]  = useState<number | null>(null);
   const [name,       setName]       = useState("");
   const [price,      setPrice]      = useState("");
   const [priceType,  setPriceType]  = useState<PermitPriceType>("FLAT");
@@ -1802,18 +1864,42 @@ function AddPermitForm({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  // Only offer to track a cab type when the picked permit actually has
+  // per-vehicle rates AND this duration has cab types configured to match against.
+  const canTrackCabType = !!selectedOption && selectedOption.vehicle_rates.length > 0 && cabTypes.length > 0;
+
+  function applyCabTypeRate(option: PermitOption, ctId: number | null) {
+    const ct = cabTypes.find((c) => c.id === ctId);
+    const rate = ct ? option.vehicle_rates.find((vr) => vr.vehicle_id === ct.vehicle_id) : undefined;
+    if (rate) {
+      setPrice(String(rate.price_per_vehicle));
+      setPriceType("PER_VEHICLE");
+    } else if (option.price_per_person > 0) {
+      setPrice(String(option.price_per_person));
+      setPriceType("PER_PERSON");
+    } else {
+      setPrice(String(option.price_per_vehicle));
+      setPriceType(option.price_per_vehicle > 0 ? "PER_VEHICLE" : "FLAT");
+    }
+  }
+
   function handleSelectPermit(option: PermitOption | null) {
     setSelectedId(option?.id ?? null);
+    setSelectedOption(option);
     if (option) {
       setName(option.name);
-      if (option.price_per_person > 0) {
-        setPrice(String(option.price_per_person));
-        setPriceType("PER_PERSON");
-      } else {
-        setPrice(String(option.price_per_vehicle));
-        setPriceType(option.price_per_vehicle > 0 ? "PER_VEHICLE" : "FLAT");
-      }
+      const hasRates = option.vehicle_rates.length > 0 && cabTypes.length > 0;
+      const defaultCt = hasRates ? (cabTypes.find((c) => c.is_default) ?? cabTypes[0]) : null;
+      setCabTypeId(defaultCt?.id ?? null);
+      applyCabTypeRate(option, defaultCt?.id ?? null);
+    } else {
+      setCabTypeId(null);
     }
+  }
+
+  function handleCabTypeChange(ctId: number | null) {
+    setCabTypeId(ctId);
+    if (selectedOption) applyCabTypeRate(selectedOption, ctId);
   }
 
   const parsedPrice = parseFloat(price);
@@ -1829,6 +1915,8 @@ function AddPermitForm({
         price:       parsedPrice,
         price_type:  priceType,
         is_included: included,
+        permit_id:   selectedId,
+        cab_type_id: canTrackCabType ? cabTypeId : null,
       });
       if (res.success) {
         toast.success("Permit added");
@@ -1850,6 +1938,32 @@ function AddPermitForm({
         disabled={isPending}
       />
 
+      {canTrackCabType && (
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">
+            Track cab type <span className="text-muted-foreground/70 font-normal">— price follows this vehicle automatically</span>
+          </Label>
+          <div className="flex flex-wrap gap-1.5">
+            {cabTypes.map((ct) => (
+              <button
+                key={ct.id}
+                type="button"
+                disabled={isPending}
+                onClick={() => handleCabTypeChange(ct.id)}
+                className={cn(
+                  "px-2 py-1 rounded text-[11px] font-medium border transition-colors",
+                  cabTypeId === ct.id
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted text-muted-foreground border-border hover:bg-muted/70",
+                )}
+              >
+                {cabTypeTrackLabel(ct)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Input
@@ -1867,29 +1981,32 @@ function AddPermitForm({
               onChange={(e) => setPrice(e.target.value)}
               placeholder="0"
               className="h-8 text-sm pl-6"
-              disabled={isPending}
+              disabled={isPending || canTrackCabType}
+              title={canTrackCabType ? "Price is resolved automatically from the tracked cab type's vehicle" : undefined}
             />
           </div>
           {/* Price type */}
-          <div className="sm:col-span-2 flex items-center gap-1.5 flex-wrap">
-            <Label className="text-xs text-muted-foreground shrink-0">Pricing:</Label>
-            {(["FLAT", "PER_PERSON", "PER_VEHICLE"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                disabled={isPending}
-                onClick={() => setPriceType(t)}
-                className={cn(
-                  "px-2 py-0.5 rounded text-[11px] font-medium border transition-colors",
-                  priceType === t
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted text-muted-foreground border-border hover:bg-muted/70",
-                )}
-              >
-                {t === "FLAT" ? "Flat" : t === "PER_PERSON" ? "Per Person" : "Per Vehicle"}
-              </button>
-            ))}
-          </div>
+          {!canTrackCabType && (
+            <div className="sm:col-span-2 flex items-center gap-1.5 flex-wrap">
+              <Label className="text-xs text-muted-foreground shrink-0">Pricing:</Label>
+              {(["FLAT", "PER_PERSON", "PER_VEHICLE"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => setPriceType(t)}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[11px] font-medium border transition-colors",
+                    priceType === t
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted text-muted-foreground border-border hover:bg-muted/70",
+                  )}
+                >
+                  {t === "FLAT" ? "Flat" : t === "PER_PERSON" ? "Per Person" : "Per Vehicle"}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 sm:col-span-2">
             <Switch checked={included} onCheckedChange={setIncluded} disabled={isPending} />
             <Label className="text-xs text-muted-foreground">
@@ -1919,16 +2036,20 @@ function PermitsSection({
   duration,
   initialPermits,
   stopCoords,
+  cabTypes,
 }: {
   packageId: number;
   duration: Duration;
   initialPermits: PackagePermit[];
   stopCoords: Array<{ lat: number; lng: number; name?: string }>;
+  cabTypes: CabType[];
 }) {
   const [permits, setPermits] = useState(initialPermits);
   const [adding, setAdding] = useState(false);
 
-  const includedTotal = permits.filter((p) => p.is_included).reduce((sum, p) => sum + p.price, 0);
+  const includedTotal = permits
+    .filter((p) => p.is_included)
+    .reduce((sum, p) => sum + (p.permit_id != null && p.cab_type_id != null && p.resolved_price != null ? p.resolved_price : p.price), 0);
 
   return (
     <Card className="mb-3">
@@ -1966,6 +2087,7 @@ function PermitsSection({
               key={permit.id}
               permit={permit}
               packageId={packageId}
+              cabTypes={cabTypes}
               onUpdated={(updated) => setPermits((prev) => prev.map((p) => p.id === updated.id ? updated : p))}
               onDeleted={(id) => setPermits((prev) => prev.filter((p) => p.id !== id))}
             />
@@ -1977,6 +2099,7 @@ function PermitsSection({
             packageId={packageId}
             duration={duration}
             stopCoords={stopCoords}
+            cabTypes={cabTypes}
             onAdded={(p) => { setPermits((prev) => [...prev, p]); setAdding(false); }}
             onCancel={() => setAdding(false)}
           />
@@ -2116,6 +2239,7 @@ export function PricingTab({
             duration={duration}
             initialPermits={permits.filter((p) => p.duration_id === duration.id)}
             stopCoords={stopCoords}
+            cabTypes={cabTypes.filter((ct) => ct.duration_id === duration.id)}
           />
         ))}
       </div>
