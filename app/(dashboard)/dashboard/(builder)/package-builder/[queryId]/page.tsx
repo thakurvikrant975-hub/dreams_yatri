@@ -1653,6 +1653,7 @@ export default function PackageBuilderDetailPage() {
               travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
               budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
               duration={j?.noOfDays ? { days: j.noOfDays, nights: j.noOfNights } : null}
+              queryReceivedAt={query.createdAt}
             >
               <Button
                 variant="outline"

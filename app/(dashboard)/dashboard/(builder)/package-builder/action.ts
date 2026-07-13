@@ -258,6 +258,7 @@ export interface QueryRow {
   groupSize:      number | null;
   assignedToName: string | null;
   assignedAt:     Date | null;
+  createdAt:      Date;
   updatedAt:      Date;
   requirements:   any;
   status:         string;
@@ -664,6 +665,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
       assignedTo:     true,
       assignedToName: true,
       assignedAt:     true,
+      createdAt:      true,
       updatedAt:      true,
       requirements:   true,
       status:         true,
