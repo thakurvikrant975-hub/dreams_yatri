@@ -72,6 +72,31 @@ function PhotoSkeleton() {
   );
 }
 
+// ── Image with a skeleton that stays up until the bitmap actually finishes
+// loading — the grid's containers paint instantly, but without this a
+// server-resolved photo list still leaves a blank gap per thumbnail while
+// its bytes stream in, between the layout appearing and pixels showing up.
+function ImageWithSkeleton({
+  src, alt, priority, className,
+}: {
+  src: string; alt: string; priority?: boolean; className?: string;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      {!loaded && <div className="absolute inset-0 bg-neutral-200 animate-pulse" />}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        priority={priority}
+        className={cn(className, "transition-opacity duration-200", loaded ? "opacity-100" : "opacity-0")}
+        onLoad={() => setLoaded(true)}
+      />
+    </>
+  );
+}
+
 // ── Photo preview lightbox ────────────────────────────────────────────────────
 
 function PhotoPreviewModal({
@@ -121,7 +146,7 @@ function PhotoPreviewModal({
         {/* Large image */}
         <div className="relative w-full bg-black flex-none" style={{ aspectRatio: "16/9" }}>
           {photo.url ? (
-            <Image src={photo.url} alt="Preview" fill className="object-contain" />
+            <ImageWithSkeleton src={photo.url} alt="Preview" className="object-contain" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <ImageIcon size={40} className="text-neutral-600" />
@@ -304,7 +329,7 @@ function PhotoCard({
             onClick={() => setPreviewOpen(true)}
           >
             {photo.url ? (
-              <Image src={photo.url} alt={tags.join(", ") || "Photo"} fill className="object-cover" />
+              <ImageWithSkeleton src={photo.url} alt={tags.join(", ") || "Photo"} className="object-cover" />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <ImageIcon size={14} className="text-neutral-300" />
@@ -831,7 +856,7 @@ export default function PhotosTab({
         </div>
         <div className="relative w-full" style={{ aspectRatio: "16/5" }}>
           {coverPhoto?.url ? (
-            <Image src={coverPhoto.url} alt="Property cover" fill className="object-cover" priority />
+            <ImageWithSkeleton src={coverPhoto.url} alt="Property cover" className="object-cover" priority />
           ) : (
             <div className="absolute inset-0 bg-neutral-100 flex items-center justify-center">
               <ImageIcon size={32} className="text-neutral-300" />
