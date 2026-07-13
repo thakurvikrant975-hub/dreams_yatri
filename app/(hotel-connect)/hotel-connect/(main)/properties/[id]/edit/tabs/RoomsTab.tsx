@@ -994,6 +994,14 @@ function Section5({ data, onChange, mandatoryError }: {
 }) {
   const [activeCategory, setActiveCategory] = useState(ROOM_AMENITY_GROUPS[0].label);
   const [search, setSearch] = useState("");
+  const amenityListRef = useRef<HTMLDivElement>(null);
+
+  // Switching categories should always start the list from the top instead
+  // of keeping whatever scroll position the previous category was at.
+  function selectAmenityCategory(label: string) {
+    setActiveCategory(label);
+    if (amenityListRef.current) amenityListRef.current.scrollTop = 0;
+  }
 
   const activeGroup = ROOM_AMENITY_GROUPS.find((g) => g.label === activeCategory) ?? ROOM_AMENITY_GROUPS[0];
   const configMap: Record<string, RoomAmenityConfig[] | undefined> = {
@@ -1106,7 +1114,7 @@ function Section5({ data, onChange, mandatoryError }: {
           {activeCategory !== "Mandatory" && (
             <button
               type="button"
-              onClick={() => setActiveCategory("Mandatory")}
+              onClick={() => selectAmenityCategory("Mandatory")}
               className="mt-1 text-red-600 underline underline-offset-2 text-xs hover:text-red-800"
             >
               Jump to Mandatory →
@@ -1181,7 +1189,7 @@ function Section5({ data, onChange, mandatoryError }: {
         <div className="flex h-105 divide-x divide-neutral-100">
 
           {/* Sidebar */}
-          <div className="w-44 shrink-0 h-full overflow-y-auto border-r border-neutral-100">
+          <div className="w-44 shrink-0 h-full overflow-y-auto scrollbar-slim border-r border-neutral-100">
             {ROOM_AMENITY_GROUPS.map((group) => {
               const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
               const isActive = activeCategory === group.label;
@@ -1189,7 +1197,7 @@ function Section5({ data, onChange, mandatoryError }: {
                 <button
                   key={group.label}
                   type="button"
-                  onClick={() => setActiveCategory(group.label)}
+                  onClick={() => selectAmenityCategory(group.label)}
                   className={cn(
                     "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
                     isActive
@@ -1226,7 +1234,7 @@ function Section5({ data, onChange, mandatoryError }: {
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1">
+            <div ref={amenityListRef} className="overflow-y-auto scrollbar-slim flex-1">
               {activeConfig
                 ? activeConfig.map((config) => renderRow(config, config.name, activeCategory === "Mandatory"))
                 : activeGroup.items.map((item) => {

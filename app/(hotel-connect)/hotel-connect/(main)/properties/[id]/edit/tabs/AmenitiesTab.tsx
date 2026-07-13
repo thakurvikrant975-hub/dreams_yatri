@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useRef } from "react";
 import { saveAmenities, type AmenitiesState } from "./amenities-actions";
 import {
   AMENITY_CATEGORIES,
@@ -413,6 +413,14 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     () => (hotel.property_amenities as AmenitiesMap) ?? {}
   );
   const [activeCategory, setActiveCategory] = useState(AMENITY_CATEGORIES[0].label);
+  const contentScrollRef = useRef<HTMLDivElement>(null);
+
+  // Switching categories should always start the content pane from the top —
+  // otherwise it keeps whatever scroll position the previous category was at.
+  function selectCategory(label: string) {
+    setActiveCategory(label);
+    if (contentScrollRef.current) contentScrollRef.current.scrollTop = 0;
+  }
   const [search, setSearch] = useState("");
   const [poolModal, setPoolModal] = useState<{ editingPool: PoolConfig | null } | null>(null);
   const [poolCountPrompt, setPoolCountPrompt] = useState(false);
@@ -434,7 +442,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
         `${unanswered.length} mandatory amenit${unanswered.length === 1 ? "y has" : "ies have"} no answer. Please select Yes or No for every item in the Mandatory category.`
       );
       setShowMandatoryErrors(true);
-      setActiveCategory("Mandatory");
+      selectCategory("Mandatory");
       return;
     }
     if (yesCount < 3) {
@@ -442,7 +450,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
       setValidationError(
         `At least 3 mandatory amenities must be marked "Yes". Currently only ${yesCount} ${yesCount === 1 ? "is" : "are"} selected.`
       );
-      setActiveCategory("Mandatory");
+      selectCategory("Mandatory");
       return;
     }
     setValidationError(null);
@@ -974,7 +982,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
             {validationError && activeCategory !== "Mandatory" && (
               <button
                 type="button"
-                onClick={() => setActiveCategory("Mandatory")}
+                onClick={() => selectCategory("Mandatory")}
                 className="mt-1 text-red-600 underline underline-offset-2 text-xs hover:text-red-800"
               >
                 Jump to Mandatory section →
@@ -1038,8 +1046,8 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
         <Card variant="elevated" radius="md" padding="none" className="flex h-[calc(100vh-260px)] min-h-125 overflow-hidden">
 
           {/* Sidebar */}
-          <aside className="w-64 shrink-0 h-full overflow-y-auto">
-            <div className="px-4 py-2.5 border-b border-neutral-200 bg-white sticky top-0">
+          <aside className="w-64 shrink-0 h-full overflow-y-auto scrollbar-slim">
+            <div className="px-4 py-2.5 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
               <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Categories</p>
             </div>
             {AMENITY_CATEGORIES.map((cat) => {
@@ -1051,17 +1059,17 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
                   answered={answered}
                   total={total}
                   active={cat.label === activeCategory}
-                  onClick={() => setActiveCategory(cat.label)}
+                  onClick={() => selectCategory(cat.label)}
                 />
               );
             })}
           </aside>
 
           {/* Content */}
-          <div className="flex-1 min-w-0 h-full overflow-y-auto flex flex-col border-l border-neutral-200 ">
+          <div ref={contentScrollRef} className="flex-1 min-w-0 h-full overflow-y-auto scrollbar-slim flex flex-col border-l border-neutral-200 ">
 
             {/* Category header */}
-            <div className="px-6 py-4 border-b border-neutral-200 bg-white sticky top-0 z-10">
+            <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-bold text-neutral-800">{activeCat.label}</h2>
