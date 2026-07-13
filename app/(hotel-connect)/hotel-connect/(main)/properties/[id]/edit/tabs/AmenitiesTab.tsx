@@ -1030,11 +1030,15 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           </Card>
         ) : (
 
-        /* Sidebar + Content */
-        <Card variant="elevated" radius="md" padding="none" className="flex overflow-hidden">
+        /* Sidebar + Content — fixed height so the sidebar's category list and
+           the content pane always share one scroll viewport; without this,
+           whichever pane is naturally taller dictates the container height
+           and the shorter pane's own scroll never engages, silently clipping
+           rows outside it. */
+        <Card variant="elevated" radius="md" padding="none" className="flex h-[calc(100vh-260px)] min-h-125 overflow-hidden">
 
           {/* Sidebar */}
-          <aside className="w-64 shrink-0  self-start sticky top-0 h-full overflow-y-auto">
+          <aside className="w-64 shrink-0 h-full overflow-y-auto">
             <div className="px-4 py-2.5 border-b border-neutral-200 bg-white sticky top-0">
               <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Categories</p>
             </div>
@@ -1054,7 +1058,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           </aside>
 
           {/* Content */}
-          <div className="flex-1 min-w-0 flex flex-col border-l border-neutral-200 ">
+          <div className="flex-1 min-w-0 h-full overflow-y-auto flex flex-col border-l border-neutral-200 ">
 
             {/* Category header */}
             <div className="px-6 py-4 border-b border-neutral-200 bg-white sticky top-0 z-10">

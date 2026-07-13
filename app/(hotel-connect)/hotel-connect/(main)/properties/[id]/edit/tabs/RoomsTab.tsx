@@ -1168,11 +1168,15 @@ function Section5({ data, onChange, mandatoryError }: {
           )}
         </div>
       ) : (
-        /* ── Normal sidebar + panel ── */
-        <div className="flex divide-x divide-neutral-100" style={{ minHeight: 340 }}>
+        /* ── Normal sidebar + panel ──
+           Fixed height so the sidebar's category list and the content panel
+           always share one scroll viewport — otherwise whichever pane is
+           naturally taller dictates the row's height and the shorter pane's
+           own scroll never engages, silently clipping rows outside it. */
+        <div className="flex h-105 divide-x divide-neutral-100">
 
           {/* Sidebar */}
-          <div className="w-44 shrink-0 overflow-y-auto border-r border-neutral-100">
+          <div className="w-44 shrink-0 h-full overflow-y-auto border-r border-neutral-100">
             {ROOM_AMENITY_GROUPS.map((group) => {
               const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
               const isActive = activeCategory === group.label;
@@ -1203,7 +1207,7 @@ function Section5({ data, onChange, mandatoryError }: {
           </div>
 
           {/* Content panel */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 h-full flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-5 py-2.5 border-b border-neutral-100 bg-neutral-50/60 shrink-0">
               <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
                 {activeCategory}
