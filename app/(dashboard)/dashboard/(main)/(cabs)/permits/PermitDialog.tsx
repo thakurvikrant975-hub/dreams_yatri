@@ -24,7 +24,9 @@ import {
   CATEGORY_LABELS, VALIDITY_LABELS,
   CUSTOM_CATEGORY_VALUE,
   type PermitRow, type PermitInput, type PermitCategory, type PermitValidityType,
+  type PermitVehicleRate,
 } from "./permit.types";
+import { VehicleRatesPicker } from "./VehicleRatesPicker";
 
 // ── Section header ─────────────────────────────────────────────────────────
 
@@ -55,8 +57,7 @@ type FormState = {
   customCategoryText: string;
   location:           LocationValue | null;
   issuing_authority:  string;
-  price_per_vehicle:  string;
-  price_per_person:   string;
+  vehicle_rates:      PermitVehicleRate[];
   validity_type:      PermitValidityType;
   validity_days:      string;
   notes:              string;
@@ -69,8 +70,7 @@ function blank(): FormState {
     customCategoryText: "",
     location:           null,
     issuing_authority:  "",
-    price_per_vehicle:  "0",
-    price_per_person:   "",
+    vehicle_rates:      [],
     validity_type:      "SINGLE_TRIP",
     validity_days:      "",
     notes:              "",
@@ -87,8 +87,7 @@ function fromPermit(p: PermitRow): FormState {
       ? { id: p.location_id, name: p.location_name, slug: "", type: "CITY" as const, breadcrumb: p.location_name }
       : null,
     issuing_authority:  p.issuing_authority ?? "",
-    price_per_vehicle:  String(p.price_per_vehicle),
-    price_per_person:   p.price_per_person != null ? String(p.price_per_person) : "",
+    vehicle_rates:      p.vehicle_rates,
     validity_type:      p.validity_type,
     validity_days:      p.validity_days != null ? String(p.validity_days) : "",
     notes:              p.notes ?? "",
@@ -147,12 +146,13 @@ export function PermitDialog({
       resolvedCategory = form.categorySelection as PermitCategory;
     }
 
-    const pvRaw = parseFloat(form.price_per_vehicle);
-    if (isNaN(pvRaw) || pvRaw < 0) { setError("Enter a valid vehicle price"); return null; }
-
-    const ppRaw = form.price_per_person.trim() ? parseFloat(form.price_per_person) : null;
-    if (ppRaw !== null && (isNaN(ppRaw) || ppRaw < 0)) {
-      setError("Enter a valid per-person price"); return null;
+    if (form.vehicle_rates.length === 0) {
+      setError("Add at least one vehicle and its per-km rate"); return null;
+    }
+    for (const v of form.vehicle_rates) {
+      if (isNaN(v.price_per_km) || v.price_per_km < 0) {
+        setError(`Enter a valid per-km rate for ${v.vehicle_name}`); return null;
+      }
     }
 
     const vDays = form.validity_type === "MULTI_DAY"
@@ -168,8 +168,7 @@ export function PermitDialog({
       custom_category:    customCategory,
       location_id:        form.location?.id ?? null,
       issuing_authority:  form.issuing_authority.trim() || null,
-      price_per_vehicle:  pvRaw,
-      price_per_person:   ppRaw,
+      vehicle_rates:      form.vehicle_rates.map((v) => ({ vehicle_id: v.vehicle_id, price_per_km: v.price_per_km })),
       validity_type:      form.validity_type,
       validity_days:      vDays,
       notes:              form.notes.trim() || null,
@@ -311,46 +310,18 @@ export function PermitDialog({
 
           <div className="border-t" />
 
-          {/* ── Pricing ── */}
+          {/* ── Vehicle Rates ── */}
           <div>
             <SectionHeader
               icon={<IndianRupee className="h-4 w-4" />}
-              title="Pricing"
-              description="Set the cost for vehicle and/or per person"
+              title="Vehicle Rates"
+              description="Permit cost per km — varies by vehicle (SUV, Sedan, Bus, etc.)"
             />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Price per Vehicle <span className="text-destructive">*</span></Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₹</span>
-                  <Input
-                    className="pl-7"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.price_per_vehicle}
-                    onChange={(e) => set("price_per_vehicle", e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Price per Person</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₹</span>
-                  <Input
-                    className="pl-7"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.price_per_person}
-                    onChange={(e) => set("price_per_person", e.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
-              </div>
-            </div>
+            <VehicleRatesPicker
+              permitLocationId={form.location?.id ?? null}
+              value={form.vehicle_rates}
+              onChange={(rates) => set("vehicle_rates", rates)}
+            />
           </div>
 
           <div className="border-t" />

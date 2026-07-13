@@ -34,6 +34,18 @@ export const VALIDITY_LABELS: Record<PermitValidityType, string> = {
   MULTI_DAY:   "Multi Day",
 };
 
+// A permit's price for one specific vehicle — e.g. Rohtang Pass costs a
+// different amount for an SUV than a Sedan or a Bus, priced per km driven.
+export type PermitVehicleRate = {
+  vehicle_id:         number;
+  vehicle_name:       string;
+  vehicle_type:       string;
+  passenger_capacity: number;
+  has_ac:             boolean;
+  thumbnail:          string | null;
+  price_per_km:       number;
+};
+
 export type PermitRow = {
   id:                 number;
   name:               string;
@@ -42,8 +54,7 @@ export type PermitRow = {
   location_id:        string | null;
   location_name:      string | null;
   issuing_authority:  string | null;
-  price_per_vehicle:  number;
-  price_per_person:   number | null;
+  vehicle_rates:      PermitVehicleRate[];
   validity_type:      PermitValidityType;
   validity_days:      number | null;
   notes:              string | null;
@@ -60,11 +71,35 @@ export type PermitInput = {
   custom_category?:   string | null;
   location_id?:       string | null;
   issuing_authority?: string | null;
-  price_per_vehicle:  number;
-  price_per_person?:  number | null;
+  vehicle_rates:      { vehicle_id: number; price_per_km: number }[];
   validity_type:      PermitValidityType;
   validity_days?:     number | null;
   notes?:             string | null;
+};
+
+// ── Vehicle-picker (city search, sorted by distance from the permit's own
+// location, backed by real cab_pricing rows so only vehicles that are
+// actually priced somewhere can be attached to a permit) ────────────────────
+
+export type CabPricingCityOption = {
+  /** Stable identifier for one destination/location grouping — "dest:<id>"
+   * or "loc:<id>" — not a DB id on its own since either source can apply. */
+  cityKey:      string;
+  cityName:     string;
+  stateName:    string | null;
+  vehicleCount: number;
+  /** Straight-line km from the permit's own location; null when the permit
+   * has no location set yet, or this city has no stored coordinates. */
+  distanceKm:   number | null;
+};
+
+export type VehicleCandidate = {
+  vehicle_id:         number;
+  vehicle_name:       string;
+  vehicle_type:       string;
+  passenger_capacity: number;
+  has_ac:             boolean;
+  thumbnail:          string | null;
 };
 
 // Returns the label to display in the table for a permit's category
