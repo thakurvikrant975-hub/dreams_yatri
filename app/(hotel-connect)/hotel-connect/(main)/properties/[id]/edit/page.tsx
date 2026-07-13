@@ -334,7 +334,7 @@ export default async function EditPropertyPage({
     ) : currentTab === 4 ? (
       <HomestayRoomsTab hotel={h as unknown as HomestayRoomsData} />
     ) : currentTab === 5 ? (
-      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} />
+      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} rooms={rooms} />
     ) : currentTab === 6 ? (
       <MealsPricingTab hotel={pricingData} />
     ) : currentTab === 7 ? (
@@ -354,7 +354,7 @@ export default async function EditPropertyPage({
     ) : currentTab === 4 ? (
       <RoomsTab hotelId={h.id} rooms={rooms} propertySubType={h.property_sub_type} />
     ) : currentTab === 5 ? (
-      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} />
+      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} rooms={rooms} />
     ) : currentTab === 6 ? (
       <PoliciesTab hotel={h as unknown as PoliciesHotelData} />
     ) : currentTab === 7 ? (
