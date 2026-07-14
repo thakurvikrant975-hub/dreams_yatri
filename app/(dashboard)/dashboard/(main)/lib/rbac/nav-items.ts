@@ -84,6 +84,7 @@ export const NAV_GROUPS = [
       { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
       { title: "Package Library", href: "/dashboard/package-library", icon: BookOpen },
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },
+      { title: "My Bookings", href: "/dashboard/my-bookings", icon: PackagePlus },
     ],
   },
   {

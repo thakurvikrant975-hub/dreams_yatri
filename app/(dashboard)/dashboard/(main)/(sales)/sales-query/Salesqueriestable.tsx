@@ -300,6 +300,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                 const dialogProps = {
                     queryId: q.id,
                     destination: q.destination,
+                    packageUrl: q.packageUrl,
                     travelDate: q.travelDate ? q.travelDate.toISOString().slice(0, 10) : q.requirements?.journey.travelDate ?? null,
                     travellers: q.requirements?.travellers ? {
                         adults: q.requirements.travellers.adults,
@@ -315,6 +316,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                         days:   q.requirements.journey.noOfDays,
                         nights: q.requirements.journey.noOfNights,
                     } : null,
+                    queryReceivedAt: q.createdAt,
                 };
                 return (
                     <div onClick={(e) => e.stopPropagation()} className="flex items-center justify-center gap-1.5">

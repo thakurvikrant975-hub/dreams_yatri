@@ -298,7 +298,8 @@ export function LocationSearchSelect({
     : recent.length > 0);
   const showLocal     = isCountriesOnly ? true : !!query.trim();
   const showExternal  = !isCountriesOnly && extSearched;
-  const showWorldwide = !isCountriesOnly && !!query.trim() && !extSearched;
+  const showWorldwide = !disableExternalSearch && !isCountriesOnly && !!query.trim() && !extSearched;
+  const showManualAdd = !disableExternalSearch && !isCountriesOnly;
 
   // ── Keyboard navigation ───────────────────────────────────────────────────
   const navItems = buildNav(
@@ -541,6 +542,7 @@ export function LocationSearchSelect({
                 </div>
 
                 {/* Actions footer */}
+                {(showWorldwide || showManualAdd) && (
                 <div className={cn(
                   "border-t border-border",
                   (showRecent || showLocal || showExternal) ? "mt-1 pt-1" : "pt-1",
@@ -561,8 +563,8 @@ export function LocationSearchSelect({
                     );
                   })()}
 
-                  {/* Add manually — hidden in countries-only mode */}
-                  {!isCountriesOnly && (() => {
+                  {/* Add manually — hidden in countries-only mode, or when disableExternalSearch opts out of DB-writing flows */}
+                  {showManualAdd && (() => {
                     const idx = navCounter++;
                     return (
                       <Row
@@ -579,6 +581,7 @@ export function LocationSearchSelect({
                     );
                   })()}
                 </div>
+                )}
               </div>
             </PopoverPrimitive.Content>
           </PopoverPrimitive.Portal>

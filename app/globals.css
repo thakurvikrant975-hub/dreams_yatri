@@ -96,36 +96,39 @@
 
 
 
-    /* Dashboard tokens exposed to Tailwind */
+    /* ── Dashboard tokens exposed to Tailwind (bg-dashboard-*, text-dashboard-*, border-dashboard-*, etc.) ──
+       Wealthio-inspired palette: indigo/violet primary, mint secondary, warm-coral accent.
+       Every token here has a dark-mode override in the `.dark { }` block below (same
+       :root → .dark override pattern already used for the shadcn --background/--foreground
+       tokens further down this file) — add `class="dark"` to <html> to activate it. */
     --color-dashboard-base-100: oklch(100% 0 0);
-    --color-dashboard-base-200: oklch(95.5% 0.01 265);
-    --color-dashboard-base-300: oklch(90% 0.015 265);
-    --color-dashboard-base-content: oklch(20% 0.018 270);
+    --color-dashboard-base-200: oklch(97% 0.007 283);
+    --color-dashboard-base-300: oklch(92% 0.009 283);
+    --color-dashboard-base-content: oklch(19% 0.02 283);
 
-    --color-dashboard-primary: oklch(52% 0.268 278);
-    --color-dashboard-primary-content: oklch(98% 0.004 278);
+    --color-dashboard-primary: oklch(56% 0.22 283);
+    --color-dashboard-primary-content: oklch(98% 0.005 283);
 
-    --color-dashboard-secondary: oklch(56% 0.16 248);
-    --color-dashboard-secondary-content: oklch(98% 0.003 248);
+    --color-dashboard-secondary: oklch(68% 0.15 165);
+    --color-dashboard-secondary-content: oklch(98% 0.005 165);
 
-    --color-dashboard-accent: oklch(68% 0.18 194);
-    --color-dashboard-accent-content: oklch(100% 0 0);
+    --color-dashboard-accent: oklch(72% 0.18 45);
+    --color-dashboard-accent-content: oklch(99% 0.005 45);
 
-    --color-dashboard-neutral: oklch(25% 0.045 265);
-    --color-dashboard-neutral-content: oklch(97% 0.003 265);
+    --color-dashboard-neutral: oklch(24% 0.03 283);
+    --color-dashboard-neutral-content: oklch(97% 0.005 283);
 
-    --color-dashboard-info: oklch(88.127% 0.085 214.515);
-    --color-dashboard-info-content: oklch(0% 0 0);
+    --color-dashboard-info: oklch(85% 0.08 230);
+    --color-dashboard-info-content: oklch(15% 0.02 230);
 
-    --color-dashboard-success: oklch(60% 0.18 155);
-    --color-dashboard-success-content: oklch(98% 0.003 155);
+    --color-dashboard-success: oklch(64% 0.17 152);
+    --color-dashboard-success-content: oklch(98% 0.005 152);
 
     --color-dashboard-warning: oklch(76% 0.17 63);
     --color-dashboard-warning-content: oklch(20% 0.045 63);
 
-    --color-dashboard-error: oklch(57% 0.21 22);
-    --color-dashboard-error-content: oklch(98% 0.003 22);
-
+    --color-dashboard-error: oklch(62% 0.22 25);
+    --color-dashboard-error-content: oklch(98% 0.005 25);
 
 }
 
@@ -635,6 +638,39 @@ body {
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
 
+    /* ── Dashboard tokens — dark-mode override ──
+       Overrides the `@theme` defaults above via the same :root → .dark
+       cascade shadcn's own tokens use. Add class="dark" to <html> (or
+       wherever the theme toggle sets it) to switch the whole dashboard
+       (bg-dashboard-*, text-dashboard-*, border-dashboard-*, etc.) over. */
+    --color-dashboard-base-100: oklch(22% 0.015 283);
+    --color-dashboard-base-200: oklch(16% 0.015 283);
+    --color-dashboard-base-300: oklch(30% 0.02 283);
+    --color-dashboard-base-content: oklch(95% 0.01 283);
+
+    --color-dashboard-primary: oklch(68% 0.19 283);
+    --color-dashboard-primary-content: oklch(98% 0.005 283);
+
+    --color-dashboard-secondary: oklch(72% 0.14 165);
+    --color-dashboard-secondary-content: oklch(15% 0.02 165);
+
+    --color-dashboard-accent: oklch(74% 0.17 45);
+    --color-dashboard-accent-content: oklch(15% 0.02 45);
+
+    --color-dashboard-neutral: oklch(35% 0.03 283);
+    --color-dashboard-neutral-content: oklch(95% 0.01 283);
+
+    --color-dashboard-info: oklch(70% 0.1 230);
+    --color-dashboard-info-content: oklch(12% 0.02 230);
+
+    --color-dashboard-success: oklch(66% 0.16 152);
+    --color-dashboard-success-content: oklch(12% 0.02 152);
+
+    --color-dashboard-warning: oklch(78% 0.16 63);
+    --color-dashboard-warning-content: oklch(15% 0.03 63);
+
+    --color-dashboard-error: oklch(66% 0.2 25);
+    --color-dashboard-error-content: oklch(98% 0.005 25);
 }
 
 

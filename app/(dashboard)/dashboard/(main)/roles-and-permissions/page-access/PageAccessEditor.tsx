@@ -85,6 +85,7 @@ export const PAGE_GROUPS = [
             { title: "Queries Management",   href: "/dashboard/sales-query" },
             { title: "Package Library",      href: "/dashboard/package-library" },
             { title: "Package Builder",      href: "/dashboard/package-builder" },
+            { title: "My Bookings",      href: "/dashboard/my-bookings" },
         ],
     },
     {

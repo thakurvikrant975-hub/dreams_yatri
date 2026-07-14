@@ -62,7 +62,12 @@ export type PackageRequirements = {
         specialDemands?: string;
     };
     journey: {
-        startingPoint: string;
+        /** One or more cities the group is travelling from — a family
+         * travelling together may fly out from different home cities. */
+        departurePoints: string[];
+        /** One or more specific pickup spots (airport, hotel, landmark) —
+         * distinct from departurePoints, which is the origin city itself. */
+        pickupPoints: string[];
         dateType: "FIXED" | "FLEXIBLE";
         travelDate?: string;
         flexibleFrom?: string;
