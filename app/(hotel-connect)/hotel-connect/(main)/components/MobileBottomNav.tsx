@@ -26,10 +26,18 @@ const TABS: NavItem[] = [
   { href: "/hotel-connect/bookings",   label: "Bookings",    icon: CalendarDaysIcon },
 ];
 
+// Hidden while actively filling out the property wizard on mobile — the
+// wizard already has its own bottom nav (Previous / Step X of Y / Save &
+// Continue), so stacking this one under it just eats screen space a small
+// phone can't spare.
+const HIDDEN_ON = /^\/hotel-connect\/properties\/\d+\/edit(\/|$)/;
+
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { setOpen } = useMobileNav();
   const activeHref = resolveActiveHref(pathname, TABS);
+
+  if (HIDDEN_ON.test(pathname)) return null;
 
   return (
     <nav
