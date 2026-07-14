@@ -150,13 +150,14 @@ function TriStateButtons({
   value: BedAvail;
   onChange: (v: BedAvail) => void;
 }) {
-  const btn = (v: Exclude<BedAvail, null>, label: string) => (
+  const btn = (v: Exclude<BedAvail, null>, label: string, grow?: boolean) => (
     <button
       type="button"
       onClick={() => onChange(v)}
       aria-pressed={value === v}
       className={cn(
-        "flex-1 sm:flex-initial px-3.5 py-1.5 text-xs font-medium transition-colors",
+        "px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors",
+        grow ? "flex-1" : "shrink-0",
         value === v
           ? v === "no"
             ? "bg-neutral-700 text-white"
@@ -173,7 +174,7 @@ function TriStateButtons({
       <div className="w-px bg-neutral-200" />
       {btn("yes", "Yes")}
       <div className="w-px bg-neutral-200" />
-      {btn("subject_to_availability", "Subject to availability")}
+      {btn("subject_to_availability", "Subject to availability", true)}
     </div>
   );
 }
