@@ -421,7 +421,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
       >
         <div className="px-5 py-5 space-y-4">
           {/* Account number */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required htmlFor="fin-account-number">Bank Account Number</FieldLabel>
               <Input
@@ -448,7 +448,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           </div>
 
           {/* IFSC + Bank name */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required htmlFor="fin-ifsc">Bank IFSC Code</FieldLabel>
               <p className="text-[10px] text-neutral-400 mb-1.5 leading-snug">
@@ -513,7 +513,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
       >
         <div className="px-5 py-5 space-y-4">
           {/* PAN + Business type */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required htmlFor="fin-pan">PAN Number</FieldLabel>
               <Input
@@ -538,12 +538,12 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
 
           {/* GST */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between mb-3">
               <div>
                 <Label id="fin-gst-registered-label">GST Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Required if your annual turnover exceeds ₹20 lakhs</p>
               </div>
-              <div role="group" aria-labelledby="fin-gst-registered-label" className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
+              <div role="group" aria-labelledby="fin-gst-registered-label" className="flex self-start shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
                 <button
                   type="button"
                   aria-pressed={gstRegistered === false}
@@ -578,12 +578,12 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
 
           {/* MSME */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between mb-3">
               <div>
                 <Label id="fin-msme-registered-label">MSME / Udyam Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Optional — helps unlock government scheme benefits</p>
               </div>
-              <div role="group" aria-labelledby="fin-msme-registered-label" className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
+              <div role="group" aria-labelledby="fin-msme-registered-label" className="flex self-start shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
                 <button
                   type="button"
                   aria-pressed={msmeRegistered === false}

@@ -125,7 +125,7 @@ function SelectInput({
 
 function YesNoButtons({ value, onChange }: { value: boolean | null; onChange: (v: boolean) => void }) {
   return (
-    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+    <div role="group" className="flex self-start rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
       <button type="button" onClick={() => onChange(false)} aria-pressed={value === false}
         className={cn("px-4 py-1.5 transition-colors",
           value === false ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
@@ -410,7 +410,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
               <>
                 {/* 3rd-party: ask if they have the registration doc */}
                 {isThirdParty && (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
                     <p className="text-xs text-neutral-700">
                       Do you have the registration document of your {thirdPartyLabel.toLowerCase().replace("my ", "").replace(" owns the property", "")}'s property?
                     </p>
@@ -602,9 +602,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
             {/* GSTIN (optional) */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
                 <Label id="hfin-has-gstin-label">Do you have a GSTIN?</Label>
-                <div role="group" aria-labelledby="hfin-has-gstin-label" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+                <div role="group" aria-labelledby="hfin-has-gstin-label" className="flex self-start rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
                   <button type="button" aria-pressed={!hasGstin} onClick={() => { setHasGstin(false); setGstin(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
                       !hasGstin ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
@@ -639,9 +639,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
             {/* TAN */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
                 <Label id="hfin-has-tan-label">Do you have a TAN?</Label>
-                <div role="group" aria-labelledby="hfin-has-tan-label" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+                <div role="group" aria-labelledby="hfin-has-tan-label" className="flex self-start rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
                   <button type="button" aria-pressed={!hasTan} onClick={() => { setHasTan(false); setTanNumber(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
                       !hasTan ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
