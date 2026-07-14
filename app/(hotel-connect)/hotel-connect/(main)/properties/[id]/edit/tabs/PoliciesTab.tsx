@@ -113,7 +113,7 @@ function YesNoButtons({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div role="group" className="flex self-start rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+    <div role="group" className="flex self-start sm:self-auto rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
       <button
         type="button"
         onClick={() => onChange(false)}

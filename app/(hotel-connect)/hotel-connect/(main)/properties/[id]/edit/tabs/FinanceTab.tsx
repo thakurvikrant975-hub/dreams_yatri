@@ -543,7 +543,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
                 <Label id="fin-gst-registered-label">GST Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Required if your annual turnover exceeds ₹20 lakhs</p>
               </div>
-              <div role="group" aria-labelledby="fin-gst-registered-label" className="flex self-start shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
+              <div role="group" aria-labelledby="fin-gst-registered-label" className="flex self-start sm:self-auto shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
                 <button
                   type="button"
                   aria-pressed={gstRegistered === false}
@@ -583,7 +583,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
                 <Label id="fin-msme-registered-label">MSME / Udyam Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Optional — helps unlock government scheme benefits</p>
               </div>
-              <div role="group" aria-labelledby="fin-msme-registered-label" className="flex self-start shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
+              <div role="group" aria-labelledby="fin-msme-registered-label" className="flex self-start sm:self-auto shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
                 <button
                   type="button"
                   aria-pressed={msmeRegistered === false}
