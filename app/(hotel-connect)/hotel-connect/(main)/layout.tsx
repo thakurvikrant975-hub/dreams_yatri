@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import ConnectSidebar from "./components/ConnectSidebar";
 import MobileBottomNav from "./components/MobileBottomNav";
+import DashboardMain from "./components/DashboardMain";
 import { MobileNavProvider } from "./components/MobileNavContext";
 import BetaFeedbackBar from "./components/BetaFeedbackBar";
 import { Toaster } from "sonner";
@@ -26,9 +27,7 @@ export default async function HotelConnectLayout({
       <MobileNavProvider>
         <div className="flex flex-1 min-h-0">
           <ConnectSidebar />
-          <main className="flex-1 flex flex-col overflow-y-auto min-w-0 pb-16 lg:pb-0">
-            {children}
-          </main>
+          <DashboardMain>{children}</DashboardMain>
           <MobileBottomNav />
         </div>
       </MobileNavProvider>
