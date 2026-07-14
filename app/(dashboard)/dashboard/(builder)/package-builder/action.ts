@@ -105,11 +105,63 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 // to <SearchSelect>, see CAB_LABELS/MEAL_KEY_LABELS for the same pattern).
 const HOTEL_SEARCH_PAGE_SIZE = 20;
 
+function mapHotelRoomRow(
+  item: Prisma.hotel_room_pricingGetPayload<{ select: typeof HOTEL_ROOM_SELECT }>,
+  refCoords?: { lat: number; lng: number } | null,
+): HotelRoomResult {
+  const rawHotelPhoto = item.hotel.images[0]?.thumbnail ?? item.hotel.images[0]?.url ?? item.hotel.thumbnail ?? null;
+  const rawRoomPhotos = (item.room?.images ?? []).map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
+  const rawThumbnail = rawRoomPhotos[0] ?? rawHotelPhoto ?? null;
+
+  const extraBedCapacity = item.room?.extra_bed_capacity ?? 0;
+  const roomSpecs = [
+    item.room?.bed_type,
+    item.room?.view_type,
+    item.room?.area_sqft ? `${item.room.area_sqft} sq.ft` : null,
+    item.hotel.stay_type,
+    item.room?.max_occupancy ? `Sleeps ${item.room.max_occupancy}` : null,
+    extraBedCapacity > 0 ? `+${extraBedCapacity} extra bed${extraBedCapacity > 1 ? "s" : ""}` : null,
+    item.room?.child_cot_available ? "child cot available" : null,
+  ].filter(Boolean).join(" | ") || null;
+
+  const hotelLat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
+  const hotelLng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
+  const distanceKm = (refCoords && hotelLat != null && hotelLng != null)
+    ? Math.round(haversineKm(refCoords.lat, refCoords.lng, hotelLat, hotelLng) * 10) / 10
+    : null;
+
+  return {
+    id:            item.id,
+    hotelName:     item.hotel.name,
+    roomName:      item.room?.name ?? "Room",
+    mealPlanName:  item.meal_type?.name ?? null,
+    coveredMeals:  item.meal_type?.covered_meals ?? [],
+    pricePerNight: Number(item.price_per_night),
+    thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
+    hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
+    roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
+    category:      item.hotel.category,
+    starRating:    item.hotel.stay_type,
+    location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
+    roomSpecs,
+    roomCapacity:  item.room?.max_occupancy ?? null,
+    maxAdults:     item.room?.max_adults ?? null,
+    maxChildren:   item.room?.max_children ?? null,
+    extraBedCapacity,
+    childCotAvailable: item.room?.child_cot_available ?? false,
+    distanceKm,
+  };
+}
+
 export async function searchHotelRoomsForBuilder(
   cityOrDestinationName: string,
   query: string,
   refCoords?: { lat: number; lng: number } | null,
   page: number = 1,
+  /** Free-text `hotels.stay_type` match, e.g. "4 Star" — the star-rating filter chip. */
+  starFilter?: string | null,
+  /** Free-text `hotels.category` match, e.g. "resort" — the property-type filter chip. */
+  categoryFilter?: string | null,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   if (!city) return [];
@@ -124,6 +176,8 @@ export async function searchHotelRoomsForBuilder(
           { destination: { name: { contains: city, mode: "insensitive" } } },
         ],
         ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+        ...(starFilter ? { stay_type: starFilter } : {}),
+        ...(categoryFilter ? { category: categoryFilter } : {}),
       },
     },
     select: HOTEL_ROOM_SELECT,
@@ -132,50 +186,23 @@ export async function searchHotelRoomsForBuilder(
     orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
   });
 
-  return list.map((item) => {
-    const rawHotelPhoto = item.hotel.images[0]?.thumbnail ?? item.hotel.images[0]?.url ?? item.hotel.thumbnail ?? null;
-    const rawRoomPhotos = (item.room?.images ?? []).map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
-    const rawThumbnail = rawRoomPhotos[0] ?? rawHotelPhoto ?? null;
+  return list.map((item) => mapHotelRoomRow(item, refCoords));
+}
 
-    const extraBedCapacity = item.room?.extra_bed_capacity ?? 0;
-    const roomSpecs = [
-      item.room?.bed_type,
-      item.room?.view_type,
-      item.room?.area_sqft ? `${item.room.area_sqft} sq.ft` : null,
-      item.hotel.stay_type,
-      item.room?.max_occupancy ? `Sleeps ${item.room.max_occupancy}` : null,
-      extraBedCapacity > 0 ? `+${extraBedCapacity} extra bed${extraBedCapacity > 1 ? "s" : ""}` : null,
-      item.room?.child_cot_available ? "child cot available" : null,
-    ].filter(Boolean).join(" | ") || null;
-
-    const hotelLat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
-    const hotelLng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
-    const distanceKm = (refCoords && hotelLat != null && hotelLng != null)
-      ? Math.round(haversineKm(refCoords.lat, refCoords.lng, hotelLat, hotelLng) * 10) / 10
-      : null;
-
-    return {
-      id:            item.id,
-      hotelName:     item.hotel.name,
-      roomName:      item.room?.name ?? "Room",
-      mealPlanName:  item.meal_type?.name ?? null,
-      coveredMeals:  item.meal_type?.covered_meals ?? [],
-      pricePerNight: Number(item.price_per_night),
-      thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
-      hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
-      roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
-      category:      item.hotel.category,
-      starRating:    item.hotel.stay_type,
-      location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
-      roomSpecs,
-      roomCapacity:  item.room?.max_occupancy ?? null,
-      maxAdults:     item.room?.max_adults ?? null,
-      maxChildren:   item.room?.max_children ?? null,
-      extraBedCapacity,
-      childCotAvailable: item.room?.child_cot_available ?? false,
-      distanceKm,
-    };
+/** Looks up a single room by its `hotel_room_pricing` id — used by the hotel
+ * picker to price the currently-selected room so other results can show a
+ * "+4000 / -200" delta against it, even after a draft reload (the delta
+ * baseline isn't persisted, just recomputed from the stored roomPricingId). */
+export async function getHotelRoomByIdForBuilder(
+  id: number,
+  refCoords?: { lat: number; lng: number } | null,
+): Promise<HotelRoomResult | null> {
+  const item = await db.hotel_room_pricing.findUnique({
+    where: { id },
+    select: HOTEL_ROOM_SELECT,
   });
+  if (!item) return null;
+  return mapHotelRoomRow(item, refCoords);
 }
 
 export interface ActivityResult {
@@ -428,6 +455,8 @@ export interface QueryDetail extends QueryRow {
     coverImage:      string | null;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
+    marginPercentage: number;
+    gstPercentage:    number;
     flightsIncluded: boolean;
     flightNotes:     string | null;
     flightFrom:      string | null;
@@ -490,6 +519,11 @@ export interface DayItinerary {
   transportPickupLng: number | null;
   transportDrop:      string;
   transportDistanceKm: number | null;
+  /** The exact `cab_pricing` row picked for this day — lets the package price
+   * be computed from real, season/date-aware cab rates instead of typed in by
+   * hand. Null when the vehicle was picked from the unscoped fleet catalog
+   * (no real rate to reference) or entered as free text. */
+  cabPricingId:       number | null;
   notes:              string;
 }
 
@@ -508,6 +542,8 @@ export interface PackageInput {
   infants:         number;
   pricePerPerson:  number | null;
   totalPrice:      number | null;
+  marginPercentage: number;
+  gstPercentage:    number;
   currency:        string;
   inclusions:      string[];
   exclusions:      string[];
@@ -655,6 +691,10 @@ export async function copyPackageIntoDraft(
       transportPickupLng: null,
       transportDrop:      transfer?.drop_name ?? "",
       transportDistanceKm: transfer?.distance_km ?? null,
+      // fetchPackagePageData doesn't expose the transfer's raw cab_pricing id
+      // either — left null on copy, same as transportPickupLat/Lng; the exec
+      // can re-pick the cab via search to back-fill it for auto-pricing.
+      cabPricingId:       null,
       notes:              day.notes.map((n) => n.message).join(" "),
     };
   });
@@ -799,6 +839,7 @@ function normalizeItinerary(it: {
   transportPickupLat: number | null; transportPickupLng: number | null;
   transportDrop: string | null;
   transportDistanceKm: number | null; notes: string | null;
+  cabPricingId: number | null;
   activities: Parameters<typeof normalizeActivity>[0][];
 }): DayItinerary {
   return {
@@ -827,6 +868,7 @@ function normalizeItinerary(it: {
     transportPickupLng:        it.transportPickupLng ?? null,
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
+    cabPricingId:              it.cabPricingId ?? null,
     notes:                     it.notes ?? "",
   };
 }
@@ -871,6 +913,8 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           coverImage:      true,
           pricePerPerson:  true,
           totalPrice:      true,
+          marginPercentage: true,
+          gstPercentage:    true,
           flightsIncluded: true,
           flightNotes:     true,
           flightFrom:      true,
@@ -910,6 +954,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               transportPickupLng: true,
               transportDrop:      true,
               transportDistanceKm: true,
+              cabPricingId:       true,
               notes:              true,
               activities: {
                 orderBy: { sortOrder: "asc" },
@@ -952,7 +997,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     const {
       queryId, title, description, coverImage, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
-      pricePerPerson, totalPrice, currency, inclusions, exclusions,
+      pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency, inclusions, exclusions,
       termsNotes, flightsIncluded, flightNotes, flightFrom, flightTo,
       trainIncluded, trainNotes, trainFrom, trainTo,
       status, stops, itineraries,
@@ -1019,6 +1064,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         infants,
         pricePerPerson:  pricePerPerson ?? null,
         totalPrice:      totalPrice ?? null,
+        marginPercentage,
+        gstPercentage,
         currency,
         inclusions,
         exclusions,
@@ -1049,6 +1096,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         infants,
         pricePerPerson:  pricePerPerson ?? null,
         totalPrice:      totalPrice ?? null,
+        marginPercentage,
+        gstPercentage,
         currency,
         inclusions,
         exclusions,
@@ -1120,6 +1169,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               transportPickupLng: it.transportPickupLng ?? null,
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,
+              cabPricingId:       it.cabPricingId ?? null,
               notes:              it.notes || null,
               activities: {
                 create: it.activities

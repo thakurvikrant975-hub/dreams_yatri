@@ -2386,6 +2386,8 @@ model custom_packages {
   pricePerPerson Float?
   totalPrice     Float?
   currency       String               @default("INR")
+  marginPercentage Float              @default(25)
+  gstPercentage    Float              @default(5)
   inclusions     String[]
   exclusions     String[]
   termsNotes     String?
@@ -2446,6 +2448,7 @@ model custom_itineraries {
   accommodationRoomSpecs String?
   accommodationRoomCapacity Int?
   roomPricingId   Int?
+  cabPricingId    Int?
   hotelCheckIn    String?
   hotelCheckOut   String?
   hotelMealPlan   String?

@@ -105,6 +105,7 @@ export async function getSharedPackage(packageId: string) {
       transportPickupLng:        null,
       transportDrop:             it.transportDrop ?? "",
       transportDistanceKm:       it.transportDistanceKm ?? null,
+      cabPricingId:              null,
       notes:                     it.notes ?? "",
     })),
     execName:        exec?.name ?? "",

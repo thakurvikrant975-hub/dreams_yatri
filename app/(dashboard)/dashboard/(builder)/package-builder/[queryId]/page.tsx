@@ -10,7 +10,7 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
-  Image as ImageIcon, Printer, X, Sparkles,
+  Image as ImageIcon, Printer, X, Sparkles, Percent,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -30,7 +30,6 @@ import {
   saveCustomPackage,
   sendPackageToClient,
   getDestinationCoverImage,
-  searchHotelRoomsForBuilder,
   searchActivitiesForBuilder,
   searchVehiclesForBuilder,
   searchCabsForBuilder,
@@ -44,8 +43,9 @@ import {
   type CabPricingResult,
   type PackageCopyPayload,
 } from "../action";
-import { computeBuilderHotelPricing, type BuilderHotelPricingResult } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { ItineraryDocument } from "./ItineraryDocument";
+import { HotelRoomPicker } from "./HotelRoomPicker";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -565,7 +565,7 @@ function DayCard({
   totalDays: number;
   onChange: (d: DayItinerary) => void;
   onRemove: () => void;
-  onApplyVehicleToDays: (vehicle: VehicleResult, dayNumbers: number[]) => void;
+  onApplyVehicleToDays: (vehicle: VehicleResult, dayNumbers: number[], cabPricingId: number | null) => void;
   onApplyRoomToDays: (room: HotelRoomResult, dayNumbers: number[]) => void;
   /** Stay-type preferences from the client's requirement form (e.g. ["STAR_4", "RESORT"]) — shown as a hint above the hotel search so the exec knows what to look for. */
   stayPreference?: string[];
@@ -573,8 +573,11 @@ function DayCard({
   const [open, setOpen] = useState(true);
 
   // After picking a cab, offer to reuse it across the rest of the trip
-  // instead of re-searching it for every day.
+  // instead of re-searching it for every day. lastCabPricingId travels
+  // alongside lastVehicle so reused days stay priced too — null when the
+  // pick came from the unscoped fleet catalog (no real rate to reuse).
   const [lastVehicle, setLastVehicle] = useState<VehicleResult | null>(null);
+  const [lastCabPricingId, setLastCabPricingId] = useState<number | null>(null);
   const [showApplyPrompt, setShowApplyPrompt] = useState(false);
   const [customDaysOpen, setCustomDaysOpen] = useState(false);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
@@ -614,7 +617,7 @@ function DayCard({
   // debounced since searchCity is a free-text input the exec can retype.
   const [cityCoords, setCityCoords] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
-    // Nothing to geocode, and fetchHotelRooms already short-circuits on an
+    // Nothing to geocode, and HotelRoomPicker already short-circuits on an
     // empty searchCity — no need to clear cityCoords synchronously here.
     if (!searchCity) return;
     let cancelled = false;
@@ -653,39 +656,15 @@ function DayCard({
     onChange({ ...data, meals });
   }
 
-  async function fetchHotelRooms(query: string, page = 1): Promise<Option[]> {
-    if (!searchCity) return [];
-    const results = await searchHotelRoomsForBuilder(searchCity, query, cityCoords, page);
-    return results.map((r): Option & { raw: HotelRoomResult } => ({
-      id: r.id,
-      label: `${r.hotelName} — ${r.roomName}`,
-      description: [
-        `₹${r.pricePerNight.toLocaleString("en-IN")}/night`,
-        r.mealPlanName,
-        r.roomCapacity ? `Sleeps ${r.roomCapacity}${r.extraBedCapacity > 0 ? ` +${r.extraBedCapacity} extra bed${r.extraBedCapacity > 1 ? "s" : ""}` : ""}` : null,
-        r.distanceKm != null ? `${r.distanceKm} km from ${searchCity}` : null,
-      ].filter(Boolean).join(" · "),
-      thumbnail: r.thumbnail ?? undefined,
-      // Star rating (the "3/4/5 star" the exec is actually looking for) takes
-      // priority over the property type (hotel/resort/…) since it's the
-      // stronger buying signal — falls back to property type when unset.
-      badge: r.starRating ?? r.category ?? undefined,
-      raw: r,
-    }));
+  function handleHotelRoomClear() {
+    onChange({
+      ...data,
+      accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+      roomPricingId: null,
+    });
   }
 
-  function handleHotelRoomSelect(_id: number | null, option?: Option) {
-    const raw = (option as (Option & { raw: HotelRoomResult }) | undefined)?.raw;
-    if (!raw) {
-      // The SearchSelect's "×" clear button — reset just the hotel-specific
-      // fields so a stale roomPricingId doesn't linger against blanked-out text.
-      onChange({
-        ...data,
-        accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
-        roomPricingId: null,
-      });
-      return;
-    }
+  function handleHotelRoomSelect(raw: HotelRoomResult) {
     // Fetch which meals this room's plan actually covers instead of leaving
     // the exec to toggle them by hand — falls back to whatever was already
     // set if the plan has no structured meals configured (e.g. room-only).
@@ -755,21 +734,28 @@ function DayCard({
   function handleCabSelect(_id: number | null, option?: Option) {
     const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
     if (!raw) return;
-    const vehicle: VehicleResult = "vehicleName" in raw
+    // Only a CabPricingResult references a real, priceable cab_pricing row —
+    // raw.id on a plain VehicleResult pick is a vehicles.id from the
+    // unscoped fleet catalog, not a rate to compute season pricing from.
+    const isPriced = "vehicleName" in raw;
+    const vehicle: VehicleResult = isPriced
       ? {
           id: raw.id, name: raw.vehicleName, type: raw.vehicleType,
           passengerCapacity: raw.passengerCapacity, hasAc: raw.hasAc, thumbnail: raw.thumbnail,
         }
       : raw;
+    const cabPricingId = isPriced ? raw.id : null;
     onChange({
       ...data,
       transport: vehicle.name,
       transportPhoto: vehicle.thumbnail ?? data.transportPhoto,
       transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
       transportSeats: vehicle.passengerCapacity,
+      cabPricingId,
     });
     if (totalDays > 1) {
       setLastVehicle(vehicle);
+      setLastCabPricingId(cabPricingId);
       setShowApplyPrompt(true);
     }
   }
@@ -857,12 +843,13 @@ function DayCard({
               />
               {searchCity ? (
                 <>
-                  <SearchSelect
+                  <HotelRoomPicker
                     value={data.roomPricingId}
                     initialLabel={data.accommodation}
-                    onChange={handleHotelRoomSelect}
-                    fetchOptions={fetchHotelRooms}
-                    pageSize={20}
+                    searchCity={searchCity}
+                    refCoords={cityCoords}
+                    onSelect={handleHotelRoomSelect}
+                    onClear={handleHotelRoomClear}
                     placeholder={`Search hotel rooms in ${searchCity}…`}
                   />
                   <p className="text-[10px] text-dashboard-base-content/40 mt-1">
@@ -1107,7 +1094,7 @@ function DayCard({
                     type="button" size="sm" variant="outline"
                     className="h-6 text-[11px] px-2"
                     onClick={() => {
-                      onApplyVehicleToDays(lastVehicle, Array.from({ length: totalDays }, (_, i) => i + 1));
+                      onApplyVehicleToDays(lastVehicle, Array.from({ length: totalDays }, (_, i) => i + 1), lastCabPricingId);
                       dismissApplyPrompt();
                     }}
                   >
@@ -1152,7 +1139,7 @@ function DayCard({
                       className="h-6 text-[11px] px-2 ml-1"
                       disabled={selectedDays.length === 0}
                       onClick={() => {
-                        onApplyVehicleToDays(lastVehicle, selectedDays);
+                        onApplyVehicleToDays(lastVehicle, selectedDays, lastCabPricingId);
                         dismissApplyPrompt();
                       }}
                     >
@@ -1209,22 +1196,48 @@ function DayCard({
             <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
               <Utensils size={11} /> Meals Included
             </label>
-            <div className="flex flex-wrap gap-2">
-              {MEAL_OPTIONS.map((m) => (
-                <button
-                  key={m}
-                  onClick={() => toggleMeal(m)}
-                  className={cn(
-                    "text-xs px-3 py-1 rounded-full border font-medium transition-all",
-                    data.meals.includes(m)
-                      ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
-                      : "bg-dashboard-base-200 text-dashboard-base-content/50 border-dashboard-base-300 hover:border-dashboard-primary/50 hover:text-dashboard-primary cursor-pointer"
+            {data.roomPricingId != null ? (
+              // A real room is selected — its meal plan is fixed (covered_meals
+              // on the room's meal_type), so only those meals show and none can
+              // be toggled on/off here; clear the room search to go back to
+              // free-text meals below.
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {data.meals.length > 0 ? (
+                    data.meals.map((m) => (
+                      <span
+                        key={m}
+                        className="text-xs px-3 py-1 rounded-full border font-medium bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
+                      >
+                        {m}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[11px] text-dashboard-base-content/40 italic">No meals included with this room</span>
                   )}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
+                </div>
+                <p className="text-[10px] text-dashboard-base-content/40 mt-1">
+                  Set by the selected room&apos;s meal plan.
+                </p>
+              </>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {MEAL_OPTIONS.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => toggleMeal(m)}
+                    className={cn(
+                      "text-xs px-3 py-1 rounded-full border font-medium transition-all",
+                      data.meals.includes(m)
+                        ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
+                        : "bg-dashboard-base-200 text-dashboard-base-content/50 border-dashboard-base-300 hover:border-dashboard-primary/50 hover:text-dashboard-primary cursor-pointer"
+                    )}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Activities */}
@@ -1267,6 +1280,8 @@ interface PackageForm {
   infants: number;
   pricePerPerson: string;
   totalPrice: string;
+  marginPercentage: string;
+  gstPercentage: string;
   currency: string;
   inclusions: string[];
   exclusions: string[];
@@ -1339,6 +1354,7 @@ const emptyDay = (day: number): DayItinerary => ({
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,
   transportDrop: "", transportDistanceKm: null,
+  cabPricingId: null,
   notes: "",
 });
 
@@ -1358,6 +1374,8 @@ export default function PackageBuilderDetailPage() {
   const [isFetchingCover, setIsFetchingCover] = useState(false);
   const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
   const [computingPrice, setComputingPrice] = useState(false);
+  const [cabPricing, setCabPricing] = useState<BuilderCabPricingResult | null>(null);
+  const [computingCabPrice, setComputingCabPrice] = useState(false);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -1367,6 +1385,7 @@ export default function PackageBuilderDetailPage() {
     totalDays: 3, totalNights: 2, travelDate: "",
     adults: 1, children: 0, infants: 0,
     pricePerPerson: "", totalPrice: "",
+    marginPercentage: "25", gstPercentage: "5",
     currency: "INR",
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
@@ -1437,6 +1456,8 @@ export default function PackageBuilderDetailPage() {
           coverImage: cp.coverImage ?? "",
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
+          marginPercentage: cp.marginPercentage?.toString() ?? "25",
+          gstPercentage: cp.gstPercentage?.toString() ?? "5",
           flightsIncluded: cp.flightsIncluded,
           flightNotes: cp.flightNotes ?? "",
           flightFrom: cp.flightFrom ?? "",
@@ -1530,10 +1551,58 @@ export default function PackageBuilderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.travelDate, form.adults, form.children, roomPricingKey]);
 
-  function applyHotelPricing() {
-    if (!hotelPricing || hotelPricing.hotelSubtotal <= 0) return;
+  // ── Auto-price from travel date + cab selected ──────────────────────────────
+  // Same pattern as the hotel effect above — PER_DAY cabs are priced per the
+  // day they're assigned to (season/weekday-weekend aware), PER_KM cabs by
+  // that day's transportDistanceKm, so a multi-day cab hire naturally sums
+  // across however many days it was applied to.
+  const cabPricingKey = form.itineraries
+    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}`)
+    .join("|");
+  useEffect(() => {
+    const days = form.itineraries.map((it) => ({
+      day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
+    }));
+    if (days.every((d) => d.cabPricingId == null)) {
+      setCabPricing(null);
+      return;
+    }
+    let cancelled = false;
+    setComputingCabPrice(true);
+    const timer = setTimeout(async () => {
+      const result = await computeBuilderCabPricing({
+        travelDate: form.travelDate || null,
+        days,
+      });
+      if (cancelled) return;
+      setCabPricing(result);
+      setComputingCabPrice(false);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.travelDate, cabPricingKey]);
+
+  // ── Margin + GST walkthrough ─────────────────────────────────────────────
+  // base_cost (hotel + cab, computed above) → + margin% → taxable → + gst% →
+  // final_price — same walkthrough the admin catalog's full pricing engine
+  // uses (computePackagePrice in package-pricing.service.ts), just without
+  // the meal/activity/permit layers that only exist for catalog packages.
+  function computeFinalPricing() {
+    const marginPct = parseFloat(form.marginPercentage) || 0;
+    const gstPct = parseFloat(form.gstPercentage) || 0;
+    const baseCost = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0);
+    const marginAmount = Math.round(baseCost * marginPct / 100);
+    const taxable = baseCost + marginAmount;
+    const gstAmount = Math.round(taxable * gstPct / 100);
+    const finalPrice = taxable + gstAmount;
     const totalPax = form.adults + form.children;
-    const perPerson = totalPax > 0 ? Math.round(hotelPricing.hotelSubtotal / totalPax) : Math.round(hotelPricing.hotelSubtotal);
+    const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
+    return { marginPct, gstPct, baseCost, marginAmount, taxable, gstAmount, finalPrice, perPerson };
+  }
+
+  function applyComputedPricing() {
+    const { finalPrice, perPerson } = computeFinalPricing();
+    if (finalPrice <= 0) return;
     setForm((f) => ({ ...f, pricePerPerson: String(perPerson) }));
   }
 
@@ -1545,6 +1614,8 @@ export default function PackageBuilderDetailPage() {
         ...form,
         pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
         totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+        marginPercentage: parseFloat(form.marginPercentage) || 0,
+        gstPercentage: parseFloat(form.gstPercentage) || 0,
         status,
       });
       if (result.success) {
@@ -1565,6 +1636,8 @@ export default function PackageBuilderDetailPage() {
           ...form,
           pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
           totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+          marginPercentage: parseFloat(form.marginPercentage) || 0,
+          gstPercentage: parseFloat(form.gstPercentage) || 0,
           status: "READY",
         });
         if (!result.success) return;
@@ -1619,8 +1692,9 @@ export default function PackageBuilderDetailPage() {
   }
 
   /** Reuses one picked cab across multiple days — only the vehicle itself
-   * carries over; pickup/drop/distance stay per-day since those are route-specific. */
-  function applyVehicleToDays(vehicle: VehicleResult, dayNumbers: number[]) {
+   * (and its cab_pricing row, when the pick was priced) carries over;
+   * pickup/drop/distance stay per-day since those are route-specific. */
+  function applyVehicleToDays(vehicle: VehicleResult, dayNumbers: number[], cabPricingId: number | null) {
     setForm((f) => ({
       ...f,
       itineraries: f.itineraries.map((it) =>
@@ -1631,6 +1705,7 @@ export default function PackageBuilderDetailPage() {
               transportPhoto: vehicle.thumbnail ?? it.transportPhoto,
               transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
               transportSeats: vehicle.passengerCapacity,
+              cabPricingId,
             }
           : it,
       ),
@@ -1761,6 +1836,20 @@ export default function PackageBuilderDetailPage() {
 
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
 
+  // The live preview should never show "To be confirmed" once there's a real
+  // hotel/cab cost to calculate from — falls back to the computed (margin +
+  // GST inclusive) price for display only, per field, without touching
+  // `form` itself so a manually-typed price (or an intentionally blank one
+  // before any inventory is picked) is never clobbered.
+  const computedPricingForPreview = computeFinalPricing();
+  const previewForm: PackageForm = {
+    ...form,
+    pricePerPerson: form.pricePerPerson || (computedPricingForPreview.finalPrice > 0
+      ? String(computedPricingForPreview.perPerson) : form.pricePerPerson),
+    totalPrice: form.totalPrice || (computedPricingForPreview.finalPrice > 0
+      ? String(computedPricingForPreview.finalPrice) : form.totalPrice),
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
@@ -1870,7 +1959,7 @@ export default function PackageBuilderDetailPage() {
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
           <div className="px-6 py-8">
-            <ItineraryDocument form={form} />
+            <ItineraryDocument form={previewForm} />
           </div>
         </aside>
 
@@ -1884,7 +1973,7 @@ export default function PackageBuilderDetailPage() {
               </button>
             </div>
             <div className="px-4 py-6">
-              <ItineraryDocument form={form} />
+              <ItineraryDocument form={previewForm} />
             </div>
           </div>
         )}
@@ -2085,30 +2174,38 @@ export default function PackageBuilderDetailPage() {
                     </div>
                   </div>
 
-                  {computingPrice ? (
+                  {(computingPrice || computingCabPrice) ? (
                     <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
-                      <Loader2 size={12} className="animate-spin" /> Calculating price from hotels + dates…
+                      <Loader2 size={12} className="animate-spin" /> Calculating price from hotels, cabs + dates…
                     </div>
-                  ) : hotelPricing && hotelPricing.hotelSubtotal > 0 ? (
+                  ) : (hotelPricing && hotelPricing.hotelSubtotal > 0) || (cabPricing && cabPricing.cabSubtotal > 0) ? (
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-dashboard-primary/30 bg-dashboard-primary/5 px-3 py-2.5">
                       <div className="text-xs text-dashboard-base-content">
-                        <span className="font-semibold">Computed hotel cost: ₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</span>
+                        <span className="font-semibold">
+                          Computed cost: ₹{((hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0)).toLocaleString("en-IN")}
+                        </span>
                         <span className="text-dashboard-base-content/60">
-                          {" "}— {hotelPricing.nightsCounted} night{hotelPricing.nightsCounted !== 1 ? "s" : ""}, {form.adults + form.children} pax
+                          {" "}— Hotel ₹{(hotelPricing?.hotelSubtotal ?? 0).toLocaleString("en-IN")} ({hotelPricing?.nightsCounted ?? 0} night{(hotelPricing?.nightsCounted ?? 0) !== 1 ? "s" : ""})
+                          {" "}+ Cab ₹{(cabPricing?.cabSubtotal ?? 0).toLocaleString("en-IN")} ({cabPricing?.daysCounted ?? 0} day{(cabPricing?.daysCounted ?? 0) !== 1 ? "s" : ""})
+                          {" "}· {form.adults + form.children} pax
                           {form.travelDate ? `, from ${new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}
                         </span>
+                        <div className="text-dashboard-base-content/50 mt-0.5">
+                          + {form.marginPercentage || 0}% margin + {form.gstPercentage || 0}% GST → ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")}/person
+                          {" "}(edit in Pricing Breakdown tab)
+                        </div>
                       </div>
                       <Button
                         type="button" size="sm" variant="outline"
                         className="h-7 text-xs shrink-0 border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10"
-                        onClick={applyHotelPricing}
+                        onClick={applyComputedPricing}
                       >
-                        Use this price
+                        Use ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")}/person
                       </Button>
                     </div>
                   ) : (
                     <p className="text-[11px] text-dashboard-base-content/50">
-                      Pick hotels via the room search below to auto-calculate price from real, date-aware rates.
+                      Pick hotel rooms and priced cabs via search below to auto-calculate price from real, season/date-aware rates.
                     </p>
                   )}
                 </div>
@@ -2252,82 +2349,215 @@ export default function PackageBuilderDetailPage() {
                     <IndianRupee size={15} className="text-dashboard-primary" /> Pricing Breakdown
                   </h2>
 
-                  {computingPrice ? (
+                  {(computingPrice || computingCabPrice) ? (
                     <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
-                      <Loader2 size={12} className="animate-spin" /> Calculating price from hotels + dates…
+                      <Loader2 size={12} className="animate-spin" /> Calculating price from hotels, cabs + dates…
                     </div>
-                  ) : hotelPricing && hotelPricing.days.length > 0 ? (
+                  ) : (hotelPricing && hotelPricing.days.length > 0) || (cabPricing && cabPricing.days.length > 0) ? (
                     <>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Hotel Subtotal</p>
-                          <p className="text-base font-bold text-dashboard-base-content">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</p>
-                        </div>
-                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Nights Priced</p>
-                          <p className="text-base font-bold text-dashboard-base-content">{hotelPricing.nightsCounted}</p>
-                        </div>
-                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                          <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Per Person (auto)</p>
-                          <p className="text-base font-bold text-dashboard-base-content">
-                            ₹{(form.adults + form.children) > 0
-                              ? Math.round(hotelPricing.hotelSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
-                              : hotelPricing.hotelSubtotal.toLocaleString("en-IN")}
-                          </p>
-                        </div>
-                      </div>
+                      {hotelPricing && hotelPricing.days.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
+                            <Hotel size={12} /> Hotels
+                          </h3>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Hotel Subtotal</p>
+                              <p className="text-base font-bold text-dashboard-base-content">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</p>
+                            </div>
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Nights Priced</p>
+                              <p className="text-base font-bold text-dashboard-base-content">{hotelPricing.nightsCounted}</p>
+                            </div>
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Per Person (auto)</p>
+                              <p className="text-base font-bold text-dashboard-base-content">
+                                ₹{(form.adults + form.children) > 0
+                                  ? Math.round(hotelPricing.hotelSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
+                                  : hotelPricing.hotelSubtotal.toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                          </div>
 
-                      <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
-                              <th className="text-left px-3 py-2 font-semibold">Day</th>
-                              <th className="text-left px-3 py-2 font-semibold">Hotel</th>
-                              <th className="text-right px-3 py-2 font-semibold">Rooms</th>
-                              <th className="text-right px-3 py-2 font-semibold">₹/Room</th>
-                              <th className="text-right px-3 py-2 font-semibold">Extra Beds</th>
-                              <th className="text-right px-3 py-2 font-semibold">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {hotelPricing.days.map((d) => (
-                              <tr key={d.day} className="border-t border-dashboard-base-300">
-                                <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
-                                <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
-                                <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
-                                <td className="px-3 py-2 text-right">₹{d.pricePerRoom.toLocaleString("en-IN")}</td>
-                                <td className="px-3 py-2 text-right">{d.mattresses > 0 ? `${d.mattresses} × ₹${d.extraBedRate.toLocaleString("en-IN")}` : "—"}</td>
-                                <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
-                              <td colSpan={5} className="px-3 py-2 text-right font-semibold">Hotel Subtotal</td>
-                              <td className="px-3 py-2 text-right font-bold">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
+                          <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
+                                  <th className="text-left px-3 py-2 font-semibold">Day</th>
+                                  <th className="text-left px-3 py-2 font-semibold">Hotel</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Rooms</th>
+                                  <th className="text-right px-3 py-2 font-semibold">₹/Room</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Extra Beds</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {hotelPricing.days.map((d) => (
+                                  <tr key={d.day} className="border-t border-dashboard-base-300">
+                                    <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
+                                    <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
+                                    <td className="px-3 py-2 text-right">₹{d.pricePerRoom.toLocaleString("en-IN")}</td>
+                                    <td className="px-3 py-2 text-right">{d.mattresses > 0 ? `${d.mattresses} × ₹${d.extraBedRate.toLocaleString("en-IN")}` : "—"}</td>
+                                    <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
+                                  <td colSpan={5} className="px-3 py-2 text-right font-semibold">Hotel Subtotal</td>
+                                  <td className="px-3 py-2 text-right font-bold">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {cabPricing && cabPricing.days.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
+                            <Car size={12} /> Cabs
+                          </h3>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Cab Subtotal</p>
+                              <p className="text-base font-bold text-dashboard-base-content">₹{cabPricing.cabSubtotal.toLocaleString("en-IN")}</p>
+                            </div>
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Days Priced</p>
+                              <p className="text-base font-bold text-dashboard-base-content">{cabPricing.daysCounted}</p>
+                            </div>
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Per Person (auto)</p>
+                              <p className="text-base font-bold text-dashboard-base-content">
+                                ₹{(form.adults + form.children) > 0
+                                  ? Math.round(cabPricing.cabSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
+                                  : cabPricing.cabSubtotal.toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
+                                  <th className="text-left px-3 py-2 font-semibold">Day</th>
+                                  <th className="text-left px-3 py-2 font-semibold">Vehicle</th>
+                                  <th className="text-left px-3 py-2 font-semibold">Rate Type</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Rate</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Distance</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {cabPricing.days.map((d) => (
+                                  <tr key={d.day} className="border-t border-dashboard-base-300">
+                                    <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">{d.vehicleName}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">
+                                      {d.pricingType === "PER_KM" ? "Per KM" : "Per Day"}{d.isWeekend ? " · weekend" : ""}
+                                    </td>
+                                    <td className="px-3 py-2 text-right">₹{d.rate.toLocaleString("en-IN")}{d.pricingType === "PER_KM" ? "/km" : "/day"}</td>
+                                    <td className="px-3 py-2 text-right">{d.pricingType === "PER_KM" && d.distanceKm != null ? `${d.distanceKm} km` : "—"}</td>
+                                    <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
+                                  <td colSpan={5} className="px-3 py-2 text-right font-semibold">Cab Subtotal</td>
+                                  <td className="px-3 py-2 text-right font-bold">₹{cabPricing.cabSubtotal.toLocaleString("en-IN")}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      )}
 
                       <p className="text-[11px] text-dashboard-base-content/50">
-                        Computed from each day&apos;s selected hotel room (season/occupancy-aware rate), the travel date, and adult/child count.
-                        Cabs, activities, and margin aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details.
+                        Hotels are computed from each day&apos;s selected room (season/occupancy-aware rate) and adult/child count; cabs from each
+                        day&apos;s selected cab (season/weekday-weekend-aware rate, per day or per km as configured) — both checked against the travel date.
+                        Activities aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details if needed.
                       </p>
+
+                      {/* Margin + GST */}
+                      <div className="space-y-3 pt-1 border-t border-dashboard-base-300">
+                        <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5 pt-3">
+                          <Percent size={12} /> Margin & GST
+                        </h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Margin %</label>
+                            <Input
+                              type="number" min={0} step="0.1"
+                              value={form.marginPercentage}
+                              onChange={field("marginPercentage")}
+                              placeholder="25"
+                              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">GST %</label>
+                            <Input
+                              type="number" min={0} step="0.1"
+                              value={form.gstPercentage}
+                              onChange={field("gstPercentage")}
+                              placeholder="5"
+                              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                            />
+                          </div>
+                        </div>
+
+                        {(() => {
+                          const p = computeFinalPricing();
+                          if (p.baseCost <= 0) return null;
+                          return (
+                            <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                              <table className="w-full text-xs">
+                                <tbody>
+                                  <tr className="border-b border-dashboard-base-300">
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">Base Cost (Hotel + Cab)</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.baseCost.toLocaleString("en-IN")}</td>
+                                  </tr>
+                                  <tr className="border-b border-dashboard-base-300">
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin ({p.marginPct}%)</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.marginAmount.toLocaleString("en-IN")}</td>
+                                  </tr>
+                                  <tr className="border-b border-dashboard-base-300 bg-dashboard-base-200/40">
+                                    <td className="px-3 py-2 font-semibold">= Subtotal</td>
+                                    <td className="px-3 py-2 text-right font-semibold">₹{p.taxable.toLocaleString("en-IN")}</td>
+                                  </tr>
+                                  <tr className="border-b border-dashboard-base-300">
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ GST ({p.gstPct}%)</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.gstAmount.toLocaleString("en-IN")}</td>
+                                  </tr>
+                                  <tr className="bg-dashboard-primary/5">
+                                    <td className="px-3 py-2 font-bold text-dashboard-base-content">= Final Price</td>
+                                    <td className="px-3 py-2 text-right font-bold text-dashboard-primary">₹{p.finalPrice.toLocaleString("en-IN")}</td>
+                                  </tr>
+                                  <tr>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">Per Person</td>
+                                    <td className="px-3 py-2 text-right font-semibold">₹{p.perPerson.toLocaleString("en-IN")}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })()}
+                      </div>
 
                       <Button
                         type="button" size="sm" variant="outline"
                         className="border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10"
-                        onClick={applyHotelPricing}
+                        onClick={applyComputedPricing}
                       >
-                        Use ₹{(form.adults + form.children) > 0
-                          ? Math.round(hotelPricing.hotelSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
-                          : hotelPricing.hotelSubtotal.toLocaleString("en-IN")} as Price Per Person
+                        Use ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")} as Price Per Person
                       </Button>
                     </>
                   ) : (
                     <p className="text-xs text-dashboard-base-content/50">
-                      No hotel rooms picked yet — search and select real hotel rooms in the Itinerary tab to see a computed breakdown here.
+                      No hotel rooms or priced cabs picked yet — search and select real inventory in the Itinerary tab to see a computed breakdown here.
                     </p>
                   )}
                 </div>
