@@ -37,7 +37,10 @@ const HOTEL_ROOM_SELECT = {
   meal_type: { select: { name: true, covered_meals: true } },
   hotel: {
     select: {
-      name: true, category: true, thumbnail: true, city: true, state: true,
+      // `category` is the property TYPE (hotel/resort/homestay/…); the star
+      // rating the user actually means by "3/4/5 star" lives in `stay_type`
+      // as free text ("3 Star", "4 Star", …) — both are exposed separately.
+      name: true, category: true, stay_type: true, thumbnail: true, city: true, state: true,
       images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 1 },
       location: { select: { latitude: true, longitude: true } },
     },
@@ -45,6 +48,7 @@ const HOTEL_ROOM_SELECT = {
   room: {
     select: {
       name: true, bed_type: true, view_type: true, area_sqft: true, max_occupancy: true,
+      max_adults: true, max_children: true, extra_bed_capacity: true, child_cot_available: true,
       images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 3 },
     },
   },
@@ -64,11 +68,21 @@ export interface HotelRoomResult {
   /** Up to 3 photos of the specific room booked. */
   roomPhotos:    string[];
   category:      string | null;
+  /** Star rating as stored, e.g. "3 Star" — null when the hotel has none set. */
+  starRating:    string | null;
   /** "City, State" — shown under the hotel name in the preview. */
   location:      string | null;
-  /** e.g. "1 Double Bed | Mountain View | 250 sq.ft" */
+  /** e.g. "1 Double Bed | Mountain View | 250 sq.ft | 3 Star | Sleeps 3 | +1 extra bed" —
+   * includes star rating and occupancy/extra-bed info so the choice stays
+   * legible after selection (this text is what persists onto the itinerary
+   * day and shows in the client-facing PDF), not just while browsing. */
   roomSpecs:     string | null;
   roomCapacity:  number | null;
+  maxAdults:     number | null;
+  maxChildren:   number | null;
+  /** Extra mattress/rollaway beds the room can accommodate beyond its base occupancy — 0 if none. */
+  extraBedCapacity: number;
+  childCotAvailable: boolean;
   /** Straight-line distance in km from the searched destination — null when
    * either point couldn't be resolved (no ref coords given, or this hotel
    * has no stored location). */
@@ -86,10 +100,16 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// "use server" files may only export async functions — kept module-private
+// and mirrored as a local constant in page.tsx (matches the pageSize passed
+// to <SearchSelect>, see CAB_LABELS/MEAL_KEY_LABELS for the same pattern).
+const HOTEL_SEARCH_PAGE_SIZE = 20;
+
 export async function searchHotelRoomsForBuilder(
   cityOrDestinationName: string,
   query: string,
   refCoords?: { lat: number; lng: number } | null,
+  page: number = 1,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   if (!city) return [];
@@ -107,7 +127,8 @@ export async function searchHotelRoomsForBuilder(
       },
     },
     select: HOTEL_ROOM_SELECT,
-    take: 20,
+    take: HOTEL_SEARCH_PAGE_SIZE,
+    skip: (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE,
     orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
   });
 
@@ -115,8 +136,17 @@ export async function searchHotelRoomsForBuilder(
     const rawHotelPhoto = item.hotel.images[0]?.thumbnail ?? item.hotel.images[0]?.url ?? item.hotel.thumbnail ?? null;
     const rawRoomPhotos = (item.room?.images ?? []).map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
     const rawThumbnail = rawRoomPhotos[0] ?? rawHotelPhoto ?? null;
-    const roomSpecs = [item.room?.bed_type, item.room?.view_type, item.room?.area_sqft ? `${item.room.area_sqft} sq.ft` : null]
-      .filter(Boolean).join(" | ") || null;
+
+    const extraBedCapacity = item.room?.extra_bed_capacity ?? 0;
+    const roomSpecs = [
+      item.room?.bed_type,
+      item.room?.view_type,
+      item.room?.area_sqft ? `${item.room.area_sqft} sq.ft` : null,
+      item.hotel.stay_type,
+      item.room?.max_occupancy ? `Sleeps ${item.room.max_occupancy}` : null,
+      extraBedCapacity > 0 ? `+${extraBedCapacity} extra bed${extraBedCapacity > 1 ? "s" : ""}` : null,
+      item.room?.child_cot_available ? "child cot available" : null,
+    ].filter(Boolean).join(" | ") || null;
 
     const hotelLat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
     const hotelLng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
@@ -135,9 +165,14 @@ export async function searchHotelRoomsForBuilder(
       hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
       roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
       category:      item.hotel.category,
+      starRating:    item.hotel.stay_type,
       location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
       roomSpecs,
       roomCapacity:  item.room?.max_occupancy ?? null,
+      maxAdults:     item.room?.max_adults ?? null,
+      maxChildren:   item.room?.max_children ?? null,
+      extraBedCapacity,
+      childCotAvailable: item.room?.child_cot_available ?? false,
       distanceKm,
     };
   });
@@ -237,6 +272,118 @@ export async function searchVehiclesForBuilder(query: string): Promise<VehicleRe
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// City-scoped cab pricing — cab_pricing rows are tied to a destination/
+// Location (100% of active rows have a location with lat/lng), unlike the
+// vehicles catalog above. Exact city match first; if a searched city has no
+// pricing configured (real gap — only ~39 destinations have cab rates today),
+// falls back to whichever priced city sits nearest by straight-line distance,
+// so the exec always sees real, bookable cab rates instead of nothing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CabPricingResult {
+  id:                number;
+  vehicleName:       string;
+  vehicleType:       string;
+  passengerCapacity: number;
+  hasAc:             boolean;
+  thumbnail:         string | null;
+  price:             number;
+  pricingType:       string;
+  /** The destination/location this rate is actually priced for — may differ
+   * from the searched city when falling back to the nearest priced one. */
+  cityName:          string;
+  distanceKm:        number | null;
+}
+
+const CAB_PRICING_SELECT = {
+  id: true, price: true, pricing_type: true,
+  destination: { select: { name: true } },
+  location: { select: { name: true, latitude: true, longitude: true } },
+  vehicle: { select: { name: true, type: true, passenger_capacity: true, has_ac: true, image_key: true } },
+} as const;
+
+function toCabPricingResult(
+  item: Prisma.cab_pricingGetPayload<{ select: typeof CAB_PRICING_SELECT }>,
+  refCoords?: { lat: number; lng: number } | null,
+): CabPricingResult {
+  const lat = item.location?.latitude != null ? Number(item.location.latitude) : null;
+  const lng = item.location?.longitude != null ? Number(item.location.longitude) : null;
+  const distanceKm = (refCoords && lat != null && lng != null)
+    ? Math.round(haversineKm(refCoords.lat, refCoords.lng, lat, lng) * 10) / 10
+    : null;
+
+  return {
+    id:                item.id,
+    vehicleName:       item.vehicle.name,
+    vehicleType:       item.vehicle.type,
+    passengerCapacity: item.vehicle.passenger_capacity,
+    hasAc:             item.vehicle.has_ac,
+    thumbnail:         item.vehicle.image_key ? getThumbnailImage(item.vehicle.image_key) : null,
+    price:             Number(item.price),
+    pricingType:       item.pricing_type,
+    cityName:          item.destination?.name ?? item.location?.name ?? "",
+    distanceKm,
+  };
+}
+
+export async function searchCabsForBuilder(
+  cityOrDestinationName: string,
+  query: string,
+  refCoords?: { lat: number; lng: number } | null,
+): Promise<CabPricingResult[]> {
+  const city = cityOrDestinationName.split(",")[0]?.trim();
+
+  if (city) {
+    const list = await db.cab_pricing.findMany({
+      where: {
+        is_active: true,
+        OR: [
+          { destination: { name: { contains: city, mode: "insensitive" } } },
+          { location: { name: { contains: city, mode: "insensitive" } } },
+        ],
+        ...(query ? { vehicle: { name: { contains: query, mode: "insensitive" } } } : {}),
+      },
+      select: CAB_PRICING_SELECT,
+      orderBy: [{ price: "asc" }],
+    });
+    if (list.length > 0) return list.map((item) => toCabPricingResult(item, refCoords));
+  }
+
+  // No pricing configured for this exact city — find the nearest one that
+  // does have it, using refCoords (geocoded from the searched city name).
+  if (!refCoords) return [];
+
+  const all = await db.cab_pricing.findMany({
+    where: {
+      is_active: true,
+      location: { latitude: { not: null }, longitude: { not: null } },
+      ...(query ? { vehicle: { name: { contains: query, mode: "insensitive" } } } : {}),
+    },
+    select: CAB_PRICING_SELECT,
+  });
+  if (all.length === 0) return [];
+
+  let nearestCityName: string | null = null;
+  let minDist = Infinity;
+  for (const item of all) {
+    const lat = item.location?.latitude != null ? Number(item.location.latitude) : null;
+    const lng = item.location?.longitude != null ? Number(item.location.longitude) : null;
+    if (lat == null || lng == null) continue;
+    const d = haversineKm(refCoords.lat, refCoords.lng, lat, lng);
+    if (d < minDist) {
+      minDist = d;
+      nearestCityName = item.destination?.name ?? item.location?.name ?? null;
+    }
+  }
+  if (!nearestCityName) return [];
+
+  return all
+    .filter((item) => (item.destination?.name ?? item.location?.name) === nearestCityName)
+    .map((item) => toCabPricingResult(item, refCoords))
+    .sort((a, b) => a.price - b.price);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Shared Types (exported so pages can import them)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -251,9 +398,15 @@ export interface QueryRow {
   groupSize:      number | null;
   assignedToName: string | null;
   assignedAt:     Date | null;
+  createdAt:      Date;
   updatedAt:      Date;
   requirements:   any;
   status:         string;
+  /** The exact public package page path this lead submitted from (if any),
+   * e.g. "/packages/kerala-highlights/5d-4n/munnar-kochi/super-deluxe" —
+   * lets "Create Package" find the exact originating package, not just a
+   * same-destination guess. */
+  packageUrl:     string | null;
 }
 
 export interface QueryDetail extends QueryRow {
@@ -329,6 +482,12 @@ export interface DayItinerary {
   transportVehicleType: string;
   transportSeats:     number | null;
   transportPickup:    string;
+  /** Coordinates of the pickup point, when it was chosen from the Location
+   * catalog (via LocationSearchSelect) rather than typed as free text — lets
+   * cab search find the nearest priced city from the real pickup spot instead
+   * of a geocoded guess of the day's city. Null for free-text/legacy pickups. */
+  transportPickupLat: number | null;
+  transportPickupLng: number | null;
   transportDrop:      string;
   transportDistanceKm: number | null;
   notes:              string;
@@ -410,6 +569,32 @@ export async function copyPackageIntoDraft(
     nights: s.stay_days,
   }));
 
+  // fetchPackagePageData (shared with the public website) doesn't expose the
+  // raw hotel_room_pricing id, so it's looked up separately here — lets a
+  // copied template count toward auto-computed pricing immediately, instead
+  // of requiring the exec to re-pick every room via search first.
+  const roomPricingByDay = new Map<number, number>();
+  if (data.selectedRoute && data.selectedStay) {
+    const stayRows = await db.package_itineraries.findMany({
+      where: {
+        package_id: data.id,
+        duration_id: data.currentDuration.id,
+        route_id: data.selectedRoute.id,
+      },
+      select: {
+        day: true,
+        itineraryStays: {
+          where: { stay_category_id: data.selectedStay.id },
+          select: { room_pricing_id: true },
+        },
+      },
+    });
+    for (const row of stayRows) {
+      const roomPricingId = row.itineraryStays[0]?.room_pricing_id;
+      if (roomPricingId != null) roomPricingByDay.set(row.day, roomPricingId);
+    }
+  }
+
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
 
@@ -454,10 +639,7 @@ export async function copyPackageIntoDraft(
       accommodationLocation: day.hotel?.location ?? "",
       accommodationRoomSpecs: roomSpecs,
       accommodationRoomCapacity: day.hotel?.room_capacity ?? null,
-      // The catalog's public page-data fetcher doesn't expose the raw
-      // hotel_room_pricing id, so a copied template needs the exec to
-      // re-pick the room via search before it counts toward auto pricing.
-      roomPricingId:      null,
+      roomPricingId:      roomPricingByDay.get(day.day) ?? null,
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
       hotelCheckOut:      day.hotel?.check_out_time ?? "",
       hotelMealPlan:      day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
@@ -466,6 +648,11 @@ export async function copyPackageIntoDraft(
       transportVehicleType: transfer?.vehicle_type ?? "",
       transportSeats:     transfer?.vehicle_capacity ?? null,
       transportPickup:    transfer?.pickup_name ?? "",
+      // fetchPackagePageData doesn't expose the transfer route's raw lat/lng —
+      // left null on copy, same as roomPricingId used to be; the exec can
+      // re-pick the pickup point via the location search to back-fill it.
+      transportPickupLat: null,
+      transportPickupLng: null,
       transportDrop:      transfer?.drop_name ?? "",
       transportDistanceKm: transfer?.distance_km ?? null,
       notes:              day.notes.map((n) => n.message).join(" "),
@@ -545,6 +732,7 @@ export async function getPackageBuilderQueries({
         updatedAt:      true,
         requirements:   true,
         status:         true,
+        packageUrl:     true,
       },
     }),
   ]);
@@ -607,7 +795,9 @@ function normalizeItinerary(it: {
   roomPricingId: number | null;
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
-  transportSeats: number | null; transportPickup: string | null; transportDrop: string | null;
+  transportSeats: number | null; transportPickup: string | null;
+  transportPickupLat: number | null; transportPickupLng: number | null;
+  transportDrop: string | null;
   transportDistanceKm: number | null; notes: string | null;
   activities: Parameters<typeof normalizeActivity>[0][];
 }): DayItinerary {
@@ -633,6 +823,8 @@ function normalizeItinerary(it: {
     transportVehicleType:      it.transportVehicleType ?? "",
     transportSeats:            it.transportSeats ?? null,
     transportPickup:           it.transportPickup ?? "",
+    transportPickupLat:        it.transportPickupLat ?? null,
+    transportPickupLng:        it.transportPickupLng ?? null,
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
     notes:                     it.notes ?? "",
@@ -657,10 +849,12 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
       assignedTo:     true,
       assignedToName: true,
       assignedAt:     true,
+      createdAt:      true,
       updatedAt:      true,
       requirements:   true,
       status:         true,
       message:        true,
+      packageUrl:     true,
       // custom_packages is a singular 1:1 relation (queryId is @unique on
       // custom_packages), so no take/orderBy here — those only apply to
       // to-many relations.
@@ -712,6 +906,8 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               transportVehicleType: true,
               transportSeats:     true,
               transportPickup:    true,
+              transportPickupLat: true,
+              transportPickupLng: true,
               transportDrop:      true,
               transportDistanceKm: true,
               notes:              true,
@@ -920,6 +1116,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               transportVehicleType: it.transportVehicleType || null,
               transportSeats:     it.transportSeats ?? null,
               transportPickup:    it.transportPickup || null,
+              transportPickupLat: it.transportPickupLat ?? null,
+              transportPickupLng: it.transportPickupLng ?? null,
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,
               notes:              it.notes || null,
