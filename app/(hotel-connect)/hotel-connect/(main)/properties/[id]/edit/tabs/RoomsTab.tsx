@@ -634,8 +634,8 @@ function Section2({ data, onChange, errors }: {
             { key: "max_children"  as const, label: "Maximum children",   desc: "Maximum number of children that can be accommodated in this room",           highlight: false },
             { key: "max_occupancy" as const, label: "Maximum occupancy",  desc: "Maximum number of guests that can be accommodated in this room",             highlight: false },
           ]).map(({ key, label, desc, highlight }) => (
-            <div key={key} className={cn("flex items-start justify-between px-4 py-3.5", highlight && "bg-neutral-50/60")}>
-              <div className="flex-1 mr-6 min-w-0">
+            <div key={key} className={cn("flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-0 px-4 py-3.5", highlight && "bg-neutral-50/60")}>
+              <div className="flex-1 sm:mr-6 min-w-0">
                 <p className="text-sm font-medium text-neutral-800">{label}</p>
                 <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">{desc}</p>
               </div>
@@ -776,7 +776,7 @@ function Section3({ data, onChange, errors }: {
             )}
           </div>
 
-          <div className="p-4 grid grid-cols-2 gap-3">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-neutral-600">
                 Bathroom Type <span className="text-red-400">*</span>
@@ -892,7 +892,7 @@ function Section4({ data, onChange, errors }: {
           </div>
         </FieldRow>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FieldRow label="Extra Adult Charge" hint="Per adult beyond base" error={errors.extra_adult_charge}>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-neutral-500 pointer-events-none">₹</span>
