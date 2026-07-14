@@ -1753,6 +1753,7 @@ export default function PackageBuilderDetailPage() {
             <CreatePackageDialog
               queryId={query.id}
               destination={j?.destinations?.join(", ") ?? query.destination ?? null}
+              packageUrl={query.packageUrl}
               travelDate={j?.travelDate ?? (query.travelDate ? new Date(query.travelDate).toISOString().slice(0, 10) : null)}
               travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
               budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
