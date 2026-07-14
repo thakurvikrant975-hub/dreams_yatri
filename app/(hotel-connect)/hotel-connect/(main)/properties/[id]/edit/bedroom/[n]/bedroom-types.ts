@@ -16,6 +16,7 @@ export type BedroomDetail = {
   size_unit: "sqm" | "sqft";
   floor_level: string;
   step_reached: number;
+  photos: string[];
 };
 
 export function defaultBedroom(n: number): BedroomDetail {
@@ -37,5 +38,6 @@ export function defaultBedroom(n: number): BedroomDetail {
     size_unit: "sqm",
     floor_level: "",
     step_reached: 0,
+    photos: [],
   };
 }
