@@ -537,6 +537,7 @@ function UploadButton({
   disabled: externallyDisabled = false,
   onStart,
   onEnd,
+  className,
 }: {
   hotelId: number;
   label?: string;
@@ -544,6 +545,7 @@ function UploadButton({
   disabled?: boolean;
   onStart?: (count: number) => void;
   onEnd?: (result: { count?: number; error?: string }) => void;
+  className?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -581,6 +583,7 @@ function UploadButton({
           variant === "primary" && "h-8 px-4 bg-primary-500 hover:bg-primary-600 text-white",
           variant === "ghost" && "h-7 px-3 border border-neutral-200 text-neutral-600 hover:bg-neutral-50",
           variant === "dashed" && "h-16 w-16 flex-col border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 rounded-xl gap-0.5",
+          className,
         )}
       >
         {uploading ? (
@@ -1191,8 +1194,16 @@ export default function PhotosTab({
         desc="Photos help customers visualize what the room looks like"
       >
         {roomCategories.length === 0 ? (
-          <div className="flex items-center gap-4">
-            <UploadButton hotelId={hotelId} label="Add" variant="dashed" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <UploadButton
+              hotelId={hotelId}
+              label="Add"
+              variant="dashed"
+              disabled={isUploading}
+              onStart={handleUploadStart}
+              onEnd={handleUploadEnd}
+              className="w-full sm:w-16"
+            />
             <p className="text-xs text-neutral-500 leading-relaxed max-w-xs">
               No room categories yet. Add rooms first to organise photos by room type.
             </p>
