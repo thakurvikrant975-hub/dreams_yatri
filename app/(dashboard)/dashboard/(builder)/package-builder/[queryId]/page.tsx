@@ -16,8 +16,7 @@ import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
 import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs"; 
-import { Switch } from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
@@ -42,9 +41,10 @@ import {
   type VehicleResult,
   type CabPricingResult,
   type PackageCopyPayload,
+  type TicketInput,
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
-import { ItineraryDocument } from "./ItineraryDocument";
+import { ItineraryDocument, type PreviewData } from "./ItineraryDocument";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 
@@ -1286,16 +1286,12 @@ interface PackageForm {
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
-  flightsIncluded: boolean;
-  flightNotes: string;
-  flightFrom: string;
-  flightTo: string;
-  trainIncluded: boolean;
-  trainNotes: string;
-  trainFrom: string;
-  trainTo: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
+  /** Each row is one flight or train leg (onward, return, connecting…) —
+   * flightsIncluded/flightFrom/etc are derived from this list at save/preview
+   * time (see deriveTransportFields) instead of being separately toggled. */
+  tickets: TicketInput[];
   execName: string;
   execEmail: string;
   execDesignation: string;
@@ -1358,6 +1354,165 @@ const emptyDay = (day: number): DayItinerary => ({
   notes: "",
 });
 
+const emptyTicket = (type: "FLIGHT" | "TRAIN"): TicketInput => ({
+  type, provider: "", ticketNumber: "",
+  fromPlace: "", toPlace: "", departureTime: "", arrivalTime: "", durationText: "",
+  pickupPoint: "", dropPoint: "",
+  adults: 0, children: 0, infants: 0, ticketCount: 1,
+  fare: null, notes: "",
+});
+
+/** One flight or train leg — every field the exec would need for a ticket
+ * confirmation (pax breakdown, times, journey length, pickup/drop, fare). */
+function TicketEditorCard({
+  ticket, onChange, onRemove,
+}: {
+  ticket: TicketInput;
+  onChange: (patch: Partial<TicketInput>) => void;
+  onRemove: () => void;
+}) {
+  const Icon = ticket.type === "FLIGHT" ? Plane : TrainFront;
+
+  function text(key: keyof TicketInput) {
+    return (e: React.ChangeEvent<HTMLInputElement>) => onChange({ [key]: e.target.value });
+  }
+  function num(key: keyof TicketInput) {
+    return (e: React.ChangeEvent<HTMLInputElement>) => onChange({ [key]: e.target.value ? Number(e.target.value) : 0 });
+  }
+
+  return (
+    <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-3.5 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-xs font-bold text-dashboard-base-content">
+          <Icon size={13} className="text-dashboard-primary" /> {ticket.type === "FLIGHT" ? "Flight" : "Train"}
+        </span>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-1 rounded hover:bg-dashboard-error/10 text-dashboard-error transition-colors"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          value={ticket.provider}
+          onChange={text("provider")}
+          placeholder={ticket.type === "FLIGHT" ? "Airline, e.g. IndiGo" : "Train name, e.g. Rajdhani Express"}
+          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+        <Input
+          value={ticket.ticketNumber}
+          onChange={text("ticketNumber")}
+          placeholder={ticket.type === "FLIGHT" ? "Flight no., e.g. 6E-204" : "Train no., e.g. 12951"}
+          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          value={ticket.fromPlace}
+          onChange={text("fromPlace")}
+          placeholder="Departure (from)"
+          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+        <Input
+          value={ticket.toPlace}
+          onChange={text("toPlace")}
+          placeholder="Arrival (to)"
+          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Departure time</label>
+          <Input
+            value={ticket.departureTime}
+            onChange={text("departureTime")}
+            placeholder="e.g. 09:40 AM"
+            className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Arrival time</label>
+          <Input
+            value={ticket.arrivalTime}
+            onChange={text("arrivalTime")}
+            placeholder="e.g. 02:10 PM"
+            className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Journey length</label>
+          <Input
+            value={ticket.durationText}
+            onChange={text("durationText")}
+            placeholder="e.g. 4h 30m"
+            className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          value={ticket.pickupPoint}
+          onChange={text("pickupPoint")}
+          placeholder="Pickup point"
+          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+        <Input
+          value={ticket.dropPoint}
+          onChange={text("dropPoint")}
+          placeholder="Drop point"
+          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+
+      <div className="grid grid-cols-4 gap-2">
+        <div>
+          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Adults</label>
+          <Input type="number" min={0} value={ticket.adults} onChange={num("adults")} className="text-sm h-8 border-dashboard-base-300 rounded-md" />
+        </div>
+        <div>
+          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Children</label>
+          <Input type="number" min={0} value={ticket.children} onChange={num("children")} className="text-sm h-8 border-dashboard-base-300 rounded-md" />
+        </div>
+        <div>
+          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Infants</label>
+          <Input type="number" min={0} value={ticket.infants} onChange={num("infants")} className="text-sm h-8 border-dashboard-base-300 rounded-md" />
+        </div>
+        <div>
+          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">No. of tickets</label>
+          <Input type="number" min={0} value={ticket.ticketCount} onChange={num("ticketCount")} className="text-sm h-8 border-dashboard-base-300 rounded-md" />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block flex items-center gap-1">
+          <IndianRupee size={9} /> Fare (total for this ticket)
+        </label>
+        <Input
+          type="number" min={0}
+          value={ticket.fare ?? ""}
+          onChange={(e) => onChange({ fare: e.target.value ? Number(e.target.value) : null })}
+          placeholder="0"
+          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+
+      <Textarea
+        value={ticket.notes}
+        onChange={(e) => onChange({ notes: e.target.value })}
+        placeholder="Notes (optional) — e.g. class, baggage allowance"
+        rows={2}
+        className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+      />
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1376,6 +1531,11 @@ export default function PackageBuilderDetailPage() {
   const [computingPrice, setComputingPrice] = useState(false);
   const [cabPricing, setCabPricing] = useState<BuilderCabPricingResult | null>(null);
   const [computingCabPrice, setComputingCabPrice] = useState(false);
+  // Real destination photos for the preview document's "Places You'll Visit"
+  // strip — resolved by name via the same catalog lookup the cover-photo
+  // suggestion already uses, so a route stop like "Manali" picks up the
+  // actual destination photo automatically, no manual upload needed.
+  const [stopImages, setStopImages] = useState<Record<string, string | null>>({});
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -1390,16 +1550,9 @@ export default function PackageBuilderDetailPage() {
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
     termsNotes: "Package price is subject to availability. 50% advance required to confirm booking.",
-    flightsIncluded: false,
-    flightNotes: "",
-    flightFrom: "",
-    flightTo: "",
-    trainIncluded: false,
-    trainNotes: "",
-    trainFrom: "",
-    trainTo: "",
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
+    tickets: [],
     execName: "", execEmail: "", execDesignation: "",
   });
 
@@ -1435,11 +1588,16 @@ export default function PackageBuilderDetailPage() {
         adults: t?.adults ?? 1,
         children: t?.children ?? 0,
         infants: t?.infants ?? 0,
-        // Pre-select flight/train inclusion from what the client asked for
-        // when the query was created — a sales exec can still flip these
-        // off below if the customer's requirements change.
-        flightsIncluded: tr?.includeFlights ?? f.flightsIncluded,
-        trainIncluded: tr?.includeTrain ?? f.trainIncluded,
+        // Seed a blank ticket of the right type when the client asked for
+        // flights/train on the original query and there's no draft (and no
+        // tickets) yet — a nudge to fill it in on the Tickets tab, not a
+        // hard requirement; the exec can just delete the row if it's wrong.
+        tickets: f.tickets.length === 0
+          ? [
+              ...(tr?.includeFlights ? [emptyTicket("FLIGHT")] : []),
+              ...(tr?.includeTrain ? [emptyTicket("TRAIN")] : []),
+            ]
+          : f.tickets,
         itineraries: Array.from({ length: j?.noOfDays ?? 3 }, (_, i) => emptyDay(i + 1)),
         execName: data.assignedToName ?? "",
         execEmail: data.execEmail ?? "",
@@ -1458,16 +1616,9 @@ export default function PackageBuilderDetailPage() {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
-          flightsIncluded: cp.flightsIncluded,
-          flightNotes: cp.flightNotes ?? "",
-          flightFrom: cp.flightFrom ?? "",
-          flightTo: cp.flightTo ?? "",
-          trainIncluded: cp.trainIncluded,
-          trainNotes: cp.trainNotes ?? "",
-          trainFrom: cp.trainFrom ?? "",
-          trainTo: cp.trainTo ?? "",
           stops: cp.stops,
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
+          tickets: cp.tickets,
         }));
       } else {
         // No package built yet — suggest the destination's catalog photo as
@@ -1582,6 +1733,28 @@ export default function PackageBuilderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.travelDate, cabPricingKey]);
 
+  // ── Resolve real destination photos for the preview's "Places" strip ───────
+  const stopNamesKey = form.stops.map((s) => s.name.trim()).filter(Boolean).join("|");
+  useEffect(() => {
+    const names = [...new Set(form.stops.map((s) => s.name.trim()).filter(Boolean))];
+    const missing = names.filter((n) => !(n in stopImages));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        missing.map(async (name) => [name, await getDestinationCoverImage(name)] as const),
+      );
+      if (cancelled) return;
+      setStopImages((prev) => {
+        const next = { ...prev };
+        for (const [name, url] of entries) next[name] = url;
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopNamesKey]);
+
   // ── Margin + GST walkthrough ─────────────────────────────────────────────
   // base_cost (hotel + cab, computed above) → + margin% → taxable → + gst% →
   // final_price — same walkthrough the admin catalog's full pricing engine
@@ -1590,14 +1763,15 @@ export default function PackageBuilderDetailPage() {
   function computeFinalPricing() {
     const marginPct = parseFloat(form.marginPercentage) || 0;
     const gstPct = parseFloat(form.gstPercentage) || 0;
-    const baseCost = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0);
+    const ticketsSubtotal = form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
+    const baseCost = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0) + ticketsSubtotal;
     const marginAmount = Math.round(baseCost * marginPct / 100);
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
     const finalPrice = taxable + gstAmount;
     const totalPax = form.adults + form.children;
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
-    return { marginPct, gstPct, baseCost, marginAmount, taxable, gstAmount, finalPrice, perPerson };
+    return { marginPct, gstPct, baseCost, ticketsSubtotal, marginAmount, taxable, gstAmount, finalPrice, perPerson };
   }
 
   function applyComputedPricing() {
@@ -1689,6 +1863,29 @@ export default function PackageBuilderDetailPage() {
       its[idx] = day;
       return { ...f, itineraries: its };
     });
+  }
+
+  function addTicket(type: "FLIGHT" | "TRAIN") {
+    setForm((f) => ({
+      ...f,
+      tickets: [...f.tickets, {
+        ...emptyTicket(type),
+        fromPlace: f.startingPoint,
+        adults: f.adults, children: f.children, infants: f.infants,
+        ticketCount: Math.max(1, f.adults + f.children),
+      }],
+    }));
+  }
+
+  function updateTicket(idx: number, patch: Partial<TicketInput>) {
+    setForm((f) => ({
+      ...f,
+      tickets: f.tickets.map((t, i) => (i === idx ? { ...t, ...patch } : t)),
+    }));
+  }
+
+  function removeTicket(idx: number) {
+    setForm((f) => ({ ...f, tickets: f.tickets.filter((_, i) => i !== idx) }));
   }
 
   /** Reuses one picked cab across multiple days — only the vehicle itself
@@ -1842,12 +2039,17 @@ export default function PackageBuilderDetailPage() {
   // `form` itself so a manually-typed price (or an intentionally blank one
   // before any inventory is picked) is never clobbered.
   const computedPricingForPreview = computeFinalPricing();
-  const previewForm: PackageForm = {
+  const previewForm: PreviewData = {
     ...form,
     pricePerPerson: form.pricePerPerson || (computedPricingForPreview.finalPrice > 0
       ? String(computedPricingForPreview.perPerson) : form.pricePerPerson),
     totalPrice: form.totalPrice || (computedPricingForPreview.finalPrice > 0
       ? String(computedPricingForPreview.finalPrice) : form.totalPrice),
+    stopImages,
+    clientName: query.name,
+    clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
+    clientEmail: query.email ?? "",
+    queryId,
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1992,6 +2194,9 @@ export default function PackageBuilderDetailPage() {
                 </TabsTrigger>
                 <TabsTrigger value="itinerary" className="gap-1.5">
                   <Calendar size={13} /> Itinerary
+                </TabsTrigger>
+                <TabsTrigger value="tickets" className="gap-1.5">
+                  <Plane size={13} /> Tickets
                 </TabsTrigger>
                 <TabsTrigger value="pricing" className="gap-1.5">
                   <IndianRupee size={13} /> Pricing Breakdown
@@ -2178,15 +2383,16 @@ export default function PackageBuilderDetailPage() {
                     <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
                       <Loader2 size={12} className="animate-spin" /> Calculating price from hotels, cabs + dates…
                     </div>
-                  ) : (hotelPricing && hotelPricing.hotelSubtotal > 0) || (cabPricing && cabPricing.cabSubtotal > 0) ? (
+                  ) : (hotelPricing && hotelPricing.hotelSubtotal > 0) || (cabPricing && cabPricing.cabSubtotal > 0) || form.tickets.length > 0 ? (
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-dashboard-primary/30 bg-dashboard-primary/5 px-3 py-2.5">
                       <div className="text-xs text-dashboard-base-content">
                         <span className="font-semibold">
-                          Computed cost: ₹{((hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0)).toLocaleString("en-IN")}
+                          Computed cost: ₹{computeFinalPricing().baseCost.toLocaleString("en-IN")}
                         </span>
                         <span className="text-dashboard-base-content/60">
                           {" "}— Hotel ₹{(hotelPricing?.hotelSubtotal ?? 0).toLocaleString("en-IN")} ({hotelPricing?.nightsCounted ?? 0} night{(hotelPricing?.nightsCounted ?? 0) !== 1 ? "s" : ""})
                           {" "}+ Cab ₹{(cabPricing?.cabSubtotal ?? 0).toLocaleString("en-IN")} ({cabPricing?.daysCounted ?? 0} day{(cabPricing?.daysCounted ?? 0) !== 1 ? "s" : ""})
+                          {" "}+ Tickets ₹{computeFinalPricing().ticketsSubtotal.toLocaleString("en-IN")} ({form.tickets.length} leg{form.tickets.length !== 1 ? "s" : ""})
                           {" "}· {form.adults + form.children} pax
                           {form.travelDate ? `, from ${new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}
                         </span>
@@ -2205,84 +2411,26 @@ export default function PackageBuilderDetailPage() {
                     </div>
                   ) : (
                     <p className="text-[11px] text-dashboard-base-content/50">
-                      Pick hotel rooms and priced cabs via search below to auto-calculate price from real, season/date-aware rates.
+                      Pick hotel rooms and priced cabs via search below, or add ticket fares on the Tickets tab, to auto-calculate price from real, season/date-aware rates.
                     </p>
                   )}
                 </div>
 
                 {/* Flights & Train */}
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <Plane size={15} className="text-dashboard-primary" /> Flights & Train
-                  </h2>
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1.5">
-                      <Plane size={12} /> Flights included in this package
-                    </label>
-                    <Switch
-                      checked={form.flightsIncluded}
-                      onCheckedChange={(v) => setForm((f) => ({ ...f, flightsIncluded: v }))}
-                    />
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                      <Plane size={15} className="text-dashboard-primary" /> Flights & Train
+                    </h2>
+                    <p className="text-xs text-dashboard-base-content/60 mt-1">
+                      {form.tickets.length > 0
+                        ? `${form.tickets.length} ticket${form.tickets.length !== 1 ? "s" : ""} added — priced into the package total.`
+                        : "Add flight or train tickets, with fares, on the Tickets tab."}
+                    </p>
                   </div>
-                  {form.flightsIncluded && (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          value={form.flightFrom}
-                          onChange={field("flightFrom")}
-                          placeholder={`From (defaults to ${form.startingPoint || "starting point"})`}
-                          className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                        />
-                        <Input
-                          value={form.flightTo}
-                          onChange={field("flightTo")}
-                          placeholder="To, e.g. Kochi — shown on the map"
-                          className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                        />
-                      </div>
-                      <Input
-                        value={form.flightNotes}
-                        onChange={field("flightNotes")}
-                        placeholder="e.g. Delhi ⇄ Leh round-trip economy class"
-                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                      />
-                    </>
-                  )}
-                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-dashboard-base-300">
-                    <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1.5 pt-3">
-                      <TrainFront size={12} /> Train tickets included
-                    </label>
-                    <div className="pt-3">
-                      <Switch
-                        checked={form.trainIncluded}
-                        onCheckedChange={(v) => setForm((f) => ({ ...f, trainIncluded: v }))}
-                      />
-                    </div>
-                  </div>
-                  {form.trainIncluded && (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          value={form.trainFrom}
-                          onChange={field("trainFrom")}
-                          placeholder={`From (defaults to ${form.startingPoint || "starting point"})`}
-                          className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                        />
-                        <Input
-                          value={form.trainTo}
-                          onChange={field("trainTo")}
-                          placeholder="To, e.g. Ernakulam — shown on the map"
-                          className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                        />
-                      </div>
-                      <Input
-                        value={form.trainNotes}
-                        onChange={field("trainNotes")}
-                        placeholder="e.g. AC 2-tier, New Delhi ⇄ Udhampur"
-                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                      />
-                    </>
-                  )}
+                  <Button type="button" size="sm" variant="outline" onClick={() => setActiveTab("tickets")}>
+                    <Plane size={13} className="mr-1.5" /> Manage Tickets
+                  </Button>
                 </div>
               </TabsContent>
 
@@ -2342,6 +2490,53 @@ export default function PackageBuilderDetailPage() {
                 ))}
               </TabsContent>
 
+              {/* ── Tab: Tickets ─────────────────────────────────────────────────── */}
+              <TabsContent value="tickets" className="space-y-4">
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                      <Plane size={15} className="text-dashboard-primary" /> Flight & Train Tickets
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("FLIGHT")}>
+                        <Plus size={13} className="mr-1" /> <Plane size={12} className="mr-1" /> Add Flight
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("TRAIN")}>
+                        <Plus size={13} className="mr-1" /> <TrainFront size={12} className="mr-1" /> Add Train
+                      </Button>
+                    </div>
+                  </div>
+
+                  {form.tickets.length === 0 ? (
+                    <p className="text-xs text-dashboard-base-content/50">
+                      No tickets added yet — add a flight or train leg above if the client wants one booked as part of this package.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {form.tickets.map((ticket, idx) => (
+                        <TicketEditorCard
+                          key={idx}
+                          ticket={ticket}
+                          onChange={(patch) => updateTicket(idx, patch)}
+                          onRemove={() => removeTicket(idx)}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {form.tickets.length > 0 && (
+                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-dashboard-base-300">
+                      <p className="text-xs text-dashboard-base-content/60">
+                        {form.tickets.length} ticket{form.tickets.length !== 1 ? "s" : ""} — fare total feeds into the Pricing Breakdown tab
+                      </p>
+                      <p className="text-sm font-bold text-dashboard-base-content">
+                        ₹{form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
               {/* ── Tab: Pricing Breakdown ───────────────────────────────────────── */}
               <TabsContent value="pricing" className="space-y-4">
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
@@ -2353,7 +2548,7 @@ export default function PackageBuilderDetailPage() {
                     <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
                       <Loader2 size={12} className="animate-spin" /> Calculating price from hotels, cabs + dates…
                     </div>
-                  ) : (hotelPricing && hotelPricing.days.length > 0) || (cabPricing && cabPricing.days.length > 0) ? (
+                  ) : (hotelPricing && hotelPricing.days.length > 0) || (cabPricing && cabPricing.days.length > 0) || form.tickets.length > 0 ? (
                     <>
                       {hotelPricing && hotelPricing.days.length > 0 && (
                         <div className="space-y-3">
@@ -2475,9 +2670,63 @@ export default function PackageBuilderDetailPage() {
                         </div>
                       )}
 
+                      {form.tickets.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
+                            <Plane size={12} /> Tickets
+                          </h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Tickets Subtotal</p>
+                              <p className="text-base font-bold text-dashboard-base-content">
+                                ₹{form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0).toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Legs Priced</p>
+                              <p className="text-base font-bold text-dashboard-base-content">{form.tickets.length}</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
+                                  <th className="text-left px-3 py-2 font-semibold">Type</th>
+                                  <th className="text-left px-3 py-2 font-semibold">Provider</th>
+                                  <th className="text-left px-3 py-2 font-semibold">Route</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Pax</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Fare</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {form.tickets.map((t, idx) => (
+                                  <tr key={idx} className="border-t border-dashboard-base-300">
+                                    <td className="px-3 py-2 font-medium whitespace-nowrap">{t.type === "FLIGHT" ? "Flight" : "Train"}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">{[t.provider, t.ticketNumber].filter(Boolean).join(" ") || "—"}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">{t.fromPlace || "—"} → {t.toPlace || "—"}</td>
+                                    <td className="px-3 py-2 text-right">{t.adults + t.children + t.infants}</td>
+                                    <td className="px-3 py-2 text-right font-semibold">₹{(t.fare ?? 0).toLocaleString("en-IN")}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
+                                  <td colSpan={4} className="px-3 py-2 text-right font-semibold">Tickets Subtotal</td>
+                                  <td className="px-3 py-2 text-right font-bold">
+                                    ₹{form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0).toLocaleString("en-IN")}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
                       <p className="text-[11px] text-dashboard-base-content/50">
                         Hotels are computed from each day&apos;s selected room (season/occupancy-aware rate) and adult/child count; cabs from each
-                        day&apos;s selected cab (season/weekday-weekend-aware rate, per day or per km as configured) — both checked against the travel date.
+                        day&apos;s selected cab (season/weekday-weekend-aware rate, per day or per km as configured) — both checked against the travel date;
+                        tickets from the fares entered on the Tickets tab.
                         Activities aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details if needed.
                       </p>
 
@@ -2517,7 +2766,7 @@ export default function PackageBuilderDetailPage() {
                               <table className="w-full text-xs">
                                 <tbody>
                                   <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">Base Cost (Hotel + Cab)</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">Base Cost (Hotel + Cab + Tickets)</td>
                                     <td className="px-3 py-2 text-right font-medium">₹{p.baseCost.toLocaleString("en-IN")}</td>
                                   </tr>
                                   <tr className="border-b border-dashboard-base-300">
@@ -2557,7 +2806,7 @@ export default function PackageBuilderDetailPage() {
                     </>
                   ) : (
                     <p className="text-xs text-dashboard-base-content/50">
-                      No hotel rooms or priced cabs picked yet — search and select real inventory in the Itinerary tab to see a computed breakdown here.
+                      No hotel rooms, priced cabs, or tickets added yet — search real inventory in the Itinerary tab, or add fares on the Tickets tab, to see a computed breakdown here.
                     </p>
                   )}
                 </div>

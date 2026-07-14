@@ -6,6 +6,7 @@ import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { sendEmail } from "@/app/lib/functions/sendEmail";
+import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import type { Prisma } from "@/app/generated/prisma";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
@@ -457,16 +458,9 @@ export interface QueryDetail extends QueryRow {
     totalPrice:      number | null;
     marginPercentage: number;
     gstPercentage:    number;
-    flightsIncluded: boolean;
-    flightNotes:     string | null;
-    flightFrom:      string | null;
-    flightTo:        string | null;
-    trainIncluded:   boolean;
-    trainNotes:      string | null;
-    trainFrom:       string | null;
-    trainTo:         string | null;
     stops:           StopInput[];
     itineraries:     DayItinerary[];
+    tickets:         TicketInput[];
   } | null;
 }
 
@@ -548,17 +542,33 @@ export interface PackageInput {
   inclusions:      string[];
   exclusions:      string[];
   termsNotes:      string;
-  flightsIncluded: boolean;
-  flightNotes:     string;
-  flightFrom:      string;
-  flightTo:        string;
-  trainIncluded:   boolean;
-  trainNotes:      string;
-  trainFrom:       string;
-  trainTo:         string;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
   itineraries:     DayItinerary[];
+  tickets:         TicketInput[];
+}
+
+export interface TicketInput {
+  id?:            string;
+  type:           "FLIGHT" | "TRAIN";
+  provider:       string;
+  ticketNumber:   string;
+  fromPlace:      string;
+  toPlace:        string;
+  departureTime:  string;
+  arrivalTime:    string;
+  /** Free text, e.g. "4h 30m" — not parsed, just displayed as-is. */
+  durationText:   string;
+  pickupPoint:    string;
+  dropPoint:      string;
+  adults:         number;
+  children:       number;
+  infants:        number;
+  ticketCount:    number;
+  /** Total fare for this ticket entry — summed with the other tickets into
+   * the package's computed pricing (see computeFinalPricing in page.tsx). */
+  fare:           number | null;
+  notes:          string;
 }
 
 export interface PaginatedQueries {
@@ -873,6 +883,34 @@ function normalizeItinerary(it: {
   };
 }
 
+function normalizeTicket(t: {
+  id: string; type: "FLIGHT" | "TRAIN"; provider: string | null; ticketNumber: string | null;
+  fromPlace: string | null; toPlace: string | null; departureTime: string | null; arrivalTime: string | null;
+  durationText: string | null; pickupPoint: string | null; dropPoint: string | null;
+  adults: number; children: number; infants: number; ticketCount: number;
+  fare: number | null; notes: string | null;
+}): TicketInput {
+  return {
+    id:            t.id,
+    type:          t.type,
+    provider:      t.provider ?? "",
+    ticketNumber:  t.ticketNumber ?? "",
+    fromPlace:     t.fromPlace ?? "",
+    toPlace:       t.toPlace ?? "",
+    departureTime: t.departureTime ?? "",
+    arrivalTime:   t.arrivalTime ?? "",
+    durationText:  t.durationText ?? "",
+    pickupPoint:   t.pickupPoint ?? "",
+    dropPoint:     t.dropPoint ?? "",
+    adults:        t.adults,
+    children:      t.children,
+    infants:       t.infants,
+    ticketCount:   t.ticketCount,
+    fare:          t.fare ?? null,
+    notes:         t.notes ?? "",
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. Get single query detail (with existing custom package if any)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -915,17 +953,18 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           totalPrice:      true,
           marginPercentage: true,
           gstPercentage:    true,
-          flightsIncluded: true,
-          flightNotes:     true,
-          flightFrom:      true,
-          flightTo:        true,
-          trainIncluded:   true,
-          trainNotes:      true,
-          trainFrom:       true,
-          trainTo:         true,
           stops: {
             orderBy: { sortOrder: "asc" },
             select: { id: true, name: true, nights: true },
+          },
+          tickets: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              id: true, type: true, provider: true, ticketNumber: true,
+              fromPlace: true, toPlace: true, departureTime: true, arrivalTime: true, durationText: true,
+              pickupPoint: true, dropPoint: true, adults: true, children: true, infants: true,
+              ticketCount: true, fare: true, notes: true,
+            },
           },
           itineraries: {
             orderBy: { day: "asc" },
@@ -985,6 +1024,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
     customPackage: query.custom_packages ? {
       ...query.custom_packages,
       itineraries: query.custom_packages.itineraries.map(normalizeItinerary),
+      tickets: query.custom_packages.tickets.map(normalizeTicket),
     } : null,
   } as QueryDetail;
 }
@@ -998,10 +1038,18 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       queryId, title, description, coverImage, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency, inclusions, exclusions,
-      termsNotes, flightsIncluded, flightNotes, flightFrom, flightTo,
-      trainIncluded, trainNotes, trainFrom, trainTo,
-      status, stops, itineraries,
+      termsNotes,
+      status, stops, itineraries, tickets,
     } = input;
+
+    // flightsIncluded/flightFrom/... aren't edited directly anymore — they're
+    // derived from the ticket list so the map legs (ItineraryMap) and the
+    // document's inclusion flags can never drift out of sync with what's
+    // actually been priced in on the Tickets tab.
+    const {
+      flightsIncluded, flightFrom, flightTo, flightNotes,
+      trainIncluded, trainFrom, trainTo, trainNotes,
+    } = deriveTransportFields(tickets);
 
     const { teamMemberId, teamMemberName } = await getCurrentActor();
     const builtBy = teamMemberId ?? "unknown";
@@ -1187,6 +1235,36 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
           }),
         ),
       );
+    }
+
+    // Replace tickets — flat rows, no nested children, so createMany is fine
+    // (same pattern as stops above).
+    await db.custom_package_tickets.deleteMany({
+      where: { customPackageId: pkg.id },
+    });
+    if (tickets.length > 0) {
+      await db.custom_package_tickets.createMany({
+        data: tickets.map((t, idx) => ({
+          customPackageId: pkg.id,
+          type:            t.type,
+          provider:        t.provider || null,
+          ticketNumber:    t.ticketNumber || null,
+          fromPlace:       t.fromPlace || null,
+          toPlace:         t.toPlace || null,
+          departureTime:   t.departureTime || null,
+          arrivalTime:     t.arrivalTime || null,
+          durationText:    t.durationText || null,
+          pickupPoint:     t.pickupPoint || null,
+          dropPoint:       t.dropPoint || null,
+          adults:          t.adults,
+          children:        t.children,
+          infants:         t.infants,
+          ticketCount:     t.ticketCount,
+          fare:            t.fare ?? null,
+          notes:           t.notes || null,
+          sortOrder:       idx,
+        })),
+      });
     }
 
     revalidatePath("/dashboard/package-builder");

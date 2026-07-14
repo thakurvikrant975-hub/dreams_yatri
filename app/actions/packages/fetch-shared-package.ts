@@ -8,18 +8,27 @@
 // someone who knows the id.
 
 import { db } from "@/app/lib/db";
+import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 export async function getSharedPackage(packageId: string) {
   const pkg = await db.custom_packages.findFirst({
     where: { id: packageId, status: "SENT" },
     select: {
+      queryId: true,
       title: true, description: true, coverImage: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
       pricePerPerson: true, totalPrice: true, currency: true,
       inclusions: true, exclusions: true, termsNotes: true,
-      flightsIncluded: true, flightNotes: true, flightFrom: true, flightTo: true,
-      trainIncluded: true, trainNotes: true, trainFrom: true, trainTo: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true } },
+      tickets: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, type: true, provider: true, ticketNumber: true,
+          fromPlace: true, toPlace: true, departureTime: true, arrivalTime: true, durationText: true,
+          pickupPoint: true, dropPoint: true, adults: true, children: true, infants: true,
+          ticketCount: true, fare: true, notes: true,
+        },
+      },
       itineraries: {
         orderBy: { day: "asc" },
         select: {
@@ -35,7 +44,7 @@ export async function getSharedPackage(packageId: string) {
           },
         },
       },
-      query: { select: { assignedTo: true } },
+      query: { select: { assignedTo: true, name: true, phone: true, countryCode: true, email: true } },
     },
   });
   if (!pkg) return null;
@@ -46,6 +55,16 @@ export async function getSharedPackage(packageId: string) {
         select: { name: true, email: true, designation: true },
       })
     : null;
+
+  // Real destination photos for the "Places You Gonna Visit" strip — same
+  // catalog lookup the builder's own cover-photo suggestion uses, resolved
+  // here (server-side) so the client-facing link shows real photos too, not
+  // just the internal builder preview.
+  const stopNames = [...new Set(pkg.stops.map((s) => s.name.trim()).filter(Boolean))];
+  const stopImageEntries = await Promise.all(
+    stopNames.map(async (name) => [name, await getDestinationCoverImage(name)] as const),
+  );
+  const stopImages = Object.fromEntries(stopImageEntries);
 
   return {
     title:           pkg.title,
@@ -65,15 +84,27 @@ export async function getSharedPackage(packageId: string) {
     inclusions:      pkg.inclusions,
     exclusions:      pkg.exclusions,
     termsNotes:      pkg.termsNotes ?? "",
-    flightsIncluded: pkg.flightsIncluded,
-    flightNotes:     pkg.flightNotes ?? "",
-    flightFrom:      pkg.flightFrom ?? "",
-    flightTo:        pkg.flightTo ?? "",
-    trainIncluded:   pkg.trainIncluded,
-    trainNotes:      pkg.trainNotes ?? "",
-    trainFrom:       pkg.trainFrom ?? "",
-    trainTo:         pkg.trainTo ?? "",
     stops:           pkg.stops,
+    stopImages,
+    tickets: pkg.tickets.map((t) => ({
+      id:            t.id,
+      type:          t.type,
+      provider:      t.provider ?? "",
+      ticketNumber:  t.ticketNumber ?? "",
+      fromPlace:     t.fromPlace ?? "",
+      toPlace:       t.toPlace ?? "",
+      departureTime: t.departureTime ?? "",
+      arrivalTime:   t.arrivalTime ?? "",
+      durationText:  t.durationText ?? "",
+      pickupPoint:   t.pickupPoint ?? "",
+      dropPoint:     t.dropPoint ?? "",
+      adults:        t.adults,
+      children:      t.children,
+      infants:       t.infants,
+      ticketCount:   t.ticketCount,
+      fare:          t.fare ?? null,
+      notes:         t.notes ?? "",
+    })),
     itineraries: pkg.itineraries.map((it) => ({
       day:                       it.day,
       title:                     it.title,
@@ -108,6 +139,10 @@ export async function getSharedPackage(packageId: string) {
       cabPricingId:              null,
       notes:                     it.notes ?? "",
     })),
+    clientName:      pkg.query.name,
+    clientPhone:     pkg.query.phone ? `${pkg.query.countryCode} ${pkg.query.phone}` : "",
+    clientEmail:     pkg.query.email ?? "",
+    queryId:         pkg.queryId,
     execName:        exec?.name ?? "",
     execEmail:       exec?.email ?? "",
     execDesignation: exec?.designation ?? "",

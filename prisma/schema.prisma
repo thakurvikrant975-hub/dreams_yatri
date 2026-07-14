@@ -2411,6 +2411,7 @@ model custom_packages {
   updatedAt       DateTime             @updatedAt
   itineraries     custom_itineraries[]
   stops           custom_package_stops[]
+  tickets         custom_package_tickets[]
   query           package_queries      @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
@@ -2432,6 +2433,42 @@ model custom_package_stops {
   package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
 
   @@index([customPackageId])
+}
+
+// A flight or train ticket the exec has priced into a custom package — one
+// row per leg (e.g. onward + return flight are two rows), each with its own
+// passenger breakdown and fare so the sum feeds straight into the package's
+// computed pricing (see computeFinalPricing in the builder's page.tsx).
+model custom_package_tickets {
+  id              String          @id @default(cuid())
+  customPackageId String
+  type            TicketType
+  provider        String?
+  ticketNumber    String?
+  fromPlace       String?
+  toPlace         String?
+  departureTime   String?
+  arrivalTime     String?
+  durationText    String?
+  pickupPoint     String?
+  dropPoint       String?
+  adults          Int             @default(0)
+  children        Int             @default(0)
+  infants         Int             @default(0)
+  ticketCount     Int             @default(1)
+  fare            Float?
+  notes           String?
+  sortOrder       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+
+  @@index([customPackageId])
+}
+
+enum TicketType {
+  FLIGHT
+  TRAIN
 }
 
 model custom_itineraries {
