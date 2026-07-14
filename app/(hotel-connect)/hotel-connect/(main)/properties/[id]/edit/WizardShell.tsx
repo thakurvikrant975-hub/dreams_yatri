@@ -79,7 +79,7 @@ function TabItem({
   const isLocked    = tab.index > effectiveWizardStep + 1 && !isCurrent;
 
   const baseClass = cn(
-    "relative grow shrink-0 basis-auto flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
+    "relative grow shrink-0 basis-auto flex flex-col items-center gap-1.5 sm:gap-3 px-3 py-2 sm:px-5 sm:py-3.5 whitespace-nowrap transition-colors select-none",
     "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
     isFirst ? "rounded-tl-xl" : "",
     isLast  ? "rounded-tr-xl" : "",
@@ -95,7 +95,7 @@ function TabItem({
   const indicator = (
     <div
       className={cn(
-        "size-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
+        "size-5 sm:size-6 rounded-full text-[10px] sm:text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
         isCurrent
           ? "bg-primary-500 text-white"
           : isCompleted
@@ -324,7 +324,7 @@ export default function WizardShell({
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white overflow-x-auto scrollbar-none py-5">
         <div className="border-b border-neutral-200">
-          <div className="max-w-4xl m-auto flex divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
+          <div className="max-w-4xl w-max min-w-full m-auto flex divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
             {tabs.map((tab, i) => (
               <TabItem
                 key={tab.index}
