@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { saveMealsPricing, type MealsPricingState } from "./meals-pricing-actions";
 import { WarningIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react/dist/ssr";
-import DatePickerField from "@/app/components/ui/DatePickerField";
+import DateRangePickerField, { type DateRangeValue } from "@/app/components/ui/DateRangePickerField";
 import { cn } from "@/app/lib/utils";
 import { Card } from "@/app/components/ui/Card";
 import { Input } from "../../../../components/ui/input";
@@ -313,29 +313,17 @@ export default function MealsPricingTab({ hotel }: { hotel: MealsPricingHotelDat
           <p className="text-sm text-neutral-500 -mt-1">
             Please select the start &amp; end dates on which your property can be booked by guests.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <FieldLabel label="Start Date" />
-              <DatePickerField
-                value={availFrom}
-                onChange={(d) => {
-                  setAvailFrom(d);
-                  // Clear end date if it's no longer after the new start date
-                  if (d && availTo && d >= availTo) setAvailTo(null);
-                }}
-                placeholder="Select start date"
-                minDate={new Date()}
-              />
-            </div>
-            <div>
-              <FieldLabel label="End Date" />
-              <DatePickerField
-                value={availTo}
-                onChange={setAvailTo}
-                placeholder="Select end date"
-                minDate={availFrom ?? new Date()}
-              />
-            </div>
+          <div>
+            <FieldLabel label="Available Dates" />
+            <DateRangePickerField
+              value={{ from: availFrom ?? undefined, to: availTo ?? undefined }}
+              onChange={(range: DateRangeValue) => {
+                setAvailFrom(range.from ?? null);
+                setAvailTo(range.to ?? null);
+              }}
+              placeholder="Select start & end date"
+              minDate={new Date()}
+            />
           </div>
         </SectionCard>
 
