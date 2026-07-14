@@ -405,6 +405,7 @@ export default function CalendarClient({
             multiPlan={(currentRoom?.plans.length ?? 0) > 1}
             rangeLo={rangeLo}
             rangeHi={rangeHi}
+            rangeConfirmed={selStart != null && selEnd != null}
             saving={saving}
             msg={msg}
             onClear={() => { setSelStart(null); setSelEnd(null); }}
@@ -491,6 +492,7 @@ function EditPanel({
   multiPlan,
   rangeLo,
   rangeHi,
+  rangeConfirmed,
   saving,
   msg,
   onSave,
@@ -504,6 +506,7 @@ function EditPanel({
   multiPlan: boolean;
   rangeLo: string | null;
   rangeHi: string | null;
+  rangeConfirmed: boolean;
   saving: boolean;
   msg: string | null;
   onSave: (patch: RangePatch, planRates: PlanRatesPatch[]) => void;
@@ -688,16 +691,18 @@ function EditPanel({
         </SectionCard>
       </div>
 
-      {/* Mobile — a bottom "peek" sheet that appears once a date range is
-          picked, instead of a static block the user has to scroll to. A
-          single tap already yields a valid 1-night "active" range (see
-          rangeLo/rangeHi above), so this can't be a full-screen blocking
-          overlay — the calendar above it must stay visible and tappable so
-          a second tap can still extend the range. No backdrop, since the
-          Cancel button is the intended dismiss affordance. */}
-      {active && (
-        <div className="lg:hidden fixed inset-x-0 bottom-0 z-50 pointer-events-none flex justify-center">
-          <div className="pointer-events-auto w-full max-h-[45vh] overflow-y-auto bg-white rounded-t-2xl shadow-2xl border-t border-neutral-200">
+      {/* Mobile — a bottom sheet that appears only once BOTH ends of a range
+          are picked (rangeConfirmed = selStart and selEnd both set), not
+          after the first tap. A single tap alone already yields a valid
+          1-night "active" range (see rangeLo/rangeHi above), so gating on
+          `active` would open the sheet immediately and block the second tap
+          needed to extend the range on the calendar underneath. Once the
+          range is confirmed there's no more calendar interaction left to
+          protect, so this can be a near-full-height sheet with a backdrop. */}
+      {rangeConfirmed && (
+        <div className="lg:hidden fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={onClear} aria-hidden="true" />
+          <div className="relative w-full max-h-[85vh] overflow-y-auto bg-white rounded-t-2xl shadow-2xl">
             <div className="sticky top-0 z-10 flex items-start justify-between gap-3 px-5 py-4 border-b border-neutral-200 bg-white rounded-t-2xl">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-neutral-800">Bulk Edit</p>
