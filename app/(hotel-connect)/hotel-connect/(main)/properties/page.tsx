@@ -121,7 +121,7 @@ export default async function PropertiesPage({
         <div className="p-6 mx-auto w-full space-y-5">
 
           {/* Top bar */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-neutral-900">
                 {all.length} Propert{all.length !== 1 ? "ies" : "y"}
