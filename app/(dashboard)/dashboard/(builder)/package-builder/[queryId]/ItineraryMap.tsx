@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { StopInput, DayItinerary } from "../action";
+import type { StopInput } from "../action";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Route map for the itinerary preview — shows the travel route (start, stops,
@@ -144,13 +144,12 @@ function buildPoints(startingPoint: string, stops: StopInput[]): MapPoint[] {
 }
 
 export function ItineraryMap({
-  startingPoint, stops, itineraries,
+  startingPoint, stops,
   flightsIncluded, flightFrom, flightTo,
   trainIncluded, trainFrom, trainTo,
 }: {
   startingPoint:   string;
   stops:           StopInput[];
-  itineraries:     DayItinerary[];
   flightsIncluded: boolean;
   flightFrom:      string;
   flightTo:        string;
@@ -164,7 +163,7 @@ export function ItineraryMap({
   const [failed, setFailed]         = useState(false);
   const [routeSource, setRouteSource] = useState<"road" | "straight" | null>(null);
 
-  const points = buildPoints(startingPoint, stops, itineraries);
+  const points = buildPoints(startingPoint, stops);
   // Legs are computed against (and can extend) `points`, so they must run
   // before pointsKey/geocoding — a flight/train arrival city not already a
   // stop needs its own marker geocoded too.

@@ -454,6 +454,7 @@ export interface QueryDetail extends QueryRow {
     title:           string;
     description:     string | null;
     coverImage:      string | null;
+    coverImagePosition: number;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
@@ -526,6 +527,7 @@ export interface PackageInput {
   title:           string;
   description:     string;
   coverImage:      string;
+  coverImagePosition: number;
   destination:     string;
   startingPoint:   string;
   totalDays:       number;
@@ -555,18 +557,24 @@ export interface TicketInput {
   ticketNumber:   string;
   fromPlace:      string;
   toPlace:        string;
+  /** ISO date ("YYYY-MM-DD") — the calendar date this leg actually travels,
+   * which may differ from the package's overall travel date (e.g. a return
+   * leg). Empty string when not set. */
+  travelDate:     string;
+  /** 24-hour "HH:MM" — matches <input type="time">'s value format exactly,
+   * so no parsing is needed at the input boundary. */
   departureTime:  string;
   arrivalTime:    string;
-  /** Free text, e.g. "4h 30m" — not parsed, just displayed as-is. */
+  /** Auto-computed from departureTime/arrivalTime (see computeDurationText
+   * in page.tsx) whenever either changes — not directly user-editable. */
   durationText:   string;
-  pickupPoint:    string;
-  dropPoint:      string;
   adults:         number;
   children:       number;
   infants:        number;
   ticketCount:    number;
   /** Total fare for this ticket entry — summed with the other tickets into
-   * the package's computed pricing (see computeFinalPricing in page.tsx). */
+   * the package's computed pricing (see computeFinalPricing in page.tsx).
+   * Never shown on the client-facing document, only used internally. */
   fare:           number | null;
   notes:          string;
 }
@@ -885,8 +893,8 @@ function normalizeItinerary(it: {
 
 function normalizeTicket(t: {
   id: string; type: "FLIGHT" | "TRAIN"; provider: string | null; ticketNumber: string | null;
-  fromPlace: string | null; toPlace: string | null; departureTime: string | null; arrivalTime: string | null;
-  durationText: string | null; pickupPoint: string | null; dropPoint: string | null;
+  fromPlace: string | null; toPlace: string | null; travelDate: Date | null;
+  departureTime: string | null; arrivalTime: string | null; durationText: string | null;
   adults: number; children: number; infants: number; ticketCount: number;
   fare: number | null; notes: string | null;
 }): TicketInput {
@@ -897,11 +905,10 @@ function normalizeTicket(t: {
     ticketNumber:  t.ticketNumber ?? "",
     fromPlace:     t.fromPlace ?? "",
     toPlace:       t.toPlace ?? "",
+    travelDate:    t.travelDate ? t.travelDate.toISOString().slice(0, 10) : "",
     departureTime: t.departureTime ?? "",
     arrivalTime:   t.arrivalTime ?? "",
     durationText:  t.durationText ?? "",
-    pickupPoint:   t.pickupPoint ?? "",
-    dropPoint:     t.dropPoint ?? "",
     adults:        t.adults,
     children:      t.children,
     infants:       t.infants,
@@ -949,6 +956,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           title:           true,
           description:     true,
           coverImage:      true,
+          coverImagePosition: true,
           pricePerPerson:  true,
           totalPrice:      true,
           marginPercentage: true,
@@ -961,8 +969,9 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
             orderBy: { sortOrder: "asc" },
             select: {
               id: true, type: true, provider: true, ticketNumber: true,
-              fromPlace: true, toPlace: true, departureTime: true, arrivalTime: true, durationText: true,
-              pickupPoint: true, dropPoint: true, adults: true, children: true, infants: true,
+              fromPlace: true, toPlace: true, travelDate: true,
+              departureTime: true, arrivalTime: true, durationText: true,
+              adults: true, children: true, infants: true,
               ticketCount: true, fare: true, notes: true,
             },
           },
@@ -1035,7 +1044,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
 export async function saveCustomPackage(input: PackageInput): Promise<{ id: string; success: boolean; error?: string }> {
   try {
     const {
-      queryId, title, description, coverImage, destination, startingPoint,
+      queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency, inclusions, exclusions,
       termsNotes,
@@ -1102,6 +1111,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         title,
         description:     description || null,
         coverImage:      coverImage || null,
+        coverImagePosition,
         destination,
         startingPoint:   startingPoint || null,
         totalDays,
@@ -1134,6 +1144,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         title,
         description:     description || null,
         coverImage:      coverImage || null,
+        coverImagePosition,
         destination,
         startingPoint:   startingPoint || null,
         totalDays,
@@ -1251,11 +1262,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
           ticketNumber:    t.ticketNumber || null,
           fromPlace:       t.fromPlace || null,
           toPlace:         t.toPlace || null,
+          travelDate:      t.travelDate ? new Date(t.travelDate) : null,
           departureTime:   t.departureTime || null,
           arrivalTime:     t.arrivalTime || null,
           durationText:    t.durationText || null,
-          pickupPoint:     t.pickupPoint || null,
-          dropPoint:       t.dropPoint || null,
           adults:          t.adults,
           children:        t.children,
           infants:         t.infants,

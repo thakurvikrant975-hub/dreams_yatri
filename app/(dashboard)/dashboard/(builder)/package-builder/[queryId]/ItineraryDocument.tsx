@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
-  Plane, TrainFront, Sparkles, Phone, Mail,
+  Plane, TrainFront, Sparkles, Phone, Mail, Upload, Loader2,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight,
 } from "lucide-react";
 import { ItineraryMap } from "./ItineraryMap";
+import { uploadImageFile } from "@/app/lib/uploadImageFile";
 
 // Real contact details — kept identical to app/components/navigation/Footer.tsx
 // (the live marketing site's footer) so a client sees the same phone/email
@@ -30,6 +33,24 @@ function refCode(queryId: string): string {
  * free-typed by the exec, so casing isn't guaranteed. */
 function titleCase(text: string): string {
   return text.replace(/\w\S*/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
+}
+
+/** "14:30" (24h, as stored from <input type="time">) → "2:30 PM". */
+function formatTime12h(hhmm: string): string {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+/** "2026-07-14" → "Tue, 14 Jul 2026". */
+function formatTicketDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
 }
 
 /** "1 Room | 2 Adults, 1 Child" — computed against room capacity so it
@@ -64,6 +85,9 @@ export interface PreviewData {
   title: string;
   description: string;
   coverImage: string;
+  /** Vertical focal point (0 = top, 50 = center, 100 = bottom) for the cover
+   * image's object-position — lets an awkwardly-cropped photo be re-centered. */
+  coverImagePosition: number;
   destination: string;
   startingPoint: string;
   totalDays: number;
@@ -369,8 +393,11 @@ function PlacesToVisit({ form }: { form: PreviewData }) {
   );
 }
 
-/** One flight or train leg — departure/arrival with times and journey
- * length, pax breakdown, pickup/drop, and fare. */
+/** Same light-header-strip card language as the Stay/Transport sub-cards
+ * inside each day (icon badge + tinted header, not a heavy gradient) so a
+ * ticket reads as part of the same document instead of a bolted-on style.
+ * Fare is deliberately never shown here — it's priced into the package total
+ * but not itemized per-leg on the client-facing document. */
 function TicketCard({ ticket }: { ticket: TicketInput }) {
   const Icon = ticket.type === "FLIGHT" ? Plane : TrainFront;
   const paxLine = [
@@ -378,56 +405,51 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
     ticket.children ? `${ticket.children} Child${ticket.children !== 1 ? "ren" : ""}` : null,
     ticket.infants ? `${ticket.infants} Infant${ticket.infants !== 1 ? "s" : ""}` : null,
   ].filter(Boolean).join(", ");
+  const ticketsLabel = ticket.ticketCount > 0 ? `${ticket.ticketCount} Ticket${ticket.ticketCount !== 1 ? "s" : ""}` : null;
+  const footerLine = [paxLine, ticketsLabel].filter(Boolean).join(" · ");
 
   return (
     <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
+      {/* Header — carrier + travel date */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 bg-primary-50/70 border-b border-primary-100">
         <div className="flex items-center gap-2 min-w-0">
           <span className="flex items-center justify-center size-5 rounded-lg bg-primary-100 shrink-0">
             <Icon size={11} className="text-primary-600" />
           </span>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-primary-700 truncate">
-            {ticket.type === "FLIGHT" ? "Flight" : "Train"}
-            {ticket.provider ? ` · ${ticket.provider}` : ""}
-            {ticket.ticketNumber ? ` ${ticket.ticketNumber}` : ""}
+          <p className="text-xs font-semibold text-neutral-800 truncate">
+            {ticket.provider || (ticket.type === "FLIGHT" ? "Airline TBD" : "Train TBD")}
+            {ticket.ticketNumber && <span className="font-normal text-neutral-500"> · {ticket.ticketNumber}</span>}
           </p>
         </div>
-        {ticket.fare != null && ticket.fare > 0 && (
-          <p className="text-xs font-extrabold text-primary-700 shrink-0">₹{ticket.fare.toLocaleString("en-IN")}</p>
+        {ticket.travelDate && (
+          <span className="text-[10px] font-semibold text-primary-700 shrink-0">{formatTicketDate(ticket.travelDate)}</span>
         )}
       </div>
 
-      <div className="p-3 space-y-2.5">
+      {/* Route */}
+      <div className="p-3 space-y-2">
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-[9px] text-neutral-400 uppercase tracking-wide font-semibold">Departure</p>
             <p className="text-sm font-bold text-neutral-800 truncate">{ticket.fromPlace || "—"}</p>
-            {ticket.departureTime && <p className="text-[11px] text-neutral-500">{ticket.departureTime}</p>}
+            {ticket.departureTime && <p className="text-[11px] text-neutral-500">{formatTime12h(ticket.departureTime)}</p>}
           </div>
           <div className="flex flex-col items-center gap-1 shrink-0 px-1">
+            <Icon size={11} className="text-primary-400" />
+            <div className="w-12 border-t border-dotted border-neutral-300" />
             {ticket.durationText && (
-              <span className="text-[9px] text-neutral-400 font-semibold whitespace-nowrap">{ticket.durationText}</span>
+              <span className="text-[9px] text-neutral-400 font-medium whitespace-nowrap">{ticket.durationText}</span>
             )}
-            <div className="relative w-14 h-px bg-neutral-300">
-              <Icon size={11} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary-400 bg-white" />
-            </div>
           </div>
           <div className="flex-1 min-w-0 text-right">
-            <p className="text-[9px] text-neutral-400 uppercase tracking-wide font-semibold">Arrival</p>
             <p className="text-sm font-bold text-neutral-800 truncate">{ticket.toPlace || "—"}</p>
-            {ticket.arrivalTime && <p className="text-[11px] text-neutral-500">{ticket.arrivalTime}</p>}
+            {ticket.arrivalTime && <p className="text-[11px] text-neutral-500">{formatTime12h(ticket.arrivalTime)}</p>}
           </div>
         </div>
 
-        {(paxLine || ticket.ticketCount > 0 || ticket.pickupPoint || ticket.dropPoint) && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 border-t border-neutral-100 text-[11px] text-neutral-500">
-            {paxLine && (
-              <span className="flex items-center gap-1"><Users size={10} className="text-neutral-400" /> {paxLine}</span>
-            )}
-            {ticket.ticketCount > 0 && <span>{ticket.ticketCount} Ticket{ticket.ticketCount !== 1 ? "s" : ""}</span>}
-            {ticket.pickupPoint && <span>Pickup: <span className="font-medium text-neutral-700">{ticket.pickupPoint}</span></span>}
-            {ticket.dropPoint && <span>Drop: <span className="font-medium text-neutral-700">{ticket.dropPoint}</span></span>}
-          </div>
+        {footerLine && (
+          <p className="text-[11px] text-neutral-500 flex items-center gap-1 pt-1.5 border-t border-neutral-100">
+            <Users size={10} className="text-neutral-400 shrink-0" /> {footerLine}
+          </p>
         )}
 
         {ticket.notes && <p className="text-[11px] text-neutral-400 italic">{ticket.notes}</p>}
@@ -436,15 +458,32 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
   );
 }
 
+/** Flight and train legs get their own labeled sections (never merged) so a
+ * trip with both reads as two distinct groups, not one mixed list. */
 function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
-  if (tickets.length === 0) return null;
+  const flights = tickets.filter((t) => t.type === "FLIGHT");
+  const trains = tickets.filter((t) => t.type === "TRAIN");
+  if (flights.length === 0 && trains.length === 0) return null;
+
   return (
-    <div className="space-y-3" style={{ breakInside: "avoid" }}>
-      <SectionHeader icon={Plane} label="Flight & Train Details" />
-      <div className="space-y-3">
-        {tickets.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
-      </div>
-    </div>
+    <>
+      {flights.length > 0 && (
+        <div className="space-y-3" style={{ breakInside: "avoid" }}>
+          <SectionHeader icon={Plane} label="Flight Details" />
+          <div className="grid grid-cols-2 gap-3">
+            {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
+          </div>
+        </div>
+      )}
+      {trains.length > 0 && (
+        <div className="space-y-3" style={{ breakInside: "avoid" }}>
+          <SectionHeader icon={TrainFront} label="Train Details" />
+          <div className="grid grid-cols-2 gap-3">
+            {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -640,21 +679,87 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
 }
 
 /** Full-bleed cover photo behind the package title — falls back to a brand
- * gradient (never a blank/broken image) when no cover has been set yet. */
-function HeroCover({ form, durationLabel }: { form: PreviewData; durationLabel: string }) {
+ * gradient (never a blank/broken image) when no cover has been set yet.
+ * When onCoverImageChange is supplied (the internal builder's live preview),
+ * this becomes a drop target: drag an image straight from the browser onto
+ * it to replace the cover. Left undefined on the public share page / print
+ * export, where the document is read-only. */
+function HeroCover({
+  form, durationLabel, onCoverImageChange, onCoverImagePositionChange,
+}: {
+  form: PreviewData;
+  durationLabel: string;
+  onCoverImageChange?: (url: string) => void;
+  onCoverImagePositionChange?: (position: number) => void;
+}) {
   const hasImage = !!form.coverImage;
+  const editable = !!onCoverImageChange;
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    if (!onCoverImageChange) return;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please drop an image file");
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadImageFile(file, "packages");
+      onCoverImageChange(url);
+      // A brand-new photo resets to a centered crop — the old vertical
+      // offset was tuned for whatever image was there before.
+      onCoverImagePositionChange?.(50);
+      toast.success("Cover image updated");
+    } catch {
+      toast.error("Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
-    <div className="relative w-full overflow-hidden" style={{ height: "90mm" }}>
+    <div
+      className="relative w-full overflow-hidden"
+      style={{ height: "90mm" }}
+      onDragOver={editable ? (e) => { e.preventDefault(); setDragOver(true); } : undefined}
+      onDragLeave={editable ? () => setDragOver(false) : undefined}
+      onDrop={editable ? handleDrop : undefined}
+    >
       {hasImage ? (
         // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog URL, not a static app asset
-        <img src={form.coverImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <img
+          src={form.coverImage}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: `center ${form.coverImagePosition ?? 50}%` }}
+        />
       ) : (
         <div className="absolute inset-0 bg-linear-to-br from-primary-700 via-primary-600 to-primary-900" />
       )}
 
       {/* Scrim for legibility — heaviest where the title sits */}
       <div className="absolute inset-0 bg-linear-to-t from-neutral-950/95 via-neutral-950/35 to-neutral-950/10" />
+
+      {editable && (dragOver || uploading) && (
+        <div className="no-print absolute inset-0 z-10 flex items-center justify-center bg-neutral-950/70 border-4 border-dashed border-white/60">
+          {uploading ? (
+            <div className="flex flex-col items-center gap-2 text-white">
+              <Loader2 size={22} className="animate-spin" />
+              <span className="text-xs font-semibold">Uploading…</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-white">
+              <Upload size={22} />
+              <span className="text-xs font-semibold">Drop image to replace cover</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="absolute inset-x-0 bottom-0 px-[15mm] pb-[15mm]">
         {form.totalDays > 0 && (
@@ -773,7 +878,16 @@ const PRINT_STYLES = `
   }
 `;
 
-export function ItineraryDocument({ form }: { form: PreviewData }) {
+export function ItineraryDocument({
+  form, onCoverImageChange, onCoverImagePositionChange,
+}: {
+  form: PreviewData;
+  /** Present only in the internal builder's live preview — enables dropping
+   * an image straight onto the hero to replace the cover. Omitted on the
+   * public share page and print/PDF export, which stay read-only. */
+  onCoverImageChange?: (url: string) => void;
+  onCoverImagePositionChange?: (position: number) => void;
+}) {
   const travelDateStr = form.travelDate
     ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
     : "TBD";
@@ -797,6 +911,12 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
   // comment on PreviewData.tickets for why these aren't separate fields.
   const transport = deriveTransportFields(form.tickets);
 
+  // Category subtotals for the Price Summary — per-leg fares stay hidden on
+  // each ticket card, but the exec still wants the client to see what the
+  // flight/train cost comes to as part of the overall price breakdown.
+  const flightSubtotal = form.tickets.filter((t) => t.type === "FLIGHT").reduce((sum, t) => sum + (t.fare ?? 0), 0);
+  const trainSubtotal = form.tickets.filter((t) => t.type === "TRAIN").reduce((sum, t) => sum + (t.fare ?? 0), 0);
+
   return (
     <div>
       <style>{PRINT_STYLES}</style>
@@ -816,7 +936,12 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
         </header>
 
         {/* ── Hero cover ────────────────────────────────────────────────────── */}
-        <HeroCover form={form} durationLabel={durationLabel} />
+        <HeroCover
+          form={form}
+          durationLabel={durationLabel}
+          onCoverImageChange={onCoverImageChange}
+          onCoverImagePositionChange={onCoverImagePositionChange}
+        />
 
         {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
         <div className="relative z-10 px-[15mm]" style={{ marginTop: "-13mm" }}>
@@ -897,6 +1022,8 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
             <p className="text-sm text-neutral-600 leading-relaxed">{form.description}</p>
           )}
 
+          <TicketsSection tickets={form.tickets} />
+
           <PlacesToVisit form={form} />
 
           <div className="space-y-3">
@@ -913,12 +1040,9 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
             </div>
           </div>
 
-          <TicketsSection tickets={form.tickets} />
-
           <ItineraryMap
             startingPoint={form.startingPoint}
             stops={form.stops}
-            itineraries={form.itineraries}
             flightsIncluded={transport.flightsIncluded}
             flightFrom={transport.flightFrom}
             flightTo={transport.flightTo}
@@ -935,6 +1059,24 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
                 </span>
                 <h2 className="text-[13px] font-extrabold text-white uppercase tracking-wide">Price Summary</h2>
               </div>
+
+              {(flightSubtotal > 0 || trainSubtotal > 0) && (
+                <div className="space-y-1.5 mb-4 pb-4 border-b border-white/10">
+                  {flightSubtotal > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-white/70"><Plane size={11} /> Flight</span>
+                      <span className="font-semibold text-white">₹{flightSubtotal.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                  {trainSubtotal > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-white/70"><TrainFront size={11} /> Train</span>
+                      <span className="font-semibold text-white">₹{trainSubtotal.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="space-y-1">
                   <p className="text-sm text-white/90 font-medium">{paxLine}</p>

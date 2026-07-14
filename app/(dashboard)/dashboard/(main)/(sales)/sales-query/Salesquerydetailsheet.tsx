@@ -6,7 +6,7 @@ import {
     Phone, Mail, MapPin, Users, Calendar,
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
-    Package, CheckCircle2, FileText,
+    Package, CheckCircle2, FileText, Heart,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -74,6 +74,16 @@ export type SalesQuery = {
   requirements: unknown;
   _count: { queryFollowUps: number };
   customPackage: SentPackageInfo | null;
+};
+
+// Mirrors TRIP_TYPES in Packagedetailsdialog.tsx (the "Package Requirements"
+// popup where this is captured) — a local label map, same pattern used for
+// other requirement-derived labels in the sales views.
+const TRIP_TYPE_LABELS: Record<string, string> = {
+    FAMILY: "Family Trip", HONEYMOON: "Honeymoon", HOLIDAY: "Holiday / Leisure",
+    FRIENDS: "Friends / Group", SOLO: "Solo Travel", ANNIVERSARY: "Anniversary",
+    ADVENTURE: "Adventure", PILGRIMAGE: "Pilgrimage / Religious",
+    BUSINESS: "Business", CORPORATE: "Corporate / MICE", OTHER: "Other",
 };
 
 function InfoRow({
@@ -379,6 +389,14 @@ export function SalesQueryDetailSheet({
                                     </h3>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex flex-wrap gap-1.5">
+                                            {reqs.travellers.tripType && (
+                                                <Badge variant="secondary" className="text-xs gap-1">
+                                                    <Heart className="h-2.5 w-2.5" />
+                                                    {reqs.travellers.tripType === "OTHER"
+                                                        ? (reqs.travellers.tripTypeCustom || "Other")
+                                                        : (TRIP_TYPE_LABELS[reqs.travellers.tripType] ?? reqs.travellers.tripType)}
+                                                </Badge>
+                                            )}
                                             <Badge variant="secondary" className="text-xs gap-1">
                                                 <Users className="h-2.5 w-2.5" />
                                                 {reqs.travellers.adults}A

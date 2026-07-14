@@ -2375,6 +2375,10 @@ model custom_packages {
   title          String
   description    String?
   coverImage     String?
+  /** Vertical focal point for the cover image's object-position (0 = top,
+   * 50 = center, 100 = bottom) — lets the exec re-center an image that
+   * object-cover crops awkwardly, without re-uploading/re-cropping it. */
+  coverImagePosition Float @default(50)
   destination    String
   startingPoint  String?
   totalDays      Int
@@ -2447,11 +2451,10 @@ model custom_package_tickets {
   ticketNumber    String?
   fromPlace       String?
   toPlace         String?
+  travelDate      DateTime?
   departureTime   String?
   arrivalTime     String?
   durationText    String?
-  pickupPoint     String?
-  dropPoint       String?
   adults          Int             @default(0)
   children        Int             @default(0)
   infants         Int             @default(0)

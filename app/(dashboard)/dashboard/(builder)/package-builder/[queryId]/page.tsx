@@ -46,6 +46,7 @@ import {
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { ItineraryDocument, type PreviewData } from "./ItineraryDocument";
 import { HotelRoomPicker } from "./HotelRoomPicker";
+import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +77,17 @@ const STAY_LABELS: Record<string, string> = {
 
 const CAB_LABELS: Record<string, string> = {
   SEDAN: "Sedan", SUV: "SUV", TEMPO: "Tempo Traveller", BUS: "Bus",
+};
+
+// Mirrors TRIP_TYPES in Packagedetailsdialog.tsx (the "Package Requirements"
+// popup where this is captured) — kept as a local label map here, same
+// pattern as STAY_LABELS/CAB_LABELS above, since that's a large client
+// component and this read-only sidebar only needs the label strings.
+const TRIP_TYPE_LABELS: Record<string, string> = {
+  FAMILY: "Family Trip", HONEYMOON: "Honeymoon", HOLIDAY: "Holiday / Leisure",
+  FRIENDS: "Friends / Group", SOLO: "Solo Travel", ANNIVERSARY: "Anniversary",
+  ADVENTURE: "Adventure", PILGRIMAGE: "Pilgrimage / Religious",
+  BUSINESS: "Business", CORPORATE: "Corporate / MICE", OTHER: "Other",
 };
 
 // Geocodes the day's search-city text (Mapbox, India-scoped) so hotel search
@@ -1270,6 +1282,10 @@ interface PackageForm {
   title: string;
   description: string;
   coverImage: string;
+  /** Vertical focal point for the cover image's object-position (0 = top,
+   * 50 = center, 100 = bottom) — lets an awkwardly-cropped photo be
+   * re-centered without re-uploading it. */
+  coverImagePosition: number;
   destination: string;
   startingPoint: string;
   totalDays: number;
@@ -1356,14 +1372,30 @@ const emptyDay = (day: number): DayItinerary => ({
 
 const emptyTicket = (type: "FLIGHT" | "TRAIN"): TicketInput => ({
   type, provider: "", ticketNumber: "",
-  fromPlace: "", toPlace: "", departureTime: "", arrivalTime: "", durationText: "",
-  pickupPoint: "", dropPoint: "",
+  fromPlace: "", toPlace: "", travelDate: "", departureTime: "", arrivalTime: "", durationText: "",
   adults: 0, children: 0, infants: 0, ticketCount: 1,
   fare: null, notes: "",
 });
 
+/** "14:30", "09:05" (24h, matches <input type="time">) → minutes-since-midnight,
+ * assuming arrival is the next day when it's earlier than departure. */
+function computeDurationText(departureTime: string, arrivalTime: string): string {
+  if (!departureTime || !arrivalTime) return "";
+  const [dh, dm] = departureTime.split(":").map(Number);
+  const [ah, am] = arrivalTime.split(":").map(Number);
+  if ([dh, dm, ah, am].some((n) => Number.isNaN(n))) return "";
+  let diff = (ah * 60 + am) - (dh * 60 + dm);
+  if (diff < 0) diff += 24 * 60;
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  if (hours === 0) return `${mins}m`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+}
+
 /** One flight or train leg — every field the exec would need for a ticket
- * confirmation (pax breakdown, times, journey length, pickup/drop, fare). */
+ * confirmation (pax breakdown, travel date, times, auto-computed journey
+ * length, fare). Journey length is derived, not typed. */
 function TicketEditorCard({
   ticket, onChange, onRemove,
 }: {
@@ -1378,6 +1410,16 @@ function TicketEditorCard({
   }
   function num(key: keyof TicketInput) {
     return (e: React.ChangeEvent<HTMLInputElement>) => onChange({ [key]: e.target.value ? Number(e.target.value) : 0 });
+  }
+  // Journey length is derived from both times, not typed — recompute it
+  // against whichever field just changed plus whatever the other already was.
+  function time(key: "departureTime" | "arrivalTime") {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      const departureTime = key === "departureTime" ? value : ticket.departureTime;
+      const arrivalTime = key === "arrivalTime" ? value : ticket.arrivalTime;
+      onChange({ [key]: value, durationText: computeDurationText(departureTime, arrivalTime) });
+    };
   }
 
   return (
@@ -1425,50 +1467,43 @@ function TicketEditorCard({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div>
+        <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Travel date</label>
+        <Input
+          type="date"
+          min={new Date().toISOString().slice(0, 10)}
+          value={ticket.travelDate}
+          onChange={text("travelDate")}
+          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Departure time</label>
           <Input
+            type="time"
             value={ticket.departureTime}
-            onChange={text("departureTime")}
-            placeholder="e.g. 09:40 AM"
+            onChange={time("departureTime")}
             className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
           />
         </div>
         <div>
           <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Arrival time</label>
           <Input
+            type="time"
             value={ticket.arrivalTime}
-            onChange={text("arrivalTime")}
-            placeholder="e.g. 02:10 PM"
-            className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Journey length</label>
-          <Input
-            value={ticket.durationText}
-            onChange={text("durationText")}
-            placeholder="e.g. 4h 30m"
+            onChange={time("arrivalTime")}
             className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <Input
-          value={ticket.pickupPoint}
-          onChange={text("pickupPoint")}
-          placeholder="Pickup point"
-          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-        <Input
-          value={ticket.dropPoint}
-          onChange={text("dropPoint")}
-          placeholder="Drop point"
-          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-      </div>
+      {ticket.durationText && (
+        <p className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1 -mt-1">
+          <Icon size={10} className="text-dashboard-primary" /> Journey length: <span className="font-semibold text-dashboard-base-content">{ticket.durationText}</span>
+        </p>
+      )}
 
       <div className="grid grid-cols-4 gap-2">
         <div>
@@ -1541,7 +1576,7 @@ export default function PackageBuilderDetailPage() {
   const [isSending, startSend] = useTransition();
 
   const [form, setForm] = useState<PackageForm>({
-    title: "", description: "", coverImage: "", destination: "", startingPoint: "",
+    title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
     adults: 1, children: 0, infants: 0,
     pricePerPerson: "", totalPrice: "",
@@ -1612,6 +1647,7 @@ export default function PackageBuilderDetailPage() {
           title: cp.title,
           description: cp.description ?? "",
           coverImage: cp.coverImage ?? "",
+          coverImagePosition: cp.coverImagePosition ?? 50,
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
@@ -1871,6 +1907,7 @@ export default function PackageBuilderDetailPage() {
       tickets: [...f.tickets, {
         ...emptyTicket(type),
         fromPlace: f.startingPoint,
+        travelDate: f.travelDate,
         adults: f.adults, children: f.children, infants: f.infants,
         ticketCount: Math.max(1, f.adults + f.children),
       }],
@@ -2161,7 +2198,11 @@ export default function PackageBuilderDetailPage() {
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
           <div className="px-6 py-8">
-            <ItineraryDocument form={previewForm} />
+            <ItineraryDocument
+              form={previewForm}
+              onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
+              onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+            />
           </div>
         </aside>
 
@@ -2175,7 +2216,11 @@ export default function PackageBuilderDetailPage() {
               </button>
             </div>
             <div className="px-4 py-6">
-              <ItineraryDocument form={previewForm} />
+              <ItineraryDocument
+                form={previewForm}
+                onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
+              onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+              />
             </div>
           </div>
         )}
@@ -2253,22 +2298,12 @@ export default function PackageBuilderDetailPage() {
                           Use destination photo
                         </Button>
                       </div>
-                      <div className="flex gap-2">
-                        <Input
-                          value={form.coverImage}
-                          onChange={field("coverImage")}
-                          placeholder="https://…"
-                          className="text-sm h-9 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                        />
-                        {form.coverImage && (
-                          // eslint-disable-next-line @next/next/no-img-element -- arbitrary external URL, not a static app asset
-                          <img
-                            src={form.coverImage}
-                            alt=""
-                            className="h-9 w-14 rounded-md object-cover border border-dashboard-base-300 shrink-0"
-                          />
-                        )}
-                      </div>
+                      <ImageDropField
+                        value={form.coverImage}
+                        onChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
+                        position={form.coverImagePosition}
+                        onPositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+                      />
                     </div>
                     <div>
                       <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Destination(s)</label>
@@ -3043,6 +3078,12 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
       {t && (
         <SectionCard title="Travellers" icon={<Users size={14} />}>
           <InfoRow label="Lead" value={t.leadName} />
+          {t.tripType && (
+            <InfoRow
+              label="Trip Type"
+              value={t.tripType === "OTHER" ? (t.tripTypeCustom || "Other") : (TRIP_TYPE_LABELS[t.tripType] ?? t.tripType)}
+            />
+          )}
           <InfoRow label="Adults" value={t.adults} />
           {(t.children ?? 0) > 0 && <InfoRow label="Children" value={t.children} />}
           {(t.infants ?? 0) > 0 && <InfoRow label="Infants" value={t.infants} />}
