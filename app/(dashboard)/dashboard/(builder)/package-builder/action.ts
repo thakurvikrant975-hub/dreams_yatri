@@ -374,6 +374,11 @@ export interface QueryRow {
   updatedAt:      Date;
   requirements:   any;
   status:         string;
+  /** The exact public package page path this lead submitted from (if any),
+   * e.g. "/packages/kerala-highlights/5d-4n/munnar-kochi/super-deluxe" —
+   * lets "Create Package" find the exact originating package, not just a
+   * same-destination guess. */
+  packageUrl:     string | null;
 }
 
 export interface QueryDetail extends QueryRow {
@@ -699,6 +704,7 @@ export async function getPackageBuilderQueries({
         updatedAt:      true,
         requirements:   true,
         status:         true,
+        packageUrl:     true,
       },
     }),
   ]);
@@ -820,6 +826,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
       requirements:   true,
       status:         true,
       message:        true,
+      packageUrl:     true,
       // custom_packages is a singular 1:1 relation (queryId is @unique on
       // custom_packages), so no take/orderBy here — those only apply to
       // to-many relations.
