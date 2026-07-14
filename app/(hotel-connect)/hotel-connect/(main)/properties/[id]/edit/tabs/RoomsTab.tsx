@@ -197,8 +197,8 @@ function FormRow({
   label: string; desc?: string; required?: boolean; error?: string; children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-6 px-5 py-4">
-      <div className="w-48 shrink-0 pt-0.5">
+    <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-6 px-5 py-4">
+      <div className="w-full sm:w-48 sm:shrink-0 sm:pt-0.5">
         <p className="text-[13px] font-semibold text-neutral-800 leading-snug">
           {label}
           {required && <span className="text-red-400 ml-0.5">*</span>}
@@ -206,7 +206,7 @@ function FormRow({
         {desc && <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{desc}</p>}
         {error && <p className="text-xs text-red-500 mt-1 font-medium">{error}</p>}
       </div>
-      <div className="flex-1 min-w-0">{children}</div>
+      <div className="flex-1 min-w-0 w-full">{children}</div>
     </div>
   );
 }
