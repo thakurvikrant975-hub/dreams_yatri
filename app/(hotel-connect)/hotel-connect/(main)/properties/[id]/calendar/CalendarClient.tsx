@@ -319,10 +319,10 @@ export default function CalendarClient({
           <p className="text-sm text-neutral-500">{hotelName}</p>
           <h1 className="text-lg font-bold text-neutral-800">Rates & Inventory</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           <Link
             href={`/hotel-connect/properties/${hotelId}/rates`}
-            className={buttonVariants({ variant: "outline", size: "md", className: "gap-1.5" })}
+            className={buttonVariants({ variant: "outline", size: "md", className: "gap-1.5 justify-center w-full sm:w-auto" })}
           >
             <ListBulletIcon className="w-4 h-4" />
             List View
@@ -333,7 +333,7 @@ export default function CalendarClient({
               value={roomId != null ? String(roomId) : undefined}
               onChange={(v) => pickRoom(Number(v))}
               showSearch={rooms.length > 6}
-              className="w-56"
+              className="w-full sm:w-56"
             />
           )}
           {currentRoom && currentRoom.plans.length > 1 && (
@@ -342,7 +342,7 @@ export default function CalendarClient({
               value={planId != null ? String(planId) : undefined}
               onChange={(v) => pickPlan(Number(v))}
               showSearch={false}
-              className="w-48"
+              className="w-full sm:w-48"
             />
           )}
         </div>
