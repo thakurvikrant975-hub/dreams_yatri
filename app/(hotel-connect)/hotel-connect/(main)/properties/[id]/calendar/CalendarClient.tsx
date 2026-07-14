@@ -182,20 +182,22 @@ function MonthGrid({
               onClick={() => onClickDay(date)}
               disabled={past}
               className={cn(
-                "aspect-square border border-neutral-200/80 p-1 sm:p-1.5 text-left flex flex-col transition-colors relative -mb-px -mr-px",
+                "aspect-square border border-neutral-200/80 p-0.5 sm:p-1.5 text-left flex flex-col transition-colors relative -mb-px -mr-px overflow-hidden",
                 past ? "bg-neutral-50/60 text-neutral-300 cursor-not-allowed" : "hover:bg-primary-50/40",
                 selected && "bg-primary-100/70 ring-1 ring-inset ring-primary-300",
               )}
             >
-              <span className={cn("text-xs font-bold font-heading", !past && "text-neutral-400")}>{dayNum}</span>
+              <span className={cn("text-[10px] sm:text-xs font-bold font-heading", !past && "text-neutral-400")}>{dayNum}</span>
               {cell && !past && (
                 <>
-                  <span className={cn("mt-auto text-sm font-semibold font-heading leading-tight", soldOut ? "text-red-500" : "text-neutral-800")}>
+                  <span className={cn("mt-auto w-full block truncate text-[9px] sm:text-sm font-semibold font-heading leading-tight", soldOut ? "text-red-500" : "text-neutral-800")}>
                     {cell.price != null ? money(cell.price) : "—"}
                   </span>
-                  <span className={cn("text-[9px] leading-tight flex items-center gap-0.5", soldOut ? "text-red-400" : "text-neutral-400")}>
-                    {cell.stopSell ? <><NoSymbolIcon className="w-2.5 h-2.5" /> closed</> : `${cell.available}/${cell.totalUnits} left`}
-                    {cell.priceOverride != null && <TagIcon className="w-2.5 h-2.5 text-primary-500" />}
+                  <span className={cn("w-full text-[7px] sm:text-[9px] leading-tight flex items-center gap-0.5 whitespace-nowrap overflow-hidden", soldOut ? "text-red-400" : "text-neutral-400")}>
+                    <span className="truncate">
+                      {cell.stopSell ? <><NoSymbolIcon className="w-2.5 h-2.5 inline -mt-0.5" /> closed</> : `${cell.available}/${cell.totalUnits} left`}
+                    </span>
+                    {cell.priceOverride != null && <TagIcon className="w-2.5 h-2.5 text-primary-500 shrink-0" />}
                   </span>
                 </>
               )}
