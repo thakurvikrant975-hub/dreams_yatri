@@ -322,9 +322,9 @@ export default function WizardShell({
       </header>
 
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
-      <div className="shrink-0 bg-white overflow-x-auto scrollbar-none py-5">
+      <div className="shrink-0 bg-white overflow-x-auto scrollbar-none px-2  py-5">
         <div className="border-b border-neutral-200">
-          <div className="max-w-4xl w-max min-w-full m-auto flex divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
+          <div className="md:max-w-4xl w-max md:w-auto min-w-full md:min-w-auto m-auto flex divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
             {tabs.map((tab, i) => (
               <TabItem
                 key={tab.index}
@@ -341,8 +341,8 @@ export default function WizardShell({
       </div>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
-      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate">
-        <div className="max-w-4xl mx-auto w-full ">
+      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 px-2 isolate">
+        <div className="max-w-4xl mx-auto w-full">
           <ReviewBanner listing_status={hotel.listing_status} slug={hotel.slug} rejection_reason={hotel.rejection_reason} />
           {children}
         </div>

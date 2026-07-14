@@ -1178,45 +1178,50 @@ function Section5({ data, onChange, mandatoryError }: {
         </div>
       ) : (
         /* ── Normal sidebar + panel ──
-           Fixed height so the sidebar's category list and the content panel
-           always share one scroll viewport — otherwise whichever pane is
-           naturally taller dictates the row's height and the shorter pane's
-           own scroll never engages, silently clipping rows outside it. */
-        <div className="flex h-105 divide-x divide-neutral-100">
+           Fixed height (desktop) so the sidebar's category list and the
+           content panel always share one scroll viewport — otherwise
+           whichever pane is naturally taller dictates the row's height and
+           the shorter pane's own scroll never engages, silently clipping
+           rows outside it. On small screens this stacks instead: a
+           horizontal scrollable category row on top, amenities below. */
+        <div className="flex flex-col sm:flex-row sm:h-105 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100">
 
           {/* Sidebar */}
-          <div className="w-44 shrink-0 h-full overflow-y-auto scrollbar-slim border-r border-neutral-100">
-            {ROOM_AMENITY_GROUPS.map((group) => {
-              const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
-              const isActive = activeCategory === group.label;
-              return (
-                <button
-                  key={group.label}
-                  type="button"
-                  onClick={() => selectAmenityCategory(group.label)}
-                  className={cn(
-                    "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
-                    isActive
-                      ? "bg-primary-50 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-primary-500"
-                      : "hover:bg-neutral-50",
-                  )}
-                >
-                  <p className={cn("text-[13px] font-medium leading-snug", isActive ? "text-primary-600" : "text-neutral-700")}>
-                    {group.label}
-                  </p>
-                  <p className={cn(
-                    "text-[11px] mt-0.5 font-medium",
-                    selected === group.items.length ? "text-emerald-600" : selected > 0 ? "text-amber-500" : "text-neutral-400",
-                  )}>
-                    {selected} of {group.items.length}
-                  </p>
-                </button>
-              );
-            })}
+          <div className="w-full sm:w-44 shrink-0 sm:h-full overflow-hidden sm:overflow-y-auto scrollbar-slim border-b sm:border-b-0 sm:border-r border-neutral-100">
+            <div className="flex sm:block overflow-x-auto sm:overflow-x-visible scrollbar-slim">
+              {ROOM_AMENITY_GROUPS.map((group) => {
+                const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
+                const isActive = activeCategory === group.label;
+                return (
+                  <button
+                    key={group.label}
+                    type="button"
+                    onClick={() => selectAmenityCategory(group.label)}
+                    className={cn(
+                      "shrink-0 sm:w-full text-left px-3.5 py-2.5 sm:px-4 sm:py-3 whitespace-nowrap sm:whitespace-normal transition-colors relative",
+                      "border-b-2 sm:border-b sm:border-b-neutral-100",
+                      isActive
+                        ? "bg-primary-50 border-primary-500 sm:before:absolute sm:before:left-0 sm:before:top-0 sm:before:bottom-0 sm:before:w-0.5 sm:before:bg-primary-500"
+                        : "border-transparent hover:bg-neutral-50",
+                    )}
+                  >
+                    <p className={cn("text-[12px] sm:text-[13px] font-medium leading-snug", isActive ? "text-primary-600" : "text-neutral-700")}>
+                      {group.label}
+                    </p>
+                    <p className={cn(
+                      "text-[10px] sm:text-[11px] mt-0.5 font-medium",
+                      selected === group.items.length ? "text-emerald-600" : selected > 0 ? "text-amber-500" : "text-neutral-400",
+                    )}>
+                      {selected} of {group.items.length}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Content panel */}
-          <div className="flex-1 h-full flex flex-col overflow-hidden">
+          <div className="flex-1 sm:h-full flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-5 py-2.5 border-b border-neutral-100 bg-neutral-50/60 shrink-0">
               <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
                 {activeCategory}
@@ -1230,7 +1235,7 @@ function Section5({ data, onChange, mandatoryError }: {
               </button>
             </div>
 
-            <div ref={amenityListRef} className="overflow-y-auto scrollbar-slim flex-1">
+            <div ref={amenityListRef} className="overflow-y-auto scrollbar-slim flex-1 max-h-80 sm:max-h-none">
               {activeConfig
                 ? activeConfig.map((config) => renderRow(config, config.name, activeCategory === "Mandatory"))
                 : activeGroup.items.map((item) => {

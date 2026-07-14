@@ -117,18 +117,19 @@ function CategoryNavItem({
       onClick={onClick}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
+        "shrink-0 sm:w-full text-left px-3.5 py-2.5 sm:px-4 sm:py-3 whitespace-nowrap sm:whitespace-normal",
+        "border-b-2 sm:border-b sm:border-b-neutral-100 transition-colors relative",
         active
-          ? "bg-primary-50 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-primary-500"
-          : "hover:bg-neutral-100"
+          ? "bg-primary-50 border-primary-500 sm:before:absolute sm:before:left-0 sm:before:top-0 sm:before:bottom-0 sm:before:w-0.5 sm:before:bg-primary-500"
+          : "border-transparent hover:bg-neutral-100"
       )}
     >
-      <p className={cn("text-[13px] font-medium leading-snug", active ? "text-primary-600" : "text-neutral-700")}>
+      <p className={cn("text-[12px] sm:text-[13px] font-medium leading-snug", active ? "text-primary-600" : "text-neutral-700")}>
         {label}
       </p>
       <p
         className={cn(
-          "text-[11px] mt-0.5 font-medium",
+          "text-[10px] sm:text-[11px] mt-0.5 font-medium",
           answered === total ? "text-emerald-600" : answered > 0 ? "text-amber-500" : "text-neutral-400"
         )}
       >
@@ -1057,31 +1058,35 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
             </div>
           ) : (
 
-          /* Sidebar + Content row */
-          <div className="flex flex-1 min-h-0 overflow-hidden px-px">
+          /* Sidebar + Content — a horizontal scrollable chip row above the
+             amenities list on small screens (stacked), the usual left
+             sidebar beside the list from sm: up (side-by-side). */
+          <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-hidden px-px">
 
             {/* Sidebar */}
-          <aside className="w-64 shrink-0 h-full overflow-y-auto scrollbar-slim ">
-            <div className="px-4 py-2.5 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
+          <aside className="w-full sm:w-64 shrink-0 sm:h-full border-b sm:border-b-0 border-neutral-200 overflow-hidden sm:overflow-y-auto scrollbar-slim">
+            <div className="hidden sm:block px-4 py-2.5 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
               <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider ">Categories</p>
             </div>
-            {AMENITY_CATEGORIES.map((cat) => {
-              const { answered, total } = getStats(cat.items);
-              return (
-                <CategoryNavItem
-                  key={cat.label}
-                  label={cat.label}
-                  answered={answered}
-                  total={total}
-                  active={cat.label === activeCategory}
-                  onClick={() => selectCategory(cat.label)}
-                />
-              );
-            })}
+            <div className="flex sm:block overflow-x-auto sm:overflow-x-visible scrollbar-slim">
+              {AMENITY_CATEGORIES.map((cat) => {
+                const { answered, total } = getStats(cat.items);
+                return (
+                  <CategoryNavItem
+                    key={cat.label}
+                    label={cat.label}
+                    answered={answered}
+                    total={total}
+                    active={cat.label === activeCategory}
+                    onClick={() => selectCategory(cat.label)}
+                  />
+                );
+              })}
+            </div>
           </aside>
 
           {/* Content */}
-          <div ref={contentScrollRef} className="flex-1 min-w-0 h-full overflow-y-auto scrollbar-slim flex flex-col border-l border-neutral-200 ">
+          <div ref={contentScrollRef} className="flex-1 min-w-0 min-h-0 overflow-y-auto scrollbar-slim flex flex-col sm:border-l border-neutral-200 ">
 
             {/* Category header */}
             <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50 sticky top-0 z-10">
