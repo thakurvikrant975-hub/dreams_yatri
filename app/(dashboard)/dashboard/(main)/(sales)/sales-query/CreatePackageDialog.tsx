@@ -69,11 +69,32 @@ function randomLoadingMessage() {
     return LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)];
 }
 
+/** Pulls the package slug out of a submitted packageUrl like
+ * "/packages/kerala-highlights-family-escape/5d-4n/munnar-kochi/super-deluxe"
+ * — the second path segment, right after "packages". Returns null for
+ * anything that doesn't look like a package page path (old leads from
+ * before packageUrl was tracked, non-package sources, etc). */
+function parsePackageSlug(packageUrl: string | null | undefined): string | null {
+    if (!packageUrl) return null;
+    try {
+        const path = packageUrl.startsWith("http") ? new URL(packageUrl).pathname : packageUrl;
+        const parts = path.split("/").filter(Boolean);
+        const idx = parts.indexOf("packages");
+        return idx !== -1 ? (parts[idx + 1] ?? null) : null;
+    } catch {
+        return null;
+    }
+}
+
 export type QueryBudget = { min?: number; max?: number; type: "PER_PERSON" | "TOTAL" };
 
-export function CreatePackageDialog({ queryId, destination, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
+export function CreatePackageDialog({ queryId, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
     queryId: string;
     destination: string | null;
+    /** The exact public package page path this lead submitted their query
+     * from, if any — used to reliably surface the originating package first,
+     * instead of guessing from destination name alone. */
+    packageUrl?: string | null;
     travelDate?: string | null;
     travellers?: { adults: number; children: number; infants: number } | null;
     budget?: QueryBudget | null;
@@ -85,6 +106,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
 }) {
     const router = useRouter();
     const [open, setOpen] = useState(false);
+    const querySlug = parsePackageSlug(packageUrl);
 
     const pax = {
         adults: travellers?.adults ?? 2,
@@ -124,6 +146,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                 travelDate, ...pax,
                 budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
                 queryDestination: destination ?? undefined,
+                querySlug: querySlug ?? undefined,
             });
             if (id !== requestId.current) return;
             setPackages(result.packages);
@@ -145,6 +168,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
             travelDate, ...pax,
             budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
             queryDestination: destination ?? undefined,
+            querySlug: querySlug ?? undefined,
         });
         setPackages((prev) => [...prev, ...result.packages]);
         setTotal(result.total);
@@ -276,8 +300,14 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-1">
                             {packages.map((pkg, idx) => {
-                                const isQueryMatch = idx === 0 && !!destination
-                                    && pkg.destinationName.trim().toLowerCase() === destination.trim().toLowerCase();
+                                // Prefer the exact originating package (by slug); only fall
+                                // back to a same-destination guess for older leads/sources
+                                // that never captured a packageUrl.
+                                const isQueryMatch = idx === 0 && (
+                                    querySlug
+                                        ? pkg.slug === querySlug
+                                        : !!destination && pkg.destinationName.trim().toLowerCase() === destination.trim().toLowerCase()
+                                );
                                 return (
                                 <div
                                     key={pkg.id}

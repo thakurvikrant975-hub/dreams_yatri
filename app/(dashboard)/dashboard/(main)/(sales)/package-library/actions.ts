@@ -167,17 +167,22 @@ export async function searchPackageLibraryForTemplate(params: {
      * the very top, ahead of budget fit, since it's the most directly
      * relevant template for what this lead actually asked about. */
     queryDestination?: string;
+    /** The exact catalog package slug this lead's query came from (parsed
+     * from their submitted packageUrl) — beats destination/budget sorting
+     * entirely, since it's not a guess, it's literally the page they were on. */
+    querySlug?: string;
 } = {}): Promise<{ packages: TemplatePackage[]; total: number }> {
     const {
         search = "", page = 1, size = 12,
         travelDate = null, adults = 2, children = 0, infants = 0,
         budgetMin, budgetMax, budgetType = "PER_PERSON",
-        queryDestination,
+        queryDestination, querySlug,
     } = params;
     const safeSize = Math.min(size, 50);
     const hasBudget = budgetMin != null || budgetMax != null;
     const hasDestinationPriority = !!queryDestination?.trim();
-    const needsInMemorySort = hasBudget || hasDestinationPriority;
+    const hasSlugPriority = !!querySlug?.trim();
+    const needsInMemorySort = hasBudget || hasDestinationPriority || hasSlugPriority;
     // With a budget or destination-priority sort, we price/sort every match
     // (catalog is small — capped for safety) instead of just whichever page
     // happened to load first from the DB's own ordering.
@@ -194,47 +199,43 @@ export async function searchPackageLibraryForTemplate(params: {
         } : {}),
     };
 
-    const [total, rows] = await Promise.all([
-        db.packages.count({ where }),
-        db.packages.findMany({
-            where,
-            orderBy: { title: "asc" },
-            ...(needsInMemorySort
-                ? { take: PRICE_ALL_CAP }
-                : { skip: (page - 1) * safeSize, take: safeSize }),
+    const TEMPLATE_ROW_SELECT = {
+        id:          true,
+        title:       true,
+        slug:        true,
+        thumbnail:   true,
+        description: true,
+        destination: { select: { name: true, region: { select: { name: true } } } },
+        stay_categories: {
+            where:   { is_active: true as const },
+            orderBy: { sort_order: "asc" as const },
+            select:  { id: true, label: true, is_default: true },
+        },
+        durations: {
+            where:  { is_default: true as const },
+            take:   1,
             select: {
-                id:          true,
-                title:       true,
-                slug:        true,
-                thumbnail:   true,
-                description: true,
-                destination: { select: { name: true, region: { select: { name: true } } } },
-                stay_categories: {
-                    where:   { is_active: true },
-                    orderBy: { sort_order: "asc" },
-                    select:  { id: true, label: true, is_default: true },
-                },
-                durations: {
-                    where:  { is_default: true },
-                    take:   1,
-                    select: {
-                        id: true, slug: true, days: true, nights: true,
-                        routes: {
-                            orderBy: { sort_order: "asc" },
-                            take:    1,
-                            select:  {
-                                id:    true,
-                                slug:  true,
-                                stops: { orderBy: { sort_order: "asc" }, select: { place_name: true } },
-                            },
-                        },
+                id: true, slug: true, days: true, nights: true,
+                routes: {
+                    orderBy: { sort_order: "asc" as const },
+                    take:    1,
+                    select:  {
+                        id:    true,
+                        slug:  true,
+                        stops: { orderBy: { sort_order: "asc" as const }, select: { place_name: true } },
                     },
                 },
             },
-        }),
-    ]);
+        },
+    };
 
-    const packages: TemplatePackage[] = await Promise.all(rows.map(async (r) => {
+    async function mapTemplateRow(r: {
+        id: number; title: string; slug: string; thumbnail: string | null; description: string | null;
+        destination: { name: string; region: { name: string } | null };
+        stay_categories: { id: number; label: string; is_default: boolean }[];
+        durations: { id: number; slug: string; days: number; nights: number;
+            routes: { id: number; slug: string; stops: { place_name: string }[] }[] }[];
+    }): Promise<TemplatePackage> {
         const duration = r.durations[0];
         const route = duration?.routes[0];
         const stayCategory = r.stay_categories.find((s) => s.is_default) ?? r.stay_categories[0];
@@ -267,20 +268,57 @@ export async function searchPackageLibraryForTemplate(params: {
             pricePerAdult,
             withinBudget,
         };
-    }));
+    }
+
+    let [total, rows] = await Promise.all([
+        db.packages.count({ where }),
+        db.packages.findMany({
+            where,
+            orderBy: { title: "asc" },
+            ...(needsInMemorySort
+                ? { take: PRICE_ALL_CAP }
+                : { skip: (page - 1) * safeSize, take: safeSize }),
+            select: TEMPLATE_ROW_SELECT,
+        }),
+    ]);
+
+    const packages: TemplatePackage[] = await Promise.all(rows.map(mapTemplateRow));
+
+    // The exact package this lead's query came from must always be present,
+    // even if it didn't match the free-text search filter above (e.g. the
+    // search box defaulted to a destination name that isn't in this specific
+    // package's title) — fetch and pin it separately rather than depend on
+    // it surviving the `where` clause.
+    if (hasSlugPriority && page === 1 && !packages.some((p) => p.slug === querySlug)) {
+        const pinnedRow = await db.packages.findFirst({
+            where:  { slug: querySlug, is_active: true },
+            select: TEMPLATE_ROW_SELECT,
+        });
+        if (pinnedRow) {
+            packages.unshift(await mapTemplateRow(pinnedRow));
+            total += 1;
+        }
+    }
 
     if (!needsInMemorySort) {
         return { packages, total };
     }
 
-    // Sort exact-destination-match first (the package this lead's query is
-    // actually about), then within-budget, then by how close the price is to
-    // the budget (packages with no computed price sort last for the budget
-    // tiebreak — we can't tell if they fit).
+    // Sort the exact originating package first (not a guess — literally the
+    // page this lead's query came from), then exact-destination-match, then
+    // within-budget, then by how close the price is to the budget (packages
+    // with no computed price sort last for the budget tiebreak — we can't
+    // tell if they fit).
     const destKey = queryDestination?.trim().toLowerCase();
     const isDestMatch = (pkg: TemplatePackage) => !!destKey && pkg.destinationName.trim().toLowerCase() === destKey;
+    const isSlugMatch = (pkg: TemplatePackage) => hasSlugPriority && pkg.slug === querySlug;
     const compareValue = (pkg: TemplatePackage) => budgetType === "PER_PERSON" ? (pkg.pricePerAdult ?? pkg.estimatedPrice) : pkg.estimatedPrice;
     const sorted = [...packages].sort((a, b) => {
+        if (hasSlugPriority) {
+            const aMatch = isSlugMatch(a);
+            const bMatch = isSlugMatch(b);
+            if (aMatch !== bMatch) return aMatch ? -1 : 1;
+        }
         if (hasDestinationPriority) {
             const aMatch = isDestMatch(a);
             const bMatch = isDestMatch(b);

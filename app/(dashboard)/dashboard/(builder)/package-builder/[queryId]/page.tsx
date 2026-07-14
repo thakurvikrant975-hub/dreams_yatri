@@ -135,7 +135,7 @@ function SectionCard({
 }: { title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-xs overflow-hidden">
+    <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-dashboard-base-200/60 transition-colors cursor-pointer"
@@ -557,7 +557,7 @@ function RouteStopsEditor({ stops, onChange }: {
 // ─────────────────────────────────────────────────────────────────────────────
 function DayCard({
   day, data, location, totalDays, onChange, onRemove,
-  onApplyVehicleToDays, onApplyRoomToDays,
+  onApplyVehicleToDays, onApplyRoomToDays, stayPreference,
 }: {
   day: number;
   data: DayItinerary;
@@ -567,6 +567,8 @@ function DayCard({
   onRemove: () => void;
   onApplyVehicleToDays: (vehicle: VehicleResult, dayNumbers: number[]) => void;
   onApplyRoomToDays: (room: HotelRoomResult, dayNumbers: number[]) => void;
+  /** Stay-type preferences from the client's requirement form (e.g. ["STAR_4", "RESORT"]) — shown as a hint above the hotel search so the exec knows what to look for. */
+  stayPreference?: string[];
 }) {
   const [open, setOpen] = useState(true);
 
@@ -660,10 +662,14 @@ function DayCard({
       description: [
         `₹${r.pricePerNight.toLocaleString("en-IN")}/night`,
         r.mealPlanName,
+        r.roomCapacity ? `Sleeps ${r.roomCapacity}${r.extraBedCapacity > 0 ? ` +${r.extraBedCapacity} extra bed${r.extraBedCapacity > 1 ? "s" : ""}` : ""}` : null,
         r.distanceKm != null ? `${r.distanceKm} km from ${searchCity}` : null,
       ].filter(Boolean).join(" · "),
       thumbnail: r.thumbnail ?? undefined,
-      badge: r.category ?? undefined,
+      // Star rating (the "3/4/5 star" the exec is actually looking for) takes
+      // priority over the property type (hotel/resort/…) since it's the
+      // stronger buying signal — falls back to property type when unset.
+      badge: r.starRating ?? r.category ?? undefined,
       raw: r,
     }));
   }
@@ -769,7 +775,7 @@ function DayCard({
   }
 
   return (
-    <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
+    <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-dashboard-base-100 border-b border-dashboard-base-300">
         <button onClick={() => setOpen(!open)} className="flex items-center gap-2 flex-1 text-left">
@@ -826,6 +832,19 @@ function DayCard({
             <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1 block">
               <Hotel size={11} /> Hotel Info
             </label>
+            {stayPreference && stayPreference.length > 0 && (
+              <p className="text-[11px] text-dashboard-base-content/70 -mt-1.5 flex flex-wrap items-center gap-1">
+                <span className="text-dashboard-base-content/50">Client wants:</span>
+                {stayPreference.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-dashboard-primary/10 text-dashboard-primary font-medium"
+                  >
+                    {STAY_LABELS[t] ?? t}
+                  </span>
+                ))}
+              </p>
+            )}
             <div>
               <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">
                 Search location (city) — defaults to this day&apos;s stop, editable
@@ -1669,6 +1688,37 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
+  /** Fills the first day's pickup point and the last day's drop point when
+   * they're empty — from the client's requirement form (Departure/Pickup
+   * Point(s)) if set, else the route's first/last stop. Mirrors
+   * autoFillDayTitles: never touches a day that already has a value, so
+   * it's safe to run again after adding stops or editing requirements. */
+  function autoFillPickupDrop() {
+    const j = query?.requirements?.journey;
+    const requirementPickup = j?.departurePoints?.[0] || j?.pickupPoints?.[0] || "";
+    setForm((f) => {
+      if (f.itineraries.length === 0) return f;
+      const locations = deriveDayLocations(f.stops, f.itineraries.length);
+      const firstLoc = locations[0] || f.destination || "";
+      const lastLoc = locations[locations.length - 1] || f.destination || "";
+      const lastIdx = f.itineraries.length - 1;
+      return {
+        ...f,
+        itineraries: f.itineraries.map((it, idx) => {
+          let next = it;
+          if (idx === 0 && !next.transportPickup.trim()) {
+            const pickup = requirementPickup || firstLoc;
+            if (pickup) next = { ...next, transportPickup: pickup };
+          }
+          if (idx === lastIdx && !next.transportDrop.trim() && lastLoc) {
+            next = { ...next, transportDrop: lastLoc };
+          }
+          return next;
+        }),
+      };
+    });
+  }
+
   function field<K extends keyof PackageForm>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -1753,6 +1803,7 @@ export default function PackageBuilderDetailPage() {
             <CreatePackageDialog
               queryId={query.id}
               destination={j?.destinations?.join(", ") ?? query.destination ?? null}
+              packageUrl={query.packageUrl}
               travelDate={j?.travelDate ?? (query.travelDate ? new Date(query.travelDate).toISOString().slice(0, 10) : null)}
               travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
               budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
@@ -1869,7 +1920,7 @@ export default function PackageBuilderDetailPage() {
               {/* ── Tab: Package Details ─────────────────────────────────────────── */}
               <TabsContent value="details" className="space-y-6">
                 {/* Package Overview */}
-                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <Package size={15} className="text-dashboard-primary" /> Package Overview
                   </h2>
@@ -1996,7 +2047,7 @@ export default function PackageBuilderDetailPage() {
                 </div>
 
                 {/* Travellers & Pricing */}
-                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <IndianRupee size={15} className="text-dashboard-primary" /> Travellers & Pricing
                   </h2>
@@ -2063,7 +2114,7 @@ export default function PackageBuilderDetailPage() {
                 </div>
 
                 {/* Flights & Train */}
-                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <Plane size={15} className="text-dashboard-primary" /> Flights & Train
                   </h2>
@@ -2161,6 +2212,15 @@ export default function PackageBuilderDetailPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-8 gap-1 border-dashboard-base-300 text-dashboard-base-content rounded-md"
+                      onClick={autoFillPickupDrop}
+                      title="Sets Day 1's pickup point from the client's requirement form (or the first stop) and the last day's drop point from the last stop — never overwrites an existing value"
+                    >
+                      <Car size={13} /> Auto-fill Pickup/Drop
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="h-8 gap-1 border-dashboard-base-300 duration-300 transition-transform hover:scale-105 text-dashboard-base-content rounded-md"
                       onClick={addDay}
                     >
@@ -2180,13 +2240,14 @@ export default function PackageBuilderDetailPage() {
                     onRemove={() => removeDay(idx)}
                     onApplyVehicleToDays={applyVehicleToDays}
                     onApplyRoomToDays={applyRoomToDays}
+                    stayPreference={s?.types}
                   />
                 ))}
               </TabsContent>
 
               {/* ── Tab: Pricing Breakdown ───────────────────────────────────────── */}
               <TabsContent value="pricing" className="space-y-4">
-                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <IndianRupee size={15} className="text-dashboard-primary" /> Pricing Breakdown
                   </h2>
@@ -2274,7 +2335,7 @@ export default function PackageBuilderDetailPage() {
 
               {/* ── Tab: Inclusions & Terms ──────────────────────────────────────── */}
               <TabsContent value="inclusions" className="space-y-6">
-                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-5">
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <CheckCircle size={15} className="text-dashboard-primary" /> Inclusions & Exclusions
                   </h2>
@@ -2292,7 +2353,7 @@ export default function PackageBuilderDetailPage() {
                   />
                 </div>
 
-                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-3">
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <Info size={15} className="text-dashboard-primary" /> Terms & Notes
                   </h2>

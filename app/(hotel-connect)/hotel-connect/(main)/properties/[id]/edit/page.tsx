@@ -10,7 +10,7 @@ import type { OwnerProfile } from "./tabs/HostDetailsSection";
 import LocationTab from "./tabs/LocationTab";
 import AmenitiesTab, { type HotelAmenitiesInfo } from "./tabs/AmenitiesTab";
 import RoomsTab, { type RoomSummary } from "./tabs/RoomsTab";
-import PhotosTab, { type PhotoCategory } from "./tabs/PhotosTab";
+import PhotosTab, { type PhotoCategory, type BedroomOption } from "./tabs/PhotosTab";
 import MealsPricingTab, { type MealsPricingHotelData } from "./tabs/MealsPricingTab";
 import PoliciesTab, { type PoliciesHotelData } from "./tabs/PoliciesTab";
 import HomestayPoliciesTab, { type HomestayPoliciesData } from "./tabs/HomestayPoliciesTab";
@@ -238,6 +238,14 @@ export default async function EditPropertyPage({
     photoCount: r._count.images,
   }));
   const isHomestay = h.property_category === "HOMESTAY_VILLA";
+
+  const bedroomOptions: BedroomOption[] = isHomestay && h.hs_bedrooms
+    ? Array.from({ length: h.hs_bedrooms }, (_, i) => {
+        const details = (h.hs_bedroom_details as { name?: string }[] | null) ?? [];
+        return { index: i, name: details[i]?.name || `Bedroom ${i + 1}` };
+      })
+    : [];
+
   // Hotels have 7 tabs (no Pricing tab); Homestay/Villa have 8 tabs (Pricing at tab 6)
   const maxTab = isHomestay ? 8 : 7;
   const TABS_WITH_FORM = isHomestay ? HOMESTAY_TABS_WITH_FORM : HOTEL_TABS_WITH_FORM;
@@ -334,7 +342,7 @@ export default async function EditPropertyPage({
     ) : currentTab === 4 ? (
       <HomestayRoomsTab hotel={h as unknown as HomestayRoomsData} />
     ) : currentTab === 5 ? (
-      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} rooms={rooms} />
+      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} isHomestay={isHomestay} rooms={rooms} bedrooms={bedroomOptions} />
     ) : currentTab === 6 ? (
       <MealsPricingTab hotel={pricingData} />
     ) : currentTab === 7 ? (
@@ -354,7 +362,7 @@ export default async function EditPropertyPage({
     ) : currentTab === 4 ? (
       <RoomsTab hotelId={h.id} rooms={rooms} propertySubType={h.property_sub_type} />
     ) : currentTab === 5 ? (
-      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} rooms={rooms} />
+      <PhotosTab hotelId={h.id} categories={photoCategories} propertySubType={h.property_sub_type} isHomestay={isHomestay} rooms={rooms} bedrooms={bedroomOptions} />
     ) : currentTab === 6 ? (
       <PoliciesTab hotel={h as unknown as PoliciesHotelData} />
     ) : currentTab === 7 ? (

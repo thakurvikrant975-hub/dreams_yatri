@@ -931,9 +931,22 @@ model HotelOwner {
   password_reset_token        String?   @unique
   password_reset_expires      DateTime?
   hotels               hotels[]
+  feedback             HotelOwnerFeedback[]
 
   @@index([email])
   @@map("hotel_owners")
+}
+
+model HotelOwnerFeedback {
+  id         Int        @id @default(autoincrement())
+  owner_id   String
+  owner      HotelOwner @relation(fields: [owner_id], references: [id])
+  message    String
+  page_path  String?
+  created_at DateTime   @default(now())
+
+  @@index([owner_id])
+  @@map("hotel_owner_feedback")
 }
 
 model hotels {
