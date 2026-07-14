@@ -62,7 +62,7 @@ function Stepper({
   value: number; onChange: (v: number) => void; min?: number; max?: number; disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center shrink-0">
+    <div className="flex items-center self-start sm:self-auto shrink-0">
       <button type="button" disabled={disabled || value <= min}
         onClick={() => onChange(Math.max(min, value - 1))}
         className="w-7 h-7 rounded-l border border-neutral-300 flex items-center justify-center text-neutral-600 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -151,7 +151,7 @@ function YesNoRadio({
   value: boolean; onChange: (v: boolean) => void; disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4 self-start sm:self-auto shrink-0">
       {([false, true] as const).map((opt) => (
         <label key={String(opt)} className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer select-none">
           <input
@@ -286,7 +286,7 @@ export default function BedroomEditTab({
               <p className="text-xs text-neutral-400 mb-3">Help your guests understand what beds are available in the Room</p>
               <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-lg overflow-hidden">
                 {[...BED_TYPES, ...(showMoreBeds ? MORE_BED_TYPES : [])].map(bed => (
-                  <div key={bed.key} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div key={bed.key} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 sm:justify-between px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-neutral-800">{bed.label}</p>
                       <p className="text-xs text-neutral-400">{bed.dims}</p>
@@ -315,7 +315,7 @@ export default function BedroomEditTab({
                 <CaretDownIcon size={14} className="text-neutral-400 shrink-0" />
               </summary>
               <div className="px-4 pb-4 border-t border-neutral-100 pt-3 space-y-3">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
                   <p className="text-sm text-neutral-700">Extra bed available?</p>
                   <YesNoRadio value={hasExtraBed} onChange={v => { setHasExtraBed(v); if (!v) setExtraBedType(""); }} />
                 </div>
@@ -338,7 +338,7 @@ export default function BedroomEditTab({
             {/* Occupancy */}
             <div className="space-y-3">
               <p className="text-sm font-semibold text-neutral-800">Occupancy</p>
-              <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between border border-neutral-200 rounded-lg px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-neutral-800">Base Adults</p>
                   <p className="text-xs text-neutral-400 leading-tight">Ideal number of adults that can be accommodated in this property</p>
@@ -349,7 +349,7 @@ export default function BedroomEditTab({
                   min={1} max={50} disabled={isPending}
                 />
               </div>
-              <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between border border-neutral-200 rounded-lg px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-neutral-800">Maximum Adults</p>
                   <p className="text-xs text-neutral-400 leading-tight">Maximum number of adults that can be accommodated in this property</p>
@@ -385,7 +385,7 @@ export default function BedroomEditTab({
           onOpen={() => openStep(3)}
         >
             {/* Bathroom */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-neutral-800">Does the room have an attached bathroom?</p>
                 <p className="text-xs text-neutral-400">Attached or en suite bathrooms have a private entrance inside the bedroom</p>
@@ -406,7 +406,7 @@ export default function BedroomEditTab({
               </div>
             )}
 
-            <div className="border-t border-neutral-100 pt-4 flex items-center justify-between gap-4">
+            <div className="border-t border-neutral-100 pt-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-neutral-800">Does the room come with an attached balcony?</p>
                 <p className="text-xs text-neutral-400">Attached or en suite bathrooms have a private entrance inside the bedroom</p>
@@ -414,7 +414,7 @@ export default function BedroomEditTab({
               <YesNoRadio value={hasBalcony} onChange={v => { setHasBalcony(v); if (!v) setBalconyFurniture(false); }} />
             </div>
             {hasBalcony && (
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
                 <p className="text-sm text-neutral-700">Do you have outdoor furniture on the balcony such as a table or chairs?</p>
                 <YesNoRadio value={balconyFurniture} onChange={setBalconyFurniture} />
               </div>
@@ -496,7 +496,7 @@ export default function BedroomEditTab({
             </div>
 
             {/* View + Size */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Room View <span className="font-normal text-neutral-400">(Optional)</span>
