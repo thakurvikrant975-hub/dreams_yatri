@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { RocketLaunchIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import { submitDashboardFeedback } from "./feedback-actions";
 import { cn } from "@/app/lib/utils";
+
+const DISMISS_KEY = "hc_beta_bar_dismissed";
 
 function FeedbackModal({ onClose }: { onClose: () => void }) {
   const pathname = usePathname();
@@ -100,10 +102,33 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
 
 export default function BetaFeedbackBar() {
   const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  // Read the dismissal after mount, client-only — matching the server-rendered
+  // (bar visible) markup on first paint avoids a hydration mismatch, then this
+  // hides it a frame later for anyone who already closed it before.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(DISMISS_KEY) === "1") setDismissed(true);
+    } catch {
+      // localStorage unavailable (private browsing etc.) — just leave it shown
+    }
+  }, []);
+
+  function handleDismiss() {
+    setDismissed(true);
+    try {
+      localStorage.setItem(DISMISS_KEY, "1");
+    } catch {
+      // ignore — worst case it reappears next visit
+    }
+  }
+
+  if (dismissed) return null;
 
   return (
     <>
-      <div className="shrink-0 bg-primary-500 text-white px-4 py-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+      <div className="relative shrink-0 bg-primary-500 text-white px-4 py-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
         <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider bg-white/15 rounded-full px-2 py-0.5">
           <RocketLaunchIcon className="size-3" />
           Beta
@@ -119,6 +144,15 @@ export default function BetaFeedbackBar() {
           )}
         >
           Share feedback / report an issue
+        </button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Dismiss beta notice"
+          title="Dismiss"
+          className="absolute right-2 top-1/2 -translate-y-1/2 size-6 rounded-full flex items-center justify-center text-white/80 hover:bg-white/15 hover:text-white transition-colors"
+        >
+          <XMarkIcon className="size-3.5" />
         </button>
       </div>
 
