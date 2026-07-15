@@ -2431,6 +2431,9 @@ model custom_package_stops {
   customPackageId String
   name            String
   nights          Int             @default(1)
+  /** Manual override for the "Places You Gonna Visit" tile image — when
+   * set, takes priority over the auto-resolved destination catalog photo. */
+  image           String?
   sortOrder       Int             @default(0)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

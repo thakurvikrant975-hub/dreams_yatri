@@ -469,6 +469,9 @@ export interface StopInput {
   id?:     string;
   name:    string;
   nights:  number;
+  /** Manual override for the "Places You Gonna Visit" tile image — takes
+   * priority over the auto-resolved destination catalog photo when set. */
+  image?:  string;
 }
 
 export interface ActivityInput {
@@ -963,7 +966,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           gstPercentage:    true,
           stops: {
             orderBy: { sortOrder: "asc" },
-            select: { id: true, name: true, nights: true },
+            select: { id: true, name: true, nights: true, image: true },
           },
           tickets: {
             orderBy: { sortOrder: "asc" },
@@ -1187,6 +1190,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
           customPackageId: pkg.id,
           name:            s.name,
           nights:          s.nights,
+          image:           s.image || null,
           sortOrder:       idx,
         })),
       });

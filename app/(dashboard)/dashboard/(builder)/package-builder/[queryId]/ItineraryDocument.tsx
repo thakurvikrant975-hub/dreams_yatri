@@ -5,11 +5,68 @@ import { toast } from "sonner";
 import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
-  Plane, TrainFront, Sparkles, Phone, Mail, Upload, Loader2,
+  Plane, TrainFront, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
+import { cn } from "@/app/lib/utils";
 import { ItineraryMap } from "./ItineraryMap";
+import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
+
+/** Identifies exactly which image a click on an edit button refers to, so
+ * one onImageChange callback (threaded down from page.tsx) can cover every
+ * editable photo in the document instead of a dozen specific props. */
+export type ImageEditTarget =
+  | { kind: "stop"; stopIndex: number }
+  | { kind: "accommodationPhoto"; day: number }
+  | { kind: "transportPhoto"; day: number }
+  | { kind: "roomPhoto"; day: number; photoIndex: number }
+  | { kind: "activityPhoto"; day: number; activityIndex: number; photoIndex: number };
+
+type OnImageChange = (target: ImageEditTarget, url: string) => void;
+
+/** Small round edit affordance shown on hover (parent needs a `group` class)
+ * — opens the same drag-drop / upload / paste-link controls as the cover
+ * image's popup, scoped to whichever photo it's attached to. Position/size
+ * via `className` (e.g. "top-1 right-1 size-6") since it's reused at very
+ * different thumbnail sizes across the document. */
+function ImageEditButton({
+  value, onChange, dialogTitle, className,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  dialogTitle: string;
+  className?: string;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "no-print absolute z-20 flex items-center justify-center rounded-full bg-black/55 hover:bg-black/75 text-white opacity-0 group-hover:opacity-100 transition-opacity",
+            className,
+          )}
+          aria-label={`Change ${dialogTitle.toLowerCase()}`}
+        >
+          <Pencil size={11} />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>
+            Drag and drop a photo, upload from your computer, or paste a link.
+          </DialogDescription>
+        </DialogHeader>
+        <ImageDropField value={value} onChange={onChange} />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // Real contact details — kept identical to app/components/navigation/Footer.tsx
 // (the live marketing site's footer) so a client sees the same phone/email
@@ -149,9 +206,20 @@ function SectionHeader({
   );
 }
 
-function ActivityRow({ activity }: { activity: ActivityInput }) {
+function ActivityRow({
+  activity, dayNumber, activityIndex, onImageChange,
+}: {
+  activity: ActivityInput;
+  dayNumber?: number;
+  activityIndex?: number;
+  onImageChange?: OnImageChange;
+}) {
   if (!activity.title.trim()) return null;
   const gallery = activity.photos.length > 0 ? activity.photos : (activity.photo ? [activity.photo] : []);
+  const editable = !!onImageChange && dayNumber != null && activityIndex != null;
+  // At least one (empty) tile so there's still an "add a photo" affordance
+  // when this activity has none yet — read-only view just shows nothing.
+  const slots: (string | null)[] = gallery.length > 0 ? gallery.slice(0, 3) : (editable ? [null] : []);
 
   return (
     <div className="space-y-2">
@@ -166,17 +234,33 @@ function ActivityRow({ activity }: { activity: ActivityInput }) {
           )}
         </div>
       </div>
-      {gallery.length > 0 && (
+      {slots.length > 0 && (
         <div className="ml-7 space-y-1.5">
           <p className="text-[9px] font-bold uppercase tracking-widest text-primary-600">Glimpses of the experience</p>
           <div className="grid grid-cols-3 gap-1.5">
-            {gallery.slice(0, 3).map((src, i) => (
-              <div key={i} className="relative rounded-lg overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                <img src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
-                <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent px-1.5 py-1 pt-3">
-                  <p className="text-[9px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
-                </div>
+            {slots.map((src, i) => (
+              <div key={i} className="group relative rounded-lg overflow-hidden">
+                {src ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                    <img src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
+                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent px-1.5 py-1 pt-3">
+                      <p className="text-[9px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-30 bg-neutral-50 border-2 border-dashed border-neutral-200 flex items-center justify-center">
+                    <ImageIcon size={16} className="text-neutral-300" />
+                  </div>
+                )}
+                {editable && (
+                  <ImageEditButton
+                    value={src ?? ""}
+                    onChange={(url) => onImageChange!({ kind: "activityPhoto", day: dayNumber!, activityIndex: activityIndex!, photoIndex: i }, url)}
+                    dialogTitle="Activity Photo"
+                    className="top-1 right-1 size-6"
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -350,7 +434,7 @@ function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Set<numbe
   return null;
 }
 
-function PlacesToVisit({ form }: { form: PreviewData }) {
+function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChange?: OnImageChange }) {
   if (form.stops.length === 0) return null;
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const packageFallback = form.coverImage
@@ -367,12 +451,15 @@ function PlacesToVisit({ form }: { form: PreviewData }) {
               .map((loc, idx) => (loc === s.name ? idx + 1 : null))
               .filter((d): d is number => d != null),
           );
-          const img = form.stopImages?.[s.name.trim()]
+          // A manual override (set via the edit button) always wins over the
+          // auto-resolved catalog/fallback chain.
+          const img = s.image
+            || form.stopImages?.[s.name.trim()]
             || firstDayPhotoForStop(form.itineraries, dayNumbers)
             || packageFallback
             || null;
           return (
-            <div key={i} className="relative flex-1 min-w-0">
+            <div key={i} className="group relative flex-1 min-w-0">
               {img ? (
                 // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog URL, not a static app asset
                 <img src={img} alt={s.name} className="w-full h-full object-cover" />
@@ -385,6 +472,14 @@ function PlacesToVisit({ form }: { form: PreviewData }) {
                 <p className="text-white text-xs font-bold truncate leading-tight">{s.name ? titleCase(s.name) : "—"}</p>
                 <p className="text-white/75 text-[10px] font-medium">{s.nights} Night{s.nights !== 1 ? "s" : ""}</p>
               </div>
+              {onImageChange && (
+                <ImageEditButton
+                  value={img ?? ""}
+                  onChange={(url) => onImageChange({ kind: "stop", stopIndex: i }, url)}
+                  dialogTitle={`${s.name ? titleCase(s.name) : "Stop"} Photo`}
+                  className="top-1.5 right-1.5 size-6"
+                />
+              )}
             </div>
           );
         })}
@@ -487,11 +582,22 @@ function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
   );
 }
 
-function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults: number; childCount: number }) {
-  const activities = day.activities.filter((a) => a.title.trim());
+function DayCardPreview({
+  day, adults, childCount, onImageChange,
+}: {
+  day: DayItinerary;
+  adults: number;
+  childCount: number;
+  onImageChange?: OnImageChange;
+}) {
+  // Keeps each activity's original index (for onImageChange targeting) even
+  // though blank ones are filtered out of what's actually rendered.
+  const activities = day.activities
+    .map((a, originalIndex) => ({ a, originalIndex }))
+    .filter(({ a }) => a.title.trim());
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
   const mealText = mealIncludedText(day.hotelMealPlan);
-  const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0;
+  const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0 || !!onImageChange;
 
   return (
     <div
@@ -571,15 +677,41 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
 
               {hasPhotos && (
                 <div className="w-40 shrink-0 space-y-1">
-                  {day.accommodationPhoto && (
-                    /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                    <img src={day.accommodationPhoto} alt="Hotel" className="w-40 h-24 rounded-lg object-cover" />
+                  {(day.accommodationPhoto || onImageChange) && (
+                    <div className="group relative">
+                      {day.accommodationPhoto ? (
+                        /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                        <img src={day.accommodationPhoto} alt="Hotel" className="w-40 h-24 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-40 h-24 rounded-lg border-2 border-dashed border-neutral-200 bg-neutral-50 flex items-center justify-center">
+                          <ImageIcon size={16} className="text-neutral-300" />
+                        </div>
+                      )}
+                      {onImageChange && (
+                        <ImageEditButton
+                          value={day.accommodationPhoto}
+                          onChange={(url) => onImageChange({ kind: "accommodationPhoto", day: day.day }, url)}
+                          dialogTitle="Hotel Photo"
+                          className="top-1 right-1 size-6"
+                        />
+                      )}
+                    </div>
                   )}
                   {day.accommodationRoomPhotos.length > 0 && (
                     <div className="grid grid-cols-2 gap-1">
                       {day.accommodationRoomPhotos.slice(0, 2).map((src, i) => (
-                        /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                        <img key={i} src={src} alt={`Room ${i + 1}`} className="h-14 w-full rounded-md object-cover" />
+                        <div key={i} className="group relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                          <img src={src} alt={`Room ${i + 1}`} className="h-14 w-full rounded-md object-cover" />
+                          {onImageChange && (
+                            <ImageEditButton
+                              value={src}
+                              onChange={(url) => onImageChange({ kind: "roomPhoto", day: day.day, photoIndex: i }, url)}
+                              dialogTitle={`Room Photo ${i + 1}`}
+                              className="top-0.5 right-0.5 size-5"
+                            />
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
@@ -639,14 +771,30 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
                 )}
               </div>
 
-              {day.transportPhoto && (
-                <div className="relative rounded-lg overflow-hidden w-52 h-36 shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                  <img src={day.transportPhoto} alt="" className="w-52 h-36 object-cover" />
-                  {day.transport && (
-                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-6">
-                      <p className="text-xs text-white font-medium truncate">{day.transport}</p>
+              {(day.transportPhoto || onImageChange) && (
+                <div className="group relative rounded-lg overflow-hidden w-52 h-36 shrink-0">
+                  {day.transportPhoto ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                      <img src={day.transportPhoto} alt="" className="w-52 h-36 object-cover" />
+                      {day.transport && (
+                        <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-6">
+                          <p className="text-xs text-white font-medium truncate">{day.transport}</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="w-52 h-36 bg-neutral-50 border-2 border-dashed border-neutral-200 flex items-center justify-center">
+                      <ImageIcon size={18} className="text-neutral-300" />
                     </div>
+                  )}
+                  {onImageChange && (
+                    <ImageEditButton
+                      value={day.transportPhoto}
+                      onChange={(url) => onImageChange({ kind: "transportPhoto", day: day.day }, url)}
+                      dialogTitle="Transport Photo"
+                      className="top-1 right-1 size-6"
+                    />
                   )}
                 </div>
               )}
@@ -666,7 +814,15 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
         {activities.length > 0 && (
           <div className="space-y-2.5 pt-2.5 border-t border-neutral-100">
             <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Experiences</p>
-            {activities.map((a, i) => <ActivityRow key={i} activity={a} />)}
+            {activities.map(({ a, originalIndex }) => (
+              <ActivityRow
+                key={originalIndex}
+                activity={a}
+                dayNumber={day.day}
+                activityIndex={originalIndex}
+                onImageChange={onImageChange}
+              />
+            ))}
           </div>
         )}
 
@@ -724,7 +880,7 @@ function HeroCover({
 
   return (
     <div
-      className="relative w-full overflow-hidden"
+      className="group relative w-full overflow-hidden"
       style={{ height: "90mm" }}
       onDragOver={editable ? (e) => { e.preventDefault(); setDragOver(true); } : undefined}
       onDragLeave={editable ? () => setDragOver(false) : undefined}
@@ -744,6 +900,38 @@ function HeroCover({
 
       {/* Scrim for legibility — heaviest where the title sits */}
       <div className="absolute inset-0 bg-linear-to-t from-neutral-950/95 via-neutral-950/35 to-neutral-950/10" />
+
+      {/* Explicit edit affordance — hover the cover to reveal it, since the
+       * drag-and-drop-anywhere-on-the-image behavior isn't obvious on its
+       * own. Opens the same drag-drop / upload / paste-link controls as the
+       * sidebar's Cover Image field, plus the vertical-position slider. */}
+      {editable && (
+        <Dialog>
+          <DialogTrigger asChild>
+            <button
+              type="button"
+              className="no-print absolute top-4 right-4 z-20 flex items-center justify-center size-9 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white opacity-0 group-hover:opacity-100 transition-opacity"
+              aria-label="Change cover image"
+            >
+              <Pencil size={15} />
+            </button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Change Cover Image</DialogTitle>
+              <DialogDescription>
+                Drag and drop a photo, upload from your computer, or paste a link.
+              </DialogDescription>
+            </DialogHeader>
+            <ImageDropField
+              value={form.coverImage}
+              onChange={(url) => onCoverImageChange?.(url)}
+              position={form.coverImagePosition}
+              onPositionChange={onCoverImagePositionChange}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {editable && (dragOver || uploading) && (
         <div className="no-print absolute inset-0 z-10 flex items-center justify-center bg-neutral-950/70 border-4 border-dashed border-white/60">
@@ -879,7 +1067,7 @@ const PRINT_STYLES = `
 `;
 
 export function ItineraryDocument({
-  form, onCoverImageChange, onCoverImagePositionChange,
+  form, onCoverImageChange, onCoverImagePositionChange, onImageChange,
 }: {
   form: PreviewData;
   /** Present only in the internal builder's live preview — enables dropping
@@ -887,6 +1075,10 @@ export function ItineraryDocument({
    * public share page and print/PDF export, which stay read-only. */
   onCoverImageChange?: (url: string) => void;
   onCoverImagePositionChange?: (position: number) => void;
+  /** Same "internal builder only" gating as onCoverImageChange, but for
+   * every other photo in the document (stops, hotel, room, transport,
+   * activities) — see ImageEditTarget for what each edit refers to. */
+  onImageChange?: OnImageChange;
 }) {
   const travelDateStr = form.travelDate
     ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
@@ -1024,7 +1216,7 @@ export function ItineraryDocument({
 
           <TicketsSection tickets={form.tickets} />
 
-          <PlacesToVisit form={form} />
+          <PlacesToVisit form={form} onImageChange={onImageChange} />
 
           <div className="space-y-3">
             <SectionHeader icon={Calendar} label="Day-wise Summary" />
@@ -1035,7 +1227,13 @@ export function ItineraryDocument({
             <SectionHeader icon={Milestone} label="Detailed Itinerary" />
             <div className="space-y-3">
               {form.itineraries.map((d) => (
-                <DayCardPreview key={d.day} day={d} adults={form.adults} childCount={form.children} />
+                <DayCardPreview
+                  key={d.day}
+                  day={d}
+                  adults={form.adults}
+                  childCount={form.children}
+                  onImageChange={onImageChange}
+                />
               ))}
             </div>
           </div>

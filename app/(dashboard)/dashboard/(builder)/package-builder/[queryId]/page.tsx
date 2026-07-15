@@ -44,7 +44,7 @@ import {
   type TicketInput,
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
-import { ItineraryDocument, type PreviewData } from "./ItineraryDocument";
+import { ItineraryDocument, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -1901,6 +1901,48 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
+  /** Single handler for every editable photo in the live preview (stops,
+   * hotel, room, transport, activities) — the edit button's ImageEditTarget
+   * says exactly which one, so there's one place that knows how to write
+   * each into `form` instead of a callback per photo. */
+  function handleItineraryImageChange(target: ImageEditTarget, url: string) {
+    if (target.kind === "stop") {
+      setForm((f) => ({
+        ...f,
+        stops: f.stops.map((s, i) => (i === target.stopIndex ? { ...s, image: url } : s)),
+      }));
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((d) => {
+        if (d.day !== target.day) return d;
+        switch (target.kind) {
+          case "accommodationPhoto":
+            return { ...d, accommodationPhoto: url };
+          case "transportPhoto":
+            return { ...d, transportPhoto: url };
+          case "roomPhoto": {
+            const photos = [...d.accommodationRoomPhotos];
+            photos[target.photoIndex] = url;
+            return { ...d, accommodationRoomPhotos: photos };
+          }
+          case "activityPhoto": {
+            const activities = d.activities.map((a, i) => {
+              if (i !== target.activityIndex) return a;
+              const photos = a.photos.length > 0 ? [...a.photos] : (a.photo ? [a.photo] : []);
+              photos[target.photoIndex] = url;
+              return { ...a, photos, photo: photos[0] ?? a.photo };
+            });
+            return { ...d, activities };
+          }
+          default:
+            return d;
+        }
+      }),
+    }));
+  }
+
   function addTicket(type: "FLIGHT" | "TRAIN") {
     setForm((f) => ({
       ...f,
@@ -2202,6 +2244,7 @@ export default function PackageBuilderDetailPage() {
               form={previewForm}
               onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+              onImageChange={handleItineraryImageChange}
             />
           </div>
         </aside>
@@ -2220,6 +2263,7 @@ export default function PackageBuilderDetailPage() {
                 form={previewForm}
                 onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+              onImageChange={handleItineraryImageChange}
               />
             </div>
           </div>
