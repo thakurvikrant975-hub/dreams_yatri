@@ -397,10 +397,34 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
 
   const docsSectionComplete = !!docs.address_proof && !!docs.ownership_proof;
 
+  function focusField(id: string) {
+    // Section 1 may have been collapsed — give it a beat to re-render and
+    // mount the field before trying to scroll to / focus it.
+    setTimeout(() => {
+      const el = document.getElementById(id) as HTMLInputElement | null;
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.focus({ preventScroll: true });
+    }, 50);
+  }
+
   function handleSubmit(e: React.FormEvent) {
-    if (accountMismatch || accountNumberError || ifscError) {
+    if (accountNumberError) {
       e.preventDefault();
       setExpanded((prev) => new Set([...prev, 1]));
+      focusField("fin-account-number");
+      return;
+    }
+    if (accountMismatch) {
+      e.preventDefault();
+      setExpanded((prev) => new Set([...prev, 1]));
+      focusField("fin-confirm-account-number");
+      return;
+    }
+    if (ifscError) {
+      e.preventDefault();
+      setExpanded((prev) => new Set([...prev, 1]));
+      focusField("fin-ifsc");
+      return;
     }
   }
 

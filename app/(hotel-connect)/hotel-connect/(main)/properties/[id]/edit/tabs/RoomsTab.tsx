@@ -188,7 +188,7 @@ function FieldRow({
       </label>
       {hint && <p className="text-xs text-neutral-500 -mt-0.5">{hint}</p>}
       {children}
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p data-field-error className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }
@@ -206,7 +206,7 @@ function FormRow({
           {required && <span className="text-red-400 ml-0.5">*</span>}
         </p>
         {desc && <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{desc}</p>}
-        {error && <p className="text-xs text-red-500 mt-1 font-medium">{error}</p>}
+        {error && <p data-field-error className="text-xs text-red-500 mt-1 font-medium">{error}</p>}
       </div>
       <div className="flex-1 min-w-0 w-full">{children}</div>
     </div>
@@ -470,7 +470,7 @@ function BedroomCard({
         Add Another Bed Type
       </button>
 
-      {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+      {error && <p data-field-error className="text-xs text-red-500 mt-2">{error}</p>}
     </div>
   );
 }
@@ -659,7 +659,7 @@ function Section2({ data, onChange, errors }: {
           ))}
         </Card>
         {errors.max_adults && (
-          <p className="text-xs text-red-500 mt-2">{errors.max_adults}</p>
+          <p data-field-error className="text-xs text-red-500 mt-2">{errors.max_adults}</p>
         )}
       </div>
 
@@ -810,7 +810,7 @@ function Section3({ data, onChange, errors }: {
                 showSearch={false}
               />
               {errors[`bathroom_attached_to_${i}`] && (
-                <p className="text-xs text-red-500">{errors[`bathroom_attached_to_${i}`]}</p>
+                <p data-field-error className="text-xs text-red-500">{errors[`bathroom_attached_to_${i}`]}</p>
               )}
             </div>
           </div>
@@ -818,7 +818,7 @@ function Section3({ data, onChange, errors }: {
       ))}
 
       {errors.bathrooms && (
-        <p className="text-xs text-red-500">{errors.bathrooms}</p>
+        <p data-field-error className="text-xs text-red-500">{errors.bathrooms}</p>
       )}
 
       <button
@@ -1116,7 +1116,7 @@ function Section5({ data, onChange, mandatoryError }: {
   return (
     <div>
       {mandatoryError && (
-        <div className="mx-4 mt-3 rounded-lg px-3 py-2.5 text-sm text-red-700 bg-red-50 border border-red-200">
+        <div data-field-error className="mx-4 mt-3 rounded-lg px-3 py-2.5 text-sm text-red-700 bg-red-50 border border-red-200">
           <p>{mandatoryError}</p>
           {activeCategory !== "Mandatory" && (
             <button
@@ -1409,6 +1409,21 @@ function RoomWizardForm({
     if (openSection == null) return;
     sectionRefs.current[openSection]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [openSection]);
+
+  // A failed validation keeps the section open (doesn't trigger the effect
+  // above) but doesn't move the scroll position either — on a tall section
+  // the actual invalid field can be off-screen, above or below wherever the
+  // user was when they tapped Next. Scroll to it and focus it directly, so
+  // a real input/button doesn't just show an error the user has to hunt for.
+  useEffect(() => {
+    if (Object.keys(errors).length === 0 || openSection == null) return;
+    const container = sectionRefs.current[openSection];
+    if (!container) return;
+    const invalidField = container.querySelector<HTMLElement>('[aria-invalid="true"]');
+    const errorMsg = container.querySelector<HTMLElement>('[data-field-error]');
+    (invalidField ?? errorMsg)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    invalidField?.focus({ preventScroll: true });
+  }, [errors, openSection]);
 
   function advance() {
     if (!openSection) return;

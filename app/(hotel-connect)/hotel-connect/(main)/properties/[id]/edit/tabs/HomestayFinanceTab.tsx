@@ -364,6 +364,16 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
   const addressParts = [hotel.address, hotel.city, hotel.state, hotel.country].filter(Boolean);
   const addressStr = addressParts.join(", ") + (hotel.pincode ? `, Pincode - ${hotel.pincode}` : "");
 
+  function focusField(id: string) {
+    // Section 3 may have been collapsed — give it a beat to re-render and
+    // mount the field before trying to scroll to / focus it.
+    setTimeout(() => {
+      const el = document.getElementById(id) as HTMLInputElement | null;
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.focus({ preventScroll: true });
+    }, 50);
+  }
+
   return (
     <>
       <form
@@ -371,12 +381,25 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
         action={formAction}
         className="space-y-4 py-5"
         onSubmit={(e) => {
-          if (accountConf !== accountNo || accountNumberError || ifscError) {
+          if (accountNumberError) {
+            e.preventDefault();
+            setOpen(3);
+            focusField("hfin-account-number");
+            return;
+          }
+          if (accountConf !== accountNo) {
             e.preventDefault();
             // Section 3 may be collapsed (e.g. a returning host who never
             // reopened it) — force it open so the mismatch message below
             // is actually visible instead of silently blocking the submit.
             setOpen(3);
+            focusField("hfin-confirm-account-number");
+            return;
+          }
+          if (ifscError) {
+            e.preventDefault();
+            setOpen(3);
+            focusField("hfin-ifsc");
             return;
           }
         }}
