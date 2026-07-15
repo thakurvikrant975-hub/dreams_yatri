@@ -363,36 +363,42 @@ export default function PropertyTypeSelector() {
         </div>
       </div>
 
-      {/* Continue — fixed just above the mobile bottom nav so it's always
-          reachable without scrolling past every subtype card first; back to
-          normal static, right-aligned flow on desktop. */}
-      <div className="fixed bottom-16 inset-x-0 z-30 bg-white border-t border-neutral-200 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:static lg:z-auto lg:bg-transparent lg:border-0 lg:px-0 lg:py-0 lg:pt-2 lg:flex lg:justify-end">
-        {error && (
-          <p className="text-sm text-red-600 mb-2 lg:hidden">{error}</p>
-        )}
-        <Button
-          onClick={handleContinue}
-          disabled={!selected || isPending}
-          className="h-11 w-full lg:w-auto justify-center px-8 rounded-xl text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white gap-2"
-        >
-          {isPending ? (
-            <>
-              <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-              Creating your listing…
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight size={15} weight="bold" />
-            </>
+      {/* Continue — hidden entirely until a subtype is picked, not just
+          disabled, so it doesn't sit there before the user has made a
+          choice. Fixed just above the mobile bottom nav once it appears, so
+          it's reachable without scrolling past every subtype card; normal
+          static, right-aligned flow on desktop. */}
+      {selected && (
+        <>
+          <div className="fixed bottom-16 inset-x-0 z-30 bg-white border-t border-neutral-200 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:static lg:z-auto lg:bg-transparent lg:border-0 lg:px-0 lg:py-0 lg:pt-2 lg:flex lg:justify-end">
+            {error && (
+              <p className="text-sm text-red-600 mb-2 lg:hidden">{error}</p>
+            )}
+            <Button
+              onClick={handleContinue}
+              disabled={isPending}
+              className="h-11 w-full lg:w-auto justify-center px-8 rounded-xl text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white gap-2"
+            >
+              {isPending ? (
+                <>
+                  <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Creating your listing…
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight size={15} weight="bold" />
+                </>
+              )}
+            </Button>
+          </div>
+          {error && (
+            <p className="hidden lg:block text-sm text-red-600 text-right">{error}</p>
           )}
-        </Button>
-      </div>
-      {error && (
-        <p className="hidden lg:block text-sm text-red-600 text-right">{error}</p>
+        </>
       )}
     </div>
   );
