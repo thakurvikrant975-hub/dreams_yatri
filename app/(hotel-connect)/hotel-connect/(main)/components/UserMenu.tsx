@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { signOutHotelOwner } from "@/app/lib/auth-hotel-connect-actions";
 import { CaretDown, SignOut, UserCircle } from "@phosphor-icons/react";
 
@@ -45,13 +46,14 @@ export default function UserMenu({ name, email }: { name: string; email: string 
             <p className="text-sm font-semibold text-neutral-900 leading-none mb-0.5">{name}</p>
             <p className="text-xs text-neutral-500 leading-none">{email}</p>
           </div>
-          <button
-            type="button"
+          <Link
+            href="/hotel-connect/account"
+            onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50 transition-colors cursor-pointer"
           >
             <UserCircle size={15} className="text-neutral-400" />
             Account settings
-          </button>
+          </Link>
           <div className="border-t border-neutral-100" />
           <form action={signOutHotelOwner}>
             <button
