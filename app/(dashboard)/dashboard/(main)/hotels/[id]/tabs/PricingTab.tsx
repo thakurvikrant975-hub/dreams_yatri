@@ -430,6 +430,35 @@ function SeasonalPricingSection({
           extraBedRate:         extraBedByItemId[item.id]?.extraBedRate ?? null,
           weekendExtraBedRate:  extraBedByItemId[item.id]?.weekendExtraBedRate ?? null,
         })}
+        getGroupKey={s =>
+          `${s.rate}|${s.weekendPrice ?? s.rate}|${s.extraBedRate ?? "none"}|${s.weekendExtraBedRate ?? s.extraBedRate ?? "none"}`
+        }
+        getSeasonWeekendRate={s => s.weekendPrice}
+        renderGroupExtra={s => {
+          const weekendRate = s.weekendPrice ?? s.rate;
+          const weekendMatchesWeekday = s.weekendPrice == null || s.weekendPrice === s.rate;
+          const hasExtraBed = s.extraBedRate != null;
+          const weekendExtraBed = s.weekendExtraBedRate ?? s.extraBedRate;
+          const weekendExtraBedMatchesWeekday = s.weekendExtraBedRate == null || s.weekendExtraBedRate === s.extraBedRate;
+          return (
+            <div className="text-[10px] text-neutral-500 space-y-0.5">
+              <p>
+                Weekend: <span className="font-semibold text-neutral-700">₹{weekendRate.toLocaleString("en-IN")}</span>
+                {weekendMatchesWeekday && <span className="text-neutral-400"> (same as weekday)</span>}
+              </p>
+              <p>
+                Extra bed: <span className="font-semibold text-neutral-700">{hasExtraBed ? `₹${s.extraBedRate!.toLocaleString("en-IN")}` : "—"}</span>
+                {hasExtraBed && (
+                  <>
+                    {" · Weekend: "}
+                    <span className="font-semibold text-neutral-700">₹{weekendExtraBed!.toLocaleString("en-IN")}</span>
+                    {weekendExtraBedMatchesWeekday && <span className="text-neutral-400"> (same as weekday)</span>}
+                  </>
+                )}
+              </p>
+            </div>
+          );
+        }}
         renderExtraFields={({ draft, onChange: onExtraChange }) => (
           <div className="grid grid-cols-2 gap-2">
             <div>

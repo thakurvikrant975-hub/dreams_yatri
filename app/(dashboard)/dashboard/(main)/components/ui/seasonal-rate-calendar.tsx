@@ -8,12 +8,14 @@ import {
 import { cn } from "@/app/lib/utils";
 import {
   type RateSeasonBase,
+  type RateGroup,
   trimOverlaps,
   groupSeasonsByRate,
   resolveColorOptions,
   rangesOverlap,
   formatDateLabel,
   defaultRangeLabel,
+  darkenColor,
 } from "./seasonal-rate-calendar-logic";
 
 const MONTH_NAMES = [
@@ -83,6 +85,20 @@ export interface SeasonalRateCalendarProps<T extends RateSeasonBase> {
    * from `item.baseRate` before this runs, so this only needs to add
    * domain-specific fields (or override rate if desired). */
   getDefaultDraft?: (item: SeasonalRateCalendarItem) => Partial<T>;
+  /** Derives the "pricing profile" key deciding whether two seasons share a
+   * color/group in the sidebar — defaults to just the headline `rate`.
+   * Widen this (e.g. to fold in weekend rate / extra bed rates) so seasons
+   * only share a color when their FULL pricing profile matches. */
+  getGroupKey?: (season: T) => string;
+  /** A season's own weekend override for its headline rate, if it has one —
+   * when this differs from the season's `rate`, Saturdays/Sundays within
+   * that season's range are shown in a darker shade of its color. */
+  getSeasonWeekendRate?: (season: T) => number | null | undefined;
+  /** Extra summary rendered under a rate group's headline price in the
+   * sidebar (e.g. weekend rate, extra bed rate) — receives one representative
+   * season from the group, since a group only forms when `getGroupKey` agrees
+   * every entry's full pricing profile matches. */
+  renderGroupExtra?: (representativeSeason: T) => React.ReactNode;
 }
 
 // Deliberately non-generic: TS can't verify plain field updates (e.g.
@@ -106,6 +122,9 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
   open, onOpenChange, title = "Seasonal Rate Calendar", subtitle,
   items, activeItemId, onActiveItemChange, seasons, onSave,
   currencySymbol = "₹", unitLabel, renderExtraFields, getDefaultDraft,
+  getGroupKey = (s: T) => String(s.rate),
+  getSeasonWeekendRate,
+  renderGroupExtra,
 }: SeasonalRateCalendarProps<T>) {
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [formOpen, setFormOpen] = useState(false);
@@ -118,7 +137,10 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
     () => seasons.filter((s) => s.itemId === activeItemId),
     [seasons, activeItemId],
   );
-  const groups = useMemo(() => groupSeasonsByRate(seasonsForItem), [seasonsForItem]);
+  const groups = useMemo(
+    () => groupSeasonsByRate(seasonsForItem, getGroupKey),
+    [seasonsForItem, getGroupKey],
+  );
   const totalRanges = seasonsForItem.length;
 
   function closeForm() {
@@ -151,7 +173,8 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
     () => seasonsForItem.filter((s) => s.id !== editingId),
     [seasonsForItem, editingId],
   );
-  const colorAssignment = resolveColorOptions(draft.rate ?? null, otherSeasonsForItem);
+  const draftGroupKey = draft.rate != null ? getGroupKey(draft as T) : null;
+  const colorAssignment = resolveColorOptions(draftGroupKey, otherSeasonsForItem, getGroupKey);
 
   // Keeps draft.color valid automatically — locked to the shared color for a
   // known rate, or defaulted to the first still-available color for a new one.
@@ -329,6 +352,7 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
                 onDayClick={handleDayClick}
                 baseRate={activeItem?.baseRate}
                 baseWeekendRate={activeItem?.baseWeekendRate}
+                getSeasonWeekendRate={getSeasonWeekendRate}
               />
             ))}
           </div>
@@ -394,12 +418,13 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
               ) : (
                 groups.map((g) => (
                   <RateGroupCard
-                    key={g.rate}
+                    key={g.key}
                     group={g}
                     currencySymbol={currencySymbol}
                     unitLabel={unitLabel}
                     onEdit={openEditForm}
                     onDelete={handleDeleteSeason}
+                    renderGroupExtra={renderGroupExtra}
                   />
                 ))
               )}
@@ -415,7 +440,7 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
 // ── Month grid ────────────────────────────────────────────────────────────
 
 function MonthGrid<T extends RateSeasonBase>({
-  year, month, seasons, pickingRange, onDayClick, baseRate, baseWeekendRate,
+  year, month, seasons, pickingRange, onDayClick, baseRate, baseWeekendRate, getSeasonWeekendRate,
 }: {
   year: number;
   month: number;
@@ -426,6 +451,7 @@ function MonthGrid<T extends RateSeasonBase>({
    * with no explicit season, so the calendar never looks empty. */
   baseRate?: number;
   baseWeekendRate?: number | null;
+  getSeasonWeekendRate?: (season: T) => number | null | undefined;
 }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDow = new Date(year, month, 1).getDay();
@@ -454,7 +480,12 @@ function MonthGrid<T extends RateSeasonBase>({
           const baseFill = !season && baseRate
             ? (isWeekend && hasDistinctWeekend ? BASE_RATE_WEEKEND_COLOR : BASE_RATE_WEEKDAY_COLOR)
             : undefined;
-          const bg = season ? season.color : baseFill;
+          const seasonWeekendRate = season ? getSeasonWeekendRate?.(season) : undefined;
+          const seasonHasDistinctWeekend = seasonWeekendRate != null && seasonWeekendRate !== season?.rate;
+          const seasonColor = season
+            ? (isWeekend && seasonHasDistinctWeekend ? darkenColor(season.color) : season.color)
+            : undefined;
+          const bg = seasonColor ?? baseFill;
           return (
             <button
               key={i}
@@ -519,27 +550,31 @@ function BaseRateCard({
 // ── Grouped rate list ─────────────────────────────────────────────────────
 
 function RateGroupCard<T extends RateSeasonBase>({
-  group, currencySymbol, unitLabel, onEdit, onDelete,
+  group, currencySymbol, unitLabel, onEdit, onDelete, renderGroupExtra,
 }: {
-  group: { rate: number; color: string; label?: string; entries: T[] };
+  group: RateGroup<T>;
   currencySymbol: string;
   unitLabel?: string;
   onEdit: (season: T) => void;
   onDelete: (season: T) => void;
+  renderGroupExtra?: (representativeSeason: T) => React.ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-neutral-200 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 bg-neutral-50 border-b border-neutral-200">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
-          <span className="text-sm font-bold text-neutral-900 whitespace-nowrap">
-            {currencySymbol}{group.rate.toLocaleString("en-IN")}{unitLabel ? <span className="font-normal text-neutral-400 text-xs"> {unitLabel}</span> : null}
+      <div className="px-3.5 py-2.5 bg-neutral-50 border-b border-neutral-200 space-y-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
+            <span className="text-sm font-bold text-neutral-900 whitespace-nowrap">
+              {currencySymbol}{group.rate.toLocaleString("en-IN")}{unitLabel ? <span className="font-normal text-neutral-400 text-xs"> {unitLabel}</span> : null}
+            </span>
+            {group.label && <span className="text-xs text-neutral-400 truncate">— {group.label}</span>}
+          </div>
+          <span className="text-[10px] text-neutral-400 font-medium shrink-0">
+            {group.entries.length} range{group.entries.length !== 1 ? "s" : ""}
           </span>
-          {group.label && <span className="text-xs text-neutral-400 truncate">— {group.label}</span>}
         </div>
-        <span className="text-[10px] text-neutral-400 font-medium shrink-0">
-          {group.entries.length} range{group.entries.length !== 1 ? "s" : ""}
-        </span>
+        {renderGroupExtra?.(group.entries[0])}
       </div>
       <div className="divide-y divide-neutral-100">
         {group.entries.map((e) => (

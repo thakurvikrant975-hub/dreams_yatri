@@ -92,22 +92,39 @@ export function trimOverlaps<T extends RateSeasonBase>(
 // ── Grouping by rate ─────────────────────────────────────────────────────────
 
 export interface RateGroup<T extends RateSeasonBase> {
+  /** The grouping key that formed this group — stable and unique across
+   * groups (unlike `rate` alone, which two groups can now share when their
+   * wider pricing profile differs), so callers can use it as a React key. */
+  key: string;
   rate: number;
   color: string;
   label?: string;
   entries: T[];
 }
 
-/** One card per distinct rate, every date range for that rate listed under
- * it — color and label come from whichever entry has them (they're 1:1 with
- * rate within one item by construction). Sorted highest rate first. */
-export function groupSeasonsByRate<T extends RateSeasonBase>(seasonsForItem: T[]): RateGroup<T>[] {
-  const groups = new Map<number, RateGroup<T>>();
+/** Default grouping key — the headline rate alone. Domain-specific callers
+ * can widen this (e.g. to also fold in weekend rate / extra bed rates) so
+ * seasons only share a color/group when their FULL pricing profile matches,
+ * not just the headline number. */
+function defaultGroupKey<T extends RateSeasonBase>(s: T): string {
+  return String(s.rate);
+}
+
+/** One card per distinct pricing profile (by default, distinct rate), every
+ * date range for that profile listed under it — color and label come from
+ * whichever entry has them (they're 1:1 with the group key within one item
+ * by construction). Sorted highest rate first. */
+export function groupSeasonsByRate<T extends RateSeasonBase>(
+  seasonsForItem: T[],
+  getGroupKey: (s: T) => string = defaultGroupKey,
+): RateGroup<T>[] {
+  const groups = new Map<string, RateGroup<T>>();
   for (const s of seasonsForItem) {
-    let group = groups.get(s.rate);
+    const key = getGroupKey(s);
+    let group = groups.get(key);
     if (!group) {
-      group = { rate: s.rate, color: s.color, label: s.label, entries: [] };
-      groups.set(s.rate, group);
+      group = { key, rate: s.rate, color: s.color, label: s.label, entries: [] };
+      groups.set(key, group);
     } else if (!group.label && s.label) {
       group.label = s.label;
     }
@@ -166,24 +183,28 @@ export interface ColorAssignment {
 }
 
 /**
- * Given the rate currently typed into the add/edit form and every OTHER
- * season belonging to the same item (i.e. excluding the one being edited),
- * works out whether the color should be locked to an existing rate's color,
- * or which colors are still free to assign to a new rate.
+ * Given the pricing-profile key of the draft currently in the add/edit form
+ * (by default just its rate — see `groupSeasonsByRate`'s `getGroupKey`) and
+ * every OTHER season belonging to the same item (i.e. excluding the one
+ * being edited), works out whether the color should be locked to an
+ * existing profile's color, or which colors are still free to assign to a
+ * new one.
  */
-export function resolveColorOptions(
-  rate: number | null,
-  otherSeasonsForItem: RateSeasonBase[],
+export function resolveColorOptions<T extends RateSeasonBase>(
+  groupKey: string | null,
+  otherSeasonsForItem: T[],
+  getGroupKey: (s: T) => string = defaultGroupKey,
 ): ColorAssignment {
-  const rateToColor = new Map<number, string>();
+  const keyToColor = new Map<string, string>();
   const usedColors = new Set<string>();
   for (const s of otherSeasonsForItem) {
-    if (!rateToColor.has(s.rate)) rateToColor.set(s.rate, s.color);
+    const k = getGroupKey(s);
+    if (!keyToColor.has(k)) keyToColor.set(k, s.color);
     usedColors.add(s.color);
   }
 
-  if (rate != null && rateToColor.has(rate)) {
-    const color = rateToColor.get(rate)!;
+  if (groupKey != null && keyToColor.has(groupKey)) {
+    const color = keyToColor.get(groupKey)!;
     return { locked: true, lockedColor: color, availableColors: [color], hiddenCount: 0 };
   }
 
@@ -197,6 +218,28 @@ export function resolveColorOptions(
   const availableColors = palette.filter((c) => !usedColors.has(c));
   const hiddenCount = palette.length - availableColors.length;
   return { locked: false, availableColors, hiddenCount };
+}
+
+// ── Weekend shading ────────────────────────────────────────────────────────
+
+/** Darkens a season's own color for weekend cells within its range — mirrors
+ * the light/dark gray distinction used for the base rate, but scoped to that
+ * season's own hue instead of gray. Handles both "#rrggbb" and "hsl(...)". */
+export function darkenColor(color: string, amount = 0.2): string {
+  const hslMatch = color.match(/^hsl\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)%,\s*(\d+(?:\.\d+)?)%\)$/);
+  if (hslMatch) {
+    const [, h, s, l] = hslMatch;
+    const newL = Math.max(0, Number(l) - amount * 100);
+    return `hsl(${h}, ${s}%, ${newL}%)`;
+  }
+  const hex = color.replace("#", "");
+  if (hex.length !== 6) return color;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const darken = (c: number) => Math.max(0, Math.round(c * (1 - amount)));
+  const toHex = (c: number) => darken(c).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 // ── Misc ─────────────────────────────────────────────────────────────────────

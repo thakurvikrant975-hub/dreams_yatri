@@ -415,6 +415,7 @@ function CalendarRatesSection({
           const entry = entries.find((e) => String(e.vehicle_id) === item.id);
           return { pricingType: entry?.pricing_type ?? "PER_DAY" };
         }}
+        getSeasonWeekendRate={(s) => s.weekendPrice}
         renderExtraFields={({ draft, onChange: onExtraChange }) => (
           <div className="grid grid-cols-2 gap-2">
             <div>
