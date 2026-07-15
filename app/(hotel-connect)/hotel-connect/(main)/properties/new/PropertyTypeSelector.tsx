@@ -334,7 +334,7 @@ export default function PropertyTypeSelector() {
   return (
     <div className="space-y-6">
       {/* Category selector */}
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
         {CATEGORIES.map((cat) => (
           <CategoryCard
             key={cat.category}
