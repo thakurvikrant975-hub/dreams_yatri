@@ -120,6 +120,9 @@ const OWNERSHIP_DOC_TYPES: Record<string, { value: string; label: string }[]> = 
   ],
 };
 
+const ACCOUNT_NUMBER_RE = /^\d{6,20}$/;
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type FinanceHotelData = {
@@ -326,6 +329,20 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
     });
   }
 
+  // ── Documents (shared by Section 1's bank proof + Section 3) ─────────────
+  const [docs, setDocs] = useState<Record<string, string>>(
+    (hotel.property_documents as Record<string, string> | null) ?? {}
+  );
+
+  function handleDocUpdate(docKey: string, url: string | null) {
+    setDocs((prev) => {
+      const next = { ...prev };
+      if (url) next[docKey] = url; else delete next[docKey];
+      return next;
+    });
+    router.refresh();
+  }
+
   // ── Section 1: Bank ──────────────────────────────────────────────────────
   const [accountNumber,        setAccountNumber]        = useState(hotel.bank_account_number ?? "");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
@@ -344,7 +361,19 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
   const accountMismatch =
     confirmAccountNumber.length > 0 && confirmAccountNumber !== accountNumber;
 
-  const bankSectionComplete = !!accountNumber && !!ifscCode && !!bankName && consentGiven;
+  const accountNumberError =
+    accountNumber.length > 0 && !ACCOUNT_NUMBER_RE.test(accountNumber)
+      ? "Account number must be 6-20 digits, numbers only."
+      : null;
+  const ifscError =
+    ifscCode.length > 0 && !IFSC_RE.test(ifscCode)
+      ? "Invalid IFSC code format. Example: SBIN0001234"
+      : null;
+
+  const bankSectionComplete =
+    !!accountNumber && !accountNumberError &&
+    !!ifscCode && !ifscError &&
+    !!bankName && consentGiven && !!docs.bank_proof;
 
   // ── Section 2: Tax / MSME ────────────────────────────────────────────────
   const [gstRegistered,  setGstRegistered]  = useState<boolean | null>(hotel.gstin_number ? true : null);
@@ -357,19 +386,6 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
   const taxSectionComplete = !!panNumber && !!businessType;
 
   // ── Section 3: Documents ─────────────────────────────────────────────────
-  const [docs, setDocs] = useState<Record<string, string>>(
-    (hotel.property_documents as Record<string, string> | null) ?? {}
-  );
-
-  function handleDocUpdate(docKey: string, url: string | null) {
-    setDocs((prev) => {
-      const next = { ...prev };
-      if (url) next[docKey] = url; else delete next[docKey];
-      return next;
-    });
-    router.refresh();
-  }
-
   const [relDocType, setRelDocType] = useState(hotel.relationship_doc_type ?? "");
   const [ownershipType, setOwnershipType] = useState(hotel.ownership_type ?? "");
   const [ownershipDocType, setOwnershipDocType] = useState(hotel.id_proof_type ?? "");
@@ -382,7 +398,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
   const docsSectionComplete = !!docs.address_proof && !!docs.ownership_proof;
 
   function handleSubmit(e: React.FormEvent) {
-    if (accountMismatch) {
+    if (accountMismatch || accountNumberError || ifscError) {
       e.preventDefault();
       setExpanded((prev) => new Set([...prev, 1]));
     }
@@ -430,7 +446,12 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
                 onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="1234567890123456"
                 type="password"
+                aria-invalid={!!accountNumberError}
+                className={accountNumberError ? "border-red-300 focus:ring-red-200 focus:border-red-300" : ""}
               />
+              {accountNumberError && (
+                <p className="text-[10px] text-red-500 mt-1">{accountNumberError}</p>
+              )}
             </div>
             <div>
               <FieldLabel required htmlFor="fin-confirm-account-number">Re-Enter Bank Account Number</FieldLabel>
@@ -459,7 +480,12 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
                 value={ifscCode}
                 onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
                 placeholder="HDFC0001234"
+                aria-invalid={!!ifscError}
+                className={ifscError ? "border-red-300 focus:ring-red-200 focus:border-red-300" : ""}
               />
+              {ifscError && (
+                <p className="text-[10px] text-red-500 mt-1">{ifscError}</p>
+              )}
             </div>
             <div>
               <FieldLabel required htmlFor="fin-bank-name">Bank Name</FieldLabel>
@@ -473,6 +499,17 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
               />
             </div>
           </div>
+
+          {/* Passbook / cancelled cheque — proof of account ownership */}
+          <DocumentCard
+            hotelId={hotel.id}
+            docKey="bank_proof"
+            label="Passbook / Cancelled Cheque"
+            description="Upload a photo of your bank passbook's first page or a cancelled cheque, showing your name and account number"
+            required
+            url={docs.bank_proof}
+            onUpdate={handleDocUpdate}
+          />
 
           {/* Consent declaration */}
           <div

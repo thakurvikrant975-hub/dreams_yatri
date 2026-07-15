@@ -94,6 +94,9 @@ const INDIAN_BANKS = [
   "Equitas Small Finance Bank", "Ujjivan Small Finance Bank",
 ].sort();
 
+const ACCOUNT_NUMBER_RE = /^\d{6,20}$/;
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+
 // ── UI helpers ────────────────────────────────────────────────────────────────
 
 function FieldLabel({ children, required, htmlFor }: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
@@ -340,9 +343,22 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
       : !!docs["registration_doc"]
   );
   const sec2Complete = !!idProofType && !!docs["id_proof"];
+
+  const accountNumberError =
+    accountNo.length > 0 && !ACCOUNT_NUMBER_RE.test(accountNo)
+      ? "Account number must be 6-20 digits, numbers only."
+      : null;
+  const ifscError =
+    ifsc.length > 0 && !IFSC_RE.test(ifsc)
+      ? "Invalid IFSC code format. Example: SBIN0001234"
+      : null;
+
   // PAN is required to submit for review (see review-actions.submitForReview),
   // so it must factor into this section's own "complete" indicator too.
-  const sec3Complete = !!accountNo && !!ifsc && !!bankName && !!panNumber;
+  const sec3Complete =
+    !!accountNo && !accountNumberError &&
+    !!ifsc && !ifscError &&
+    !!bankName && !!panNumber && !!docs["bank_proof"];
 
   // Property address string for the upload note
   const addressParts = [hotel.address, hotel.city, hotel.state, hotel.country].filter(Boolean);
@@ -355,7 +371,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
         action={formAction}
         className="space-y-4 py-5"
         onSubmit={(e) => {
-          if (accountConf !== accountNo) {
+          if (accountConf !== accountNo || accountNumberError || ifscError) {
             e.preventDefault();
             // Section 3 may be collapsed (e.g. a returning host who never
             // reopened it) — force it open so the mismatch message below
@@ -531,7 +547,8 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                       value={accountNo}
                       onChange={(e) => setAccountNo(e.target.value)}
                       placeholder="Enter Account Number"
-                      className="pr-9"
+                      className={cn("pr-9", accountNumberError && "border-red-300 focus:ring-red-200 focus:border-red-300")}
+                      aria-invalid={!!accountNumberError}
                     />
                     <button
                       type="button"
@@ -542,6 +559,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                       {showAcct ? <EyeSlashIcon size={14} aria-hidden="true" /> : <EyeIcon size={14} aria-hidden="true" />}
                     </button>
                   </div>
+                  {accountNumberError && (
+                    <p className="text-[11px] text-red-500 mt-1">{accountNumberError}</p>
+                  )}
                 </div>
                 <div>
                   <FieldLabel required htmlFor="hfin-confirm-account-number">Re-enter Account Number</FieldLabel>
@@ -566,8 +586,12 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                     onChange={(e) => handleIfsc(e.target.value)}
                     placeholder="Enter IFSC Code"
                     maxLength={11}
-                    className="uppercase"
+                    className={cn("uppercase", ifscError && "border-red-300 focus:ring-red-200 focus:border-red-300")}
+                    aria-invalid={!!ifscError}
                   />
+                  {ifscError && (
+                    <p className="text-[11px] text-red-500 mt-1">{ifscError}</p>
+                  )}
                 </div>
                 <div>
                   <FieldLabel htmlFor="hfin-bank-name">Bank Name</FieldLabel>
@@ -581,6 +605,16 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                   />
                 </div>
               </div>
+
+              <UploadCard
+                hotelId={hotel.id}
+                docKey="bank_proof"
+                label="Passbook / Cancelled Cheque"
+                hint="Upload a photo of your bank passbook's first page or a cancelled cheque, showing your name and account number"
+                required
+                url={docs["bank_proof"]}
+                onUpdate={updateDoc}
+              />
             </div>
 
             <div className="h-px bg-neutral-100" />
