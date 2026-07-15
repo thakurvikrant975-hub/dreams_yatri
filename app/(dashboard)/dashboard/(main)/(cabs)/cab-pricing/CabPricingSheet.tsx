@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import {
   Plus, Pencil, Car, IndianRupee,
-  CalendarDays, Trash2, AlertTriangle,
+  CalendarDays, AlertTriangle,
   Info, Check, Loader2, X,
 } from "lucide-react";
 import { Button }  from "../../components/ui/button";
@@ -17,11 +17,8 @@ import { cn }      from "@/app/lib/utils";
 
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue }   from "../../components/location/location.types";
-import {
-  PricingRangeCalendarPicker,
-  type DateRange,
-  type SeasonRange,
-} from "../../components/ui/pricing-range-calendar";
+import { SeasonalRateCalendar, type SeasonalRateCalendarItem } from "../../components/ui/seasonal-rate-calendar";
+import type { RateSeasonBase } from "../../components/ui/seasonal-rate-calendar-logic";
 
 import {
   upsertCabPricingForCity,
@@ -44,12 +41,14 @@ type PriceEntry = {
 
 type SeasonEntry = {
   tempId:          string;
+  label:           string;
   pricing_type:    CabPricingType;
   valid_from:      string;
   valid_to:        string;
   weekday_price:   string;
   weekend_enabled: boolean;
   weekend_price:   string;
+  color:           string;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -62,21 +61,6 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
 };
 
 function uid() { return Math.random().toString(36).slice(2); }
-
-function overlappingSeasonIds(seasons: SeasonEntry[]): Set<string> {
-  const withDates = seasons.filter((s) => s.valid_from && s.valid_to);
-  const bad = new Set<string>();
-  for (let i = 0; i < withDates.length; i++) {
-    for (let j = i + 1; j < withDates.length; j++) {
-      const a = withDates[i], b = withDates[j];
-      if (a.valid_from <= b.valid_to && b.valid_from <= a.valid_to) {
-        bad.add(a.tempId);
-        bad.add(b.tempId);
-      }
-    }
-  }
-  return bad;
-}
 
 function buildPayload(entries: PriceEntry[], vehicleSeasons: Record<string, SeasonEntry[]>): VehicleEntryInput[] {
   return entries
@@ -96,6 +80,8 @@ function buildPayload(entries: PriceEntry[], vehicleSeasons: Record<string, Seas
           weekdayCost:  null,
           weekendPrice: s.weekend_enabled && s.weekend_price ? Number(s.weekend_price) : null,
           weekendCost:  null,
+          seasonName:   s.label || null,
+          color:        s.color || null,
         })),
     }));
 }
@@ -316,29 +302,54 @@ function BaseRatesSection({
   );
 }
 
-// ── Date helpers ──────────────────────────────────────────────────────────
-
-function toDateObj(str: string): Date | undefined {
-  if (!str) return undefined;
-  const d = new Date(str + "T00:00:00");
-  return isNaN(d.getTime()) ? undefined : d;
-}
-
-function fromDateObj(d: Date | undefined): string {
-  if (!d) return "";
-  const y   = d.getFullYear();
-  const m   = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function fmtMonthDay(dateStr: string): string {
-  const d = toDateObj(dateStr);
-  if (!d) return dateStr;
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
-
 // ── Calendar Rates section ────────────────────────────────────────────────
+// Each selected vehicle is a distinct "item" in the shared calendar — seasons
+// for one vehicle never leak into another's date ranges.
+
+type CabRateSeason = RateSeasonBase & {
+  pricingType:  CabPricingType;
+  weekendPrice: number | null;
+};
+
+function toRateSeasons(vehicleSeasons: Record<string, SeasonEntry[]>): CabRateSeason[] {
+  const all: CabRateSeason[] = [];
+  for (const [vehicleId, seasons] of Object.entries(vehicleSeasons)) {
+    for (const s of seasons) {
+      if (!s.valid_from || !s.valid_to || !s.weekday_price) continue;
+      all.push({
+        id:           s.tempId,
+        itemId:       vehicleId,
+        label:        s.label || undefined,
+        startDate:    s.valid_from,
+        endDate:      s.valid_to,
+        color:        s.color || "#f97316",
+        rate:         Number(s.weekday_price) || 0,
+        pricingType:  s.pricing_type,
+        weekendPrice: s.weekend_enabled && s.weekend_price ? Number(s.weekend_price) : null,
+      });
+    }
+  }
+  return all;
+}
+
+function fromRateSeasons(rateSeasons: CabRateSeason[]): Record<string, SeasonEntry[]> {
+  const map: Record<string, SeasonEntry[]> = {};
+  for (const rs of rateSeasons) {
+    const arr = map[rs.itemId] ?? (map[rs.itemId] = []);
+    arr.push({
+      tempId:          rs.id,
+      label:           rs.label ?? "",
+      pricing_type:    rs.pricingType ?? "PER_DAY",
+      valid_from:      rs.startDate,
+      valid_to:        rs.endDate,
+      weekday_price:   String(rs.rate),
+      weekend_enabled: rs.weekendPrice != null,
+      weekend_price:   rs.weekendPrice != null ? String(rs.weekendPrice) : "",
+      color:           rs.color,
+    });
+  }
+  return map;
+}
 
 function CalendarRatesSection({
   vehicles,
@@ -353,57 +364,17 @@ function CalendarRatesSection({
 }) {
   // Only show vehicles that the user has selected in Base Rates
   const selectedVehicles = vehicles.filter((v) => entries.some((e) => e.vehicle_id === v.id));
+  const [open, setOpen] = useState(false);
+  const [_activeItemId, setActiveItemId] = useState<string>("");
 
-  const [_activeId, setActiveVehicleId] = useState<number | null>(null);
+  const items: SeasonalRateCalendarItem[] = selectedVehicles.map((v) => {
+    const entry = entries.find((e) => e.vehicle_id === v.id);
+    return { id: String(v.id), label: v.name, baseRate: entry?.price ? Number(entry.price) : 0 };
+  });
 
-  // If the explicitly chosen tab was deselected, fall back to first available
-  const activeVehicleId =
-    selectedVehicles.some((v) => v.id === _activeId)
-      ? _activeId
-      : selectedVehicles[0]?.id ?? null;
-
-  function getSeasons(vehicleId: number): SeasonEntry[] {
-    return vehicleSeasons[String(vehicleId)] ?? [];
-  }
-
-  function setSeasons(vehicleId: number, seasons: SeasonEntry[]) {
-    onChange({ ...vehicleSeasons, [String(vehicleId)]: seasons });
-  }
-
-  function addSeason(vehicleId: number) {
-    const base = entries.find((e) => e.vehicle_id === vehicleId);
-    setSeasons(vehicleId, [
-      ...getSeasons(vehicleId),
-      {
-        tempId:          uid(),
-        pricing_type:    (base?.pricing_type ?? "PER_DAY") as CabPricingType,
-        valid_from:      "",
-        valid_to:        "",
-        weekday_price:   "",
-        weekend_enabled: false,
-        weekend_price:   "",
-      },
-    ]);
-  }
-
-  function updateSeason(vehicleId: number, tempId: string, patch: Partial<SeasonEntry>) {
-    setSeasons(vehicleId, getSeasons(vehicleId).map((s) =>
-      s.tempId === tempId ? { ...s, ...patch } : s,
-    ));
-  }
-
-  function removeSeason(vehicleId: number, tempId: string) {
-    setSeasons(vehicleId, getSeasons(vehicleId).filter((s) => s.tempId !== tempId));
-  }
-
-  function handleRangeChange(vehicleId: number, tempId: string, range: DateRange | undefined) {
-    updateSeason(vehicleId, tempId, {
-      valid_from: fromDateObj(range?.from),
-      valid_to:   fromDateObj(range?.to),
-    });
-  }
-
-  const totalSeasons = Object.values(vehicleSeasons).reduce((s, arr) => s + arr.length, 0);
+  const activeItemId = items.some((i) => i.id === _activeItemId) ? _activeItemId : items[0]?.id ?? "";
+  const rateSeasons = toRateSeasons(vehicleSeasons);
+  const totalSeasons = rateSeasons.length;
 
   if (!selectedVehicles.length) {
     return (
@@ -415,221 +386,68 @@ function CalendarRatesSection({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
-        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
-        <p className="text-xs text-blue-700">
-          Click a start date then an end date on the calendar to set the season range.
-          {totalSeasons > 0 && (
-            <span className="font-semibold"> {totalSeasons} season{totalSeasons !== 1 ? "s" : ""} configured.</span>
-          )}
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        {totalSeasons > 0
+          ? `${totalSeasons} season${totalSeasons !== 1 ? "s" : ""} configured across ${selectedVehicles.length} vehicle${selectedVehicles.length !== 1 ? "s" : ""}.`
+          : "No seasonal rates yet — add one per vehicle below."}
+      </p>
 
-      {/* Vehicle tabs — only selected vehicles */}
-      <div className="flex flex-wrap gap-1.5">
-        {selectedVehicles.map((v) => {
-          const count       = getSeasons(v.id).length;
-          const hasConflict = overlappingSeasonIds(getSeasons(v.id)).size > 0;
-          const isActive    = activeVehicleId === v.id;
-          return (
-            <button
-              key={v.id} type="button"
-              onClick={() => setActiveVehicleId(v.id)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
-                hasConflict
-                  ? "border-destructive/50 bg-destructive/5 text-destructive"
-                  : isActive
-                  ? "border-dashboard-primary/50 bg-dashboard-primary/10 text-dashboard-primary"
-                  : "border-dashboard-base-300 bg-background text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {hasConflict && <AlertTriangle className="h-3 w-3" />}
-              {v.name}
-              {count > 0 && (
-                <span className={cn(
-                  "inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold rounded-full",
-                  hasConflict ? "bg-destructive text-white" : "bg-dashboard-primary text-white",
-                )}>
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <Button
+        type="button" variant="outline" size="lg"
+        className="w-full cursor-pointer h-9 text-xs gap-1.5 border-dashed"
+        onClick={() => setOpen(true)}
+      >
+        <CalendarDays className="h-3.5 w-3.5" />
+        {totalSeasons > 0 ? "Manage Seasonal Rates" : "Add Seasonal Rates"}
+      </Button>
 
-      {/* Season cards for active vehicle */}
-      {activeVehicleId !== null && (() => {
-        const vehicle    = selectedVehicles.find((v) => v.id === activeVehicleId)!;
-        const seasons    = getSeasons(activeVehicleId);
-        const base       = entries.find((e) => e.vehicle_id === activeVehicleId);
-        const overlapSet = overlappingSeasonIds(seasons);
-
-        return (
-          <div className="space-y-3">
-            {seasons.length === 0 && (
-              <p className="text-xs text-muted-foreground py-3 text-center">
-                No seasons for <strong>{vehicle.name}</strong> yet.
-              </p>
-            )}
-
-            {seasons.map((s) => {
-              const unit       = s.pricing_type === "PER_DAY" ? "/day" : "/km";
-              const hasOverlap = overlapSet.has(s.tempId);
-              const rangeValue: DateRange = {
-                from: toDateObj(s.valid_from),
-                to:   toDateObj(s.valid_to),
-              };
-
-              const calendarSeasons: SeasonRange[] = seasons
-                .filter((x) => x.valid_from && x.valid_to && x.weekday_price)
-                .map((x) => ({
-                  from:           x.valid_from,
-                  to:             x.valid_to,
-                  weekdayPrice:   Number(x.weekday_price),
-                  weekendPrice:   x.weekend_enabled && x.weekend_price ? Number(x.weekend_price) : null,
-                  weekendEnabled: x.weekend_enabled,
-                }));
-
-              const rangeLabel = s.valid_from && s.valid_to
-                ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
-                : s.valid_from
-                ? `From ${fmtMonthDay(s.valid_from)}`
-                : "No dates selected";
-
-              return (
-                <div
-                  key={s.tempId}
-                  className={cn(
-                    "rounded-xl border p-4 space-y-3",
-                    hasOverlap ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/10",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className={cn(
-                        "text-xs font-medium truncate",
-                        s.valid_from ? "text-foreground" : "text-muted-foreground",
-                      )}>
-                        {rangeLabel}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <PricingTypeToggle
-                        value={s.pricing_type}
-                        onChange={(v) => updateSeason(activeVehicleId, s.tempId, { pricing_type: v })}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeSeason(activeVehicleId, s.tempId)}
-                        className="text-destructive/60 hover:text-destructive transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {hasOverlap && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-destructive font-medium">
-                      <AlertTriangle className="h-3 w-3 shrink-0" />
-                      Date range overlaps with another season — fix before saving.
-                    </div>
-                  )}
-
-                  <div className="flex items-end gap-3">
-                    {/* Weekday rate */}
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">
-                        Weekday Rate *
-                        {base?.price && (
-                          <span className="ml-1.5 text-muted-foreground/60">
-                            (base ₹{base.price}{base.pricing_type === "PER_KM" ? "/km" : "/day"})
-                          </span>
-                        )}
-                      </Label>
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-                        <Input
-                          type="number" min={0} step={s.pricing_type === "PER_KM" ? 1 : 100}
-                          placeholder={base?.price || "0"}
-                          value={s.weekday_price}
-                          onChange={(e) => updateSeason(activeVehicleId, s.tempId, { weekday_price: e.target.value })}
-                          className="h-8 pl-6 pr-9 text-sm"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
-                      </div>
-                    </div>
-
-                    {/* Weekend toggle + rate */}
-                    <div className="flex-1 space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => updateSeason(activeVehicleId, s.tempId, {
-                          weekend_enabled: !s.weekend_enabled,
-                          weekend_price: "",
-                        })}
-                        className="flex items-center gap-1.5 group cursor-pointer"
-                      >
-                        <div className={cn(
-                          "h-3.5 w-3.5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
-                          s.weekend_enabled
-                            ? "border-dashboard-primary bg-dashboard-primary"
-                            : "border-muted-foreground/40 group-hover:border-dashboard-primary",
-                        )}>
-                          {s.weekend_enabled && (
-                            <svg className="h-2 w-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-medium text-muted-foreground">Weekend rate</span>
-                      </button>
-
-                      {s.weekend_enabled ? (
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-                          <Input
-                            type="number" min={0} step={s.pricing_type === "PER_KM" ? 1 : 100}
-                            placeholder={s.weekday_price || "0"}
-                            value={s.weekend_price}
-                            onChange={(e) => updateSeason(activeVehicleId, s.tempId, { weekend_price: e.target.value })}
-                            className="h-8 pl-6 pr-9 text-sm"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
-                        </div>
-                      ) : (
-                        <div className="h-8 rounded-md border border-dashed bg-muted/20 flex items-center px-3">
-                          <span className="text-[11px] text-muted-foreground/50">Same as weekday</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <PricingRangeCalendarPicker
-                    value={rangeValue}
-                    onChange={(range) => handleRangeChange(activeVehicleId, s.tempId, range)}
-                    seasons={calendarSeasons}
-                    basePrice={base?.price ? Number(base.price) : 0}
-                    placeholder="Select season date range"
-                    error={hasOverlap}
-                  />
-                </div>
-              );
-            })}
-
-            <Button
-              type="button" variant="outline" size="lg"
-              className="w-full cursor-pointer h-8 text-xs gap-1.5 border-dashed mt-1 bg-dashboard-base-300 hover:bg-dashboard-base-300 py-3 rounded-md"
-              onClick={() => addSeason(activeVehicleId)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Season for {vehicle.name}
-            </Button>
+      <SeasonalRateCalendar<CabRateSeason>
+        open={open}
+        onOpenChange={setOpen}
+        title="Seasonal Rate Calendar"
+        subtitle="Cab Pricing"
+        items={items}
+        activeItemId={activeItemId}
+        onActiveItemChange={setActiveItemId}
+        seasons={rateSeasons}
+        onSave={(next) => onChange(fromRateSeasons(next))}
+        getDefaultDraft={(item) => {
+          const entry = entries.find((e) => String(e.vehicle_id) === item.id);
+          return { pricingType: entry?.pricing_type ?? "PER_DAY" };
+        }}
+        getSeasonWeekendRate={(s) => s.weekendPrice}
+        renderExtraFields={({ draft, onChange: onExtraChange }) => (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-neutral-500 mb-0.5 block">Pricing type</label>
+              <div className="flex rounded-md border overflow-hidden h-8 text-xs font-medium">
+                {(["PER_DAY", "PER_KM"] as CabPricingType[]).map((t) => (
+                  <button
+                    key={t} type="button"
+                    onClick={() => onExtraChange({ pricingType: t })}
+                    className={cn(
+                      "flex-1 transition-colors cursor-pointer",
+                      draft.pricingType === t ? "bg-dashboard-primary text-white" : "bg-background text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {t === "PER_DAY" ? "/day" : "/km"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-neutral-500 mb-0.5 block">Weekend price (₹)</label>
+              <Input
+                type="number" min={0}
+                placeholder="Same as weekday"
+                value={draft.weekendPrice ?? ""}
+                onChange={(e) => onExtraChange({ weekendPrice: e.target.value ? Number(e.target.value) : null })}
+                className="h-8 text-xs bg-white"
+              />
+            </div>
           </div>
-        );
-      })()}
+        )}
+      />
     </div>
   );
 }
@@ -657,8 +475,6 @@ function validateForm(
       if (s.weekend_enabled && (!s.weekend_price || Number(s.weekend_price) <= 0))
         return "Weekend price must be greater than ₹0 when enabled";
     }
-    if (overlappingSeasonIds(seasons).size > 0)
-      return "Some seasons have overlapping date ranges — fix before saving";
   }
   return null;
 }
@@ -849,12 +665,14 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
       if (p.seasons.length > 0) {
         map[String(p.vehicle_id)] = p.seasons.map((s) => ({
           tempId:          uid(),
+          label:           s.season_name ?? "",
           pricing_type:    s.pricing_type,
           valid_from:      s.valid_from,
           valid_to:        s.valid_to,
           weekday_price:   String(s.weekday_price),
           weekend_enabled: s.weekend_price != null,
           weekend_price:   s.weekend_price != null ? String(s.weekend_price) : "",
+          color:           s.color ?? "",
         }));
       }
     }
