@@ -66,6 +66,9 @@ export const fullRoomSchema = z.object({
   if (data.rate_end_date && data.rate_start_date && data.rate_end_date <= data.rate_start_date) {
     ctx.addIssue({ code: "custom", path: ["rate_end_date"], message: "End date must be after the start date." });
   }
+  if (data.extra_bed && data.extra_bed_capacity < 1) {
+    ctx.addIssue({ code: "custom", path: ["extra_bed_capacity"], message: "Extra bed capacity must be at least 1." });
+  }
 });
 
 export type FullRoomData = z.infer<typeof fullRoomSchema>;

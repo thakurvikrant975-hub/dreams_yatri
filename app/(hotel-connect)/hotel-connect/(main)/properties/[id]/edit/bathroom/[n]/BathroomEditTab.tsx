@@ -16,6 +16,7 @@ import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/compone
 import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/input";
 import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
+import { convertAreaUnit } from "@/app/lib/units";
 
 // ── Amenity data ──────────────────────────────────────────────────────────────
 
@@ -479,7 +480,12 @@ export default function BathroomEditTab({
                   {(["sqm", "sqft"] as const).map(u => (
                     <button
                       key={u} type="button"
-                      onClick={() => setSizeUnit(u)}
+                      onClick={() => {
+                        if (u === sizeUnit) return;
+                        const n = parseFloat(sizeValue);
+                        if (Number.isFinite(n)) setSizeValue(String(convertAreaUnit(n, sizeUnit, u)));
+                        setSizeUnit(u);
+                      }}
                       className={cn(
                         "px-2.5 py-2 text-xs font-medium border-t border-b border-neutral-300 last:rounded-r-lg last:border-r transition-colors",
                         sizeUnit === u ? "bg-primary-500 text-white border-primary-500" : "bg-white text-neutral-600 hover:bg-neutral-50"

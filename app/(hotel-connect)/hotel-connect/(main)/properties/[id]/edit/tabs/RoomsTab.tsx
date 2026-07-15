@@ -7,6 +7,7 @@ import {
   CaretDownIcon, CaretUpIcon, LockSimpleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
+import { convertAreaUnit } from "@/app/lib/units";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -134,6 +135,7 @@ function validateS2(d: RoomFormData): FieldErrors {
   const hasAnyBed = d.bedroom_beds.some((br) => br.beds.some((b) => b.type));
   if (!hasAnyBed) e.bedroom_beds = "Add at least one bed type";
   if (d.max_adults < 1) e.max_adults = "At least 1 adult";
+  if (d.extra_bed && d.extra_bed_capacity < 1) e.extra_bed_capacity = "Extra bed capacity must be at least 1";
   return e;
 }
 function validateS3(d: RoomFormData): FieldErrors {
@@ -317,7 +319,12 @@ function Section1({ data, onChange, errors, roomTypes }: {
           />
           <div className="flex rounded-lg border border-neutral-300 overflow-hidden shrink-0 h-10 bg-white">
             {(["sqft", "sqm"] as const).map((u) => (
-              <button key={u} type="button" onClick={() => setField("area_unit", u)}
+              <button key={u} type="button" onClick={() => {
+                if (u === data.area_unit) return;
+                const n = parseFloat(data.area);
+                const nextArea = Number.isFinite(n) ? String(convertAreaUnit(n, data.area_unit, u)) : data.area;
+                onChange({ ...data, area: nextArea, area_unit: u });
+              }}
                 className={cn(
                   "px-3 text-sm font-medium transition-colors",
                   data.area_unit === u ? "bg-primary-500 text-white" : "text-neutral-600 hover:bg-neutral-50",
@@ -575,7 +582,7 @@ function Section2({ data, onChange, errors }: {
       ))}
 
       {/* Extra bed — radio */}
-      <FormRow label="Can this room/unit accommodate extra bed(s)?">
+      <FormRow label="Can this room/unit accommodate extra bed(s)?" error={errors.extra_bed_capacity}>
         <div className="flex items-center gap-6">
           {[{ v: false, label: "No" }, { v: true, label: "Yes" }].map(({ v, label }) => (
             <label key={String(v)} className="flex items-center gap-2 cursor-pointer select-none">
@@ -583,7 +590,11 @@ function Section2({ data, onChange, errors }: {
                 type="radio"
                 name="extra_bed"
                 checked={data.extra_bed === v}
-                onChange={() => onChange({ ...data, extra_bed: v })}
+                onChange={() => onChange({
+                  ...data,
+                  extra_bed: v,
+                  extra_bed_capacity: v && data.extra_bed_capacity < 1 ? 1 : data.extra_bed_capacity,
+                })}
                 className="h-4 w-4 accent-primary-500 cursor-pointer"
               />
               <span className="text-sm text-neutral-700">{label}</span>
@@ -596,7 +607,7 @@ function Section2({ data, onChange, errors }: {
             <NumberStepper
               value={data.extra_bed_capacity}
               onChange={(v) => onChange({ ...data, extra_bed_capacity: v })}
-              min={0} max={5}
+              min={1} max={5}
             />
           </div>
         )}
