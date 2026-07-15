@@ -1160,3 +1160,92 @@ export async function computeBuilderHotelPricing(input: {
 
   return { days: lines, hotelSubtotal, nightsCounted: lines.length };
 }
+
+// ── Package Builder cab pricing ─────────────────────────────────────────────
+// Mirrors computeBuilderHotelPricing above: each day's cab pick references a
+// real cab_pricing row once selected via the builder's own city-scoped search
+// (searchCabsForBuilder), so the same season/weekday-weekend resolution the
+// catalog engine uses (resolveCabPrice) applies here too — one line per day,
+// PER_DAY rows priced flat per day, PER_KM rows multiplied by that day's
+// transportDistanceKm.
+
+export type BuilderCabDayLine = {
+  day: number;
+  vehicleName: string;
+  pricingType: "PER_DAY" | "PER_KM";
+  isWeekend: boolean;
+  rate: number;
+  distanceKm: number | null;
+  total: number;
+};
+
+export type BuilderCabPricingResult = {
+  days: BuilderCabDayLine[];
+  cabSubtotal: number;
+  daysCounted: number;
+};
+
+export async function computeBuilderCabPricing(input: {
+  travelDate: string | null;
+  days: { day: number; cabPricingId: number | null; transportDistanceKm: number | null }[];
+}): Promise<BuilderCabPricingResult> {
+  const { travelDate, days } = input;
+  const travelDateObj = travelDate ? new Date(travelDate) : null;
+
+  const cabPricingIds = [
+    ...new Set(days.map((d) => d.cabPricingId).filter((id): id is number => id != null)),
+  ];
+  if (cabPricingIds.length === 0) {
+    return { days: [], cabSubtotal: 0, daysCounted: 0 };
+  }
+
+  const rows = await db.cab_pricing.findMany({
+    where: { id: { in: cabPricingIds } },
+    select: {
+      id: true,
+      price: true,
+      pricing_type: true,
+      vehicle: { select: { name: true } },
+      seasons: {
+        where: { is_active: true },
+        select: {
+          pricing_type: true, valid_from: true, valid_to: true,
+          weekday_price: true, weekend_price: true, is_active: true,
+        },
+      },
+    },
+  });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  const lines: BuilderCabDayLine[] = [];
+  let cabSubtotal = 0;
+
+  for (const d of days) {
+    if (d.cabPricingId == null) continue;
+    const cp = byId.get(d.cabPricingId);
+    if (!cp) continue;
+
+    const dayDate = travelDateObj
+      ? new Date(travelDateObj.getTime() + (d.day - 1) * 24 * 60 * 60 * 1000)
+      : null;
+
+    const { weekdayPrice, weekendPrice, pricing_type } = resolveCabPrice(cp, dayDate);
+    const isWeekend = dayDate ? (dayDate.getDay() === 0 || dayDate.getDay() === 6) : false;
+    const rate = isWeekend ? weekendPrice : weekdayPrice;
+
+    const total = pricing_type === "PER_KM" ? rate * (d.transportDistanceKm ?? 0) : rate;
+    cabSubtotal += total;
+
+    lines.push({
+      day: d.day,
+      vehicleName: cp.vehicle.name,
+      pricingType: pricing_type,
+      isWeekend,
+      rate,
+      distanceKm: d.transportDistanceKm,
+      total,
+    });
+  }
+
+  return { days: lines, cabSubtotal, daysCounted: lines.length };
+}

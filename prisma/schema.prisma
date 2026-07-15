@@ -2375,6 +2375,10 @@ model custom_packages {
   title          String
   description    String?
   coverImage     String?
+  /** Vertical focal point for the cover image's object-position (0 = top,
+   * 50 = center, 100 = bottom) — lets the exec re-center an image that
+   * object-cover crops awkwardly, without re-uploading/re-cropping it. */
+  coverImagePosition Float @default(50)
   destination    String
   startingPoint  String?
   totalDays      Int
@@ -2386,6 +2390,8 @@ model custom_packages {
   pricePerPerson Float?
   totalPrice     Float?
   currency       String               @default("INR")
+  marginPercentage Float              @default(25)
+  gstPercentage    Float              @default(5)
   inclusions     String[]
   exclusions     String[]
   termsNotes     String?
@@ -2409,6 +2415,7 @@ model custom_packages {
   updatedAt       DateTime             @updatedAt
   itineraries     custom_itineraries[]
   stops           custom_package_stops[]
+  tickets         custom_package_tickets[]
   query           package_queries      @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
@@ -2424,12 +2431,50 @@ model custom_package_stops {
   customPackageId String
   name            String
   nights          Int             @default(1)
+  /** Manual override for the "Places You Gonna Visit" tile image — when
+   * set, takes priority over the auto-resolved destination catalog photo. */
+  image           String?
   sortOrder       Int             @default(0)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
 
   @@index([customPackageId])
+}
+
+// A flight or train ticket the exec has priced into a custom package — one
+// row per leg (e.g. onward + return flight are two rows), each with its own
+// passenger breakdown and fare so the sum feeds straight into the package's
+// computed pricing (see computeFinalPricing in the builder's page.tsx).
+model custom_package_tickets {
+  id              String          @id @default(cuid())
+  customPackageId String
+  type            TicketType
+  provider        String?
+  ticketNumber    String?
+  fromPlace       String?
+  toPlace         String?
+  travelDate      DateTime?
+  departureTime   String?
+  arrivalTime     String?
+  durationText    String?
+  adults          Int             @default(0)
+  children        Int             @default(0)
+  infants         Int             @default(0)
+  ticketCount     Int             @default(1)
+  fare            Float?
+  notes           String?
+  sortOrder       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+
+  @@index([customPackageId])
+}
+
+enum TicketType {
+  FLIGHT
+  TRAIN
 }
 
 model custom_itineraries {
@@ -2446,6 +2491,7 @@ model custom_itineraries {
   accommodationRoomSpecs String?
   accommodationRoomCapacity Int?
   roomPricingId   Int?
+  cabPricingId    Int?
   hotelCheckIn    String?
   hotelCheckOut   String?
   hotelMealPlan   String?

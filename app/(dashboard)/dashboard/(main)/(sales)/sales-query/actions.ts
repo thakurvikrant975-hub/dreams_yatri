@@ -383,6 +383,8 @@ const packageRequirementsSchema = z.object({
             name: z.string(),
             age:  z.number().min(0).max(120),
         })).optional(),
+        tripType:       z.string().optional(),
+        tripTypeCustom: z.string().optional(),
         specialDemands: z.string().optional(),
     }),
     journey: z.object({

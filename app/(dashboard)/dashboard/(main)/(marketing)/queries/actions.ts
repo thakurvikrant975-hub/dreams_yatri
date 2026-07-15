@@ -59,6 +59,10 @@ export type PackageRequirements = {
         children: number;
         infants: number;
         members?: TravellerMember[];
+        /** Purpose of the trip — one of TRIP_TYPES' values (Packagedetailsdialog.tsx),
+         * or "OTHER" with the free-text reason in tripTypeCustom. */
+        tripType?: string;
+        tripTypeCustom?: string;
         specialDemands?: string;
     };
     journey: {
