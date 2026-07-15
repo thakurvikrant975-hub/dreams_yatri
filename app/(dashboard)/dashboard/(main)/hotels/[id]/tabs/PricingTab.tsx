@@ -213,12 +213,13 @@ function toFormState(p: PricingPlan): PricingFormState {
 
 // ── Seasonal Pricing Section (inside PricingForm) ─────────────────────────
 // Seasons are scoped per pricing plan (the "item"). The calendar's item
-// switcher shows every plan for the SAME room — the one currently being
-// added/edited here, plus any sibling plans already saved for that room —
-// so a manager can compare/adjust seasonal rates across a room's meal-plan
-// variants without leaving the modal. Edits to the in-progress plan buffer
-// into the local form (saved via the "Save Plan" button); edits to a sibling
-// plan (already persisted) save immediately, since there's no other save
+// switcher shows every pricing plan created for this HOTEL (across every
+// room, not just the one currently being edited) — the plan currently being
+// added/edited here, plus every other plan already saved for the hotel — so
+// a manager can compare/adjust seasonal rates across the whole property
+// without leaving the modal. Edits to the in-progress plan buffer into the
+// local form (saved via the "Save Plan" button); edits to any other
+// (already persisted) plan save immediately, since there's no other save
 // mechanism reachable for it from here.
 
 type HotelRateSeason = RateSeasonBase & {
@@ -368,7 +369,7 @@ function SeasonalPricingSection({
     { id: currentItemId, label: planLabel || "This plan", baseRate: basePricePerNight, baseWeekendRate: baseWeekendPricePerNight ?? null },
     ...siblingPlans.map(p => ({
       id: String(p.id),
-      label: p.plan_name || "Unnamed plan",
+      label: p.room?.name ? `${p.room.name} — ${p.plan_name || "Unnamed plan"}` : (p.plan_name || "Unnamed plan"),
       baseRate: p.price_per_night,
       baseWeekendRate: p.weekend_price_per_night,
     })),
@@ -709,10 +710,14 @@ function PricingForm({
           baseWeekendPricePerNight={form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null}
           baseExtraBedRate={form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null}
           baseWeekendExtraBedRate={form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null}
-          planLabel={form.plan_name || "This plan"}
+          planLabel={(() => {
+            const roomName = rooms.find(r => String(r.id) === form.room_id)?.name;
+            const label = form.plan_name || "This plan";
+            return roomName ? `${roomName} — ${label}` : label;
+          })()}
           currentPlanId={planId}
           hotelId={hotelId}
-          siblingPlans={form.room_id ? allPlans.filter(p => p.room_id === Number(form.room_id) && p.id !== planId) : []}
+          siblingPlans={allPlans.filter(p => p.id !== planId)}
           onSiblingSeasonsUpdated={onSiblingSeasonsUpdated}
         />
       </div>

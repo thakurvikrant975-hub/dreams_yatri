@@ -199,29 +199,49 @@ function resolveCabPrice(
 }
 
 /**
- * Resolve the effective hotel price_per_night and occupancy_prices for a given travel date.
- * Seasons are stored year-agnostically (year-2000 placeholder). Returns the matched
- * season's rates, or the base room pricing rates if no season applies.
+ * Resolve the effective hotel price_per_night, extra-bed (mattress) rate, and
+ * occupancy_prices for a given travel date. Seasons are stored year-agnostically
+ * (year-2000 placeholder). Returns the matched season's rates, or the base room
+ * pricing rates if no season applies.
+ *
+ * Extra-bed rate resolution mirrors the room rate: a season's own weekday/weekend
+ * extra-bed rate is used when set; if a season doesn't specify one, it falls back
+ * to the base room's extra-bed rate — a season overriding just the room rate
+ * shouldn't silently zero out the mattress charge. Weekend variants (room and
+ * extra-bed) fall back to their own weekday value when not set, at both the base
+ * and season level, matching the "not provided = same as weekday" convention
+ * used throughout the Seasonal Rate Calendar.
  */
 function resolveHotelSeasonPricing(
   roomPricing: {
     price_per_night: unknown;
+    extra_bed_rate: unknown;
+    weekend_extra_bed_rate?: unknown;
     occupancy_prices: { occupancy: number; price_per_night: unknown }[];
     seasons: {
       valid_from: Date;
       valid_to: Date;
       price_per_night: unknown;
       weekend_price_per_night?: unknown;
+      extra_bed_rate?: unknown;
+      weekend_extra_bed_rate?: unknown;
       occupancy_prices?: { occupancy: number; price_per_night: unknown }[];
     }[];
   },
   travelDate: Date | null,
-): { basePrice: number; occPrices: { occupancy: number; price_per_night: unknown }[] } {
+): { basePrice: number; extraBedRate: number; occPrices: { occupancy: number; price_per_night: unknown }[] } {
   const defaultBase = Number(roomPricing.price_per_night);
+  const defaultExtraBedWeekday = roomPricing.extra_bed_rate != null ? Number(roomPricing.extra_bed_rate) : 0;
+  const defaultExtraBedWeekend = roomPricing.weekend_extra_bed_rate != null
+    ? Number(roomPricing.weekend_extra_bed_rate)
+    : defaultExtraBedWeekday;
   const defaultOcc = roomPricing.occupancy_prices;
 
+  const isWeekend = travelDate ? (travelDate.getDay() === 0 || travelDate.getDay() === 6) : false;
+  const defaultExtraBedRate = isWeekend ? defaultExtraBedWeekend : defaultExtraBedWeekday;
+
   if (!travelDate || roomPricing.seasons.length === 0) {
-    return { basePrice: defaultBase, occPrices: defaultOcc };
+    return { basePrice: defaultBase, extraBedRate: defaultExtraBedRate, occPrices: defaultOcc };
   }
 
   const normalised = new Date(2000, travelDate.getMonth(), travelDate.getDate());
@@ -236,17 +256,25 @@ function resolveHotelSeasonPricing(
     return normalised >= normFrom || normalised <= normTo;
   });
 
-  if (!matchedSeason) return { basePrice: defaultBase, occPrices: defaultOcc };
+  if (!matchedSeason) return { basePrice: defaultBase, extraBedRate: defaultExtraBedRate, occPrices: defaultOcc };
 
   // Use weekend price on Sat (6) or Sun (0) when configured
-  const isWeekend = travelDate.getDay() === 0 || travelDate.getDay() === 6;
   const seasonBase = (isWeekend && matchedSeason.weekend_price_per_night != null)
     ? Number(matchedSeason.weekend_price_per_night)
     : Number(matchedSeason.price_per_night);
 
+  const seasonExtraBedWeekday = matchedSeason.extra_bed_rate != null
+    ? Number(matchedSeason.extra_bed_rate)
+    : defaultExtraBedWeekday;
+  const seasonExtraBedWeekend = matchedSeason.weekend_extra_bed_rate != null
+    ? Number(matchedSeason.weekend_extra_bed_rate)
+    : seasonExtraBedWeekday;
+  const seasonExtraBedRate = isWeekend ? seasonExtraBedWeekend : seasonExtraBedWeekday;
+
   const seasonOcc = matchedSeason.occupancy_prices ?? [];
   return {
     basePrice: seasonBase,
+    extraBedRate: seasonExtraBedRate,
     occPrices: seasonOcc.length > 0 ? seasonOcc : defaultOcc,
   };
 }
@@ -363,6 +391,7 @@ export async function computePackagePrice(
                   },
                 },
                 extra_bed_rate: true,
+                weekend_extra_bed_rate: true,
                 room: { select: { id: true, name: true, max_occupancy: true, extra_bed_capacity: true } },
                 occupancy_prices: {
                   orderBy: { occupancy: "asc" },
@@ -376,6 +405,8 @@ export async function computePackagePrice(
                     valid_to: true,
                     price_per_night: true,
                     weekend_price_per_night: true,
+                    extra_bed_rate: true,
+                    weekend_extra_bed_rate: true,
                     occupancy_prices: {
                       orderBy: { occupancy: "asc" },
                       select: { occupancy: true, price_per_night: true },
@@ -728,22 +759,36 @@ export async function computePackagePrice(
       const persons       = Math.max(adults + children, 1);
       const roomsNeeded   = Math.ceil(persons / effectiveCap);
       const mattresses    = Math.max(0, persons - roomsNeeded * bedCapacity);
-      const extraBedRate  = stay.room_pricing.extra_bed_rate ? Number(stay.room_pricing.extra_bed_rate) : 0;
       const numNights     = stay.num_nights;
-
-      // Resolve room price (seasonal / occupancy-based)
       const typicalOccupancy = Math.min(adults, bedCapacity);
-      const { basePrice, occPrices } = resolveHotelSeasonPricing(stay.room_pricing, dayDate);
-      let pricePerRoom = basePrice;
-      if (occPrices.length > 0) {
-        const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
-        const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
-        pricePerRoom = Number(match.price_per_night);
-      }
 
-      const roomCost     = roomsNeeded * pricePerRoom * numNights;
-      const mattressCost = mattresses * extraBedRate * numNights;
-      const total        = roomCost + mattressCost;
+      // A multi-night stay can cross a season boundary or a weekday→weekend
+      // transition partway through, so every night is resolved (room rate,
+      // extra-bed rate, occupancy tier) at ITS OWN date and summed — never
+      // resolved once and flatly multiplied by num_nights.
+      let roomCost = 0;
+      let mattressCost = 0;
+      let firstNightPricePerRoom = 0;
+      let firstNightExtraBedRate = 0;
+      for (let n = 0; n < numNights; n++) {
+        const nightDate = travelDateObj
+          ? new Date(travelDateObj.getTime() + (itin.day - 1 + n) * 24 * 60 * 60 * 1000)
+          : null;
+        const { basePrice, extraBedRate, occPrices } = resolveHotelSeasonPricing(stay.room_pricing, nightDate);
+        let nightPricePerRoom = basePrice;
+        if (occPrices.length > 0) {
+          const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
+          const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
+          nightPricePerRoom = Number(match.price_per_night);
+        }
+        roomCost += roomsNeeded * nightPricePerRoom;
+        mattressCost += mattresses * extraBedRate;
+        if (n === 0) {
+          firstNightPricePerRoom = nightPricePerRoom;
+          firstNightExtraBedRate = extraBedRate;
+        }
+      }
+      const total = roomCost + mattressCost;
 
       hotel = {
         hotel_id: stay.room_pricing.hotel.id,
@@ -761,9 +806,11 @@ export async function computePackagePrice(
         bed_capacity: bedCapacity,
         extra_bed_capacity: extraBedCap,
         rooms_count: roomsNeeded,
-        price_per_room: pricePerRoom,
+        // First-night rate — a simple "per night" headline; `total` below is
+        // the true sum across all nights and is what actually gets charged.
+        price_per_room: firstNightPricePerRoom,
         mattresses_count: mattresses,
-        extra_bed_rate: extraBedRate,
+        extra_bed_rate: firstNightExtraBedRate,
         num_nights: numNights,
         total,
       };
