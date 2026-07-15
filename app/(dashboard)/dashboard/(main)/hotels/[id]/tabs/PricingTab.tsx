@@ -352,6 +352,7 @@ function SeasonalPricingSection({
 }) {
   const [open, setOpen] = useState(false);
   const currentItemId = currentPlanId != null ? String(currentPlanId) : NEW_PLAN_ITEM_ID;
+  const [activeItemId, setActiveItemId] = useState(currentItemId);
 
   const currentRateSeasons = seasonEntriesToRateSeasons(seasons, currentItemId);
   const siblingRateSeasons = siblingPlans.flatMap(p => savedSeasonsToRateSeasons(p.seasons, String(p.id)));
@@ -401,7 +402,7 @@ function SeasonalPricingSection({
       <Button
         type="button" variant="outline" size="sm"
         className="h-9 text-xs gap-1.5 w-full border-dashed border-dashboard-base-content/30 bg-dashboard-base-100 text-dashboard-base-content/70 hover:bg-dashboard-base-200 hover:text-dashboard-base-content cursor-pointer"
-        onClick={() => setOpen(true)}
+        onClick={() => { setActiveItemId(currentItemId); setOpen(true); }}
       >
         <CalendarDays className="h-3.5 w-3.5" />
         {seasonCount > 0 ? "Manage Seasonal Rates" : "Add Seasonal Rates"}
@@ -413,8 +414,8 @@ function SeasonalPricingSection({
         title="Seasonal Rate Calendar"
         subtitle={planLabel}
         items={items}
-        activeItemId={currentItemId}
-        onActiveItemChange={() => { }}
+        activeItemId={activeItemId}
+        onActiveItemChange={setActiveItemId}
         seasons={allRateSeasons}
         onSave={(next, changedItemId) => {
           if (changedItemId === currentItemId) {
@@ -460,19 +461,20 @@ function SeasonalPricingSection({
             </div>
           );
         }}
+        renderRateExtra={({ draft, onChange: onExtraChange }) => (
+          <div>
+            <label className="text-[10px] text-neutral-500 mb-0.5 block">Weekend price (₹)</label>
+            <input
+              type="number" min={0}
+              placeholder="Same as weekday"
+              value={draft.weekendPrice ?? ""}
+              onChange={e => onExtraChange({ weekendPrice: e.target.value ? Number(e.target.value) : null })}
+              className={seasonExtraFieldClass}
+            />
+          </div>
+        )}
         renderExtraFields={({ draft, onChange: onExtraChange }) => (
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] text-neutral-500 mb-0.5 block">Weekend price (₹)</label>
-              <input
-                type="number" min={0}
-                placeholder="Same as weekday"
-                value={draft.weekendPrice ?? ""}
-                onChange={e => onExtraChange({ weekendPrice: e.target.value ? Number(e.target.value) : null })}
-                className={seasonExtraFieldClass}
-              />
-            </div>
-
             <div>
               <label className="text-[10px] text-neutral-500 mb-0.5 block">Extra bed (₹)</label>
               <input
@@ -484,7 +486,7 @@ function SeasonalPricingSection({
               />
             </div>
 
-            <div className="col-span-2">
+            <div>
               <label className="text-[10px] text-neutral-500 mb-0.5 block">Weekend extra bed (₹)</label>
               <input
                 type="number" min={0}

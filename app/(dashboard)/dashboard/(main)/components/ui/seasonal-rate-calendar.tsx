@@ -73,10 +73,13 @@ export interface SeasonalRateCalendarProps<T extends RateSeasonBase> {
   currencySymbol?: string;
   /** e.g. "per night", "per day" — shown after the base rate in the item dropdown. */
   unitLabel?: string;
-  /** Extra domain-specific inputs (e.g. weekend price, extra bed rate, per-km
-   * vs per-day) rendered inside the add/edit form, between the rate field and
-   * the color picker. Merge any changes into the draft via `onChange`. */
+  /** Extra domain-specific inputs (e.g. extra bed rate, per-km vs per-day)
+   * rendered inside the add/edit form, between the rate field and the color
+   * picker. Merge any changes into the draft via `onChange`. */
   renderExtraFields?: (ctx: { draft: Partial<T>; onChange: (patch: Partial<T>) => void }) => React.ReactNode;
+  /** Rendered beside the Rate field in the same row (e.g. a domain's weekend
+   * price) — when omitted, Rate takes the full row on its own. */
+  renderRateExtra?: (ctx: { draft: Partial<T>; onChange: (patch: Partial<T>) => void }) => React.ReactNode;
   /** Called only when starting a brand-new (non-editing) season for the
    * active item, to seed the draft with sensible defaults — e.g. the item's
    * own base rate/weekend rate/extra bed rate — so a new season starts equal
@@ -121,7 +124,7 @@ function useMounted(): boolean {
 export function SeasonalRateCalendar<T extends RateSeasonBase>({
   open, onOpenChange, title = "Seasonal Rate Calendar", subtitle,
   items, activeItemId, onActiveItemChange, seasons, onSave,
-  currencySymbol = "₹", unitLabel, renderExtraFields, getDefaultDraft,
+  currencySymbol = "₹", unitLabel, renderExtraFields, renderRateExtra, getDefaultDraft,
   getGroupKey = (s: T) => String(s.rate),
   getSeasonWeekendRate,
   renderGroupExtra,
@@ -391,6 +394,7 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
                 overlapWarning={overlapWarning}
                 currencySymbol={currencySymbol}
                 renderExtraFields={renderExtraFields}
+                renderRateExtra={renderRateExtra}
               />
             ) : (
               <button
@@ -613,7 +617,7 @@ const fieldClass =
   "disabled:opacity-50 disabled:cursor-not-allowed";
 
 function SeasonForm<T extends RateSeasonBase>({
-  draft, isEditing, onChange, onSave, onCancel, canSave, colorAssignment, overlapWarning, currencySymbol, renderExtraFields,
+  draft, isEditing, onChange, onSave, onCancel, canSave, colorAssignment, overlapWarning, currencySymbol, renderExtraFields, renderRateExtra,
 }: {
   draft: Draft;
   isEditing: boolean;
@@ -625,6 +629,9 @@ function SeasonForm<T extends RateSeasonBase>({
   overlapWarning: string | null;
   currencySymbol: string;
   renderExtraFields?: (ctx: { draft: Partial<T>; onChange: (patch: Partial<T>) => void }) => React.ReactNode;
+  /** Rendered beside the Rate field in the same row (e.g. a domain's weekend
+   * price) — when omitted, Rate takes the full row on its own. */
+  renderRateExtra?: (ctx: { draft: Partial<T>; onChange: (patch: Partial<T>) => void }) => React.ReactNode;
 }) {
   const hint = !draft.startDate
     ? "Click a start date on the calendar"
@@ -677,15 +684,18 @@ function SeasonForm<T extends RateSeasonBase>({
         </p>
       )}
 
-      <div>
-        <label className="text-[10px] text-neutral-500 mb-0.5 block">Rate ({currencySymbol})</label>
-        <input
-          type="number"
-          min={0}
-          value={draft.rate ?? ""}
-          onChange={(e) => onChange({ rate: e.target.value ? Number(e.target.value) : undefined })}
-          className={fieldClass}
-        />
+      <div className={renderRateExtra ? "grid grid-cols-2 gap-2" : undefined}>
+        <div>
+          <label className="text-[10px] text-neutral-500 mb-0.5 block">Rate ({currencySymbol})</label>
+          <input
+            type="number"
+            min={0}
+            value={draft.rate ?? ""}
+            onChange={(e) => onChange({ rate: e.target.value ? Number(e.target.value) : undefined })}
+            className={fieldClass}
+          />
+        </div>
+        {renderRateExtra?.({ draft: draft as Partial<T>, onChange: onChange as (patch: Partial<T>) => void })}
       </div>
 
       {renderExtraFields?.({ draft: draft as Partial<T>, onChange: onChange as (patch: Partial<T>) => void })}
