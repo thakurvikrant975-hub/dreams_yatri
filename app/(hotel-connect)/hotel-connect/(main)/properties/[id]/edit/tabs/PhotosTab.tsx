@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import * as Popover from "@radix-ui/react-popover";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { toast } from "sonner";
 import {
   ImageIcon,
   PlusIcon,
@@ -51,14 +52,12 @@ const GUEST_HOUSE_PHOTO_TAGS = [
 ];
 const MAX_TAGS = 3;
 const MIN_TOTAL_PHOTOS = 6;
-const MIN_ROOM_TAGGED_PHOTOS = 2;
-const ROOM_TAG = "Bedroom";
 const MIN_ROOM_PHOTOS = 2;
 
 // Room type option passed in from the Rooms tab's created-room list — kept
 // minimal (structurally compatible with RoomSummary) so this file doesn't
 // need to import RoomsTab's full type.
-export type RoomOption = { id: number; name: string; room_type: string | null };
+export type RoomOption = { id: number; name: string; room_type: string | null; photoCount: number; is_active?: boolean };
 
 // Homestay bedroom option — bedrooms have no DB row of their own (a JSON
 // array on hotels.hs_bedroom_details, indexed positionally), so this is
@@ -81,7 +80,7 @@ function groupPhotosByTag(photos: HotelPhoto[]): { tag: string; photos: HotelPho
 function PhotoSkeleton() {
   return (
     <div className="flex flex-col items-center gap-1 shrink-0">
-      <div className="w-22 h-15 rounded-lg bg-neutral-200 animate-pulse" />
+      <div className="w-28 h-20 sm:w-22 sm:h-15 rounded-lg bg-neutral-200 animate-pulse" />
       <div className="w-12 h-2 rounded-full bg-neutral-200 animate-pulse mt-0.5" />
     </div>
   );
@@ -153,9 +152,9 @@ function PhotoPreviewModal({
           type="button"
           onClick={onClose}
           aria-label="Close photo preview"
-          className="absolute top-2.5 right-2.5 z-10 size-7 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+          className="absolute top-2.5 right-2.5 z-10 size-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
         >
-          <XIcon size={13} weight="bold" aria-hidden="true" />
+          <XIcon size={15} weight="bold" aria-hidden="true" />
         </button>
 
         {/* Large image */}
@@ -254,12 +253,12 @@ function PhotoPreviewModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-3 px-4 py-3 border-t border-neutral-100 flex-none">
+        <div className="flex items-center gap-3 px-2 py-2 border-t border-neutral-100 flex-none">
           {!photo.is_primary && (
             <button
               type="button"
               onClick={onCover}
-              className="flex items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-emerald-600 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-emerald-600 transition-colors px-2 py-2.5"
             >
               <StarIcon size={13} />
               Set as cover
@@ -268,7 +267,7 @@ function PhotoPreviewModal({
           <button
             type="button"
             onClick={onDelete}
-            className="flex items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-red-500 transition-colors ml-auto"
+            className="flex items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-red-500 transition-colors ml-auto px-2 py-2.5"
           >
             <TrashIcon size={13} />
             Delete
@@ -338,7 +337,7 @@ function PhotoCard({
           {/* Thumbnail — click opens preview lightbox */}
           <div
             className={cn(
-              "relative group w-22 h-15 rounded-lg overflow-hidden bg-neutral-100 cursor-zoom-in",
+              "relative group w-28 h-20 sm:w-22 sm:h-15 rounded-lg overflow-hidden bg-neutral-100 cursor-zoom-in",
               hasTagError && tags.length === 0 && "ring-2 ring-red-400 ring-offset-1"
             )}
             onClick={() => setPreviewOpen(true)}
@@ -358,22 +357,24 @@ function PhotoCard({
               </div>
             )}
 
-            {/* Hover overlay — tag icon left, star+delete right */}
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-1 pointer-events-none">
+            {/* Action overlay — always visible on mobile (no hover state to
+                reveal it), hover-reveal preserved on desktop */}
+            <div className="absolute inset-0 bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-end justify-between p-1 pointer-events-none">
               {/* Tag edit trigger */}
               <Popover.Trigger asChild>
                 <button
                   type="button"
                   title="Edit tags"
+                  aria-label="Edit tags"
                   onClick={(e) => e.stopPropagation()}
                   className={cn(
-                    "size-5 rounded flex items-center justify-center transition-colors pointer-events-auto",
+                    "size-7 sm:size-5 rounded flex items-center justify-center transition-colors pointer-events-auto",
                     hasTagError && tags.length === 0
                       ? "bg-red-500 text-white hover:bg-red-600"
                       : "bg-white/90 text-neutral-700 hover:text-primary-600"
                   )}
                 >
-                  <TagIcon size={10} />
+                  <TagIcon size={12} />
                 </button>
               </Popover.Trigger>
 
@@ -383,19 +384,21 @@ function PhotoCard({
                   <button
                     type="button"
                     title="Set as cover"
+                    aria-label="Set as cover"
                     onClick={(e) => { e.stopPropagation(); onCover(photo.id); }}
-                    className="size-5 rounded bg-white/90 flex items-center justify-center text-neutral-700 hover:text-emerald-600 transition-colors pointer-events-auto"
+                    className="size-7 sm:size-5 rounded bg-white/90 flex items-center justify-center text-neutral-700 hover:text-emerald-600 transition-colors pointer-events-auto"
                   >
-                    <StarIcon size={10} />
+                    <StarIcon size={12} />
                   </button>
                 )}
                 <button
                   type="button"
                   title="Delete"
+                  aria-label="Delete photo"
                   onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }}
-                  className="size-5 rounded bg-white/90 flex items-center justify-center text-neutral-700 hover:text-red-500 transition-colors pointer-events-auto"
+                  className="size-7 sm:size-5 rounded bg-white/90 flex items-center justify-center text-neutral-700 hover:text-red-500 transition-colors pointer-events-auto"
                 >
-                  <TrashIcon size={10} />
+                  <TrashIcon size={12} />
                 </button>
               </div>
             </div>
@@ -407,17 +410,18 @@ function PhotoCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); handleTagOpenChange(true); }}
               className={cn(
-                "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded-full px-1.5 py-0.5 border transition-colors mt-0.5",
+                "inline-flex items-center gap-1 text-xs font-semibold rounded-full px-2.5 py-1.5 sm:px-1.5 sm:py-0.5 sm:text-[9px] border transition-colors mt-1 sm:mt-0.5",
                 hasTagError
                   ? "border-red-300 text-red-500 bg-red-50 hover:bg-red-100"
                   : "border-neutral-200 text-neutral-500 bg-white hover:border-primary-300 hover:text-primary-500"
               )}
             >
-              <TagIcon size={7} />
+              <TagIcon size={11} className="sm:hidden" />
+              <TagIcon size={7} className="hidden sm:block" />
               Add Tag
             </button>
           ) : showCaption ? (
-            <p className="text-[10px] text-neutral-500 text-center leading-tight w-22 truncate px-0.5">
+            <p className="text-[10px] text-neutral-500 text-center leading-tight w-28 sm:w-22 truncate px-0.5">
               {tags[0]}
             </p>
           ) : null}
@@ -639,14 +643,19 @@ function RoomPhotoManager({ hotelId, roomId }: { hotelId: number; roomId: number
       setPhotos((prev) => [...(prev ?? []), ...result.photos!]);
       router.refresh();
     }
-    if (result.error) setError(result.error);
+    if (result.error) {
+      setError(result.error);
+      toast.error(result.error);
+    } else if (result.count) {
+      toast.success(`${result.count} photo${result.count > 1 ? "s" : ""} uploaded.`);
+    }
   }
 
   async function handleDelete(photoId: number) {
     setDeletingId(photoId);
     const result = await deleteRoomPhoto(hotelId, roomId, photoId);
     setDeletingId(null);
-    if (result.error) { setError(result.error); return; }
+    if (result.error) { setError(result.error); toast.error(result.error); return; }
     setPhotos((prev) => (prev ?? []).filter((p) => p.id !== photoId));
     router.refresh();
   }
@@ -660,7 +669,7 @@ function RoomPhotoManager({ hotelId, roomId }: { hotelId: number; roomId: number
         <p className={cn("text-[11px] font-medium", met ? "text-emerald-600" : "text-amber-600")}>
           {met ? <CheckIcon size={11} weight="bold" className="inline mr-1 -mt-0.5" aria-hidden="true" />
                 : <WarningIcon size={11} weight="bold" className="inline mr-1 -mt-0.5" aria-hidden="true" />}
-          {count} of {MIN_ROOM_PHOTOS} recommended photos
+          {count} of {MIN_ROOM_PHOTOS} required photos
         </p>
         {error && <p className="text-[11px] text-red-500 truncate max-w-[50%]">{error}</p>}
       </div>
@@ -669,16 +678,16 @@ function RoomPhotoManager({ hotelId, roomId }: { hotelId: number; roomId: number
           <PhotoSkeleton />
         ) : (
           (photos ?? []).map((photo) => (
-            <div key={photo.id} className="relative group w-22 h-15 rounded-lg overflow-hidden bg-neutral-100 shrink-0">
+            <div key={photo.id} className="relative group w-28 h-20 sm:w-22 sm:h-15 rounded-lg overflow-hidden bg-neutral-100 shrink-0">
               <ImageWithSkeleton src={photo.url} alt="Room photo" className="object-cover" />
               <button
                 type="button"
                 onClick={() => handleDelete(photo.id)}
                 disabled={deletingId === photo.id}
                 aria-label="Remove photo"
-                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white disabled:opacity-60"
+                className="absolute top-1 right-1 size-7 sm:size-6 rounded-full bg-black/60 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center text-white hover:bg-red-500/90 disabled:opacity-60"
               >
-                <TrashIcon size={14} aria-hidden="true" />
+                <TrashIcon size={13} aria-hidden="true" />
               </button>
             </div>
           ))
@@ -688,7 +697,7 @@ function RoomPhotoManager({ hotelId, roomId }: { hotelId: number; roomId: number
           type="button"
           disabled={uploading}
           onClick={() => fileRef.current?.click()}
-          className="flex flex-col items-center justify-center gap-0.5 w-22 h-15 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 transition-colors disabled:opacity-60 shrink-0"
+          className="flex flex-col items-center justify-center gap-0.5 w-28 h-20 sm:w-22 sm:h-15 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 transition-colors disabled:opacity-60 shrink-0"
         >
           {uploading ? (
             <span className="text-[9px] font-medium">…</span>
@@ -787,14 +796,19 @@ function BedroomPhotoManager({ hotelId, bedroomIndex }: { hotelId: number; bedro
       setPhotos((prev) => [...(prev ?? []), ...result.photos!]);
       router.refresh();
     }
-    if (result.error) setError(result.error);
+    if (result.error) {
+      setError(result.error);
+      toast.error(result.error);
+    } else if (result.photos?.length) {
+      toast.success(`${result.photos.length} photo${result.photos.length > 1 ? "s" : ""} uploaded.`);
+    }
   }
 
   async function handleDelete(url: string) {
     setDeletingUrl(url);
     const result = await deleteBedroomPhoto(hotelId, bedroomIndex, url);
     setDeletingUrl(null);
-    if (result.error) { setError(result.error); return; }
+    if (result.error) { setError(result.error); toast.error(result.error); return; }
     setPhotos((prev) => (prev ?? []).filter((p) => p !== url));
     router.refresh();
   }
@@ -817,16 +831,16 @@ function BedroomPhotoManager({ hotelId, bedroomIndex }: { hotelId: number; bedro
           <PhotoSkeleton />
         ) : (
           (photos ?? []).map((url) => (
-            <div key={url} className="relative group w-22 h-15 rounded-lg overflow-hidden bg-neutral-100 shrink-0">
+            <div key={url} className="relative group w-28 h-20 sm:w-22 sm:h-15 rounded-lg overflow-hidden bg-neutral-100 shrink-0">
               <ImageWithSkeleton src={url} alt="Bedroom photo" className="object-cover" />
               <button
                 type="button"
                 onClick={() => handleDelete(url)}
                 disabled={deletingUrl === url}
                 aria-label="Remove photo"
-                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white disabled:opacity-60"
+                className="absolute top-1 right-1 size-7 sm:size-6 rounded-full bg-black/60 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center text-white hover:bg-red-500/90 disabled:opacity-60"
               >
-                <TrashIcon size={14} aria-hidden="true" />
+                <TrashIcon size={13} aria-hidden="true" />
               </button>
             </div>
           ))
@@ -836,7 +850,7 @@ function BedroomPhotoManager({ hotelId, bedroomIndex }: { hotelId: number; bedro
           type="button"
           disabled={uploading}
           onClick={() => fileRef.current?.click()}
-          className="flex flex-col items-center justify-center gap-0.5 w-22 h-15 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 transition-colors disabled:opacity-60 shrink-0"
+          className="flex flex-col items-center justify-center gap-0.5 w-28 h-20 sm:w-22 sm:h-15 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 transition-colors disabled:opacity-60 shrink-0"
         >
           {uploading ? (
             <span className="text-[9px] font-medium">…</span>
@@ -927,7 +941,7 @@ export default function PhotosTab({
   // only clears it once *that specific* condition is resolved, instead of
   // wiping e.g. a "not enough total photos" error the instant the (already
   // tagged) photos happen to have zero untagged among them.
-  const [tagErrorKind, setTagErrorKind] = useState<"count" | "untagged" | "roomTag" | null>(null);
+  const [tagErrorKind, setTagErrorKind] = useState<"count" | "untagged" | "roomPhotos" | null>(null);
   const untaggedRef = useRef<HTMLDivElement>(null);
 
   const boundProceed = proceedPhotos.bind(null, hotelId);
@@ -956,12 +970,17 @@ export default function PhotosTab({
   const tagGroups = groupPhotosByTag(tagged);
   const total = photosState.length;
 
-  const roomTaggedCount = photosState.filter((p) => p.tags.includes(ROOM_TAG)).length;
+  // Each active room needs its own photos in Room Images — a hotel-wide
+  // "Bedroom" tag can't tell guests which room they're looking at. Not
+  // enforced for homestays (no hotel_rooms rows to check).
+  const shortRooms = !isHomestay
+    ? rooms.filter((r) => (r.is_active ?? true) && r.photoCount < MIN_ROOM_PHOTOS)
+    : [];
 
   // Auto-clear the tag error once the *specific* condition it was raised for
   // is resolved — keyed off tagErrorKind so a "not enough total photos" or
-  // "not enough Bedroom-tagged photos" error doesn't get silently wiped just
-  // because untagged.length happens to be 0.
+  // "room(s) missing photos" error doesn't get silently wiped just because
+  // untagged.length happens to be 0.
   useEffect(() => {
     if (!showTagError) return;
     if (tagErrorKind === "untagged" && untagged.length === 0) {
@@ -972,12 +991,12 @@ export default function PhotosTab({
       setTagError(null);
       setShowTagError(false);
       setTagErrorKind(null);
-    } else if (tagErrorKind === "roomTag" && roomTaggedCount >= MIN_ROOM_TAGGED_PHOTOS) {
+    } else if (tagErrorKind === "roomPhotos" && shortRooms.length === 0) {
       setTagError(null);
       setShowTagError(false);
       setTagErrorKind(null);
     }
-  }, [untagged.length, total, roomTaggedCount, showTagError, tagErrorKind]);
+  }, [untagged.length, total, shortRooms.length, showTagError, tagErrorKind]);
 
   function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     if (total < MIN_TOTAL_PHOTOS) {
@@ -997,13 +1016,16 @@ export default function PhotosTab({
       untaggedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    if (roomTaggedCount < MIN_ROOM_TAGGED_PHOTOS) {
+    if (shortRooms.length > 0) {
       e.preventDefault();
+      const first = shortRooms[0];
       setTagError(
-        `At least ${MIN_ROOM_TAGGED_PHOTOS} photos tagged "${ROOM_TAG}" are required (currently ${roomTaggedCount}).`
+        shortRooms.length === 1
+          ? `"${first.name}" needs at least ${MIN_ROOM_PHOTOS} photos in Room Images (currently ${first.photoCount}).`
+          : `${shortRooms.length} rooms need at least ${MIN_ROOM_PHOTOS} photos each in Room Images (starting with "${first.name}").`
       );
       setShowTagError(true);
-      setTagErrorKind("roomTag");
+      setTagErrorKind("roomPhotos");
       return;
     }
     setTagError(null);
@@ -1020,7 +1042,12 @@ export default function PhotosTab({
 
   function handleUploadEnd(result: { count?: number; error?: string }) {
     setPendingUploads(0);
-    if (result.error) setUploadError(result.error);
+    if (result.error) {
+      setUploadError(result.error);
+      toast.error(result.error);
+    } else if (result.count) {
+      toast.success(`${result.count} photo${result.count > 1 ? "s" : ""} uploaded.`);
+    }
     router.refresh(); // always refresh — show partial uploads too
   }
 
@@ -1039,6 +1066,7 @@ export default function PhotosTab({
     const result = await deleteHotelPhoto(hotelId, photoId);
     if (result.error) {
       setUploadError(result.error);
+      toast.error(result.error);
       if (removed) {
         setPhotosState((prev) => {
           if (prev.some((p) => p.id === photoId)) return prev; // already restored via refresh
