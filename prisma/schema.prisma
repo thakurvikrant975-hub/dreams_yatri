@@ -932,9 +932,27 @@ model HotelOwner {
   password_reset_expires      DateTime?
   hotels               hotels[]
   feedback             HotelOwnerFeedback[]
+  notifications        HotelOwnerNotification[]
 
   @@index([email])
   @@map("hotel_owners")
+}
+
+model HotelOwnerNotification {
+  id         Int        @id @default(autoincrement())
+  owner_id   String
+  owner      HotelOwner @relation(fields: [owner_id], references: [id])
+  hotel_id   Int?
+  hotel      hotels?    @relation(fields: [hotel_id], references: [id])
+  type       String
+  title      String
+  body       String
+  link       String?
+  read_at    DateTime?
+  created_at DateTime   @default(now())
+
+  @@index([owner_id, created_at])
+  @@map("hotel_owner_notifications")
 }
 
 model HotelOwnerFeedback {
@@ -1127,6 +1145,7 @@ model hotels {
   location                    Location?                  @relation(fields: [location_id], references: [id])
   packageBookings             PackageBookingHotel[]
   owner                       HotelOwner?                @relation(fields: [owner_id], references: [id])
+  ownerNotifications          HotelOwnerNotification[]
 
   @@index([destination_id, is_active])
   @@index([location_id])
