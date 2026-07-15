@@ -8,7 +8,7 @@ import { useId } from "react";
 
 export const FIELD_LABEL = "text-sm font-medium text-neutral-800";
 export const FIELD_SUB = "text-xs text-neutral-400";
-export const FIELD_INPUT_WRAP = "h-10 w-36 rounded-lg border flex items-center px-2.5 gap-1 text-sm";
+export const FIELD_INPUT_WRAP = "h-10 w-full sm:w-36 rounded-lg border flex items-center px-2.5 gap-1 text-sm";
 export const FIELD_INPUT = "w-full outline-none bg-transparent";
 
 // Base occupancy (2 adults) lives on price_per_night itself — every other
@@ -51,7 +51,7 @@ export function RateField({
 }) {
   const inputId = useId();
   return (
-    <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 py-3 border-b border-neutral-100 last:border-0">
       <div>
         <label htmlFor={inputId} className={FIELD_LABEL}>{title}</label>
         {subtitle && <p className={FIELD_SUB}>{subtitle}</p>}
@@ -80,7 +80,7 @@ export function RestrictionField({
 }) {
   const inputId = useId();
   return (
-    <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 py-3 border-b border-neutral-100 last:border-0">
       <div>
         <label htmlFor={inputId} className={FIELD_LABEL}>{title}</label>
         {subtitle && <p className={FIELD_SUB}>{subtitle}</p>}
