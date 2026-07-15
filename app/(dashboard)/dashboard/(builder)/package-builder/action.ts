@@ -6,6 +6,7 @@ import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { sendEmail } from "@/app/lib/functions/sendEmail";
+import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import type { Prisma } from "@/app/generated/prisma";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
@@ -105,11 +106,63 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 // to <SearchSelect>, see CAB_LABELS/MEAL_KEY_LABELS for the same pattern).
 const HOTEL_SEARCH_PAGE_SIZE = 20;
 
+function mapHotelRoomRow(
+  item: Prisma.hotel_room_pricingGetPayload<{ select: typeof HOTEL_ROOM_SELECT }>,
+  refCoords?: { lat: number; lng: number } | null,
+): HotelRoomResult {
+  const rawHotelPhoto = item.hotel.images[0]?.thumbnail ?? item.hotel.images[0]?.url ?? item.hotel.thumbnail ?? null;
+  const rawRoomPhotos = (item.room?.images ?? []).map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
+  const rawThumbnail = rawRoomPhotos[0] ?? rawHotelPhoto ?? null;
+
+  const extraBedCapacity = item.room?.extra_bed_capacity ?? 0;
+  const roomSpecs = [
+    item.room?.bed_type,
+    item.room?.view_type,
+    item.room?.area_sqft ? `${item.room.area_sqft} sq.ft` : null,
+    item.hotel.stay_type,
+    item.room?.max_occupancy ? `Sleeps ${item.room.max_occupancy}` : null,
+    extraBedCapacity > 0 ? `+${extraBedCapacity} extra bed${extraBedCapacity > 1 ? "s" : ""}` : null,
+    item.room?.child_cot_available ? "child cot available" : null,
+  ].filter(Boolean).join(" | ") || null;
+
+  const hotelLat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
+  const hotelLng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
+  const distanceKm = (refCoords && hotelLat != null && hotelLng != null)
+    ? Math.round(haversineKm(refCoords.lat, refCoords.lng, hotelLat, hotelLng) * 10) / 10
+    : null;
+
+  return {
+    id:            item.id,
+    hotelName:     item.hotel.name,
+    roomName:      item.room?.name ?? "Room",
+    mealPlanName:  item.meal_type?.name ?? null,
+    coveredMeals:  item.meal_type?.covered_meals ?? [],
+    pricePerNight: Number(item.price_per_night),
+    thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
+    hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
+    roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
+    category:      item.hotel.category,
+    starRating:    item.hotel.stay_type,
+    location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
+    roomSpecs,
+    roomCapacity:  item.room?.max_occupancy ?? null,
+    maxAdults:     item.room?.max_adults ?? null,
+    maxChildren:   item.room?.max_children ?? null,
+    extraBedCapacity,
+    childCotAvailable: item.room?.child_cot_available ?? false,
+    distanceKm,
+  };
+}
+
 export async function searchHotelRoomsForBuilder(
   cityOrDestinationName: string,
   query: string,
   refCoords?: { lat: number; lng: number } | null,
   page: number = 1,
+  /** Free-text `hotels.stay_type` match, e.g. "4 Star" — the star-rating filter chip. */
+  starFilter?: string | null,
+  /** Free-text `hotels.category` match, e.g. "resort" — the property-type filter chip. */
+  categoryFilter?: string | null,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   if (!city) return [];
@@ -124,6 +177,8 @@ export async function searchHotelRoomsForBuilder(
           { destination: { name: { contains: city, mode: "insensitive" } } },
         ],
         ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+        ...(starFilter ? { stay_type: starFilter } : {}),
+        ...(categoryFilter ? { category: categoryFilter } : {}),
       },
     },
     select: HOTEL_ROOM_SELECT,
@@ -132,50 +187,23 @@ export async function searchHotelRoomsForBuilder(
     orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
   });
 
-  return list.map((item) => {
-    const rawHotelPhoto = item.hotel.images[0]?.thumbnail ?? item.hotel.images[0]?.url ?? item.hotel.thumbnail ?? null;
-    const rawRoomPhotos = (item.room?.images ?? []).map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
-    const rawThumbnail = rawRoomPhotos[0] ?? rawHotelPhoto ?? null;
+  return list.map((item) => mapHotelRoomRow(item, refCoords));
+}
 
-    const extraBedCapacity = item.room?.extra_bed_capacity ?? 0;
-    const roomSpecs = [
-      item.room?.bed_type,
-      item.room?.view_type,
-      item.room?.area_sqft ? `${item.room.area_sqft} sq.ft` : null,
-      item.hotel.stay_type,
-      item.room?.max_occupancy ? `Sleeps ${item.room.max_occupancy}` : null,
-      extraBedCapacity > 0 ? `+${extraBedCapacity} extra bed${extraBedCapacity > 1 ? "s" : ""}` : null,
-      item.room?.child_cot_available ? "child cot available" : null,
-    ].filter(Boolean).join(" | ") || null;
-
-    const hotelLat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
-    const hotelLng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
-    const distanceKm = (refCoords && hotelLat != null && hotelLng != null)
-      ? Math.round(haversineKm(refCoords.lat, refCoords.lng, hotelLat, hotelLng) * 10) / 10
-      : null;
-
-    return {
-      id:            item.id,
-      hotelName:     item.hotel.name,
-      roomName:      item.room?.name ?? "Room",
-      mealPlanName:  item.meal_type?.name ?? null,
-      coveredMeals:  item.meal_type?.covered_meals ?? [],
-      pricePerNight: Number(item.price_per_night),
-      thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
-      hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
-      roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
-      category:      item.hotel.category,
-      starRating:    item.hotel.stay_type,
-      location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
-      roomSpecs,
-      roomCapacity:  item.room?.max_occupancy ?? null,
-      maxAdults:     item.room?.max_adults ?? null,
-      maxChildren:   item.room?.max_children ?? null,
-      extraBedCapacity,
-      childCotAvailable: item.room?.child_cot_available ?? false,
-      distanceKm,
-    };
+/** Looks up a single room by its `hotel_room_pricing` id — used by the hotel
+ * picker to price the currently-selected room so other results can show a
+ * "+4000 / -200" delta against it, even after a draft reload (the delta
+ * baseline isn't persisted, just recomputed from the stored roomPricingId). */
+export async function getHotelRoomByIdForBuilder(
+  id: number,
+  refCoords?: { lat: number; lng: number } | null,
+): Promise<HotelRoomResult | null> {
+  const item = await db.hotel_room_pricing.findUnique({
+    where: { id },
+    select: HOTEL_ROOM_SELECT,
   });
+  if (!item) return null;
+  return mapHotelRoomRow(item, refCoords);
 }
 
 export interface ActivityResult {
@@ -426,18 +454,14 @@ export interface QueryDetail extends QueryRow {
     title:           string;
     description:     string | null;
     coverImage:      string | null;
+    coverImagePosition: number;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
-    flightsIncluded: boolean;
-    flightNotes:     string | null;
-    flightFrom:      string | null;
-    flightTo:        string | null;
-    trainIncluded:   boolean;
-    trainNotes:      string | null;
-    trainFrom:       string | null;
-    trainTo:         string | null;
+    marginPercentage: number;
+    gstPercentage:    number;
     stops:           StopInput[];
     itineraries:     DayItinerary[];
+    tickets:         TicketInput[];
   } | null;
 }
 
@@ -445,6 +469,9 @@ export interface StopInput {
   id?:     string;
   name:    string;
   nights:  number;
+  /** Manual override for the "Places You Gonna Visit" tile image — takes
+   * priority over the auto-resolved destination catalog photo when set. */
+  image?:  string;
 }
 
 export interface ActivityInput {
@@ -490,6 +517,11 @@ export interface DayItinerary {
   transportPickupLng: number | null;
   transportDrop:      string;
   transportDistanceKm: number | null;
+  /** The exact `cab_pricing` row picked for this day — lets the package price
+   * be computed from real, season/date-aware cab rates instead of typed in by
+   * hand. Null when the vehicle was picked from the unscoped fleet catalog
+   * (no real rate to reference) or entered as free text. */
+  cabPricingId:       number | null;
   notes:              string;
 }
 
@@ -498,6 +530,7 @@ export interface PackageInput {
   title:           string;
   description:     string;
   coverImage:      string;
+  coverImagePosition: number;
   destination:     string;
   startingPoint:   string;
   totalDays:       number;
@@ -508,21 +541,45 @@ export interface PackageInput {
   infants:         number;
   pricePerPerson:  number | null;
   totalPrice:      number | null;
+  marginPercentage: number;
+  gstPercentage:    number;
   currency:        string;
   inclusions:      string[];
   exclusions:      string[];
   termsNotes:      string;
-  flightsIncluded: boolean;
-  flightNotes:     string;
-  flightFrom:      string;
-  flightTo:        string;
-  trainIncluded:   boolean;
-  trainNotes:      string;
-  trainFrom:       string;
-  trainTo:         string;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
   itineraries:     DayItinerary[];
+  tickets:         TicketInput[];
+}
+
+export interface TicketInput {
+  id?:            string;
+  type:           "FLIGHT" | "TRAIN";
+  provider:       string;
+  ticketNumber:   string;
+  fromPlace:      string;
+  toPlace:        string;
+  /** ISO date ("YYYY-MM-DD") — the calendar date this leg actually travels,
+   * which may differ from the package's overall travel date (e.g. a return
+   * leg). Empty string when not set. */
+  travelDate:     string;
+  /** 24-hour "HH:MM" — matches <input type="time">'s value format exactly,
+   * so no parsing is needed at the input boundary. */
+  departureTime:  string;
+  arrivalTime:    string;
+  /** Auto-computed from departureTime/arrivalTime (see computeDurationText
+   * in page.tsx) whenever either changes — not directly user-editable. */
+  durationText:   string;
+  adults:         number;
+  children:       number;
+  infants:        number;
+  ticketCount:    number;
+  /** Total fare for this ticket entry — summed with the other tickets into
+   * the package's computed pricing (see computeFinalPricing in page.tsx).
+   * Never shown on the client-facing document, only used internally. */
+  fare:           number | null;
+  notes:          string;
 }
 
 export interface PaginatedQueries {
@@ -655,6 +712,10 @@ export async function copyPackageIntoDraft(
       transportPickupLng: null,
       transportDrop:      transfer?.drop_name ?? "",
       transportDistanceKm: transfer?.distance_km ?? null,
+      // fetchPackagePageData doesn't expose the transfer's raw cab_pricing id
+      // either — left null on copy, same as transportPickupLat/Lng; the exec
+      // can re-pick the cab via search to back-fill it for auto-pricing.
+      cabPricingId:       null,
       notes:              day.notes.map((n) => n.message).join(" "),
     };
   });
@@ -799,6 +860,7 @@ function normalizeItinerary(it: {
   transportPickupLat: number | null; transportPickupLng: number | null;
   transportDrop: string | null;
   transportDistanceKm: number | null; notes: string | null;
+  cabPricingId: number | null;
   activities: Parameters<typeof normalizeActivity>[0][];
 }): DayItinerary {
   return {
@@ -827,7 +889,35 @@ function normalizeItinerary(it: {
     transportPickupLng:        it.transportPickupLng ?? null,
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
+    cabPricingId:              it.cabPricingId ?? null,
     notes:                     it.notes ?? "",
+  };
+}
+
+function normalizeTicket(t: {
+  id: string; type: "FLIGHT" | "TRAIN"; provider: string | null; ticketNumber: string | null;
+  fromPlace: string | null; toPlace: string | null; travelDate: Date | null;
+  departureTime: string | null; arrivalTime: string | null; durationText: string | null;
+  adults: number; children: number; infants: number; ticketCount: number;
+  fare: number | null; notes: string | null;
+}): TicketInput {
+  return {
+    id:            t.id,
+    type:          t.type,
+    provider:      t.provider ?? "",
+    ticketNumber:  t.ticketNumber ?? "",
+    fromPlace:     t.fromPlace ?? "",
+    toPlace:       t.toPlace ?? "",
+    travelDate:    t.travelDate ? t.travelDate.toISOString().slice(0, 10) : "",
+    departureTime: t.departureTime ?? "",
+    arrivalTime:   t.arrivalTime ?? "",
+    durationText:  t.durationText ?? "",
+    adults:        t.adults,
+    children:      t.children,
+    infants:       t.infants,
+    ticketCount:   t.ticketCount,
+    fare:          t.fare ?? null,
+    notes:         t.notes ?? "",
   };
 }
 
@@ -869,19 +959,24 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           title:           true,
           description:     true,
           coverImage:      true,
+          coverImagePosition: true,
           pricePerPerson:  true,
           totalPrice:      true,
-          flightsIncluded: true,
-          flightNotes:     true,
-          flightFrom:      true,
-          flightTo:        true,
-          trainIncluded:   true,
-          trainNotes:      true,
-          trainFrom:       true,
-          trainTo:         true,
+          marginPercentage: true,
+          gstPercentage:    true,
           stops: {
             orderBy: { sortOrder: "asc" },
-            select: { id: true, name: true, nights: true },
+            select: { id: true, name: true, nights: true, image: true },
+          },
+          tickets: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              id: true, type: true, provider: true, ticketNumber: true,
+              fromPlace: true, toPlace: true, travelDate: true,
+              departureTime: true, arrivalTime: true, durationText: true,
+              adults: true, children: true, infants: true,
+              ticketCount: true, fare: true, notes: true,
+            },
           },
           itineraries: {
             orderBy: { day: "asc" },
@@ -910,6 +1005,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               transportPickupLng: true,
               transportDrop:      true,
               transportDistanceKm: true,
+              cabPricingId:       true,
               notes:              true,
               activities: {
                 orderBy: { sortOrder: "asc" },
@@ -940,6 +1036,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
     customPackage: query.custom_packages ? {
       ...query.custom_packages,
       itineraries: query.custom_packages.itineraries.map(normalizeItinerary),
+      tickets: query.custom_packages.tickets.map(normalizeTicket),
     } : null,
   } as QueryDetail;
 }
@@ -950,13 +1047,21 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
 export async function saveCustomPackage(input: PackageInput): Promise<{ id: string; success: boolean; error?: string }> {
   try {
     const {
-      queryId, title, description, coverImage, destination, startingPoint,
+      queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
-      pricePerPerson, totalPrice, currency, inclusions, exclusions,
-      termsNotes, flightsIncluded, flightNotes, flightFrom, flightTo,
-      trainIncluded, trainNotes, trainFrom, trainTo,
-      status, stops, itineraries,
+      pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency, inclusions, exclusions,
+      termsNotes,
+      status, stops, itineraries, tickets,
     } = input;
+
+    // flightsIncluded/flightFrom/... aren't edited directly anymore — they're
+    // derived from the ticket list so the map legs (ItineraryMap) and the
+    // document's inclusion flags can never drift out of sync with what's
+    // actually been priced in on the Tickets tab.
+    const {
+      flightsIncluded, flightFrom, flightTo, flightNotes,
+      trainIncluded, trainFrom, trainTo, trainNotes,
+    } = deriveTransportFields(tickets);
 
     const { teamMemberId, teamMemberName } = await getCurrentActor();
     const builtBy = teamMemberId ?? "unknown";
@@ -1009,6 +1114,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         title,
         description:     description || null,
         coverImage:      coverImage || null,
+        coverImagePosition,
         destination,
         startingPoint:   startingPoint || null,
         totalDays,
@@ -1019,6 +1125,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         infants,
         pricePerPerson:  pricePerPerson ?? null,
         totalPrice:      totalPrice ?? null,
+        marginPercentage,
+        gstPercentage,
         currency,
         inclusions,
         exclusions,
@@ -1039,6 +1147,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         title,
         description:     description || null,
         coverImage:      coverImage || null,
+        coverImagePosition,
         destination,
         startingPoint:   startingPoint || null,
         totalDays,
@@ -1049,6 +1158,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         infants,
         pricePerPerson:  pricePerPerson ?? null,
         totalPrice:      totalPrice ?? null,
+        marginPercentage,
+        gstPercentage,
         currency,
         inclusions,
         exclusions,
@@ -1079,6 +1190,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
           customPackageId: pkg.id,
           name:            s.name,
           nights:          s.nights,
+          image:           s.image || null,
           sortOrder:       idx,
         })),
       });
@@ -1120,6 +1232,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               transportPickupLng: it.transportPickupLng ?? null,
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,
+              cabPricingId:       it.cabPricingId ?? null,
               notes:              it.notes || null,
               activities: {
                 create: it.activities
@@ -1137,6 +1250,35 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
           }),
         ),
       );
+    }
+
+    // Replace tickets — flat rows, no nested children, so createMany is fine
+    // (same pattern as stops above).
+    await db.custom_package_tickets.deleteMany({
+      where: { customPackageId: pkg.id },
+    });
+    if (tickets.length > 0) {
+      await db.custom_package_tickets.createMany({
+        data: tickets.map((t, idx) => ({
+          customPackageId: pkg.id,
+          type:            t.type,
+          provider:        t.provider || null,
+          ticketNumber:    t.ticketNumber || null,
+          fromPlace:       t.fromPlace || null,
+          toPlace:         t.toPlace || null,
+          travelDate:      t.travelDate ? new Date(t.travelDate) : null,
+          departureTime:   t.departureTime || null,
+          arrivalTime:     t.arrivalTime || null,
+          durationText:    t.durationText || null,
+          adults:          t.adults,
+          children:        t.children,
+          infants:         t.infants,
+          ticketCount:     t.ticketCount,
+          fare:            t.fare ?? null,
+          notes:           t.notes || null,
+          sortOrder:       idx,
+        })),
+      });
     }
 
     revalidatePath("/dashboard/package-builder");

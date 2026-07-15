@@ -13,9 +13,12 @@ import {
     DialogTitle, DialogTrigger, DialogDescription,
 } from "../../components/ui/dialog";
 import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../../components/ui/select";
+import {
     Users, MapPin, Hotel, Car, Zap, Wallet,
     Plus, X, AlertCircle, ChevronRight, ChevronLeft,
-    CheckCircle2, CalendarDays, Loader2, Pencil,
+    CheckCircle2, CalendarDays, Loader2, Pencil, Heart,
 } from "lucide-react";
 import { savePackageRequirements } from "./actions";
 import type { PackageQueryType, PackageRequirements, TravellerMember } from "../../(marketing)/queries/actions";
@@ -60,6 +63,20 @@ const LEGACY_CAB_LABELS: Record<string, string> = {
     SEDAN: "Sedan", SUV: "SUV", BOLERO: "Bolero", INNOVA: "Innova/Crysta",
     TEMPO: "Tempo Traveller", VOLVO: "Volvo Bus", MINI_BUS: "Mini Bus", BIKE: "Bike Rental",
 };
+
+const TRIP_TYPES = [
+    { value: "FAMILY", label: "Family Trip" },
+    { value: "HONEYMOON", label: "Honeymoon" },
+    { value: "HOLIDAY", label: "Holiday / Leisure" },
+    { value: "FRIENDS", label: "Friends / Group" },
+    { value: "SOLO", label: "Solo Travel" },
+    { value: "ANNIVERSARY", label: "Anniversary" },
+    { value: "ADVENTURE", label: "Adventure" },
+    { value: "PILGRIMAGE", label: "Pilgrimage / Religious" },
+    { value: "BUSINESS", label: "Business" },
+    { value: "CORPORATE", label: "Corporate / MICE" },
+    { value: "OTHER", label: "Other" },
+] as const;
 
 const PRESET_ACTIVITIES = [
     { value: "PARAGLIDING", label: "Paragliding" },
@@ -161,6 +178,8 @@ function defaultRequirements(query: PackageQueryType): PackageRequirements {
             children: 0,
             infants: 0,
             members: rebuildMembers([], query.groupSize ?? 1, 0, 0),
+            tripType: "",
+            tripTypeCustom: "",
             specialDemands: "",
         },
         journey: {
@@ -567,6 +586,37 @@ export function PackageDetailsDialog({
                                         onChange={e => update("travellers", { leadName: e.target.value })}
                                         placeholder="Full name of primary traveller"
                                     />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="tripType" className="flex items-center gap-1.5">
+                                        <Heart className="h-3 w-3" /> Trip Type / Purpose of Travel
+                                    </Label>
+                                    <Select
+                                        value={reqs.travellers.tripType || undefined}
+                                        onValueChange={v => update("travellers", {
+                                            tripType: v,
+                                            ...(v !== "OTHER" ? { tripTypeCustom: "" } : {}),
+                                        })}
+                                    >
+                                        <SelectTrigger id="tripType" className="w-full">
+                                            <SelectValue placeholder="Select the purpose of this trip" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {TRIP_TYPES.map(t => (
+                                                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {reqs.travellers.tripType === "OTHER" && (
+                                        <Input
+                                            value={reqs.travellers.tripTypeCustom ?? ""}
+                                            onChange={e => update("travellers", { tripTypeCustom: e.target.value })}
+                                            placeholder="Describe the trip purpose"
+                                            className="mt-1.5"
+                                            autoFocus
+                                        />
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-3">

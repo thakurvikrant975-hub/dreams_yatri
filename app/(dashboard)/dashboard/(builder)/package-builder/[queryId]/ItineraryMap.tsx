@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { StopInput, DayItinerary } from "../action";
+import type { StopInput } from "../action";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Route + points-of-interest map for the itinerary preview. The builder only
-// stores place names as text (starting point, stops, hotel/activity
-// locations) — never coordinates — so every point is geocoded client-side via
-// Mapbox's Geocoding API, then rendered on a Leaflet + Mapbox-tiles map
-// (same stack as the admin RoutePreviewMap). Geocoding results are cached in
-// module scope so re-renders and repeated hotel/activity names don't re-fetch.
+// Route map for the itinerary preview — shows the travel route (start, stops,
+// end) plus flight/train legs only. Hotel and activity locations are
+// deliberately not plotted (too many, too noisy against the actual route).
+// The builder only stores place names as text — never coordinates — so every
+// point is geocoded client-side via Mapbox's Geocoding API, then rendered on
+// a Leaflet + Mapbox-tiles map (same stack as the admin RoutePreviewMap).
+// Geocoding results are cached in module scope so re-renders don't re-fetch.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type PointKind = "start" | "stop" | "end" | "hotel" | "activity" | "flight" | "train";
+type PointKind = "start" | "stop" | "end" | "flight" | "train";
 
 interface MapPoint {
   label: string;
@@ -31,19 +32,17 @@ const KIND_COLOR: Record<PointKind, string> = {
   start:    "#2563eb", // blue
   stop:     "#2563eb", // blue
   end:      "#2563eb", // blue
-  hotel:    "#d97706", // amber
-  activity: "#9333ea", // purple
   flight:   "#0ea5e9", // sky
   train:    "#0d9488", // teal
 };
 
 const KIND_LEGEND: Record<PointKind, string> = {
   start: "Stop (in travel order)", stop: "Stop (in travel order)", end: "Stop (in travel order)",
-  hotel: "Hotel", activity: "Activity", flight: "Flight arrival", train: "Train arrival",
+  flight: "Flight arrival", train: "Train arrival",
 };
 
 const KIND_SYMBOL: Record<PointKind, string> = {
-  start: "S", stop: "•", end: "E", hotel: "H", activity: "A", flight: "✈", train: "T",
+  start: "S", stop: "•", end: "E", flight: "✈", train: "T",
 };
 
 /** Maps each route point (start/stop/end, in travel order) to its 1-based
@@ -128,7 +127,7 @@ function markerHtml(bg: string, symbol: string) {
     ">${symbol}</div>`;
 }
 
-function buildPoints(startingPoint: string, stops: StopInput[], itineraries: DayItinerary[]): MapPoint[] {
+function buildPoints(startingPoint: string, stops: StopInput[]): MapPoint[] {
   const points: MapPoint[] = [];
 
   if (startingPoint.trim()) {
@@ -141,42 +140,16 @@ function buildPoints(startingPoint: string, stops: StopInput[], itineraries: Day
   });
   // No stops at all, but a starting point — nothing else to route to.
 
-  const seenHotels = new Set<string>();
-  itineraries.forEach((day) => {
-    const hotelName = day.accommodation.split(" — ")[0]?.trim();
-    if (!hotelName || seenHotels.has(hotelName)) return;
-    seenHotels.add(hotelName);
-    const query = [hotelName, day.accommodationLocation].filter(Boolean).join(", ");
-    points.push({ label: hotelName, query, kind: "hotel" });
-  });
-
-  const seenActivities = new Set<string>();
-  let activityCount = 0;
-  const MAX_ACTIVITIES = 12;
-  for (const day of itineraries) {
-    for (const a of day.activities) {
-      if (activityCount >= MAX_ACTIVITIES) break;
-      const title = a.title.trim();
-      if (!title || seenActivities.has(title)) continue;
-      seenActivities.add(title);
-      activityCount++;
-      const query = [title, day.accommodationLocation].filter(Boolean).join(", ");
-      points.push({ label: title, query, kind: "activity" });
-    }
-    if (activityCount >= MAX_ACTIVITIES) break;
-  }
-
   return points;
 }
 
 export function ItineraryMap({
-  startingPoint, stops, itineraries,
+  startingPoint, stops,
   flightsIncluded, flightFrom, flightTo,
   trainIncluded, trainFrom, trainTo,
 }: {
   startingPoint:   string;
   stops:           StopInput[];
-  itineraries:     DayItinerary[];
   flightsIncluded: boolean;
   flightFrom:      string;
   flightTo:        string;
@@ -190,7 +163,7 @@ export function ItineraryMap({
   const [failed, setFailed]         = useState(false);
   const [routeSource, setRouteSource] = useState<"road" | "straight" | null>(null);
 
-  const points = buildPoints(startingPoint, stops, itineraries);
+  const points = buildPoints(startingPoint, stops);
   // Legs are computed against (and can extend) `points`, so they must run
   // before pointsKey/geocoding — a flight/train arrival city not already a
   // stop needs its own marker geocoded too.
