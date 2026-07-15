@@ -110,6 +110,7 @@ type SeasonEntry = {
   weekend_price_per_night: string;
   extra_bed_rate: string;
   weekend_extra_bed_rate: string;
+  single_occupancy_price: string;
   color: string;
 };
 
@@ -125,6 +126,11 @@ type PricingFormState = {
   margin_percentage: string;
   gst_percentage: string;
   is_active: boolean;
+  // Single (1P) occupancy is priced cheaper than the base (double) rate — kept
+  // as its own toggle + field rather than folded into the generic occupancy
+  // grid below, since it's the one tier managers set on nearly every plan.
+  single_occupancy_enabled: boolean;
+  single_occupancy_price: string;
   occupancy_prices: OccupancyEntry[];
   seasons: SeasonEntry[];
 };
@@ -141,6 +147,8 @@ const EMPTY_FORM: PricingFormState = {
   margin_percentage: "10",
   gst_percentage: "18",
   is_active: true,
+  single_occupancy_enabled: false,
+  single_occupancy_price: "",
   occupancy_prices: [],
   seasons: [],
 };
@@ -179,6 +187,7 @@ function fmtMonthDay(dateStr: string): string {
 }
 
 function toFormState(p: PricingPlan): PricingFormState {
+  const singleOcc = p.occupancy_prices.find(op => op.occupancy === 1);
   return {
     room_id: String(p.room_id),
     plan_name: p.plan_name ?? "",
@@ -191,11 +200,16 @@ function toFormState(p: PricingPlan): PricingFormState {
     margin_percentage: String(p.margin_percentage),
     gst_percentage: String(p.gst_percentage),
     is_active: p.is_active,
-    occupancy_prices: [],
+    single_occupancy_enabled: !!singleOcc,
+    single_occupancy_price: singleOcc ? String(singleOcc.price_per_night) : "",
+    occupancy_prices: p.occupancy_prices
+      .filter(op => op.occupancy !== 1)
+      .map(op => ({ occupancy: op.occupancy, price: String(op.price_per_night), original: op.original_price ? String(op.original_price) : "" })),
     seasons: (p.seasons ?? []).map(s => {
       const from = toISODate(s.valid_from);
       const to = toISODate(s.valid_to);
       const autoRangeText = `${fmtMonthDay(from)} → ${fmtMonthDay(to)}`;
+      const singleOccSeason = s.occupancy_prices.find(op => op.occupancy === 1);
       return {
         tempId: uid(),
         label: s.season_name && s.season_name !== autoRangeText ? s.season_name : "",
@@ -205,6 +219,7 @@ function toFormState(p: PricingPlan): PricingFormState {
         weekend_price_per_night: s.weekend_price_per_night ? String(s.weekend_price_per_night) : "",
         extra_bed_rate: s.extra_bed_rate ? String(s.extra_bed_rate) : "",
         weekend_extra_bed_rate: s.weekend_extra_bed_rate ? String(s.weekend_extra_bed_rate) : "",
+        single_occupancy_price: singleOccSeason ? String(singleOccSeason.price_per_night) : "",
         color: s.color ?? "",
       };
     }),
@@ -226,6 +241,9 @@ type HotelRateSeason = RateSeasonBase & {
   weekendPrice: number | null;
   extraBedRate: number | null;
   weekendExtraBedRate: number | null;
+  // Single (1P) occupancy override for this season — only ever surfaced in
+  // the UI when the plan itself has single-occupancy pricing enabled.
+  singleOccupancyPrice: number | null;
 };
 
 const NEW_PLAN_ITEM_ID = "new-plan";
@@ -249,6 +267,7 @@ function seasonEntriesToRateSeasons(seasons: SeasonEntry[], itemId: string): Hot
       weekendPrice: s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
       extraBedRate: s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
       weekendExtraBedRate: s.weekend_extra_bed_rate ? Number(s.weekend_extra_bed_rate) : null,
+      singleOccupancyPrice: s.single_occupancy_price ? Number(s.single_occupancy_price) : null,
     }));
 }
 
@@ -256,6 +275,7 @@ function savedSeasonsToRateSeasons(seasons: HotelSeason[], itemId: string): Hote
   return seasons.map(s => {
     const from = toISODate(s.valid_from);
     const to = toISODate(s.valid_to);
+    const singleOcc = s.occupancy_prices.find(op => op.occupancy === 1);
     return {
       id: String(s.id),
       itemId,
@@ -267,6 +287,7 @@ function savedSeasonsToRateSeasons(seasons: HotelSeason[], itemId: string): Hote
       weekendPrice: s.weekend_price_per_night,
       extraBedRate: s.extra_bed_rate,
       weekendExtraBedRate: s.weekend_extra_bed_rate,
+      singleOccupancyPrice: singleOcc ? singleOcc.price_per_night : null,
     };
   });
 }
@@ -281,6 +302,7 @@ function rateSeasonToSeasonEntry(rs: HotelRateSeason): SeasonEntry {
     weekend_price_per_night: rs.weekendPrice != null ? String(rs.weekendPrice) : "",
     extra_bed_rate: rs.extraBedRate != null ? String(rs.extraBedRate) : "",
     weekend_extra_bed_rate: rs.weekendExtraBedRate != null ? String(rs.weekendExtraBedRate) : "",
+    single_occupancy_price: rs.singleOccupancyPrice != null ? String(rs.singleOccupancyPrice) : "",
     color: rs.color,
   };
 }
@@ -297,7 +319,9 @@ function rateSeasonToHotelSeasonInput(rs: HotelRateSeason): HotelSeasonInput {
     weekend_extra_bed_rate: rs.weekendExtraBedRate,
     color: rs.color,
     is_active: true,
-    occupancy_prices: [],
+    occupancy_prices: rs.singleOccupancyPrice != null
+      ? [{ occupancy: 1, price_per_night: rs.singleOccupancyPrice, original_price: null }]
+      : [],
   };
 }
 
@@ -317,7 +341,9 @@ function rateSeasonsToOptimisticSeasons(rateSeasons: HotelRateSeason[], pricingI
     color: rs.color,
     is_active: true,
     sort_order: i,
-    occupancy_prices: [],
+    occupancy_prices: rs.singleOccupancyPrice != null
+      ? [{ id: baseTime + i, season_id: /^\d+$/.test(rs.id) ? Number(rs.id) : baseTime + i, occupancy: 1, price_per_night: rs.singleOccupancyPrice, original_price: null }]
+      : [],
   }));
 }
 
@@ -332,6 +358,8 @@ function SeasonalPricingSection({
   baseWeekendPricePerNight,
   baseExtraBedRate,
   baseWeekendExtraBedRate,
+  singleOccupancyEnabled,
+  baseSingleOccupancyPrice,
   planLabel,
   currentPlanId,
   hotelId,
@@ -344,6 +372,10 @@ function SeasonalPricingSection({
   baseWeekendPricePerNight?: number | null;
   baseExtraBedRate?: number | null;
   baseWeekendExtraBedRate?: number | null;
+  // Whether the CURRENT plan (being added/edited) has single-occupancy
+  // pricing turned on — siblings each carry their own, derived below.
+  singleOccupancyEnabled?: boolean;
+  baseSingleOccupancyPrice?: number | null;
   planLabel: string;
   currentPlanId: number | null;
   hotelId: number;
@@ -359,11 +391,27 @@ function SeasonalPricingSection({
   const allRateSeasons = [...currentRateSeasons, ...siblingRateSeasons];
   const seasonCount = currentRateSeasons.length;
 
-  const extraBedByItemId: Record<string, { extraBedRate: number | null; weekendExtraBedRate: number | null }> = {
-    [currentItemId]: { extraBedRate: baseExtraBedRate ?? null, weekendExtraBedRate: baseWeekendExtraBedRate ?? null },
+  const itemMetaById: Record<string, {
+    extraBedRate: number | null;
+    weekendExtraBedRate: number | null;
+    singleOccupancyEnabled: boolean;
+    singleOccupancyPrice: number | null;
+  }> = {
+    [currentItemId]: {
+      extraBedRate: baseExtraBedRate ?? null,
+      weekendExtraBedRate: baseWeekendExtraBedRate ?? null,
+      singleOccupancyEnabled: !!singleOccupancyEnabled,
+      singleOccupancyPrice: baseSingleOccupancyPrice ?? null,
+    },
   };
   for (const p of siblingPlans) {
-    extraBedByItemId[String(p.id)] = { extraBedRate: p.extra_bed_rate, weekendExtraBedRate: p.weekend_extra_bed_rate };
+    const singleOcc = p.occupancy_prices.find(op => op.occupancy === 1);
+    itemMetaById[String(p.id)] = {
+      extraBedRate: p.extra_bed_rate,
+      weekendExtraBedRate: p.weekend_extra_bed_rate,
+      singleOccupancyEnabled: !!singleOcc,
+      singleOccupancyPrice: singleOcc ? singleOcc.price_per_night : null,
+    };
   }
 
   const items: SeasonalRateCalendarItem[] = [
@@ -429,8 +477,9 @@ function SeasonalPricingSection({
         unitLabel="per night"
         getDefaultDraft={item => ({
           weekendPrice: item.baseWeekendRate ?? null,
-          extraBedRate: extraBedByItemId[item.id]?.extraBedRate ?? null,
-          weekendExtraBedRate: extraBedByItemId[item.id]?.weekendExtraBedRate ?? null,
+          extraBedRate: itemMetaById[item.id]?.extraBedRate ?? null,
+          weekendExtraBedRate: itemMetaById[item.id]?.weekendExtraBedRate ?? null,
+          singleOccupancyPrice: itemMetaById[item.id]?.singleOccupancyPrice ?? null,
         })}
         getGroupKey={s =>
           `${s.rate}|${s.weekendPrice ?? s.rate}|${s.extraBedRate ?? "none"}|${s.weekendExtraBedRate ?? s.extraBedRate ?? "none"}`
@@ -496,6 +545,19 @@ function SeasonalPricingSection({
                 className={seasonExtraFieldClass}
               />
             </div>
+
+            {itemMetaById[activeItemId]?.singleOccupancyEnabled && (
+              <div className="col-span-2">
+                <label className="text-[10px] text-neutral-500 mb-0.5 block">Single occupancy price (₹)</label>
+                <input
+                  type="number" min={0}
+                  placeholder="optional"
+                  value={draft.singleOccupancyPrice ?? ""}
+                  onChange={e => onExtraChange({ singleOccupancyPrice: e.target.value ? Number(e.target.value) : null })}
+                  className={seasonExtraFieldClass}
+                />
+              </div>
+            )}
           </div>
         )}
       />
