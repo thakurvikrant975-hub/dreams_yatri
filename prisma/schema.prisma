@@ -980,6 +980,8 @@ model hotel_room_pricing {
   price_per_night      Decimal                       @db.Decimal(10, 2)
   original_price       Decimal?                      @db.Decimal(10, 2)
   extra_bed_rate       Decimal?                      @db.Decimal(10, 2)
+  weekend_price_per_night Decimal?                   @db.Decimal(10, 2)
+  weekend_extra_bed_rate  Decimal?                   @db.Decimal(10, 2)
   margin_percentage    Decimal                       @default(10) @db.Decimal(5, 2)
   is_active            Boolean                       @default(true)
   sort_order           Int                           @default(0)
@@ -1015,6 +1017,8 @@ model hotel_room_pricing_season {
   updated_at              DateTime                              @updatedAt
   extra_bed_rate          Decimal?                              @db.Decimal(10, 2)
   weekend_price_per_night Decimal?                              @db.Decimal(10, 2)
+  weekend_extra_bed_rate  Decimal?                              @db.Decimal(10, 2)
+  color                   String?
   occupancy_prices        hotel_room_pricing_season_occupancy[]
   pricing                 hotel_room_pricing                    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
@@ -1603,6 +1607,8 @@ model cab_pricing_season {
   is_active     Boolean        @default(true)
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
+  color         String?
+  season_name   String?
   pricing       cab_pricing    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
   @@index([pricing_id])

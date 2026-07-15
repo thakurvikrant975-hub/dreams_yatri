@@ -21,6 +21,8 @@ export type CabSeason = {
   weekday_cost:  number | null;
   weekend_price: number | null; // null = no weekend override
   weekend_cost:  number | null;
+  season_name:   string | null;
+  color:         string | null;
   is_active:     boolean;
 };
 
@@ -114,6 +116,8 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
         weekday_cost:  s.weekday_cost  != null ? Number(s.weekday_cost)  : null,
         weekend_price: s.weekend_price != null ? Number(s.weekend_price) : null,
         weekend_cost:  s.weekend_cost  != null ? Number(s.weekend_cost)  : null,
+        season_name:   s.season_name,
+        color:         s.color,
         is_active:     s.is_active,
       })),
     }));
@@ -194,6 +198,8 @@ export type SeasonInput = {
   weekdayCost:   number | null;
   weekendPrice:  number | null; // null = no override
   weekendCost:   number | null;
+  seasonName?:   string | null;
+  color?:        string | null;
 };
 
 export type VehicleEntryInput = {
@@ -246,6 +252,8 @@ async function _performUpsert(
             weekday_cost:  s.weekdayCost,
             weekend_price: s.weekendPrice,
             weekend_cost:  s.weekendCost,
+            season_name:   s.seasonName ?? null,
+            color:         s.color      ?? null,
             is_active:     true,
           })),
         });
