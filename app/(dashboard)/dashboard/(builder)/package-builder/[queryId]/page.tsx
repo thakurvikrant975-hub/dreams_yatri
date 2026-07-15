@@ -1796,18 +1796,33 @@ export default function PackageBuilderDetailPage() {
   // final_price — same walkthrough the admin catalog's full pricing engine
   // uses (computePackagePrice in package-pricing.service.ts), just without
   // the meal/activity/permit layers that only exist for catalog packages.
+  // Flight/train fares only ever carry a flat 5% margin — never the
+  // configurable hotel/cab margin (25% by default) — since tickets are
+  // priced closer to cost and don't bear the same markup as inventory the
+  // agency sources and stays in.
+  const TICKET_MARGIN_PCT = 5;
+
   function computeFinalPricing() {
     const marginPct = parseFloat(form.marginPercentage) || 0;
     const gstPct = parseFloat(form.gstPercentage) || 0;
+    const hotelCabBase = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0);
     const ticketsSubtotal = form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
-    const baseCost = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0) + ticketsSubtotal;
-    const marginAmount = Math.round(baseCost * marginPct / 100);
+    const baseCost = hotelCabBase + ticketsSubtotal;
+
+    const hotelCabMarginAmount = Math.round(hotelCabBase * marginPct / 100);
+    const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
+    const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
+
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
     const finalPrice = taxable + gstAmount;
     const totalPax = form.adults + form.children;
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
-    return { marginPct, gstPct, baseCost, ticketsSubtotal, marginAmount, taxable, gstAmount, finalPrice, perPerson };
+    return {
+      marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase,
+      hotelCabMarginAmount, ticketsMarginAmount, marginAmount,
+      taxable, gstAmount, finalPrice, perPerson,
+    };
   }
 
   function applyComputedPricing() {
@@ -2476,7 +2491,9 @@ export default function PackageBuilderDetailPage() {
                           {form.travelDate ? `, from ${new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}
                         </span>
                         <div className="text-dashboard-base-content/50 mt-0.5">
-                          + {form.marginPercentage || 0}% margin + {form.gstPercentage || 0}% GST → ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")}/person
+                          + {form.marginPercentage || 0}% margin (Hotel/Cab)
+                          {form.tickets.length > 0 ? ` + ${TICKET_MARGIN_PCT}% margin (Tickets)` : ""}
+                          {" "}+ {form.gstPercentage || 0}% GST → ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")}/person
                           {" "}(edit in Pricing Breakdown tab)
                         </div>
                       </div>
@@ -2805,7 +2822,8 @@ export default function PackageBuilderDetailPage() {
                       <p className="text-[11px] text-dashboard-base-content/50">
                         Hotels are computed from each day&apos;s selected room (season/occupancy-aware rate) and adult/child count; cabs from each
                         day&apos;s selected cab (season/weekday-weekend-aware rate, per day or per km as configured) — both checked against the travel date;
-                        tickets from the fares entered on the Tickets tab.
+                        tickets from the fares entered on the Tickets tab. Hotel/cab carry the margin % set below; ticket fares only ever carry a
+                        flat {TICKET_MARGIN_PCT}% margin, regardless of that setting.
                         Activities aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details if needed.
                       </p>
 
@@ -2845,13 +2863,25 @@ export default function PackageBuilderDetailPage() {
                               <table className="w-full text-xs">
                                 <tbody>
                                   <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">Base Cost (Hotel + Cab + Tickets)</td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.baseCost.toLocaleString("en-IN")}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">Hotel + Cab Base</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabBase.toLocaleString("en-IN")}</td>
                                   </tr>
                                   <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin ({p.marginPct}%)</td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.marginAmount.toLocaleString("en-IN")}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin on Hotel/Cab ({p.marginPct}%)</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabMarginAmount.toLocaleString("en-IN")}</td>
                                   </tr>
+                                  {p.ticketsSubtotal > 0 && (
+                                    <>
+                                      <tr className="border-b border-dashboard-base-300">
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">Tickets Base (Flight/Train)</td>
+                                        <td className="px-3 py-2 text-right font-medium">₹{p.ticketsSubtotal.toLocaleString("en-IN")}</td>
+                                      </tr>
+                                      <tr className="border-b border-dashboard-base-300">
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin on Tickets ({TICKET_MARGIN_PCT}% fixed)</td>
+                                        <td className="px-3 py-2 text-right font-medium">₹{p.ticketsMarginAmount.toLocaleString("en-IN")}</td>
+                                      </tr>
+                                    </>
+                                  )}
                                   <tr className="border-b border-dashboard-base-300 bg-dashboard-base-200/40">
                                     <td className="px-3 py-2 font-semibold">= Subtotal</td>
                                     <td className="px-3 py-2 text-right font-semibold">₹{p.taxable.toLocaleString("en-IN")}</td>

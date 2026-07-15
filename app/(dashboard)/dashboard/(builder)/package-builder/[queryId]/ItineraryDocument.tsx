@@ -853,6 +853,19 @@ function HeroCover({
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // Journey route — pickup point, each stop with its night count, then the
+  // drop point. Pickup/drop come from the first/last day's transport fields;
+  // either (or both) is simply left out of the strip when not set.
+  const firstDay = form.itineraries[0];
+  const lastDay = form.itineraries[form.itineraries.length - 1];
+  const pickupPoint = firstDay?.transportPickup || "";
+  const dropPoint = lastDay?.transportDrop || "";
+  const routeSteps: { label: string; nights?: number }[] = [
+    ...(pickupPoint ? [{ label: `${pickupPoint} pickup` }] : []),
+    ...form.stops.filter((s) => s.name.trim()).map((s) => ({ label: titleCase(s.name), nights: s.nights })),
+    ...(dropPoint ? [{ label: `${dropPoint} drop` }] : []),
+  ];
+
   async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragOver(false);
@@ -958,14 +971,34 @@ function HeroCover({
         <h1 className="text-[30px] leading-[1.15] font-extrabold text-white" style={{ maxWidth: "150mm" }}>
           {form.title || "Untitled Package"}
         </h1>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5">
-          <span className="flex items-center gap-1.5 text-white text-sm font-semibold">
-            <MapPin size={14} className="shrink-0" />
-            {form.startingPoint ? `${form.startingPoint} → ` : ""}{form.destination || "—"}
-          </span>
-          <span className="text-white/50">·</span>
-          <span className="text-white/85 text-sm font-medium">{durationLabel}</span>
-        </div>
+
+        {routeSteps.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1 mt-3" style={{ maxWidth: "175mm" }}>
+            {routeSteps.map((step, i) => (
+              <div key={i} className="flex items-center gap-1">
+                {i > 0 && <ArrowRight size={11} className="text-white/40 shrink-0 mx-0.5" />}
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white whitespace-nowrap">
+                  <MapPin size={9} className="shrink-0 text-white/60" />
+                  {step.label}
+                  {step.nights != null && (
+                    <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-bold text-white/90">
+                      {step.nights}N
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5">
+            <span className="flex items-center gap-1.5 text-white text-sm font-semibold">
+              <MapPin size={14} className="shrink-0" />
+              {form.startingPoint ? `${form.startingPoint} → ` : ""}{form.destination || "—"}
+            </span>
+            <span className="text-white/50">·</span>
+            <span className="text-white/85 text-sm font-medium">{durationLabel}</span>
+          </div>
+        )}
       </div>
 
       {/* Wave transition into the white body below */}
@@ -1102,12 +1135,6 @@ export function ItineraryDocument({
   // Route map legs derived straight from the ticket list — see the module
   // comment on PreviewData.tickets for why these aren't separate fields.
   const transport = deriveTransportFields(form.tickets);
-
-  // Category subtotals for the Price Summary — per-leg fares stay hidden on
-  // each ticket card, but the exec still wants the client to see what the
-  // flight/train cost comes to as part of the overall price breakdown.
-  const flightSubtotal = form.tickets.filter((t) => t.type === "FLIGHT").reduce((sum, t) => sum + (t.fare ?? 0), 0);
-  const trainSubtotal = form.tickets.filter((t) => t.type === "TRAIN").reduce((sum, t) => sum + (t.fare ?? 0), 0);
 
   return (
     <div>
@@ -1257,23 +1284,6 @@ export function ItineraryDocument({
                 </span>
                 <h2 className="text-[13px] font-extrabold text-white uppercase tracking-wide">Price Summary</h2>
               </div>
-
-              {(flightSubtotal > 0 || trainSubtotal > 0) && (
-                <div className="space-y-1.5 mb-4 pb-4 border-b border-white/10">
-                  {flightSubtotal > 0 && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 text-white/70"><Plane size={11} /> Flight</span>
-                      <span className="font-semibold text-white">₹{flightSubtotal.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-                  {trainSubtotal > 0 && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 text-white/70"><TrainFront size={11} /> Train</span>
-                      <span className="font-semibold text-white">₹{trainSubtotal.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="space-y-1">
