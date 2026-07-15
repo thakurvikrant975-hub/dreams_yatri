@@ -37,8 +37,8 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type RoomOption = { id: number; name: string };
-type MealType   = { id: number; name: string; covered_meals: string[] };
-type DietType   = { id: number; name: string };
+type MealType = { id: number; name: string; covered_meals: string[] };
+type DietType = { id: number; name: string };
 
 type OccupancyPrice = {
   id: number;
@@ -100,49 +100,49 @@ type PricingPlan = {
 
 // Local season entry (before save) — only the fields we need
 type SeasonEntry = {
-  tempId:                  string;
-  label:                   string;
-  valid_from:              string;
-  valid_to:                string;
-  price_per_night:         string;
+  tempId: string;
+  label: string;
+  valid_from: string;
+  valid_to: string;
+  price_per_night: string;
   weekend_price_per_night: string;
-  extra_bed_rate:          string;
-  weekend_extra_bed_rate:  string;
-  color:                   string;
+  extra_bed_rate: string;
+  weekend_extra_bed_rate: string;
+  color: string;
 };
 
 type OccupancyEntry = { occupancy: number; price: string; original: string };
 
 type PricingFormState = {
-  room_id:                      string;
-  plan_name:                    string;
-  meal_type_id:                 string;
-  diet_type_id:                 string;
-  base_price_per_night:         string;
+  room_id: string;
+  plan_name: string;
+  meal_type_id: string;
+  diet_type_id: string;
+  base_price_per_night: string;
   base_weekend_price_per_night: string;
-  base_extra_bed_rate:          string;
-  base_weekend_extra_bed_rate:  string;
-  margin_percentage:            string;
-  gst_percentage:               string;
-  is_active:                    boolean;
-  occupancy_prices:             OccupancyEntry[];
-  seasons:                      SeasonEntry[];
+  base_extra_bed_rate: string;
+  base_weekend_extra_bed_rate: string;
+  margin_percentage: string;
+  gst_percentage: string;
+  is_active: boolean;
+  occupancy_prices: OccupancyEntry[];
+  seasons: SeasonEntry[];
 };
 
 const EMPTY_FORM: PricingFormState = {
-  room_id:                      "",
-  plan_name:                    "",
-  meal_type_id:                 "",
-  diet_type_id:                 "",
-  base_price_per_night:         "",
+  room_id: "",
+  plan_name: "",
+  meal_type_id: "",
+  diet_type_id: "",
+  base_price_per_night: "",
   base_weekend_price_per_night: "",
-  base_extra_bed_rate:          "",
-  base_weekend_extra_bed_rate:  "",
-  margin_percentage:            "10",
-  gst_percentage:               "18",
-  is_active:                    true,
-  occupancy_prices:             [],
-  seasons:                      [],
+  base_extra_bed_rate: "",
+  base_weekend_extra_bed_rate: "",
+  margin_percentage: "10",
+  gst_percentage: "18",
+  is_active: true,
+  occupancy_prices: [],
+  seasons: [],
 };
 
 const OCCUPANCY_LABELS: Record<number, string> = {
@@ -180,32 +180,32 @@ function fmtMonthDay(dateStr: string): string {
 
 function toFormState(p: PricingPlan): PricingFormState {
   return {
-    room_id:                      String(p.room_id),
-    plan_name:                    p.plan_name         ?? "",
-    meal_type_id:                 p.meal_type_id      ? String(p.meal_type_id)  : "none",
-    diet_type_id:                 p.diet_type_id      ? String(p.diet_type_id)  : "",
-    base_price_per_night:         p.price_per_night   ? String(p.price_per_night)  : "",
+    room_id: String(p.room_id),
+    plan_name: p.plan_name ?? "",
+    meal_type_id: p.meal_type_id ? String(p.meal_type_id) : "none",
+    diet_type_id: p.diet_type_id ? String(p.diet_type_id) : "",
+    base_price_per_night: p.price_per_night ? String(p.price_per_night) : "",
     base_weekend_price_per_night: p.weekend_price_per_night ? String(p.weekend_price_per_night) : "",
-    base_extra_bed_rate:          p.extra_bed_rate    ? String(p.extra_bed_rate)   : "",
-    base_weekend_extra_bed_rate:  p.weekend_extra_bed_rate ? String(p.weekend_extra_bed_rate) : "",
-    margin_percentage:            String(p.margin_percentage),
-    gst_percentage:               String(p.gst_percentage),
-    is_active:                    p.is_active,
-    occupancy_prices:             [],
-    seasons:              (p.seasons ?? []).map(s => {
+    base_extra_bed_rate: p.extra_bed_rate ? String(p.extra_bed_rate) : "",
+    base_weekend_extra_bed_rate: p.weekend_extra_bed_rate ? String(p.weekend_extra_bed_rate) : "",
+    margin_percentage: String(p.margin_percentage),
+    gst_percentage: String(p.gst_percentage),
+    is_active: p.is_active,
+    occupancy_prices: [],
+    seasons: (p.seasons ?? []).map(s => {
       const from = toISODate(s.valid_from);
       const to = toISODate(s.valid_to);
       const autoRangeText = `${fmtMonthDay(from)} → ${fmtMonthDay(to)}`;
       return {
-        tempId:                  uid(),
-        label:                   s.season_name && s.season_name !== autoRangeText ? s.season_name : "",
-        valid_from:              from,
-        valid_to:                to,
-        price_per_night:         String(s.price_per_night),
+        tempId: uid(),
+        label: s.season_name && s.season_name !== autoRangeText ? s.season_name : "",
+        valid_from: from,
+        valid_to: to,
+        price_per_night: String(s.price_per_night),
         weekend_price_per_night: s.weekend_price_per_night ? String(s.weekend_price_per_night) : "",
-        extra_bed_rate:          s.extra_bed_rate ? String(s.extra_bed_rate) : "",
-        weekend_extra_bed_rate:  s.weekend_extra_bed_rate ? String(s.weekend_extra_bed_rate) : "",
-        color:                   s.color ?? "",
+        extra_bed_rate: s.extra_bed_rate ? String(s.extra_bed_rate) : "",
+        weekend_extra_bed_rate: s.weekend_extra_bed_rate ? String(s.weekend_extra_bed_rate) : "",
+        color: s.color ?? "",
       };
     }),
   };
@@ -239,15 +239,15 @@ function seasonEntriesToRateSeasons(seasons: SeasonEntry[], itemId: string): Hot
   return seasons
     .filter(s => s.valid_from && s.valid_to && Number(s.price_per_night) > 0)
     .map(s => ({
-      id:                  s.tempId,
+      id: s.tempId,
       itemId,
-      label:               s.label || undefined,
-      startDate:           s.valid_from,
-      endDate:             s.valid_to,
-      color:               s.color || "#f97316",
-      rate:                Number(s.price_per_night) || 0,
-      weekendPrice:        s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
-      extraBedRate:        s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
+      label: s.label || undefined,
+      startDate: s.valid_from,
+      endDate: s.valid_to,
+      color: s.color || "#f97316",
+      rate: Number(s.price_per_night) || 0,
+      weekendPrice: s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
+      extraBedRate: s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
       weekendExtraBedRate: s.weekend_extra_bed_rate ? Number(s.weekend_extra_bed_rate) : null,
     }));
 }
@@ -257,15 +257,15 @@ function savedSeasonsToRateSeasons(seasons: HotelSeason[], itemId: string): Hote
     const from = toISODate(s.valid_from);
     const to = toISODate(s.valid_to);
     return {
-      id:                  String(s.id),
+      id: String(s.id),
       itemId,
-      label:               seasonLabelOrUndefined(s.season_name, from, to),
-      startDate:           from,
-      endDate:             to,
-      color:               s.color ?? "#f97316",
-      rate:                s.price_per_night,
-      weekendPrice:        s.weekend_price_per_night,
-      extraBedRate:        s.extra_bed_rate,
+      label: seasonLabelOrUndefined(s.season_name, from, to),
+      startDate: from,
+      endDate: to,
+      color: s.color ?? "#f97316",
+      rate: s.price_per_night,
+      weekendPrice: s.weekend_price_per_night,
+      extraBedRate: s.extra_bed_rate,
       weekendExtraBedRate: s.weekend_extra_bed_rate,
     };
   });
@@ -273,51 +273,51 @@ function savedSeasonsToRateSeasons(seasons: HotelSeason[], itemId: string): Hote
 
 function rateSeasonToSeasonEntry(rs: HotelRateSeason): SeasonEntry {
   return {
-    tempId:                  rs.id,
-    label:                   rs.label ?? "",
-    valid_from:              rs.startDate,
-    valid_to:                rs.endDate,
-    price_per_night:         String(rs.rate),
+    tempId: rs.id,
+    label: rs.label ?? "",
+    valid_from: rs.startDate,
+    valid_to: rs.endDate,
+    price_per_night: String(rs.rate),
     weekend_price_per_night: rs.weekendPrice != null ? String(rs.weekendPrice) : "",
-    extra_bed_rate:          rs.extraBedRate != null ? String(rs.extraBedRate) : "",
-    weekend_extra_bed_rate:  rs.weekendExtraBedRate != null ? String(rs.weekendExtraBedRate) : "",
-    color:                   rs.color,
+    extra_bed_rate: rs.extraBedRate != null ? String(rs.extraBedRate) : "",
+    weekend_extra_bed_rate: rs.weekendExtraBedRate != null ? String(rs.weekendExtraBedRate) : "",
+    color: rs.color,
   };
 }
 
 function rateSeasonToHotelSeasonInput(rs: HotelRateSeason): HotelSeasonInput {
   return {
-    season_name:             rs.label?.trim() || defaultRangeLabel(rs.startDate, rs.endDate),
-    valid_from:              rs.startDate,
-    valid_to:                rs.endDate,
-    price_per_night:         rs.rate,
+    season_name: rs.label?.trim() || defaultRangeLabel(rs.startDate, rs.endDate),
+    valid_from: rs.startDate,
+    valid_to: rs.endDate,
+    price_per_night: rs.rate,
     weekend_price_per_night: rs.weekendPrice,
-    original_price:          null,
-    extra_bed_rate:          rs.extraBedRate,
-    weekend_extra_bed_rate:  rs.weekendExtraBedRate,
-    color:                   rs.color,
-    is_active:               true,
-    occupancy_prices:        [],
+    original_price: null,
+    extra_bed_rate: rs.extraBedRate,
+    weekend_extra_bed_rate: rs.weekendExtraBedRate,
+    color: rs.color,
+    is_active: true,
+    occupancy_prices: [],
   };
 }
 
 function rateSeasonsToOptimisticSeasons(rateSeasons: HotelRateSeason[], pricingId: number): HotelSeason[] {
   const baseTime = Date.now();
   return rateSeasons.map((rs, i) => ({
-    id:                      /^\d+$/.test(rs.id) ? Number(rs.id) : baseTime + i,
-    pricing_id:              pricingId,
-    season_name:             rs.label?.trim() || defaultRangeLabel(rs.startDate, rs.endDate),
-    valid_from:              new Date(rs.startDate),
-    valid_to:                new Date(rs.endDate),
-    price_per_night:         rs.rate,
+    id: /^\d+$/.test(rs.id) ? Number(rs.id) : baseTime + i,
+    pricing_id: pricingId,
+    season_name: rs.label?.trim() || defaultRangeLabel(rs.startDate, rs.endDate),
+    valid_from: new Date(rs.startDate),
+    valid_to: new Date(rs.endDate),
+    price_per_night: rs.rate,
     weekend_price_per_night: rs.weekendPrice,
-    original_price:          null,
-    extra_bed_rate:          rs.extraBedRate,
-    weekend_extra_bed_rate:  rs.weekendExtraBedRate,
-    color:                   rs.color,
-    is_active:               true,
-    sort_order:              i,
-    occupancy_prices:        [],
+    original_price: null,
+    extra_bed_rate: rs.extraBedRate,
+    weekend_extra_bed_rate: rs.weekendExtraBedRate,
+    color: rs.color,
+    is_active: true,
+    sort_order: i,
+    occupancy_prices: [],
   }));
 }
 
@@ -338,17 +338,17 @@ function SeasonalPricingSection({
   siblingPlans,
   onSiblingSeasonsUpdated,
 }: {
-  seasons:                   SeasonEntry[];
-  onChange:                  (s: SeasonEntry[]) => void;
-  basePricePerNight?:        number;
+  seasons: SeasonEntry[];
+  onChange: (s: SeasonEntry[]) => void;
+  basePricePerNight?: number;
   baseWeekendPricePerNight?: number | null;
-  baseExtraBedRate?:         number | null;
-  baseWeekendExtraBedRate?:  number | null;
-  planLabel:                 string;
-  currentPlanId:             number | null;
-  hotelId:                   number;
-  siblingPlans:              PricingPlan[];
-  onSiblingSeasonsUpdated:   (planId: number, seasons: HotelSeason[]) => void;
+  baseExtraBedRate?: number | null;
+  baseWeekendExtraBedRate?: number | null;
+  planLabel: string;
+  currentPlanId: number | null;
+  hotelId: number;
+  siblingPlans: PricingPlan[];
+  onSiblingSeasonsUpdated: (planId: number, seasons: HotelSeason[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const currentItemId = currentPlanId != null ? String(currentPlanId) : NEW_PLAN_ITEM_ID;
@@ -414,7 +414,7 @@ function SeasonalPricingSection({
         subtitle={planLabel}
         items={items}
         activeItemId={currentItemId}
-        onActiveItemChange={() => {}}
+        onActiveItemChange={() => { }}
         seasons={allRateSeasons}
         onSave={(next, changedItemId) => {
           if (changedItemId === currentItemId) {
@@ -427,9 +427,9 @@ function SeasonalPricingSection({
         }}
         unitLabel="per night"
         getDefaultDraft={item => ({
-          weekendPrice:         item.baseWeekendRate ?? null,
-          extraBedRate:         extraBedByItemId[item.id]?.extraBedRate ?? null,
-          weekendExtraBedRate:  extraBedByItemId[item.id]?.weekendExtraBedRate ?? null,
+          weekendPrice: item.baseWeekendRate ?? null,
+          extraBedRate: extraBedByItemId[item.id]?.extraBedRate ?? null,
+          weekendExtraBedRate: extraBedByItemId[item.id]?.weekendExtraBedRate ?? null,
         })}
         getGroupKey={s =>
           `${s.rate}|${s.weekendPrice ?? s.rate}|${s.extraBedRate ?? "none"}|${s.weekendExtraBedRate ?? s.extraBedRate ?? "none"}`
@@ -472,6 +472,7 @@ function SeasonalPricingSection({
                 className={seasonExtraFieldClass}
               />
             </div>
+
             <div>
               <label className="text-[10px] text-neutral-500 mb-0.5 block">Extra bed (₹)</label>
               <input
@@ -482,6 +483,7 @@ function SeasonalPricingSection({
                 className={seasonExtraFieldClass}
               />
             </div>
+
             <div className="col-span-2">
               <label className="text-[10px] text-neutral-500 mb-0.5 block">Weekend extra bed (₹)</label>
               <input
@@ -534,20 +536,20 @@ function PricingForm({
   allPlans,
   onSiblingSeasonsUpdated,
 }: {
-  initial:   PricingFormState;
-  rooms:     RoomOption[];
+  initial: PricingFormState;
+  rooms: RoomOption[];
   mealTypes: MealType[];
   dietTypes: DietType[];
-  onSave:    (form: PricingFormState) => void;
-  onCancel:  () => void;
-  isSaving:  boolean;
-  isNew?:    boolean;
+  onSave: (form: PricingFormState) => void;
+  onCancel: () => void;
+  isSaving: boolean;
+  isNew?: boolean;
   /** null when adding a brand-new plan, the real id when editing one. */
-  planId?:                 number | null;
-  hotelId:                 number;
+  planId?: number | null;
+  hotelId: number;
   /** Every pricing plan for this hotel — filtered down to the currently
    * selected room's siblings for the seasonal calendar's item switcher. */
-  allPlans:                PricingPlan[];
+  allPlans: PricingPlan[];
   onSiblingSeasonsUpdated: (planId: number, seasons: HotelSeason[]) => void;
 }) {
   const [form, setForm] = useState<PricingFormState>(initial);
@@ -590,7 +592,7 @@ function PricingForm({
     !!form.base_price_per_night && Number(form.base_price_per_night) > 0 &&
     form.seasons.every(
       s => !!s.valid_from && !!s.valid_to &&
-           !!s.price_per_night && Number(s.price_per_night) > 0,
+        !!s.price_per_night && Number(s.price_per_night) > 0,
     );
 
   return (
@@ -783,17 +785,17 @@ function OccupancyPricesPanel({
   hotelId,
   onUpdated,
 }: {
-  plan:     PricingPlan;
-  hotelId:  number;
+  plan: PricingPlan;
+  hotelId: number;
   onUpdated: (prices: OccupancyPrice[]) => void;
 }) {
-  const [saving, setSaving]     = useState<number | null>(null);
+  const [saving, setSaving] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [editOccupancy, setEditOccupancy] = useState<number | null>(null);
-  const [addOccupancy, setAddOccupancy]   = useState<string>("");
-  const [addPrice, setAddPrice]     = useState("");
+  const [addOccupancy, setAddOccupancy] = useState<string>("");
+  const [addPrice, setAddPrice] = useState("");
   const [addOriginal, setAddOriginal] = useState("");
-  const [editPrice, setEditPrice]     = useState("");
+  const [editPrice, setEditPrice] = useState("");
   const [editOriginal, setEditOriginal] = useState("");
 
   const existingOccupancies = new Set(plan.occupancy_prices.map(p => p.occupancy));
@@ -965,20 +967,20 @@ function PlanRow({
   onOccupancyUpdated,
   onSeasonsUpdated,
 }: {
-  plan:               PricingPlan;
-  hotelId:            number;
-  editId:             number | null;
-  rooms:              RoomOption[];
-  mealTypes:          MealType[];
-  dietTypes:          DietType[];
-  allPlans:           PricingPlan[];
-  isPending:          boolean;
-  onEdit:             (id: number) => void;
-  onSaveEdit:         (id: number, form: PricingFormState) => void;
-  onCancelEdit:       () => void;
-  onDelete:           (id: number) => void;
+  plan: PricingPlan;
+  hotelId: number;
+  editId: number | null;
+  rooms: RoomOption[];
+  mealTypes: MealType[];
+  dietTypes: DietType[];
+  allPlans: PricingPlan[];
+  isPending: boolean;
+  onEdit: (id: number) => void;
+  onSaveEdit: (id: number, form: PricingFormState) => void;
+  onCancelEdit: () => void;
+  onDelete: (id: number) => void;
   onOccupancyUpdated: (planId: number, prices: OccupancyPrice[]) => void;
-  onSeasonsUpdated:   (planId: number, seasons: HotelSeason[]) => void;
+  onSeasonsUpdated: (planId: number, seasons: HotelSeason[]) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -1002,7 +1004,7 @@ function PlanRow({
     );
   }
 
-  const seasonCount      = plan.seasons?.length ?? 0;
+  const seasonCount = plan.seasons?.length ?? 0;
   const occupancySummary = plan.occupancy_prices
     .map(op => `${op.occupancy}P: ₹${op.price_per_night.toLocaleString()}`)
     .join(" · ");
@@ -1100,34 +1102,34 @@ export function PricingTab({
   mealTypes,
   dietTypes,
 }: {
-  hotel_id:  number;
-  rooms:     RoomOption[];
-  pricing:   PricingPlan[];
+  hotel_id: number;
+  rooms: RoomOption[];
+  pricing: PricingPlan[];
   mealTypes: MealType[];
   dietTypes: DietType[];
 }) {
   const [pricing, setPricing] = useState<PricingPlan[]>(initialPricing);
-  const [adding, setAdding]   = useState(false);
-  const [editId, setEditId]   = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function buildSeasonsInput(form: PricingFormState): HotelSeasonInput[] {
     return form.seasons.map(s => ({
-      season_name:             s.label.trim()
+      season_name: s.label.trim()
         ? s.label.trim()
         : s.valid_from && s.valid_to
-        ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
-        : "Season",
-      valid_from:              s.valid_from,
-      valid_to:                s.valid_to,
-      price_per_night:         Number(s.price_per_night),
+          ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
+          : "Season",
+      valid_from: s.valid_from,
+      valid_to: s.valid_to,
+      price_per_night: Number(s.price_per_night),
       weekend_price_per_night: s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
-      original_price:          null,
-      extra_bed_rate:          s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
-      weekend_extra_bed_rate:  s.weekend_extra_bed_rate ? Number(s.weekend_extra_bed_rate) : null,
-      color:                   s.color || null,
-      is_active:               true,
-      occupancy_prices:        [],
+      original_price: null,
+      extra_bed_rate: s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
+      weekend_extra_bed_rate: s.weekend_extra_bed_rate ? Number(s.weekend_extra_bed_rate) : null,
+      color: s.color || null,
+      is_active: true,
+      occupancy_prices: [],
     }));
   }
 
@@ -1137,19 +1139,19 @@ export function PricingTab({
     baseTime: number,
   ): HotelSeason[] {
     return seasonsInput.map((s, i) => ({
-      id:                      baseTime + i,
-      pricing_id:              planId,
-      season_name:             s.season_name,
-      valid_from:              new Date(s.valid_from),
-      valid_to:                new Date(s.valid_to),
-      price_per_night:         s.price_per_night,
+      id: baseTime + i,
+      pricing_id: planId,
+      season_name: s.season_name,
+      valid_from: new Date(s.valid_from),
+      valid_to: new Date(s.valid_to),
+      price_per_night: s.price_per_night,
       weekend_price_per_night: s.weekend_price_per_night ?? null,
-      original_price:          null,
-      extra_bed_rate:          s.extra_bed_rate ?? null,
-      weekend_extra_bed_rate:  s.weekend_extra_bed_rate ?? null,
-      color:                   s.color ?? null,
-      is_active:               true,
-      sort_order:      i,
+      original_price: null,
+      extra_bed_rate: s.extra_bed_rate ?? null,
+      weekend_extra_bed_rate: s.weekend_extra_bed_rate ?? null,
+      color: s.color ?? null,
+      is_active: true,
+      sort_order: i,
       occupancy_prices: [],
     }));
   }
@@ -1159,17 +1161,17 @@ export function PricingTab({
       const seasons = buildSeasonsInput(form);
 
       const result = await createRoomPricingWithSeasons(hotel_id, {
-        room_id:           Number(form.room_id),
-        plan_name:         form.plan_name || null,
-        meal_type_id:      form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
-        diet_type_id:      form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
-        price_per_night:   Number(form.base_price_per_night) || null,
-        extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+        room_id: Number(form.room_id),
+        plan_name: form.plan_name || null,
+        meal_type_id: form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
+        diet_type_id: form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
+        price_per_night: Number(form.base_price_per_night) || null,
+        extra_bed_rate: form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
         weekend_price_per_night: form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null,
-        weekend_extra_bed_rate:  form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
+        weekend_extra_bed_rate: form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
         margin_percentage: Number(form.margin_percentage) || 10,
-        gst_percentage:    Number(form.gst_percentage) || 18,
-        is_active:         form.is_active,
+        gst_percentage: Number(form.gst_percentage) || 18,
+        is_active: form.is_active,
         seasons,
       });
 
@@ -1196,36 +1198,36 @@ export function PricingTab({
       toast.success(result.message);
       setAdding(false);
 
-      const roomId  = Number(form.room_id);
-      const mealId  = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
-      const dietId  = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
+      const roomId = Number(form.room_id);
+      const mealId = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
+      const dietId = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
       const now = Date.now();
 
       setPricing(prev => [
         ...prev,
         {
-          id:                planId,
+          id: planId,
           hotel_id,
-          room_id:           roomId,
-          plan_name:         form.plan_name || null,
-          meal_type_id:      mealId,
-          diet_type_id:      dietId,
-          price_per_night:   Number(form.base_price_per_night) || Number(seasons[0]?.price_per_night) || 0,
-          original_price:    null,
-          extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+          room_id: roomId,
+          plan_name: form.plan_name || null,
+          meal_type_id: mealId,
+          diet_type_id: dietId,
+          price_per_night: Number(form.base_price_per_night) || Number(seasons[0]?.price_per_night) || 0,
+          original_price: null,
+          extra_bed_rate: form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
           weekend_price_per_night: form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null,
-          weekend_extra_bed_rate:  form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
+          weekend_extra_bed_rate: form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
           margin_percentage: Number(form.margin_percentage),
-          gst_percentage:    Number(form.gst_percentage),
-          valid_from:        null,
-          valid_to:          null,
-          is_active:         form.is_active,
-          sort_order:        prev.length,
-          room:              rooms.find(r => r.id === roomId) ?? null,
-          meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
-          diet_type:         dietTypes.find(d => d.id === dietId) ?? null,
-          occupancy_prices:  savedPrices,
-          seasons:           buildOptimisticSeasons(seasons, planId, now),
+          gst_percentage: Number(form.gst_percentage),
+          valid_from: null,
+          valid_to: null,
+          is_active: form.is_active,
+          sort_order: prev.length,
+          room: rooms.find(r => r.id === roomId) ?? null,
+          meal_type: mealTypes.find(m => m.id === mealId) ?? null,
+          diet_type: dietTypes.find(d => d.id === dietId) ?? null,
+          occupancy_prices: savedPrices,
+          seasons: buildOptimisticSeasons(seasons, planId, now),
         },
       ]);
     });
@@ -1236,17 +1238,17 @@ export function PricingTab({
       const seasons = buildSeasonsInput(form);
 
       const result = await updateRoomPricingWithSeasons(id, hotel_id, {
-        room_id:           Number(form.room_id),
-        plan_name:         form.plan_name || null,
-        meal_type_id:      form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
-        diet_type_id:      form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
-        price_per_night:   Number(form.base_price_per_night) || null,
-        extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+        room_id: Number(form.room_id),
+        plan_name: form.plan_name || null,
+        meal_type_id: form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
+        diet_type_id: form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
+        price_per_night: Number(form.base_price_per_night) || null,
+        extra_bed_rate: form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
         weekend_price_per_night: form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null,
-        weekend_extra_bed_rate:  form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
+        weekend_extra_bed_rate: form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
         margin_percentage: Number(form.margin_percentage) || 10,
-        gst_percentage:    Number(form.gst_percentage) || 18,
-        is_active:         form.is_active,
+        gst_percentage: Number(form.gst_percentage) || 18,
+        is_active: form.is_active,
         seasons,
       });
 
@@ -1263,21 +1265,21 @@ export function PricingTab({
         prev.map(p =>
           p.id === id ? {
             ...p,
-            room_id:           roomId,
-            plan_name:         form.plan_name || null,
-            meal_type_id:      mealId,
-            diet_type_id:      dietId,
-            price_per_night:   Number(form.base_price_per_night) || Number(seasons[0]?.price_per_night) || p.price_per_night,
-            extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+            room_id: roomId,
+            plan_name: form.plan_name || null,
+            meal_type_id: mealId,
+            diet_type_id: dietId,
+            price_per_night: Number(form.base_price_per_night) || Number(seasons[0]?.price_per_night) || p.price_per_night,
+            extra_bed_rate: form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
             weekend_price_per_night: form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null,
-            weekend_extra_bed_rate:  form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
+            weekend_extra_bed_rate: form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
             margin_percentage: Number(form.margin_percentage),
-            gst_percentage:    Number(form.gst_percentage),
-            is_active:         form.is_active,
-            room:              rooms.find(r => r.id === roomId) ?? null,
-            meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
-            diet_type:         dietTypes.find(d => d.id === dietId) ?? null,
-            seasons:           buildOptimisticSeasons(seasons, id, now),
+            gst_percentage: Number(form.gst_percentage),
+            is_active: form.is_active,
+            room: rooms.find(r => r.id === roomId) ?? null,
+            meal_type: mealTypes.find(m => m.id === mealId) ?? null,
+            diet_type: dietTypes.find(d => d.id === dietId) ?? null,
+            seasons: buildOptimisticSeasons(seasons, id, now),
           } : p,
         ),
       );
