@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -84,14 +84,15 @@ function Stepper({
 // ── Step indicator + accordion shell ─────────────────────────────────────────
 
 function StepSection({
-  index, label, subtitle, isActive, isCompleted, canOpen, onOpen, children,
+  index, label, subtitle, isActive, isCompleted, canOpen, onOpen, children, containerRef,
 }: {
   index: number; label: string; subtitle: string;
   isActive: boolean; isCompleted: boolean; canOpen: boolean;
   onOpen: () => void; children: React.ReactNode;
+  containerRef?: (el: HTMLDivElement | null) => void;
 }) {
   return (
-    <div className="flex gap-3.5">
+    <div className="flex gap-3.5" ref={containerRef}>
       {/* Left track */}
       <div className="flex flex-col items-center shrink-0">
         <button
@@ -235,6 +236,17 @@ export default function BedroomEditTab({
     if (stepReached >= s - 1 || s === 1) setCurrentStep(s);
   }
 
+  // On a tall mobile viewport, the button that advances currentStep sits at
+  // the bottom of the previous step — without this, the page keeps its
+  // scroll position and the newly-opened step renders starting mid-screen
+  // instead of from its own header. Skips the initial mount.
+  const stepRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    stepRefs.current[currentStep]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [currentStep]);
+
   const STEPS = [
     { index: 1, label: "Access Info",           subtitle: "Add the room name and if the guests can access it" },
     { index: 2, label: "Sleeping Arrangement",   subtitle: "Add the type of beds available in the room and confirm guest occupancy" },
@@ -259,6 +271,7 @@ export default function BedroomEditTab({
           {...STEPS[0]}
           isActive={currentStep === 1} isCompleted={stepReached >= 1} canOpen={true}
           onOpen={() => openStep(1)}
+          containerRef={(el) => { stepRefs.current[1] = el; }}
         >
             <div>
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Room Name</label>
@@ -280,6 +293,7 @@ export default function BedroomEditTab({
           {...STEPS[1]}
           isActive={currentStep === 2} isCompleted={stepReached >= 2} canOpen={stepReached >= 1}
           onOpen={() => openStep(2)}
+          containerRef={(el) => { stepRefs.current[2] = el; }}
         >
             {/* Bed Options */}
             <div>
@@ -384,6 +398,7 @@ export default function BedroomEditTab({
           {...STEPS[2]}
           isActive={currentStep === 3} isCompleted={stepReached >= 3} canOpen={stepReached >= 2}
           onOpen={() => openStep(3)}
+          containerRef={(el) => { stepRefs.current[3] = el; }}
         >
             {/* Bathroom */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
@@ -481,6 +496,7 @@ export default function BedroomEditTab({
           {...STEPS[3]}
           isActive={currentStep === 4} isCompleted={stepReached >= 4} canOpen={stepReached >= 3}
           onOpen={() => openStep(4)}
+          containerRef={(el) => { stepRefs.current[4] = el; }}
         >
             {/* Description */}
             <div>

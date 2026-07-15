@@ -1397,6 +1397,19 @@ function RoomWizardForm({
     setOpenSection((cur) => (cur === id ? null : id));
   }
 
+  // On a tall mobile viewport, the "Next"/"Save" button that advances
+  // openSection sits at the bottom of the previous section — without this,
+  // the page keeps its scroll position and the newly-opened section renders
+  // starting mid-screen instead of from its own header. Skips the initial
+  // mount so opening the wizard doesn't itself trigger a scroll jump.
+  const sectionRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (openSection == null) return;
+    sectionRefs.current[openSection]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [openSection]);
+
   function advance() {
     if (!openSection) return;
     const sec = openSection;
@@ -1482,7 +1495,7 @@ function RoomWizardForm({
           const isLocked    = sec.id > unlockedThrough;
 
           return (
-            <div key={sec.id}>
+            <div key={sec.id} ref={(el) => { sectionRefs.current[sec.id] = el; }}>
               <button
                 type="button"
                 onClick={() => toggleSection(sec.id)}
