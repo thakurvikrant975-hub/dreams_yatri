@@ -105,7 +105,7 @@ function PlanRateCard({
         <p className="text-[11px] text-neutral-400">Loading current rates…</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <MoneyTile label="2 Adults (Base)" value={value.basePrice} onChange={(v) => onChange({ basePrice: v })} placeholder="Leave blank to skip" />
             {tiers.map((n) => (
               <MoneyTile
@@ -116,7 +116,7 @@ function PlanRateCard({
               />
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
             <MoneyTile label="Per Child (7-17y)" value={value.childRate} onChange={(v) => onChange({ childRate: v })} />
             <MoneyTile label="Extra Adult" value={value.extraAdultRate} onChange={(v) => onChange({ extraAdultRate: v })} />
           </div>
@@ -630,7 +630,7 @@ function EditPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <Label htmlFor="bulk-min-los" className="mb-1 text-[9px]">Minimum Length of Stay</Label>
           <Input id="bulk-min-los" type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" />
@@ -640,7 +640,7 @@ function EditPanel({
           <Input id="bulk-max-los" type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <Label htmlFor="bulk-cta" className="mb-1 text-[9px]">Closed to Arrival</Label>
           <SearchSelect
