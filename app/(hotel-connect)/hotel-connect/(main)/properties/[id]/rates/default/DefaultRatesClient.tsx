@@ -54,7 +54,7 @@ function PlanDefaultRatesForm({
 
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-1.5">Base Rates</p>
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
           <OccupancyField occupancy={2} value={basePrice} onChange={(v) => setBasePrice(v.trim() === "" ? null : Number(v))} />
           {tiers.map((n) => (
             <OccupancyField key={n} occupancy={n} value={occupancyPrices[n] ?? null} onChange={(v) => setOcc(n, v)} />
@@ -98,18 +98,18 @@ function DefaultInventoryField({ hotelId, room }: { hotelId: number; room: RoomD
 
   const inputId = `default-inventory-${room.id}`;
   return (
-    <div className="flex items-end gap-2">
-      <div>
+    <div className="flex flex-col sm:flex-row sm:items-end gap-2 w-full sm:w-auto">
+      <div className="w-full sm:w-auto">
         <Label htmlFor={inputId} className="mb-1">Default Inventory</Label>
         <Input
           id={inputId}
           type="number" min={1} step="1"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="w-28 h-9"
+          className="w-full sm:w-28 h-9"
         />
       </div>
-      <Button variant="outline" size="sm" onClick={handleSave} loading={saving}>
+      <Button variant="outline" size="sm" onClick={handleSave} loading={saving} className="w-full sm:w-auto justify-center">
         {saving ? "Saving…" : "Save"}
       </Button>
       {msg && <p className="text-xs text-neutral-500">{msg}</p>}

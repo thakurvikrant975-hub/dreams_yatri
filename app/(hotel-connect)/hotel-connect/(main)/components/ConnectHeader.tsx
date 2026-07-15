@@ -1,7 +1,8 @@
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
-import { Bell } from "@phosphor-icons/react/dist/ssr";
 import UserMenu from "./UserMenu";
 import MobileMenuButton from "./MobileMenuButton";
+import NotificationBell from "./NotificationBell";
+import { getUnreadNotificationCount } from "../notifications-actions";
 
 export default async function ConnectHeader({
   title,
@@ -13,6 +14,7 @@ export default async function ConnectHeader({
   const session = await hotelConnectAuth();
   const name = session?.user?.name ?? "Partner";
   const email = session?.user?.email ?? "";
+  const unreadCount = session ? await getUnreadNotificationCount() : 0;
 
   return (
     <header className="h-14 flex items-center justify-between px-6 border-b border-neutral-100 bg-white sticky top-0 z-20 shrink-0">
@@ -31,12 +33,7 @@ export default async function ConnectHeader({
 
       {/* Right: notifications + user */}
       <div className="flex items-center gap-1">
-        <button
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors"
-          aria-label="Notifications"
-        >
-          <Bell size={16} weight="regular" />
-        </button>
+        <NotificationBell initialUnreadCount={unreadCount} />
 
         <UserMenu name={name} email={email} />
       </div>

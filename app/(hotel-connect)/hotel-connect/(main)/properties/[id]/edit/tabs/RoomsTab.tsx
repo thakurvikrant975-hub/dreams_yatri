@@ -7,6 +7,7 @@ import {
   CaretDownIcon, CaretUpIcon, LockSimpleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
+import { convertAreaUnit } from "@/app/lib/units";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -134,6 +135,7 @@ function validateS2(d: RoomFormData): FieldErrors {
   const hasAnyBed = d.bedroom_beds.some((br) => br.beds.some((b) => b.type));
   if (!hasAnyBed) e.bedroom_beds = "Add at least one bed type";
   if (d.max_adults < 1) e.max_adults = "At least 1 adult";
+  if (d.extra_bed && d.extra_bed_capacity < 1) e.extra_bed_capacity = "Extra bed capacity must be at least 1";
   return e;
 }
 function validateS3(d: RoomFormData): FieldErrors {
@@ -186,7 +188,7 @@ function FieldRow({
       </label>
       {hint && <p className="text-xs text-neutral-500 -mt-0.5">{hint}</p>}
       {children}
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p data-field-error className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }
@@ -197,16 +199,16 @@ function FormRow({
   label: string; desc?: string; required?: boolean; error?: string; children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-6 px-5 py-4">
-      <div className="w-48 shrink-0 pt-0.5">
+    <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-6 px-5 py-4">
+      <div className="w-full sm:w-48 sm:shrink-0 sm:pt-0.5">
         <p className="text-[13px] font-semibold text-neutral-800 leading-snug">
           {label}
           {required && <span className="text-red-400 ml-0.5">*</span>}
         </p>
         {desc && <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{desc}</p>}
-        {error && <p className="text-xs text-red-500 mt-1 font-medium">{error}</p>}
+        {error && <p data-field-error className="text-xs text-red-500 mt-1 font-medium">{error}</p>}
       </div>
-      <div className="flex-1 min-w-0">{children}</div>
+      <div className="flex-1 min-w-0 w-full">{children}</div>
     </div>
   );
 }
@@ -317,7 +319,12 @@ function Section1({ data, onChange, errors, roomTypes }: {
           />
           <div className="flex rounded-lg border border-neutral-300 overflow-hidden shrink-0 h-10 bg-white">
             {(["sqft", "sqm"] as const).map((u) => (
-              <button key={u} type="button" onClick={() => setField("area_unit", u)}
+              <button key={u} type="button" onClick={() => {
+                if (u === data.area_unit) return;
+                const n = parseFloat(data.area);
+                const nextArea = Number.isFinite(n) ? String(convertAreaUnit(n, data.area_unit, u)) : data.area;
+                onChange({ ...data, area: nextArea, area_unit: u });
+              }}
                 className={cn(
                   "px-3 text-sm font-medium transition-colors",
                   data.area_unit === u ? "bg-primary-500 text-white" : "text-neutral-600 hover:bg-neutral-50",
@@ -463,7 +470,7 @@ function BedroomCard({
         Add Another Bed Type
       </button>
 
-      {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+      {error && <p data-field-error className="text-xs text-red-500 mt-2">{error}</p>}
     </div>
   );
 }
@@ -575,7 +582,7 @@ function Section2({ data, onChange, errors }: {
       ))}
 
       {/* Extra bed — radio */}
-      <FormRow label="Can this room/unit accommodate extra bed(s)?">
+      <FormRow label="Can this room/unit accommodate extra bed(s)?" error={errors.extra_bed_capacity}>
         <div className="flex items-center gap-6">
           {[{ v: false, label: "No" }, { v: true, label: "Yes" }].map(({ v, label }) => (
             <label key={String(v)} className="flex items-center gap-2 cursor-pointer select-none">
@@ -583,7 +590,11 @@ function Section2({ data, onChange, errors }: {
                 type="radio"
                 name="extra_bed"
                 checked={data.extra_bed === v}
-                onChange={() => onChange({ ...data, extra_bed: v })}
+                onChange={() => onChange({
+                  ...data,
+                  extra_bed: v,
+                  extra_bed_capacity: v && data.extra_bed_capacity < 1 ? 1 : data.extra_bed_capacity,
+                })}
                 className="h-4 w-4 accent-primary-500 cursor-pointer"
               />
               <span className="text-sm text-neutral-700">{label}</span>
@@ -596,7 +607,7 @@ function Section2({ data, onChange, errors }: {
             <NumberStepper
               value={data.extra_bed_capacity}
               onChange={(v) => onChange({ ...data, extra_bed_capacity: v })}
-              min={0} max={5}
+              min={1} max={5}
             />
           </div>
         )}
@@ -634,8 +645,8 @@ function Section2({ data, onChange, errors }: {
             { key: "max_children"  as const, label: "Maximum children",   desc: "Maximum number of children that can be accommodated in this room",           highlight: false },
             { key: "max_occupancy" as const, label: "Maximum occupancy",  desc: "Maximum number of guests that can be accommodated in this room",             highlight: false },
           ]).map(({ key, label, desc, highlight }) => (
-            <div key={key} className={cn("flex items-start justify-between px-4 py-3.5", highlight && "bg-neutral-50/60")}>
-              <div className="flex-1 mr-6 min-w-0">
+            <div key={key} className={cn("flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-0 px-4 py-3.5", highlight && "bg-neutral-50/60")}>
+              <div className="flex-1 sm:mr-6 min-w-0">
                 <p className="text-sm font-medium text-neutral-800">{label}</p>
                 <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">{desc}</p>
               </div>
@@ -648,7 +659,7 @@ function Section2({ data, onChange, errors }: {
           ))}
         </Card>
         {errors.max_adults && (
-          <p className="text-xs text-red-500 mt-2">{errors.max_adults}</p>
+          <p data-field-error className="text-xs text-red-500 mt-2">{errors.max_adults}</p>
         )}
       </div>
 
@@ -776,7 +787,7 @@ function Section3({ data, onChange, errors }: {
             )}
           </div>
 
-          <div className="p-4 grid grid-cols-2 gap-3">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-neutral-600">
                 Bathroom Type <span className="text-red-400">*</span>
@@ -799,7 +810,7 @@ function Section3({ data, onChange, errors }: {
                 showSearch={false}
               />
               {errors[`bathroom_attached_to_${i}`] && (
-                <p className="text-xs text-red-500">{errors[`bathroom_attached_to_${i}`]}</p>
+                <p data-field-error className="text-xs text-red-500">{errors[`bathroom_attached_to_${i}`]}</p>
               )}
             </div>
           </div>
@@ -807,7 +818,7 @@ function Section3({ data, onChange, errors }: {
       ))}
 
       {errors.bathrooms && (
-        <p className="text-xs text-red-500">{errors.bathrooms}</p>
+        <p data-field-error className="text-xs text-red-500">{errors.bathrooms}</p>
       )}
 
       <button
@@ -892,7 +903,7 @@ function Section4({ data, onChange, errors }: {
           </div>
         </FieldRow>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FieldRow label="Extra Adult Charge" hint="Per adult beyond base" error={errors.extra_adult_charge}>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-neutral-500 pointer-events-none">₹</span>
@@ -1105,7 +1116,7 @@ function Section5({ data, onChange, mandatoryError }: {
   return (
     <div>
       {mandatoryError && (
-        <div className="mx-4 mt-3 rounded-lg px-3 py-2.5 text-sm text-red-700 bg-red-50 border border-red-200">
+        <div data-field-error className="mx-4 mt-3 rounded-lg px-3 py-2.5 text-sm text-red-700 bg-red-50 border border-red-200">
           <p>{mandatoryError}</p>
           {activeCategory !== "Mandatory" && (
             <button
@@ -1178,45 +1189,50 @@ function Section5({ data, onChange, mandatoryError }: {
         </div>
       ) : (
         /* ── Normal sidebar + panel ──
-           Fixed height so the sidebar's category list and the content panel
-           always share one scroll viewport — otherwise whichever pane is
-           naturally taller dictates the row's height and the shorter pane's
-           own scroll never engages, silently clipping rows outside it. */
-        <div className="flex h-105 divide-x divide-neutral-100">
+           Fixed height (desktop) so the sidebar's category list and the
+           content panel always share one scroll viewport — otherwise
+           whichever pane is naturally taller dictates the row's height and
+           the shorter pane's own scroll never engages, silently clipping
+           rows outside it. On small screens this stacks instead: a
+           horizontal scrollable category row on top, amenities below. */
+        <div className="flex flex-col sm:flex-row sm:h-105 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100">
 
           {/* Sidebar */}
-          <div className="w-44 shrink-0 h-full overflow-y-auto scrollbar-slim border-r border-neutral-100">
-            {ROOM_AMENITY_GROUPS.map((group) => {
-              const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
-              const isActive = activeCategory === group.label;
-              return (
-                <button
-                  key={group.label}
-                  type="button"
-                  onClick={() => selectAmenityCategory(group.label)}
-                  className={cn(
-                    "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
-                    isActive
-                      ? "bg-primary-50 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-primary-500"
-                      : "hover:bg-neutral-50",
-                  )}
-                >
-                  <p className={cn("text-[13px] font-medium leading-snug", isActive ? "text-primary-600" : "text-neutral-700")}>
-                    {group.label}
-                  </p>
-                  <p className={cn(
-                    "text-[11px] mt-0.5 font-medium",
-                    selected === group.items.length ? "text-emerald-600" : selected > 0 ? "text-amber-500" : "text-neutral-400",
-                  )}>
-                    {selected} of {group.items.length}
-                  </p>
-                </button>
-              );
-            })}
+          <div className="w-full sm:w-44 shrink-0 sm:h-full overflow-hidden sm:overflow-y-auto scrollbar-slim border-b sm:border-b-0 sm:border-r border-neutral-100">
+            <div className="flex sm:block overflow-x-auto sm:overflow-x-visible scrollbar-slim">
+              {ROOM_AMENITY_GROUPS.map((group) => {
+                const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
+                const isActive = activeCategory === group.label;
+                return (
+                  <button
+                    key={group.label}
+                    type="button"
+                    onClick={() => selectAmenityCategory(group.label)}
+                    className={cn(
+                      "shrink-0 sm:w-full text-left px-3.5 py-2.5 sm:px-4 sm:py-3 whitespace-nowrap sm:whitespace-normal transition-colors relative",
+                      "border-b-2 sm:border-b sm:border-b-neutral-100",
+                      isActive
+                        ? "bg-primary-50 border-primary-500 sm:before:absolute sm:before:left-0 sm:before:top-0 sm:before:bottom-0 sm:before:w-0.5 sm:before:bg-primary-500"
+                        : "border-transparent hover:bg-neutral-50",
+                    )}
+                  >
+                    <p className={cn("text-[12px] sm:text-[13px] font-medium leading-snug", isActive ? "text-primary-600" : "text-neutral-700")}>
+                      {group.label}
+                    </p>
+                    <p className={cn(
+                      "text-[10px] sm:text-[11px] mt-0.5 font-medium",
+                      selected === group.items.length ? "text-emerald-600" : selected > 0 ? "text-amber-500" : "text-neutral-400",
+                    )}>
+                      {selected} of {group.items.length}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Content panel */}
-          <div className="flex-1 h-full flex flex-col overflow-hidden">
+          <div className="flex-1 sm:h-full flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-5 py-2.5 border-b border-neutral-100 bg-neutral-50/60 shrink-0">
               <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
                 {activeCategory}
@@ -1230,7 +1246,7 @@ function Section5({ data, onChange, mandatoryError }: {
               </button>
             </div>
 
-            <div ref={amenityListRef} className="overflow-y-auto scrollbar-slim flex-1">
+            <div ref={amenityListRef} className="overflow-y-auto scrollbar-slim flex-1 max-h-80 sm:max-h-none">
               {activeConfig
                 ? activeConfig.map((config) => renderRow(config, config.name, activeCategory === "Mandatory"))
                 : activeGroup.items.map((item) => {
@@ -1381,6 +1397,34 @@ function RoomWizardForm({
     setOpenSection((cur) => (cur === id ? null : id));
   }
 
+  // On a tall mobile viewport, the "Next"/"Save" button that advances
+  // openSection sits at the bottom of the previous section — without this,
+  // the page keeps its scroll position and the newly-opened section renders
+  // starting mid-screen instead of from its own header. Skips the initial
+  // mount so opening the wizard doesn't itself trigger a scroll jump.
+  const sectionRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (openSection == null) return;
+    sectionRefs.current[openSection]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [openSection]);
+
+  // A failed validation keeps the section open (doesn't trigger the effect
+  // above) but doesn't move the scroll position either — on a tall section
+  // the actual invalid field can be off-screen, above or below wherever the
+  // user was when they tapped Next. Scroll to it and focus it directly, so
+  // a real input/button doesn't just show an error the user has to hunt for.
+  useEffect(() => {
+    if (Object.keys(errors).length === 0 || openSection == null) return;
+    const container = sectionRefs.current[openSection];
+    if (!container) return;
+    const invalidField = container.querySelector<HTMLElement>('[aria-invalid="true"]');
+    const errorMsg = container.querySelector<HTMLElement>('[data-field-error]');
+    (invalidField ?? errorMsg)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    invalidField?.focus({ preventScroll: true });
+  }, [errors, openSection]);
+
   function advance() {
     if (!openSection) return;
     const sec = openSection;
@@ -1466,7 +1510,7 @@ function RoomWizardForm({
           const isLocked    = sec.id > unlockedThrough;
 
           return (
-            <div key={sec.id}>
+            <div key={sec.id} ref={(el) => { sectionRefs.current[sec.id] = el; }}>
               <button
                 type="button"
                 onClick={() => toggleSection(sec.id)}

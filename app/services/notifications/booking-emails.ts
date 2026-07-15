@@ -154,3 +154,28 @@ export function opsNewBookingEmail(d: {
       <p style="color:#6b7280;font-size:13px">Please action this booking in the ops queue.</p>`),
     };
 }
+
+// ── Hotel owner notification (hotel-connect) ──────────────────────────────────
+export function ownerBookingConfirmedEmail(d: {
+    hotelName: string;
+    bookingNumber: string;
+    checkInDate: string;
+    checkOutDate: string;
+    roomType: string;
+    roomsCount: number;
+    bookingsUrl: string;
+}): EmailContent {
+    return {
+        subject: `New confirmed booking — ${d.hotelName}`,
+        html: layout("You have a confirmed booking", `
+      <p style="margin:0 0 12px">A stay at <strong>${d.hotelName}</strong> has just been confirmed.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin:8px 0">
+        ${row("Booking", d.bookingNumber)}
+        ${row("Check-in", fmtDate(d.checkInDate))}
+        ${row("Check-out", fmtDate(d.checkOutDate))}
+        ${row("Room", d.roomType)}
+        ${row("Rooms", String(d.roomsCount))}
+      </table>
+      ${cta(d.bookingsUrl, "View in Bookings")}`),
+    };
+}

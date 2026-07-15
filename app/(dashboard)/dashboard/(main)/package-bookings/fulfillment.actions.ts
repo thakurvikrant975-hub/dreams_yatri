@@ -6,6 +6,7 @@ import type { Prisma } from "@/app/generated/prisma";
 import { getCurrentMember } from "../lib/get-current-member";
 import { getBookingFulfillment } from "@/app/services/fulfillment/status.service";
 import { notifyFulfillmentChange } from "@/app/services/notifications/booking-notify";
+import { notifyOwnerBookingConfirmed } from "@/app/services/notifications/owner-notify";
 
 export type ReplacementCandidate = { id: string; label: string; sublabel: string | null; hotelId?: number; activityId?: number; vehicleId?: number };
 
@@ -57,7 +58,7 @@ export async function setItemFulfillment(params: {
 
     const booking = await db.booking.findUnique({
         where: { id: bookingId },
-        select: { id: true, startDate: true, cabType: true, priceSnapshot: true },
+        select: { id: true, bookingNumber: true, startDate: true, cabType: true, priceSnapshot: true },
     });
     if (!booking) return { success: false, error: "Booking not found." };
 
@@ -66,18 +67,28 @@ export async function setItemFulfillment(params: {
     if (!sday) return { success: false, error: "Day not found in this booking." };
 
     let label = "";
+    let confirmedHotel: { hotelId: number; checkIn: Date; checkOut: Date; roomType: string; roomsCount: number } | null = null;
     try {
         if (kind === "HOTEL") {
             const h = sday.hotel;
             if (!h?.hotel_id) return { success: false, error: "No hotel on this day." };
             const nights = h.num_nights ?? 1;
+            const checkInDate = isoOfDay(booking.startDate, day);
+            const checkOutDate = isoOfDay(booking.startDate, day + nights);
+            // Only notify the owner on the actual not-confirmed -> confirmed
+            // transition, not on every subsequent re-save (e.g. attaching a
+            // voucher later) while it's already confirmed.
+            const wasConfirmed = (await db.bookingHotel.findUnique({
+                where: { bookingId_dayNumber: { bookingId, dayNumber: day } },
+                select: { isConfirmed: true },
+            }))?.isConfirmed ?? false;
             await db.bookingHotel.upsert({
                 where: { bookingId_dayNumber: { bookingId, dayNumber: day } },
                 create: {
                     bookingId, dayNumber: day,
                     cityName: h.hotel_city ?? "",
-                    checkInDate: isoOfDay(booking.startDate, day),
-                    checkOutDate: isoOfDay(booking.startDate, day + nights),
+                    checkInDate,
+                    checkOutDate,
                     hotelId: h.hotel_id,
                     roomType: h.room_name ?? "",
                     roomsCount: h.rooms_count ?? 1,
@@ -88,6 +99,9 @@ export async function setItemFulfillment(params: {
                 update: { status, isConfirmed: confirmed, voucherUrl, ...stamp },
             });
             label = h.hotel_name ?? "Hotel";
+            if (confirmed && !wasConfirmed) {
+                confirmedHotel = { hotelId: h.hotel_id, checkIn: checkInDate, checkOut: checkOutDate, roomType: h.room_name ?? "", roomsCount: h.rooms_count ?? 1 };
+            }
         } else if (kind === "ACTIVITY") {
             const aid = params.activityId;
             const a = (sday.activities ?? []).find((x) => x.id === aid);
@@ -156,6 +170,23 @@ export async function setItemFulfillment(params: {
         }
     } catch (e) {
         console.error("[setItemFulfillment] notify", e);
+    }
+
+    // Hotel-owner notification (best-effort) — fires once this specific day's
+    // hotel is confirmed, independent of whether the whole trip is READY yet.
+    if (confirmedHotel) {
+        try {
+            await notifyOwnerBookingConfirmed({
+                hotelId: confirmedHotel.hotelId,
+                bookingNumber: booking.bookingNumber,
+                checkInDate: confirmedHotel.checkIn,
+                checkOutDate: confirmedHotel.checkOut,
+                roomType: confirmedHotel.roomType,
+                roomsCount: confirmedHotel.roomsCount,
+            });
+        } catch (e) {
+            console.error("[setItemFulfillment] owner notify", e);
+        }
     }
 
     revalidatePath(`/dashboard/package-bookings/${bookingId}`);

@@ -18,6 +18,20 @@ import { CaretDown, MagnifyingGlass } from "@phosphor-icons/react/dist/ssr";
 
 import { Check } from "@phosphor-icons/react/dist/ssr";
 
+// Below this many options, scanning the list is faster than typing to filter
+// — skip the search bar entirely rather than trust every call site to pass
+// showSearch={false} for its own short lists.
+const MIN_OPTIONS_FOR_SEARCH = 8;
+
+// Auto-focusing the search input opens the on-screen keyboard, which on a
+// phone covers half the viewport and hides the very options list the user
+// opened the dropdown to see. Only auto-focus on a fine pointer (mouse/
+// trackpad), where there's no virtual keyboard to worry about and keyboard-
+// only users still get arrow-key navigation for free.
+function hasCoarsePointer(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+}
+
 // ── Option type ───────────────────────────────────────────────────────────────
 // Accepts plain strings (value === label) or explicit { value, label } objects.
 
@@ -81,6 +95,7 @@ export function SearchSelect({
   const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const normalized = options.map(normalize);
+  const shouldShowSearch = showSearch && normalized.length > MIN_OPTIONS_FOR_SEARCH;
 
   const { refs, floatingStyles, context } = useFloating({
     open,
@@ -111,17 +126,18 @@ export function SearchSelect({
 
   const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss]);
 
-  // Reset search + focus input whenever dropdown opens
+  // Reset search + focus input whenever dropdown opens — but skip the
+  // auto-focus on touch devices (see hasCoarsePointer above).
   useEffect(() => {
     if (open) {
       setQuery("");
       setActiveIndex(-1);
-      if (showSearch) {
+      if (shouldShowSearch && !hasCoarsePointer()) {
         const id = setTimeout(() => searchRef.current?.focus(), 10);
         return () => clearTimeout(id);
       }
     }
-  }, [open, showSearch]);
+  }, [open, shouldShowSearch]);
 
   const filtered = query.trim()
     ? normalized.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
@@ -183,7 +199,7 @@ export function SearchSelect({
       className="z-9999 rounded-xl bg-white shadow-xl ring-1 ring-neutral-200 overflow-hidden"
     >
       {/* Search bar */}
-      {showSearch && (
+      {shouldShowSearch && (
         <div className="p-2 border-b border-neutral-100">
           <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-neutral-50 border border-neutral-200">
             <MagnifyingGlass size={13} className="text-neutral-400 shrink-0" />
@@ -312,6 +328,7 @@ export function MultiSearchSelect({
 
   const searchRef  = useRef<HTMLInputElement>(null);
   const normalized = options.map(normalize);
+  const shouldShowSearch = showSearch && normalized.length > MIN_OPTIONS_FOR_SEARCH;
 
   const { refs, floatingStyles, context } = useFloating({
     open,
@@ -339,12 +356,12 @@ export function MultiSearchSelect({
   useEffect(() => {
     if (open) {
       setQuery("");
-      if (showSearch) {
+      if (shouldShowSearch && !hasCoarsePointer()) {
         const id = setTimeout(() => searchRef.current?.focus(), 10);
         return () => clearTimeout(id);
       }
     }
-  }, [open, showSearch]);
+  }, [open, shouldShowSearch]);
 
   const filtered = query.trim()
     ? normalized.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
@@ -369,7 +386,7 @@ export function MultiSearchSelect({
       {...getFloatingProps()}
       className="z-9999 rounded-xl bg-white shadow-xl ring-1 ring-neutral-200 overflow-hidden"
     >
-      {showSearch && (
+      {shouldShowSearch && (
         <div className="p-2 border-b border-neutral-100">
           <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-neutral-50 border border-neutral-200">
             <MagnifyingGlass size={13} className="text-neutral-400 shrink-0" />

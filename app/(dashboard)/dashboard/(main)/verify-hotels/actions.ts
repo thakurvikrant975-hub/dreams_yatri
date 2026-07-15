@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { getCurrentMember } from "../lib/get-current-member";
 import { getThumbnailImage } from "@/app/lib/imageUrl";
+import { notifyOwnerBookingConfirmed } from "@/app/services/notifications/owner-notify";
 
 export type MealOption = { meal_type: string; label: string; price_per_person: number };
 
@@ -241,14 +242,14 @@ export async function confirmHotelStay(
 
     const booking = await db.booking.findUnique({
         where: { id: bookingId },
-        select: { status: true, priceSnapshot: true, totalAmount_paise: true, balanceAmount_paise: true },
+        select: { bookingNumber: true, status: true, priceSnapshot: true, totalAmount_paise: true, balanceAmount_paise: true },
     });
     if (!booking) return { success: false, error: "Booking not found." };
 
     // Read existing BookingHotel row (before upsert) to compute price delta
     const existingRow = await db.bookingHotel.findUnique({
         where: { bookingId_dayNumber: { bookingId, dayNumber } },
-        select: { totalCost: true, hotelId: true },
+        select: { totalCost: true, hotelId: true, isConfirmed: true },
     });
 
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
@@ -297,6 +298,24 @@ export async function confirmHotelStay(
             notes: notes?.trim() || null,
         },
     });
+
+    // Owner notification (best-effort) — only on a genuinely new confirmation
+    // or when the confirmed hotel actually changed, not on every edit to an
+    // already-confirmed row (price tweak, notes, etc.).
+    if (!existingRow?.isConfirmed || hotelActuallyChanged) {
+        try {
+            await notifyOwnerBookingConfirmed({
+                hotelId,
+                bookingNumber: booking.bookingNumber,
+                checkInDate: new Date(checkInDate),
+                checkOutDate: new Date(checkOutDate),
+                roomType,
+                roomsCount,
+            });
+        } catch (e) {
+            console.error("[confirmHotelStay] owner notify", e);
+        }
+    }
 
     // Update booking totals when room cost changed
     if (Math.abs(deltaPaise) >= 1) {

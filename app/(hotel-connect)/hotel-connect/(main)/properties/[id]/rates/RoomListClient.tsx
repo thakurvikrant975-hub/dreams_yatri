@@ -194,22 +194,22 @@ export default function RoomListClient({
 }) {
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-sm text-neutral-500">{hotelName}</p>
           <h1 className="text-lg font-bold text-neutral-800">Rates & Inventory</h1>
         </div>
         {rooms.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <Link
               href={`/hotel-connect/properties/${hotelId}/rates/default`}
-              className={buttonVariants({ variant: "outline", size: "md" })}
+              className={buttonVariants({ variant: "outline", size: "md", className: "justify-center" })}
             >
               Default Rates & Inventory
             </Link>
             <Link
               href={`/hotel-connect/properties/${hotelId}/calendar?room=${rooms[0].id}`}
-              className={buttonVariants({ variant: "outline", size: "md", className: "gap-1.5" })}
+              className={buttonVariants({ variant: "outline", size: "md", className: "gap-1.5 justify-center" })}
             >
               <CalendarBlankIcon size={16} />
               Calendar View

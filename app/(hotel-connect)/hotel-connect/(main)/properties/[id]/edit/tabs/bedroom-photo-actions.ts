@@ -5,6 +5,7 @@ import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { uploadToR2 } from "@/app/lib/r2/r2upload";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
+import { describeSizeRejection, describeTypeRejection, describeUploadFailure } from "@/app/lib/upload-errors";
 import { defaultBedroom, type BedroomDetail } from "../bedroom/[n]/bedroom-types";
 
 // Homestay bedrooms have no dedicated DB row/table (they're a JSON array on
@@ -65,8 +66,8 @@ export async function uploadBedroomPhotos(
     f.size > 0 && f.size <= MAX_FILE_BYTES && ALLOWED_TYPE_PREFIXES.some((p) => f.type.startsWith(p))
   );
   if (!valid.length) {
-    if (sizeRejected.length) return { error: `File too large (max ${MAX_FILE_BYTES / (1024 * 1024)}MB per file).` };
-    if (typeRejected.length) return { error: "Only image files are allowed." };
+    if (sizeRejected.length) return { error: `Can't upload ${describeSizeRejection(sizeRejected[0], MAX_FILE_BYTES)}.` };
+    if (typeRejected.length) return { error: `Can't upload ${describeTypeRejection(typeRejected[0])} — only images are allowed.` };
     return { error: "No files selected." };
   }
 
@@ -76,7 +77,10 @@ export async function uploadBedroomPhotos(
   const toUpload = valid.slice(0, room);
 
   const uploaded: string[] = [];
-  const failed: string[] = [...sizeRejected.map((f) => f.name), ...typeRejected.map((f) => f.name)];
+  const failed: string[] = [
+    ...sizeRejected.map((f) => describeSizeRejection(f, MAX_FILE_BYTES)),
+    ...typeRejected.map((f) => describeTypeRejection(f)),
+  ];
 
   for (const file of toUpload) {
     try {
@@ -90,7 +94,7 @@ export async function uploadBedroomPhotos(
       uploaded.push(url);
     } catch (err) {
       console.error("[uploadBedroomPhotos] file error:", file.name, err);
-      failed.push(file.name);
+      failed.push(describeUploadFailure(file, err));
     }
   }
 

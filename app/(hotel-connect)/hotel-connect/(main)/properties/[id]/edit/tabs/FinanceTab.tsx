@@ -120,6 +120,9 @@ const OWNERSHIP_DOC_TYPES: Record<string, { value: string; label: string }[]> = 
   ],
 };
 
+const ACCOUNT_NUMBER_RE = /^\d{6,20}$/;
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type FinanceHotelData = {
@@ -326,6 +329,20 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
     });
   }
 
+  // ── Documents (shared by Section 1's bank proof + Section 3) ─────────────
+  const [docs, setDocs] = useState<Record<string, string>>(
+    (hotel.property_documents as Record<string, string> | null) ?? {}
+  );
+
+  function handleDocUpdate(docKey: string, url: string | null) {
+    setDocs((prev) => {
+      const next = { ...prev };
+      if (url) next[docKey] = url; else delete next[docKey];
+      return next;
+    });
+    router.refresh();
+  }
+
   // ── Section 1: Bank ──────────────────────────────────────────────────────
   const [accountNumber,        setAccountNumber]        = useState(hotel.bank_account_number ?? "");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
@@ -344,7 +361,19 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
   const accountMismatch =
     confirmAccountNumber.length > 0 && confirmAccountNumber !== accountNumber;
 
-  const bankSectionComplete = !!accountNumber && !!ifscCode && !!bankName && consentGiven;
+  const accountNumberError =
+    accountNumber.length > 0 && !ACCOUNT_NUMBER_RE.test(accountNumber)
+      ? "Account number must be 6-20 digits, numbers only."
+      : null;
+  const ifscError =
+    ifscCode.length > 0 && !IFSC_RE.test(ifscCode)
+      ? "Invalid IFSC code format. Example: SBIN0001234"
+      : null;
+
+  const bankSectionComplete =
+    !!accountNumber && !accountNumberError &&
+    !!ifscCode && !ifscError &&
+    !!bankName && consentGiven && !!docs.bank_proof;
 
   // ── Section 2: Tax / MSME ────────────────────────────────────────────────
   const [gstRegistered,  setGstRegistered]  = useState<boolean | null>(hotel.gstin_number ? true : null);
@@ -357,19 +386,6 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
   const taxSectionComplete = !!panNumber && !!businessType;
 
   // ── Section 3: Documents ─────────────────────────────────────────────────
-  const [docs, setDocs] = useState<Record<string, string>>(
-    (hotel.property_documents as Record<string, string> | null) ?? {}
-  );
-
-  function handleDocUpdate(docKey: string, url: string | null) {
-    setDocs((prev) => {
-      const next = { ...prev };
-      if (url) next[docKey] = url; else delete next[docKey];
-      return next;
-    });
-    router.refresh();
-  }
-
   const [relDocType, setRelDocType] = useState(hotel.relationship_doc_type ?? "");
   const [ownershipType, setOwnershipType] = useState(hotel.ownership_type ?? "");
   const [ownershipDocType, setOwnershipDocType] = useState(hotel.id_proof_type ?? "");
@@ -381,10 +397,34 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
 
   const docsSectionComplete = !!docs.address_proof && !!docs.ownership_proof;
 
+  function focusField(id: string) {
+    // Section 1 may have been collapsed — give it a beat to re-render and
+    // mount the field before trying to scroll to / focus it.
+    setTimeout(() => {
+      const el = document.getElementById(id) as HTMLInputElement | null;
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.focus({ preventScroll: true });
+    }, 50);
+  }
+
   function handleSubmit(e: React.FormEvent) {
+    if (accountNumberError) {
+      e.preventDefault();
+      setExpanded((prev) => new Set([...prev, 1]));
+      focusField("fin-account-number");
+      return;
+    }
     if (accountMismatch) {
       e.preventDefault();
       setExpanded((prev) => new Set([...prev, 1]));
+      focusField("fin-confirm-account-number");
+      return;
+    }
+    if (ifscError) {
+      e.preventDefault();
+      setExpanded((prev) => new Set([...prev, 1]));
+      focusField("fin-ifsc");
+      return;
     }
   }
 
@@ -421,7 +461,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
       >
         <div className="px-5 py-5 space-y-4">
           {/* Account number */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required htmlFor="fin-account-number">Bank Account Number</FieldLabel>
               <Input
@@ -430,7 +470,12 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
                 onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="1234567890123456"
                 type="password"
+                aria-invalid={!!accountNumberError}
+                className={accountNumberError ? "border-red-300 focus:ring-red-200 focus:border-red-300" : ""}
               />
+              {accountNumberError && (
+                <p className="text-[10px] text-red-500 mt-1">{accountNumberError}</p>
+              )}
             </div>
             <div>
               <FieldLabel required htmlFor="fin-confirm-account-number">Re-Enter Bank Account Number</FieldLabel>
@@ -448,7 +493,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           </div>
 
           {/* IFSC + Bank name */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required htmlFor="fin-ifsc">Bank IFSC Code</FieldLabel>
               <p className="text-[10px] text-neutral-400 mb-1.5 leading-snug">
@@ -459,7 +504,12 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
                 value={ifscCode}
                 onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
                 placeholder="HDFC0001234"
+                aria-invalid={!!ifscError}
+                className={ifscError ? "border-red-300 focus:ring-red-200 focus:border-red-300" : ""}
               />
+              {ifscError && (
+                <p className="text-[10px] text-red-500 mt-1">{ifscError}</p>
+              )}
             </div>
             <div>
               <FieldLabel required htmlFor="fin-bank-name">Bank Name</FieldLabel>
@@ -473,6 +523,17 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
               />
             </div>
           </div>
+
+          {/* Passbook / cancelled cheque — proof of account ownership */}
+          <DocumentCard
+            hotelId={hotel.id}
+            docKey="bank_proof"
+            label="Passbook / Cancelled Cheque"
+            description="Upload a photo of your bank passbook's first page or a cancelled cheque, showing your name and account number"
+            required
+            url={docs.bank_proof}
+            onUpdate={handleDocUpdate}
+          />
 
           {/* Consent declaration */}
           <div
@@ -513,7 +574,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
       >
         <div className="px-5 py-5 space-y-4">
           {/* PAN + Business type */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required htmlFor="fin-pan">PAN Number</FieldLabel>
               <Input
@@ -538,12 +599,12 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
 
           {/* GST */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between mb-3">
               <div>
                 <Label id="fin-gst-registered-label">GST Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Required if your annual turnover exceeds ₹20 lakhs</p>
               </div>
-              <div role="group" aria-labelledby="fin-gst-registered-label" className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
+              <div role="group" aria-labelledby="fin-gst-registered-label" className="flex self-start sm:self-auto shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
                 <button
                   type="button"
                   aria-pressed={gstRegistered === false}
@@ -578,12 +639,12 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
 
           {/* MSME */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between mb-3">
               <div>
                 <Label id="fin-msme-registered-label">MSME / Udyam Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Optional — helps unlock government scheme benefits</p>
               </div>
-              <div role="group" aria-labelledby="fin-msme-registered-label" className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
+              <div role="group" aria-labelledby="fin-msme-registered-label" className="flex self-start sm:self-auto shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
                 <button
                   type="button"
                   aria-pressed={msmeRegistered === false}

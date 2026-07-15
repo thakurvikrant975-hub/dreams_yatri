@@ -79,7 +79,7 @@ function TabItem({
   const isLocked    = tab.index > effectiveWizardStep + 1 && !isCurrent;
 
   const baseClass = cn(
-    "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
+    "relative grow shrink-0 basis-auto flex flex-col items-center gap-1.5 sm:gap-3 px-3 py-2 sm:px-5 sm:py-3.5 whitespace-nowrap transition-colors select-none",
     "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
     isFirst ? "rounded-tl-xl" : "",
     isLast  ? "rounded-tr-xl" : "",
@@ -95,7 +95,7 @@ function TabItem({
   const indicator = (
     <div
       className={cn(
-        "size-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
+        "size-5 sm:size-6 rounded-full text-[10px] sm:text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
         isCurrent
           ? "bg-primary-500 text-white"
           : isCompleted
@@ -322,12 +322,9 @@ export default function WizardShell({
       </header>
 
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
-      <div className="shrink-0 bg-white overflow-x-auto scrollbar-none py-5">
+      <div className="shrink-0 bg-white overflow-x-auto scrollbar-none px-2  py-5">
         <div className="border-b border-neutral-200">
-          <div
-            className="max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px"
-            style={{ display: "grid", gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
-          >
+          <div className="md:max-w-4xl w-max md:w-auto min-w-full md:min-w-auto m-auto flex divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
             {tabs.map((tab, i) => (
               <TabItem
                 key={tab.index}
@@ -344,8 +341,8 @@ export default function WizardShell({
       </div>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
-      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate">
-        <div className="max-w-4xl mx-auto w-full ">
+      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 px-2 isolate">
+        <div className="max-w-4xl mx-auto w-full">
           <ReviewBanner listing_status={hotel.listing_status} slug={hotel.slug} rejection_reason={hotel.rejection_reason} />
           {children}
         </div>
@@ -358,13 +355,13 @@ export default function WizardShell({
 
       {/* ── Bottom navigation ─────────────────────────────────────────── */}
       <footer className="shrink-0 bg-white border-t border-neutral-200 py-3.5">
-        <div className="flex items-center justify-between gap-4 max-w-4xl mx-auto px-6">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 max-w-4xl mx-auto px-3 sm:px-6">
           <button
             type="button"
             onClick={() => goTo(currentTab - 1)}
             disabled={isFirstTab}
             className={cn(
-              "flex items-center gap-2 text-sm font-medium transition-colors",
+              "flex items-center gap-1.5 sm:gap-2 shrink-0 whitespace-nowrap text-sm font-medium transition-colors",
               isFirstTab
                 ? "text-neutral-300 cursor-not-allowed"
                 : "text-neutral-600 hover:text-neutral-900"
@@ -374,7 +371,7 @@ export default function WizardShell({
             Previous
           </button>
 
-          <p className="text-xs text-neutral-400 font-medium">
+          <p className="text-xs text-neutral-400 font-medium shrink-0 whitespace-nowrap">
             Step {currentTab} of {totalTabs}
           </p>
 
@@ -386,6 +383,7 @@ export default function WizardShell({
               form={tabFormId}
               variant="primary"
               size="sm"
+              className="shrink-0 whitespace-nowrap"
             >
               Save & Continue
               <ArrowRightIcon size={14} weight="bold" />
@@ -397,7 +395,7 @@ export default function WizardShell({
               disabled={isLastTab}
               variant="primary"
               size="sm"
-              className={cn(isLastTab ? "cursor-not-allowed opacity-50" : "")}
+              className={cn("shrink-0 whitespace-nowrap", isLastTab ? "cursor-not-allowed opacity-50" : "")}
             >
               Save & Continue
               <ArrowRightIcon size={14} weight="bold" />

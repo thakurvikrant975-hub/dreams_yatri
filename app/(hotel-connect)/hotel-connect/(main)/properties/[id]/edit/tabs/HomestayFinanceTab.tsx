@@ -94,6 +94,9 @@ const INDIAN_BANKS = [
   "Equitas Small Finance Bank", "Ujjivan Small Finance Bank",
 ].sort();
 
+const ACCOUNT_NUMBER_RE = /^\d{6,20}$/;
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+
 // ── UI helpers ────────────────────────────────────────────────────────────────
 
 function FieldLabel({ children, required, htmlFor }: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
@@ -125,7 +128,7 @@ function SelectInput({
 
 function YesNoButtons({ value, onChange }: { value: boolean | null; onChange: (v: boolean) => void }) {
   return (
-    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+    <div role="group" className="flex self-start sm:self-auto rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
       <button type="button" onClick={() => onChange(false)} aria-pressed={value === false}
         className={cn("px-4 py-1.5 transition-colors",
           value === false ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
@@ -340,13 +343,36 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
       : !!docs["registration_doc"]
   );
   const sec2Complete = !!idProofType && !!docs["id_proof"];
+
+  const accountNumberError =
+    accountNo.length > 0 && !ACCOUNT_NUMBER_RE.test(accountNo)
+      ? "Account number must be 6-20 digits, numbers only."
+      : null;
+  const ifscError =
+    ifsc.length > 0 && !IFSC_RE.test(ifsc)
+      ? "Invalid IFSC code format. Example: SBIN0001234"
+      : null;
+
   // PAN is required to submit for review (see review-actions.submitForReview),
   // so it must factor into this section's own "complete" indicator too.
-  const sec3Complete = !!accountNo && !!ifsc && !!bankName && !!panNumber;
+  const sec3Complete =
+    !!accountNo && !accountNumberError &&
+    !!ifsc && !ifscError &&
+    !!bankName && !!panNumber && !!docs["bank_proof"];
 
   // Property address string for the upload note
   const addressParts = [hotel.address, hotel.city, hotel.state, hotel.country].filter(Boolean);
   const addressStr = addressParts.join(", ") + (hotel.pincode ? `, Pincode - ${hotel.pincode}` : "");
+
+  function focusField(id: string) {
+    // Section 3 may have been collapsed — give it a beat to re-render and
+    // mount the field before trying to scroll to / focus it.
+    setTimeout(() => {
+      const el = document.getElementById(id) as HTMLInputElement | null;
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.focus({ preventScroll: true });
+    }, 50);
+  }
 
   return (
     <>
@@ -355,12 +381,25 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
         action={formAction}
         className="space-y-4 py-5"
         onSubmit={(e) => {
+          if (accountNumberError) {
+            e.preventDefault();
+            setOpen(3);
+            focusField("hfin-account-number");
+            return;
+          }
           if (accountConf !== accountNo) {
             e.preventDefault();
             // Section 3 may be collapsed (e.g. a returning host who never
             // reopened it) — force it open so the mismatch message below
             // is actually visible instead of silently blocking the submit.
             setOpen(3);
+            focusField("hfin-confirm-account-number");
+            return;
+          }
+          if (ifscError) {
+            e.preventDefault();
+            setOpen(3);
+            focusField("hfin-ifsc");
             return;
           }
         }}
@@ -410,7 +449,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
               <>
                 {/* 3rd-party: ask if they have the registration doc */}
                 {isThirdParty && (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
                     <p className="text-xs text-neutral-700">
                       Do you have the registration document of your {thirdPartyLabel.toLowerCase().replace("my ", "").replace(" owns the property", "")}'s property?
                     </p>
@@ -531,7 +570,8 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                       value={accountNo}
                       onChange={(e) => setAccountNo(e.target.value)}
                       placeholder="Enter Account Number"
-                      className="pr-9"
+                      className={cn("pr-9", accountNumberError && "border-red-300 focus:ring-red-200 focus:border-red-300")}
+                      aria-invalid={!!accountNumberError}
                     />
                     <button
                       type="button"
@@ -542,6 +582,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                       {showAcct ? <EyeSlashIcon size={14} aria-hidden="true" /> : <EyeIcon size={14} aria-hidden="true" />}
                     </button>
                   </div>
+                  {accountNumberError && (
+                    <p className="text-[11px] text-red-500 mt-1">{accountNumberError}</p>
+                  )}
                 </div>
                 <div>
                   <FieldLabel required htmlFor="hfin-confirm-account-number">Re-enter Account Number</FieldLabel>
@@ -566,8 +609,12 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                     onChange={(e) => handleIfsc(e.target.value)}
                     placeholder="Enter IFSC Code"
                     maxLength={11}
-                    className="uppercase"
+                    className={cn("uppercase", ifscError && "border-red-300 focus:ring-red-200 focus:border-red-300")}
+                    aria-invalid={!!ifscError}
                   />
+                  {ifscError && (
+                    <p className="text-[11px] text-red-500 mt-1">{ifscError}</p>
+                  )}
                 </div>
                 <div>
                   <FieldLabel htmlFor="hfin-bank-name">Bank Name</FieldLabel>
@@ -581,6 +628,16 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                   />
                 </div>
               </div>
+
+              <UploadCard
+                hotelId={hotel.id}
+                docKey="bank_proof"
+                label="Passbook / Cancelled Cheque"
+                hint="Upload a photo of your bank passbook's first page or a cancelled cheque, showing your name and account number"
+                required
+                url={docs["bank_proof"]}
+                onUpdate={updateDoc}
+              />
             </div>
 
             <div className="h-px bg-neutral-100" />
@@ -602,9 +659,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
             {/* GSTIN (optional) */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
                 <Label id="hfin-has-gstin-label">Do you have a GSTIN?</Label>
-                <div role="group" aria-labelledby="hfin-has-gstin-label" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+                <div role="group" aria-labelledby="hfin-has-gstin-label" className="flex self-start sm:self-auto rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
                   <button type="button" aria-pressed={!hasGstin} onClick={() => { setHasGstin(false); setGstin(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
                       !hasGstin ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
@@ -639,9 +696,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
             {/* TAN */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
                 <Label id="hfin-has-tan-label">Do you have a TAN?</Label>
-                <div role="group" aria-labelledby="hfin-has-tan-label" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+                <div role="group" aria-labelledby="hfin-has-tan-label" className="flex self-start sm:self-auto rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
                   <button type="button" aria-pressed={!hasTan} onClick={() => { setHasTan(false); setTanNumber(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
                       !hasTan ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>

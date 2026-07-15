@@ -7,6 +7,7 @@ import { db } from "@/app/lib/db";
 import { uploadToR2 } from "@/app/lib/r2/r2upload";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { r2, R2_BUCKET } from "@/app/lib/r2/r2";
+import { describeSizeRejection, describeTypeRejection, describeUploadFailure } from "@/app/lib/upload-errors";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -110,8 +111,8 @@ export async function uploadHotelPhotos(
     f.size > 0 && f.size <= MAX_FILE_BYTES && ALLOWED_TYPE_PREFIXES.some((p) => f.type.startsWith(p))
   );
   if (!valid.length) {
-    if (sizeRejected.length) return { error: `File too large (max ${MAX_FILE_BYTES / (1024 * 1024)}MB per file).` };
-    if (typeRejected.length) return { error: "Only image or video files are allowed." };
+    if (sizeRejected.length) return { error: `Can't upload ${describeSizeRejection(sizeRejected[0], MAX_FILE_BYTES)}.` };
+    if (typeRejected.length) return { error: `Can't upload ${describeTypeRejection(typeRejected[0])} — only images or videos are allowed.` };
     return { error: "No files selected." };
   }
 
@@ -125,7 +126,10 @@ export async function uploadHotelPhotos(
   const categoryId = await getDefaultCategory(hotelId);
 
   let count = 0;
-  const failed: string[] = [...sizeRejected.map((f) => f.name), ...typeRejected.map((f) => f.name)];
+  const failed: string[] = [
+    ...sizeRejected.map((f) => describeSizeRejection(f, MAX_FILE_BYTES)),
+    ...typeRejected.map((f) => describeTypeRejection(f)),
+  ];
   const created: HotelPhoto[] = [];
 
   for (const file of toUpload) {
@@ -170,7 +174,7 @@ export async function uploadHotelPhotos(
       if (uploadedKey) {
         await deleteFromR2(uploadedKey).catch(() => {});
       }
-      failed.push(file.name);
+      failed.push(describeUploadFailure(file, err));
     }
   }
 
@@ -254,8 +258,7 @@ export async function savePhotoTags(
 }
 
 const MIN_TOTAL_PHOTOS = 6;
-const MIN_ROOM_TAGGED_PHOTOS = 2;
-const ROOM_TAG = "Bedroom";
+const MIN_ROOM_PHOTOS = 2;
 
 export async function proceedPhotos(
   hotelId: number,
@@ -291,13 +294,19 @@ export async function proceedPhotos(
     };
   }
 
-  const roomTaggedCount = allImages.filter((img) =>
-    (img.tags as string[]).includes(ROOM_TAG)
-  ).length;
-  if (roomTaggedCount < MIN_ROOM_TAGGED_PHOTOS) {
-    return {
-      error: `At least ${MIN_ROOM_TAGGED_PHOTOS} photos tagged "${ROOM_TAG}" are required (currently ${roomTaggedCount}).`,
-    };
+  // Every active room needs its own photos in Room Images — a hotel-wide
+  // "Bedroom" tag can't tell guests apart which room they're looking at.
+  if (hotel.property_category !== "HOMESTAY_VILLA") {
+    const rooms = await db.hotel_rooms.findMany({
+      where: { hotel_id: hotelId, is_active: true },
+      select: { id: true, name: true, _count: { select: { images: true } } },
+    });
+    const shortRoom = rooms.find((r) => r._count.images < MIN_ROOM_PHOTOS);
+    if (shortRoom) {
+      return {
+        error: `"${shortRoom.name}" needs at least ${MIN_ROOM_PHOTOS} photos in Room Images (currently ${shortRoom._count.images}).`,
+      };
+    }
   }
 
   const nextStep = hotel.property_category === "HOMESTAY_VILLA" ? 6 : 6;

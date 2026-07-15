@@ -932,9 +932,27 @@ model HotelOwner {
   password_reset_expires      DateTime?
   hotels               hotels[]
   feedback             HotelOwnerFeedback[]
+  notifications        HotelOwnerNotification[]
 
   @@index([email])
   @@map("hotel_owners")
+}
+
+model HotelOwnerNotification {
+  id         Int        @id @default(autoincrement())
+  owner_id   String
+  owner      HotelOwner @relation(fields: [owner_id], references: [id])
+  hotel_id   Int?
+  hotel      hotels?    @relation(fields: [hotel_id], references: [id])
+  type       String
+  title      String
+  body       String
+  link       String?
+  read_at    DateTime?
+  created_at DateTime   @default(now())
+
+  @@index([owner_id, created_at])
+  @@map("hotel_owner_notifications")
 }
 
 model HotelOwnerFeedback {
@@ -1127,6 +1145,7 @@ model hotels {
   location                    Location?                  @relation(fields: [location_id], references: [id])
   packageBookings             PackageBookingHotel[]
   owner                       HotelOwner?                @relation(fields: [owner_id], references: [id])
+  ownerNotifications          HotelOwnerNotification[]
 
   @@index([destination_id, is_active])
   @@index([location_id])
@@ -1239,6 +1258,8 @@ model hotel_room_pricing {
   price_per_night      Decimal                       @db.Decimal(10, 2)
   original_price       Decimal?                      @db.Decimal(10, 2)
   extra_bed_rate       Decimal?                      @db.Decimal(10, 2)
+  weekend_price_per_night Decimal?                   @db.Decimal(10, 2)
+  weekend_extra_bed_rate  Decimal?                   @db.Decimal(10, 2)
   margin_percentage    Decimal                       @default(10) @db.Decimal(5, 2)
   is_active            Boolean                       @default(true)
   sort_order           Int                           @default(0)
@@ -1279,6 +1300,8 @@ model hotel_room_pricing_season {
   // Per-season child rate — the parent hotel_room_pricing has this but a
   // season previously couldn't override it for its own date range.
   extra_child_rate        Decimal?                              @db.Decimal(10, 2)
+  weekend_extra_bed_rate  Decimal?                              @db.Decimal(10, 2)
+  color                   String?
   occupancy_prices        hotel_room_pricing_season_occupancy[]
   pricing                 hotel_room_pricing                    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
@@ -2065,6 +2088,8 @@ model cab_pricing_season {
   is_active     Boolean        @default(true)
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
+  color         String?
+  season_name   String?
   pricing       cab_pricing    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
   @@index([pricing_id])

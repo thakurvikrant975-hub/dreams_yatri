@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/app/lib/db";
+import { db, type TransactionClient } from "@/app/lib/db";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -1081,6 +1081,8 @@ export type HotelSeasonInput = {
   weekend_price_per_night?: number | null;
   original_price?:         number | null;
   extra_bed_rate?:         number | null;
+  weekend_extra_bed_rate?: number | null;
+  color?:                  string | null;
   occupancy_prices?:       HotelSeasonOccupancyInput[];
   is_active:               boolean;
 };
@@ -1110,6 +1112,8 @@ export async function createPricingSeason(
           weekend_price_per_night: data.weekend_price_per_night ?? null,
           original_price:          data.original_price  ?? null,
           extra_bed_rate:          data.extra_bed_rate   ?? null,
+          weekend_extra_bed_rate:  data.weekend_extra_bed_rate ?? null,
+          color:                   data.color            ?? null,
           is_active:               data.is_active,
           sort_order:              count,
         },
@@ -1158,6 +1162,8 @@ export async function updatePricingSeason(
           weekend_price_per_night: data.weekend_price_per_night ?? null,
           original_price:          data.original_price  ?? null,
           extra_bed_rate:          data.extra_bed_rate   ?? null,
+          weekend_extra_bed_rate:  data.weekend_extra_bed_rate ?? null,
+          color:                   data.color            ?? null,
           is_active:               data.is_active,
         },
       });
@@ -1195,17 +1201,58 @@ export async function deletePricingSeason(id: number, hotel_id: number): Promise
 // ── Combined plan + seasons (create / update in one call) ─────────────────
 
 export type PlanInput = {
-  room_id:           number;
-  plan_name?:        string | null;
-  meal_type_id?:     number | null;
-  diet_type_id?:     number | null;
-  price_per_night?:  number | null;
-  extra_bed_rate?:   number | null;
-  margin_percentage: number;
-  gst_percentage:    number;
-  is_active:         boolean;
-  seasons:           HotelSeasonInput[];
+  room_id:                  number;
+  plan_name?:               string | null;
+  meal_type_id?:            number | null;
+  diet_type_id?:            number | null;
+  price_per_night?:         number | null;
+  extra_bed_rate?:          number | null;
+  weekend_price_per_night?: number | null;
+  weekend_extra_bed_rate?:  number | null;
+  margin_percentage:        number;
+  gst_percentage:           number;
+  is_active:                boolean;
+  seasons:                  HotelSeasonInput[];
 };
+
+// Shared by create/update/season-only paths — full-replace so trimmed/split
+// seasons (from the calendar's auto-overlap-resolution) always land in one
+// consistent write per plan.
+async function replaceSeasonsForPricing(
+  tx:         TransactionClient,
+  pricing_id: number,
+  seasons:    HotelSeasonInput[],
+) {
+  await tx.hotel_room_pricing_season.deleteMany({ where: { pricing_id } });
+  for (const [i, s] of seasons.entries()) {
+    const season = await tx.hotel_room_pricing_season.create({
+      data: {
+        pricing_id,
+        season_name:             s.season_name.trim(),
+        valid_from:              new Date(s.valid_from),
+        valid_to:                new Date(s.valid_to),
+        price_per_night:         s.price_per_night,
+        weekend_price_per_night: s.weekend_price_per_night ?? null,
+        original_price:          s.original_price  ?? null,
+        extra_bed_rate:          s.extra_bed_rate   ?? null,
+        weekend_extra_bed_rate:  s.weekend_extra_bed_rate ?? null,
+        color:                   s.color            ?? null,
+        is_active:               s.is_active,
+        sort_order:              i,
+      },
+    });
+    if (s.occupancy_prices && s.occupancy_prices.length > 0) {
+      await tx.hotel_room_pricing_season_occupancy.createMany({
+        data: s.occupancy_prices.map(op => ({
+          season_id:       season.id,
+          occupancy:       op.occupancy,
+          price_per_night: op.price_per_night,
+          original_price:  op.original_price ?? null,
+        })),
+      });
+    }
+  }
+}
 
 export async function createRoomPricingWithSeasons(
   hotel_id: number,
@@ -1227,38 +1274,15 @@ export async function createRoomPricingWithSeasons(
           diet_type_id:      data.diet_type_id      ?? null,
           price_per_night:   basePricePerNight,
           extra_bed_rate:    data.extra_bed_rate     ?? null,
+          weekend_price_per_night: data.weekend_price_per_night ?? null,
+          weekend_extra_bed_rate:  data.weekend_extra_bed_rate  ?? null,
           margin_percentage: data.margin_percentage,
           gst_percentage:    data.gst_percentage,
           is_active:         data.is_active,
           sort_order:        count,
         },
       });
-      for (const [i, s] of data.seasons.entries()) {
-        const season = await tx.hotel_room_pricing_season.create({
-          data: {
-            pricing_id:              p.id,
-            season_name:             s.season_name.trim(),
-            valid_from:              new Date(s.valid_from),
-            valid_to:                new Date(s.valid_to),
-            price_per_night:         s.price_per_night,
-            weekend_price_per_night: s.weekend_price_per_night ?? null,
-            original_price:          s.original_price  ?? null,
-            extra_bed_rate:          s.extra_bed_rate   ?? null,
-            is_active:               s.is_active,
-            sort_order:              i,
-          },
-        });
-        if (s.occupancy_prices && s.occupancy_prices.length > 0) {
-          await tx.hotel_room_pricing_season_occupancy.createMany({
-            data: s.occupancy_prices.map(op => ({
-              season_id:       season.id,
-              occupancy:       op.occupancy,
-              price_per_night: op.price_per_night,
-              original_price:  op.original_price ?? null,
-            })),
-          });
-        }
-      }
+      await replaceSeasonsForPricing(tx, p.id, data.seasons);
       return p;
     });
 
@@ -1290,43 +1314,37 @@ export async function updateRoomPricingWithSeasons(
           diet_type_id:      data.diet_type_id      ?? null,
           price_per_night:   basePricePerNight,
           extra_bed_rate:    data.extra_bed_rate     ?? null,
+          weekend_price_per_night: data.weekend_price_per_night ?? null,
+          weekend_extra_bed_rate:  data.weekend_extra_bed_rate  ?? null,
           margin_percentage: data.margin_percentage,
           gst_percentage:    data.gst_percentage,
           is_active:         data.is_active,
         },
       });
-      // Replace all seasons (cascade deletes season occupancy_prices)
-      await tx.hotel_room_pricing_season.deleteMany({ where: { pricing_id: id } });
-      for (const [i, s] of data.seasons.entries()) {
-        const season = await tx.hotel_room_pricing_season.create({
-          data: {
-            pricing_id:              id,
-            season_name:             s.season_name.trim(),
-            valid_from:              new Date(s.valid_from),
-            valid_to:                new Date(s.valid_to),
-            price_per_night:         s.price_per_night,
-            weekend_price_per_night: s.weekend_price_per_night ?? null,
-            original_price:          s.original_price  ?? null,
-            extra_bed_rate:          s.extra_bed_rate   ?? null,
-            is_active:               s.is_active,
-            sort_order:              i,
-          },
-        });
-        if (s.occupancy_prices && s.occupancy_prices.length > 0) {
-          await tx.hotel_room_pricing_season_occupancy.createMany({
-            data: s.occupancy_prices.map(op => ({
-              season_id:       season.id,
-              occupancy:       op.occupancy,
-              price_per_night: op.price_per_night,
-              original_price:  op.original_price ?? null,
-            })),
-          });
-        }
-      }
+      await replaceSeasonsForPricing(tx, id, data.seasons);
     });
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Pricing plan updated" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+/** Replaces just the seasons for an already-saved plan, without touching its
+ * base fields — used when the Seasonal Rate Calendar's "Viewing Rates For"
+ * dropdown is switched to a sibling plan of the same room (one not currently
+ * open in the add/edit form) and its seasons are changed there. */
+export async function updatePricingSeasonsOnly(
+  pricing_id: number,
+  hotel_id:   number,
+  seasons:    HotelSeasonInput[],
+): Promise<HotelFormState> {
+  try {
+    await db.$transaction(tx => replaceSeasonsForPricing(tx, pricing_id, seasons));
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Seasonal rates updated" };
   } catch (e) {
     console.error(e);
     return actionError(e);

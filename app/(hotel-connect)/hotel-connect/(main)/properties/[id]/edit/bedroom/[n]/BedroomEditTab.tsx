@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,7 @@ import { Input } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/
 import { Textarea } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/textarea";
 import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
+import { convertAreaUnit } from "@/app/lib/units";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ function Stepper({
   value: number; onChange: (v: number) => void; min?: number; max?: number; disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center shrink-0">
+    <div className="flex items-center self-start sm:self-auto shrink-0">
       <button type="button" disabled={disabled || value <= min}
         onClick={() => onChange(Math.max(min, value - 1))}
         className="w-7 h-7 rounded-l border border-neutral-300 flex items-center justify-center text-neutral-600 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -83,14 +84,15 @@ function Stepper({
 // ── Step indicator + accordion shell ─────────────────────────────────────────
 
 function StepSection({
-  index, label, subtitle, isActive, isCompleted, canOpen, onOpen, children,
+  index, label, subtitle, isActive, isCompleted, canOpen, onOpen, children, containerRef,
 }: {
   index: number; label: string; subtitle: string;
   isActive: boolean; isCompleted: boolean; canOpen: boolean;
   onOpen: () => void; children: React.ReactNode;
+  containerRef?: (el: HTMLDivElement | null) => void;
 }) {
   return (
-    <div className="flex gap-3.5">
+    <div className="flex gap-3.5" ref={containerRef}>
       {/* Left track */}
       <div className="flex flex-col items-center shrink-0">
         <button
@@ -151,7 +153,7 @@ function YesNoRadio({
   value: boolean; onChange: (v: boolean) => void; disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4 self-start sm:self-auto shrink-0">
       {([false, true] as const).map((opt) => (
         <label key={String(opt)} className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer select-none">
           <input
@@ -234,6 +236,17 @@ export default function BedroomEditTab({
     if (stepReached >= s - 1 || s === 1) setCurrentStep(s);
   }
 
+  // On a tall mobile viewport, the button that advances currentStep sits at
+  // the bottom of the previous step — without this, the page keeps its
+  // scroll position and the newly-opened step renders starting mid-screen
+  // instead of from its own header. Skips the initial mount.
+  const stepRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    stepRefs.current[currentStep]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [currentStep]);
+
   const STEPS = [
     { index: 1, label: "Access Info",           subtitle: "Add the room name and if the guests can access it" },
     { index: 2, label: "Sleeping Arrangement",   subtitle: "Add the type of beds available in the room and confirm guest occupancy" },
@@ -258,6 +271,7 @@ export default function BedroomEditTab({
           {...STEPS[0]}
           isActive={currentStep === 1} isCompleted={stepReached >= 1} canOpen={true}
           onOpen={() => openStep(1)}
+          containerRef={(el) => { stepRefs.current[1] = el; }}
         >
             <div>
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Room Name</label>
@@ -279,6 +293,7 @@ export default function BedroomEditTab({
           {...STEPS[1]}
           isActive={currentStep === 2} isCompleted={stepReached >= 2} canOpen={stepReached >= 1}
           onOpen={() => openStep(2)}
+          containerRef={(el) => { stepRefs.current[2] = el; }}
         >
             {/* Bed Options */}
             <div>
@@ -286,7 +301,7 @@ export default function BedroomEditTab({
               <p className="text-xs text-neutral-400 mb-3">Help your guests understand what beds are available in the Room</p>
               <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-lg overflow-hidden">
                 {[...BED_TYPES, ...(showMoreBeds ? MORE_BED_TYPES : [])].map(bed => (
-                  <div key={bed.key} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div key={bed.key} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 sm:justify-between px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-neutral-800">{bed.label}</p>
                       <p className="text-xs text-neutral-400">{bed.dims}</p>
@@ -315,7 +330,7 @@ export default function BedroomEditTab({
                 <CaretDownIcon size={14} className="text-neutral-400 shrink-0" />
               </summary>
               <div className="px-4 pb-4 border-t border-neutral-100 pt-3 space-y-3">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
                   <p className="text-sm text-neutral-700">Extra bed available?</p>
                   <YesNoRadio value={hasExtraBed} onChange={v => { setHasExtraBed(v); if (!v) setExtraBedType(""); }} />
                 </div>
@@ -338,7 +353,7 @@ export default function BedroomEditTab({
             {/* Occupancy */}
             <div className="space-y-3">
               <p className="text-sm font-semibold text-neutral-800">Occupancy</p>
-              <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between border border-neutral-200 rounded-lg px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-neutral-800">Base Adults</p>
                   <p className="text-xs text-neutral-400 leading-tight">Ideal number of adults that can be accommodated in this property</p>
@@ -349,7 +364,7 @@ export default function BedroomEditTab({
                   min={1} max={50} disabled={isPending}
                 />
               </div>
-              <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between border border-neutral-200 rounded-lg px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-neutral-800">Maximum Adults</p>
                   <p className="text-xs text-neutral-400 leading-tight">Maximum number of adults that can be accommodated in this property</p>
@@ -383,9 +398,10 @@ export default function BedroomEditTab({
           {...STEPS[2]}
           isActive={currentStep === 3} isCompleted={stepReached >= 3} canOpen={stepReached >= 2}
           onOpen={() => openStep(3)}
+          containerRef={(el) => { stepRefs.current[3] = el; }}
         >
             {/* Bathroom */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-neutral-800">Does the room have an attached bathroom?</p>
                 <p className="text-xs text-neutral-400">Attached or en suite bathrooms have a private entrance inside the bedroom</p>
@@ -406,7 +422,7 @@ export default function BedroomEditTab({
               </div>
             )}
 
-            <div className="border-t border-neutral-100 pt-4 flex items-center justify-between gap-4">
+            <div className="border-t border-neutral-100 pt-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-neutral-800">Does the room come with an attached balcony?</p>
                 <p className="text-xs text-neutral-400">Attached or en suite bathrooms have a private entrance inside the bedroom</p>
@@ -414,7 +430,7 @@ export default function BedroomEditTab({
               <YesNoRadio value={hasBalcony} onChange={v => { setHasBalcony(v); if (!v) setBalconyFurniture(false); }} />
             </div>
             {hasBalcony && (
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
                 <p className="text-sm text-neutral-700">Do you have outdoor furniture on the balcony such as a table or chairs?</p>
                 <YesNoRadio value={balconyFurniture} onChange={setBalconyFurniture} />
               </div>
@@ -480,6 +496,7 @@ export default function BedroomEditTab({
           {...STEPS[3]}
           isActive={currentStep === 4} isCompleted={stepReached >= 4} canOpen={stepReached >= 3}
           onOpen={() => openStep(4)}
+          containerRef={(el) => { stepRefs.current[4] = el; }}
         >
             {/* Description */}
             <div>
@@ -496,7 +513,7 @@ export default function BedroomEditTab({
             </div>
 
             {/* View + Size */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Room View <span className="font-normal text-neutral-400">(Optional)</span>
@@ -526,7 +543,12 @@ export default function BedroomEditTab({
                   {(["sqm", "sqft"] as const).map(u => (
                     <button
                       key={u} type="button"
-                      onClick={() => setSizeUnit(u)}
+                      onClick={() => {
+                        if (u === sizeUnit) return;
+                        const n = parseFloat(sizeValue);
+                        if (Number.isFinite(n)) setSizeValue(String(convertAreaUnit(n, sizeUnit, u)));
+                        setSizeUnit(u);
+                      }}
                       className={cn(
                         "px-2.5 py-2 text-xs font-medium border-t border-b border-neutral-300 last:rounded-r-lg last:border-r transition-colors",
                         sizeUnit === u ? "bg-primary-500 text-white border-primary-500" : "bg-white text-neutral-600 hover:bg-neutral-50"

@@ -4,8 +4,10 @@ import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-c
 import { PageHeader } from "../components/dashboard/PageHeader";
 import { PlatformManagerAnalytics } from "../components/dashboard/PlatformManagerAnalytics";
 import { GeneralAnalytics } from "../components/dashboard/GeneralAnalytics";
+import { HotelDepartmentAnalytics } from "../components/dashboard/HotelDepartmentAnalytics";
 import { getPlatformManagerAnalytics } from "../actions/platform-manager-analytics-actions";
 import { getGeneralAnalytics } from "../actions/general-analytics-actions";
+import { getHotelDepartmentAnalytics } from "../actions/hotel-department-analytics-actions";
 import type { CurrentMember } from "@/app/types/members";
 
 export const metadata: Metadata = {
@@ -26,12 +28,17 @@ async function GeneralAnalyticsSection({ from, to }: SectionProps) {
   return <GeneralAnalytics data={data} from={from} to={to} />;
 }
 
-// Only Platform Manager has a dedicated analytics view today — every other
-// role (and members with no team role at all) sees general site analytics.
+async function HotelDepartmentAnalyticsSection({ from, to }: SectionProps) {
+  const data = await getHotelDepartmentAnalytics(from, to);
+  return <HotelDepartmentAnalytics data={data} from={from} to={to} />;
+}
+
 // Add more entries here as per-role views are built, mirroring ROLE_DASHBOARD_MAP
-// in dashboard/page.tsx.
+// in dashboard/page.tsx. Every other role (and members with no team role at
+// all) sees general site analytics.
 const ANALYTICS_MAP: Record<string, AnalyticsSection> = {
   "platform manager": PlatformManagerAnalyticsSection,
+  "hotel department": HotelDepartmentAnalyticsSection,
 };
 
 function todayStr() {

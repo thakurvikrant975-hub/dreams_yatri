@@ -46,7 +46,7 @@ function Stepper({
   value: number; onChange: (v: number) => void; min?: number; max?: number; disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center shrink-0">
+    <div className="flex items-center self-start sm:self-auto shrink-0">
       <button type="button" disabled={disabled || value <= min}
         onClick={() => onChange(Math.max(min, value - 1))}
         className="w-8 h-8 rounded-l-lg border border-neutral-300 flex items-center justify-center text-neutral-600 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
@@ -125,7 +125,7 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
         <div className="lg:col-span-2 space-y-3">
 
           {/* Bedrooms */}
-          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex items-center justify-between gap-4">
+          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
                 <BedIcon size={18} className="text-primary-500" />
@@ -139,7 +139,7 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
           </Card>
 
           {/* Bathrooms */}
-          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex items-center justify-between gap-4">
+          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
                 <BathtubIcon size={18} className="text-primary-500" />
@@ -150,7 +150,7 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
           </Card>
 
           {/* Kitchen */}
-          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex items-center justify-between gap-4">
+          <Card variant="default" radius="sm" padding="none" className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
                 <ForkKnifeIcon size={18} className="text-primary-500" />
@@ -181,7 +181,7 @@ function CountsForm({ hotel }: { hotel: HomestayRoomsData }) {
             </div>
             <div className="divide-y divide-neutral-100">
               {SPACE_TYPES.map(s => (
-                <div key={s.key} className="px-5 py-3.5 flex items-center justify-between gap-4">
+                <div key={s.key} className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between">
                   <p className="text-sm text-neutral-700">{s.label}</p>
                   <Stepper
                     value={spaces[s.key] ?? 0}

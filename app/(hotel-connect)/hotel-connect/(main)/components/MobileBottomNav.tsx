@@ -26,10 +26,19 @@ const TABS: NavItem[] = [
   { href: "/hotel-connect/bookings",   label: "Bookings",    icon: CalendarDaysIcon },
 ];
 
+// Hidden while actively filling out the property wizard on mobile — the
+// wizard already has its own bottom nav (Previous / Step X of Y / Save &
+// Continue), so stacking this one under it just eats screen space a small
+// phone can't spare. Exported so DashboardMain can drop the bottom padding
+// it otherwise reserves to keep page content clear of this nav.
+export const HIDES_MOBILE_BOTTOM_NAV = /^\/hotel-connect\/properties\/\d+\/edit(\/|$)/;
+
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { setOpen } = useMobileNav();
   const activeHref = resolveActiveHref(pathname, TABS);
+
+  if (HIDES_MOBILE_BOTTOM_NAV.test(pathname)) return null;
 
   return (
     <nav

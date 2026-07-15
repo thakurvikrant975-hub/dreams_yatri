@@ -113,7 +113,7 @@ function YesNoButtons({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+    <div role="group" className="flex self-start sm:self-auto rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
       <button
         type="button"
         onClick={() => onChange(false)}
@@ -150,13 +150,14 @@ function TriStateButtons({
   value: BedAvail;
   onChange: (v: BedAvail) => void;
 }) {
-  const btn = (v: Exclude<BedAvail, null>, label: string) => (
+  const btn = (v: Exclude<BedAvail, null>, label: string, grow?: boolean) => (
     <button
       type="button"
       onClick={() => onChange(v)}
       aria-pressed={value === v}
       className={cn(
-        "px-3.5 py-1.5 text-xs font-medium transition-colors",
+        "px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors",
+        grow ? "flex-1" : "shrink-0",
         value === v
           ? v === "no"
             ? "bg-neutral-700 text-white"
@@ -168,12 +169,12 @@ function TriStateButtons({
     </button>
   );
   return (
-    <div role="group" className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
+    <div role="group" className="flex w-full sm:w-auto sm:shrink-0 rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
       {btn("no", "No")}
       <div className="w-px bg-neutral-200" />
       {btn("yes", "Yes")}
       <div className="w-px bg-neutral-200" />
-      {btn("subject_to_availability", "Subject to availability")}
+      {btn("subject_to_availability", "Subject to availability", true)}
     </div>
   );
 }
@@ -225,7 +226,7 @@ function PolicyRow({
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between gap-6 px-5 py-3.5">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 sm:justify-between px-5 py-3.5">
         <PLabel className="flex-1">{label}</PLabel>
         <YesNoButtons value={value} onChange={onChange} />
       </div>
@@ -249,7 +250,7 @@ function SubRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-6 py-1.5">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 sm:justify-between py-1.5">
       <PLabel className="flex-1">{label}</PLabel>
       <YesNoButtons value={value} onChange={onChange} />
     </div>
@@ -328,7 +329,7 @@ function ExtraBedPolicies(props: ExtraBedPoliciesProps) {
         <div className="divide-y divide-neutral-100">
           {/* Adults */}
           <div>
-            <div className="flex items-center justify-between gap-4 px-5 py-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between px-5 py-3.5">
               <PLabel className="flex-1">Do you provide bed to extra adults?</PLabel>
               <TriStateButtons value={props.bedAdultsAvail} onChange={props.setBedAdultsAvail} />
             </div>
@@ -360,7 +361,7 @@ function ExtraBedPolicies(props: ExtraBedPoliciesProps) {
 
           {/* Kids */}
           <div>
-            <div className="flex items-center justify-between gap-4 px-5 py-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:justify-between px-5 py-3.5">
               <PLabel className="flex-1">Do you provide bed to extra kids?</PLabel>
               <TriStateButtons value={props.bedKidsAvail} onChange={props.setBedKidsAvail} />
             </div>
@@ -436,9 +437,9 @@ function MealRackPrices({
       {open && (
         <div className="divide-y divide-neutral-100">
           {meals.map((meal) => (
-            <div key={meal.label} className="flex items-center justify-between gap-6 px-5 py-3.5">
+            <div key={meal.label} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 sm:justify-between px-5 py-3.5">
               <PLabel htmlFor={meal.name} className="flex-1 min-w-0">{meal.label}</PLabel>
-              <div className="flex items-center gap-1.5 shrink-0 w-48 max-w-[40%]">
+              <div className="flex items-center gap-1.5 w-full sm:w-48 sm:max-w-[40%] sm:shrink-0">
                 <span className="text-xs text-neutral-400 font-medium shrink-0">₹</span>
                 <Input
                   id={meal.name}
@@ -578,7 +579,7 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
 
       {/* ── 1. Check-in & Check-out Time ──────────────────────────────── */}
       <SectionCard title="Check-in & Check-out Time">
-        <div className="px-5 py-4 grid grid-cols-2 gap-5">
+        <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
             <PLabel htmlFor="pol-checkin-time" className="mb-1.5">Check-in Time</PLabel>
             <SearchSelect

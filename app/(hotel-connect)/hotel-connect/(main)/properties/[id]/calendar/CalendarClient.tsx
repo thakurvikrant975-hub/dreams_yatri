@@ -9,6 +9,7 @@ import {
   NoSymbolIcon,
   TagIcon,
   ListBulletIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { fetchRoomCalendar, saveAvailabilityRange, type RangePatch } from "./calendar-actions";
 import { getRoomRateDetail, saveRoomRates, type RoomRateDetail, type RoomRatesPatch } from "../rates/[roomId]/rate-actions";
@@ -104,7 +105,7 @@ function PlanRateCard({
         <p className="text-[11px] text-neutral-400">Loading current rates…</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <MoneyTile label="2 Adults (Base)" value={value.basePrice} onChange={(v) => onChange({ basePrice: v })} placeholder="Leave blank to skip" />
             {tiers.map((n) => (
               <MoneyTile
@@ -115,7 +116,7 @@ function PlanRateCard({
               />
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-neutral-100">
             <MoneyTile label="Per Child (7-17y)" value={value.childRate} onChange={(v) => onChange({ childRate: v })} />
             <MoneyTile label="Extra Adult" value={value.extraAdultRate} onChange={(v) => onChange({ extraAdultRate: v })} />
           </div>
@@ -182,20 +183,22 @@ function MonthGrid({
               onClick={() => onClickDay(date)}
               disabled={past}
               className={cn(
-                "aspect-square border border-neutral-200/80 p-1 sm:p-1.5 text-left flex flex-col transition-colors relative -mb-px -mr-px",
+                "aspect-square border border-neutral-200/80 p-0.5 sm:p-1.5 text-left flex flex-col transition-colors relative -mb-px -mr-px overflow-hidden",
                 past ? "bg-neutral-50/60 text-neutral-300 cursor-not-allowed" : "hover:bg-primary-50/40",
                 selected && "bg-primary-100/70 ring-1 ring-inset ring-primary-300",
               )}
             >
-              <span className={cn("text-xs font-bold font-heading", !past && "text-neutral-400")}>{dayNum}</span>
+              <span className={cn("text-[10px] sm:text-xs font-bold font-heading", !past && "text-neutral-400")}>{dayNum}</span>
               {cell && !past && (
                 <>
-                  <span className={cn("mt-auto text-sm font-semibold font-heading leading-tight", soldOut ? "text-red-500" : "text-neutral-800")}>
+                  <span className={cn("mt-auto w-full block truncate text-[9px] sm:text-sm font-semibold font-heading leading-tight", soldOut ? "text-red-500" : "text-neutral-800")}>
                     {cell.price != null ? money(cell.price) : "—"}
                   </span>
-                  <span className={cn("text-[9px] leading-tight flex items-center gap-0.5", soldOut ? "text-red-400" : "text-neutral-400")}>
-                    {cell.stopSell ? <><NoSymbolIcon className="w-2.5 h-2.5" /> closed</> : `${cell.available}/${cell.totalUnits} left`}
-                    {cell.priceOverride != null && <TagIcon className="w-2.5 h-2.5 text-primary-500" />}
+                  <span className={cn("w-full text-[7px] sm:text-[9px] leading-tight flex items-center gap-0.5 whitespace-nowrap overflow-hidden", soldOut ? "text-red-400" : "text-neutral-400")}>
+                    <span className="truncate">
+                      {cell.stopSell ? <><NoSymbolIcon className="w-2.5 h-2.5 inline -mt-0.5" /> closed</> : `${cell.available}/${cell.totalUnits} left`}
+                    </span>
+                    {cell.priceOverride != null && <TagIcon className="w-2.5 h-2.5 text-primary-500 shrink-0" />}
                   </span>
                 </>
               )}
@@ -317,10 +320,10 @@ export default function CalendarClient({
           <p className="text-sm text-neutral-500">{hotelName}</p>
           <h1 className="text-lg font-bold text-neutral-800">Rates & Inventory</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           <Link
             href={`/hotel-connect/properties/${hotelId}/rates`}
-            className={buttonVariants({ variant: "outline", size: "md", className: "gap-1.5" })}
+            className={buttonVariants({ variant: "outline", size: "md", className: "gap-1.5 justify-center w-full sm:w-auto" })}
           >
             <ListBulletIcon className="w-4 h-4" />
             List View
@@ -331,7 +334,7 @@ export default function CalendarClient({
               value={roomId != null ? String(roomId) : undefined}
               onChange={(v) => pickRoom(Number(v))}
               showSearch={rooms.length > 6}
-              className="w-56"
+              className="w-full sm:w-56"
             />
           )}
           {currentRoom && currentRoom.plans.length > 1 && (
@@ -340,7 +343,7 @@ export default function CalendarClient({
               value={planId != null ? String(planId) : undefined}
               onChange={(v) => pickPlan(Number(v))}
               showSearch={false}
-              className="w-48"
+              className="w-full sm:w-48"
             />
           )}
         </div>
@@ -402,6 +405,7 @@ export default function CalendarClient({
             multiPlan={(currentRoom?.plans.length ?? 0) > 1}
             rangeLo={rangeLo}
             rangeHi={rangeHi}
+            rangeConfirmed={selStart != null && selEnd != null}
             saving={saving}
             msg={msg}
             onClear={() => { setSelStart(null); setSelEnd(null); }}
@@ -488,6 +492,7 @@ function EditPanel({
   multiPlan,
   rangeLo,
   rangeHi,
+  rangeConfirmed,
   saving,
   msg,
   onSave,
@@ -501,6 +506,7 @@ function EditPanel({
   multiPlan: boolean;
   rangeLo: string | null;
   rangeHi: string | null;
+  rangeConfirmed: boolean;
   saving: boolean;
   msg: string | null;
   onSave: (patch: RangePatch, planRates: PlanRatesPatch[]) => void;
@@ -566,119 +572,158 @@ function EditPanel({
     onSave(patch, planRates);
   }
 
-  return (
-    <SectionCard
-      title="Bulk Edit"
-      desc={active ? `${rangeLo} → ${rangeHi} · ${nights} night${nights === 1 ? "" : "s"}` : undefined}
-      className="h-fit lg:sticky lg:top-4"
-    >
-      {!active ? (
-        <p className="text-xs text-neutral-500 leading-relaxed">
-          Click a start date, then an end date — even in a different month — to select a range,
-          then set rates &amp; inventory here. Use the arrows above the calendar to switch years
-          if your range crosses a year boundary.
-        </p>
-      ) : (
-        <>
-          <div>
-            <Label htmlFor="bulk-price">Price / night (₹)</Label>
-            <div className="relative mt-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">₹</span>
-              <Input id="bulk-price" type="number" min={1} step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank to keep" className="pl-7" />
-            </div>
-            {price.trim() !== "" && (
-              <button onClick={() => setPrice("")} className="text-[10px] text-neutral-400 hover:text-primary-600 mt-1">clear override → use season price</button>
-            )}
-            {multiPlan && (
-              <p className="text-[10px] text-amber-600 mt-1">This overrides the price shown for every rate plan on these dates.</p>
-            )}
-          </div>
-          <div>
-            <Label htmlFor="bulk-units">Rooms available (total)</Label>
-            <Input id="bulk-units" type="number" min={0} step="1" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Leave blank to keep" className="mt-1" />
-          </div>
-          <div>
-            <Label htmlFor="bulk-availability" className="mb-1">Availability</Label>
-            <SearchSelect
-              id="bulk-availability"
-              options={[{ value: "", label: "Unchanged" }, { value: "open", label: "Open for sale" }, { value: "closed", label: "Stop sell (close)" }]}
-              value={openState}
-              onChange={(v) => setOpenState(v as "" | "open" | "closed")}
-              showSearch={false}
-            />
-          </div>
+  const formBody = !active ? (
+    <p className="text-xs text-neutral-500 leading-relaxed">
+      Click a start date, then an end date — even in a different month — to select a range,
+      then set rates &amp; inventory here. Use the arrows above the calendar to switch years
+      if your range crosses a year boundary.
+    </p>
+  ) : (
+    <>
+      <div>
+        <Label htmlFor="bulk-price">Price / night (₹)</Label>
+        <div className="relative mt-1">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">₹</span>
+          <Input id="bulk-price" type="number" min={1} step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank to keep" className="pl-7" />
+        </div>
+        {price.trim() !== "" && (
+          <button onClick={() => setPrice("")} className="text-[10px] text-neutral-400 hover:text-primary-600 mt-1">clear override → use season price</button>
+        )}
+        {multiPlan && (
+          <p className="text-[10px] text-amber-600 mt-1">This overrides the price shown for every rate plan on these dates.</p>
+        )}
+      </div>
+      <div>
+        <Label htmlFor="bulk-units">Rooms available (total)</Label>
+        <Input id="bulk-units" type="number" min={0} step="1" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Leave blank to keep" className="mt-1" />
+      </div>
+      <div>
+        <Label htmlFor="bulk-availability" className="mb-1">Availability</Label>
+        <SearchSelect
+          id="bulk-availability"
+          options={[{ value: "", label: "Unchanged" }, { value: "open", label: "Open for sale" }, { value: "closed", label: "Stop sell (close)" }]}
+          value={openState}
+          onChange={(v) => setOpenState(v as "" | "open" | "closed")}
+          showSearch={false}
+        />
+      </div>
 
-          {planId != null && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <Label>
-                  Rate Plan Pricing
-                  {planLabel && <span className="font-normal normal-case text-neutral-400"> · {planLabel}</span>}
-                </Label>
-                {loadingRates && <span className="text-[10px] text-neutral-400">loading…</span>}
-              </div>
-              <PlanRateCard
-                maxAdults={maxAdults}
-                value={planForm}
-                loading={loadingRates}
-                onChange={(patch) => setPlanForm((prev) => ({ ...prev, ...patch }))}
-              />
-              <p className="text-[10px] text-neutral-400 mt-1.5">
-                Leave &quot;2 Adults&quot; blank to leave this plan&apos;s rate for this range untouched.
-                {multiPlan && " Switch the rate plan above to edit a different plan's pricing."}
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label htmlFor="bulk-min-los" className="mb-1 text-[9px]">Minimum Length of Stay</Label>
-              <Input id="bulk-min-los" type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" />
-            </div>
-            <div>
-              <Label htmlFor="bulk-max-los" className="mb-1 text-[9px]">Maximum Length of Stay</Label>
-              <Input id="bulk-max-los" type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" />
-            </div>
+      {planId != null && (
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <Label>
+              Rate Plan Pricing
+              {planLabel && <span className="font-normal normal-case text-neutral-400"> · {planLabel}</span>}
+            </Label>
+            {loadingRates && <span className="text-[10px] text-neutral-400">loading…</span>}
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label htmlFor="bulk-cta" className="mb-1 text-[9px]">Closed to Arrival</Label>
-              <SearchSelect
-                id="bulk-cta"
-                options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
-                value={cta}
-                onChange={(v) => setCta(v as "" | "yes" | "no")}
-                showSearch={false}
-              />
-            </div>
-            <div>
-              <Label htmlFor="bulk-ctd" className="mb-1 text-[9px]">Closed to Departure</Label>
-              <SearchSelect
-                id="bulk-ctd"
-                options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
-                value={ctd}
-                onChange={(v) => setCtd(v as "" | "yes" | "no")}
-                showSearch={false}
-              />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button variant="primary" size="md" onClick={submit} loading={saving} className="flex-1">
-              {saving ? "Saving…" : "Apply"}
-            </Button>
-            <Button variant="outline" size="md" onClick={onClear}>Clear</Button>
-          </div>
-          {roomId != null && (
-            <Link
-              href={`/hotel-connect/properties/${hotelId}/rates/${roomId}?${planId != null ? `plan=${planId}&` : ""}from=${rangeLo}&to=${rangeHi}`}
-              className="block text-center text-xs font-semibold text-primary-600 hover:text-primary-700"
-            >
-              Manage Rates for this range →
-            </Link>
-          )}
-        </>
+          <PlanRateCard
+            maxAdults={maxAdults}
+            value={planForm}
+            loading={loadingRates}
+            onChange={(patch) => setPlanForm((prev) => ({ ...prev, ...patch }))}
+          />
+          <p className="text-[10px] text-neutral-400 mt-1.5">
+            Leave &quot;2 Adults&quot; blank to leave this plan&apos;s rate for this range untouched.
+            {multiPlan && " Switch the rate plan above to edit a different plan's pricing."}
+          </p>
+        </div>
       )}
-      {msg && <p className="text-xs text-neutral-500">{msg}</p>}
-    </SectionCard>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <Label htmlFor="bulk-min-los" className="mb-1 text-[9px]">Minimum Length of Stay</Label>
+          <Input id="bulk-min-los" type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" />
+        </div>
+        <div>
+          <Label htmlFor="bulk-max-los" className="mb-1 text-[9px]">Maximum Length of Stay</Label>
+          <Input id="bulk-max-los" type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <Label htmlFor="bulk-cta" className="mb-1 text-[9px]">Closed to Arrival</Label>
+          <SearchSelect
+            id="bulk-cta"
+            options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
+            value={cta}
+            onChange={(v) => setCta(v as "" | "yes" | "no")}
+            showSearch={false}
+          />
+        </div>
+        <div>
+          <Label htmlFor="bulk-ctd" className="mb-1 text-[9px]">Closed to Departure</Label>
+          <SearchSelect
+            id="bulk-ctd"
+            options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
+            value={ctd}
+            onChange={(v) => setCtd(v as "" | "yes" | "no")}
+            showSearch={false}
+          />
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button variant="primary" size="md" onClick={submit} loading={saving} className="flex-1">
+          {saving ? "Saving…" : "Apply"}
+        </Button>
+        <Button variant="outline" size="md" onClick={onClear}>Cancel</Button>
+      </div>
+      {roomId != null && (
+        <Link
+          href={`/hotel-connect/properties/${hotelId}/rates/${roomId}?${planId != null ? `plan=${planId}&` : ""}from=${rangeLo}&to=${rangeHi}`}
+          className="block text-center text-xs font-semibold text-primary-600 hover:text-primary-700"
+        >
+          Manage Rates for this range →
+        </Link>
+      )}
+    </>
+  );
+
+  const panelDesc = active ? `${rangeLo} → ${rangeHi} · ${nights} night${nights === 1 ? "" : "s"}` : undefined;
+
+  return (
+    <>
+      {/* Desktop / tablet — persistent sticky sidebar, hidden below lg: */}
+      <div className="hidden lg:block">
+        <SectionCard title="Bulk Edit" desc={panelDesc} className="h-fit lg:sticky lg:top-4">
+          {formBody}
+          {msg && <p className="text-xs text-neutral-500">{msg}</p>}
+        </SectionCard>
+      </div>
+
+      {/* Mobile — a bottom sheet that appears only once BOTH ends of a range
+          are picked (rangeConfirmed = selStart and selEnd both set), not
+          after the first tap. A single tap alone already yields a valid
+          1-night "active" range (see rangeLo/rangeHi above), so gating on
+          `active` would open the sheet immediately and block the second tap
+          needed to extend the range on the calendar underneath. Once the
+          range is confirmed there's no more calendar interaction left to
+          protect, so this can be a near-full-height sheet with a backdrop. */}
+      {rangeConfirmed && (
+        <div className="lg:hidden fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={onClear} aria-hidden="true" />
+          <div className="relative w-full max-h-[85vh] overflow-y-auto bg-white rounded-t-2xl shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 px-5 py-4 border-b border-neutral-200 bg-white rounded-t-2xl">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-neutral-800">Bulk Edit</p>
+                {panelDesc && <p className="text-xs text-neutral-500 mt-0.5">{panelDesc}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={onClear}
+                aria-label="Cancel"
+                className="shrink-0 size-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {formBody}
+              {msg && <p className="text-xs text-neutral-500">{msg}</p>}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
