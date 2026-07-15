@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/app/lib/db";
+import { db, type TransactionClient } from "@/app/lib/db";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -1219,7 +1219,7 @@ export type PlanInput = {
 // seasons (from the calendar's auto-overlap-resolution) always land in one
 // consistent write per plan.
 async function replaceSeasonsForPricing(
-  tx:         Prisma.TransactionClient,
+  tx:         TransactionClient,
   pricing_id: number,
   seasons:    HotelSeasonInput[],
 ) {

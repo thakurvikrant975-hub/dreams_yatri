@@ -178,11 +178,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                         </Badge>
                     </div>
                     <p className="text-sm text-dashboard-base-content/60">
-<<<<<<< HEAD
-                        {hotel.destination?.name}
-=======
                         {hotel.destination?.name ?? "No destination set"}
->>>>>>> ddeeb72cc4e179b555a055bbcdc97f4dce5b6747
                         {totalRooms > 0 && ` · ${totalRooms} room${totalRooms !== 1 ? "s" : ""}`}
                         {totalPlans > 0 && ` · ${totalPlans} plan${totalPlans !== 1 ? "s" : ""}`}
                         {totalImages > 0 && ` · ${totalImages} image${totalImages !== 1 ? "s" : ""}`}
