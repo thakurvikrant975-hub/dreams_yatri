@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
 import { resolveCancellation, effectivePolicy, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
+import { AMENITY_CATEGORIES } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/amenities-data";
 import type { Hotel, Room, RatePlan, BedroomLayout } from "./dummy";
 
 const FALLBACK_IMG =
@@ -32,19 +33,43 @@ function iconFor(label: string): string {
   return "desk";
 }
 
+function isAmenityOn(v: unknown): boolean {
+  return (
+    v === true ||
+    (typeof v === "string" && v.length > 0) ||
+    (Array.isArray(v) && v.length > 0) ||
+    (!!v && typeof v === "object" && Object.values(v).some(Boolean))
+  );
+}
+
 /** Flatten the property_amenities JSON map into a list of human labels. */
 function amenityLabels(raw: unknown): string[] {
   if (!raw || typeof raw !== "object") return [];
   const out: string[] = [];
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-    const on =
-      v === true ||
-      (typeof v === "string" && v.length > 0) ||
-      (Array.isArray(v) && v.length > 0) ||
-      (v && typeof v === "object" && Object.values(v).some(Boolean));
-    if (on) out.push(prettify(k));
+    if (isAmenityOn(v)) out.push(prettify(k));
   }
   return out;
+}
+
+/**
+ * Group property_amenities by the same categories hotel-connect's own
+ * Amenities wizard step uses (AMENITY_CATEGORIES) — property_amenities is
+ * keyed by the exact amenity name (see amenities-actions.ts), so this is a
+ * direct lookup, not a guess. Empty categories are dropped. Powers the
+ * guest-facing "View All Amenities" modal's tabs.
+ */
+function groupedAmenities(raw: unknown): { group: string; items: { label: string; icon: string }[] }[] {
+  if (!raw || typeof raw !== "object") return [];
+  const map = raw as Record<string, unknown>;
+  return AMENITY_CATEGORIES
+    .map((cat) => ({
+      group: cat.label,
+      items: cat.items
+        .filter((name) => isAmenityOn(map[name]))
+        .map((name) => ({ label: name, icon: iconFor(name) })),
+    }))
+    .filter((g) => g.items.length > 0);
 }
 
 function nightsBetween(checkIn: string, checkOut: string): number {
@@ -324,7 +349,7 @@ export async function getHotelForBooking(
     images: hotelImages.length ? hotelImages : [FALLBACK_IMG],
     about: h.description ?? `${h.name} in ${h.city ?? "India"} — comfortable rooms and warm hospitality.`,
     amenities: labels.slice(0, 8).map((l) => ({ icon: iconFor(l), label: l })),
-    allAmenities: labels.length ? [{ group: "Amenities", items: labels }] : [],
+    allAmenities: groupedAmenities(h.property_amenities),
     landmarks: [{ category: h.city || "Location", items: [] }],
     rules: {
       checkIn: h.check_in_time ?? "12:00 PM",

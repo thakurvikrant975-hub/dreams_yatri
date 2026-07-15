@@ -18,12 +18,7 @@ import {
   MagnifyingGlassIcon,
   CalendarDaysIcon,
   ShieldCheckIcon,
-  WifiIcon,
-  TruckIcon,
-  BuildingStorefrontIcon,
-  BoltIcon,
   SparklesIcon,
-  FireIcon,
   ClockIcon,
   ArrowRightIcon,
   HandThumbUpIcon,
@@ -39,19 +34,10 @@ import DatePickerField from "@/app/components/ui/DatePickerField";
 import TravellersField, { type TravellersValue } from "@/app/components/ui/TravellersField";
 import LocationSearchSelect, { type LocationValue } from "@/app/components/ui/LocationSearchSelect";
 import type { LocationType } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
+import { AMENITY_ICONS } from "./amenity-icons";
+import AmenitiesModal from "./AmenitiesModal";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-
-const AMENITY_ICONS: Record<string, typeof WifiIcon> = {
-  wifi: WifiIcon,
-  parking: TruckIcon,
-  restaurant: BuildingStorefrontIcon,
-  ac: BoltIcon,
-  pool: SparklesIcon,
-  gym: FireIcon,
-  spa: SparklesIcon,
-  desk: ClockIcon,
-};
 
 // ── Small shared bits ─────────────────────────────────────────────────────────
 
@@ -632,12 +618,14 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel:
   const [active, setActive] = useState("overview");
   const [landmarkTab, setLandmarkTab] = useState(0);
   const [selected, setSelected] = useState<{ roomId: string; plan: RatePlan } | null>(null);
+  const [amenitiesOpen, setAmenitiesOpen] = useState(false);
 
   const allRates = hotel.rooms.flatMap((r) => r.ratePlans);
   const cheapest: RatePlan = allRates.length
     ? allRates.reduce((min, p) => (p.price < min.price ? p : min))
     : { id: "", mealPlan: "", inclusions: [], cancellation: "", refundable: false, price: 0, originalPrice: 0, taxes: 0 };
   const current = selected?.plan ?? cheapest;
+  const totalAmenityCount = hotel.allAmenities.reduce((n, g) => n + g.items.length, 0);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -748,24 +736,39 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel:
 
           </section>
 
-          {/* Amenities */}
+          {/* Amenities — compact preview only; the full list lives in the
+              "View All" modal instead of being dumped inline, which used to
+              leave a long, unbroken wall of checkmarks on every hotel page. */}
           <section id="amenities" className="scroll-mt-32 py-6 border-t border-neutral-200">
             <h2 className="text-lg font-bold text-neutral-800 mb-4">Amenities</h2>
-            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-5">
-              {hotel.allAmenities.map((grp) => (
-                <div key={grp.group}>
-                  <p className="text-xs font-bold uppercase tracking-wide text-neutral-400 mb-2">{grp.group}</p>
-                  <ul className="space-y-1.5">
-                    {grp.items.map((it) => (
-                      <li key={it} className="flex items-center gap-2 text-sm text-neutral-600">
-                        <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" /> {it}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              {hotel.amenities.slice(0, 5).map((a) => {
+                const Icon = AMENITY_ICONS[a.icon] ?? SparklesIcon;
+                return (
+                  <span key={a.label} className="flex items-center gap-2 text-sm text-neutral-700">
+                    <Icon className="w-5 h-5 text-neutral-400 shrink-0" />
+                    {a.label}
+                  </span>
+                );
+              })}
+              {totalAmenityCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setAmenitiesOpen(true)}
+                  className="text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline"
+                >
+                  View All Amenities ({totalAmenityCount})
+                </button>
+              )}
             </div>
           </section>
+
+          <AmenitiesModal
+            hotelName={hotel.name}
+            groups={hotel.allAmenities}
+            open={amenitiesOpen}
+            onClose={() => setAmenitiesOpen(false)}
+          />
 
           {/* Rooms */}
           <section id="rooms" className="scroll-mt-32 py-6 border-t border-neutral-200">

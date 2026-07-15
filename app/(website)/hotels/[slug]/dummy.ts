@@ -70,7 +70,7 @@ export type Hotel = {
   images: string[];
   about: string;
   amenities: { icon: string; label: string }[];
-  allAmenities: { group: string; items: string[] }[];
+  allAmenities: { group: string; items: { label: string; icon: string }[] }[];
   landmarks: { category: string; items: { name: string; distance: string }[] }[];
   rules: {
     checkIn: string;
@@ -137,10 +137,25 @@ export const hotel: Hotel = {
     { icon: "desk", label: "24-hr Front Desk" },
   ],
   allAmenities: [
-    { group: "Popular", items: ["Free Wi-Fi", "Free Parking", "Swimming Pool", "Restaurant", "Room Service", "Power Backup"] },
-    { group: "Basic Facilities", items: ["Air Conditioning", "Elevator", "Laundry", "Housekeeping", "Wake-up Call", "Luggage Storage"] },
-    { group: "Wellness", items: ["Spa", "Fitness Centre", "Steam & Sauna", "Yoga"] },
-    { group: "Food & Drink", items: ["Multi-cuisine Restaurant", "Rooftop Lounge", "In-room Dining", "Bar", "Complimentary Breakfast"] },
+    { group: "Popular", items: [
+      { label: "Free Wi-Fi", icon: "wifi" }, { label: "Free Parking", icon: "parking" },
+      { label: "Swimming Pool", icon: "pool" }, { label: "Restaurant", icon: "restaurant" },
+      { label: "Room Service", icon: "desk" }, { label: "Power Backup", icon: "desk" },
+    ] },
+    { group: "Basic Facilities", items: [
+      { label: "Air Conditioning", icon: "ac" }, { label: "Elevator", icon: "desk" },
+      { label: "Laundry", icon: "desk" }, { label: "Housekeeping", icon: "desk" },
+      { label: "Wake-up Call", icon: "desk" }, { label: "Luggage Storage", icon: "desk" },
+    ] },
+    { group: "Wellness", items: [
+      { label: "Spa", icon: "spa" }, { label: "Fitness Centre", icon: "gym" },
+      { label: "Steam & Sauna", icon: "spa" }, { label: "Yoga", icon: "spa" },
+    ] },
+    { group: "Food & Drink", items: [
+      { label: "Multi-cuisine Restaurant", icon: "restaurant" }, { label: "Rooftop Lounge", icon: "restaurant" },
+      { label: "In-room Dining", icon: "restaurant" }, { label: "Bar", icon: "restaurant" },
+      { label: "Complimentary Breakfast", icon: "restaurant" },
+    ] },
   ],
   landmarks: [
     {
