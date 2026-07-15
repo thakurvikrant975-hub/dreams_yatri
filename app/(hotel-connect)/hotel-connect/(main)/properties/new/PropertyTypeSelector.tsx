@@ -332,7 +332,7 @@ export default function PropertyTypeSelector() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 lg:pb-0">
       {/* Category selector */}
       <div className="flex flex-col sm:flex-row gap-4">
         {CATEGORIES.map((cat) => (
@@ -363,15 +363,17 @@ export default function PropertyTypeSelector() {
         </div>
       </div>
 
-      {/* Continue */}
-      {error && (
-        <p className="text-sm text-red-600 text-right">{error}</p>
-      )}
-      <div className="flex justify-end pt-2">
+      {/* Continue — fixed just above the mobile bottom nav so it's always
+          reachable without scrolling past every subtype card first; back to
+          normal static, right-aligned flow on desktop. */}
+      <div className="fixed bottom-16 inset-x-0 z-30 bg-white border-t border-neutral-200 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:static lg:z-auto lg:bg-transparent lg:border-0 lg:px-0 lg:py-0 lg:pt-2 lg:flex lg:justify-end">
+        {error && (
+          <p className="text-sm text-red-600 mb-2 lg:hidden">{error}</p>
+        )}
         <Button
           onClick={handleContinue}
           disabled={!selected || isPending}
-          className="h-11 px-8 rounded-xl text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white gap-2"
+          className="h-11 w-full lg:w-auto justify-center px-8 rounded-xl text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white gap-2"
         >
           {isPending ? (
             <>
@@ -389,6 +391,9 @@ export default function PropertyTypeSelector() {
           )}
         </Button>
       </div>
+      {error && (
+        <p className="hidden lg:block text-sm text-red-600 text-right">{error}</p>
+      )}
     </div>
   );
 }
