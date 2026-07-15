@@ -1310,12 +1310,13 @@ model hotel_room_pricing_season {
 }
 
 model hotel_room_pricing_season_occupancy {
-  id              Int                       @id @default(autoincrement())
-  season_id       Int
-  occupancy       Int
-  price_per_night Decimal                   @db.Decimal(10, 2)
-  original_price  Decimal?                  @db.Decimal(10, 2)
-  season          hotel_room_pricing_season @relation(fields: [season_id], references: [id], onDelete: Cascade)
+  id                      Int                       @id @default(autoincrement())
+  season_id               Int
+  occupancy               Int
+  price_per_night         Decimal                   @db.Decimal(10, 2)
+  original_price          Decimal?                  @db.Decimal(10, 2)
+  weekend_price_per_night Decimal?                  @db.Decimal(10, 2)
+  season                  hotel_room_pricing_season @relation(fields: [season_id], references: [id], onDelete: Cascade)
 
   @@unique([season_id, occupancy])
   @@index([season_id])
@@ -1398,12 +1399,13 @@ model hotel_addon_seasons {
 }
 
 model hotel_room_occupancy_prices {
-  id              Int                @id @default(autoincrement())
-  pricing_id      Int
-  occupancy       Int
-  price_per_night Decimal            @db.Decimal(10, 2)
-  original_price  Decimal?           @db.Decimal(10, 2)
-  pricing         hotel_room_pricing @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
+  id                      Int                @id @default(autoincrement())
+  pricing_id              Int
+  occupancy               Int
+  price_per_night         Decimal            @db.Decimal(10, 2)
+  original_price          Decimal?           @db.Decimal(10, 2)
+  weekend_price_per_night Decimal?           @db.Decimal(10, 2)
+  pricing                 hotel_room_pricing @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
   @@unique([pricing_id, occupancy])
   @@index([pricing_id])

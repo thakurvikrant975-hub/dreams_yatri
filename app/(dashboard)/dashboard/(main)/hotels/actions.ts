@@ -1039,12 +1039,13 @@ export async function upsertOccupancyPrice(
   occupancy: number,
   price_per_night: number,
   original_price?: number | null,
+  weekend_price_per_night?: number | null,
 ): Promise<HotelFormState> {
   try {
     await db.hotel_room_occupancy_prices.upsert({
       where: { pricing_id_occupancy: { pricing_id, occupancy } },
-      create: { pricing_id, occupancy, price_per_night, original_price: original_price ?? null },
-      update: { price_per_night, original_price: original_price ?? null },
+      create: { pricing_id, occupancy, price_per_night, original_price: original_price ?? null, weekend_price_per_night: weekend_price_per_night ?? null },
+      update: { price_per_night, original_price: original_price ?? null, weekend_price_per_night: weekend_price_per_night ?? null },
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Occupancy price saved" };
@@ -1068,9 +1069,10 @@ export async function deleteOccupancyPrice(id: number, hotel_id: number): Promis
 // ── Pricing Seasons ───────────────────────────────────────────────────────
 
 export type HotelSeasonOccupancyInput = {
-  occupancy:       number;
-  price_per_night: number;
-  original_price?: number | null;
+  occupancy:                number;
+  price_per_night:          number;
+  original_price?:          number | null;
+  weekend_price_per_night?: number | null;
 };
 
 export type HotelSeasonInput = {
@@ -1125,6 +1127,7 @@ export async function createPricingSeason(
             occupancy:       op.occupancy,
             price_per_night: op.price_per_night,
             original_price:  op.original_price ?? null,
+            weekend_price_per_night: op.weekend_price_per_night ?? null,
           })),
         });
       }
@@ -1175,6 +1178,7 @@ export async function updatePricingSeason(
             occupancy:       op.occupancy,
             price_per_night: op.price_per_night,
             original_price:  op.original_price ?? null,
+            weekend_price_per_night: op.weekend_price_per_night ?? null,
           })),
         });
       }
@@ -1248,6 +1252,7 @@ async function replaceSeasonsForPricing(
           occupancy:       op.occupancy,
           price_per_night: op.price_per_night,
           original_price:  op.original_price ?? null,
+          weekend_price_per_night: op.weekend_price_per_night ?? null,
         })),
       });
     }

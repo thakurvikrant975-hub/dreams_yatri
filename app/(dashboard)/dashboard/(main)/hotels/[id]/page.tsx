@@ -91,6 +91,7 @@ export default async function HotelEditPage({
                     ...op,
                     price_per_night: Number(op.price_per_night),
                     original_price: op.original_price ? Number(op.original_price) : null,
+                    weekend_price_per_night: op.weekend_price_per_night ? Number(op.weekend_price_per_night) : null,
                 })),
             })),
         })),  
@@ -107,6 +108,7 @@ export default async function HotelEditPage({
                 ...op,
                 price_per_night: Number(op.price_per_night),
                 original_price: op.original_price ? Number(op.original_price) : null,
+                weekend_price_per_night: op.weekend_price_per_night ? Number(op.weekend_price_per_night) : null,
             })),
             seasons: p.seasons.map((s) => ({
                 ...s,
@@ -119,6 +121,7 @@ export default async function HotelEditPage({
                     ...op,
                     price_per_night: Number(op.price_per_night),
                     original_price:  op.original_price ? Number(op.original_price) : null,
+                    weekend_price_per_night: op.weekend_price_per_night ? Number(op.weekend_price_per_night) : null,
                 })),
             })),
         })),

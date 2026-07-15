@@ -214,12 +214,24 @@ function resolveCabPrice(
  * and season level, matching the "not provided = same as weekday" convention
  * used throughout the Seasonal Rate Calendar.
  */
+type OccupancyPriceRow = { occupancy: number; price_per_night: unknown; weekend_price_per_night?: unknown };
+
+// Occupancy-tier prices (e.g. single occupancy) get the same weekday/weekend
+// split as the room rate and extra-bed rate — a tier with no weekend price of
+// its own just uses its own weekday price on weekends too.
+function resolveOccupancyWeekend(entry: OccupancyPriceRow, isWeekend: boolean): { occupancy: number; price_per_night: unknown } {
+  return {
+    occupancy: entry.occupancy,
+    price_per_night: (isWeekend && entry.weekend_price_per_night != null) ? entry.weekend_price_per_night : entry.price_per_night,
+  };
+}
+
 function resolveHotelSeasonPricing(
   roomPricing: {
     price_per_night: unknown;
     extra_bed_rate: unknown;
     weekend_extra_bed_rate?: unknown;
-    occupancy_prices: { occupancy: number; price_per_night: unknown }[];
+    occupancy_prices: OccupancyPriceRow[];
     seasons: {
       valid_from: Date;
       valid_to: Date;
@@ -227,7 +239,7 @@ function resolveHotelSeasonPricing(
       weekend_price_per_night?: unknown;
       extra_bed_rate?: unknown;
       weekend_extra_bed_rate?: unknown;
-      occupancy_prices?: { occupancy: number; price_per_night: unknown }[];
+      occupancy_prices?: OccupancyPriceRow[];
     }[];
   },
   travelDate: Date | null,
@@ -237,10 +249,10 @@ function resolveHotelSeasonPricing(
   const defaultExtraBedWeekend = roomPricing.weekend_extra_bed_rate != null
     ? Number(roomPricing.weekend_extra_bed_rate)
     : defaultExtraBedWeekday;
-  const defaultOcc = roomPricing.occupancy_prices;
 
   const isWeekend = travelDate ? (travelDate.getDay() === 0 || travelDate.getDay() === 6) : false;
   const defaultExtraBedRate = isWeekend ? defaultExtraBedWeekend : defaultExtraBedWeekday;
+  const defaultOcc = roomPricing.occupancy_prices.map((op) => resolveOccupancyWeekend(op, isWeekend));
 
   if (!travelDate || roomPricing.seasons.length === 0) {
     return { basePrice: defaultBase, extraBedRate: defaultExtraBedRate, occPrices: defaultOcc };
@@ -273,7 +285,7 @@ function resolveHotelSeasonPricing(
     : seasonExtraBedWeekday;
   const seasonExtraBedRate = isWeekend ? seasonExtraBedWeekend : seasonExtraBedWeekday;
 
-  const seasonOcc = matchedSeason.occupancy_prices ?? [];
+  const seasonOcc = (matchedSeason.occupancy_prices ?? []).map((op) => resolveOccupancyWeekend(op, isWeekend));
   return {
     basePrice: seasonBase,
     extraBedRate: seasonExtraBedRate,
@@ -398,7 +410,7 @@ export async function computePackagePrice(
                 room: { select: { id: true, name: true, max_occupancy: true, extra_bed_capacity: true } },
                 occupancy_prices: {
                   orderBy: { occupancy: "asc" },
-                  select: { occupancy: true, price_per_night: true },
+                  select: { occupancy: true, price_per_night: true, weekend_price_per_night: true },
                 },
                 seasons: {
                   where: { is_active: true },
@@ -412,7 +424,7 @@ export async function computePackagePrice(
                     weekend_extra_bed_rate: true,
                     occupancy_prices: {
                       orderBy: { occupancy: "asc" },
-                      select: { occupancy: true, price_per_night: true },
+                      select: { occupancy: true, price_per_night: true, weekend_price_per_night: true },
                     },
                   },
                 },
@@ -1147,14 +1159,14 @@ export async function computeBuilderHotelPricing(input: {
       room: { select: { name: true, max_occupancy: true, extra_bed_capacity: true } },
       occupancy_prices: {
         orderBy: { occupancy: "asc" },
-        select: { occupancy: true, price_per_night: true },
+        select: { occupancy: true, price_per_night: true, weekend_price_per_night: true },
       },
       seasons: {
         where: { is_active: true },
         orderBy: { sort_order: "asc" },
         select: {
           valid_from: true, valid_to: true, price_per_night: true, weekend_price_per_night: true,
-          occupancy_prices: { select: { occupancy: true, price_per_night: true } },
+          occupancy_prices: { select: { occupancy: true, price_per_night: true, weekend_price_per_night: true } },
         },
       },
     },
