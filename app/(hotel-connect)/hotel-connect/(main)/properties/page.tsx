@@ -20,6 +20,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
 import { cn } from "@/app/lib/utils";
+import { computeEffectiveWizardStep, totalTabsFor, wizardCompletenessPct } from "./[id]/edit/wizard-progress";
 
 // ── Types & helpers ───────────────────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ type PropertyCard = {
   property_sub_type: PropertySubType | null;
   star_rating: number | null;
   roomCount: number;
+  completenessPct: number;
 };
 
 const STATUS_CONFIG: Record<
@@ -76,8 +78,9 @@ export default async function PropertiesPage({
     select: {
       id: true, name: true, slug: true, listing_status: true,
       city: true, state: true, thumbnail: true,
-      property_sub_type: true, star_rating: true,
-      _count: { select: { hotelRooms: true } },
+      property_sub_type: true, star_rating: true, property_category: true,
+      address: true, country: true, pincode: true, latitude: true, wizard_step: true,
+      _count: { select: { hotelRooms: true, images: true } },
       images: {
         orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
         take: 1,
@@ -87,18 +90,28 @@ export default async function PropertiesPage({
     orderBy: { created_at: "desc" },
   });
 
-  const all: PropertyCard[] = raw.map((h) => ({
-    id:                h.id,
-    name:              h.name,
-    slug:              h.slug,
-    listing_status:    h.listing_status,
-    city:              h.city,
-    state:             h.state,
-    coverImage:        h.thumbnail ?? h.images[0]?.thumbnail ?? h.images[0]?.url ?? null,
-    property_sub_type: h.property_sub_type,
-    star_rating:       h.star_rating,
-    roomCount:         h._count.hotelRooms,
-  }));
+  const all: PropertyCard[] = raw.map((h) => {
+    const totalTabs = totalTabsFor(h.property_category);
+    const reachedStep = computeEffectiveWizardStep({
+      property_category: h.property_category,
+      address: h.address, city: h.city, state: h.state, country: h.country,
+      pincode: h.pincode, latitude: h.latitude, wizard_step: h.wizard_step,
+      roomCount: h._count.hotelRooms, imageCount: h._count.images,
+    });
+    return {
+      id:                h.id,
+      name:              h.name,
+      slug:              h.slug,
+      listing_status:    h.listing_status,
+      city:              h.city,
+      state:             h.state,
+      coverImage:        h.thumbnail ?? h.images[0]?.thumbnail ?? h.images[0]?.url ?? null,
+      property_sub_type: h.property_sub_type,
+      star_rating:       h.star_rating,
+      roomCount:         h._count.hotelRooms,
+      completenessPct:   wizardCompletenessPct(reachedStep, totalTabs),
+    };
+  });
 
   const counts = {
     all:     all.length,
@@ -227,6 +240,22 @@ export default async function PropertiesPage({
                           <DoorIcon size={14} weight="bold" className="text-neutral-300" />
                           {hotel.roomCount} room{hotel.roomCount !== 1 ? "s" : ""}
                         </span>
+                      </div>
+
+                      {/* Listing completeness */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-medium text-neutral-400">Listing completeness</span>
+                          <span className={cn("text-[11px] font-semibold", hotel.completenessPct >= 100 ? "text-emerald-600" : "text-neutral-500")}>
+                            {hotel.completenessPct}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+                          <div
+                            className={cn("h-full rounded-full transition-all duration-500", hotel.completenessPct >= 100 ? "bg-emerald-500" : "bg-primary-400")}
+                            style={{ width: `${hotel.completenessPct}%` }}
+                          />
+                        </div>
                       </div>
 
                       {/* Actions */}

@@ -3,6 +3,7 @@ import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import WizardShell from "./WizardShell";
 import { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
+import { computeEffectiveWizardStep, totalTabsFor, wizardCompletenessPct } from "./wizard-progress";
 import BasicInfoTab from "./tabs/BasicInfoTab";
 import HomestayBasicInfoTab, { type HomestayBasicInfo } from "./tabs/HomestayBasicInfoTab";
 import HomestayRoomsTab, { type HomestayRoomsData } from "./tabs/HomestayRoomsTab";
@@ -250,27 +251,13 @@ export default async function EditPropertyPage({
   const maxTab = isHomestay ? 8 : 7;
   const TABS_WITH_FORM = isHomestay ? HOMESTAY_TABS_WITH_FORM : HOTEL_TABS_WITH_FORM;
 
-  // Compute how far the wizard is ACTUALLY complete based on saved DB data.
-  function effectiveWizardStep(): number {
-    if (!h.property_category) return 0;
-    if (
-      !h.address || !h.city || !h.state ||
-      !h.country || !h.pincode || h.latitude == null
-    ) return 1;
-    if (isHomestay) {
-      // wizard_step < 4 means Rooms & Spaces (tab 4) not yet saved
-      if (h.wizard_step < 4) return Math.min(h.wizard_step, 3);
-      if (h._count.images === 0) return 4; // Photos = tab 5; no images → tabs 1-4 complete
-      return Math.max(h.wizard_step, 5);
-    }
-    // Hotels: tab 4 = Rooms, tab 5 = Photos
-    if (rooms.length === 0) return 3;
-    if (h._count.images === 0) return 4;
-    return Math.max(h.wizard_step, 5);
-  }
-
   const requestedTab = Math.max(1, Math.min(maxTab, parseInt(tab ?? "1", 10) || 1));
-  const reachedStep = effectiveWizardStep();
+  const reachedStep = computeEffectiveWizardStep({
+    property_category: h.property_category,
+    address: h.address, city: h.city, state: h.state, country: h.country,
+    pincode: h.pincode, latitude: h.latitude, wizard_step: h.wizard_step,
+    roomCount: rooms.length, imageCount: h._count.images,
+  });
 
   // Can't skip ahead of the next step that hasn't actually been validated yet
   // (mirrors the lock shown in the tab bar) — bounce back to the furthest

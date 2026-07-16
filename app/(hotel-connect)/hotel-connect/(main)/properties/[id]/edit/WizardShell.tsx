@@ -16,6 +16,7 @@ import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
 import Button, { buttonVariants } from "@/app/components/ui/Button";
 import SubmitReviewStrip from "./SubmitReviewStrip";
 import { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
+import { wizardCompletenessPct } from "./wizard-progress";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -279,6 +280,7 @@ export default function WizardShell({
   const isLastTab  = currentTab === totalTabs;
   const allComplete = effectiveWizardStep >= totalTabs;
   const isDraft = hotel.listing_status === HotelListingStatus.DRAFT;
+  const completenessPct = wizardCompletenessPct(effectiveWizardStep, totalTabs);
 
   return (
     <div className="flex flex-col h-full min-h-0 ">
@@ -309,6 +311,17 @@ export default function WizardShell({
           >
             {status.label}
           </span>
+          <span
+            className={cn(
+              "hidden sm:inline-flex shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+              completenessPct >= 100
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                : "bg-neutral-50 text-neutral-500 border-neutral-200"
+            )}
+            title="Listing completeness"
+          >
+            {completenessPct}% complete
+          </span>
         </div>
 
         <button
@@ -320,6 +333,12 @@ export default function WizardShell({
           <span className="hidden sm:inline">Save & Exit</span>
         </button>
       </header>
+      <div className="shrink-0 h-1 bg-neutral-100">
+        <div
+          className={cn("h-full transition-all duration-500", completenessPct >= 100 ? "bg-emerald-500" : "bg-primary-500")}
+          style={{ width: `${completenessPct}%` }}
+        />
+      </div>
 
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white overflow-x-auto scrollbar-none px-2  py-5">
