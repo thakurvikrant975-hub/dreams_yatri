@@ -488,12 +488,12 @@ export async function handleDeleteItineraryDay(
   day: number,
 ) {
   try {
-    await deleteItineraryDay(packageId, durationId, routeId, day);
+    const result = await deleteItineraryDay(packageId, durationId, routeId, day);
     revalidatePath(p(packageId));
-    return { success: true as const };
+    return { success: true as const, data: result };
   } catch (e) {
     console.error(e);
-    return { success: false as const, message: "Failed to delete day" };
+    return { success: false as const, message: e instanceof Error ? e.message : "Failed to delete day" };
   }
 }
 

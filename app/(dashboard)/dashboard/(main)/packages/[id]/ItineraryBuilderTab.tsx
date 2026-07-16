@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -165,9 +166,9 @@ function computeStopGroups(stops: RouteStop[]) {
 // ── Day Card ───────────────────────────────────────────────────────────────
 
 function DayCard({
-  day, occupiedBy, onClick, onDelete,
+  day, occupiedBy, onClick, onDelete, blockedReason,
 }: {
-  day: DayData; occupiedBy?: OccupiedBy; onClick: () => void; onDelete: () => void;
+  day: DayData; occupiedBy?: OccupiedBy; onClick: () => void; onDelete: () => void; blockedReason?: string;
 }) {
   const hasAny =
     day.id !== null &&
@@ -248,23 +249,36 @@ function DayCard({
             <Trash2 className="h-3 w-3" />
           </Button>
         </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Day {day.day}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove all activities, transfers, stays, notes and attractions saved for Day {day.day}. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={onDelete}
-              className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
+        {blockedReason ? (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Can&apos;t delete Day {day.day}</AlertDialogTitle>
+              <AlertDialogDescription>{blockedReason}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="cursor-pointer">OK</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        ) : (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Day {day.day}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove all activities, transfers, stays, notes and attractions saved for Day {day.day},
+                shift every later day back by one, and reduce that stop&apos;s night count in the route. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={onDelete}
+                className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
       </AlertDialog>
     </div>
   );
@@ -273,6 +287,7 @@ function DayCard({
 // ── Main Tab ───────────────────────────────────────────────────────────────
 
 export function ItineraryBuilderTab({ packageId, destinationId, durations, stayCategories: initialStayCategories }: Props) {
+  const router = useRouter();
   const defaultDuration = durations.find((d) => d.is_default) ?? durations[0] ?? null;
   const [selectedDurationId, setSelectedDurationId] = useState<number | null>(defaultDuration?.id ?? null);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(
@@ -340,7 +355,14 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
       setSidebarOpen(false);
       setOpenDay(null);
     }
-    loadDays(selectedDurationId, selectedRouteId);
+    // Deleting a day also shrinks the owning stop's nights, which can move the
+    // route to a different duration — refresh the server-fetched route/duration
+    // data and re-point selection at wherever the route ended up.
+    const { durationId: newDurationId, routeId: newRouteId } = res.data;
+    setSelectedDurationId(newDurationId);
+    setSelectedRouteId(newRouteId);
+    router.refresh();
+    loadDays(newDurationId, newRouteId);
   }
 
   // Build a map of days that are "covered" by a multi-night stay from a prior day
@@ -481,8 +503,12 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
           ) : days ? (
             selectedRoute?.stops?.length ? (
               <div className="space-y-5">
-                {computeStopGroups(selectedRoute.stops).map((group) => {
+                {computeStopGroups(selectedRoute.stops).map((group, groupIdx) => {
                   const stopDays = days.filter((d) => d.day >= group.startDay && d.day <= group.endDay);
+                  const stopStayDays = selectedRoute.stops![groupIdx].stay_days;
+                  const groupBlockedReason = stopStayDays <= 1
+                    ? `This is the only night at ${group.name}. Removing it would drop that stop from the route — edit the route in Route Builder instead.`
+                    : undefined;
                   // Show copy button only if another route in any duration has the same stop
                   const hasCopySource = durations.some((dur) =>
                     dur.routes.some((r) =>
@@ -523,6 +549,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                               setSidebarOpen(true);
                             }}
                             onDelete={() => handleDeleteDay(day.day)}
+                            blockedReason={groupBlockedReason}
                           />
                         ))}
                       </div>
@@ -533,6 +560,10 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                   const groups = computeStopGroups(selectedRoute.stops);
                   const extraDays = days.filter((d) => !groups.some((g) => d.day >= g.startDay && d.day <= g.endDay));
                   if (extraDays.length === 0) return null;
+                  const lastStop = selectedRoute.stops![selectedRoute.stops!.length - 1];
+                  const extraBlockedReason = lastStop.stay_days <= 1
+                    ? `This is the only night at ${lastStop.place_name}. Removing it would drop that stop from the route — edit the route in Route Builder instead.`
+                    : undefined;
                   return (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -550,6 +581,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                               setSidebarOpen(true);
                             }}
                             onDelete={() => handleDeleteDay(day.day)}
+                            blockedReason={extraBlockedReason}
                           />
                         ))}
                       </div>
