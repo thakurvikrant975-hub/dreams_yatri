@@ -1,6 +1,6 @@
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
-import type { BookingStatus } from "@/app/generated/prisma";
+import type { BookingStatus, ReferralSource } from "@/app/generated/prisma";
 import ConnectHeader from "../components/ConnectHeader";
 import { Card } from "@/app/components/ui/Card";
 import {
@@ -12,6 +12,9 @@ import {
   BankIcon,
   InfoIcon,
   CheckCircleIcon,
+  BedIcon,
+  ChartBarIcon,
+  TimerIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 
@@ -24,6 +27,9 @@ type MonthlyRow = {
   revenue: number;
 };
 
+type SourceRow = { source: string; count: number };
+type LeadTimeBuckets = { lastMinute: number; within30: number; over30: number };
+
 async function getRevenueData(ownerId: string) {
   const ownerHotels = await db.hotels.findMany({
     where: { owner_id: ownerId },
@@ -31,7 +37,11 @@ async function getRevenueData(ownerId: string) {
   });
   const hotelIds = ownerHotels.map((h) => h.id);
 
-  const zero = { total: 0, thisMonth: 0, lastMonth: 0, upcoming: 0, monthly: [] as MonthlyRow[] };
+  const zero = {
+    total: 0, thisMonth: 0, lastMonth: 0, upcoming: 0, monthly: [] as MonthlyRow[],
+    occupancyPct: null as number | null, sources: [] as SourceRow[],
+    leadTime: { lastMinute: 0, within30: 0, over30: 0 } as LeadTimeBuckets,
+  };
   if (!hotelIds.length) return zero;
 
   const links = await db.bookingHotel.findMany({
@@ -64,7 +74,13 @@ async function getRevenueData(ownerId: string) {
     };
   });
 
-  const [totalAgg, thisMonthAgg, lastMonthAgg, upcomingAgg, monthlyAggs] = await Promise.all([
+  // Occupancy looks forward (next 30 days) — an owner's calendar fill-rate
+  // for the upcoming month is the actionable number, not a rear-view mirror.
+  const occStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const occEnd   = new Date(occStart);
+  occEnd.setDate(occEnd.getDate() + 30);
+
+  const [totalAgg, thisMonthAgg, lastMonthAgg, upcomingAgg, monthlyAggs, occupancyAgg, sourceGroups, leadTimeRows] = await Promise.all([
     db.booking.aggregate({ where: { ...baseWhere, status: earnedStatus }, _sum: { totalAmount: true } }),
     db.booking.aggregate({ where: { ...baseWhere, status: earnedStatus, createdAt: { gte: msStart } }, _sum: { totalAmount: true } }),
     db.booking.aggregate({ where: { ...baseWhere, status: earnedStatus, createdAt: { gte: lmsStart, lte: lmsEnd } }, _sum: { totalAmount: true } }),
@@ -76,6 +92,12 @@ async function getRevenueData(ownerId: string) {
         _sum: { totalAmount: true },
       }),
     ]))),
+    db.hotel_room_availability.aggregate({
+      where: { hotel_id: { in: hotelIds }, date: { gte: occStart, lt: occEnd } },
+      _sum: { total_units: true, booked_units: true },
+    }),
+    db.booking.groupBy({ by: ["referralSource"], where: baseWhere, _count: { _all: true } }),
+    db.booking.findMany({ where: baseWhere, select: { createdAt: true, startDate: true } }),
   ]);
 
   const monthly: MonthlyRow[] = monthWindows.map((w, idx) => ({
@@ -85,12 +107,34 @@ async function getRevenueData(ownerId: string) {
     revenue:    Number(monthlyAggs[idx]?.[1]?._sum?.totalAmount ?? 0),
   }));
 
+  const totalUnits  = occupancyAgg._sum?.total_units ?? 0;
+  const bookedUnits = occupancyAgg._sum?.booked_units ?? 0;
+  const occupancyPct = totalUnits > 0 ? Math.round((bookedUnits / totalUnits) * 100) : null;
+
+  const SOURCE_LABELS: Record<string, string> = {
+    AGENT: "Agent", CLIENT: "Direct", PARTNER: "Partner", ORGANIC: "Organic/Search",
+  };
+  const sources: SourceRow[] = sourceGroups
+    .map((g) => ({ source: SOURCE_LABELS[g.referralSource ?? ""] ?? "Not specified", count: g._count._all }))
+    .sort((a, b) => b.count - a.count);
+
+  const leadTime: LeadTimeBuckets = { lastMinute: 0, within30: 0, over30: 0 };
+  for (const b of leadTimeRows) {
+    const days = Math.round((b.startDate.getTime() - b.createdAt.getTime()) / 86_400_000);
+    if (days <= 7) leadTime.lastMinute++;
+    else if (days <= 30) leadTime.within30++;
+    else leadTime.over30++;
+  }
+
   return {
     total:     Number(totalAgg._sum?.totalAmount ?? 0),
     thisMonth: Number(thisMonthAgg._sum?.totalAmount ?? 0),
     lastMonth: Number(lastMonthAgg._sum?.totalAmount ?? 0),
     upcoming:  Number(upcomingAgg._sum?.totalAmount ?? 0),
     monthly,
+    occupancyPct,
+    sources,
+    leadTime,
   };
 }
 
@@ -122,13 +166,19 @@ export default async function RevenuePage() {
   const session = await hotelConnectAuth();
   const ownerId = session!.user.id;
 
-  const { total, thisMonth, lastMonth, upcoming, monthly } = await getRevenueData(ownerId);
+  const { total, thisMonth, lastMonth, upcoming, monthly, occupancyPct, sources, leadTime } = await getRevenueData(ownerId);
 
   const momChange = lastMonth > 0
     ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100)
     : null;
 
   const maxRevenue = Math.max(...monthly.map((m) => m.revenue), 1);
+  const totalSourceCount = sources.reduce((n, s) => n + s.count, 0);
+  const totalLeadTimeCount = leadTime.lastMinute + leadTime.within30 + leadTime.over30;
+  const totalMonthlyBookings = monthly.reduce((n, m) => n + m.bookings, 0);
+  const avgBookingValue = totalMonthlyBookings > 0
+    ? Math.round(monthly.reduce((n, m) => n + m.revenue, 0) / totalMonthlyBookings)
+    : 0;
 
   return (
     <>
@@ -176,6 +226,36 @@ export default async function RevenuePage() {
               </span>
             </div>
           )}
+
+          {/* Performance stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card variant="elevated" radius="md">
+              <div className="p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-violet-50">
+                  <BedIcon size={17} weight="fill" className="text-violet-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xl font-bold text-neutral-900 leading-none mb-0.5 truncate">
+                    {occupancyPct != null ? `${occupancyPct}%` : "—"}
+                  </p>
+                  <p className="text-xs text-neutral-500">Occupancy (next 30d)</p>
+                </div>
+              </div>
+            </Card>
+            <Card variant="elevated" radius="md">
+              <div className="p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-amber-50">
+                  <ChartBarIcon size={17} weight="fill" className="text-amber-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xl font-bold text-neutral-900 leading-none mb-0.5 truncate">
+                    {avgBookingValue > 0 ? formatINR(avgBookingValue) : "—"}
+                  </p>
+                  <p className="text-xs text-neutral-500">Avg Booking Value (6mo)</p>
+                </div>
+              </div>
+            </Card>
+          </div>
 
           {/* Two-col: bar chart + table */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -258,6 +338,66 @@ export default async function RevenuePage() {
                     </div>
                   );
                 })}
+              </div>
+            </Card>
+          </div>
+
+          {/* Booking sources + lead time */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card variant="elevated" radius="md" className="overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-neutral-100">
+                <h3 className="text-sm font-semibold text-neutral-700">Booking Sources</h3>
+              </div>
+              <div className="p-5">
+                {totalSourceCount === 0 ? (
+                  <p className="text-sm text-neutral-400">No bookings yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {sources.map((s) => {
+                      const pct = Math.round((s.count / totalSourceCount) * 100);
+                      return (
+                        <div key={s.source} className="flex items-center gap-2.5">
+                          <span className="text-xs text-neutral-600 w-28 shrink-0 truncate">{s.source}</span>
+                          <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-primary-400" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs font-semibold text-neutral-500 w-16 text-right shrink-0">{s.count} ({pct}%)</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card variant="elevated" radius="md" className="overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-neutral-100 flex items-center gap-2">
+                <TimerIcon size={15} weight="fill" className="text-neutral-400" />
+                <h3 className="text-sm font-semibold text-neutral-700">Booking Lead Time</h3>
+              </div>
+              <div className="p-5">
+                {totalLeadTimeCount === 0 ? (
+                  <p className="text-sm text-neutral-400">No bookings yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {[
+                      { label: "Last-minute (≤ 7 days)", count: leadTime.lastMinute },
+                      { label: "1–30 days out", count: leadTime.within30 },
+                      { label: "30+ days out", count: leadTime.over30 },
+                    ].map((row) => {
+                      const pct = Math.round((row.count / totalLeadTimeCount) * 100);
+                      return (
+                        <div key={row.label} className="flex items-center gap-2.5">
+                          <span className="text-xs text-neutral-600 w-36 shrink-0">{row.label}</span>
+                          <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-emerald-400" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs font-semibold text-neutral-500 w-16 text-right shrink-0">{row.count} ({pct}%)</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </Card>
           </div>
