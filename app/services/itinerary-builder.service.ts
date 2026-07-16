@@ -214,7 +214,12 @@ export async function getItineraryData(
     },
   });
 
-  return Array.from({ length: duration.days }, (_, i): DayData => {
+  // Days can outlive the route's currently configured length (e.g. a route was
+  // shortened in Route Builder after content was already added) — surface those
+  // orphaned days too so they can be reviewed/cleared from the Itinerary Builder.
+  const maxDay = records.reduce((m, r) => Math.max(m, r.day), duration.days);
+
+  return Array.from({ length: maxDay }, (_, i): DayData => {
     const day = i + 1;
     const rec = records.find((r) => r.day === day);
     if (!rec) {
@@ -312,6 +317,25 @@ export async function checkItineraryDaysHaveContent(
     },
   });
   return count > 0;
+}
+
+export async function deleteItineraryDay(
+  packageId: number,
+  durationId: number,
+  routeId: number,
+  day: number,
+): Promise<void> {
+  const record = await db.package_itineraries.findFirst({
+    where: { package_id: packageId, duration_id: durationId, route_id: routeId, day },
+    select: { id: true },
+  });
+  if (!record) return;
+
+  await db.$transaction(async (tx) => {
+    // itinerary_stays has no onDelete: Cascade to package_itineraries — clear it manually.
+    await tx.itinerary_stays.deleteMany({ where: { itinerary_id: record.id } });
+    await tx.package_itineraries.delete({ where: { id: record.id } });
+  });
 }
 
 // ── Day meta ───────────────────────────────────────────────────────────────

@@ -6,8 +6,9 @@ import {
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
 import {
-  Tabs, TabsContent, TabsList, TabsTrigger,
+  TabsContent, TabsList, TabsTrigger,
 } from "../../components/ui/tabs";
+import { PackageTabsClient } from "./PackageTabsClient";
 import { PackageForm } from "../components/PackageForm";
 import { ImagesTab } from "./ImagesTab";
 import { RouteBuilderTab } from "./RouteBuilderTab";
@@ -47,20 +48,12 @@ function PlaceholderTab({ label }: { label: string }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────
 
-const VALID_TABS = ["basic-info","images","route-builder","itinerary-builder","policies","gallery","pricing","pricing-preview"] as const;
-type TabValue = typeof VALID_TABS[number];
-
 export default async function PackageBuilderPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
 }) {
-  const [{ id: idParam }, { tab: tabParam }] = await Promise.all([params, searchParams]);
-  const defaultTab: TabValue = (VALID_TABS as readonly string[]).includes(tabParam ?? "")
-    ? (tabParam as TabValue)
-    : "basic-info";
+  const { id: idParam } = await params;
   const id = parseInt(idParam, 10);
   if (isNaN(id)) notFound();
 
@@ -138,7 +131,7 @@ export default async function PackageBuilderPage({
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue={defaultTab}>
+      <PackageTabsClient>
         <TabsList className="w-full justify-start bg-dashboard-base-100 border-b h-auto gap-2 border border-dashboard-base-content/20 shadow-lg">
           {TABS.map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value} className="gap-1.5 px-4 pb-3">
@@ -321,7 +314,7 @@ export default async function PackageBuilderPage({
               }))}
           />
         </TabsContent>
-      </Tabs>
+      </PackageTabsClient>
     </div>
   );
 }
