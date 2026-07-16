@@ -97,7 +97,7 @@ function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string
   const router = useRouter();
   const [ci, setCi] = useState<Date | null>(toDate(checkIn));
   const [co, setCo] = useState<Date | null>(toDate(checkOut));
-  const [guests, setGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [] });
+  const [guests, setGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [], rooms: 1 });
   const [city, setCity] = useState<LocationValue | null>(
     hotel.city ? { id: hotel.city, name: hotel.city, type: "CITY" as LocationType, breadcrumb: hotel.city, slug: "" } : null,
   );
@@ -144,7 +144,7 @@ function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string
 
             <div className="flex flex-col gap-1" role="group" aria-labelledby="label-guests">
               <FieldLabel id="label-guests">Guests</FieldLabel>
-              <TravellersField value={guests} onChange={setGuests} />
+              <TravellersField value={guests} onChange={setGuests} showRooms />
             </div>
 
             <div className="flex flex-col gap-1">
