@@ -10,7 +10,7 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
-  Image as ImageIcon, Printer, X, Sparkles, Percent,
+  Image as ImageIcon, X, Sparkles, Percent,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -45,6 +45,7 @@ import {
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { ItineraryDocument, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -2223,15 +2224,7 @@ export default function PackageBuilderDetailPage() {
               </span>
             </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
-              onClick={() => window.print()}
-            >
-              <Printer size={13} />
-              <span className="hidden sm:inline text-xs">Download PDF (A4)</span>
-            </Button>
+            <ItineraryPdfExport form={previewForm} />
 
             <Button
               size="sm"
