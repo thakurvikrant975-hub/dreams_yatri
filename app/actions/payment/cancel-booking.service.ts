@@ -4,6 +4,7 @@ import { getProvider } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
 import { computeCancellationRefund } from "@/app/services/cancellation-policy/engine";
 import { notifyCancellation } from "@/app/services/notifications/booking-notify";
+import { notifyOwnerBookingCancelled } from "@/app/services/notifications/owner-notify";
 import type { CancelBookingResult, CancelRefundLine, CancellationPreview } from "./types";
 
 /**
@@ -31,8 +32,9 @@ export async function cancelBooking(params: {
     const booking = await db.booking.findUnique({
         where: { id: params.bookingId },
         select: {
-            id: true, userId: true, status: true, startDate: true,
+            id: true, userId: true, status: true, startDate: true, bookingNumber: true,
             payments: { select: { id: true, gateway: true, status: true, amount_paise: true, gatewayPaymentId: true, refundId: true } },
+            hotelBookings: { select: { hotelId: true, checkInDate: true, checkOutDate: true } },
         },
     });
     if (!booking) return { success: false, reason: "not_found" };
@@ -87,6 +89,19 @@ export async function cancelBooking(params: {
     });
 
     try { await notifyCancellation(booking.id, policy.refundablePaise, policy.feePaise); } catch (e) { console.error("[cancelBooking] email failed", e); }
+
+    for (const hb of booking.hotelBookings) {
+        try {
+            await notifyOwnerBookingCancelled({
+                hotelId: hb.hotelId,
+                bookingNumber: booking.bookingNumber,
+                checkInDate: hb.checkInDate,
+                checkOutDate: hb.checkOutDate,
+            });
+        } catch (e) {
+            console.error("[cancelBooking] owner notify failed", e);
+        }
+    }
 
     return { success: true, alreadyCancelled: false, paidPaise, refundablePaise: policy.refundablePaise, feePaise: policy.feePaise, refundPct: policy.refundPct, refunds };
 }

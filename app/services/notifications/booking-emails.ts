@@ -179,3 +179,39 @@ export function ownerBookingConfirmedEmail(d: {
       ${cta(d.bookingsUrl, "View in Bookings")}`),
     };
 }
+
+export function ownerBookingCancelledEmail(d: {
+    hotelName: string;
+    bookingNumber: string;
+    checkInDate: string;
+    checkOutDate: string;
+    bookingsUrl: string;
+}): EmailContent {
+    return {
+        subject: `Booking cancelled — ${d.hotelName}`,
+        html: layout("A booking has been cancelled", `
+      <p style="margin:0 0 12px">A stay at <strong>${d.hotelName}</strong> has been cancelled by the guest.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin:8px 0">
+        ${row("Booking", d.bookingNumber)}
+        ${row("Check-in", fmtDate(d.checkInDate))}
+        ${row("Check-out", fmtDate(d.checkOutDate))}
+      </table>
+      ${cta(d.bookingsUrl, "View in Bookings")}`),
+    };
+}
+
+export function ownerReviewReceivedEmail(d: {
+    hotelName: string;
+    guestName: string;
+    rating: number;
+    comment: string | null;
+    reviewsUrl: string;
+}): EmailContent {
+    return {
+        subject: `New ${d.rating}-star review — ${d.hotelName}`,
+        html: layout("You've received a new review", `
+      <p style="margin:0 0 12px"><strong>${d.guestName}</strong> left a <strong>${d.rating}-star</strong> review for <strong>${d.hotelName}</strong>.</p>
+      ${d.comment ? `<p style="margin:0 0 12px;padding:12px;background:#f9fafb;border-radius:6px;color:#374151">"${d.comment}"</p>` : ""}
+      ${cta(d.reviewsUrl, "Respond to review")}`),
+    };
+}

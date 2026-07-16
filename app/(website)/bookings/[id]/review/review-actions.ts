@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
+import { notifyOwnerReviewReceived } from "@/app/services/notifications/owner-notify";
 
 const MAX_COMMENT_LENGTH = 2000;
 
@@ -60,6 +61,12 @@ export async function submitHotelReview(
   } catch (err) {
     console.error("[submitHotelReview]", err);
     return { ok: false, error: "Failed to submit review. Please try again." };
+  }
+
+  try {
+    await notifyOwnerReviewReceived({ hotelId, guestName, rating, comment: trimmedComment || null });
+  } catch (err) {
+    console.error("[submitHotelReview] owner notify", err);
   }
 
   revalidatePath(`/bookings/${bookingId}/review`);

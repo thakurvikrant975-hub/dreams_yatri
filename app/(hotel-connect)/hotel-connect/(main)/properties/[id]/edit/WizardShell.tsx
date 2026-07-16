@@ -341,7 +341,7 @@ export default function WizardShell({
       </div>
 
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
-      <div className="shrink-0 bg-white overflow-x-auto scrollbar-none px-2  py-5">
+      <div className="shrink-0 bg-white overflow-x-auto scrollbar-none px-2 py-5">
         <div className="border-b border-neutral-200">
           <div className="md:max-w-4xl w-max md:w-auto min-w-full md:min-w-auto m-auto flex divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
             {tabs.map((tab, i) => (
