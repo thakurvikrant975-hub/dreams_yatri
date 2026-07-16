@@ -4,6 +4,7 @@ import Header from "@/app/components/navigation/Header";
 import Footer from "@/app/components/navigation/Footer";
 import HotelDetailClient from "./HotelDetailClient";
 import { getHotelForBooking } from "./booking-data";
+import { isHotelWishlisted } from "./wishlist-actions";
 
 // Default stay window when the guest hasn't picked dates yet: tomorrow → day after.
 export function resolveDates(sp: { in?: string; out?: string }) {
@@ -32,10 +33,12 @@ export default async function HotelDetailPage({
   const hotel = await getHotelForBooking(slug, checkIn, checkOut);
   if (!hotel) notFound();
 
+  const initialSaved = await isHotelWishlisted(hotel.id);
+
   return (
     <>
       <Header />
-      <HotelDetailClient hotel={hotel} checkIn={checkIn} checkOut={checkOut} />
+      <HotelDetailClient hotel={hotel} checkIn={checkIn} checkOut={checkOut} initialSaved={initialSaved} />
       <Footer />
     </>
   );

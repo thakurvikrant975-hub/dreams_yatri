@@ -348,6 +348,17 @@ model hotel_review {
   @@index([hotel_id])
 }
 
+model hotel_wishlist {
+  id         Int      @id @default(autoincrement())
+  hotel_id   Int
+  user_id    String
+  created_at DateTime @default(now())
+  hotel      hotels   @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, hotel_id])
+  @@index([user_id])
+}
+
 model BookingCab {
   id            String            @id @default(cuid())
   bookingId     String
@@ -1141,6 +1152,7 @@ model hotels {
   channel_connections         hotel_channel_connection[]
   conversations                conversation[]
   reviews                     hotel_review[]
+  wishlisted_by               hotel_wishlist[]
   destination                 destinations?              @relation(fields: [destination_id], references: [id])
   location                    Location?                  @relation(fields: [location_id], references: [id])
   packageBookings             PackageBookingHotel[]

@@ -400,6 +400,7 @@ export async function getHotelForBooking(
   }
 
   return {
+    id: h.id,
     slug: h.slug,
     name: h.name,
     starRating: h.star_rating ?? 3,

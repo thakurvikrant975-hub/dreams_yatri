@@ -53,6 +53,7 @@ export type SimilarHotel = {
 };
 
 export type Hotel = {
+  id: number;
   slug: string;
   name: string;
   starRating: number;
@@ -98,6 +99,7 @@ const IMG = (id: string, w = 800, h = 600) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&h=${h}&q=80`;
 
 export const hotel: Hotel = {
+  id: 1,
   slug: "hotel-jyoti-plaza-varanasi",
   name: "Hotel Jyoti Plaza",
   starRating: 3,

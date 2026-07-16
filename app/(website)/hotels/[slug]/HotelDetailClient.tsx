@@ -28,6 +28,8 @@ import { PencilRulerIcon, BedIcon, EyeIcon, BathtubIcon } from "@phosphor-icons/
 import type { BedroomLayout } from "./dummy";
 
 import type { Hotel, Room, RatePlan } from "./dummy";
+import { toggleWishlist } from "./wishlist-actions";
+import { useModal } from "@/app/hooks/useModals";
 import Button from "@/app/components/ui/Button";
 import DatePickerField from "@/app/components/ui/DatePickerField";
 import TravellersField, { type TravellersValue } from "@/app/components/ui/TravellersField";
@@ -604,13 +606,31 @@ function BookingSummary({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string; checkOut: string }) {
+export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSaved = false }: { hotel: Hotel; checkIn: string; checkOut: string; initialSaved?: boolean }) {
   const router = useRouter();
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [active, setActive] = useState("overview");
   const [landmarkTab, setLandmarkTab] = useState(0);
   const [selected, setSelected] = useState<{ roomId: string; plan: RatePlan } | null>(null);
   const [amenitiesOpen, setAmenitiesOpen] = useState(false);
+  const [saved, setSaved] = useState(initialSaved);
+  const [savePending, setSavePending] = useState(false);
+  const { openModal } = useModal();
+
+  async function handleToggleSave() {
+    if (savePending) return;
+    setSavePending(true);
+    const prev = saved;
+    setSaved(!prev);
+    const result = await toggleWishlist(hotel.id);
+    if (!result.ok) {
+      setSaved(prev);
+      if (result.error) openModal("login-modal", { redirectTo: window.location.pathname + window.location.search });
+    } else {
+      setSaved(result.wishlisted);
+    }
+    setSavePending(false);
+  }
 
   const allRates = hotel.rooms.flatMap((r) => r.ratePlans);
   const cheapest: RatePlan = allRates.length
@@ -685,8 +705,8 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel:
             <Button variant="outline" size="sm" className="flex items-center gap-1.5">
               <ShareIcon className="w-4 h-4" /> Share
             </Button>
-            <Button variant="outline" size="sm" className="flex items-center gap-1.5">
-              <HeartIcon className="w-4 h-4" /> Save
+            <Button variant="outline" size="sm" className="flex items-center gap-1.5" onClick={handleToggleSave} disabled={savePending}>
+              <HeartIcon className={cn("w-4 h-4", saved && "fill-red-500 text-red-500")} /> {saved ? "Saved" : "Save"}
             </Button>
           </div>
         </div>
