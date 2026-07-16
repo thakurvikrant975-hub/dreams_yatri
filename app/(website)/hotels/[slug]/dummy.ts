@@ -40,9 +40,6 @@ export type ReviewItem = {
   initials: string;
   date: string;
   rating: number;
-  label: string;
-  roomType: string;
-  tripType: string;
   text: string;
 };
 
@@ -65,7 +62,6 @@ export type Hotel = {
   reviewScore: number;
   reviewLabel: string;
   reviewCount: number;
-  locationScore: number;
   tags: string[];
   images: string[];
   about: string;
@@ -92,7 +88,6 @@ export type Hotel = {
     overall: number;
     label: string;
     count: number;
-    categories: { label: string; score: number }[];
     distribution: { stars: number; pct: number }[];
     items: ReviewItem[];
   };
@@ -112,7 +107,6 @@ export const hotel: Hotel = {
   reviewScore: 4.2,
   reviewLabel: "Very Good",
   reviewCount: 1284,
-  locationScore: 4.5,
   tags: ["Couple Friendly", "Free Wi-Fi", "Free Parking", "Breakfast Included"],
   images: [
     IMG("photo-1566073771259-6a8506099945", 1200, 800),
@@ -294,14 +288,6 @@ export const hotel: Hotel = {
     overall: 4.2,
     label: "Very Good",
     count: 1284,
-    categories: [
-      { label: "Cleanliness", score: 4.4 },
-      { label: "Location", score: 4.5 },
-      { label: "Service", score: 4.1 },
-      { label: "Value for Money", score: 4.0 },
-      { label: "Amenities", score: 3.9 },
-      { label: "Comfort", score: 4.3 },
-    ],
     distribution: [
       { stars: 5, pct: 58 },
       { stars: 4, pct: 26 },
@@ -316,9 +302,6 @@ export const hotel: Hotel = {
         initials: "AS",
         date: "12 Jan 2026",
         rating: 5,
-        label: "Excellent Stay",
-        roomType: "Deluxe Room",
-        tripType: "Family",
         text: "Loved every bit of the stay. Rooms were spotless, the breakfast spread was generous, and the staff went out of their way to arrange an early check-in for us. The location is very convenient — walkable to the mall and a short ride to the ghats.",
       },
       {
@@ -327,9 +310,6 @@ export const hotel: Hotel = {
         initials: "RV",
         date: "04 Jan 2026",
         rating: 4,
-        label: "Great value for money",
-        roomType: "Standard Room",
-        tripType: "Business",
         text: "Comfortable and clean, exactly what I needed for a two-night work trip. Wi-Fi was fast and reliable. Only minor gripe was that the room faced the road and could get a little noisy in the mornings.",
       },
       {
@@ -338,9 +318,6 @@ export const hotel: Hotel = {
         initials: "MI",
         date: "28 Dec 2025",
         rating: 5,
-        label: "The suite is worth it",
-        roomType: "Luxury Suite",
-        tripType: "Couple",
         text: "Upgraded to the suite and it was fantastic — spacious living area, a bathtub, and the complimentary beers were a nice touch. Very couple-friendly, no hassles at check-in. Will definitely return.",
       },
       {
@@ -349,9 +326,6 @@ export const hotel: Hotel = {
         initials: "KS",
         date: "15 Dec 2025",
         rating: 4,
-        label: "Good location, helpful staff",
-        roomType: "Deluxe Room",
-        tripType: "Solo",
         text: "Stayed here during a solo pilgrimage. The front desk helped me plan the Ganga Aarti timing and arranged a cab. Rooms are a touch dated but very well maintained and value for money.",
       },
     ],

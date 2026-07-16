@@ -21,7 +21,6 @@ import {
   SparklesIcon,
   ClockIcon,
   ArrowRightIcon,
-  HandThumbUpIcon,
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid, UserGroupIcon, } from "@heroicons/react/24/solid";
@@ -481,6 +480,19 @@ function RoomCard({
 
 function Reviews({ hotel }: { hotel: Hotel }) {
   const r = hotel.reviews;
+
+  if (r.count === 0) {
+    return (
+      <section id="reviews" className="scroll-mt-32">
+        <h2 className="text-lg font-bold text-neutral-800 mb-4">Guest Ratings & Reviews</h2>
+        <Card variant="elevated" radius="md" className="p-6 text-center">
+          <p className="text-sm font-semibold text-neutral-700">No reviews yet</p>
+          <p className="text-xs text-neutral-500 mt-1">Be the first to share how your stay was.</p>
+        </Card>
+      </section>
+    );
+  }
+
   return (
     <section id="reviews" className="scroll-mt-32">
       <h2 className="text-lg font-bold text-neutral-800 mb-4">Guest Ratings & Reviews</h2>
@@ -495,13 +507,13 @@ function Reviews({ hotel }: { hotel: Hotel }) {
             </div>
           </div>
           <div className="mt-4 space-y-2">
-            {r.categories.map((c) => (
-              <div key={c.label} className="flex items-center gap-2">
-                <span className="text-xs text-neutral-600 w-28 shrink-0">{c.label}</span>
+            {r.distribution.map((d) => (
+              <div key={d.stars} className="flex items-center gap-2">
+                <span className="text-xs text-neutral-600 w-12 shrink-0">{d.stars} star</span>
                 <div className="flex-1 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(c.score / 5) * 100}%` }} />
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${d.pct}%` }} />
                 </div>
-                <span className="text-xs font-semibold text-neutral-700 w-7 text-right">{c.score.toFixed(1)}</span>
+                <span className="text-xs font-semibold text-neutral-700 w-8 text-right">{d.pct}%</span>
               </div>
             ))}
           </div>
@@ -509,19 +521,6 @@ function Reviews({ hotel }: { hotel: Hotel }) {
 
         {/* Review list */}
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {["All Reviews", "Family", "Couple", "Business", "Solo"].map((f, i) => (
-              <button
-                key={f}
-                className={cn(
-                  "text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors",
-                  i === 0 ? "bg-primary-600 text-white border-primary-600" : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
-                )}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
           {r.items.map((item) => (
             <Card key={item.id} variant="elevated" radius="md" className="p-4">
               <div className="flex items-start gap-3">
@@ -532,24 +531,17 @@ function Reviews({ hotel }: { hotel: Hotel }) {
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold text-neutral-800">{item.name}</p>
-                      <p className="text-[11px] text-neutral-400">{item.date} · {item.roomType} · {item.tripType}</p>
+                      <p className="text-[11px] text-neutral-400">{item.date}</p>
                     </div>
                     <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 rounded-lg px-1.5 py-0.5 shrink-0">
                       {item.rating.toFixed(1)} <StarSolid className="w-3 h-3" />
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-neutral-700 mt-2">{item.label}</p>
-                  <p className="text-sm text-neutral-500 leading-relaxed mt-1">{item.text}</p>
-                  <button className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-primary-600 mt-2.5 transition-colors">
-                    <HandThumbUpIcon className="w-3.5 h-3.5" /> Helpful
-                  </button>
+                  <p className="text-sm text-neutral-500 leading-relaxed mt-2">{item.text}</p>
                 </div>
               </div>
             </Card>
           ))}
-          <button className="w-full py-2.5 rounded-xl border border-neutral-200 text-sm font-semibold text-primary-600 hover:bg-primary-50 transition-colors">
-            View all {r.count.toLocaleString("en-IN")} reviews
-          </button>
         </div>
       </div>
     </section>

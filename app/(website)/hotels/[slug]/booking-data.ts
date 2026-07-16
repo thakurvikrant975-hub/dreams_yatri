@@ -3,7 +3,7 @@ import { db } from "@/app/lib/db";
 import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
 import { resolveCancellation, effectivePolicy, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
 import { AMENITY_CATEGORIES } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/amenities-data";
-import type { Hotel, Room, RatePlan, BedroomLayout } from "./dummy";
+import type { Hotel, Room, RatePlan, BedroomLayout, ReviewItem } from "./dummy";
 
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&h=800&q=80";
@@ -74,6 +74,68 @@ function groupedAmenities(raw: unknown): { group: string; items: { label: string
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.max(1, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000));
+}
+
+function reviewLabelFor(score: number): string {
+  if (score <= 0) return "New";
+  if (score >= 4.5) return "Excellent";
+  if (score >= 4.0) return "Very Good";
+  if (score >= 3.5) return "Good";
+  if (score >= 3.0) return "Average";
+  return "Below Average";
+}
+
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "G";
+}
+
+type ReviewStats = {
+  overall: number;
+  label: string;
+  count: number;
+  distribution: { stars: number; pct: number }[];
+  items: ReviewItem[];
+};
+
+/** Real rating average, star distribution, and recent reviews for a hotel — same groupBy pattern as the owner-side reviews page (reviews-actions.ts). */
+async function getReviewStats(hotelId: number): Promise<ReviewStats> {
+  const [ratingGroups, count, recent] = await Promise.all([
+    db.hotel_review.groupBy({ by: ["rating"], where: { hotel_id: hotelId }, _count: { _all: true } }),
+    db.hotel_review.count({ where: { hotel_id: hotelId } }),
+    db.hotel_review.findMany({
+      where: { hotel_id: hotelId },
+      orderBy: { created_at: "desc" },
+      take: 20,
+      select: { id: true, guest_name: true, rating: true, comment: true, created_at: true },
+    }),
+  ]);
+
+  const breakdown: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  let sum = 0;
+  for (const g of ratingGroups) {
+    if (g.rating >= 1 && g.rating <= 5) breakdown[g.rating as 1 | 2 | 3 | 4 | 5] += g._count._all;
+    sum += g.rating * g._count._all;
+  }
+  const overall = count > 0 ? sum / count : 0;
+
+  return {
+    overall,
+    label: reviewLabelFor(overall),
+    count,
+    distribution: ([5, 4, 3, 2, 1] as const).map((stars) => ({
+      stars,
+      pct: count > 0 ? Math.round((breakdown[stars] / count) * 100) : 0,
+    })),
+    items: recent.map((r) => ({
+      id: String(r.id),
+      name: r.guest_name,
+      initials: initialsFor(r.guest_name),
+      date: r.created_at.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+      rating: r.rating,
+      text: r.comment ?? "",
+    })),
+  };
 }
 
 type BedroomDetail = {
@@ -248,7 +310,8 @@ export async function getHotelForBooking(
   const hotelImages = h.images.map((i) => imageUrl(i.url)).filter((u): u is string => !!u);
   const labels = amenityLabels(h.property_amenities);
 
-  const rooms: Room[] = await Promise.all(
+  const [rooms, reviewStats] = await Promise.all([
+    Promise.all(
     h.hotelRooms.map(async (r): Promise<Room> => {
       const ari = await getRoomARI(r.id, checkIn, checkOut);
       const roomAmenities = Array.isArray(r.amenities) ? (r.amenities as string[]).map(String) : amenityLabels(r.amenities);
@@ -298,7 +361,9 @@ export async function getHotelForBooking(
         ratePlans,
       };
     }),
-  );
+    ),
+    getReviewStats(h.id),
+  ]);
 
   const rule = (v: boolean | null, yes: string, no: string) => (v ? yes : no);
 
@@ -341,10 +406,9 @@ export async function getHotelForBooking(
     address: [h.address, h.city, h.state].filter(Boolean).join(", ") || (h.city ?? ""),
     area: h.city ?? "",
     city: h.city ?? "",
-    reviewScore: 0,
-    reviewLabel: "New",
-    reviewCount: 0,
-    locationScore: 0,
+    reviewScore: reviewStats.overall,
+    reviewLabel: reviewStats.label,
+    reviewCount: reviewStats.count,
     tags: labels.slice(0, 4),
     images: hotelImages.length ? hotelImages : [FALLBACK_IMG],
     about: h.description ?? `${h.name} in ${h.city ?? "India"} — comfortable rooms and warm hospitality.`,
@@ -368,7 +432,7 @@ export async function getHotelForBooking(
     },
     rooms,
     homestay,
-    reviews: { overall: 0, label: "New", count: 0, categories: [], distribution: [], items: [] },
+    reviews: reviewStats,
     similar: [],
     nights: nightsBetween(checkIn, checkOut),
   } as Hotel & { nights: number };
