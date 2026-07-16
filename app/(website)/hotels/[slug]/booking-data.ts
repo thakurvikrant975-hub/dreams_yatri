@@ -278,6 +278,7 @@ export async function getHotelForBooking(
     where: { slug },
     select: {
       id: true, name: true, slug: true, address: true, city: true, state: true,
+      latitude: true, longitude: true,
       star_rating: true, description: true, property_amenities: true,
       check_in_time: true, check_out_time: true, cancellation_policy: true,
       allow_unmarried_couples: true, allow_guests_below_18: true, smoking_allowed: true,
@@ -407,6 +408,8 @@ export async function getHotelForBooking(
     address: [h.address, h.city, h.state].filter(Boolean).join(", ") || (h.city ?? ""),
     area: h.city ?? "",
     city: h.city ?? "",
+    latitude: h.latitude != null ? Number(h.latitude) : null,
+    longitude: h.longitude != null ? Number(h.longitude) : null,
     reviewScore: reviewStats.overall,
     reviewLabel: reviewStats.label,
     reviewCount: reviewStats.count,

@@ -60,6 +60,8 @@ export type Hotel = {
   address: string;
   area: string;
   city: string;
+  latitude: number | null;
+  longitude: number | null;
   reviewScore: number;
   reviewLabel: string;
   reviewCount: number;
@@ -106,6 +108,8 @@ export const hotel: Hotel = {
   address: "S-20/51, The Mall Road, Cantonment, Varanasi",
   area: "Cantonment",
   city: "Varanasi",
+  latitude: 25.3535,
+  longitude: 82.9986,
   reviewScore: 4.2,
   reviewLabel: "Very Good",
   reviewCount: 1284,

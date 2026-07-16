@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { cn } from "@/app/lib/utils";
 import { Card } from "@/app/components/ui/Card";
 import {
@@ -37,6 +38,11 @@ import LocationSearchSelect, { type LocationValue } from "@/app/components/ui/Lo
 import type { LocationType } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { AMENITY_ICONS } from "./amenity-icons";
 import AmenitiesModal from "./AmenitiesModal";
+
+const HotelLocationMap = dynamic(() => import("./HotelLocationMap"), {
+  ssr: false,
+  loading: () => <div className="h-full w-full animate-pulse bg-neutral-100" />,
+});
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -638,6 +644,8 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
     : { id: "", mealPlan: "", inclusions: [], cancellation: "", refundable: false, price: 0, originalPrice: 0, taxes: 0 };
   const current = selected?.plan ?? cheapest;
   const totalAmenityCount = hotel.allAmenities.reduce((n, g) => n + g.items.length, 0);
+  const hasCoords = hotel.latitude != null && hotel.longitude != null;
+  const hasLandmarks = hotel.landmarks.some((l) => l.items.length > 0);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -800,48 +808,62 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
           {/* Location */}
           <section id="location" className="scroll-mt-32 py-6 border-t border-neutral-200">
             <h2 className="text-lg font-bold text-neutral-800 mb-4">Location & Surroundings</h2>
-            <div className="grid sm:grid-cols-[1fr_260px] gap-4">
+            <div className={cn("grid gap-4", hasLandmarks ? "sm:grid-cols-[1fr_260px]" : "sm:grid-cols-1")}>
               <div className="relative h-64 rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200">
-                <Image
-                  src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=800&h=500&q=80"
-                  alt="Map"
-                  fill
-                  className="object-cover opacity-90"
-                  sizes="60vw"
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="flex flex-col items-center gap-1 bg-white/90 rounded-xl px-4 py-3 shadow">
-                    <MapPinIcon className="w-6 h-6 text-primary-600" />
-                    <span className="text-xs font-semibold text-neutral-700">{hotel.area}, {hotel.city}</span>
-                  </span>
-                </div>
+                {hasCoords ? (
+                  <HotelLocationMap
+                    latitude={hotel.latitude as number}
+                    longitude={hotel.longitude as number}
+                    name={hotel.name}
+                    address={hotel.address}
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="flex flex-col items-center gap-1 bg-white/90 rounded-xl px-4 py-3 shadow">
+                      <MapPinIcon className="w-6 h-6 text-primary-600" />
+                      <span className="text-xs font-semibold text-neutral-700">{hotel.area}, {hotel.city}</span>
+                    </span>
+                  </div>
+                )}
+                {hasCoords && (
+                  <a
+                    href={`https://www.google.com/maps?q=${hotel.latitude},${hotel.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-2 right-2 z-[400] flex items-center gap-1 text-xs font-semibold bg-white text-primary-600 rounded-lg px-2.5 py-1.5 shadow hover:bg-primary-50 transition-colors"
+                  >
+                    <MapPinIcon className="w-3.5 h-3.5" /> Get Directions
+                  </a>
+                )}
               </div>
-              <div>
-                <div className="flex gap-1 mb-3 border-b border-neutral-200">
-                  {hotel.landmarks.map((l, i) => (
-                    <button
-                      key={l.category}
-                      onClick={() => setLandmarkTab(i)}
-                      className={cn(
-                        "text-xs font-semibold px-2 py-2 border-b-2 -mb-px transition-colors",
-                        landmarkTab === i ? "border-primary-600 text-primary-600" : "border-transparent text-neutral-500"
-                      )}
-                    >
-                      {l.category}
-                    </button>
-                  ))}
+              {hasLandmarks && (
+                <div>
+                  <div className="flex gap-1 mb-3 border-b border-neutral-200">
+                    {hotel.landmarks.filter((l) => l.items.length > 0).map((l, i) => (
+                      <button
+                        key={l.category}
+                        onClick={() => setLandmarkTab(i)}
+                        className={cn(
+                          "text-xs font-semibold px-2 py-2 border-b-2 -mb-px transition-colors",
+                          landmarkTab === i ? "border-primary-600 text-primary-600" : "border-transparent text-neutral-500"
+                        )}
+                      >
+                        {l.category}
+                      </button>
+                    ))}
+                  </div>
+                  <ul className="space-y-2.5">
+                    {hotel.landmarks.filter((l) => l.items.length > 0)[landmarkTab]?.items.map((it) => (
+                      <li key={it.name} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="flex items-center gap-1.5 text-neutral-600">
+                          <MapPinIcon className="w-3.5 h-3.5 text-neutral-300" /> {it.name}
+                        </span>
+                        <span className="text-xs font-semibold text-neutral-500 shrink-0">{it.distance}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="space-y-2.5">
-                  {hotel.landmarks[landmarkTab].items.map((it) => (
-                    <li key={it.name} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex items-center gap-1.5 text-neutral-600">
-                        <MapPinIcon className="w-3.5 h-3.5 text-neutral-300" /> {it.name}
-                      </span>
-                      <span className="text-xs font-semibold text-neutral-500 shrink-0">{it.distance}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              )}
             </div>
           </section>
 
