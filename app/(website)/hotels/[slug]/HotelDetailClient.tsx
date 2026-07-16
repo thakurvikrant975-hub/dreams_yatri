@@ -819,7 +819,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
           <section id="location" className="scroll-mt-32 py-6 border-t border-neutral-200">
             <h2 className="text-lg font-bold text-neutral-800 mb-4">Location & Surroundings</h2>
             <div className={cn("grid gap-4", hasLandmarks ? "sm:grid-cols-[1fr_260px]" : "sm:grid-cols-1")}>
-              <div className="relative h-64 rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200">
+              <div className="relative isolate h-64 rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200">
                 {hasCoords ? (
                   <HotelLocationMap
                     latitude={hotel.latitude as number}
