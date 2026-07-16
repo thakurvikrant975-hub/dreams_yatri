@@ -30,6 +30,7 @@ function ageFromDob(dob: string): number | null {
 
 export const travellerSchema = z.object({
     type: z.enum(["ADULT", "CHILD", "INFANT"]),
+    title: z.enum(["Mr", "Mrs", "Ms", "Dr"]).optional().default("Mr"),
     firstName: z.string().trim().min(1, "First name is required.").max(60),
     lastName: z.string().trim().min(1, "Last name is required.").max(60),
     dob: z.string().refine(isRealPastOrToday, "Enter a valid date of birth."),
@@ -55,6 +56,7 @@ export const checkoutSchema = z.object({
         phone: z.string().trim().regex(/^[+\d][\d\s\-().]{6,}$/, "Enter a valid phone number."),
     }),
     gstStateCode: z.string().trim().max(10).optional().or(z.literal("")),
+    specialRequests: z.string().trim().max(500).optional().or(z.literal("")),
 });
 
 export type TravellerInput = z.infer<typeof travellerSchema>;

@@ -6,6 +6,8 @@ import { XIcon, CheckCircleIcon, UserIcon } from '@phosphor-icons/react';
 import { Input } from '@/app/components/forms/Input';
 import { travellerSchema, type TravellerInput } from '@/app/actions/quote/checkout-schema';
 
+const TITLES: TravellerInput['title'][] = ['Mr', 'Mrs', 'Ms', 'Dr'];
+
 const GENDERS: { value: TravellerInput['gender']; label: string }[] = [
     { value: 'MALE', label: 'Male' },
     { value: 'FEMALE', label: 'Female' },
@@ -196,7 +198,12 @@ export default function TravellerModal({
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <Label>First name</Label>
-                                <Input value={cur.firstName} placeholder="First name" onChange={(e) => setField('firstName', e.target.value)} error={fieldErr('firstName')} />
+                                <div className="flex gap-2">
+                                    <select className={selectCls + ' w-22 shrink-0'} value={cur.title} onChange={(e) => setField('title', e.target.value)}>
+                                        {TITLES.map((t) => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                    <Input value={cur.firstName} placeholder="First name" wrapperClassName="flex-1" onChange={(e) => setField('firstName', e.target.value)} error={fieldErr('firstName')} />
+                                </div>
                             </div>
                             <div>
                                 <Label>Last name</Label>

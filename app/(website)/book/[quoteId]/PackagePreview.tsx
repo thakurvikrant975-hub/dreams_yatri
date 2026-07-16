@@ -10,8 +10,10 @@ export type PreviewDay = {
         hotel_name: string;
         room_name: string | null;
         plan_name: string | null;
-        image?: string | null;      
+        image?: string | null;
         room_image?: string | null;
+        cancellation_policy?: string | null;
+        is_refundable?: boolean | null;
     } | null;
     meals?: { label: string }[];
     activities?: {

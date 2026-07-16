@@ -6,7 +6,11 @@ import { useSession } from 'next-auth/react';
 import { useModal } from '@/app/hooks/useModals';
 import Link from 'next/link';
 import Image from 'next/image';
-import { CarProfileIcon, BedIcon, ParachuteIcon, ForkKnifeIcon, type Icon } from '@phosphor-icons/react';
+import { Dialog, VisuallyHidden } from 'radix-ui';
+import {
+    CarProfileIcon, BedIcon, ParachuteIcon, ForkKnifeIcon, XIcon,
+    CaretDownIcon, CaretUpIcon, InfoIcon, type Icon,
+} from '@phosphor-icons/react';
 import QuoteCountdown from './QuoteCountdown';
 import CheckoutForm from './CheckoutForm';
 import { type PreviewDay } from './PackagePreview';
@@ -47,8 +51,19 @@ function travellersLabel(adults: number, children: number, infants: number): str
 const SECTIONS = [
     { id: 'sec-travellers', label: 'Traveller Details' },
     { id: 'sec-itinerary', label: 'Package Itinerary & Inclusions' },
+    { id: 'sec-info', label: 'Important Information' },
     { id: 'sec-policy', label: 'Cancellation & Date Change' },
 ];
+
+export type HotelRules = {
+    checkInTime: string | null;
+    checkOutTime: string | null;
+    allowUnmarriedCouples: boolean | null;
+    allowGuestsBelow18: boolean | null;
+    petsAllowed: boolean | null;
+    smokingAllowed: boolean | null;
+    acceptableIdProofs: string[];
+};
 
 export default function BookReview({
     quote,
@@ -58,6 +73,7 @@ export default function BookReview({
     drift,
     schedule,
     itinerary = [],
+    hotelRules = null,
 }: {
     quote: SafeQuote;
     packageTitle: string;
@@ -66,6 +82,7 @@ export default function BookReview({
     drift: { fresh: boolean; currentTotal: number | null } | null;
     schedule: PaymentScheduleDTO | null;
     itinerary?: PreviewDay[];
+    hotelRules?: HotelRules | null;
 }) {
     const router = useRouter();
     const { status } = useSession();
@@ -75,6 +92,7 @@ export default function BookReview({
     const [error, setError] = useState<string | null>(null);
     const [checkout, setCheckout] = useState<CheckoutInput | null>(null);
     const [policy, setPolicy] = useState(false);
+    const [priceSummaryOpen, setPriceSummaryOpen] = useState(false);
 
     const totalPax = quote.adults + quote.children + quote.infants;
     const priceChanged = drift && !drift.fresh && drift.currentTotal !== null;
@@ -84,6 +102,7 @@ export default function BookReview({
     const payAmountPaise = schedule ? (effectiveChoice === 'FULL' ? schedule.totalPaise : schedule.depositPaise) : 0;
 
     const canProceed = Boolean(schedule && checkout && policy && !submitting);
+    const sections = hotelRules ? SECTIONS : SECTIONS.filter((s) => s.id !== 'sec-info');
 
     // Derived trip facts for the header / fare breakup
     const days = itinerary.length;
@@ -156,7 +175,7 @@ export default function BookReview({
                 <div className="screen-space flex flex-wrap items-center justify-between gap-3 py-3.5">
                     <span className="text-base font-medium">Review Package</span>
                     <nav className="flex flex-wrap items-center gap-x-6 gap-y-1">
-                        {SECTIONS.map((s, i) => (
+                        {sections.map((s, i) => (
                             <a key={s.id} href={`#${s.id}`} className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-white transition-colors">
                                 {i + 1}. {s.label}
                             </a>
@@ -224,8 +243,15 @@ export default function BookReview({
                             )}
                         </Section>
 
-                        {/* 3 · Cancellation & Date Change */}
-                        <Section id="sec-policy" n={3} title="Cancellation & Date Change">
+                        {/* 3 · Important Information (house rules for the primary hotel) */}
+                        {hotelRules && (
+                            <Section id="sec-info" n={3} title="Important Information">
+                                <HouseRules rules={hotelRules} />
+                            </Section>
+                        )}
+
+                        {/* 4 · Cancellation & Date Change */}
+                        <Section id="sec-policy" n={hotelRules ? 4 : 3} title="Cancellation & Date Change">
                             <div className="flex flex-col gap-3 text-sm">
                                 <div>
                                     <Text size="sm" weight="semibold" intent="primary" className="block">Package Cancellation Policy</Text>
@@ -272,23 +298,32 @@ export default function BookReview({
                                 </Text>
                             </div>
 
-                            {/* Fare Breakup */}
+                            {/* Fare Breakup — collapsed by default; the grand total above already
+                                shows what matters, this is the "why" for anyone who wants it. */}
                             <div className="px-5 py-4 border-b border-(--border-muted)">
-                                <Text size="sm" weight="semibold" intent="primary" className="block mb-2.5">Fare Breakup</Text>
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <Text size="sm" intent="secondary" className="block">Total Basic Cost</Text>
-                                        <Text size="xs" intent="muted" className="block">{fmt(quote.price_per_adult)} × {totalPax} traveller{totalPax !== 1 ? 's' : ''}</Text>
+                                <button type="button" onClick={() => setPriceSummaryOpen((o) => !o)}
+                                    className="w-full flex items-center justify-between cursor-pointer">
+                                    <Text size="sm" weight="semibold" intent="primary">Price Summary</Text>
+                                    {priceSummaryOpen ? <CaretUpIcon className="size-4 text-muted" weight="bold" /> : <CaretDownIcon className="size-4 text-muted" weight="bold" />}
+                                </button>
+                                {priceSummaryOpen && (
+                                    <div className="mt-2.5">
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <Text size="sm" intent="secondary" className="block">Total Basic Cost</Text>
+                                                <Text size="xs" intent="muted" className="block">{fmt(quote.price_per_adult)} × {totalPax} traveller{totalPax !== 1 ? 's' : ''}</Text>
+                                            </div>
+                                            <Text size="sm" weight="semibold" intent="primary" className="font-heading">{fmt(baseAmount)}</Text>
+                                        </div>
+                                        <div className="flex items-start justify-between mt-2">
+                                            <div>
+                                                <Text size="sm" intent="secondary" className="block">Fees &amp; Taxes</Text>
+                                                <Text size="xs" intent="muted" className="block">GST {quote.gst_percentage}%</Text>
+                                            </div>
+                                            <Text size="sm" weight="medium" intent="secondary">+ {fmt(quote.gst_amount)}</Text>
+                                        </div>
                                     </div>
-                                    <Text size="sm" weight="semibold" intent="primary" className="font-heading">{fmt(baseAmount)}</Text>
-                                </div>
-                                <div className="flex items-start justify-between mt-2">
-                                    <div>
-                                        <Text size="sm" intent="secondary" className="block">Fees &amp; Taxes</Text>
-                                        <Text size="xs" intent="muted" className="block">GST {quote.gst_percentage}%</Text>
-                                    </div>
-                                    <Text size="sm" weight="medium" intent="secondary">+ {fmt(quote.gst_amount)}</Text>
-                                </div>
+                                )}
                             </div>
 
                             {/* Pay plan choice */}
@@ -307,9 +342,9 @@ export default function BookReview({
                                 </div>
                             )}
 
-                            {/* Important Information + policy */}
+                            {/* Booking confirmation + policy acceptance */}
                             <div className="px-5 py-4">
-                                <Text size="sm" weight="semibold" intent="primary" className="block mb-2">Important Information</Text>
+                                <Text size="sm" weight="semibold" intent="primary" className="block mb-2">Confirm &amp; Book</Text>
                                 <label className="flex items-start gap-2.5 cursor-pointer select-none">
                                     <input type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)} className="mt-0.5 size-4 cursor-pointer shrink-0 accent-primary-500" />
                                     <Text size="xs" intent="secondary">
@@ -364,6 +399,7 @@ function Feature({ n, label }: { n: number; label: string }) {
 }
 
 function DayBlock({ day, dateISO }: { day: PreviewDay; dateISO: string }) {
+    const [inclusionsOpen, setInclusionsOpen] = useState(false);
     return (
         <li className="rounded-lg border border-(--border-muted) overflow-hidden">
             <div className="flex items-center gap-2.5 bg-neutral-50 px-4 py-2.5 border-b border-(--border-muted)">
@@ -396,16 +432,33 @@ function DayBlock({ day, dateISO }: { day: PreviewDay; dateISO: string }) {
                                 <div className="min-w-0">
                                     <Text size="sm" weight="semibold" intent="primary" className="block">{day.hotel.hotel_name}</Text>
                                     {(day.hotel.room_name || day.hotel.plan_name) && (
-                                        <Text size="xs" intent="secondary" className="block">{[day.hotel.room_name, day.hotel.plan_name].filter(Boolean).join(' · ')}</Text>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <Text size="xs" intent="secondary" className="block">{[day.hotel.room_name, day.hotel.plan_name].filter(Boolean).join(' · ')}</Text>
+                                            <button type="button" onClick={() => setInclusionsOpen(true)}
+                                                className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer">
+                                                See Inclusions
+                                            </button>
+                                        </div>
                                     )}
-                                    <span className={`mt-0.5 block text-xs ${mealsIncluded ? 'text-success-600' : 'text-(--text-muted)'}`}>
-                                        {mealsIncluded ? `✓ ${day.meals!.map((m) => m.label).join(', ')} included` : 'Room only · meals not included'}
-                                    </span>
+                                    <div className="mt-0.5 flex items-center gap-2 flex-wrap">
+                                        <span className={`text-xs ${mealsIncluded ? 'text-success-600' : 'text-(--text-muted)'}`}>
+                                            {mealsIncluded ? `✓ ${day.meals!.map((m) => m.label).join(', ')} included` : 'Room only · meals not included'}
+                                        </span>
+                                        {day.hotel.cancellation_policy && (
+                                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${day.hotel.is_refundable ? 'bg-success-50 text-success-700' : 'bg-red-50 text-red-600'}`}>
+                                                {day.hotel.is_refundable ? 'Free Cancellation' : 'Non-Refundable'}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     );
                 })()}
+
+                {day.hotel && (day.hotel.room_name || day.hotel.plan_name) && (
+                    <InclusionsModal day={day} open={inclusionsOpen} onClose={() => setInclusionsOpen(false)} />
+                )}
 
                 {!day.hotel && day.meals && day.meals.length > 0 && (
                     <Row icon={ForkKnifeIcon} tag="Meals" text={`${day.meals.map((m) => m.label).join(', ')} included`} />
@@ -473,5 +526,90 @@ function PayOption({ selected, onSelect, title, amount, sub }: { selected: boole
                 </div>
             </div>
         </button>
+    );
+}
+
+function InclusionsModal({ day, open, onClose }: { day: PreviewDay; open: boolean; onClose: () => void }) {
+    const hotel = day.hotel;
+    if (!hotel) return null;
+    return (
+        <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+            <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 z-9998 bg-black/40 backdrop-blur-[1px]" />
+                <Dialog.Content
+                    data-layout="website"
+                    className="fixed left-1/2 top-1/2 z-9999 w-[min(28rem,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white shadow-2xl outline-none"
+                    aria-describedby={undefined}
+                >
+                    <VisuallyHidden.Root asChild>
+                        <Dialog.Title>Rate inclusions</Dialog.Title>
+                    </VisuallyHidden.Root>
+                    <div className="flex items-center justify-between border-b border-(--border-muted) px-6 py-4">
+                        <h2 className="text-base font-semibold text-(--text-primary)">Rate Inclusions</h2>
+                        <Dialog.Close asChild>
+                            <button aria-label="Close" className="flex size-8 cursor-pointer items-center justify-center rounded-full text-(--text-secondary) hover:bg-neutral-100">
+                                <XIcon weight="bold" className="size-4" />
+                            </button>
+                        </Dialog.Close>
+                    </div>
+                    <div className="px-6 py-5 flex flex-col gap-4">
+                        <div>
+                            <Text size="sm" weight="semibold" intent="primary" className="block">{hotel.hotel_name}</Text>
+                            {(hotel.room_name || hotel.plan_name) && (
+                                <Text size="sm" intent="secondary" className="block mt-0.5">{[hotel.room_name, hotel.plan_name].filter(Boolean).join(' · ')}</Text>
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-2.5 text-sm">
+                            <div className="flex items-start gap-2.5">
+                                <ForkKnifeIcon className="size-4 mt-0.5 text-muted shrink-0" weight="duotone" />
+                                <span className="text-(--text-primary)">
+                                    {day.meals && day.meals.length > 0 ? `${day.meals.map((m) => m.label).join(', ')} included` : 'Room only — meals not included'}
+                                </span>
+                            </div>
+                            {hotel.cancellation_policy && (
+                                <div className="flex items-start gap-2.5">
+                                    <InfoIcon className="size-4 mt-0.5 text-muted shrink-0" weight="duotone" />
+                                    <span className={hotel.is_refundable ? 'text-success-700' : 'text-red-600'}>{hotel.cancellation_policy}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
+    );
+}
+
+function HouseRules({ rules }: { rules: HotelRules }) {
+    const items: string[] = [];
+    if (rules.allowUnmarriedCouples === false) items.push('Unmarried couples are not allowed.');
+    if (rules.allowUnmarriedCouples === true) items.push('Unmarried couples are allowed.');
+    if (rules.allowGuestsBelow18 === false) items.push('Guests below 18 years of age are not allowed without a parent/guardian.');
+    if (rules.petsAllowed === false) items.push('Pets are not allowed.');
+    if (rules.petsAllowed === true) items.push('Pets are allowed (charges may apply).');
+    if (rules.smokingAllowed === false) items.push('Smoking is not allowed on the property.');
+    if (rules.acceptableIdProofs.length > 0) items.push(`Acceptable ID proofs: ${rules.acceptableIdProofs.join(', ')}.`);
+
+    return (
+        <div className="flex flex-col gap-3 text-sm">
+            {(rules.checkInTime || rules.checkOutTime) && (
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                    {rules.checkInTime && <span><span className="font-semibold text-(--text-primary)">Check-in:</span> <span className="text-(--text-secondary)">{rules.checkInTime}</span></span>}
+                    {rules.checkOutTime && <span><span className="font-semibold text-(--text-primary)">Check-out:</span> <span className="text-(--text-secondary)">{rules.checkOutTime}</span></span>}
+                </div>
+            )}
+            {items.length > 0 ? (
+                <ul className="flex flex-col gap-1.5">
+                    {items.map((it, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                            <span className="mt-1.5 size-1 rounded-full bg-neutral-400 shrink-0" />
+                            <Text size="sm" intent="secondary">{it}</Text>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <Text size="sm" intent="secondary">Standard property rules apply — full house rules will be shared with your confirmation.</Text>
+            )}
+        </div>
     );
 }

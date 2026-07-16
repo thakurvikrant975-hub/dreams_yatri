@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { PencilSimpleIcon, PlusIcon, CheckCircleIcon, UserCirclePlusIcon } from '@phosphor-icons/react';
-import { Input } from '@/app/components/forms/Input';
+import { Input, inputVariants } from '@/app/components/forms/Input';
 import { Select, Option } from '@/app/components/forms/Select';
 import { checkoutSchema, type CheckoutInput, type TravellerInput } from '@/app/actions/quote/checkout-schema';
 import TravellerModal, { isTravellerComplete } from './TravellerModal';
@@ -22,7 +22,7 @@ const COUNTRY_OPTIONS = [
 type Pax = { adults: number; children: number; infants: number };
 
 function initialTravellers({ adults, children, infants }: Pax): TravellerInput[] {
-    const mk = (type: TravellerInput['type']): TravellerInput => ({ type, firstName: '', lastName: '', dob: '', gender: 'MALE' });
+    const mk = (type: TravellerInput['type']): TravellerInput => ({ type, title: 'Mr', firstName: '', lastName: '', dob: '', gender: 'MALE' });
     return [
         ...Array.from({ length: adults }, () => mk('ADULT')),
         ...Array.from({ length: children }, () => mk('CHILD')),
@@ -47,6 +47,7 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
     const [countryCode, setCountryCode] = useState('+91');
     const [phoneInput, setPhoneInput] = useState('');
     const [gst, setGst]               = useState('');
+    const [specialRequests, setSpecialRequests] = useState('');
     const [touched, setTouched]       = useState<Record<string, boolean>>({});
 
     const [modalOpen, setModalOpen] = useState(false);
@@ -55,10 +56,10 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
 
     useEffect(() => {
         const phone = phoneInput ? `${countryCode}${phoneInput}` : '';
-        const parsed = checkoutSchema.safeParse({ travellers, contact: { email, phone }, gstStateCode: gst });
+        const parsed = checkoutSchema.safeParse({ travellers, contact: { email, phone }, gstStateCode: gst, specialRequests });
         onChange(parsed.success ? parsed.data : null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [travellers, email, phoneInput, countryCode, gst]);
+    }, [travellers, email, phoneInput, countryCode, gst, specialRequests]);
 
     const markTouched = (k: string) => setTouched((p) => ({ ...p, [k]: true }));
     const emailErr = touched.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? 'Enter a valid email.' : undefined;
@@ -126,6 +127,25 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
                     <Label>GST number / state <span className="font-normal text-(--text-muted)">(optional)</span></Label>
                     <Input placeholder="For a GST invoice" value={gst} onChange={(e) => setGst(e.target.value)} />
                 </div>
+            </div>
+
+            {/* Special requests */}
+            <div className="rounded-xl border border-(--border-muted) p-4">
+                <div className="text-sm font-semibold text-primary mb-1">
+                    Special Requests <span className="font-normal text-(--text-muted)">(optional)</span>
+                </div>
+                <p className="text-xs text-(--text-muted) mb-3">
+                    Add any requests for your stay — the property will do its best to accommodate them, but they aren&apos;t guaranteed.
+                </p>
+                <textarea
+                    value={specialRequests}
+                    onChange={(e) => setSpecialRequests(e.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    placeholder="e.g. high floor room, early check-in, extra pillows…"
+                    className={inputVariants({ size: 'md', className: 'h-auto py-2.5 resize-none' })}
+                />
+                <p className="text-right text-xs text-(--text-muted) mt-1">{specialRequests.length}/500</p>
             </div>
 
             <TravellerModal open={modalOpen} travellers={travellers} labels={labels} initialTab={modalTab}

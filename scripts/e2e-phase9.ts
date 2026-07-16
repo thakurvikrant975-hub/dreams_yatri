@@ -25,8 +25,8 @@ async function mkQuote() {
 }
 const details = {
     travellers: [
-        { type: "ADULT" as const, firstName: "Asha", lastName: "Rao", dob: "1990-01-01", gender: "FEMALE" as const },
-        { type: "ADULT" as const, firstName: "Vikram", lastName: "Rao", dob: "1988-05-09", gender: "MALE" as const },
+        { type: "ADULT" as const, title: "Mrs" as const, firstName: "Asha", lastName: "Rao", dob: "1990-01-01", gender: "FEMALE" as const },
+        { type: "ADULT" as const, title: "Mr" as const, firstName: "Vikram", lastName: "Rao", dob: "1988-05-09", gender: "MALE" as const },
     ],
     contact: { email: "asha@example.com", phone: "+91 98123 45678" },
     gstStateCode: "",

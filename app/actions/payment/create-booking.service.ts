@@ -152,11 +152,12 @@ export async function createBooking(params: {
                 contactEmail: validDetails?.contact.email ?? null,
                 contactPhone: validDetails?.contact.phone ?? null,
                 gstStateCode: validDetails?.gstStateCode || null,
+                notes: validDetails?.specialRequests || null,
                 travellersList: validDetails
                     ? {
                           create: validDetails.travellers.map((t, i) => ({
                               type: t.type,
-                              fullName: `${t.firstName} ${t.lastName}`.trim(),
+                              fullName: `${t.title ?? "Mr"}. ${t.firstName} ${t.lastName}`.trim(),
                               firstName: t.firstName,
                               lastName: t.lastName,
                               dateOfBirth: new Date(`${t.dob}T00:00:00.000Z`),

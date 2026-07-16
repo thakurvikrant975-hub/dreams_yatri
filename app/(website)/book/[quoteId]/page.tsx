@@ -108,13 +108,30 @@ export default async function BookQuotePage({
         const activityIds = [...new Set(rawDays.flatMap((d) => (d.activities ?? []).map((a) => a.id).filter((x): x is number => !!x)))];
 
         const [hotelRows, roomImgRows, actRows, actImgRows] = await Promise.all([
-            hotelIds.length ? db.hotels.findMany({ where: { id: { in: hotelIds } }, select: { id: true, thumbnail: true } }) : Promise.resolve([]),
+            hotelIds.length ? db.hotels.findMany({
+                where: { id: { in: hotelIds } },
+                select: {
+                    id: true, thumbnail: true, cancellation_policy: true,
+                    allow_unmarried_couples: true, allow_guests_below_18: true,
+                    pets_allowed: true, smoking_allowed: true, acceptable_id_proofs: true,
+                    check_in_time: true, check_out_time: true,
+                },
+            }) : Promise.resolve([]),
             roomIds.length ? db.hotel_room_images.findMany({ where: { room_id: { in: roomIds } }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }], select: { room_id: true, url: true, thumbnail: true } }) : Promise.resolve([]),
             activityIds.length ? db.activities.findMany({ where: { id: { in: activityIds } }, select: { id: true, duration_hours: true, difficulty: true, category: { select: { name: true } } } }) : Promise.resolve([]),
             activityIds.length ? db.activity_images.findMany({ where: { activity_id: { in: activityIds } }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }], select: { activity_id: true, url: true, thumbnail: true } }) : Promise.resolve([]),
         ]);
 
         const hotelThumb = new Map(hotelRows.map((h) => [h.id, h.thumbnail]));
+        const hotelPolicy = new Map(hotelRows.map((h) => [h.id, h]));
+        const CANCELLATION_LABELS: Record<string, string> = {
+            FREE_TILL_CHECKIN: 'Free cancellation until check-in',
+            FREE_TILL_24H: 'Free cancellation up to 24 hours before check-in',
+            FREE_TILL_48H: 'Free cancellation up to 48 hours before check-in',
+            FREE_TILL_72H: 'Free cancellation up to 72 hours before check-in',
+            FREE_TILL_7D: 'Free cancellation up to 7 days before check-in',
+            NON_REFUNDABLE: 'Non-refundable',
+        };
         const roomImg = new Map<number, string | null>();
         for (const r of roomImgRows) if (!roomImg.has(r.room_id)) roomImg.set(r.room_id, r.thumbnail ?? r.url);
         const actMeta = new Map(actRows.map((a) => [a.id, { duration: a.duration_hours != null ? Number(a.duration_hours) : null, difficulty: a.difficulty, category: a.category?.name ?? null }]));
@@ -131,6 +148,12 @@ export default async function BookQuotePage({
                       plan_name: d.hotel.plan_name ?? null,
                       image: r2(d.hotel.hotel_id ? hotelThumb.get(d.hotel.hotel_id) : null),
                       room_image: r2(d.hotel.room_id ? roomImg.get(d.hotel.room_id) : null),
+                      cancellation_policy: d.hotel.hotel_id
+                          ? CANCELLATION_LABELS[hotelPolicy.get(d.hotel.hotel_id)?.cancellation_policy ?? ''] ?? null
+                          : null,
+                      is_refundable: d.hotel.hotel_id
+                          ? hotelPolicy.get(d.hotel.hotel_id)?.cancellation_policy !== 'NON_REFUNDABLE'
+                          : null,
                   }
                 : null,
             meals: (d.meals ?? []).map((m) => ({ label: m.label })),
@@ -148,6 +171,26 @@ export default async function BookQuotePage({
             transfers: (d.transfers ?? []).map((t) => ({ pickup_name: t.pickup_name ?? null, drop_name: t.drop_name ?? null, distance_km: t.distance_km ?? null, vehicle_name: t.vehicle_name ?? dayCab.get(d.day) ?? null })),
         }));
 
+        // "Important Information" house rules use the first hotel stay in the
+        // itinerary as the representative property — MMT shows this for a
+        // single hotel; a multi-hotel package doesn't have a clean per-hotel
+        // equivalent without a much bigger UI, so this keeps the common case
+        // (one property, or the same property most nights) accurate without
+        // overbuilding for the rare fully-mixed itinerary.
+        const firstHotelId = rawDays.find((d) => d.hotel?.hotel_id)?.hotel?.hotel_id ?? null;
+        const primaryHotel = firstHotelId ? hotelPolicy.get(firstHotelId) : null;
+        const primaryHotelRules = primaryHotel
+            ? {
+                  checkInTime: primaryHotel.check_in_time,
+                  checkOutTime: primaryHotel.check_out_time,
+                  allowUnmarriedCouples: primaryHotel.allow_unmarried_couples,
+                  allowGuestsBelow18: primaryHotel.allow_guests_below_18,
+                  petsAllowed: primaryHotel.pets_allowed,
+                  smokingAllowed: primaryHotel.smoking_allowed,
+                  acceptableIdProofs: primaryHotel.acceptable_id_proofs,
+              }
+            : null;
+
         const thumbnail = pkg?.thumbnail
             ? (pkg.thumbnail.startsWith('http') ? pkg.thumbnail : `${R2}/${pkg.thumbnail}`)
             : null;
@@ -161,6 +204,7 @@ export default async function BookQuotePage({
                 drift={freshness ? { fresh: freshness.fresh, currentTotal: freshness.currentTotal } : null}
                 schedule={scheduleRes.success ? scheduleRes.schedule : null}
                 itinerary={itinerary}
+                hotelRules={primaryHotelRules}
             />
         );
     }
