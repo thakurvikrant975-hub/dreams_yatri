@@ -1093,14 +1093,29 @@ const PRINT_STYLES = `
   @media print {
     body * { visibility: hidden; }
     .itinerary-print-area, .itinerary-print-area * { visibility: visible; }
-    .itinerary-print-area { position: absolute; inset: 0; width: 210mm; box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
     .no-print { display: none !important; }
+
+    /* The builder page wraps the preview in a sticky header, a
+       position:relative split-pane, and a scrolling overflow-auto <aside> —
+       any one of those can clip or mis-position an absolutely-positioned
+       print area. Instead, strip every layout constraint on that ancestor
+       chain (marked .print-reset) so the print area sits in plain normal
+       flow and paginates like any other block content. */
+    html, body { height: auto !important; overflow: visible !important; }
+    .print-reset {
+      position: static !important;
+      display: block !important;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    .itinerary-print-area { width: 210mm; margin: 0 auto !important; box-shadow: none !important; border-radius: 0 !important; border: none !important; }
     @page { size: A4; margin: 0; }
   }
 `;
 
 export function ItineraryDocument({
-  form, onCoverImageChange, onCoverImagePositionChange, onImageChange,
+  form, onCoverImageChange, onCoverImagePositionChange, onImageChange, variant = "card",
 }: {
   form: PreviewData;
   /** Present only in the internal builder's live preview — enables dropping
@@ -1112,6 +1127,11 @@ export function ItineraryDocument({
    * every other photo in the document (stops, hotel, room, transport,
    * activities) — see ImageEditTarget for what each edit refers to. */
   onImageChange?: OnImageChange;
+  /** "card" (default) keeps the rounded corners + drop shadow used to present
+   * the document on the public share page's colored background. "flat" drops
+   * both so the on-screen preview reads as a plain A4 page — matching exactly
+   * what window.print() produces, where these are already stripped. */
+  variant?: "card" | "flat";
 }) {
   const travelDateStr = form.travelDate
     ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
@@ -1142,7 +1162,10 @@ export function ItineraryDocument({
 
       {/* ── A4 page ─────────────────────────────────────────────────────────── */}
       <div
-        className="itinerary-print-area mx-auto bg-white rounded-lg shadow-xl overflow-hidden"
+        className={cn(
+          "itinerary-print-area mx-auto bg-white overflow-hidden",
+          variant === "flat" ? "border border-neutral-200" : "rounded-lg shadow-xl",
+        )}
         style={{ width: "210mm", minHeight: "297mm" }}
       >
         {/* ── Header ────────────────────────────────────────────────────────── */}

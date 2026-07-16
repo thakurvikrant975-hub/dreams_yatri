@@ -2150,10 +2150,10 @@ export default function PackageBuilderDetailPage() {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="print-reset min-h-screen flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
+      <header className="no-print sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
         <div className="flex items-center justify-between px-4 h-14 gap-3">
           {/* Left */}
           <div className="flex items-center gap-3 min-w-0">
@@ -2230,7 +2230,7 @@ export default function PackageBuilderDetailPage() {
               onClick={() => window.print()}
             >
               <Printer size={13} />
-              <span className="hidden sm:inline text-xs">Print / Save as PDF</span>
+              <span className="hidden sm:inline text-xs">Download PDF (A4)</span>
             </Button>
 
             <Button
@@ -2250,23 +2250,24 @@ export default function PackageBuilderDetailPage() {
       </header>
 
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
-      <div className="flex relative h-[calc(100vh-3.5rem)]">
+      <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
-          <div className="px-6 py-8">
+        <aside className="print-reset hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
+          <div className="print-reset px-6 py-8">
             <ItineraryDocument
               form={previewForm}
               onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={handleItineraryImageChange}
+              variant="flat"
             />
           </div>
         </aside>
 
         {/* Mobile preview overlay */}
         {mobilePreviewOpen && (
-          <div className="lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
+          <div className="no-print lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
             <div className="no-print flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100 z-10">
               <span className="text-sm font-semibold text-dashboard-base-content">Live Preview</span>
               <button onClick={() => setMobilePreviewOpen(false)}>
@@ -2279,13 +2280,14 @@ export default function PackageBuilderDetailPage() {
                 onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={handleItineraryImageChange}
+              variant="flat"
               />
             </div>
           </div>
         )}
 
         {/* ── RIGHT: Tabbed Editor ──────────────────────────────────────────────── */}
-        <main className="w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
+        <main className="no-print w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
           <div className="px-4 pt-5 pb-4">
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
