@@ -194,12 +194,12 @@ function Gallery({ images, onOpen }: { images: string[]; onOpen: (i: number) => 
       <div className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-[420px] rounded-2xl overflow-hidden">
         <button
           onClick={() => onOpen(0)}
-          className="relative col-span-2 row-span-2 group"
+          className="relative col-span-2 row-span-2 group overflow-hidden"
         >
           <Image src={images[0]} alt="" fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="50vw" />
         </button>
         {gridImages.map((src, i) => (
-          <button key={i} onClick={() => onOpen(i + 1)} className="relative group">
+          <button key={i} onClick={() => onOpen(i + 1)} className="relative group overflow-hidden">
             <Image src={src} alt="" fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="25vw" />
             {i === 3 && images.length > 5 && (
               <span className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-sm font-semibold backdrop-blur-[1px]">
