@@ -32,6 +32,7 @@ export type Room = {
   occupancy: string;
   amenities: string[];
   ratePlans: RatePlan[];
+  roomsLeft: number | null;
 };
 
 export type ReviewItem = {
@@ -209,6 +210,7 @@ export const hotel: Hotel = {
       view: "City View",
       occupancy: "2 Adults",
       amenities: ["Air Conditioning", "Free Wi-Fi", "LED TV", "Mini Fridge", "Tea/Coffee Maker"],
+      roomsLeft: null,
       ratePlans: [
         {
           id: "deluxe-ro",
@@ -242,6 +244,7 @@ export const hotel: Hotel = {
       view: "Garden View",
       occupancy: "2 Adults + 1 Child",
       amenities: ["Air Conditioning", "Free Wi-Fi", "Bathtub", "Living Area", "Mini Bar", "Bathrobes"],
+      roomsLeft: 3,
       ratePlans: [
         {
           id: "suite-ro",
@@ -275,6 +278,7 @@ export const hotel: Hotel = {
       view: "No View",
       occupancy: "2 Adults",
       amenities: ["Air Conditioning", "Free Wi-Fi", "LED TV", "Work Desk"],
+      roomsLeft: null,
       ratePlans: [
         {
           id: "standard-ro",

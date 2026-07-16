@@ -315,6 +315,7 @@ export async function getHotelForBooking(
     Promise.all(
     h.hotelRooms.map(async (r): Promise<Room> => {
       const ari = await getRoomARI(r.id, checkIn, checkOut);
+      const roomsLeft = ari.length ? Math.min(...ari.map((n) => n.available)) : null;
       const roomAmenities = Array.isArray(r.amenities) ? (r.amenities as string[]).map(String) : amenityLabels(r.amenities);
       const roomImages = r.images.map((i) => imageUrl(i.url)).filter((u): u is string => !!u);
 
@@ -360,6 +361,7 @@ export async function getHotelForBooking(
         occupancy: `Max ${maxGuests} guest${maxGuests === 1 ? "" : "s"}`,
         amenities: roomAmenities,
         ratePlans,
+        roomsLeft,
       };
     }),
     ),

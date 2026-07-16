@@ -449,6 +449,11 @@ function RoomCard({
           <span className="inline-flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-neutral-600/90">
              {room.occupancy}
           </span>
+          {room.roomsLeft != null && room.roomsLeft <= 5 && (
+            <p className="mt-1 text-xs font-bold text-red-600">
+              Only {room.roomsLeft} room{room.roomsLeft === 1 ? "" : "s"} left at this price!
+            </p>
+          )}
           <div className="mt-2 space-y-1 text-sm text-neutral-600">
             {room.size && <p className="flex gap-3 items-center font-medium"><PencilRulerIcon className="size-5 text-neutral-400" /> {room.size}</p>}
             {room.bed && <p className="flex gap-3 items-center font-medium"><BedIcon className="size-5 text-neutral-400" /> {room.bed}</p>}
@@ -582,8 +587,13 @@ function BookingSummary({
         <p className="text-xs text-neutral-400">{selected ? "Selected room from" : "Starting from"}</p>
         <div className="flex items-baseline gap-2">
           <span className="text-sm text-neutral-400 line-through">{money(current.originalPrice)}</span>
-          <span className="text-2xl font-bold text-neutral-900">{money(current.price)}</span>
+          {current.originalPrice > current.price && (
+            <span className="text-[11px] font-semibold text-emerald-600">
+              {Math.round(((current.originalPrice - current.price) / current.originalPrice) * 100)}% off
+            </span>
+          )}
         </div>
+        <span className="text-2xl font-bold text-neutral-900">{money(current.price)}</span>
         <p className="text-[11px] text-neutral-400">+ {money(current.taxes)} taxes & fees · per night</p>
       </div>
       <div className="mt-3 space-y-2">
