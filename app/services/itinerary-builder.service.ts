@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "../lib/db";
+import { upsertRouteVariant, type StopInput } from "./route-builder.service";
 
 // ── Exported types ─────────────────────────────────────────────────────────
 
@@ -214,7 +215,12 @@ export async function getItineraryData(
     },
   });
 
-  return Array.from({ length: duration.days }, (_, i): DayData => {
+  // Days can outlive the route's currently configured length (e.g. a route was
+  // shortened in Route Builder after content was already added) — surface those
+  // orphaned days too so they can be reviewed/cleared from the Itinerary Builder.
+  const maxDay = records.reduce((m, r) => Math.max(m, r.day), duration.days);
+
+  return Array.from({ length: maxDay }, (_, i): DayData => {
     const day = i + 1;
     const rec = records.find((r) => r.day === day);
     if (!rec) {
@@ -312,6 +318,91 @@ export async function checkItineraryDaysHaveContent(
     },
   });
   return count > 0;
+}
+
+// Given a day number and a route's stops (in order), find the index of the stop
+// that "owns" that day — mirroring the frontend's computeStopGroups: every stop
+// owns its stay_days worth of days, and the last stop additionally owns the
+// trailing departure day (its stay_days + 1).
+function locateOwningStop(day: number, stops: { stay_days: number }[]): number {
+  let cursor = 0;
+  for (let i = 0; i < stops.length; i++) {
+    const isLast = i === stops.length - 1;
+    cursor += stops[i].stay_days + (isLast ? 1 : 0);
+    if (day <= cursor) return i;
+  }
+  return stops.length - 1;
+}
+
+export async function deleteItineraryDay(
+  packageId: number,
+  durationId: number,
+  routeId: number,
+  day: number,
+): Promise<{ routeId: number; durationId: number }> {
+  const route = await db.package_routes.findUnique({
+    where: { id: routeId },
+    select: {
+      name: true,
+      meta_title: true,
+      meta_desc: true,
+      stops: { orderBy: { sort_order: "asc" }, select: { place_name: true, stay_days: true, location_id: true } },
+      duration: { select: { is_default: true, is_active: true, sort_order: true, thumbnail_url: true } },
+    },
+  });
+  if (!route) throw new Error("Route not found");
+  if (route.stops.length === 0) throw new Error("Route has no stops");
+
+  const ownerIndex = locateOwningStop(day, route.stops);
+  if (route.stops[ownerIndex].stay_days <= 1) {
+    throw new Error(
+      `This is the only night at ${route.stops[ownerIndex].place_name}. Removing it would drop that stop from the route — edit the route in Route Builder instead.`,
+    );
+  }
+
+  const newStops: StopInput[] = route.stops.map((s, i) => ({
+    place_name: s.place_name,
+    stay_days: i === ownerIndex ? s.stay_days - 1 : s.stay_days,
+    location_id: s.location_id != null ? s.location_id.toString() : null,
+  }));
+
+  // 1) Compact the content: remove day N, shift every later day in this
+  // route/duration back by one so there's no gap left behind.
+  const laterOrEqual = await db.package_itineraries.findMany({
+    where: { package_id: packageId, duration_id: durationId, route_id: routeId, day: { gte: day } },
+    select: { id: true, day: true },
+    orderBy: { day: "asc" },
+  });
+
+  await db.$transaction(async (tx) => {
+    const target = laterOrEqual.find((r) => r.day === day);
+    if (target) {
+      // itinerary_stays has no onDelete: Cascade to package_itineraries — clear it manually.
+      await tx.itinerary_stays.deleteMany({ where: { itinerary_id: target.id } });
+      await tx.package_itineraries.delete({ where: { id: target.id } });
+    }
+    for (const rec of laterOrEqual) {
+      if (rec.day > day) {
+        await tx.package_itineraries.update({ where: { id: rec.id }, data: { day: rec.day - 1 } });
+      }
+    }
+  });
+
+  // 2) Persist the shrunk stop list — this finds/creates the matching duration
+  // for the new day/night total and migrates the (already-compacted) itinerary
+  // content over to it. The route may end up under a different duration_id.
+  return upsertRouteVariant(
+    packageId,
+    newStops,
+    { name: route.name, meta_title: route.meta_title, meta_desc: route.meta_desc },
+    {
+      is_default: route.duration.is_default,
+      is_active: route.duration.is_active,
+      sort_order: route.duration.sort_order,
+      thumbnail_url: route.duration.thumbnail_url,
+    },
+    routeId,
+  );
 }
 
 // ── Day meta ───────────────────────────────────────────────────────────────
