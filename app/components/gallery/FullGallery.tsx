@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { XIcon, ImagesIcon } from '@phosphor-icons/react'
 import { Dialog, VisuallyHidden } from 'radix-ui'
 import { cn } from '@/app/lib/utils'
+import { Card } from '@/app/components/ui/Card'
 import ImageLightbox from './ImageLightbox'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -147,45 +148,43 @@ export default function FullGallery({ categories, title, initialLightbox, onClos
             </div>
             </div>
 
-            {/* Image grid */}
-            <div className="flex-1 overflow-y-auto" role="tabpanel" aria-label={activeCat === -1 ? 'All photos' : categories[activeCat]?.label}>
-                <div className="screen-space py-5">
+            {/* Image grid — boxed card per category, on a light gray page background */}
+            <div className="flex-1 overflow-y-auto bg-neutral-100" role="tabpanel" aria-label={activeCat === -1 ? 'All photos' : categories[activeCat]?.label}>
+                <div className="screen-space py-5 space-y-4">
                     {activeCat === -1 ? (
-                        <div className="space-y-8">
-                            {categories.map((cat, catIdx) =>
-                                cat.images.length > 0 ? (
-                                    <section key={catIdx} aria-label={cat.label}>
-                                        <p className="text-[11px] font-bold text-muted uppercase tracking-widest mb-3">
-                                            {cat.label}
-                                            <span className="font-normal normal-case tracking-normal opacity-70 ml-1">
-                                                ({cat.images.length})
-                                            </span>
-                                        </p>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                                            {cat.images.map((img, imgIdx) => (
-                                                <ImageCell
-                                                    key={imgIdx}
-                                                    image={img}
-                                                    onClick={() => setLightbox({ images: cat.images, idx: imgIdx })}
-                                                />
-                                            ))}
-                                        </div>
-                                    </section>
-                                ) : null
-                            )}
-                        </div>
+                        categories.map((cat, catIdx) =>
+                            cat.images.length > 0 ? (
+                                <Card key={catIdx} variant="elevated" radius="lg" padding="lg" aria-label={cat.label}>
+                                    <p className="text-sm font-bold text-primary mb-3">
+                                        {cat.label}
+                                        <span className="font-normal text-muted ml-1.5">({cat.images.length})</span>
+                                    </p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                        {cat.images.map((img, imgIdx) => (
+                                            <ImageCell
+                                                key={imgIdx}
+                                                image={img}
+                                                onClick={() => setLightbox({ images: cat.images, idx: imgIdx })}
+                                            />
+                                        ))}
+                                    </div>
+                                </Card>
+                            ) : null
+                        )
                     ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                            {categories[activeCat].images.map((img, imgIdx) => (
-                                <ImageCell
-                                    key={imgIdx}
-                                    image={img}
-                                    onClick={() =>
-                                        setLightbox({ images: categories[activeCat].images, idx: imgIdx })
-                                    }
-                                />
-                            ))}
-                        </div>
+                        <Card variant="elevated" radius="lg" padding="lg">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                {categories[activeCat].images.map((img, imgIdx) => (
+                                    <ImageCell
+                                        key={imgIdx}
+                                        image={img}
+                                        onClick={() =>
+                                            setLightbox({ images: categories[activeCat].images, idx: imgIdx })
+                                        }
+                                    />
+                                ))}
+                            </div>
+                        </Card>
                     )}
                 </div>
             </div>
