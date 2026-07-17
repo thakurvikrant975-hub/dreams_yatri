@@ -4,6 +4,7 @@ import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
 import { resolveCancellation, effectivePolicy, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
 import { AMENITY_CATEGORIES } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/amenities-data";
 import type { Hotel, Room, RatePlan, BedroomLayout, ReviewItem } from "./dummy";
+import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
 
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&h=800&q=80";
@@ -15,6 +16,36 @@ function imageUrl(u: string | null | undefined): string | null {
   if (!u) return null;
   if (/^https?:\/\//.test(u)) return u;
   return R2_BASE ? `${R2_BASE}/${u.replace(/^\//, "")}` : null;
+}
+
+type GalleryCategoryOut = { label: string; images: { src: string; fullSrc: string; label: string }[] };
+
+/**
+ * Group real, categorized hotel photos (hotel_image_categories) into the
+ * same { label, images }[] shape the package page's FullGallery expects —
+ * categories ordered by their own sort_order, images within a category kept
+ * in fetch order (already is_primary desc, sort_order asc from the query).
+ */
+function buildPropertyGalleryCategories(
+  images: { url: string | null; category: { name: string; sort_order: number } }[],
+): GalleryCategoryOut[] {
+  const byCat = new Map<string, { sortOrder: number; urls: string[] }>();
+  for (const img of images) {
+    if (!img.url) continue;
+    const entry = byCat.get(img.category.name) ?? { sortOrder: img.category.sort_order, urls: [] };
+    entry.urls.push(img.url);
+    byCat.set(img.category.name, entry);
+  }
+  return [...byCat.entries()]
+    .sort(([, a], [, b]) => a.sortOrder - b.sortOrder)
+    .map(([label, { urls }]) => ({
+      label,
+      images: urls.map((url) => ({
+        src: getImageUrl(url, IMAGE_SIZES.gallery),
+        fullSrc: getImageUrl(url, IMAGE_SIZES.lightbox),
+        label,
+      })),
+    }));
 }
 
 function prettify(key: string): string {
@@ -285,7 +316,10 @@ export async function getHotelForBooking(
       acceptable_id_proofs: true, pets_allowed: true,
       property_category: true, hs_bedrooms: true, hs_bathrooms: true,
       hs_bedroom_details: true, host_lives_at_property: true, caretaker_stays: true,
-      images: { orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }], select: { url: true } },
+      images: {
+        orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+        select: { url: true, category: { select: { name: true, sort_order: true } } },
+      },
       hotelRooms: {
         where: { is_active: true },
         orderBy: { sort_order: "asc" },
@@ -310,6 +344,17 @@ export async function getHotelForBooking(
 
   const hotelImages = h.images.map((i) => imageUrl(i.url)).filter((u): u is string => !!u);
   const labels = amenityLabels(h.property_amenities);
+
+  // Full gallery: real property categories (hotel_image_categories) + a
+  // "Rooms" category aggregating every room's own photos — mirrors the
+  // package page's FullGallery categorization (Gallery/Hotels/Rooms/Activities).
+  const galleryCategories = buildPropertyGalleryCategories(h.images);
+  const roomGalleryImages = h.hotelRooms.flatMap((r) =>
+    r.images
+      .filter((i): i is typeof i & { url: string } => !!i.url)
+      .map((i) => ({ src: getImageUrl(i.url, IMAGE_SIZES.gallery), fullSrc: getImageUrl(i.url, IMAGE_SIZES.lightbox), label: r.name })),
+  );
+  if (roomGalleryImages.length > 0) galleryCategories.push({ label: "Rooms", images: roomGalleryImages });
 
   const [rooms, reviewStats] = await Promise.all([
     Promise.all(
@@ -417,6 +462,7 @@ export async function getHotelForBooking(
     reviewCount: reviewStats.count,
     tags: labels.slice(0, 4),
     images: hotelImages.length ? hotelImages : [FALLBACK_IMG],
+    galleryCategories,
     about: h.description ?? `${h.name} in ${h.city ?? "India"} — comfortable rooms and warm hospitality.`,
     amenities: labels.slice(0, 8).map((l) => ({ icon: iconFor(l), label: l })),
     allAmenities: groupedAmenities(h.property_amenities),

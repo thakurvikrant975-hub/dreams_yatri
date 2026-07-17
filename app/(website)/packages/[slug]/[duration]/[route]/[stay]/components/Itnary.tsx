@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useBooking } from './PackageBookingProvider';
-import ImageLightbox from './ImageLightbox';
+import ImageLightbox from '@/app/components/gallery/ImageLightbox';
 import { Dialog, VisuallyHidden } from 'radix-ui';
 import { cn } from '@/app/lib/utils';
 import Accordion from '@/app/components/ui/Accordian';

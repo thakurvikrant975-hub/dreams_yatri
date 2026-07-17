@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { XIcon, ImagesIcon } from '@phosphor-icons/react'
 import { Dialog, VisuallyHidden } from 'radix-ui'

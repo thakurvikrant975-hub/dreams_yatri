@@ -13,7 +13,6 @@ import {
   ShareIcon,
   CheckCircleIcon,
   CheckIcon,
-  XMarkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   MagnifyingGlassIcon,
@@ -25,7 +24,7 @@ import {
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid, UserGroupIcon, } from "@heroicons/react/24/solid";
-import { PencilRulerIcon, BedIcon, EyeIcon, BathtubIcon } from "@phosphor-icons/react";
+import { PencilRulerIcon, BedIcon, EyeIcon, BathtubIcon, ImagesIcon } from "@phosphor-icons/react";
 import type { BedroomLayout } from "./dummy";
 
 import type { Hotel, Room, RatePlan } from "./dummy";
@@ -43,6 +42,8 @@ const HotelLocationMap = dynamic(() => import("./HotelLocationMap"), {
   ssr: false,
   loading: () => <div className="h-full w-full animate-pulse bg-neutral-100" />,
 });
+
+const FullGallery = dynamic(() => import("@/app/components/gallery/FullGallery"));
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -167,18 +168,21 @@ function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string
 
 // ── Gallery ───────────────────────────────────────────────────────────────────
 
-function Gallery({ images, onOpen }: { images: string[]; onOpen: (i: number) => void }) {
+function Gallery({ images, onOpen }: { images: string[]; onOpen: () => void }) {
   const gridImages = images.slice(1, 5);
   return (
     <>
       {/* Mobile: stacked hero + 2x2 square grid, each tile keeps its own aspect ratio */}
       <div className="md:hidden flex flex-col gap-2">
-        <button onClick={() => onOpen(0)} className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group">
+        <button onClick={onOpen} className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group">
           <Image src={images[0]} alt="" fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="100vw" priority />
+          <span className="absolute bottom-3 left-3 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold">
+            <ImagesIcon weight="duotone" className="size-5" /> View Gallery
+          </span>
         </button>
         <div className="grid grid-cols-2 gap-2">
           {gridImages.map((src, i) => (
-            <button key={i} onClick={() => onOpen(i + 1)} className="relative aspect-square rounded-xl overflow-hidden group">
+            <button key={i} onClick={onOpen} className="relative aspect-square rounded-xl overflow-hidden group">
               <Image src={src} alt="" fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="50vw" />
               {i === 3 && images.length > 5 && (
                 <span className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-sm font-semibold backdrop-blur-[1px]">
@@ -193,13 +197,16 @@ function Gallery({ images, onOpen }: { images: string[]; onOpen: (i: number) => 
       {/* Desktop: fixed-height 4-col/2-row grid */}
       <div className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-[420px] rounded-2xl overflow-hidden">
         <button
-          onClick={() => onOpen(0)}
+          onClick={onOpen}
           className="relative col-span-2 row-span-2 group overflow-hidden"
         >
           <Image src={images[0]} alt="" fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="50vw" />
+          <span className="absolute bottom-3 left-3 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+            <ImagesIcon weight="duotone" className="size-5" /> View Gallery
+          </span>
         </button>
         {gridImages.map((src, i) => (
-          <button key={i} onClick={() => onOpen(i + 1)} className="relative group overflow-hidden">
+          <button key={i} onClick={onOpen} className="relative group overflow-hidden">
             <Image src={src} alt="" fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="25vw" />
             {i === 3 && images.length > 5 && (
               <span className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-sm font-semibold backdrop-blur-[1px]">
@@ -210,42 +217,6 @@ function Gallery({ images, onOpen }: { images: string[]; onOpen: (i: number) => 
         ))}
       </div>
     </>
-  );
-}
-
-function Lightbox({ images, index, onClose, onNav }: { images: string[]; index: number; onClose: () => void; onNav: (d: number) => void }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight") onNav(1);
-      if (e.key === "ArrowLeft") onNav(-1);
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose, onNav]);
-
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center" onClick={onClose}>
-      <button className="absolute top-4 right-4 text-white/80 hover:text-white" onClick={onClose}>
-        <XMarkIcon className="w-8 h-8" />
-      </button>
-      <button
-        className="absolute left-4 text-white/80 hover:text-white p-2"
-        onClick={(e) => { e.stopPropagation(); onNav(-1); }}
-      >
-        <ChevronLeftIcon className="w-9 h-9" />
-      </button>
-      <div className="relative w-[90vw] h-[80vh]" onClick={(e) => e.stopPropagation()}>
-        <Image src={images[index]} alt="" fill className="object-contain" sizes="90vw" />
-      </div>
-      <button
-        className="absolute right-4 text-white/80 hover:text-white p-2"
-        onClick={(e) => { e.stopPropagation(); onNav(1); }}
-      >
-        <ChevronRightIcon className="w-9 h-9" />
-      </button>
-      <span className="absolute bottom-5 text-white/70 text-sm">{index + 1} / {images.length}</span>
-    </div>
   );
 }
 
@@ -647,7 +618,7 @@ function BookingSummary({
 
 export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSaved = false }: { hotel: Hotel; checkIn: string; checkOut: string; initialSaved?: boolean }) {
   const router = useRouter();
-  const [lightbox, setLightbox] = useState<number | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [active, setActive] = useState("overview");
   const [landmarkTab, setLandmarkTab] = useState(0);
   const [selected, setSelected] = useState<{ roomId: string; plan: RatePlan } | null>(null);
@@ -756,7 +727,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
 
         {/* Top: gallery + booking summary (non-sticky) */}
         <div >
-          <Gallery images={hotel.images} onOpen={setLightbox} />
+          <Gallery images={hotel.images} onOpen={() => setGalleryOpen(true)} />
         </div>
 
         {/* Content (full width) */}
@@ -991,12 +962,11 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
         </button>
       </div>
 
-      {lightbox !== null && (
-        <Lightbox
-          images={hotel.images}
-          index={lightbox}
-          onClose={() => setLightbox(null)}
-          onNav={(d) => setLightbox((i) => (i === null ? 0 : (i + d + hotel.images.length) % hotel.images.length))}
+      {galleryOpen && (
+        <FullGallery
+          categories={hotel.galleryCategories}
+          title={hotel.name}
+          onClose={() => setGalleryOpen(false)}
         />
       )}
     </div>

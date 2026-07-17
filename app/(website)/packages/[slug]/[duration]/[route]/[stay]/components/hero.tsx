@@ -6,9 +6,9 @@ import dynamic from 'next/dynamic'
 import { ImagesIcon, CarIcon, BedIcon, ForkKnifeIcon, BinocularsIcon } from '@phosphor-icons/react'
 import { Heading, Text } from '@/app/components/ui/Typography'
 import Breadcrumps from '@/app/components/ui/Breadcrumps'
-import type { GalleryCategory } from './FullGallery'
+import type { GalleryCategory } from '@/app/components/gallery/FullGallery'
 
-const FullGallery = dynamic(() => import('./FullGallery'))
+const FullGallery = dynamic(() => import('@/app/components/gallery/FullGallery'))
 
 interface ItineraryStop {
   days: number

@@ -68,6 +68,7 @@ export type Hotel = {
   reviewCount: number;
   tags: string[];
   images: string[];
+  galleryCategories: { label: string; images: { src: string; fullSrc: string; label: string }[] }[];
   about: string;
   amenities: { icon: string; label: string }[];
   allAmenities: { group: string; items: { label: string; icon: string }[] }[];
@@ -124,6 +125,14 @@ export const hotel: Hotel = {
     IMG("photo-1618773928121-c32242e63f39"),
     IMG("photo-1595576508898-0ad5c879a061"),
     IMG("photo-1560448204-e02f11c3d0e2"),
+  ],
+  galleryCategories: [
+    {
+      label: "Exterior",
+      images: [
+        { src: IMG("photo-1566073771259-6a8506099945", 1200, 800), fullSrc: IMG("photo-1566073771259-6a8506099945", 1920, 1280), label: "Exterior" },
+      ],
+    },
   ],
   about:
     "Nestled in the heart of Varanasi Cantonment, Hotel Jyoti Plaza blends contemporary comfort with warm Indian hospitality. Just minutes from the ghats and the railway station, the property offers well-appointed rooms, a multi-cuisine restaurant, a rooftop lounge and round-the-clock service — an ideal base for pilgrims and leisure travellers alike.",
