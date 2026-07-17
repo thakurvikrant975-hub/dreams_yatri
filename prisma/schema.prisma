@@ -359,6 +359,18 @@ model hotel_wishlist {
   @@index([user_id])
 }
 
+model hotel_landmark {
+  id         Int      @id @default(autoincrement())
+  hotel_id   Int
+  category   String
+  name       String
+  distance_m Int
+  created_at DateTime @default(now())
+  hotel      hotels   @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@index([hotel_id])
+}
+
 model BookingCab {
   id            String            @id @default(cuid())
   bookingId     String
@@ -1153,6 +1165,7 @@ model hotels {
   conversations                conversation[]
   reviews                     hotel_review[]
   wishlisted_by               hotel_wishlist[]
+  landmarks                   hotel_landmark[]
   destination                 destinations?              @relation(fields: [destination_id], references: [id])
   location                    Location?                  @relation(fields: [location_id], references: [id])
   packageBookings             PackageBookingHotel[]

@@ -6,6 +6,7 @@ import { AMENITY_CATEGORIES } from "@/app/(hotel-connect)/hotel-connect/(main)/p
 import { HOTEL_PHOTO_TAGS, GUEST_HOUSE_PHOTO_TAGS } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/photo-tags-data";
 import type { Hotel, Room, RatePlan, BedroomLayout, ReviewItem } from "./dummy";
 import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
+import { getOrFetchLandmarks } from "@/app/lib/hotel-inventory/landmarks";
 
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&h=800&q=80";
@@ -369,7 +370,7 @@ export async function getHotelForBooking(
   );
   if (roomGalleryImages.length > 0) galleryCategories.push({ label: "Rooms", images: roomGalleryImages });
 
-  const [rooms, reviewStats] = await Promise.all([
+  const [rooms, reviewStats, landmarkGroups] = await Promise.all([
     Promise.all(
     h.hotelRooms.map(async (r): Promise<Room> => {
       const ari = await getRoomARI(r.id, checkIn, checkOut);
@@ -424,6 +425,9 @@ export async function getHotelForBooking(
     }),
     ),
     getReviewStats(h.id),
+    h.latitude != null && h.longitude != null
+      ? getOrFetchLandmarks(h.id, Number(h.latitude), Number(h.longitude))
+      : Promise.resolve([]),
   ]);
 
   const rule = (v: boolean | null, yes: string, no: string) => (v ? yes : no);
@@ -479,7 +483,7 @@ export async function getHotelForBooking(
     about: h.description ?? `${h.name} in ${h.city ?? "India"} — comfortable rooms and warm hospitality.`,
     amenities: labels.slice(0, 8).map((l) => ({ icon: iconFor(l), label: l })),
     allAmenities: groupedAmenities(h.property_amenities),
-    landmarks: [{ category: h.city || "Location", items: [] }],
+    landmarks: landmarkGroups,
     rules: {
       checkIn: h.check_in_time ?? "12:00 PM",
       checkOut: h.check_out_time ?? "11:00 AM",
