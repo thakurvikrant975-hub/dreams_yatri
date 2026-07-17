@@ -34,22 +34,10 @@ import {
 } from "./photo-actions";
 import { listRoomPhotos, uploadRoomPhotos, deleteRoomPhoto, type RoomPhoto } from "./room-photo-actions";
 import { listBedroomPhotos, uploadBedroomPhotos, deleteBedroomPhoto } from "./bedroom-photo-actions";
+import { HOTEL_PHOTO_TAGS, GUEST_HOUSE_PHOTO_TAGS } from "./photo-tags-data";
 
 // ── Tag data ──────────────────────────────────────────────────────────────────
 
-const HOTEL_PHOTO_TAGS = [
-  "Swimming Pool", "Lobby", "Reception", "Restaurant", "Bar", "Lounge",
-  "Spa", "Gym", "Garden", "Beach", "Mountain View", "City View",
-  "Terrace", "Balcony", "Outside View", "Facade", "Dining Area",
-  "Kids Area", "Conference Room", "Activities & Experiences",
-  "Bedroom", "Bathroom", "Living Room", "Parking", "Corridor",
-];
-
-const GUEST_HOUSE_PHOTO_TAGS = [
-  "Bedroom", "Bathroom", "Common Area", "Dining Area", "Kitchen",
-  "Garden", "Entrance", "Terrace", "Living Room", "Parking",
-  "Outside View", "Facade",
-];
 const MAX_TAGS = 3;
 const MIN_TOTAL_PHOTOS = 6;
 const MIN_ROOM_PHOTOS = 2;

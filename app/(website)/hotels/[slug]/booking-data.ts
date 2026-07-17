@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
 import { resolveCancellation, effectivePolicy, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
 import { AMENITY_CATEGORIES } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/amenities-data";
+import { HOTEL_PHOTO_TAGS, GUEST_HOUSE_PHOTO_TAGS } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/photo-tags-data";
 import type { Hotel, Room, RatePlan, BedroomLayout, ReviewItem } from "./dummy";
 import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
 
@@ -20,25 +21,37 @@ function imageUrl(u: string | null | undefined): string | null {
 
 type GalleryCategoryOut = { label: string; images: { src: string; fullSrc: string; label: string }[] };
 
+const UNTAGGED_LABEL = "Property";
+
 /**
- * Group real, categorized hotel photos (hotel_image_categories) into the
- * same { label, images }[] shape the package page's FullGallery expects —
- * categories ordered by their own sort_order, images within a category kept
- * in fetch order (already is_primary desc, sort_order asc from the query).
+ * Group hotel photos into the same { label, images }[] shape the package
+ * page's FullGallery expects, using each photo's own primary tag (the same
+ * signal the owner sets and sees grouped in the Photos step's
+ * groupPhotosByTag) — NOT hotel_image_categories, which every upload lands
+ * in as a single vestigial "Property" bucket regardless of what the owner
+ * actually tagged it as. Categories are ordered to match the owner-facing
+ * tag list (HOTEL_PHOTO_TAGS/GUEST_HOUSE_PHOTO_TAGS) so tab order is the
+ * same one owners configure against, with untagged photos falling back to
+ * a generic "Property" bucket instead of being dropped.
  */
 function buildPropertyGalleryCategories(
-  images: { url: string | null; category: { name: string; sort_order: number } }[],
+  images: { url: string | null; tags: string[] }[],
+  isGuestHouse: boolean,
 ): GalleryCategoryOut[] {
-  const byCat = new Map<string, { sortOrder: number; urls: string[] }>();
+  const tagOrder = isGuestHouse ? GUEST_HOUSE_PHOTO_TAGS : HOTEL_PHOTO_TAGS;
+  const orderIndex = new Map(tagOrder.map((tag, i) => [tag, i]));
+
+  const byTag = new Map<string, string[]>();
   for (const img of images) {
     if (!img.url) continue;
-    const entry = byCat.get(img.category.name) ?? { sortOrder: img.category.sort_order, urls: [] };
-    entry.urls.push(img.url);
-    byCat.set(img.category.name, entry);
+    const tag = img.tags[0] || UNTAGGED_LABEL;
+    if (!byTag.has(tag)) byTag.set(tag, []);
+    byTag.get(tag)!.push(img.url);
   }
-  return [...byCat.entries()]
-    .sort(([, a], [, b]) => a.sortOrder - b.sortOrder)
-    .map(([label, { urls }]) => ({
+
+  return [...byTag.entries()]
+    .sort(([a], [b]) => (orderIndex.get(a) ?? tagOrder.length) - (orderIndex.get(b) ?? tagOrder.length))
+    .map(([label, urls]) => ({
       label,
       images: urls.map((url) => ({
         src: getImageUrl(url, IMAGE_SIZES.gallery),
@@ -314,11 +327,11 @@ export async function getHotelForBooking(
       check_in_time: true, check_out_time: true, cancellation_policy: true,
       allow_unmarried_couples: true, allow_guests_below_18: true, smoking_allowed: true,
       acceptable_id_proofs: true, pets_allowed: true,
-      property_category: true, hs_bedrooms: true, hs_bathrooms: true,
+      property_category: true, property_sub_type: true, hs_bedrooms: true, hs_bathrooms: true,
       hs_bedroom_details: true, host_lives_at_property: true, caretaker_stays: true,
       images: {
         orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
-        select: { url: true, category: { select: { name: true, sort_order: true } } },
+        select: { url: true, tags: true },
       },
       hotelRooms: {
         where: { is_active: true },
@@ -345,10 +358,10 @@ export async function getHotelForBooking(
   const hotelImages = h.images.map((i) => imageUrl(i.url)).filter((u): u is string => !!u);
   const labels = amenityLabels(h.property_amenities);
 
-  // Full gallery: real property categories (hotel_image_categories) + a
-  // "Rooms" category aggregating every room's own photos — mirrors the
-  // package page's FullGallery categorization (Gallery/Hotels/Rooms/Activities).
-  const galleryCategories = buildPropertyGalleryCategories(h.images);
+  // Full gallery: grouped by each photo's own owner-set tag (Facade, Lobby,
+  // Bedroom, …) + a "Rooms" category aggregating every room's own photos —
+  // mirrors the package page's FullGallery categorization.
+  const galleryCategories = buildPropertyGalleryCategories(h.images, h.property_sub_type === "GUEST_HOUSE");
   const roomGalleryImages = h.hotelRooms.flatMap((r) =>
     r.images
       .filter((i): i is typeof i & { url: string } => !!i.url)
