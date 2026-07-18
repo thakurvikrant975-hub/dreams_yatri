@@ -75,10 +75,6 @@ const COMPANY_PHONE = "+91 9812345678";
 const COMPANY_EMAIL = "hello@dreamyatri.com";
 const COMPANY_ADDRESS = "Shimla, Himachal Pradesh - 171001";
 
-// TODO: swap in the real payment link once it's available — the "Pay Now"
-// button on the price summary opens this in a new tab.
-const PAYMENT_LINK = "";
-
 /** "AB12CD34" — the last 8 characters of the query's cuid, uppercased, as a
  * short human-referenceable quote number instead of exposing the client's
  * raw phone/email back to them on their own document. */
@@ -156,6 +152,10 @@ export interface PreviewData {
   pricePerPerson: string;
   totalPrice: string;
   currency: string;
+  /** Exec-pasted payment link (e.g. a Razorpay Payment Link) for this exact
+   * locked total — the "Pay Now" button opens this. Omitted/empty hides the
+   * button rather than linking nowhere. */
+  paymentLink?: string;
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
@@ -1380,17 +1380,19 @@ export function ItineraryDocument({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10">
-                <p className="text-[10px] text-white/60">Secure your booking online, anytime.</p>
-                <a
-                  href={PAYMENT_LINK || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-400 text-white font-bold text-xs px-4 py-2 rounded-full transition-colors shrink-0"
-                >
-                  Pay Now <ArrowRight size={13} />
-                </a>
-              </div>
+              {form.paymentLink && (
+                <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10">
+                  <p className="text-[10px] text-white/60">Secure your booking online, anytime.</p>
+                  <a
+                    href={form.paymentLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-400 text-white font-bold text-xs px-4 py-2 rounded-full transition-colors shrink-0"
+                  >
+                    Pay Now <ArrowRight size={13} />
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 

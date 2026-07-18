@@ -9,6 +9,7 @@
 
 import { db } from "@/app/lib/db";
 import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 
 export async function getSharedPackage(packageId: string) {
   const pkg = await db.custom_packages.findFirst({
@@ -17,7 +18,7 @@ export async function getSharedPackage(packageId: string) {
       queryId: true,
       title: true, description: true, coverImage: true, coverImagePosition: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
-      pricePerPerson: true, totalPrice: true, currency: true,
+      pricePerPerson: true, totalPrice: true, currency: true, paymentLink: true,
       inclusions: true, exclusions: true, termsNotes: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
       tickets: {
@@ -36,9 +37,11 @@ export async function getSharedPackage(packageId: string) {
           day: true, title: true, description: true, meals: true,
           accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
           accommodationLocation: true, accommodationRoomSpecs: true, accommodationRoomCapacity: true,
+          roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           transport: true, transportPhoto: true, transportVehicleType: true, transportSeats: true,
           transportPickup: true, transportDrop: true, transportDistanceKm: true, notes: true,
+          cabQuantity: true, extraCabs: true,
           activities: {
             orderBy: { sortOrder: "asc" },
             select: { title: true, description: true, photo: true, photos: true, photoLabels: true },
@@ -83,6 +86,7 @@ export async function getSharedPackage(packageId: string) {
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     currency:        pkg.currency,
+    paymentLink:     pkg.paymentLink ?? "",
     inclusions:      pkg.inclusions,
     exclusions:      pkg.exclusions,
     termsNotes:      pkg.termsNotes ?? "",
@@ -125,6 +129,8 @@ export async function getSharedPackage(packageId: string) {
       accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
       accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
       roomPricingId:             null,
+      roomsCount:                it.roomsCount ?? null,
+      extraRooms:                parseRoomSelections(it.extraRooms),
       hotelCheckIn:              it.hotelCheckIn ?? "",
       hotelCheckOut:             it.hotelCheckOut ?? "",
       hotelMealPlan:             it.hotelMealPlan ?? "",
@@ -138,6 +144,8 @@ export async function getSharedPackage(packageId: string) {
       transportDrop:             it.transportDrop ?? "",
       transportDistanceKm:       it.transportDistanceKm ?? null,
       cabPricingId:              null,
+      cabQuantity:               it.cabQuantity ?? null,
+      extraCabs:                 parseCabSelections(it.extraCabs),
       notes:                     it.notes ?? "",
     })),
     clientName:      pkg.query.name,

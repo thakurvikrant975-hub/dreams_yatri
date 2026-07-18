@@ -10,7 +10,7 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
-  Image as ImageIcon, X, Sparkles, Percent,
+  Image as ImageIcon, X, Sparkles, Percent, CreditCard,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -1468,6 +1468,7 @@ interface PackageForm {
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
+  paymentLink: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
   /** Each row is one flight or train leg (onward, return, connecting…) —
@@ -1725,7 +1726,7 @@ export default function PackageBuilderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("client");
-  const [packageId, setPackageId] = useState<string | null>(null);
+  const [, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
   const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
@@ -1751,6 +1752,7 @@ export default function PackageBuilderDetailPage() {
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
     termsNotes: "Package price is subject to availability. 50% advance required to confirm booking.",
+    paymentLink: "",
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
     tickets: [],
@@ -1818,6 +1820,7 @@ export default function PackageBuilderDetailPage() {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
+          paymentLink: cp.paymentLink ?? "",
           stops: cp.stops,
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
           tickets: cp.tickets,
@@ -2025,26 +2028,28 @@ export default function PackageBuilderDetailPage() {
   // ── Send ───────────────────────────────────────────────────────────────────
   function handleSend() {
     startSend(async () => {
-      let pkgId = packageId;
-      if (!pkgId) {
-        const result = await saveCustomPackage({
-          queryId,
-          ...form,
-          pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-          marginPercentage: parseFloat(form.marginPercentage) || 0,
-          gstPercentage: parseFloat(form.gstPercentage) || 0,
-          status: "READY",
-        });
-        if (!result.success) return;
-        pkgId = result.id;
-        setPackageId(pkgId);
-      }
-      const result = await sendPackageToClient(pkgId);
-      if (result.success && result.whatsappUrl) {
-        window.open(result.whatsappUrl, "_blank");
-        if (result.shareUrl) {
-          const link = result.shareUrl;
+      // Always save first — sendPackageToClient reads straight from the DB
+      // row, so any edit made since the last save (a freshly-pasted payment
+      // link, a price tweak, a room swap) would otherwise silently never
+      // reach the client if the package already existed.
+      const result = await saveCustomPackage({
+        queryId,
+        ...form,
+        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+        marginPercentage: parseFloat(form.marginPercentage) || 0,
+        gstPercentage: parseFloat(form.gstPercentage) || 0,
+        status: "READY",
+      });
+      if (!result.success) return;
+      const pkgId = result.id;
+      setPackageId(pkgId);
+
+      const result2 = await sendPackageToClient(pkgId);
+      if (result2.success && result2.whatsappUrl) {
+        window.open(result2.whatsappUrl, "_blank");
+        if (result2.shareUrl) {
+          const link = result2.shareUrl;
           toast.success("Sent! Client link ready.", {
             description: link,
             action: {
@@ -3118,6 +3123,21 @@ export default function PackageBuilderDetailPage() {
                     className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
                 </div>
+
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <CreditCard size={15} className="text-dashboard-primary" /> Payment Link
+                  </h2>
+                  <Input
+                    value={form.paymentLink}
+                    onChange={field("paymentLink")}
+                    placeholder="https://rzp.io/i/…"
+                    className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                  />
+                  <p className="text-[11px] text-dashboard-base-content/50">
+                    Paste a payment link for this exact locked price (e.g. a Razorpay Payment Link) — the client&apos;s &quot;Pay Now&quot; button on their itinerary page opens this. Leave blank to hide the button.
+                  </p>
+                </div>
               </TabsContent>
             </Tabs>
 
@@ -3226,6 +3246,107 @@ function PreviousVersionDialog({ snapshot }: { snapshot: unknown }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Locked pricing snapshot — frozen breakdown written by sendPackageToClient
+// at the moment the package was sent, so the exec can recheck later how the
+// delivered total was actually built (and whether the shown price was hand-
+// overridden from what the line items alone would compute to).
+// ─────────────────────────────────────────────────────────────────────────────
+type PricingSnapshot = {
+  lockedAt: string;
+  currency: string;
+  hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number }[] };
+  cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number }[] };
+  tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
+  baseCost: number;
+  marginPercentage: number;
+  hotelCabMarginAmount: number;
+  ticketsMarginAmount: number;
+  marginAmount: number;
+  taxable: number;
+  gstPercentage: number;
+  gstAmount: number;
+  finalPrice: number;
+  pricePerPerson: number;
+  displayedTotalPrice: number | null;
+  displayedPricePerPerson: number | null;
+};
+
+function LockedPricingDialog({ snapshot }: { snapshot: unknown }) {
+  const s = snapshot as PricingSnapshot | null;
+  if (!s) return null;
+  const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+  const drifted = s.displayedTotalPrice != null && Math.round(s.displayedTotalPrice) !== Math.round(s.finalPrice);
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 w-full mt-1">
+          <CreditCard size={12} /> View locked pricing
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-sm">Locked Pricing Breakdown</DialogTitle>
+          <DialogDescription className="text-xs">
+            Frozen {new Date(s.lockedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} — the exact hotel/cab/ticket costs behind the price sent to the client.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-xs">
+          {s.hotel.lines.length > 0 && (
+            <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+              <p className="font-semibold">Hotel · {inr(s.hotel.subtotal)}</p>
+              {s.hotel.lines.map((l, i) => (
+                <p key={i} className="text-dashboard-base-content/60">
+                  Day {l.day}: {l.hotelName} — {l.roomName} × {l.roomsNeeded} = {inr(l.total)}
+                  {l.mattresses > 0 && ` (+${l.mattresses} mattress)`}
+                </p>
+              ))}
+            </div>
+          )}
+          {s.cab.lines.length > 0 && (
+            <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+              <p className="font-semibold">Cab · {inr(s.cab.subtotal)}</p>
+              {s.cab.lines.map((l, i) => (
+                <p key={i} className="text-dashboard-base-content/60">
+                  Day {l.day}: {l.vehicleName} ({l.pricingType}) = {inr(l.total)}
+                </p>
+              ))}
+            </div>
+          )}
+          {s.tickets.lines.length > 0 && (
+            <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+              <p className="font-semibold">Tickets · {inr(s.tickets.subtotal)}</p>
+              {s.tickets.lines.map((l, i) => (
+                <p key={i} className="text-dashboard-base-content/60">
+                  {l.type} {l.provider && `(${l.provider})`}: {l.fromPlace} → {l.toPlace} × {l.ticketCount} = {l.fare != null ? inr(l.fare) : "—"}
+                </p>
+              ))}
+            </div>
+          )}
+          <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+            <p className="flex justify-between"><span className="text-dashboard-base-content/60">Base cost</span> <span>{inr(s.baseCost)}</span></p>
+            <p className="flex justify-between"><span className="text-dashboard-base-content/60">Margin ({s.marginPercentage}% hotel/cab + 5% tickets)</span> <span>{inr(s.marginAmount)}</span></p>
+            <p className="flex justify-between"><span className="text-dashboard-base-content/60">GST ({s.gstPercentage}%)</span> <span>{inr(s.gstAmount)}</span></p>
+            <p className="flex justify-between font-semibold border-t border-dashboard-base-300 pt-1"><span>Computed total</span> <span>{inr(s.finalPrice)}</span></p>
+            <p className="text-dashboard-base-content/60">{inr(s.pricePerPerson)} per person</p>
+          </div>
+          {drifted && s.displayedTotalPrice != null && (
+            <div className="rounded-lg border border-dashboard-warning/40 bg-dashboard-warning/10 p-2.5">
+              <p className="font-semibold text-dashboard-warning-content flex items-center gap-1">
+                <AlertCircle size={12} /> Hand-overridden
+              </p>
+              <p className="text-dashboard-base-content/60">
+                The exec sent {inr(s.displayedTotalPrice)} instead of the computed {inr(s.finalPrice)}.
+              </p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sidebar content
 // ─────────────────────────────────────────────────────────────────────────────
 function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
@@ -3289,6 +3410,9 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
           />
           {query.customPackage.previousSnapshot != null && (
             <PreviousVersionDialog snapshot={query.customPackage.previousSnapshot} />
+          )}
+          {query.customPackage.pricingSnapshot != null && (
+            <LockedPricingDialog snapshot={query.customPackage.pricingSnapshot} />
           )}
         </SectionCard>
       )}

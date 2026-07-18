@@ -2431,6 +2431,15 @@ model custom_packages {
   viewedAt        DateTime?
   viewCount       Int                  @default(0)
   previousSnapshot Json?
+  /** Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
+   * exact locked total) — the client-facing "Pay Now" button opens this.
+   * No gateway/webhook integration; purely a manual URL field. */
+  paymentLink     String?
+  /** Frozen hotel/cab/ticket/margin/GST breakdown, computed server-side and
+   * written once when the package is sent — lets the exec recheck later how
+   * the delivered total was built, independent of any later catalog rate
+   * changes. Never shown on the client-facing page. */
+  pricingSnapshot Json?
   flightsIncluded Boolean              @default(false)
   flightNotes     String?
   flightFrom      String?

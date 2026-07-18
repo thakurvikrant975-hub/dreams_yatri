@@ -1,20 +1,22 @@
 import type { Metadata } from "next";
 import { getSharedPackage } from "@/app/actions/packages/fetch-shared-package";
 import { ItineraryDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
+import PackagePolicy from "@/app/(website)/packages/[slug]/[duration]/[route]/[stay]/policy/policy";
 import { ViewTracker } from "./ViewTracker";
+import { PayNowBar } from "./PayNowBar";
 
 export const metadata: Metadata = {
   title: "Your Itinerary | DreamsYatri",
   robots: { index: false, follow: false },
 };
 
-export default async function SharedItineraryPage({
+export default async function CustomPackagePage({
   params,
 }: {
-  params: Promise<{ packageId: string }>;
+  params: Promise<{ id: string }>;
 }) {
-  const { packageId } = await params;
-  const data = await getSharedPackage(packageId);
+  const { id } = await params;
+  const data = await getSharedPackage(id);
 
   if (!data) {
     return (
@@ -31,8 +33,12 @@ export default async function SharedItineraryPage({
 
   return (
     <div className="min-h-screen bg-neutral-100 py-6 px-3">
-      <ViewTracker packageId={packageId} />
+      <ViewTracker packageId={id} />
+      <PayNowBar currency={data.currency} totalPrice={data.totalPrice} paymentLink={data.paymentLink} />
       <ItineraryDocument form={data} />
+      <div className="max-w-3xl mx-auto mt-4">
+        <PackagePolicy />
+      </div>
     </div>
   );
 }
