@@ -283,50 +283,28 @@ export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<P
     windowWidth: rootWidthPx,
   });
 
-  // Paint the rasterized masked elements (logo, etc.) directly onto
-  // html2canvas's own output — see rasterizeMaskedElements for why this
-  // can't just be injected into the DOM beforehand.
-  console.log("[DEBUG] maskPatches:", JSON.stringify(maskPatches.map(p => ({
-    top: p.top, left: p.left, w: p.width, h: p.height, imgComplete: p.image.complete, imgW: p.image.naturalWidth, imgH: p.image.naturalHeight,
-  }))));
-  for (const p of maskPatches) {
-    const sc = document.createElement("canvas");
-    sc.width = p.image.naturalWidth; sc.height = p.image.naturalHeight;
-    const sctx = sc.getContext("2d")!;
-    sctx.drawImage(p.image, 0, 0);
-    const mid = sctx.getImageData(Math.floor(sc.width / 2), Math.floor(sc.height / 2), 1, 1).data;
-    console.log("[DEBUG] rasterized image center pixel:", Array.from(mid));
-  }
-  const canvasCtx = canvas.getContext("2d")!;
-  console.log("[DEBUG] canvasCtx exists:", !!canvasCtx, "canvas size:", canvas.width, canvas.height);
+  // Paint the rasterized masked elements (logo, etc.) onto a FRESH canvas
+  // copied from html2canvas's output, rather than drawing onto that output
+  // canvas's own context directly. html2canvas's internal renderer performs
+  // many nested ctx.save()/ctx.clip()/ctx.restore() calls (for overflow,
+  // rounded corners, etc.) — if that leaves the context with a stray,
+  // unbalanced clip region active by the time it hands control back, every
+  // subsequent draw (including a plain fillRect, confirmed while debugging
+  // this) silently no-ops without throwing. Copying the finished bitmap into
+  // a brand-new canvas gives a context with no such history.
+  const finalCanvas = document.createElement("canvas");
+  finalCanvas.width = canvas.width;
+  finalCanvas.height = canvas.height;
+  const finalCtx = finalCanvas.getContext("2d")!;
+  finalCtx.drawImage(canvas, 0, 0);
   for (const patch of maskPatches) {
-    try {
-      canvasCtx.drawImage(
-        patch.image,
-        patch.left * scale, patch.top * scale, patch.width * scale, patch.height * scale,
-      );
-      console.log("[DEBUG] drew patch at", patch.left * scale, patch.top * scale, patch.width * scale, patch.height * scale);
-      const readback = canvasCtx.getImageData(
-        Math.round(patch.left * scale + (patch.width * scale) / 2),
-        Math.round(patch.top * scale + (patch.height * scale) / 2),
-        1, 1,
-      ).data;
-      console.log("[DEBUG] readback pixel immediately after draw:", Array.from(readback));
-    } catch (err) {
-      console.log("[DEBUG] drawImage FAILED:", err);
-    }
+    finalCtx.drawImage(
+      patch.image,
+      patch.left * scale, patch.top * scale, patch.width * scale, patch.height * scale,
+    );
   }
 
-  {
-    const cropCanvas = document.createElement("canvas");
-    cropCanvas.width = canvas.width;
-    cropCanvas.height = Math.round(120 * scale);
-    const cctx = cropCanvas.getContext("2d")!;
-    cctx.drawImage(canvas, 0, 0, cropCanvas.width, cropCanvas.height, 0, 0, cropCanvas.width, cropCanvas.height);
-    console.log("[DEBUG post-patch header crop]", cropCanvas.toDataURL("image/png"));
-  }
-
-  const totalHeightPx = canvas.height / scale;
+  const totalHeightPx = finalCanvas.height / scale;
   const breaksPx = computePageBreaks(totalHeightPx, pageHeightPx, unsafeRanges);
 
   const pages: PdfPage[] = [];
@@ -336,13 +314,13 @@ export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<P
     if (sliceHeightPx <= 0) { cursorPx = breakPx; continue; }
 
     const sliceCanvas = document.createElement("canvas");
-    sliceCanvas.width = canvas.width;
+    sliceCanvas.width = finalCanvas.width;
     sliceCanvas.height = sliceHeightPx * scale;
     const ctx = sliceCanvas.getContext("2d")!;
     ctx.drawImage(
-      canvas,
-      0, cursorPx * scale, canvas.width, sliceHeightPx * scale,
-      0, 0, canvas.width, sliceHeightPx * scale,
+      finalCanvas,
+      0, cursorPx * scale, finalCanvas.width, sliceHeightPx * scale,
+      0, 0, finalCanvas.width, sliceHeightPx * scale,
     );
 
     pages.push({
