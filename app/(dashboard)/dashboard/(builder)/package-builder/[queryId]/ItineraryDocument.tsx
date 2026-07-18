@@ -222,7 +222,7 @@ function ActivityRow({
   const slots: (string | null)[] = gallery.length > 0 ? gallery.slice(0, 3) : (editable ? [null] : []);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" style={{ breakInside: "avoid" }}>
       <div className="flex items-start gap-2">
         <span className="flex items-center justify-center size-5 rounded-full bg-primary-100 text-primary-600 shrink-0 mt-0.5">
           <Sparkles size={11} />
@@ -565,7 +565,7 @@ function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       {flights.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={Plane} label="Flight Details" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3">
             {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
         </div>
@@ -573,7 +573,7 @@ function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       {trains.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={TrainFront} label="Train Details" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3">
             {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
         </div>
@@ -598,13 +598,21 @@ function DayCardPreview({
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
   const mealText = mealIncludedText(day.hotelMealPlan);
   const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0 || !!onImageChange;
+  const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
+  const extraCabs = (day.extraCabs ?? []).filter((c) => c.label.trim());
 
   return (
     <div
       className="rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm"
-      style={{ breakInside: "avoid" }}
     >
-      {/* Day header — numbered badge + title */}
+      {/* Day header — numbered badge + title. Deliberately NOT wrapping the
+          whole card in breakInside:avoid — a day with several activities and
+          photos routinely runs taller than one PDF page, and forcing the
+          entire card onto a fresh page just to avoid a mid-card split leaves
+          a large blank gap at the bottom of the previous page. Instead, only
+          the Hotel/Transport/Activity sub-cards below are individually
+          protected, so a tall day can still split page-to-page at a clean
+          boundary between them. */}
       <div className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-100 bg-linear-to-r from-primary-50/70 to-transparent">
         <span className="shrink-0 flex items-center justify-center size-9 rounded-xl bg-linear-to-br from-primary-500 to-primary-700 text-white text-sm font-extrabold shadow-sm">
           {day.day}
@@ -624,7 +632,7 @@ function DayCardPreview({
 
         {/* Hotel info */}
         {hasHotel && (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden">
+          <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
             <div className="flex items-center gap-2 px-3 py-2 bg-primary-50/70 border-b border-primary-100">
               <span className="flex items-center justify-center size-5 rounded-lg bg-primary-100 shrink-0">
                 <Hotel size={11} className="text-primary-600" />
@@ -672,6 +680,16 @@ function DayCardPreview({
                   <p className="text-[11px] text-neutral-500 flex items-center gap-1">
                     <Utensils size={10} className="text-primary-400 shrink-0" /> {mealText}
                   </p>
+                )}
+
+                {extraRooms.length > 0 && (
+                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                    {extraRooms.map((r, i) => (
+                      <p key={i} className="text-[11px] text-neutral-500">
+                        + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
+                      </p>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -723,7 +741,7 @@ function DayCardPreview({
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden">
+          <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
             <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border-b border-neutral-100">
               <span className="flex items-center justify-center size-5 rounded-lg bg-neutral-200/70 shrink-0">
                 <Car size={11} className="text-neutral-600" />
@@ -767,6 +785,16 @@ function DayCardPreview({
                         Drop Point: <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
                       </p>
                     </div>
+                  </div>
+                )}
+
+                {extraCabs.length > 0 && (
+                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                    {extraCabs.map((c, i) => (
+                      <p key={i} className="text-[11px] text-neutral-500">
+                        + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
+                      </p>
+                    ))}
                   </div>
                 )}
               </div>
@@ -852,6 +880,19 @@ function HeroCover({
   const editable = !!onCoverImageChange;
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Journey route — pickup point, each stop with its night count, then the
+  // drop point. Pickup/drop come from the first/last day's transport fields;
+  // either (or both) is simply left out of the strip when not set.
+  const firstDay = form.itineraries[0];
+  const lastDay = form.itineraries[form.itineraries.length - 1];
+  const pickupPoint = firstDay?.transportPickup || "";
+  const dropPoint = lastDay?.transportDrop || "";
+  const routeSteps: { label: string; nights?: number }[] = [
+    ...(pickupPoint ? [{ label: `${pickupPoint} pickup` }] : []),
+    ...form.stops.filter((s) => s.name.trim()).map((s) => ({ label: titleCase(s.name), nights: s.nights })),
+    ...(dropPoint ? [{ label: `${dropPoint} drop` }] : []),
+  ];
 
   async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
@@ -949,7 +990,7 @@ function HeroCover({
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 px-[15mm] pb-[15mm]">
+      <div className="absolute inset-x-0 bottom-0 px-[10mm] pb-[15mm]">
         {form.totalDays > 0 && (
           <span className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm border border-white/25 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-3">
             <Compass size={11} /> {form.totalDays} Day Journey
@@ -958,14 +999,34 @@ function HeroCover({
         <h1 className="text-[30px] leading-[1.15] font-extrabold text-white" style={{ maxWidth: "150mm" }}>
           {form.title || "Untitled Package"}
         </h1>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5">
-          <span className="flex items-center gap-1.5 text-white text-sm font-semibold">
-            <MapPin size={14} className="shrink-0" />
-            {form.startingPoint ? `${form.startingPoint} → ` : ""}{form.destination || "—"}
-          </span>
-          <span className="text-white/50">·</span>
-          <span className="text-white/85 text-sm font-medium">{durationLabel}</span>
-        </div>
+
+        {routeSteps.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1 mt-3" style={{ maxWidth: "175mm" }}>
+            {routeSteps.map((step, i) => (
+              <div key={i} className="flex items-center gap-1">
+                {i > 0 && <ArrowRight size={11} className="text-white/40 shrink-0 mx-0.5" />}
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 backdrop-blur-sm px-1.5 py-0.5 text-[10px] text-white whitespace-nowrap">
+                  <MapPin size={9} className="shrink-0 text-white/60" />
+                  {step.label}
+                  {step.nights != null && (
+                    <span className="rounded-full bg-white/20 px-1 py-0.5 text-[7px] font-bold text-white/90">
+                      {step.nights}N
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5">
+            <span className="flex items-center gap-1.5 text-white text-sm font-semibold">
+              <MapPin size={14} className="shrink-0" />
+              {form.startingPoint ? `${form.startingPoint} → ` : ""}{form.destination || "—"}
+            </span>
+            <span className="text-white/50">·</span>
+            <span className="text-white/85 text-sm font-medium">{durationLabel}</span>
+          </div>
+        )}
       </div>
 
       {/* Wave transition into the white body below */}
@@ -1003,7 +1064,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
 
   return (
     <footer className="bg-neutral-950 text-slate-300 mt-2" style={{ breakInside: "avoid" }}>
-      <div className="px-[15mm] pt-9 pb-6">
+      <div className="px-[10mm] pt-9 pb-6">
         <div className="flex flex-wrap items-start justify-between gap-8 pb-7 border-b border-white/10">
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
             <DyLogo className="h-7 text-primary-500" />
@@ -1060,14 +1121,29 @@ const PRINT_STYLES = `
   @media print {
     body * { visibility: hidden; }
     .itinerary-print-area, .itinerary-print-area * { visibility: visible; }
-    .itinerary-print-area { position: absolute; inset: 0; width: 210mm; box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
     .no-print { display: none !important; }
+
+    /* The builder page wraps the preview in a sticky header, a
+       position:relative split-pane, and a scrolling overflow-auto <aside> —
+       any one of those can clip or mis-position an absolutely-positioned
+       print area. Instead, strip every layout constraint on that ancestor
+       chain (marked .print-reset) so the print area sits in plain normal
+       flow and paginates like any other block content. */
+    html, body { height: auto !important; overflow: visible !important; }
+    .print-reset {
+      position: static !important;
+      display: block !important;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    .itinerary-print-area { width: 210mm; margin: 0 auto !important; box-shadow: none !important; border-radius: 0 !important; border: none !important; }
     @page { size: A4; margin: 0; }
   }
 `;
 
 export function ItineraryDocument({
-  form, onCoverImageChange, onCoverImagePositionChange, onImageChange,
+  form, onCoverImageChange, onCoverImagePositionChange, onImageChange, variant = "card",
 }: {
   form: PreviewData;
   /** Present only in the internal builder's live preview — enables dropping
@@ -1079,6 +1155,11 @@ export function ItineraryDocument({
    * every other photo in the document (stops, hotel, room, transport,
    * activities) — see ImageEditTarget for what each edit refers to. */
   onImageChange?: OnImageChange;
+  /** "card" (default) keeps the rounded corners + drop shadow used to present
+   * the document on the public share page's colored background. "flat" drops
+   * both so the on-screen preview reads as a plain A4 page — matching exactly
+   * what window.print() produces, where these are already stripped. */
+  variant?: "card" | "flat";
 }) {
   const travelDateStr = form.travelDate
     ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
@@ -1103,23 +1184,20 @@ export function ItineraryDocument({
   // comment on PreviewData.tickets for why these aren't separate fields.
   const transport = deriveTransportFields(form.tickets);
 
-  // Category subtotals for the Price Summary — per-leg fares stay hidden on
-  // each ticket card, but the exec still wants the client to see what the
-  // flight/train cost comes to as part of the overall price breakdown.
-  const flightSubtotal = form.tickets.filter((t) => t.type === "FLIGHT").reduce((sum, t) => sum + (t.fare ?? 0), 0);
-  const trainSubtotal = form.tickets.filter((t) => t.type === "TRAIN").reduce((sum, t) => sum + (t.fare ?? 0), 0);
-
   return (
     <div>
       <style>{PRINT_STYLES}</style>
 
       {/* ── A4 page ─────────────────────────────────────────────────────────── */}
       <div
-        className="itinerary-print-area mx-auto bg-white rounded-lg shadow-xl overflow-hidden"
+        className={cn(
+          "itinerary-print-area mx-auto bg-white overflow-hidden",
+          variant === "flat" ? "border border-neutral-200" : "rounded-lg shadow-xl",
+        )}
         style={{ width: "210mm", minHeight: "297mm" }}
       >
         {/* ── Header ────────────────────────────────────────────────────────── */}
-        <header className="flex items-center justify-between px-[15mm] py-4">
+        <header className="flex items-center justify-between px-[10mm] py-4">
           <DyLogo className="h-7 text-primary-600" />
           <div className="text-right text-[11px] text-neutral-500 space-y-0.5">
             <p className="flex items-center justify-end gap-1.5"><Phone size={10} className="text-primary-500" /> {COMPANY_PHONE}</p>
@@ -1136,7 +1214,7 @@ export function ItineraryDocument({
         />
 
         {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-        <div className="relative z-10 px-[15mm]" style={{ marginTop: "-13mm" }}>
+        <div className="relative z-10 px-[10mm]" style={{ marginTop: "-13mm" }}>
           <div className="bg-white rounded-2xl  border-neutral-100 grid grid-cols-4 divide-x divide-neutral-100 overflow-hidden" style={{ boxShadow: "0 10px 30px -8px rgba(0,0,0,0.18)" }}>
             <StatCell icon={Calendar} label="Travel Date" value={travelDateStr} />
             <StatCell icon={Moon} label="Duration" value={durationLabel} />
@@ -1151,7 +1229,7 @@ export function ItineraryDocument({
         </div>
 
         {/* ── Body ──────────────────────────────────────────────────────────── */}
-        <main className="px-[15mm] pt-7 pb-2 space-y-7">
+        <main className="px-[10mm] pt-7 pb-2 space-y-7">
           {(form.clientName || form.execName) && (
             <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden" style={{ breakInside: "avoid" }}>
               <div className="grid grid-cols-2 divide-x divide-neutral-100">
@@ -1257,23 +1335,6 @@ export function ItineraryDocument({
                 </span>
                 <h2 className="text-[13px] font-extrabold text-white uppercase tracking-wide">Price Summary</h2>
               </div>
-
-              {(flightSubtotal > 0 || trainSubtotal > 0) && (
-                <div className="space-y-1.5 mb-4 pb-4 border-b border-white/10">
-                  {flightSubtotal > 0 && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 text-white/70"><Plane size={11} /> Flight</span>
-                      <span className="font-semibold text-white">₹{flightSubtotal.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-                  {trainSubtotal > 0 && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 text-white/70"><TrainFront size={11} /> Train</span>
-                      <span className="font-semibold text-white">₹{trainSubtotal.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="space-y-1">

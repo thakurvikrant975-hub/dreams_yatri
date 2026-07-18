@@ -10,7 +10,7 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
-  Image as ImageIcon, Printer, X, Sparkles, Percent,
+  Image as ImageIcon, X, Sparkles, Percent,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -45,6 +45,7 @@ import {
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { ItineraryDocument, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -876,6 +877,92 @@ function DayCard({
               )}
             </div>
 
+            {/* Rooms needed — auto-computed from traveller count, but
+               overridable when the group is splitting across separately
+               booked rooms rather than sharing by pure occupancy. */}
+            {data.roomPricingId != null && (
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={data.roomsCount ?? ""}
+                  onChange={(e) => onChange({
+                    ...data,
+                    roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                  })}
+                  placeholder="Auto"
+                  className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+                <p className="text-[10px] text-dashboard-base-content/40">
+                  Leave blank to auto-compute from traveller count
+                </p>
+              </div>
+            )}
+
+            {/* Additional, different room types for the same night — e.g. one
+               couple in this room, another in a different room type. */}
+            {(data.extraRooms ?? []).length > 0 && (
+              <div className="space-y-2">
+                {(data.extraRooms ?? []).map((room, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 p-2">
+                    <div className="flex-1 min-w-0">
+                      <HotelRoomPicker
+                        value={room.roomPricingId || null}
+                        initialLabel={room.label}
+                        searchCity={searchCity}
+                        refCoords={cityCoords}
+                        onSelect={(r) => {
+                          const next = [...(data.extraRooms ?? [])];
+                          next[i] = { roomPricingId: r.id, label: `${r.hotelName} — ${r.roomName}`, quantity: next[i].quantity };
+                          onChange({ ...data, extraRooms: next });
+                        }}
+                        onClear={() => {
+                          const next = [...(data.extraRooms ?? [])];
+                          next[i] = { ...next[i], roomPricingId: 0, label: "" };
+                          onChange({ ...data, extraRooms: next });
+                        }}
+                        placeholder="Search another room type…"
+                      />
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={room.quantity}
+                      onChange={(e) => {
+                        const next = [...(data.extraRooms ?? [])];
+                        next[i] = { ...next[i], quantity: Math.max(1, parseInt(e.target.value, 10) || 1) };
+                        onChange({ ...data, extraRooms: next });
+                      }}
+                      className="text-sm h-9 w-16 shrink-0 border-dashboard-base-300 rounded-md"
+                    />
+                    <Button
+                      type="button" variant="ghost" size="icon"
+                      className="h-9 w-9 shrink-0 text-dashboard-error hover:bg-dashboard-error/10"
+                      onClick={() => onChange({
+                        ...data,
+                        extraRooms: (data.extraRooms ?? []).filter((_, idx) => idx !== i),
+                      })}
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchCity && (
+              <Button
+                type="button" variant="outline" size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => onChange({
+                  ...data,
+                  extraRooms: [...(data.extraRooms ?? []), { roomPricingId: 0, label: "", quantity: 1 }],
+                })}
+              >
+                <Plus size={12} /> Add another room type
+              </Button>
+            )}
+
             {showRoomApplyPrompt && lastRoom && (
               <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -1086,6 +1173,85 @@ function DayCard({
                 </p>
               )}
             </div>
+
+            {/* Cab quantity — e.g. 2 of the same vehicle for a large group. */}
+            {data.cabPricingId != null && (
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Quantity</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={data.cabQuantity ?? ""}
+                  onChange={(e) => onChange({
+                    ...data,
+                    cabQuantity: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                  })}
+                  placeholder="1"
+                  className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+            )}
+
+            {/* Additional, different cabs for the same day — e.g. one sedan
+               plus one SUV, each with its own quantity. */}
+            {(data.extraCabs ?? []).length > 0 && (
+              <div className="space-y-2 mb-2">
+                {(data.extraCabs ?? []).map((cab, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 p-2">
+                    <div className="flex-1 min-w-0">
+                      <SearchSelect
+                        value={null}
+                        onChange={(_id, option) => {
+                          const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
+                          if (!raw) return;
+                          const isPriced = "vehicleName" in raw;
+                          const next = [...(data.extraCabs ?? [])];
+                          next[i] = {
+                            cabPricingId: isPriced ? raw.id : null,
+                            label: isPriced ? raw.vehicleName : raw.name,
+                            quantity: next[i].quantity,
+                          };
+                          onChange({ ...data, extraCabs: next });
+                        }}
+                        fetchOptions={fetchCabOptions}
+                        placeholder={cab.label || "Search another cab…"}
+                      />
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={cab.quantity}
+                      onChange={(e) => {
+                        const next = [...(data.extraCabs ?? [])];
+                        next[i] = { ...next[i], quantity: Math.max(1, parseInt(e.target.value, 10) || 1) };
+                        onChange({ ...data, extraCabs: next });
+                      }}
+                      className="text-sm h-9 w-16 shrink-0 border-dashboard-base-300 rounded-md"
+                    />
+                    <Button
+                      type="button" variant="ghost" size="icon"
+                      className="h-9 w-9 shrink-0 text-dashboard-error hover:bg-dashboard-error/10"
+                      onClick={() => onChange({
+                        ...data,
+                        extraCabs: (data.extraCabs ?? []).filter((_, idx) => idx !== i),
+                      })}
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button" variant="outline" size="sm"
+              className="h-8 text-xs gap-1.5 mb-2"
+              onClick={() => onChange({
+                ...data,
+                extraCabs: [...(data.extraCabs ?? []), { cabPricingId: null, label: "", quantity: 1 }],
+              })}
+            >
+              <Plus size={12} /> Add another cab
+            </Button>
 
             {showApplyPrompt && lastVehicle && (
               <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
@@ -1714,10 +1880,14 @@ export default function PackageBuilderDetailPage() {
   // Recomputes the real hotel cost (season/occupancy-aware) whenever any of
   // those three inputs change — the sales exec still applies it manually via
   // the "Use this price" button so an already-typed price isn't clobbered.
-  const roomPricingKey = form.itineraries.map((it) => `${it.day}:${it.roomPricingId ?? ""}`).join("|");
+  const roomPricingKey = form.itineraries
+    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${JSON.stringify(it.extraRooms ?? [])}`)
+    .join("|");
   useEffect(() => {
-    const days = form.itineraries.map((it) => ({ day: it.day, roomPricingId: it.roomPricingId }));
-    if (days.every((d) => d.roomPricingId == null)) {
+    const days = form.itineraries.map((it) => ({
+      day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount, extraRooms: it.extraRooms,
+    }));
+    if (days.every((d) => d.roomPricingId == null && (d.extraRooms ?? []).length === 0)) {
       setHotelPricing(null);
       return;
     }  
@@ -1744,13 +1914,14 @@ export default function PackageBuilderDetailPage() {
   // that day's transportDistanceKm, so a multi-day cab hire naturally sums
   // across however many days it was applied to.
   const cabPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}`)
+    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
+      cabQuantity: it.cabQuantity, extraCabs: it.extraCabs,
     }));
-    if (days.every((d) => d.cabPricingId == null)) {
+    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0)) {
       setCabPricing(null);
       return;
     }
@@ -1796,18 +1967,33 @@ export default function PackageBuilderDetailPage() {
   // final_price — same walkthrough the admin catalog's full pricing engine
   // uses (computePackagePrice in package-pricing.service.ts), just without
   // the meal/activity/permit layers that only exist for catalog packages.
+  // Flight/train fares only ever carry a flat 5% margin — never the
+  // configurable hotel/cab margin (25% by default) — since tickets are
+  // priced closer to cost and don't bear the same markup as inventory the
+  // agency sources and stays in.
+  const TICKET_MARGIN_PCT = 5;
+
   function computeFinalPricing() {
     const marginPct = parseFloat(form.marginPercentage) || 0;
     const gstPct = parseFloat(form.gstPercentage) || 0;
+    const hotelCabBase = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0);
     const ticketsSubtotal = form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
-    const baseCost = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0) + ticketsSubtotal;
-    const marginAmount = Math.round(baseCost * marginPct / 100);
+    const baseCost = hotelCabBase + ticketsSubtotal;
+
+    const hotelCabMarginAmount = Math.round(hotelCabBase * marginPct / 100);
+    const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
+    const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
+
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
     const finalPrice = taxable + gstAmount;
     const totalPax = form.adults + form.children;
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
-    return { marginPct, gstPct, baseCost, ticketsSubtotal, marginAmount, taxable, gstAmount, finalPrice, perPerson };
+    return {
+      marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase,
+      hotelCabMarginAmount, ticketsMarginAmount, marginAmount,
+      taxable, gstAmount, finalPrice, perPerson,
+    };
   }
 
   function applyComputedPricing() {
@@ -2135,10 +2321,10 @@ export default function PackageBuilderDetailPage() {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="print-reset min-h-screen flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
+      <header className="no-print sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
         <div className="flex items-center justify-between px-4 h-14 gap-3">
           {/* Left */}
           <div className="flex items-center gap-3 min-w-0">
@@ -2208,15 +2394,7 @@ export default function PackageBuilderDetailPage() {
               </span>
             </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
-              onClick={() => window.print()}
-            >
-              <Printer size={13} />
-              <span className="hidden sm:inline text-xs">Print / Save as PDF</span>
-            </Button>
+            <ItineraryPdfExport form={previewForm} />
 
             <Button
               size="sm"
@@ -2235,23 +2413,24 @@ export default function PackageBuilderDetailPage() {
       </header>
 
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
-      <div className="flex relative h-[calc(100vh-3.5rem)]">
+      <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
-          <div className="px-6 py-8">
+        <aside className="print-reset hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
+          <div className="print-reset px-6 py-8">
             <ItineraryDocument
               form={previewForm}
               onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={handleItineraryImageChange}
+              variant="flat"
             />
           </div>
         </aside>
 
         {/* Mobile preview overlay */}
         {mobilePreviewOpen && (
-          <div className="lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
+          <div className="no-print lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
             <div className="no-print flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100 z-10">
               <span className="text-sm font-semibold text-dashboard-base-content">Live Preview</span>
               <button onClick={() => setMobilePreviewOpen(false)}>
@@ -2264,13 +2443,14 @@ export default function PackageBuilderDetailPage() {
                 onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={handleItineraryImageChange}
+              variant="flat"
               />
             </div>
           </div>
         )}
 
         {/* ── RIGHT: Tabbed Editor ──────────────────────────────────────────────── */}
-        <main className="w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
+        <main className="no-print w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
           <div className="px-4 pt-5 pb-4">
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
@@ -2476,7 +2656,9 @@ export default function PackageBuilderDetailPage() {
                           {form.travelDate ? `, from ${new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}
                         </span>
                         <div className="text-dashboard-base-content/50 mt-0.5">
-                          + {form.marginPercentage || 0}% margin + {form.gstPercentage || 0}% GST → ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")}/person
+                          + {form.marginPercentage || 0}% margin (Hotel/Cab)
+                          {form.tickets.length > 0 ? ` + ${TICKET_MARGIN_PCT}% margin (Tickets)` : ""}
+                          {" "}+ {form.gstPercentage || 0}% GST → ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")}/person
                           {" "}(edit in Pricing Breakdown tab)
                         </div>
                       </div>
@@ -2666,8 +2848,8 @@ export default function PackageBuilderDetailPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {hotelPricing.days.map((d) => (
-                                  <tr key={d.day} className="border-t border-dashboard-base-300">
+                                {hotelPricing.days.map((d, i) => (
+                                  <tr key={`${d.day}-${i}`} className="border-t border-dashboard-base-300">
                                     <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
                                     <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
@@ -2725,8 +2907,8 @@ export default function PackageBuilderDetailPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {cabPricing.days.map((d) => (
-                                  <tr key={d.day} className="border-t border-dashboard-base-300">
+                                {cabPricing.days.map((d, i) => (
+                                  <tr key={`${d.day}-${i}`} className="border-t border-dashboard-base-300">
                                     <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">{d.vehicleName}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">
@@ -2805,7 +2987,8 @@ export default function PackageBuilderDetailPage() {
                       <p className="text-[11px] text-dashboard-base-content/50">
                         Hotels are computed from each day&apos;s selected room (season/occupancy-aware rate) and adult/child count; cabs from each
                         day&apos;s selected cab (season/weekday-weekend-aware rate, per day or per km as configured) — both checked against the travel date;
-                        tickets from the fares entered on the Tickets tab.
+                        tickets from the fares entered on the Tickets tab. Hotel/cab carry the margin % set below; ticket fares only ever carry a
+                        flat {TICKET_MARGIN_PCT}% margin, regardless of that setting.
                         Activities aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details if needed.
                       </p>
 
@@ -2845,13 +3028,25 @@ export default function PackageBuilderDetailPage() {
                               <table className="w-full text-xs">
                                 <tbody>
                                   <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">Base Cost (Hotel + Cab + Tickets)</td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.baseCost.toLocaleString("en-IN")}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">Hotel + Cab Base</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabBase.toLocaleString("en-IN")}</td>
                                   </tr>
                                   <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin ({p.marginPct}%)</td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.marginAmount.toLocaleString("en-IN")}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin on Hotel/Cab ({p.marginPct}%)</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabMarginAmount.toLocaleString("en-IN")}</td>
                                   </tr>
+                                  {p.ticketsSubtotal > 0 && (
+                                    <>
+                                      <tr className="border-b border-dashboard-base-300">
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">Tickets Base (Flight/Train)</td>
+                                        <td className="px-3 py-2 text-right font-medium">₹{p.ticketsSubtotal.toLocaleString("en-IN")}</td>
+                                      </tr>
+                                      <tr className="border-b border-dashboard-base-300">
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin on Tickets ({TICKET_MARGIN_PCT}% fixed)</td>
+                                        <td className="px-3 py-2 text-right font-medium">₹{p.ticketsMarginAmount.toLocaleString("en-IN")}</td>
+                                      </tr>
+                                    </>
+                                  )}
                                   <tr className="border-b border-dashboard-base-300 bg-dashboard-base-200/40">
                                     <td className="px-3 py-2 font-semibold">= Subtotal</td>
                                     <td className="px-3 py-2 text-right font-semibold">₹{p.taxable.toLocaleString("en-IN")}</td>

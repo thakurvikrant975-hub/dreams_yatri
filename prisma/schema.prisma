@@ -2518,7 +2518,23 @@ model custom_itineraries {
   accommodationRoomSpecs String?
   accommodationRoomCapacity Int?
   roomPricingId   Int?
+  /** Overrides the auto-computed (adults+children ÷ room capacity) room
+   * count for the primary `roomPricingId` above — set when the exec
+   * explicitly says how many of that room type are needed instead of
+   * letting occupancy drive it. Null keeps the auto-computed behavior. */
+  roomsCount      Int?
+  /** Additional, DIFFERENT room types booked for the same night (e.g. one
+   * couple in a Deluxe Room, another in a Suite) — each a
+   * {roomPricingId, label, quantity} entry; priced by summing quantity ×
+   * that room's own resolved per-night rate, no auto occupancy/mattress
+   * logic (that only applies to the primary roomPricingId above). */
+  extraRooms      Json?
   cabPricingId    Int?
+  /** Same override pattern as roomsCount, for the primary cabPricingId. */
+  cabQuantity     Int?
+  /** Additional, DIFFERENT cabs for the same day (e.g. one Sedan + one
+   * SUV) — each a {cabPricingId, label, quantity} entry. */
+  extraCabs       Json?
   hotelCheckIn    String?
   hotelCheckOut   String?
   hotelMealPlan   String?

@@ -484,6 +484,28 @@ export interface ActivityInput {
   photoLabels:  string[];
 }
 
+/** One additional, DIFFERENT room type booked for the same night beyond the
+ * primary `roomPricingId` on DayItinerary — e.g. one couple takes a Deluxe
+ * Room while another takes a Suite. `label` is a display copy ("Hotel —
+ * Room") captured at selection time, same "typed value + id" pattern as
+ * `accommodation`/`roomPricingId` above, so the UI/PDF never needs an extra
+ * round-trip fetch just to show what was picked. */
+export interface RoomSelection {
+  roomPricingId: number;
+  label:         string;
+  quantity:      number;
+}
+
+/** Same pattern as RoomSelection, for an additional cab on the same day
+ * (e.g. one Sedan + one SUV). cabPricingId is null when picked from the
+ * unscoped fleet catalog (no real rate to reference), matching the primary
+ * cabPricingId's own null case. */
+export interface CabSelection {
+  cabPricingId: number | null;
+  label:        string;
+  quantity:     number;
+}
+
 export interface DayItinerary {
   id?:                string;
   day:                number;
@@ -501,6 +523,15 @@ export interface DayItinerary {
    * package price be computed from real, date/occupancy-aware hotel rates
    * instead of typed in by hand. Null when the hotel was entered as free text. */
   roomPricingId:      number | null;
+  /** Overrides the auto-computed (adults+children ÷ room capacity) room
+   * count for roomPricingId above — set when the exec explicitly says how
+   * many of that room type are needed. Null/undefined keeps the
+   * auto-computed behavior (unchanged from before this field existed). */
+  roomsCount?:        number | null;
+  /** Additional, different room types for the same night — see
+   * RoomSelection. Empty/undefined when this night only has the one
+   * primary room. */
+  extraRooms?:        RoomSelection[];
   hotelCheckIn:       string;
   hotelCheckOut:      string;
   hotelMealPlan:      string;
@@ -522,6 +553,11 @@ export interface DayItinerary {
    * hand. Null when the vehicle was picked from the unscoped fleet catalog
    * (no real rate to reference) or entered as free text. */
   cabPricingId:       number | null;
+  /** Overrides the implicit quantity of 1 for cabPricingId above — e.g. 2 of
+   * the same Sedan. Null/undefined keeps the previous implicit-1 behavior. */
+  cabQuantity?:       number | null;
+  /** Additional, different cabs for the same day — see CabSelection. */
+  extraCabs?:         CabSelection[];
   notes:              string;
 }
 
@@ -849,11 +885,39 @@ function normalizeActivity(a: {
   };
 }
 
+/** Prisma Json columns come back as `unknown`-ish JsonValue — validate into
+ * the expected shape rather than trusting it, since a hand-edited row or a
+ * future schema tweak could otherwise silently produce garbage entries. */
+function parseRoomSelections(value: unknown): RoomSelection[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is Record<string, unknown> => typeof v === "object" && v !== null)
+    .map((v) => ({
+      roomPricingId: Number(v.roomPricingId),
+      label: typeof v.label === "string" ? v.label : "",
+      quantity: Math.max(1, Number(v.quantity) || 1),
+    }))
+    .filter((v) => Number.isFinite(v.roomPricingId));
+}
+
+function parseCabSelections(value: unknown): CabSelection[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is Record<string, unknown> => typeof v === "object" && v !== null)
+    .map((v) => ({
+      cabPricingId: v.cabPricingId == null ? null : Number(v.cabPricingId),
+      label: typeof v.label === "string" ? v.label : "",
+      quantity: Math.max(1, Number(v.quantity) || 1),
+    }));
+}
+
 function normalizeItinerary(it: {
   id: string; day: number; title: string; description: string | null; meals: string[];
   accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
   accommodationLocation: string | null; accommodationRoomSpecs: string | null; accommodationRoomCapacity: number | null;
   roomPricingId: number | null;
+  roomsCount: number | null;
+  extraRooms: Prisma.JsonValue;
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
@@ -861,6 +925,8 @@ function normalizeItinerary(it: {
   transportDrop: string | null;
   transportDistanceKm: number | null; notes: string | null;
   cabPricingId: number | null;
+  cabQuantity: number | null;
+  extraCabs: Prisma.JsonValue;
   activities: Parameters<typeof normalizeActivity>[0][];
 }): DayItinerary {
   return {
@@ -877,6 +943,8 @@ function normalizeItinerary(it: {
     accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
     accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
     roomPricingId:             it.roomPricingId ?? null,
+    roomsCount:                it.roomsCount ?? null,
+    extraRooms:                parseRoomSelections(it.extraRooms),
     hotelCheckIn:              it.hotelCheckIn ?? "",
     hotelCheckOut:             it.hotelCheckOut ?? "",
     hotelMealPlan:             it.hotelMealPlan ?? "",
@@ -890,6 +958,8 @@ function normalizeItinerary(it: {
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
     cabPricingId:              it.cabPricingId ?? null,
+    cabQuantity:               it.cabQuantity ?? null,
+    extraCabs:                 parseCabSelections(it.extraCabs),
     notes:                     it.notes ?? "",
   };
 }
@@ -993,6 +1063,8 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               accommodationRoomSpecs: true,
               accommodationRoomCapacity: true,
               roomPricingId:      true,
+              roomsCount:         true,
+              extraRooms:         true,
               hotelCheckIn:       true,
               hotelCheckOut:      true,
               hotelMealPlan:      true,
@@ -1006,6 +1078,8 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               transportDrop:      true,
               transportDistanceKm: true,
               cabPricingId:       true,
+              cabQuantity:        true,
+              extraCabs:          true,
               notes:              true,
               activities: {
                 orderBy: { sortOrder: "asc" },
@@ -1220,6 +1294,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               accommodationRoomSpecs: it.accommodationRoomSpecs || null,
               accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
               roomPricingId:      it.roomPricingId ?? null,
+              roomsCount:         it.roomsCount ?? null,
+              // Drop any "add another room" row the exec never finished
+              // picking a room for (roomPricingId still 0, the picker's
+              // "unselected" sentinel) rather than persisting junk entries.
+              extraRooms:         (it.extraRooms ?? []).filter((r) => r.roomPricingId > 0) as unknown as Prisma.InputJsonValue,
               hotelCheckIn:       it.hotelCheckIn || null,
               hotelCheckOut:      it.hotelCheckOut || null,
               hotelMealPlan:      it.hotelMealPlan || null,
@@ -1233,6 +1312,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,
               cabPricingId:       it.cabPricingId ?? null,
+              cabQuantity:        it.cabQuantity ?? null,
+              // Same "drop unfinished rows" filter as extraRooms above.
+              extraCabs:          (it.extraCabs ?? []).filter((c) => c.label.trim()) as unknown as Prisma.InputJsonValue,
               notes:              it.notes || null,
               activities: {
                 create: it.activities
