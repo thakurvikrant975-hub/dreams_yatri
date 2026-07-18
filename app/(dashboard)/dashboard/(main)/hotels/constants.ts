@@ -1,3 +1,5 @@
+export const PLAN_NOTES_MAX_LEN = 1000;
+
 export const STAY_TYPES = [
   "1 Star",
   "2 Star",
