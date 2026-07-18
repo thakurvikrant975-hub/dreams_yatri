@@ -56,17 +56,224 @@ function computePageBreaks(totalHeightPx: number, pageHeightPx: number, unsafeRa
   return breaks;
 }
 
+/** Cross-origin images load and display fine as a plain <img>/mask source,
+ * but html2canvas can't read pixels from them into a canvas unless that
+ * origin sends CORS headers — our own R2 bucket doesn't, so those specific
+ * images render blank (or, for a canvas draw, throw) even though they're
+ * visibly loaded. Routes through /api/pdf-image-proxy, which fetches the
+ * bytes server-side (no CORS involved for a server-to-server request), and
+ * returns a same-origin blob: URL that's always canvas-safe. Same-origin
+ * URLs are returned unchanged. */
+async function toCanvasSafeUrl(url: string): Promise<string> {
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+
+  let sameOrigin = true;
+  try {
+    sameOrigin = new URL(url, window.location.href).origin === window.location.origin;
+  } catch {
+    // relative/unparsable URL — treat as same-origin, nothing to proxy
+  }
+  if (sameOrigin) return url;
+
+  try {
+    const res = await fetch(`/api/pdf-image-proxy?url=${encodeURIComponent(url)}`);
+    if (!res.ok) return url;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return url; // best-effort — leave the original if the proxy fetch fails
+  }
+}
+
+async function inlineCrossOriginImages(root: HTMLElement): Promise<void> {
+  const images = Array.from(root.querySelectorAll("img"));
+  const resolved = await Promise.all(
+    images.map(async (img) => {
+      const src = img.getAttribute("src");
+      if (!src) return null;
+      return { img, safeUrl: await toCanvasSafeUrl(src) };
+    }),
+  );
+  for (const r of resolved) {
+    if (r) r.img.src = r.safeUrl;
+  }
+}
+
+export type MaskedElementPatch = {
+  /** Position relative to `root`, in unscaled CSS px — the same coordinate
+   * space computePageBreaks/findUnsafeRanges already use. */
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  image: HTMLImageElement;
+};
+
+/** html2canvas doesn't implement CSS mask-image at all (it's outside the
+ * subset of CSS it supports) — an element like DyLogo that recolors an SVG
+ * silhouette via `mask-image` + `background: currentColor` just renders as
+ * a solid, unmasked block of that background color. Rasterize the mask
+ * ourselves (draw the mask image to a canvas, then paint the element's
+ * actual computed color into it with "source-in" compositing — exactly what
+ * a CSS mask does).
+ *
+ * The rasterized result is deliberately NOT injected back into the DOM as an
+ * <img> or background-image: html2canvas keeps a single size-limited LRU
+ * cache for every image resource on the page (background-image and <img>
+ * alike), and on a long itinerary with dozens of real photos, an entry
+ * registered early — like a logo in the header, one of the first elements
+ * processed — reliably gets evicted before html2canvas gets around to
+ * actually painting it, rendering blank (confirmed via html2canvas's own
+ * "Cache: Evicted LRU entry" / "Error loading image" logging; happens
+ * identically whether it's a background-image or a real <img>). Instead,
+ * the element is hidden from html2canvas entirely (so it paints nothing
+ * there) and the rasterized image is composited directly onto html2canvas's
+ * OUTPUT canvas afterward — see the `patches` return value — bypassing its
+ * image pipeline altogether. */
+async function rasterizeMaskedElements(root: HTMLElement): Promise<MaskedElementPatch[]> {
+  const rootRect = root.getBoundingClientRect();
+  const all = Array.from(root.querySelectorAll<HTMLElement>("*"));
+  const targets = all
+    .map((el) => {
+      const style = getComputedStyle(el);
+      const maskImage = style.maskImage !== "none" ? style.maskImage : style.webkitMaskImage;
+      if (!maskImage || maskImage === "none") return null;
+      const match = maskImage.match(/url\((["']?)(.*?)\1\)/);
+      if (!match) return null;
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      return {
+        el, maskUrl: match[2], color: style.color,
+        top: rect.top - rootRect.top, left: rect.left - rootRect.left,
+        width: rect.width, height: rect.height,
+      };
+    })
+    .filter((t): t is NonNullable<typeof t> => t !== null);
+
+  const results = await Promise.all(
+    targets.map(async (t) => {
+      try {
+        const safeUrl = await toCanvasSafeUrl(t.maskUrl);
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const src = new Image();
+          src.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(t.width * 2);
+            canvas.height = Math.round(t.height * 2);
+            const ctx = canvas.getContext("2d")!;
+            ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = "source-in";
+            ctx.fillStyle = t.color;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const out = new Image();
+            out.onload = () => resolve(out);
+            out.onerror = reject;
+            out.src = canvas.toDataURL("image/png");
+          };
+          src.onerror = reject;
+          src.src = safeUrl;
+        });
+        return { el: t.el, top: t.top, left: t.left, width: t.width, height: t.height, image };
+      } catch {
+        return null; // best-effort — leave the mask as-is (will render as a solid block)
+      }
+    }),
+  );
+
+  const patches: MaskedElementPatch[] = [];
+  for (const result of results) {
+    if (!result) continue;
+    const { el, ...patch } = result;
+    el.style.visibility = "hidden";
+    patches.push(patch);
+  }
+  return patches;
+}
+
+/** The capture root normally sits off-screen (so it doesn't flash on screen
+ * during editing), and a long itinerary can have dozens of photos queued
+ * behind the browser's per-host connection limit — html2canvas only waits
+ * for images it catches mid-load at the moment it runs, so anything that
+ * hadn't started downloading yet would silently render blank. Wait for every
+ * <img> to actually finish (or fail) first so the DOM is fully ready. */
+async function waitForImages(root: HTMLElement, timeoutMs = 15000): Promise<void> {
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    images.map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const done = () => resolve();
+        img.addEventListener("load", done, { once: true });
+        img.addEventListener("error", done, { once: true });
+        setTimeout(done, timeoutMs);
+      });
+    }),
+  );
+}
+
+/** The route map (Leaflet + Mapbox) initializes itself well after mount: a
+ * geocoding API call, a dynamic `import("leaflet")`, then `fitBounds()` once
+ * results land, only THEN does it append tile <img> elements. None of that
+ * is done by the time the rest of this pipeline would otherwise be ready —
+ * capturing too early means either no tiles at all (blank map) or a
+ * `fitBounds()` that hasn't run yet, showing whatever default/previous view
+ * instead of the actual route. Poll for the map container to even exist,
+ * then for its tiles to exist and finish loading, before doing anything
+ * else — the rest of the pipeline can otherwise safely assume the DOM is at
+ * its final shape once this returns. */
+async function waitForLeafletMaps(root: HTMLElement, timeoutMs = 20000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  let containers: HTMLElement[] = [];
+  while (Date.now() < deadline) {
+    containers = Array.from(root.querySelectorAll<HTMLElement>(".leaflet-container"));
+    if (containers.length > 0) break;
+    await sleep(200);
+  }
+  if (containers.length === 0) return; // no map on this document — nothing to wait for
+
+  // Require the tile count to hold steady across two consecutive checks
+  // before treating it as "done" — Leaflet can still be appending more tiles
+  // (a pan, a re-render once the road route replaces the straight-line
+  // placeholder) even after the ones present so far have all loaded, so
+  // "some tiles exist and are complete" alone isn't a safe stopping point.
+  let lastCount = -1;
+  let stableSince = 0;
+  while (Date.now() < deadline) {
+    const tiles = Array.from(root.querySelectorAll<HTMLImageElement>(".leaflet-tile"));
+    const allComplete = tiles.length > 0 && tiles.every((t) => t.complete);
+    if (allComplete && tiles.length === lastCount) {
+      if (Date.now() - stableSince > 400) break;
+    } else {
+      lastCount = tiles.length;
+      stableSince = Date.now();
+    }
+    await sleep(200);
+  }
+
+  // A short settle — fitBounds()/pan/the road-route swap can still be
+  // adjusting layer positions right after the last tile lands.
+  await sleep(300);
+}
+
 /**
  * Captures `root` (must already be laid out at exactly 210mm CSS width, with
  * natural height for its full content) and slices it into A4 page images.
- * `useCORS: true` is required for any hotel/activity photo served from a
- * different origin — if that origin doesn't send CORS headers, that specific
- * image will render blank in the capture (a canvas/CORS limitation, not
- * something this code can work around).
  */
 export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<PdfPage[]> {
   const rootWidthPx = root.offsetWidth;
   const pageHeightPx = rootWidthPx * (A4_HEIGHT_MM / A4_WIDTH_MM);
+
+  await waitForLeafletMaps(root);
+  const maskPatches = await rasterizeMaskedElements(root);
+  await inlineCrossOriginImages(root);
+  await waitForImages(root);
+
+  // Measured after every async step above has settled the DOM to its final
+  // shape — measuring earlier (e.g. while the map is still showing its
+  // "Loading map…" placeholder) would capture stale geometry for anything
+  // whose height changes once its content finishes loading.
   const unsafeRanges = findUnsafeRanges(root);
 
   const canvas = await html2canvas(root, {
@@ -75,6 +282,49 @@ export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<P
     backgroundColor: "#ffffff",
     windowWidth: rootWidthPx,
   });
+
+  // Paint the rasterized masked elements (logo, etc.) directly onto
+  // html2canvas's own output — see rasterizeMaskedElements for why this
+  // can't just be injected into the DOM beforehand.
+  console.log("[DEBUG] maskPatches:", JSON.stringify(maskPatches.map(p => ({
+    top: p.top, left: p.left, w: p.width, h: p.height, imgComplete: p.image.complete, imgW: p.image.naturalWidth, imgH: p.image.naturalHeight,
+  }))));
+  for (const p of maskPatches) {
+    const sc = document.createElement("canvas");
+    sc.width = p.image.naturalWidth; sc.height = p.image.naturalHeight;
+    const sctx = sc.getContext("2d")!;
+    sctx.drawImage(p.image, 0, 0);
+    const mid = sctx.getImageData(Math.floor(sc.width / 2), Math.floor(sc.height / 2), 1, 1).data;
+    console.log("[DEBUG] rasterized image center pixel:", Array.from(mid));
+  }
+  const canvasCtx = canvas.getContext("2d")!;
+  console.log("[DEBUG] canvasCtx exists:", !!canvasCtx, "canvas size:", canvas.width, canvas.height);
+  for (const patch of maskPatches) {
+    try {
+      canvasCtx.drawImage(
+        patch.image,
+        patch.left * scale, patch.top * scale, patch.width * scale, patch.height * scale,
+      );
+      console.log("[DEBUG] drew patch at", patch.left * scale, patch.top * scale, patch.width * scale, patch.height * scale);
+      const readback = canvasCtx.getImageData(
+        Math.round(patch.left * scale + (patch.width * scale) / 2),
+        Math.round(patch.top * scale + (patch.height * scale) / 2),
+        1, 1,
+      ).data;
+      console.log("[DEBUG] readback pixel immediately after draw:", Array.from(readback));
+    } catch (err) {
+      console.log("[DEBUG] drawImage FAILED:", err);
+    }
+  }
+
+  {
+    const cropCanvas = document.createElement("canvas");
+    cropCanvas.width = canvas.width;
+    cropCanvas.height = Math.round(120 * scale);
+    const cctx = cropCanvas.getContext("2d")!;
+    cctx.drawImage(canvas, 0, 0, cropCanvas.width, cropCanvas.height, 0, 0, cropCanvas.width, cropCanvas.height);
+    console.log("[DEBUG post-patch header crop]", cropCanvas.toDataURL("image/png"));
+  }
 
   const totalHeightPx = canvas.height / scale;
   const breaksPx = computePageBreaks(totalHeightPx, pageHeightPx, unsafeRanges);

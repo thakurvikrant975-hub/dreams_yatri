@@ -222,7 +222,7 @@ function ActivityRow({
   const slots: (string | null)[] = gallery.length > 0 ? gallery.slice(0, 3) : (editable ? [null] : []);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" style={{ breakInside: "avoid" }}>
       <div className="flex items-start gap-2">
         <span className="flex items-center justify-center size-5 rounded-full bg-primary-100 text-primary-600 shrink-0 mt-0.5">
           <Sparkles size={11} />
@@ -602,9 +602,15 @@ function DayCardPreview({
   return (
     <div
       className="rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm"
-      style={{ breakInside: "avoid" }}
     >
-      {/* Day header — numbered badge + title */}
+      {/* Day header — numbered badge + title. Deliberately NOT wrapping the
+          whole card in breakInside:avoid — a day with several activities and
+          photos routinely runs taller than one PDF page, and forcing the
+          entire card onto a fresh page just to avoid a mid-card split leaves
+          a large blank gap at the bottom of the previous page. Instead, only
+          the Hotel/Transport/Activity sub-cards below are individually
+          protected, so a tall day can still split page-to-page at a clean
+          boundary between them. */}
       <div className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-100 bg-linear-to-r from-primary-50/70 to-transparent">
         <span className="shrink-0 flex items-center justify-center size-9 rounded-xl bg-linear-to-br from-primary-500 to-primary-700 text-white text-sm font-extrabold shadow-sm">
           {day.day}
@@ -624,7 +630,7 @@ function DayCardPreview({
 
         {/* Hotel info */}
         {hasHotel && (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden">
+          <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
             <div className="flex items-center gap-2 px-3 py-2 bg-primary-50/70 border-b border-primary-100">
               <span className="flex items-center justify-center size-5 rounded-lg bg-primary-100 shrink-0">
                 <Hotel size={11} className="text-primary-600" />
@@ -723,7 +729,7 @@ function DayCardPreview({
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden">
+          <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
             <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border-b border-neutral-100">
               <span className="flex items-center justify-center size-5 rounded-lg bg-neutral-200/70 shrink-0">
                 <Car size={11} className="text-neutral-600" />
