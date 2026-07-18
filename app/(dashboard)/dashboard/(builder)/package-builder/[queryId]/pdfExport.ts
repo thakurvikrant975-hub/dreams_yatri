@@ -257,6 +257,58 @@ async function waitForLeafletMaps(root: HTMLElement, timeoutMs = 20000): Promise
   await sleep(300);
 }
 
+export type MapPatch = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  canvas: HTMLCanvasElement;
+};
+
+/** Once Leaflet's tiles have all loaded (see waitForLeafletMaps), capture
+ * each map SEPARATELY, in its own isolated html2canvas call, rather than
+ * letting it render as part of the whole document. html2canvas keeps a
+ * single size-limited LRU cache for every image on the page — a wide route
+ * (a flight arriving from north India down to Kerala, say) can need dozens
+ * of 512px tiles, and against a long itinerary's worth of hotel/activity
+ * photos also competing for the same cache, tiles registered early
+ * routinely get evicted before html2canvas paints them, leaving the base
+ * map blank (gray) while the marker/route SVG overlay — unaffected, since
+ * it's not image-based — renders fine.
+ *
+ * Compositing a fix directly onto the main canvas (as done for the masked
+ * logo) doesn't work here the way it did there: html2canvas's output has NO
+ * true transparency anywhere on the page — the document's own root element
+ * paints an opaque bg-white that's baked into the single flat raster before
+ * anything else is drawn, so there's no "hole" a separately-rendered layer
+ * could show through while the markers/routes html2canvas *did* draw
+ * correctly on top of that opaque backdrop stay visible. An isolated
+ * capture of just the map (tiles + markers + routes together) has no such
+ * problem — with no competing photos, nothing gets evicted — and is pasted
+ * wholesale over whatever the main capture produced for that rectangle. */
+async function captureMapsSeparately(root: HTMLElement, scale: number): Promise<MapPatch[]> {
+  const rootRect = root.getBoundingClientRect();
+  const patches: MapPatch[] = [];
+  for (const container of root.querySelectorAll<HTMLElement>(".leaflet-container")) {
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    const canvas = await html2canvas(container, {
+      scale,
+      useCORS: true,
+      backgroundColor: null,
+      windowWidth: container.offsetWidth,
+    });
+    patches.push({
+      top: rect.top - rootRect.top,
+      left: rect.left - rootRect.left,
+      width: rect.width,
+      height: rect.height,
+      canvas,
+    });
+  }
+  return patches;
+}
+
 /**
  * Captures `root` (must already be laid out at exactly 210mm CSS width, with
  * natural height for its full content) and slices it into A4 page images.
@@ -266,6 +318,9 @@ export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<P
   const pageHeightPx = rootWidthPx * (A4_HEIGHT_MM / A4_WIDTH_MM);
 
   await waitForLeafletMaps(root);
+  // Captured before the main html2canvas pass touches anything else — see
+  // captureMapsSeparately for why each map needs its own isolated capture.
+  const mapPatches = await captureMapsSeparately(root, scale);
   const maskPatches = await rasterizeMaskedElements(root);
   await inlineCrossOriginImages(root);
   await waitForImages(root);
@@ -283,20 +338,30 @@ export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<P
     windowWidth: rootWidthPx,
   });
 
-  // Paint the rasterized masked elements (logo, etc.) onto a FRESH canvas
-  // copied from html2canvas's output, rather than drawing onto that output
-  // canvas's own context directly. html2canvas's internal renderer performs
-  // many nested ctx.save()/ctx.clip()/ctx.restore() calls (for overflow,
-  // rounded corners, etc.) — if that leaves the context with a stray,
-  // unbalanced clip region active by the time it hands control back, every
-  // subsequent draw (including a plain fillRect, confirmed while debugging
-  // this) silently no-ops without throwing. Copying the finished bitmap into
-  // a brand-new canvas gives a context with no such history.
+  // Paint onto a FRESH canvas rather than reusing html2canvas's own output
+  // context directly: html2canvas's internal renderer performs many nested
+  // ctx.save()/ctx.clip()/ctx.restore() calls (for overflow, rounded
+  // corners, etc.) — if that leaves the context with a stray, unbalanced
+  // clip region active by the time it hands control back, every subsequent
+  // draw (including a plain fillRect, confirmed while debugging this)
+  // silently no-ops without throwing. Copying the finished bitmap into a
+  // brand-new canvas gives a context with no such history.
   const finalCanvas = document.createElement("canvas");
   finalCanvas.width = canvas.width;
   finalCanvas.height = canvas.height;
   const finalCtx = finalCanvas.getContext("2d")!;
   finalCtx.drawImage(canvas, 0, 0);
+
+  // Each map's isolated (tiles + markers + routes, all correct) capture
+  // pastes wholesale over whatever the main capture produced for that exact
+  // rectangle — no need to separate layers since the isolated version is
+  // already complete on its own.
+  for (const patch of mapPatches) {
+    finalCtx.drawImage(
+      patch.canvas,
+      patch.left * scale, patch.top * scale, patch.width * scale, patch.height * scale,
+    );
+  }
   for (const patch of maskPatches) {
     finalCtx.drawImage(
       patch.image,
