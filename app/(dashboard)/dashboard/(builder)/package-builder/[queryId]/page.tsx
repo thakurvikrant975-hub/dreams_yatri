@@ -2454,23 +2454,23 @@ export default function PackageBuilderDetailPage() {
           <div className="px-4 pt-5 pb-4">
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
-              <TabsList className="w-full sm:w-fit overflow-x-auto sticky top-0 z-10 bg-dashboard-base-200/95 backdrop-blur">
-                <TabsTrigger value="client" className="gap-1.5">
+              <TabsList className="w-full max-w-full overflow-x-auto flex-nowrap justify-start sticky top-0 z-10 bg-dashboard-base-200/95 backdrop-blur">
+                <TabsTrigger value="client" className="gap-1.5 flex-none">
                   <User size={13} /> Client Info
                 </TabsTrigger>
-                <TabsTrigger value="details" className="gap-1.5">
+                <TabsTrigger value="details" className="gap-1.5 flex-none">
                   <Package size={13} /> Package Details
                 </TabsTrigger>
-                <TabsTrigger value="itinerary" className="gap-1.5">
+                <TabsTrigger value="itinerary" className="gap-1.5 flex-none">
                   <Calendar size={13} /> Itinerary
                 </TabsTrigger>
-                <TabsTrigger value="tickets" className="gap-1.5">
+                <TabsTrigger value="tickets" className="gap-1.5 flex-none">
                   <Plane size={13} /> Tickets
                 </TabsTrigger>
-                <TabsTrigger value="pricing" className="gap-1.5">
+                <TabsTrigger value="pricing" className="gap-1.5 flex-none">
                   <IndianRupee size={13} /> Pricing Breakdown
                 </TabsTrigger>
-                <TabsTrigger value="inclusions" className="gap-1.5">
+                <TabsTrigger value="inclusions" className="gap-1.5 flex-none">
                   <ListChecks size={13} /> Inclusions & Terms
                 </TabsTrigger>
               </TabsList>

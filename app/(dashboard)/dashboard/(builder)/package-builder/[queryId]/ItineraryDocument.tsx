@@ -365,9 +365,39 @@ function TermsAndConditions({ text }: { text: string }) {
   );
 }
 
+const MEAL_DISPLAY_ORDER = ["breakfast", "morning snacks", "lunch", "evening snacks", "dinner"];
+
+function orderMeals(meals: string[]): string[] {
+  return [...meals].sort((a, b) => {
+    const ia = MEAL_DISPLAY_ORDER.indexOf(a.toLowerCase());
+    const ib = MEAL_DISPLAY_ORDER.indexOf(b.toLowerCase());
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+}
+
+/** Breakfast is served by the PREVIOUS night's hotel — the client eats it the
+ * morning they check out, not the day they check in — so day N's displayed
+ * breakfast is pulled from day N-1's stored meals, while lunch/dinner/snacks
+ * come from day N's own stored meals (excluding any breakfast already
+ * assigned to the day it's checking out of). Mirrors the public package
+ * page's meal-shift algorithm (app/(website)/packages/.../page.tsx). */
+function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
+  return itineraries.map((day, i) => {
+    const chosen = new Set<string>();
+    const prevMeals = i > 0 ? itineraries[i - 1].meals : [];
+    if (prevMeals.some((m) => m.toLowerCase().includes("breakfast"))) chosen.add("Breakfast");
+    for (const m of day.meals) {
+      if (m.toLowerCase().includes("breakfast")) continue;
+      chosen.add(m);
+    }
+    return orderMeals([...chosen]);
+  });
+}
+
 /** Compact "Day | Hotel | Meals | Cab" grid so the pattern across the whole
  * trip is visible at a glance, ahead of the detailed per-day cards below. */
 function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
+  const shiftedMeals = computeShiftedMeals(itineraries);
   return (
     <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
       <table className="w-full text-[11px]">
@@ -384,7 +414,7 @@ function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
             <tr key={d.day} className={`border-t border-neutral-100 ${i % 2 === 1 ? "bg-neutral-50/60" : ""}`}>
               <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">Day {d.day}</td>
               <td className="px-3 py-2 text-neutral-600">{d.accommodation || "—"}</td>
-              <td className="px-3 py-2 text-neutral-600">{d.meals.length > 0 ? d.meals.join(", ") : "—"}</td>
+              <td className="px-3 py-2 text-neutral-600">{shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{d.transport || d.transportVehicleType || "—"}</td>
             </tr>
           ))}
