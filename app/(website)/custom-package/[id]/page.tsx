@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import { getSharedPackage } from "@/app/actions/packages/fetch-shared-package";
-import { ItineraryDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
 import PackagePolicy from "@/app/(website)/packages/[slug]/[duration]/[route]/[stay]/policy/policy";
 import { ViewTracker } from "./ViewTracker";
-import { PayNowBar } from "./PayNowBar";
+import { CustomPackageHero } from "./components/CustomPackageHero";
+import { ClientDetailsStrip } from "./components/ClientDetailsStrip";
+import { CustomPackageTabs } from "./components/CustomPackageTabs";
+import { CustomPricingCard } from "./components/CustomPricingCard";
+import { CustomMobileFooterBar } from "./components/CustomMobileFooterBar";
+import { CustomItinerarySection } from "./components/CustomItinerarySection";
+import { CustomHighlightsTab } from "./components/CustomHighlightsTab";
 
 export const metadata: Metadata = {
   title: "Your Itinerary | DreamsYatri",
@@ -32,13 +37,17 @@ export default async function CustomPackagePage({
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 py-6 px-3">
+    <div className="screen-space pt-6 pb-10">
       <ViewTracker packageId={id} />
-      <PayNowBar currency={data.currency} totalPrice={data.totalPrice} paymentLink={data.paymentLink} />
-      <ItineraryDocument form={data} />
-      <div className="max-w-3xl mx-auto mt-4">
-        <PackagePolicy />
-      </div>
+      <CustomPackageHero form={data} />
+      <ClientDetailsStrip form={data} />
+      <CustomPackageTabs
+        pricing={<CustomPricingCard form={data} />}
+        itinerary={<CustomItinerarySection form={data} />}
+        highlights={<CustomHighlightsTab form={data} />}
+        policies={<PackagePolicy />}
+        mobileFooter={<CustomMobileFooterBar form={data} />}
+      />
     </div>
   );
 }

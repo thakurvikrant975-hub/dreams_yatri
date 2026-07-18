@@ -84,12 +84,12 @@ function refCode(queryId: string): string {
 
 /** "manali" / "NEW DELHI" → "Manali" / "New Delhi" — route stop names are
  * free-typed by the exec, so casing isn't guaranteed. */
-function titleCase(text: string): string {
+export function titleCase(text: string): string {
   return text.replace(/\w\S*/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
 }
 
 /** "14:30" (24h, as stored from <input type="time">) → "2:30 PM". */
-function formatTime12h(hhmm: string): string {
+export function formatTime12h(hhmm: string): string {
   if (!hhmm) return "";
   const [h, m] = hhmm.split(":").map(Number);
   if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
@@ -108,7 +108,7 @@ function formatTicketDate(iso: string): string {
 
 /** "1 Room | 2 Adults, 1 Child" — computed against room capacity so it
  * always reflects the query's actual traveller count, not stale text. */
-function occupancyText(capacity: number | null, adults: number, children: number): string {
+export function occupancyText(capacity: number | null, adults: number, children: number): string {
   const totalPax = adults + children;
   const rooms = capacity && capacity > 0 ? Math.max(1, Math.ceil(totalPax / capacity)) : 1;
   return `${rooms} Room${rooms !== 1 ? "s" : ""} | ${adults} Adult${adults !== 1 ? "s" : ""}` +
@@ -117,7 +117,7 @@ function occupancyText(capacity: number | null, adults: number, children: number
 
 /** Parses free-text meal-plan strings ("MAP - Breakfast & Dinner") into a
  * clean "Breakfast & Dinner included" summary line. */
-function mealIncludedText(planText: string): string | null {
+export function mealIncludedText(planText: string): string | null {
   if (!planText) return null;
   const lower = planText.toLowerCase();
   const found: string[] = [];
@@ -381,7 +381,7 @@ function orderMeals(meals: string[]): string[] {
  * come from day N's own stored meals (excluding any breakfast already
  * assigned to the day it's checking out of). Mirrors the public package
  * page's meal-shift algorithm (app/(website)/packages/.../page.tsx). */
-function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
+export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
   return itineraries.map((day, i) => {
     const chosen = new Set<string>();
     const prevMeals = i > 0 ? itineraries[i - 1].meals : [];
@@ -396,7 +396,7 @@ function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
 
 /** Compact "Day | Hotel | Meals | Cab" grid so the pattern across the whole
  * trip is visible at a glance, ahead of the detailed per-day cards below. */
-function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
+export function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
   const shiftedMeals = computeShiftedMeals(itineraries);
   return (
     <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
@@ -432,7 +432,7 @@ function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
 /** One location name per day, derived from the route stops' night counts —
  * mirrors deriveDayLocations in page.tsx (kept as a local copy since that
  * one isn't exported) so a stop's own days can be found here too. */
-function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
+export function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
   if (stops.length === 0) return Array(totalDays).fill("");
   const locations: string[] = [];
   for (const stop of stops) {
@@ -450,7 +450,7 @@ function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
  * there), then that stop's own hotel photo — before any package-wide
  * fallback, so a stop without a catalog match still shows something from
  * its own itinerary instead of a random unrelated day. */
-function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Set<number>): string | null {
+export function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Set<number>): string | null {
   const daysInStop = itineraries.filter((d) => dayNumbers.has(d.day));
   for (const day of daysInStop) {
     for (const activity of day.activities) {
@@ -585,7 +585,7 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
 
 /** Flight and train legs get their own labeled sections (never merged) so a
  * trip with both reads as two distinct groups, not one mixed list. */
-function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
+export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
   const flights = tickets.filter((t) => t.type === "FLIGHT");
   const trains = tickets.filter((t) => t.type === "TRAIN");
   if (flights.length === 0 && trains.length === 0) return null;
