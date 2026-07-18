@@ -1125,13 +1125,31 @@ export async function computeBuilderHotelPricing(input: {
   travelDate: string | null;
   adults: number;
   children: number;
-  days: { day: number; roomPricingId: number | null }[];
+  days: {
+    day: number;
+    roomPricingId: number | null;
+    /** Overrides the auto-computed (occupancy ÷ capacity) room count for
+     * roomPricingId — set when the exec explicitly says how many rooms of
+     * that type are needed instead of letting occupancy drive it. When set,
+     * the mattress/extra-bed top-up (which assumes the auto-computed
+     * occupancy split) is skipped, since a manual room count means the
+     * occupancy-per-room assumption no longer holds. */
+    roomsCount?: number | null;
+    /** Additional, different room types booked for the same night (e.g. one
+     * couple in a Deluxe Room, another in a Suite) — each priced at
+     * quantity × that room's own base per-night rate. No occupancy/mattress
+     * logic applies here — quantity is exactly what the exec asked for. */
+    extraRooms?: { roomPricingId: number; quantity: number }[];
+  }[];
 }): Promise<BuilderHotelPricingResult> {
   const { travelDate, adults, children, days } = input;
   const travelDateObj = travelDate ? new Date(travelDate) : null;
 
   const roomPricingIds = [
-    ...new Set(days.map((d) => d.roomPricingId).filter((id): id is number => id != null)),
+    ...new Set([
+      ...days.map((d) => d.roomPricingId).filter((id): id is number => id != null),
+      ...days.flatMap((d) => (d.extraRooms ?? []).map((r) => r.roomPricingId)),
+    ]),
   ];
   if (roomPricingIds.length === 0) {
     return { days: [], hotelSubtotal: 0, nightsCounted: 0 };
@@ -1166,46 +1184,69 @@ export async function computeBuilderHotelPricing(input: {
   let hotelSubtotal = 0;
 
   for (const d of days) {
-    if (d.roomPricingId == null) continue;
-    const rp = byId.get(d.roomPricingId);
-    if (!rp) continue;
-
     const dayDate = travelDateObj
       ? new Date(travelDateObj.getTime() + (d.day - 1) * 24 * 60 * 60 * 1000)
       : null;
 
-    const bedCapacity = rp.room?.max_occupancy ?? 2;
-    const extraBedCap = rp.room?.extra_bed_capacity ?? 1;
-    const effectiveCap = bedCapacity + extraBedCap;
-    const roomsNeeded = Math.ceil(persons / effectiveCap);
-    const mattresses = Math.max(0, persons - roomsNeeded * bedCapacity);
-    const extraBedRate = rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
+    if (d.roomPricingId != null) {
+      const rp = byId.get(d.roomPricingId);
+      if (rp) {
+        const bedCapacity = rp.room?.max_occupancy ?? 2;
+        const extraBedCap = rp.room?.extra_bed_capacity ?? 1;
+        const effectiveCap = bedCapacity + extraBedCap;
+        const isManualCount = d.roomsCount != null && d.roomsCount > 0;
+        const roomsNeeded = isManualCount ? d.roomsCount! : Math.ceil(persons / effectiveCap);
+        const mattresses = isManualCount ? 0 : Math.max(0, persons - roomsNeeded * bedCapacity);
+        const extraBedRate = rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
 
-    const typicalOccupancy = Math.min(adults, bedCapacity);
-    const { basePrice, occPrices } = resolveHotelSeasonPricing(rp, dayDate);
-    let pricePerRoom = basePrice;
-    if (occPrices.length > 0) {
-      const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
-      const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
-      pricePerRoom = Number(match.price_per_night);
+        const typicalOccupancy = Math.min(adults, bedCapacity);
+        const { basePrice, occPrices } = resolveHotelSeasonPricing(rp, dayDate);
+        let pricePerRoom = basePrice;
+        if (occPrices.length > 0) {
+          const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
+          const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
+          pricePerRoom = Number(match.price_per_night);
+        }
+
+        const total = roomsNeeded * pricePerRoom + mattresses * extraBedRate;
+        hotelSubtotal += total;
+
+        lines.push({
+          day: d.day,
+          hotelName: rp.hotel.name,
+          roomName: rp.room?.name ?? "Room",
+          pricePerRoom,
+          roomsNeeded,
+          mattresses,
+          extraBedRate,
+          total,
+        });
+      }
     }
 
-    const total = roomsNeeded * pricePerRoom + mattresses * extraBedRate;
-    hotelSubtotal += total;
+    for (const extra of d.extraRooms ?? []) {
+      const rp = byId.get(extra.roomPricingId);
+      if (!rp) continue;
+      const quantity = Math.max(1, extra.quantity);
+      const { basePrice } = resolveHotelSeasonPricing(rp, dayDate);
+      const total = quantity * basePrice;
+      hotelSubtotal += total;
 
-    lines.push({
-      day: d.day,
-      hotelName: rp.hotel.name,
-      roomName: rp.room?.name ?? "Room",
-      pricePerRoom,
-      roomsNeeded,
-      mattresses,
-      extraBedRate,
-      total,
-    });
+      lines.push({
+        day: d.day,
+        hotelName: rp.hotel.name,
+        roomName: rp.room?.name ?? "Room",
+        pricePerRoom: basePrice,
+        roomsNeeded: quantity,
+        mattresses: 0,
+        extraBedRate: 0,
+        total,
+      });
+    }
   }
 
-  return { days: lines, hotelSubtotal, nightsCounted: lines.length };
+  const nightsCounted = new Set(lines.map((l) => l.day)).size;
+  return { days: lines, hotelSubtotal, nightsCounted };
 }
 
 // ── Package Builder cab pricing ─────────────────────────────────────────────
@@ -1234,13 +1275,27 @@ export type BuilderCabPricingResult = {
 
 export async function computeBuilderCabPricing(input: {
   travelDate: string | null;
-  days: { day: number; cabPricingId: number | null; transportDistanceKm: number | null }[];
+  days: {
+    day: number;
+    cabPricingId: number | null;
+    transportDistanceKm: number | null;
+    /** Overrides the implicit quantity of 1 for cabPricingId — e.g. 2 of the
+     * same Sedan for a large group. */
+    cabQuantity?: number | null;
+    /** Additional, different cabs for the same day (e.g. one Sedan + one
+     * SUV) — each priced at quantity × that cab's own resolved rate, using
+     * the same day's transportDistanceKm for any PER_KM cab. */
+    extraCabs?: { cabPricingId: number | null; quantity: number }[];
+  }[];
 }): Promise<BuilderCabPricingResult> {
   const { travelDate, days } = input;
   const travelDateObj = travelDate ? new Date(travelDate) : null;
 
   const cabPricingIds = [
-    ...new Set(days.map((d) => d.cabPricingId).filter((id): id is number => id != null)),
+    ...new Set([
+      ...days.map((d) => d.cabPricingId).filter((id): id is number => id != null),
+      ...days.flatMap((d) => (d.extraCabs ?? []).map((c) => c.cabPricingId).filter((id): id is number => id != null)),
+    ]),
   ];
   if (cabPricingIds.length === 0) {
     return { days: [], cabSubtotal: 0, daysCounted: 0 };
@@ -1268,31 +1323,54 @@ export async function computeBuilderCabPricing(input: {
   let cabSubtotal = 0;
 
   for (const d of days) {
-    if (d.cabPricingId == null) continue;
-    const cp = byId.get(d.cabPricingId);
-    if (!cp) continue;
-
     const dayDate = travelDateObj
       ? new Date(travelDateObj.getTime() + (d.day - 1) * 24 * 60 * 60 * 1000)
       : null;
-
-    const { weekdayPrice, weekendPrice, pricing_type } = resolveCabPrice(cp, dayDate);
     const isWeekend = dayDate ? (dayDate.getDay() === 0 || dayDate.getDay() === 6) : false;
-    const rate = isWeekend ? weekendPrice : weekdayPrice;
 
-    const total = pricing_type === "PER_KM" ? rate * (d.transportDistanceKm ?? 0) : rate;
-    cabSubtotal += total;
+    if (d.cabPricingId != null) {
+      const cp = byId.get(d.cabPricingId);
+      if (cp) {
+        const { weekdayPrice, weekendPrice, pricing_type } = resolveCabPrice(cp, dayDate);
+        const rate = isWeekend ? weekendPrice : weekdayPrice;
+        const quantity = Math.max(1, d.cabQuantity ?? 1);
+        const total = (pricing_type === "PER_KM" ? rate * (d.transportDistanceKm ?? 0) : rate) * quantity;
+        cabSubtotal += total;
 
-    lines.push({
-      day: d.day,
-      vehicleName: cp.vehicle.name,
-      pricingType: pricing_type,
-      isWeekend,
-      rate,
-      distanceKm: d.transportDistanceKm,
-      total,
-    });
+        lines.push({
+          day: d.day,
+          vehicleName: quantity > 1 ? `${cp.vehicle.name} × ${quantity}` : cp.vehicle.name,
+          pricingType: pricing_type,
+          isWeekend,
+          rate,
+          distanceKm: d.transportDistanceKm,
+          total,
+        });
+      }
+    }
+
+    for (const extra of d.extraCabs ?? []) {
+      if (extra.cabPricingId == null) continue;
+      const cp = byId.get(extra.cabPricingId);
+      if (!cp) continue;
+      const { weekdayPrice, weekendPrice, pricing_type } = resolveCabPrice(cp, dayDate);
+      const rate = isWeekend ? weekendPrice : weekdayPrice;
+      const quantity = Math.max(1, extra.quantity);
+      const total = (pricing_type === "PER_KM" ? rate * (d.transportDistanceKm ?? 0) : rate) * quantity;
+      cabSubtotal += total;
+
+      lines.push({
+        day: d.day,
+        vehicleName: quantity > 1 ? `${cp.vehicle.name} × ${quantity}` : cp.vehicle.name,
+        pricingType: pricing_type,
+        isWeekend,
+        rate,
+        distanceKm: d.transportDistanceKm,
+        total,
+      });
+    }
   }
 
-  return { days: lines, cabSubtotal, daysCounted: lines.length };
+  const daysCounted = new Set(lines.map((l) => l.day)).size;
+  return { days: lines, cabSubtotal, daysCounted };
 }

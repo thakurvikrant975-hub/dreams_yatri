@@ -877,6 +877,92 @@ function DayCard({
               )}
             </div>
 
+            {/* Rooms needed — auto-computed from traveller count, but
+               overridable when the group is splitting across separately
+               booked rooms rather than sharing by pure occupancy. */}
+            {data.roomPricingId != null && (
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={data.roomsCount ?? ""}
+                  onChange={(e) => onChange({
+                    ...data,
+                    roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                  })}
+                  placeholder="Auto"
+                  className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+                <p className="text-[10px] text-dashboard-base-content/40">
+                  Leave blank to auto-compute from traveller count
+                </p>
+              </div>
+            )}
+
+            {/* Additional, different room types for the same night — e.g. one
+               couple in this room, another in a different room type. */}
+            {(data.extraRooms ?? []).length > 0 && (
+              <div className="space-y-2">
+                {(data.extraRooms ?? []).map((room, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 p-2">
+                    <div className="flex-1 min-w-0">
+                      <HotelRoomPicker
+                        value={room.roomPricingId || null}
+                        initialLabel={room.label}
+                        searchCity={searchCity}
+                        refCoords={cityCoords}
+                        onSelect={(r) => {
+                          const next = [...(data.extraRooms ?? [])];
+                          next[i] = { roomPricingId: r.id, label: `${r.hotelName} — ${r.roomName}`, quantity: next[i].quantity };
+                          onChange({ ...data, extraRooms: next });
+                        }}
+                        onClear={() => {
+                          const next = [...(data.extraRooms ?? [])];
+                          next[i] = { ...next[i], roomPricingId: 0, label: "" };
+                          onChange({ ...data, extraRooms: next });
+                        }}
+                        placeholder="Search another room type…"
+                      />
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={room.quantity}
+                      onChange={(e) => {
+                        const next = [...(data.extraRooms ?? [])];
+                        next[i] = { ...next[i], quantity: Math.max(1, parseInt(e.target.value, 10) || 1) };
+                        onChange({ ...data, extraRooms: next });
+                      }}
+                      className="text-sm h-9 w-16 shrink-0 border-dashboard-base-300 rounded-md"
+                    />
+                    <Button
+                      type="button" variant="ghost" size="icon"
+                      className="h-9 w-9 shrink-0 text-dashboard-error hover:bg-dashboard-error/10"
+                      onClick={() => onChange({
+                        ...data,
+                        extraRooms: (data.extraRooms ?? []).filter((_, idx) => idx !== i),
+                      })}
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchCity && (
+              <Button
+                type="button" variant="outline" size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => onChange({
+                  ...data,
+                  extraRooms: [...(data.extraRooms ?? []), { roomPricingId: 0, label: "", quantity: 1 }],
+                })}
+              >
+                <Plus size={12} /> Add another room type
+              </Button>
+            )}
+
             {showRoomApplyPrompt && lastRoom && (
               <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -1087,6 +1173,85 @@ function DayCard({
                 </p>
               )}
             </div>
+
+            {/* Cab quantity — e.g. 2 of the same vehicle for a large group. */}
+            {data.cabPricingId != null && (
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Quantity</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={data.cabQuantity ?? ""}
+                  onChange={(e) => onChange({
+                    ...data,
+                    cabQuantity: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                  })}
+                  placeholder="1"
+                  className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+            )}
+
+            {/* Additional, different cabs for the same day — e.g. one sedan
+               plus one SUV, each with its own quantity. */}
+            {(data.extraCabs ?? []).length > 0 && (
+              <div className="space-y-2 mb-2">
+                {(data.extraCabs ?? []).map((cab, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 p-2">
+                    <div className="flex-1 min-w-0">
+                      <SearchSelect
+                        value={null}
+                        onChange={(_id, option) => {
+                          const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
+                          if (!raw) return;
+                          const isPriced = "vehicleName" in raw;
+                          const next = [...(data.extraCabs ?? [])];
+                          next[i] = {
+                            cabPricingId: isPriced ? raw.id : null,
+                            label: isPriced ? raw.vehicleName : raw.name,
+                            quantity: next[i].quantity,
+                          };
+                          onChange({ ...data, extraCabs: next });
+                        }}
+                        fetchOptions={fetchCabOptions}
+                        placeholder={cab.label || "Search another cab…"}
+                      />
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={cab.quantity}
+                      onChange={(e) => {
+                        const next = [...(data.extraCabs ?? [])];
+                        next[i] = { ...next[i], quantity: Math.max(1, parseInt(e.target.value, 10) || 1) };
+                        onChange({ ...data, extraCabs: next });
+                      }}
+                      className="text-sm h-9 w-16 shrink-0 border-dashboard-base-300 rounded-md"
+                    />
+                    <Button
+                      type="button" variant="ghost" size="icon"
+                      className="h-9 w-9 shrink-0 text-dashboard-error hover:bg-dashboard-error/10"
+                      onClick={() => onChange({
+                        ...data,
+                        extraCabs: (data.extraCabs ?? []).filter((_, idx) => idx !== i),
+                      })}
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button" variant="outline" size="sm"
+              className="h-8 text-xs gap-1.5 mb-2"
+              onClick={() => onChange({
+                ...data,
+                extraCabs: [...(data.extraCabs ?? []), { cabPricingId: null, label: "", quantity: 1 }],
+              })}
+            >
+              <Plus size={12} /> Add another cab
+            </Button>
 
             {showApplyPrompt && lastVehicle && (
               <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
@@ -1715,10 +1880,14 @@ export default function PackageBuilderDetailPage() {
   // Recomputes the real hotel cost (season/occupancy-aware) whenever any of
   // those three inputs change — the sales exec still applies it manually via
   // the "Use this price" button so an already-typed price isn't clobbered.
-  const roomPricingKey = form.itineraries.map((it) => `${it.day}:${it.roomPricingId ?? ""}`).join("|");
+  const roomPricingKey = form.itineraries
+    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${JSON.stringify(it.extraRooms ?? [])}`)
+    .join("|");
   useEffect(() => {
-    const days = form.itineraries.map((it) => ({ day: it.day, roomPricingId: it.roomPricingId }));
-    if (days.every((d) => d.roomPricingId == null)) {
+    const days = form.itineraries.map((it) => ({
+      day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount, extraRooms: it.extraRooms,
+    }));
+    if (days.every((d) => d.roomPricingId == null && (d.extraRooms ?? []).length === 0)) {
       setHotelPricing(null);
       return;
     }  
@@ -1745,13 +1914,14 @@ export default function PackageBuilderDetailPage() {
   // that day's transportDistanceKm, so a multi-day cab hire naturally sums
   // across however many days it was applied to.
   const cabPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}`)
+    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
+      cabQuantity: it.cabQuantity, extraCabs: it.extraCabs,
     }));
-    if (days.every((d) => d.cabPricingId == null)) {
+    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0)) {
       setCabPricing(null);
       return;
     }
@@ -2678,8 +2848,8 @@ export default function PackageBuilderDetailPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {hotelPricing.days.map((d) => (
-                                  <tr key={d.day} className="border-t border-dashboard-base-300">
+                                {hotelPricing.days.map((d, i) => (
+                                  <tr key={`${d.day}-${i}`} className="border-t border-dashboard-base-300">
                                     <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
                                     <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
@@ -2737,8 +2907,8 @@ export default function PackageBuilderDetailPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {cabPricing.days.map((d) => (
-                                  <tr key={d.day} className="border-t border-dashboard-base-300">
+                                {cabPricing.days.map((d, i) => (
+                                  <tr key={`${d.day}-${i}`} className="border-t border-dashboard-base-300">
                                     <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">{d.vehicleName}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">

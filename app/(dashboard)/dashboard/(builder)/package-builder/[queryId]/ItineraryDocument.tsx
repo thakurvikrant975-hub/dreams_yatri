@@ -565,7 +565,7 @@ function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       {flights.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={Plane} label="Flight Details" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3">
             {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
         </div>
@@ -573,7 +573,7 @@ function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       {trains.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={TrainFront} label="Train Details" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3">
             {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
         </div>
@@ -598,6 +598,8 @@ function DayCardPreview({
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
   const mealText = mealIncludedText(day.hotelMealPlan);
   const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0 || !!onImageChange;
+  const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
+  const extraCabs = (day.extraCabs ?? []).filter((c) => c.label.trim());
 
   return (
     <div
@@ -678,6 +680,16 @@ function DayCardPreview({
                   <p className="text-[11px] text-neutral-500 flex items-center gap-1">
                     <Utensils size={10} className="text-primary-400 shrink-0" /> {mealText}
                   </p>
+                )}
+
+                {extraRooms.length > 0 && (
+                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                    {extraRooms.map((r, i) => (
+                      <p key={i} className="text-[11px] text-neutral-500">
+                        + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
+                      </p>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -773,6 +785,16 @@ function DayCardPreview({
                         Drop Point: <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
                       </p>
                     </div>
+                  </div>
+                )}
+
+                {extraCabs.length > 0 && (
+                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                    {extraCabs.map((c, i) => (
+                      <p key={i} className="text-[11px] text-neutral-500">
+                        + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
+                      </p>
+                    ))}
                   </div>
                 )}
               </div>
@@ -968,7 +990,7 @@ function HeroCover({
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 px-[15mm] pb-[15mm]">
+      <div className="absolute inset-x-0 bottom-0 px-[10mm] pb-[15mm]">
         {form.totalDays > 0 && (
           <span className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm border border-white/25 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-3">
             <Compass size={11} /> {form.totalDays} Day Journey
@@ -983,11 +1005,11 @@ function HeroCover({
             {routeSteps.map((step, i) => (
               <div key={i} className="flex items-center gap-1">
                 {i > 0 && <ArrowRight size={11} className="text-white/40 shrink-0 mx-0.5" />}
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 backdrop-blur-sm px-1.5 py-0.5 text-[10px] text-white whitespace-nowrap">
                   <MapPin size={9} className="shrink-0 text-white/60" />
                   {step.label}
                   {step.nights != null && (
-                    <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-bold text-white/90">
+                    <span className="rounded-full bg-white/20 px-1 py-0.5 text-[7px] font-bold text-white/90">
                       {step.nights}N
                     </span>
                   )}
@@ -1042,7 +1064,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
 
   return (
     <footer className="bg-neutral-950 text-slate-300 mt-2" style={{ breakInside: "avoid" }}>
-      <div className="px-[15mm] pt-9 pb-6">
+      <div className="px-[10mm] pt-9 pb-6">
         <div className="flex flex-wrap items-start justify-between gap-8 pb-7 border-b border-white/10">
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
             <DyLogo className="h-7 text-primary-500" />
@@ -1175,7 +1197,7 @@ export function ItineraryDocument({
         style={{ width: "210mm", minHeight: "297mm" }}
       >
         {/* ── Header ────────────────────────────────────────────────────────── */}
-        <header className="flex items-center justify-between px-[15mm] py-4">
+        <header className="flex items-center justify-between px-[10mm] py-4">
           <DyLogo className="h-7 text-primary-600" />
           <div className="text-right text-[11px] text-neutral-500 space-y-0.5">
             <p className="flex items-center justify-end gap-1.5"><Phone size={10} className="text-primary-500" /> {COMPANY_PHONE}</p>
@@ -1192,7 +1214,7 @@ export function ItineraryDocument({
         />
 
         {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-        <div className="relative z-10 px-[15mm]" style={{ marginTop: "-13mm" }}>
+        <div className="relative z-10 px-[10mm]" style={{ marginTop: "-13mm" }}>
           <div className="bg-white rounded-2xl  border-neutral-100 grid grid-cols-4 divide-x divide-neutral-100 overflow-hidden" style={{ boxShadow: "0 10px 30px -8px rgba(0,0,0,0.18)" }}>
             <StatCell icon={Calendar} label="Travel Date" value={travelDateStr} />
             <StatCell icon={Moon} label="Duration" value={durationLabel} />
@@ -1207,7 +1229,7 @@ export function ItineraryDocument({
         </div>
 
         {/* ── Body ──────────────────────────────────────────────────────────── */}
-        <main className="px-[15mm] pt-7 pb-2 space-y-7">
+        <main className="px-[10mm] pt-7 pb-2 space-y-7">
           {(form.clientName || form.execName) && (
             <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden" style={{ breakInside: "avoid" }}>
               <div className="grid grid-cols-2 divide-x divide-neutral-100">
