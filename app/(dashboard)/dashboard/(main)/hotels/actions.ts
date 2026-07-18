@@ -9,6 +9,7 @@ import { ALL_SYSTEM_HOTEL_CATEGORIES, REQUIRED_HOTEL_CATEGORIES } from "@/app/li
 import { actionError } from "@/app/lib/action-error";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { createLog } from "../lib/logger";
+import { PLAN_NOTES_MAX_LEN } from "./constants";
 
 // ── Auth helper ────────────────────────────────────────────────
 
@@ -1194,6 +1195,11 @@ export async function deletePricingSeason(id: number, hotel_id: number): Promise
 
 // ── Combined plan + seasons (create / update in one call) ─────────────────
 
+const PlanNotesSchema = z.string().trim().max(
+  PLAN_NOTES_MAX_LEN,
+  `Notes must be ${PLAN_NOTES_MAX_LEN} characters or less`,
+).nullable().optional();
+
 export type PlanInput = {
   room_id:           number;
   plan_name?:        string | null;
@@ -1204,6 +1210,7 @@ export type PlanInput = {
   margin_percentage: number;
   gst_percentage:    number;
   is_active:         boolean;
+  notes?:            string | null;
   seasons:           HotelSeasonInput[];
 };
 
@@ -1213,6 +1220,12 @@ export async function createRoomPricingWithSeasons(
 ): Promise<HotelFormState & { id?: number }> {
   try {
     if (!data.room_id) return { success: false, message: "Room is required." };
+
+    const notesParsed = PlanNotesSchema.safeParse(data.notes);
+    if (!notesParsed.success) {
+      return { success: false, message: "Validation failed", errors: { notes: notesParsed.error.issues.map(i => i.message) } };
+    }
+    const notes = notesParsed.data?.trim() || null;
 
     const count = await db.hotel_room_pricing.count({ where: { hotel_id } });
     const basePricePerNight = data.price_per_night ?? data.seasons[0]?.price_per_night ?? 0;
@@ -1230,6 +1243,7 @@ export async function createRoomPricingWithSeasons(
           margin_percentage: data.margin_percentage,
           gst_percentage:    data.gst_percentage,
           is_active:         data.is_active,
+          notes,
           sort_order:        count,
         },
       });
@@ -1278,6 +1292,12 @@ export async function updateRoomPricingWithSeasons(
   try {
     if (!data.room_id) return { success: false, message: "Room is required." };
 
+    const notesParsed = PlanNotesSchema.safeParse(data.notes);
+    if (!notesParsed.success) {
+      return { success: false, message: "Validation failed", errors: { notes: notesParsed.error.issues.map(i => i.message) } };
+    }
+    const notes = notesParsed.data?.trim() || null;
+
     const basePricePerNight = data.price_per_night ?? data.seasons[0]?.price_per_night ?? 0;
 
     await db.$transaction(async (tx) => {
@@ -1293,6 +1313,7 @@ export async function updateRoomPricingWithSeasons(
           margin_percentage: data.margin_percentage,
           gst_percentage:    data.gst_percentage,
           is_active:         data.is_active,
+          notes,
         },
       });
       // Replace all seasons (cascade deletes season occupancy_prices)

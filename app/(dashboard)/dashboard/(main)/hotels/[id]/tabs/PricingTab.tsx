@@ -6,7 +6,7 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Switch } from "../../../components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../components/ui/card";
+import { Textarea } from "../../../components/ui/textarea";
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
@@ -20,7 +20,7 @@ import {
 import {
   Plus, Pencil, Trash2, Loader2, Check, X,
   ChevronDown, ChevronRight, Users, Calendar, AlertTriangle,
-  CalendarDays, Info,
+  CalendarDays, Info, StickyNote,
 } from "lucide-react";
 import {
   PricingRangeCalendarPicker,
@@ -29,6 +29,7 @@ import {
 } from "../../../components/ui/pricing-range-calendar";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
+import { PLAN_NOTES_MAX_LEN } from "../../constants";
 import {
   deleteRoomPricing,
   upsertOccupancyPrice, deleteOccupancyPrice,
@@ -85,6 +86,7 @@ type PricingPlan = {
   extra_bed_rate: number | null;
   margin_percentage: number;
   gst_percentage: number;
+  notes: string | null;
   valid_from: Date | string | null;
   valid_to: Date | string | null;
   is_active: boolean;
@@ -119,6 +121,7 @@ type PricingFormState = {
   margin_percentage:   string;
   gst_percentage:      string;
   is_active:           boolean;
+  notes:               string;
   occupancy_prices:    OccupancyEntry[];
   seasons:             SeasonEntry[];
 };
@@ -133,6 +136,7 @@ const EMPTY_FORM: PricingFormState = {
   margin_percentage:    "10",
   gst_percentage:       "18",
   is_active:            true,
+  notes:                "",
   occupancy_prices:     [],
   seasons:              [],
 };
@@ -212,6 +216,7 @@ function toFormState(p: PricingPlan): PricingFormState {
     margin_percentage:    String(p.margin_percentage),
     gst_percentage:       String(p.gst_percentage),
     is_active:            p.is_active,
+    notes:                p.notes ?? "",
     occupancy_prices:     [],
     seasons:              (p.seasons ?? []).map(s => ({
       tempId:                  uid(),
@@ -592,11 +597,13 @@ function PricingForm({
   }
 
   const seasonOverlaps = overlappingIds(form.seasons);
+  const notesTooLong = form.notes.trim().length > PLAN_NOTES_MAX_LEN;
 
   const isValid =
     !!form.room_id &&
     !!form.meal_type_id &&
     !!form.base_price_per_night && Number(form.base_price_per_night) > 0 &&
+    !notesTooLong &&
     seasonOverlaps.size === 0 &&
     form.seasons.every(
       s => !!s.valid_from && !!s.valid_to &&
@@ -686,6 +693,35 @@ function PricingForm({
             onChange={e => upd("gst_percentage", e.target.value)}
             className="bg-dashboard-base-100 border-dashboard-base-content/20" />
           <p className="text-[10px] text-dashboard-base-content/40">12% (&lt;₹7500) / 18% (≥₹7500)</p>
+        </div>
+      </div>
+
+      {/* Notes — internal, optional */}
+      <div className="space-y-1.5">
+        <Label className="text-sm text-dashboard-base-content flex items-center gap-1.5">
+          <StickyNote className="h-3.5 w-3.5" /> Notes
+          <span className="text-xs font-normal text-dashboard-base-content/50">(optional, internal only)</span>
+        </Label>
+        <Textarea
+          value={form.notes}
+          onChange={e => upd("notes", e.target.value)}
+          placeholder="e.g. Owner requires 15% margin during Dec–Jan peak season; rates locked till March."
+          rows={3}
+          maxLength={PLAN_NOTES_MAX_LEN + 200}
+          className={cn(
+            "bg-dashboard-base-100 border-dashboard-base-content/20 text-sm resize-y",
+            notesTooLong && "border-dashboard-error/60",
+          )}
+        />
+        <div className="flex items-center justify-between">
+          {notesTooLong ? (
+            <p className="text-[10px] text-dashboard-error flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" /> Notes must be {PLAN_NOTES_MAX_LEN} characters or less.
+            </p>
+          ) : <span />}
+          <p className={cn("text-[10px]", notesTooLong ? "text-dashboard-error" : "text-dashboard-base-content/40")}>
+            {form.notes.trim().length}/{PLAN_NOTES_MAX_LEN}
+          </p>
         </div>
       </div>
 
@@ -935,6 +971,21 @@ function SeasonsSummaryPanel({ seasons }: { seasons: HotelSeason[] }) {
   );
 }
 
+// ── Read-only Notes Panel (in expanded panel) ─────────────────────────────
+
+function PlanNotesPanel({ notes }: { notes: string }) {
+  return (
+    <div className="px-4 pb-3 pt-2 space-y-1">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-dashboard-base-content/50 flex items-center gap-1">
+        <StickyNote className="h-3 w-3" /> Notes
+      </p>
+      <p className="text-xs text-dashboard-base-content/70 whitespace-pre-wrap rounded-lg bg-dashboard-base-200 px-3 py-2">
+        {notes}
+      </p>
+    </div>
+  );
+}
+
 // ── Plan Row ──────────────────────────────────────────────────────────────
 
 function PlanRow({
@@ -1022,6 +1073,11 @@ function PlanRow({
                 {seasonCount} season{seasonCount !== 1 ? "s" : ""}
               </Badge>
             )}
+            {plan.notes && (
+              <Badge className="text-[10px] px-1.5 py-0 bg-dashboard-info/10 text-dashboard-base-content/60 border border-dashboard-info/30">
+                <StickyNote className="h-2.5 w-2.5 mr-1" /> Note
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -1066,6 +1122,7 @@ function PlanRow({
       {expanded && (
         <div className="border-t border-dashboard-base-content/10 bg-dashboard-base-200/30 divide-y divide-dashboard-base-content/10">
           <SeasonsSummaryPanel seasons={plan.seasons ?? []} />
+          {plan.notes && <PlanNotesPanel notes={plan.notes} />}
           <OccupancyPricesPanel plan={plan} hotelId={hotelId} onUpdated={prices => onOccupancyUpdated(plan.id, prices)} />
         </div>
       )}
@@ -1156,6 +1213,7 @@ export function PricingTab({
         margin_percentage: Number(form.margin_percentage) || 10,
         gst_percentage:    Number(form.gst_percentage) || 18,
         is_active:         form.is_active,
+        notes:             form.notes.trim() || null,
         seasons,
       });
 
@@ -1201,6 +1259,7 @@ export function PricingTab({
           extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
           margin_percentage: Number(form.margin_percentage),
           gst_percentage:    Number(form.gst_percentage),
+          notes:             form.notes.trim() || null,
           valid_from:        null,
           valid_to:          null,
           is_active:         form.is_active,
@@ -1229,6 +1288,7 @@ export function PricingTab({
         margin_percentage: Number(form.margin_percentage) || 10,
         gst_percentage:    Number(form.gst_percentage) || 18,
         is_active:         form.is_active,
+        notes:             form.notes.trim() || null,
         seasons,
       });
 
@@ -1253,6 +1313,7 @@ export function PricingTab({
             extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
             margin_percentage: Number(form.margin_percentage),
             gst_percentage:    Number(form.gst_percentage),
+            notes:             form.notes.trim() || null,
             is_active:         form.is_active,
             room:              rooms.find(r => r.id === roomId) ?? null,
             meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
