@@ -81,6 +81,7 @@ export default function ImageLightbox({ images, activeIdx, onClose, onNavigate, 
                                 src={current.fullSrc ?? current.src}
                                 alt={current.label || `Image ${activeIdx + 1}`}
                                 fill
+                                unoptimized={(current.fullSrc ?? current.src).startsWith('blob:')}
                                 className="object-contain"
                                 sizes="100vw"
                                 priority
@@ -129,7 +130,7 @@ export default function ImageLightbox({ images, activeIdx, onClose, onNavigate, 
                                             : 'ring-1 ring-white/20 opacity-50 hover:opacity-80',
                                     )}
                                 >
-                                    <Image src={img.src} alt="" aria-hidden="true" fill className="object-cover" sizes="80px" />
+                                    <Image src={img.src} alt="" aria-hidden="true" fill unoptimized={img.src.startsWith('blob:')} className="object-cover" sizes="80px" />
                                 </button>
                             ))}
                         </div>

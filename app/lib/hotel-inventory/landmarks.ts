@@ -64,7 +64,7 @@ export function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-type FetchedLandmark = { category: LandmarkCategory; name: string; distanceM: number };
+type FetchedLandmark = { category: LandmarkCategory; name: string; distanceM: number; lat: number; lon: number };
 
 async function fetchFromOverpass(latitude: number, longitude: number): Promise<FetchedLandmark[]> {
   const query = `[out:json][timeout:25];(${OVERPASS_QUERY.replaceAll("{lat}", String(latitude)).replaceAll("{lon}", String(longitude))});out body;`;
@@ -95,7 +95,13 @@ async function fetchFromOverpass(latitude: number, longitude: number): Promise<F
     if (!category) continue;
 
     const list = byCategory.get(category) ?? [];
-    list.push({ category, name, distanceM: Math.round(haversineMeters(latitude, longitude, el.lat, el.lon)) });
+    list.push({
+      category,
+      name,
+      distanceM: Math.round(haversineMeters(latitude, longitude, el.lat, el.lon)),
+      lat: el.lat,
+      lon: el.lon,
+    });
     byCategory.set(category, list);
   }
 
@@ -119,17 +125,28 @@ async function fetchFromOverpass(latitude: number, longitude: number): Promise<F
  * without caching, so the next request tries again instead of getting stuck
  * on a permanent empty cache.
  */
+export type LandmarkItem = { name: string; distance: string; lat: number | null; lon: number | null };
+
 export async function getOrFetchLandmarks(
   hotelId: number,
   latitude: number,
   longitude: number,
-): Promise<{ category: string; items: { name: string; distance: string }[] }[]> {
+): Promise<{ category: string; items: LandmarkItem[] }[]> {
   const cached = await db.hotel_landmark.findMany({
     where: { hotel_id: hotelId },
     orderBy: { distance_m: "asc" },
   });
 
-  let rows = cached;
+  type Row = { category: string; name: string; distance_m: number; lat: number | null; lon: number | null };
+
+  let rows: Row[] = cached.map((row) => ({
+    category: row.category,
+    name: row.name,
+    distance_m: row.distance_m,
+    lat: row.lat != null ? Number(row.lat) : null,
+    lon: row.lon != null ? Number(row.lon) : null,
+  }));
+
   if (rows.length === 0) {
     try {
       const flat = await fetchFromOverpass(latitude, longitude);
@@ -140,16 +157,17 @@ export async function getOrFetchLandmarks(
             category: lm.category,
             name: lm.name,
             distance_m: lm.distanceM,
+            lat: lm.lat,
+            lon: lm.lon,
           })),
         });
       }
       rows = flat.map((lm) => ({
-        id: 0,
-        hotel_id: hotelId,
         category: lm.category,
         name: lm.name,
         distance_m: lm.distanceM,
-        created_at: new Date(),
+        lat: lm.lat,
+        lon: lm.lon,
       }));
     } catch (err) {
       console.error("[getOrFetchLandmarks] Overpass fetch failed", err);
@@ -157,10 +175,15 @@ export async function getOrFetchLandmarks(
     }
   }
 
-  const byCategory = new Map<string, { name: string; distance: string }[]>();
+  const byCategory = new Map<string, LandmarkItem[]>();
   for (const row of rows) {
     if (!byCategory.has(row.category)) byCategory.set(row.category, []);
-    byCategory.get(row.category)!.push({ name: row.name, distance: formatDistance(row.distance_m) });
+    byCategory.get(row.category)!.push({
+      name: row.name,
+      distance: formatDistance(row.distance_m),
+      lat: row.lat,
+      lon: row.lon,
+    });
   }
 
   // Stable, guest-friendly tab order regardless of fetch/insertion order.

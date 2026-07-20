@@ -22,6 +22,7 @@ import { PricingTab } from "./tabs/PricingTab";
 import { ChildPoliciesTab } from "./tabs/ChildPoliciesTab";
 import { ImagesTab } from "./tabs/ImagesTab";
 import { MealsAndAddonsTab } from "./tabs/MealsAndAddonsTab";
+import MigrateToHotelConnectDialog from "./MigrateToHotelConnectDialog";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
     const { id: idStr } = await params;
@@ -178,6 +179,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                         {totalImages > 0 && ` · ${totalImages} image${totalImages !== 1 ? "s" : ""}`}
                     </p>
                 </div>
+                {!hotel.owner_id && <MigrateToHotelConnectDialog hotelId={hotel.id} />}
             </div>
 
             {/* Tabs */}

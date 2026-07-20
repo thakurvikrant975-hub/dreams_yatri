@@ -1,13 +1,18 @@
 "use server";
 
+import crypto from "crypto";
+import { hash } from "bcryptjs";
 import { db } from "@/app/lib/db";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Prisma } from "@/app/generated/prisma";
+import { Prisma, type PropertyCategory, type PropertySubType } from "@/app/generated/prisma";
 import { ALL_SYSTEM_HOTEL_CATEGORIES, REQUIRED_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 import { actionError } from "@/app/lib/action-error";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { sendEmail } from "@/app/lib/functions/sendEmail";
+import { hotelOwnerMigrationWelcomeTemplate } from "@/app/lib/functions/emailTemplates";
+import { totalTabsFor } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/wizard-progress";
 import { createLog } from "../lib/logger";
 import { PLAN_NOTES_MAX_LEN } from "./constants";
 
@@ -27,7 +32,7 @@ const SAFE_HOTEL_SCALARS = {
   thumbnail: true, city: true, state: true, country: true, pincode: true,
   business_phone: true, business_email: true, whatsapp_number: true, b2b_email: true,
   location_id: true, margin_percentage: true, gst_percentage: true,
-  created_by: true, updated_by: true,
+  created_by: true, updated_by: true, owner_id: true,
 } as const;
 
 const SAFE_HOTEL_ROOM_SCALARS = {
@@ -1975,4 +1980,225 @@ export async function deleteAddon(id: number, hotel_id: number): Promise<HotelFo
     console.error(e);
     return actionError(e);
   }
+}
+
+// ── Migrate to Hotel Connect ──────────────────────────────────────────────
+//
+// Ops-created hotels always have owner_id = null (see createHotel above) so
+// they never appear in any owner's hotel-connect account. This links a
+// specific hotel to a real HotelOwner and backfills the wizard fields
+// hotel-connect's completeness logic depends on (property_category,
+// wizard_step, listing_status) — set together, deliberately, one hotel at a
+// time, rather than a bulk script, since several of the mappings below are
+// best-guess and every hotel needs a human to confirm the owner match.
+
+// Best-guess mapping from the legacy ops `category` value (constants.ts
+// CATEGORIES) to the wizard's PropertyCategory/PropertySubType enums. Several
+// entries are inherently fuzzy (no exact wizard equivalent) — the migration
+// dialog always shows this guess to ops as an editable dropdown, never
+// applies it silently.
+const CATEGORY_MIGRATION_MAP: Record<string, { propertyCategory: PropertyCategory; propertySubType: PropertySubType }> = {
+  hotel:               { propertyCategory: "HOTEL",          propertySubType: "HOTEL" },
+  resort:              { propertyCategory: "HOTEL",          propertySubType: "RESORT" },
+  homestay:            { propertyCategory: "HOMESTAY_VILLA", propertySubType: "HOMESTAY" },
+  apartment:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "APARTMENT" },
+  serviced_apartment:  { propertyCategory: "HOMESTAY_VILLA", propertySubType: "APARTMENT" },
+  villa:               { propertyCategory: "HOMESTAY_VILLA", propertySubType: "VILLA" },
+  guest_house:         { propertyCategory: "HOTEL",          propertySubType: "GUEST_HOUSE" },
+  hostel:              { propertyCategory: "HOTEL",          propertySubType: "HOSTEL" },
+  bed_and_breakfast:   { propertyCategory: "HOTEL",          propertySubType: "BED_AND_BREAKFAST" },
+  holiday_home:        { propertyCategory: "HOMESTAY_VILLA", propertySubType: "HOLIDAY_HOME" },
+  cottage:             { propertyCategory: "HOMESTAY_VILLA", propertySubType: "COTTAGE" },
+  chalet:              { propertyCategory: "HOMESTAY_VILLA", propertySubType: "COTTAGE" },
+  bungalow:            { propertyCategory: "HOMESTAY_VILLA", propertySubType: "VILLA" },
+  farm_stay:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "FARMHOUSE" },
+  camp:                { propertyCategory: "HOTEL",          propertySubType: "CAMP" },
+  glamping:            { propertyCategory: "HOTEL",          propertySubType: "LUXURY_CAMPS" },
+  treehouse:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "TREEHOUSE" },
+  jungle_lodge:        { propertyCategory: "HOTEL",          propertySubType: "LODGE" },
+  eco_lodge:           { propertyCategory: "HOTEL",          propertySubType: "LODGE" },
+  houseboat:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "HOUSEBOAT" },
+  boutique_hotel:      { propertyCategory: "HOTEL",          propertySubType: "HOTEL" },
+  heritage_hotel:      { propertyCategory: "HOTEL",          propertySubType: "PALACE" },
+  luxury_hotel:        { propertyCategory: "HOTEL",          propertySubType: "HOTEL" },
+  business_hotel:      { propertyCategory: "HOTEL",          propertySubType: "HOTEL" },
+  capsule_hotel:       { propertyCategory: "HOTEL",          propertySubType: "HOSTEL" },
+  dharamshala:         { propertyCategory: "HOTEL",          propertySubType: "DHARAMSHALA" },
+  ashram_stay:         { propertyCategory: "HOTEL",          propertySubType: "ASHRAM" },
+  extended_stay_hotel: { propertyCategory: "HOTEL",          propertySubType: "APART_HOTEL" },
+  co_living_space:     { propertyCategory: "HOMESTAY_VILLA", propertySubType: "APARTMENT" },
+};
+const DEFAULT_CATEGORY_GUESS = { propertyCategory: "HOTEL" as PropertyCategory, propertySubType: "HOTEL" as PropertySubType };
+
+export type MigrationPreview = {
+  ownerEmail: string;
+  ownerExists: boolean;
+  existingOwnerName: string | null;
+  suggestedOwnerName: string;
+  propertyCategory: PropertyCategory;
+  propertySubType: PropertySubType;
+  hasOwnLatLng: boolean;
+  fallbackLatitude: number | null;
+  fallbackLongitude: number | null;
+  // Raw ingredients for computeEffectiveWizardStep — exposed as-is (not a
+  // server-baked completeness number) so the dialog can recompute live as
+  // ops changes the category/sub-type dropdowns or the lat-lng checkbox,
+  // using the same pure function this returns instead of duplicating it.
+  wizardInput: {
+    address: string | null; city: string | null; state: string | null;
+    country: string | null; pincode: string | null;
+    wizard_step: number; roomCount: number; imageCount: number;
+  };
+};
+
+export async function getHotelMigrationPreview(id: number): Promise<MigrationPreview | null> {
+  const hotel = await db.hotels.findUnique({
+    where: { id },
+    select: {
+      name: true, category: true, is_active: true,
+      business_email: true, contact_email: true,
+      address: true, city: true, state: true, country: true, pincode: true,
+      latitude: true, longitude: true, wizard_step: true,
+      destination: { select: { latitude: true, longitude: true } },
+      location: { select: { latitude: true, longitude: true } },
+      _count: { select: { hotelRooms: true, images: true } },
+    },
+  });
+  if (!hotel) return null;
+
+  const ownerEmail = hotel.business_email ?? hotel.contact_email ?? "";
+  const existingOwner = ownerEmail
+    ? await db.hotelOwner.findUnique({ where: { email: ownerEmail }, select: { name: true } })
+    : null;
+
+  const guess = (hotel.category && CATEGORY_MIGRATION_MAP[hotel.category]) || DEFAULT_CATEGORY_GUESS;
+
+  const fallbackLat = hotel.location?.latitude ?? hotel.destination?.latitude ?? null;
+  const fallbackLng = hotel.location?.longitude ?? hotel.destination?.longitude ?? null;
+
+  return {
+    ownerEmail,
+    ownerExists: !!existingOwner,
+    existingOwnerName: existingOwner?.name ?? null,
+    suggestedOwnerName: hotel.name,
+    propertyCategory: guess.propertyCategory,
+    propertySubType: guess.propertySubType,
+    hasOwnLatLng: hotel.latitude != null,
+    fallbackLatitude: fallbackLat != null ? Number(fallbackLat) : null,
+    fallbackLongitude: fallbackLng != null ? Number(fallbackLng) : null,
+    wizardInput: {
+      address: hotel.address, city: hotel.city, state: hotel.state,
+      country: hotel.country, pincode: hotel.pincode,
+      wizard_step: hotel.wizard_step,
+      roomCount: hotel._count.hotelRooms,
+      imageCount: hotel._count.images,
+    },
+  };
+}
+
+export type MigrateResult = { success: boolean; message: string; ownerCreated?: boolean };
+
+export async function migrateHotelToHotelConnect(
+  id: number,
+  input: {
+    ownerEmail: string;
+    ownerName: string;
+    propertyCategory: PropertyCategory;
+    propertySubType: PropertySubType;
+    applyLatLngFallback?: { latitude: number; longitude: number };
+  },
+): Promise<MigrateResult> {
+  const { session, actorId, actorName } = await requireSession();
+
+  const hotel = await db.hotels.findUnique({ where: { id }, select: { owner_id: true, is_active: true, slug: true } });
+  if (!hotel) return { success: false, message: "Hotel not found." };
+  if (hotel.owner_id) return { success: false, message: "This hotel is already linked to a Hotel Connect account." };
+
+  const email = input.ownerEmail.trim().toLowerCase();
+  if (!email) return { success: false, message: "An owner email is required." };
+
+  let ownerId: string;
+  let ownerCreated = false;
+
+  const existingOwner = await db.hotelOwner.findUnique({ where: { email }, select: { id: true } });
+  if (existingOwner) {
+    ownerId = existingOwner.id;
+  } else {
+    // Random, never-communicated placeholder password — the owner's first
+    // real action is setting their own password via the same reset-password
+    // flow forgot-password already uses (forgot-password/actions.ts).
+    const placeholderPassword = crypto.randomBytes(24).toString("hex");
+    const hashed = await hash(placeholderPassword, 12);
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days — a mailbox check, not a live session
+
+    try {
+      const created = await db.hotelOwner.create({
+        data: {
+          name: input.ownerName.trim() || hotel.slug,
+          email,
+          password: hashed,
+          status: "ACTIVE",
+          email_verified: true, // ops already has a working business email on file for this property
+          password_reset_token: resetToken,
+          password_reset_expires: resetExpires,
+        },
+        select: { id: true },
+      });
+      ownerId = created.id;
+      ownerCreated = true;
+
+      const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/hotel-connect/reset-password?token=${resetToken}`;
+      sendEmail({
+        to: email,
+        subject: "Your property is ready on Dreams Yatri Hotel Connect",
+        html: hotelOwnerMigrationWelcomeTemplate(input.ownerName.trim() || hotel.slug, resetUrl),
+      }).catch((err) => console.error("[migrateHotelToHotelConnect] welcome email failed:", err));
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return { success: false, message: "An account with this email was just created — please retry." };
+      }
+      console.error("[migrateHotelToHotelConnect] owner create failed:", err);
+      return { success: false, message: "Could not create the owner account." };
+    }
+  }
+
+  const goingLive = hotel.is_active;
+  await db.hotels.update({
+    where: { id },
+    data: {
+      owner_id: ownerId,
+      property_category: input.propertyCategory,
+      property_sub_type: input.propertySubType,
+      wizard_step: totalTabsFor(input.propertyCategory),
+      updated_by: actorId,
+      ...(goingLive ? { listing_status: "LIVE", submitted_at: new Date(), approved_at: new Date() } : {}),
+      ...(input.applyLatLngFallback ? {
+        latitude: input.applyLatLngFallback.latitude,
+        longitude: input.applyLatLngFallback.longitude,
+      } : {}),
+    },
+  });
+
+  await createLog({
+    action: "UPDATE",
+    entity: "Hotel",
+    entityId: String(id),
+    entitySlug: hotel.slug,
+    description: `Migrated to Hotel Connect, linked to owner ${email}${ownerCreated ? " (new account)" : ""}`,
+    metadata: { operation: "migrate_to_hotel_connect", ownerCreated },
+    userName: actorName ?? undefined,
+    userEmail: session?.user?.email ?? undefined,
+  });
+
+  revalidatePath(`/dashboard/hotels/${id}`);
+  revalidatePath("/dashboard/hotels");
+
+  return {
+    success: true,
+    ownerCreated,
+    message: ownerCreated
+      ? "Hotel linked and a new owner account was created — an email was sent with a link to set their password."
+      : "Hotel linked to the existing owner account.",
+  };
 }

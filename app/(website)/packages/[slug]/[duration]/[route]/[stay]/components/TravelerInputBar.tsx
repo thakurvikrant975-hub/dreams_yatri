@@ -24,6 +24,7 @@ export default function TravelerInputBar() {
         travelDate, setTravelDate,
         leavingFrom, setLeavingFrom,
         adults, childAges, setTravellers,
+        rooms, setRooms,
         dateHighlight,
     } = useBooking();
 
@@ -69,10 +70,11 @@ export default function TravelerInputBar() {
                 {/* Travellers */}
                 <Field label="Travellers" className="min-w-48">
                     <TravellersField
-                        value={{ adults, childrenAges: childAges }}
+                        value={{ adults, childrenAges: childAges, rooms }}
                         className='cursor-pointer'
-                        onChange={(v) => setTravellers(v.adults, v.childrenAges)}
+                        onChange={(v) => { setTravellers(v.adults, v.childrenAges); setRooms(v.rooms ?? 1); }}
                         menuZClass={MENU_Z}
+                        showRooms
                     />
                 </Field>
 

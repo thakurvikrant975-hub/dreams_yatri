@@ -60,6 +60,7 @@ export interface BookingContextValue {
     childCount: number;
     infants:    number;
     childAges:  number[];   // length === childCount, each 2-11
+    rooms:      number;
     travelDate: string;     // 'YYYY-MM-DD' or ''
     leavingFrom: LocationValue | null;  // user's origin city (carried from search)
 
@@ -67,6 +68,7 @@ export interface BookingContextValue {
     setChildCount: (n: number) => void;
     setInfants:    (n: number) => void;
     setChildAge:   (idx: number, age: number) => void;
+    setRooms:      (n: number) => void;
     setTravelDate: (d: string) => void;
     setLeavingFrom: (l: LocationValue | null) => void;
     /** Set adults + children (with ages) in one go — for the TravellersField component */
@@ -149,6 +151,7 @@ interface ProviderProps {
     // Initial values carried from the search page (all optional)
     initialAdults?:      number;
     initialChildAges?:   number[];
+    initialRooms?:       number;
     initialTravelDate?:  string;
     initialLeavingFrom?: LocationValue | null;
 }
@@ -157,12 +160,13 @@ export function PackageBookingProvider({
     packageId, durationId, routeId, stayCategoryId, packageName, recentEnquiryCount,
     cabTypes,
     children,
-    initialAdults, initialChildAges, initialTravelDate, initialLeavingFrom,
+    initialAdults, initialChildAges, initialRooms, initialTravelDate, initialLeavingFrom,
 }: ProviderProps) {
     const [adults,     setAdultsRaw]    = useState(initialAdults && initialAdults > 0 ? initialAdults : 2);
     const [childCount, setChildRaw]     = useState(initialChildAges?.length ?? 0);
     const [infants,    setInfantsRaw]   = useState(0);
     const [childAges,  setChildAges]    = useState<number[]>(initialChildAges ?? []);
+    const [rooms,      setRoomsRaw]     = useState(initialRooms && initialRooms > 0 ? initialRooms : 1);
     const [travelDate, setTravelDateRaw] = useState(initialTravelDate ?? '');
     const [leavingFrom, setLeavingFrom]  = useState<LocationValue | null>(initialLeavingFrom ?? null);
     const [dateHighlight, setDateHighlight] = useState(false);
@@ -210,6 +214,8 @@ export function PackageBookingProvider({
     }
 
     function setInfants(n: number) { setInfantsRaw(Math.max(0, n)); }
+
+    function setRooms(n: number) { setRoomsRaw(Math.max(1, n)); }
 
     function setChildAge(idx: number, age: number) {
         setChildAges(prev => {
@@ -292,8 +298,8 @@ export function PackageBookingProvider({
 
     return (
         <BookingContext.Provider value={{
-            adults, childCount, infants, childAges, travelDate, leavingFrom,
-            setAdults, setChildCount, setInfants, setChildAge, setTravelDate, setLeavingFrom, setTravellers,
+            adults, childCount, infants, childAges, rooms, travelDate, leavingFrom,
+            setAdults, setChildCount, setInfants, setChildAge, setRooms, setTravelDate, setLeavingFrom, setTravellers,
             cabGroups, cabSelections, setCabForGroup,
             pricing, isPricingLoading, packageName, recentEnquiryCount,
             packageId, durationId, routeId, stayCategoryId,

@@ -12,6 +12,7 @@ export type ReviewItem = {
   guestName: string;
   rating: number;
   comment: string | null;
+  images: string[];
   hostResponse: string | null;
   hostResponseAt: Date | null;
   createdAt: Date;
@@ -58,7 +59,7 @@ export async function getOwnerReviews(page = 1): Promise<ReviewsData> {
       take: PAGE_SIZE,
       select: {
         id: true, hotel_id: true, rating: true, comment: true, guest_name: true,
-        host_response: true, host_response_at: true, created_at: true,
+        images: true, host_response: true, host_response_at: true, created_at: true,
         hotel: { select: { name: true } },
       },
     }),
@@ -80,6 +81,7 @@ export async function getOwnerReviews(page = 1): Promise<ReviewsData> {
       guestName: r.guest_name,
       rating: r.rating,
       comment: r.comment,
+      images: r.images,
       hostResponse: r.host_response,
       hostResponseAt: r.host_response_at,
       createdAt: r.created_at,

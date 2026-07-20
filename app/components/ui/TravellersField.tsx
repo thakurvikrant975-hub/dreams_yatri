@@ -7,16 +7,21 @@ import Button from './Button'
 import { cn } from '@/app/lib/utils'
 
 // childrenAges holds one entry per child; -1 means "age not yet selected".
-export type TravellersValue = { adults: number; childrenAges: number[] }
+// rooms is optional — only meaningful where the caller opts in via showRooms.
+export type TravellersValue = { adults: number; childrenAges: number[]; rooms?: number }
 
 const MAX_ADULTS = 20
 const MAX_CHILDREN = 10
+const MAX_ROOMS = 8
 const CHILD_AGE_MAX = 11 // children = below 12 years
 
 export function summarizeTravellers(v: TravellersValue): string {
     const parts = [`${v.adults} Adult${v.adults > 1 ? 's' : ''}`]
     if (v.childrenAges.length) {
         parts.push(`${v.childrenAges.length} Child${v.childrenAges.length > 1 ? 'ren' : ''}`)
+    }
+    if (v.rooms) {
+        parts.push(`${v.rooms} Room${v.rooms > 1 ? 's' : ''}`)
     }
     return parts.join(', ')
 }
@@ -55,24 +60,28 @@ interface TravellersFieldProps {
     className?: string
     /** z-index utility for the popover (default z-100) */
     menuZClass?: string
+    /** Show a Rooms stepper above Adults — opt in for hotel/package search filters */
+    showRooms?: boolean
 }
 
 export default function TravellersField({
-    value, onChange, id, disabled, className, menuZClass = 'z-100',
+    value, onChange, id, disabled, className, menuZClass = 'z-100', showRooms = false,
 }: TravellersFieldProps) {
     const [open, setOpen] = useState(false)
 
     // Draft edited inside the popover; committed on Apply (mirrors MMT).
     const [adults, setAdults] = useState(value.adults)
     const [childrenAges, setChildrenAges] = useState<number[]>(value.childrenAges)
+    const [rooms, setRooms] = useState(value.rooms ?? 1)
 
     // Sync draft from the committed value whenever the popover opens
     useEffect(() => {
         if (open) {
             setAdults(value.adults)
             setChildrenAges(value.childrenAges)
+            setRooms(value.rooms ?? 1)
         }
-    }, [open, value.adults, value.childrenAges])
+    }, [open, value.adults, value.childrenAges, value.rooms])
 
     function setChildrenCount(next: number) {
         setChildrenAges((prev) => {
@@ -89,7 +98,7 @@ export default function TravellersField({
 
     function apply() {
         if (hasUnsetAge) return
-        onChange({ adults, childrenAges })
+        onChange(showRooms ? { adults, childrenAges, rooms } : { adults, childrenAges, rooms: value.rooms })
         setOpen(false)
     }
 
@@ -122,6 +131,19 @@ export default function TravellersField({
                     sideOffset={6}
                     className={cn(menuZClass, 'w-[min(92vw,340px)] rounded-xl border border-neutral-200 bg-white p-4 shadow-xl shadow-black/10')}
                 >
+                    {/* Rooms */}
+                    {showRooms && (
+                        <>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-neutral-800">Rooms</p>
+                                </div>
+                                <Stepper value={rooms} min={1} max={MAX_ROOMS} onChange={setRooms} />
+                            </div>
+                            <div className="my-3 h-px bg-neutral-100" />
+                        </>
+                    )}
+
                     {/* Adults */}
                     <div className="flex items-center justify-between">
                         <div>
@@ -178,6 +200,7 @@ export default function TravellersField({
                     <div className="mt-4 flex items-center justify-between">
                         <span className="text-xs text-neutral-400">
                             {adults + childrenAges.length} traveller{adults + childrenAges.length !== 1 ? 's' : ''}
+                            {showRooms ? `, ${rooms} room${rooms !== 1 ? 's' : ''}` : ''}
                         </span>
                         <Button variant="premium" size="sm" disabled={hasUnsetAge} onClick={apply} className="rounded-lg px-6">
                             Apply

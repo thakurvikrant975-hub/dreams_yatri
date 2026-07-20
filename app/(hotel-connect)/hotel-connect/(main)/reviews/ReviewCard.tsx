@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Image from "next/image";
 import { StarIcon, ChatCircleTextIcon } from "@phosphor-icons/react";
 import { cn } from "@/app/lib/utils";
+import ImageLightbox from "@/app/components/gallery/ImageLightbox";
 import { respondToReview, type ReviewItem } from "./reviews-actions";
 
 function initials(name: string) {
@@ -19,6 +21,7 @@ export default function ReviewCard({ review }: { review: ReviewItem }) {
   const [error, setError] = useState<string | null>(null);
   const [hostResponse, setHostResponse] = useState(review.hostResponse);
   const [isPending, startTransition] = useTransition();
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
   function submit() {
     setError(null);
@@ -51,6 +54,30 @@ export default function ReviewCard({ review }: { review: ReviewItem }) {
       </div>
 
       {review.comment && <p className="text-sm text-neutral-600 leading-relaxed">{review.comment}</p>}
+
+      {review.images.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {review.images.map((src, idx) => (
+            <button
+              key={src}
+              type="button"
+              onClick={() => setLightboxIdx(idx)}
+              className="relative size-16 rounded-lg overflow-hidden ring-1 ring-neutral-200 hover:ring-primary-400 transition-all"
+            >
+              <Image src={src} alt={`Photo by ${review.guestName}`} fill className="object-cover" sizes="64px" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {lightboxIdx !== null && (
+        <ImageLightbox
+          images={review.images.map((src) => ({ src, label: `Photo by ${review.guestName}` }))}
+          activeIdx={lightboxIdx}
+          onClose={() => setLightboxIdx(null)}
+          onNavigate={setLightboxIdx}
+        />
+      )}
 
       {hostResponse ? (
         <div className="ml-4 pl-3 border-l-2 border-primary-200 bg-primary-50/40 rounded-r-lg py-2 px-3">

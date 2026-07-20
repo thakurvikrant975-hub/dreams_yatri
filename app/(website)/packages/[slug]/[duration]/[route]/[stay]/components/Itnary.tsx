@@ -454,7 +454,7 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
         <div className='flex-1'>
           {/* Vehicle details pill */}
           {hasVehicleInfo && (
-            <div className="flex items-center gap-2.5  mb-3">
+            <div className="flex items-center gap-2.5 justify-between  mb-3">
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                 {resolvedName && (
                   <Text size="base" weight="semibold" intent="primary" className="font-heading">
@@ -480,6 +480,9 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
                   </>
                 )}
               </div>
+              <button className="text-sm text-primary-500 hover:text-primary-600 font-semibold cursor-pointer">
+                Change Vehicle
+              </button>
             </div>
           )}
 

@@ -48,6 +48,7 @@ export default function HotelsSearchBar({
     if (checkOut && (!checkIn || checkOut > checkIn)) p.set("out", ymd(checkOut));
     p.set("adults", String(guests.adults));
     if (guests.childrenAges.length) p.set("children", guests.childrenAges.join(","));
+    p.set("rooms", String(guests.rooms ?? 1));
     const qs = p.toString();
     startTransition(() => router.push(qs ? `/hotels?${qs}` : "/hotels"));
   }
@@ -74,7 +75,7 @@ export default function HotelsSearchBar({
 
             <div className="flex flex-col gap-1" role="group" aria-labelledby="label-guests">
               <Label id="label-guests">Guests</Label>
-              <TravellersField value={guests} onChange={setGuests} />
+              <TravellersField value={guests} onChange={setGuests} showRooms />
             </div>
 
             <div className="flex flex-col gap-1">

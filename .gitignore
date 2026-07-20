@@ -43,3 +43,6 @@ next-env.d.ts
 /app/generated/prisma
 
 /app/generated/prisma/data
+
+# local scratch/dev logs
+/.scratch/

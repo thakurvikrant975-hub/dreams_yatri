@@ -1,8 +1,9 @@
 import "server-only";
 import { db } from "@/app/lib/db";
 import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
-import { resolveCancellation, effectivePolicy, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
+import { resolveCancellation, effectivePolicy, cancellationLabel, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
 import { AMENITY_CATEGORIES } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/amenities-data";
+import { ROOM_AMENITY_GROUPS } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/room-data";
 import { HOTEL_PHOTO_TAGS, GUEST_HOUSE_PHOTO_TAGS } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/photo-tags-data";
 import type { Hotel, Room, RatePlan, BedroomLayout, ReviewItem } from "./dummy";
 import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
@@ -117,8 +118,67 @@ function groupedAmenities(raw: unknown): { group: string; items: { label: string
     .filter((g) => g.items.length > 0);
 }
 
+// Guest-friendlier copy for a couple of the wizard's internal group labels —
+// cosmetic only, doesn't change which amenities land in which group.
+const ROOM_GROUP_DISPLAY_LABEL: Record<string, string> = { Mandatory: "Basic Facilities" };
+
+/**
+ * hotel_rooms.amenities is saved by the room wizard as either a raw
+ * string[] (legacy rows) or { selected: string[], details }
+ * (room-actions.ts's save shape) — never a property_amenities-style on/off
+ * map, so amenityLabels() doesn't apply here.
+ */
+function parseRoomAmenities(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String);
+  if (raw && typeof raw === "object" && Array.isArray((raw as { selected?: unknown }).selected)) {
+    return (raw as { selected: unknown[] }).selected.map(String);
+  }
+  return [];
+}
+
+/** Group a room's selected amenity names by the same categories the room wizard's Amenities step (ROOM_AMENITY_GROUPS) uses. */
+function groupedRoomAmenities(names: string[]): { group: string; items: { label: string; icon: string }[] }[] {
+  const set = new Set(names);
+  return ROOM_AMENITY_GROUPS
+    .map((cat) => ({
+      group: ROOM_GROUP_DISPLAY_LABEL[cat.label] ?? cat.label,
+      items: cat.items.filter((name) => set.has(name)).map((name) => ({ label: name, icon: iconFor(name) })),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
 function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.max(1, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000));
+}
+
+/**
+ * Yes/no policy sentence for a tri-state wizard boolean. Returns null (omit
+ * entirely) when the owner never answered — showing the "no" sentence for an
+ * unset field would assert something nobody actually confirmed.
+ */
+function factIf(v: boolean | null | undefined, yes: string, no: string): string | null {
+  if (v == null) return null;
+  return v ? yes : no;
+}
+
+function money0(v: unknown): string | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? `₹${n.toLocaleString("en-IN")}` : null;
+}
+
+const CHARGE_TYPE_LABEL: Record<string, string> = {
+  FREE: "Free",
+  SHARING_BED: "Sharing existing bed",
+  EXTRA_BED: "Extra bed",
+  FIXED_RATE: "Fixed rate",
+};
+
+type PolicySection = { title: string; items: string[] };
+
+/** Drops any section with zero real facts instead of rendering an empty card. */
+function withFacts(sections: PolicySection[]): PolicySection[] {
+  return sections.filter((s) => s.items.length > 0);
 }
 
 function reviewLabelFor(score: number): string {
@@ -143,16 +203,36 @@ type ReviewStats = {
   items: ReviewItem[];
 };
 
-/** Real rating average, star distribution, and recent reviews for a hotel — same groupBy pattern as the owner-side reviews page (reviews-actions.ts). */
+// Deterministic keyword categories for the guest-facing "Filter by" chips —
+// extracted from each review's own comment text, not invented. A review can
+// match more than one category.
+const REVIEW_TAG_RULES: { tag: string; pattern: RegExp }[] = [
+  { tag: "Great hospitality", pattern: /hospitalit|staff|host(?:ed|ing)?\b|service/i },
+  { tag: "Clean rooms", pattern: /clean|hygien|spotless|tidy/i },
+  { tag: "Beautiful property", pattern: /beautiful|view|scenic|stunning|picturesque|surroundings/i },
+  { tag: "Tasty food", pattern: /food|breakfast|meal|dining|restaurant|tasty|cuisine/i },
+  { tag: "Great location", pattern: /location|walk(?:ing|able)? distance|close to|nearby|access/i },
+  { tag: "Value for money", pattern: /value|worth|afforda|reasonable price/i },
+  { tag: "Needs improvement", pattern: /disappoint|poor|not (?:good|great)|smaller than expected|could be better|issue|problem/i },
+];
+
+function deriveReviewTags(comment: string): string[] {
+  return REVIEW_TAG_RULES.filter((r) => r.pattern.test(comment)).map((r) => r.tag);
+}
+
+/** Real rating average, star distribution, and reviews (with owner replies, room/stay context, and content-derived tags) for a hotel — same groupBy pattern as the owner-side reviews page (reviews-actions.ts). */
 async function getReviewStats(hotelId: number): Promise<ReviewStats> {
-  const [ratingGroups, count, recent] = await Promise.all([
+  const [ratingGroups, count, all] = await Promise.all([
     db.hotel_review.groupBy({ by: ["rating"], where: { hotel_id: hotelId }, _count: { _all: true } }),
     db.hotel_review.count({ where: { hotel_id: hotelId } }),
     db.hotel_review.findMany({
       where: { hotel_id: hotelId },
       orderBy: { created_at: "desc" },
-      take: 20,
-      select: { id: true, guest_name: true, rating: true, comment: true, created_at: true },
+      take: 500,
+      select: {
+        id: true, guest_name: true, rating: true, comment: true, created_at: true,
+        booking_id: true, host_response: true, host_response_at: true, images: true,
+      },
     }),
   ]);
 
@@ -164,6 +244,23 @@ async function getReviewStats(hotelId: number): Promise<ReviewStats> {
   }
   const overall = count > 0 ? sum / count : 0;
 
+  // Real room type + stay month per review, joined off the same
+  // (booking_id, hotel_id) pair the review itself is keyed on — not every
+  // review's booking has a matching row (e.g. seeded demo reviews), so
+  // this degrades to omitting the line rather than guessing.
+  const bookingIds = [...new Set(all.map((r) => r.booking_id))];
+  const bookingHotels = bookingIds.length
+    ? await db.bookingHotel.findMany({
+        where: { bookingId: { in: bookingIds }, hotelId },
+        orderBy: { checkInDate: "asc" },
+        select: { bookingId: true, roomType: true, checkInDate: true },
+      })
+    : [];
+  const stayByBooking = new Map<string, { roomType: string; checkInDate: Date }>();
+  for (const bh of bookingHotels) {
+    if (!stayByBooking.has(bh.bookingId)) stayByBooking.set(bh.bookingId, bh);
+  }
+
   return {
     overall,
     label: reviewLabelFor(overall),
@@ -172,14 +269,26 @@ async function getReviewStats(hotelId: number): Promise<ReviewStats> {
       stars,
       pct: count > 0 ? Math.round((breakdown[stars] / count) * 100) : 0,
     })),
-    items: recent.map((r) => ({
-      id: String(r.id),
-      name: r.guest_name,
-      initials: initialsFor(r.guest_name),
-      date: r.created_at.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
-      rating: r.rating,
-      text: r.comment ?? "",
-    })),
+    items: all.map((r) => {
+      const stay = stayByBooking.get(r.booking_id);
+      const comment = r.comment ?? "";
+      return {
+        id: String(r.id),
+        name: r.guest_name,
+        initials: initialsFor(r.guest_name),
+        date: r.created_at.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+        rating: r.rating,
+        text: comment,
+        images: r.images.length > 0 ? r.images : undefined,
+        hostResponse: r.host_response,
+        hostResponseAt: r.host_response_at
+          ? r.host_response_at.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+          : null,
+        roomType: stay?.roomType ?? null,
+        travelMonth: stay ? stay.checkInDate.toLocaleDateString("en-IN", { month: "short", year: "numeric" }) : null,
+        tags: deriveReviewTags(comment),
+      };
+    }),
   };
 }
 
@@ -328,6 +437,25 @@ export async function getHotelForBooking(
       check_in_time: true, check_out_time: true, cancellation_policy: true,
       allow_unmarried_couples: true, allow_guests_below_18: true, smoking_allowed: true,
       acceptable_id_proofs: true, pets_allowed: true,
+      allow_male_only_groups: true, allow_same_city_id: true,
+      parties_events_allowed: true, wheelchair_accessible: true, allow_outside_visitors: true,
+      pets_on_property: true, allowed_pet_types: true, pet_extra_charges: true,
+      pets_restricted_areas: true, pets_without_leash: true, pet_food_available: true,
+      pet_count: true, pet_charge_amount: true,
+      checkin_24_hours: true, has_check_in_end_time: true, check_in_end_time: true,
+      infant_free_occupancy: true, infant_complimentary_food: true,
+      extra_bed_included: true, provide_bed_extra_adults: true, provide_bed_extra_kids: true,
+      extra_bed_adults_types: true, extra_cot_charge_adult: true, extra_mattress_charge_adult: true, extra_sofa_charge_adult: true,
+      extra_bed_kids_types: true, extra_cot_charge_child: true, extra_mattress_charge_child: true, extra_sofa_charge_child: true, extra_crib_charge_child: true,
+      meal_price_breakfast: true, meal_price_lunch: true, meal_price_dinner: true,
+      smoking_areas: true, entry_exit_restrictions: true, noise_policy: true,
+      self_checkin_smart_door: true, host_greets_helps: true, caretaker_greets_helps: true, building_staff_keys: true,
+      custom_policy: true,
+      childPolicies: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: { age_from: true, age_to: true, charge_type: true, price: true, description: true },
+      },
       property_category: true, property_sub_type: true, hs_bedrooms: true, hs_bathrooms: true,
       hs_bedroom_details: true, host_lives_at_property: true, caretaker_stays: true,
       images: {
@@ -375,7 +503,7 @@ export async function getHotelForBooking(
     h.hotelRooms.map(async (r): Promise<Room> => {
       const ari = await getRoomARI(r.id, checkIn, checkOut);
       const roomsLeft = ari.length ? Math.min(...ari.map((n) => n.available)) : null;
-      const roomAmenities = Array.isArray(r.amenities) ? (r.amenities as string[]).map(String) : amenityLabels(r.amenities);
+      const roomAmenities = parseRoomAmenities(r.amenities);
       const roomImages = r.images.map((i) => imageUrl(i.url)).filter((u): u is string => !!u);
 
       // One rate plan per active pricing row (Room Only, With Breakfast, …).
@@ -419,6 +547,7 @@ export async function getHotelForBooking(
         view: r.view_type ?? "",
         occupancy: `Max ${maxGuests} guest${maxGuests === 1 ? "" : "s"}`,
         amenities: roomAmenities,
+        allAmenities: groupedRoomAmenities(roomAmenities),
         ratePlans,
         roomsLeft,
       };
@@ -429,8 +558,6 @@ export async function getHotelForBooking(
       ? getOrFetchLandmarks(h.id, Number(h.latitude), Number(h.longitude))
       : Promise.resolve([]),
   ]);
-
-  const rule = (v: boolean | null, yes: string, no: string) => (v ? yes : no);
 
   // Homestay/Villa: MMT/Goibibo-style "Property Layout" showing the physical
   // bedrooms (from the wizard's per-bedroom JSON) instead of sellable rooms.
@@ -464,6 +591,158 @@ export async function getHotelForBooking(
     };
   }
 
+  // ── Policies & Important Information ────────────────────────────────────
+  // Every bullet below is derived from a real wizard field the owner actually
+  // set — no section is invented, and tri-state booleans that were never
+  // answered (factIf returning null) are omitted rather than shown as "no".
+  const propAmenities = (h.property_amenities as Record<string, unknown>) ?? {};
+  const petTypes = h.allowed_pet_types ?? [];
+
+  const checkInOutNotes: PolicySection = {
+    title: "Check-in / Check-out",
+    items: [
+      h.checkin_24_hours ? "24-hour check-in available" : null,
+      h.has_check_in_end_time && h.check_in_end_time ? `Check-in ends at ${h.check_in_end_time}` : null,
+    ].filter((x): x is string => x != null),
+  };
+
+  const specialInstructions: PolicySection = {
+    title: "Special Check-in Instructions",
+    items: h.custom_policy ? [h.custom_policy] : [],
+  };
+
+  const accessMethods: PolicySection = {
+    title: "Access Methods",
+    items: [
+      isAmenityOn(propAmenities.Reception) ? "Staffed front desk" : null,
+      h.self_checkin_smart_door ? "Self check-in via smart lock" : null,
+      h.host_lives_at_property && h.host_greets_helps ? "Host greets guests on arrival" : null,
+      h.caretaker_stays && h.caretaker_greets_helps ? "Caretaker greets guests on arrival" : null,
+      h.building_staff_keys ? "Building staff hold a set of keys" : null,
+    ].filter((x): x is string => x != null),
+  };
+
+  const guestProfile: PolicySection = {
+    title: "Guest Profile",
+    items: [
+      factIf(h.allow_unmarried_couples, "Couples are welcome.", "Unmarried couples are not allowed."),
+      factIf(h.allow_guests_below_18, "Guests below 18 are allowed.", "Guests below 18 are not allowed without a guardian."),
+      factIf(h.allow_male_only_groups, "Male-only groups are allowed.", "Male-only groups are not allowed."),
+      factIf(h.allow_same_city_id, "Local guests with a same-city ID are accepted.", "Local guests with a same-city ID are not accepted."),
+    ].filter((x): x is string => x != null),
+  };
+
+  const pets: PolicySection = {
+    title: "Pets",
+    items: [
+      factIf(h.pets_allowed, "Pets are allowed.", "Pets are not allowed."),
+      h.pets_allowed && petTypes.length ? `Allowed pet types: ${petTypes.join(", ")}.` : null,
+      h.pets_allowed ? factIf(h.pet_extra_charges, "Additional charges apply for pets.", "No extra charge for pets.") : null,
+      h.pets_allowed ? factIf(h.pets_without_leash, "Pets may be off-leash on the property.", "Pets must be kept on a leash.") : null,
+      h.pets_allowed ? factIf(h.pet_food_available, "Pet food is available on request.", "Pet food is not provided.") : null,
+      h.pets_allowed && h.pet_count != null ? `Maximum ${h.pet_count} pet(s) allowed.` : null,
+      h.pets_allowed && money0(h.pet_charge_amount) ? `Pet charge: ${money0(h.pet_charge_amount)}.` : null,
+      h.pets_allowed && h.pets_restricted_areas ? `Restricted areas for pets: ${h.pets_restricted_areas}.` : null,
+    ].filter((x): x is string => x != null),
+  };
+
+  const extraBedAdultCharges = [
+    money0(h.extra_mattress_charge_adult) && `Mattress ${money0(h.extra_mattress_charge_adult)}/night`,
+    money0(h.extra_cot_charge_adult) && `Cot ${money0(h.extra_cot_charge_adult)}/night`,
+    money0(h.extra_sofa_charge_adult) && `Sofa bed ${money0(h.extra_sofa_charge_adult)}/night`,
+  ].filter((x): x is string => !!x);
+
+  const extraBedKidCharges = [
+    money0(h.extra_mattress_charge_child) && `Mattress ${money0(h.extra_mattress_charge_child)}/night`,
+    money0(h.extra_cot_charge_child) && `Cot ${money0(h.extra_cot_charge_child)}/night`,
+    money0(h.extra_sofa_charge_child) && `Sofa bed ${money0(h.extra_sofa_charge_child)}/night`,
+    money0(h.extra_crib_charge_child) && `Crib ${money0(h.extra_crib_charge_child)}/night`,
+  ].filter((x): x is string => !!x);
+
+  const childPolicyLines = h.childPolicies.map((cp) => {
+    const price = money0(cp.price);
+    const chargeLabel = CHARGE_TYPE_LABEL[cp.charge_type] ?? prettify(cp.charge_type);
+    const detail = cp.description || (price ? `${chargeLabel} (${price}/night)` : chargeLabel);
+    return `Children aged ${cp.age_from}–${cp.age_to}: ${detail}.`;
+  });
+
+  const childrenAndExtraBeds: PolicySection = {
+    title: "Children & Extra Beds",
+    items: [
+      factIf(h.infant_free_occupancy, "Infants stay free of charge.", "Infants are charged the standard occupancy rate."),
+      factIf(h.infant_complimentary_food, "Complimentary food is provided for infants.", "Food for infants is charged separately."),
+      factIf(h.extra_bed_included, "Extra bed charges are included in the room rate.", "Extra bed charges are not included in the room rate."),
+      h.provide_bed_extra_adults === true
+        ? `Extra bed for adults available${h.extra_bed_adults_types.length ? ` (${h.extra_bed_adults_types.join(", ")})` : ""}${extraBedAdultCharges.length ? ` — ${extraBedAdultCharges.join(", ")}` : ""}.`
+        : h.provide_bed_extra_adults === false ? "Extra bed for adults is not available." : null,
+      h.provide_bed_extra_kids === true
+        ? `Extra bed for children available${h.extra_bed_kids_types.length ? ` (${h.extra_bed_kids_types.join(", ")})` : ""}${extraBedKidCharges.length ? ` — ${extraBedKidCharges.join(", ")}` : ""}.`
+        : h.provide_bed_extra_kids === false ? "Extra bed for children is not available." : null,
+      ...childPolicyLines,
+    ].filter((x): x is string => x != null),
+  };
+
+  const optionalExtras: PolicySection = {
+    title: "Optional Extras",
+    items: [
+      money0(h.meal_price_breakfast) ? `Breakfast: ${money0(h.meal_price_breakfast)} per person` : null,
+      money0(h.meal_price_lunch) ? `Lunch: ${money0(h.meal_price_lunch)} per person` : null,
+      money0(h.meal_price_dinner) ? `Dinner: ${money0(h.meal_price_dinner)} per person` : null,
+    ].filter((x): x is string => x != null),
+  };
+
+  const youNeedToKnow: PolicySection = {
+    title: "You Need to Know",
+    items: [
+      factIf(h.smoking_allowed, "Smoking is allowed in designated areas.", "Smoking is not allowed on the property."),
+      h.smoking_allowed && h.smoking_areas ? `Designated smoking areas: ${h.smoking_areas}.` : null,
+      factIf(h.parties_events_allowed, "Parties/events are allowed.", "Parties/events are not allowed."),
+      factIf(h.wheelchair_accessible, "The property is wheelchair accessible.", "The property is not wheelchair accessible."),
+      factIf(h.allow_outside_visitors, "Outside visitors are allowed.", "Outside visitors are not allowed."),
+      factIf(h.entry_exit_restrictions, "Entry/exit restrictions apply.", "No entry/exit restrictions."),
+      h.noise_policy,
+    ].filter((x): x is string => x != null),
+  };
+
+  const weShouldMention: PolicySection = {
+    title: "We Should Mention",
+    items: [
+      `${cancellationLabel((h.cancellation_policy as CancellationPolicy | null) ?? "NON_REFUNDABLE")}.`,
+      Array.isArray(h.acceptable_id_proofs) && h.acceptable_id_proofs.length
+        ? `Accepted ID proofs: ${h.acceptable_id_proofs.join(", ")}.`
+        : null,
+    ].filter((x): x is string => x != null),
+  };
+
+  // Compact MMT-style highlight shown at the top of the Property Rules card
+  // (the full section-by-section detail is rendered below it, inline).
+  const couplesRule = h.allow_unmarried_couples != null
+    ? `${h.allow_unmarried_couples ? "Unmarried couples allowed" : "Unmarried couples not allowed"}${
+        h.allow_same_city_id != null ? `. Local ids ${h.allow_same_city_id ? "allowed" : "not allowed"}` : ""
+      }.`
+    : null;
+
+  const minAgeRule = h.allow_guests_below_18 === false ? "Primary guest should be at least 18 years of age." : null;
+
+  // Circular "trust badge" row at the top of Property Rules — same tri-state
+  // rule as everywhere else in this section: a field the owner never
+  // answered is omitted, never shown as a hard "no".
+  type PolicyBadge = { icon: string; label: string; active: boolean };
+  const policyBadges: PolicyBadge[] = [
+    h.allow_unmarried_couples != null
+      ? { icon: "heart", label: h.allow_unmarried_couples ? "Couple Friendly" : "Couples Restricted", active: h.allow_unmarried_couples }
+      : null,
+    h.pets_allowed != null
+      ? { icon: "paw", label: h.pets_allowed ? "Pet Friendly" : "No Pets", active: h.pets_allowed }
+      : null,
+    h.wheelchair_accessible != null
+      ? { icon: "wheelchair", label: "Wheelchair Accessible", active: h.wheelchair_accessible }
+      : null,
+    h.infant_free_occupancy != null
+      ? { icon: "baby", label: h.infant_free_occupancy ? "Infant Free" : "Infants Charged", active: h.infant_free_occupancy }
+      : null,
+  ].filter((b): b is PolicyBadge => b != null);
+
   return {
     id: h.id,
     slug: h.slug,
@@ -484,20 +763,14 @@ export async function getHotelForBooking(
     amenities: labels.slice(0, 8).map((l) => ({ icon: iconFor(l), label: l })),
     allAmenities: groupedAmenities(h.property_amenities),
     landmarks: landmarkGroups,
-    rules: {
+    policies: {
       checkIn: h.check_in_time ?? "12:00 PM",
       checkOut: h.check_out_time ?? "11:00 AM",
-      guestProfile: [
-        rule(h.allow_unmarried_couples, "Couples are welcome.", "Unmarried couples are not allowed."),
-        rule(h.allow_guests_below_18, "Guests below 18 are allowed.", "Guests below 18 are not allowed without a guardian."),
-      ],
-      mustRead: [
-        ...(Array.isArray(h.acceptable_id_proofs) && h.acceptable_id_proofs.length
-          ? [`Accepted ID proofs: ${(h.acceptable_id_proofs as string[]).join(", ")}.`]
-          : []),
-        rule(h.smoking_allowed, "Smoking is allowed in designated areas.", "Smoking within the premises is not allowed."),
-        rule(h.pets_allowed, "Pets are allowed.", "Pets are not allowed."),
-      ],
+      couplesRule,
+      minAgeRule,
+      badges: policyBadges,
+      sections: withFacts([checkInOutNotes, specialInstructions, accessMethods, guestProfile, pets, childrenAndExtraBeds]),
+      importantInfo: withFacts([optionalExtras, youNeedToKnow, weShouldMention]),
     },
     rooms,
     homestay,

@@ -7,8 +7,6 @@ import dynamic from "next/dynamic";
 import { cn } from "@/app/lib/utils";
 import { Card } from "@/app/components/ui/Card";
 import {
-  StarIcon,
-  MapPinIcon,
   HeartIcon,
   ShareIcon,
   CheckCircleIcon,
@@ -19,12 +17,13 @@ import {
   CalendarDaysIcon,
   ShieldCheckIcon,
   SparklesIcon,
-  ClockIcon,
   ArrowRightIcon,
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid, UserGroupIcon, } from "@heroicons/react/24/solid";
-import { PencilRulerIcon, BedIcon, EyeIcon, BathtubIcon, ImagesIcon } from "@phosphor-icons/react";
+import { PencilRulerIcon, BedIcon, EyeIcon, BathtubIcon, ImagesIcon, StarIcon,
+  MapPinIcon, PawPrintIcon, WheelchairIcon, BabyIcon,
+  HeartIcon as HeartIconPh, } from "@phosphor-icons/react";
 import type { BedroomLayout } from "./dummy";
 
 import type { Hotel, Room, RatePlan } from "./dummy";
@@ -37,11 +36,10 @@ import LocationSearchSelect, { type LocationValue } from "@/app/components/ui/Lo
 import type { LocationType } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { AMENITY_ICONS } from "./amenity-icons";
 import AmenitiesModal from "./AmenitiesModal";
+import RoomDetailsModal from "./RoomDetailsModal";
+import ReviewsSection from "./ReviewsSection";
+import LocationSurroundings from "./LocationSurroundings";
 
-const HotelLocationMap = dynamic(() => import("./HotelLocationMap"), {
-  ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-neutral-100" />,
-});
 
 const FullGallery = dynamic(() => import("@/app/components/gallery/FullGallery"));
 
@@ -69,6 +67,36 @@ function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" 
     >
       {score.toFixed(1)}
     </span>
+  );
+}
+
+// ── Property Rules trust badges ───────────────────────────────────────────────
+
+const POLICY_BADGE_ICON: Record<string, typeof HeartIconPh> = {
+  heart: HeartIconPh,
+  paw: PawPrintIcon,
+  wheelchair: WheelchairIcon,
+  baby: BabyIcon,
+};
+
+function PolicyBadge({ icon, label, active }: { icon: string; label: string; active: boolean }) {
+  const Icon = POLICY_BADGE_ICON[icon] ?? HeartIconPh;
+  return (
+    <div className="flex flex-col items-center gap-1.5 w-20 text-center shrink-0">
+      <div
+        className={cn(
+          "w-14 h-14 rounded-full flex items-center justify-center shadow-md ring-4",
+          active
+            ? "bg-linear-to-br from-primary-400 to-primary-600 text-white ring-primary-50"
+            : "bg-linear-to-br from-neutral-300 to-neutral-400 text-white ring-neutral-100"
+        )}
+      >
+        <Icon weight="fill" className="w-6 h-6" />
+      </div>
+      <span className={cn("text-[11px] font-semibold leading-tight", active ? "text-neutral-700" : "text-neutral-400")}>
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -219,6 +247,7 @@ function Gallery({ images, onOpen }: { images: string[]; onOpen: () => void }) {
     </>
   );
 }
+
 
 // ── In-page nav ───────────────────────────────────────────────────────────────
 
@@ -408,17 +437,12 @@ function RateRow({
           <p className="text-xl font-bold text-neutral-900 leading-tight">{money(plan.price)}</p>
           <p className="text-[11px] text-neutral-400">+ {money(plan.taxes)} taxes & fees / night</p>
         </div>
-        <button
+        <Button
           onClick={onSelect}
-          className={cn(
-            "shrink-0 rounded-lg text-xs font-bold px-4 py-2 transition-colors mt-1",
-            selected
-              ? "bg-primary-600 text-white hover:bg-primary-700"
-              : "bg-white text-primary-600 ring-1 ring-inset ring-primary-300 hover:bg-primary-50"
-          )}
+          variant={selected ? "primary" : "outline"}
         >
           {selected ? "SELECTED" : "SELECT ROOM"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -428,10 +452,12 @@ function RoomCard({
   room,
   selectedRate,
   onSelectRate,
+  onViewDetails,
 }: {
   room: Room;
   selectedRate: string | null;
   onSelectRate: (roomId: string, plan: RatePlan) => void;
+  onViewDetails: () => void;
 }) {
   return (
     <Card variant="elevated" radius="md" className="overflow-hidden p-px">
@@ -441,10 +467,10 @@ function RoomCard({
           <RoomImageCarousel images={room.images} name={room.name} />
           <h3 className="text-lg font-bold text-neutral-900 mt-3 leading-snug">{room.name}</h3>
           <span className="inline-flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-neutral-600/90">
-             {room.occupancy}
+            {room.occupancy}
           </span>
           {room.roomsLeft != null && room.roomsLeft <= 5 && (
-            <p className="mt-1 text-xs font-bold text-red-600">
+            <p className="mt-1 text-xs font-bold text-red-500">
               Only {room.roomsLeft} room{room.roomsLeft === 1 ? "" : "s"} left at this price!
             </p>
           )}
@@ -465,6 +491,13 @@ function RoomCard({
               )}
             </div>
           )}
+          <button
+            type="button"
+            onClick={onViewDetails}
+            className="mt-2.5 text-xs font-semibold text-primary-600 hover:underline"
+          >
+            More Details
+          </button>
         </div>
 
         {/* Rate plans */}
@@ -480,78 +513,6 @@ function RoomCard({
         </div>
       </div>
     </Card>
-  );
-}
-
-// ── Reviews ───────────────────────────────────────────────────────────────────
-
-function Reviews({ hotel }: { hotel: Hotel }) {
-  const r = hotel.reviews;
-
-  if (r.count === 0) {
-    return (
-      <section id="reviews" className="scroll-mt-32">
-        <h2 className="text-lg font-bold text-neutral-800 mb-4">Guest Ratings & Reviews</h2>
-        <Card variant="elevated" radius="md" className="p-6 text-center">
-          <p className="text-sm font-semibold text-neutral-700">No reviews yet</p>
-          <p className="text-xs text-neutral-500 mt-1">Be the first to share how your stay was.</p>
-        </Card>
-      </section>
-    );
-  }
-
-  return (
-    <section id="reviews" className="scroll-mt-32">
-      <h2 className="text-lg font-bold text-neutral-800 mb-4">Guest Ratings & Reviews</h2>
-      <div className="grid lg:grid-cols-[300px_1fr] gap-6">
-        {/* Summary */}
-        <Card variant="elevated" radius="md" className="p-5 h-fit">
-          <div className="flex items-center gap-3">
-            <ScoreBadge score={r.overall} />
-            <div>
-              <p className="text-sm font-bold text-neutral-800">{r.label}</p>
-              <p className="text-xs text-neutral-500">{r.count.toLocaleString("en-IN")} reviews</p>
-            </div>
-          </div>
-          <div className="mt-4 space-y-2">
-            {r.distribution.map((d) => (
-              <div key={d.stars} className="flex items-center gap-2">
-                <span className="text-xs text-neutral-600 w-12 shrink-0">{d.stars} star</span>
-                <div className="flex-1 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${d.pct}%` }} />
-                </div>
-                <span className="text-xs font-semibold text-neutral-700 w-8 text-right">{d.pct}%</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Review list */}
-        <div className="space-y-4">
-          {r.items.map((item) => (
-            <Card key={item.id} variant="elevated" radius="md" className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold shrink-0">
-                  {item.initials}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-neutral-800">{item.name}</p>
-                      <p className="text-[11px] text-neutral-400">{item.date}</p>
-                    </div>
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 rounded-lg px-1.5 py-0.5 shrink-0">
-                      {item.rating.toFixed(1)} <StarSolid className="w-3 h-3" />
-                    </span>
-                  </div>
-                  <p className="text-sm text-neutral-500 leading-relaxed mt-2">{item.text}</p>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -598,13 +559,15 @@ function BookingSummary({
           <UserGroupIcon className="w-4 h-4 text-primary-500" /> 1 Room, 2 Adults
         </div>
       </div>
-      <button
+      <Button
         onClick={onBook}
-        className="w-full mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold py-3 transition-colors"
+        variant='primary'
+        className={cn("mt-4 w-full disabled:opacity-60 disabled:*:cursor-not-allowed disabled:pointer-events-none")}
+        disabled={!selected}
       >
         {selected ? "Book Now" : "Select Room"}
         <ArrowRightIcon className="w-4 h-4" />
-      </button>
+      </Button>
       {current.refundable && (
         <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-700 mt-2.5">
           <ShieldCheckIcon className="w-3.5 h-3.5" /> Free cancellation available
@@ -620,12 +583,14 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
   const router = useRouter();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [active, setActive] = useState("overview");
-  const [landmarkTab, setLandmarkTab] = useState(0);
   const [selected, setSelected] = useState<{ roomId: string; plan: RatePlan } | null>(null);
   const [amenitiesOpen, setAmenitiesOpen] = useState(false);
+  const [detailsRoom, setDetailsRoom] = useState<Room | null>(null);
   const [saved, setSaved] = useState(initialSaved);
   const [savePending, setSavePending] = useState(false);
   const { openModal } = useModal();
+
+  const ruleGroups = [...hotel.policies.sections, ...hotel.policies.importantInfo];
 
   async function handleToggleSave() {
     if (savePending) return;
@@ -648,8 +613,6 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
     : { id: "", mealPlan: "", inclusions: [], cancellation: "", refundable: false, price: 0, originalPrice: 0, taxes: 0 };
   const current = selected?.plan ?? cheapest;
   const totalAmenityCount = hotel.allAmenities.reduce((n, g) => n + g.items.length, 0);
-  const hasCoords = hotel.latitude != null && hotel.longitude != null;
-  const hasLandmarks = hotel.landmarks.some((l) => l.items.length > 0);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -735,24 +698,39 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
           <SubNav active={active} onJump={jump} />
 
           {/* Overview */}
-          <section id="overview" className="scroll-mt-32 py-6 grid lg:grid-cols-[1fr_320px] gap-5">
+          <section id="overview" className="scroll-mt-32 py-6 grid lg:grid-cols-[1fr_380px] gap-5">
             <div>
-              <h2 className="text-lg font-bold text-neutral-800 mb-2">About this property</h2>
-              <p className="text-sm text-neutral-600 leading-relaxed">{hotel.about}</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-                {hotel.amenities.map((a) => {
-                  const Icon = AMENITY_ICONS[a.icon] ?? SparklesIcon;
-                  return (
-                    <div key={a.label} className="flex items-center gap-2 text-sm text-neutral-700 bg-white border border-neutral-200 rounded-xl px-3 py-2.5">
-                      <Icon className="w-5 h-5 text-neutral-400 shrink-0" />
-                      {a.label}
-                    </div>
-                  );
-                })}
+              <div>
+                <h2 className="text-lg font-bold text-neutral-800 mb-2">About this property</h2>
+                <p className="text-sm text-neutral-600 leading-relaxed mb-2">{hotel.about}</p>
+    
+                {hotel.homestay && (
+                  <PropertyLayoutSection homestay={hotel.homestay} fallbackImage={hotel.images[0]} />
+                )}
               </div>
-              {hotel.homestay && (
-                <PropertyLayoutSection homestay={hotel.homestay} fallbackImage={hotel.images[0]} />
-              )}
+              <div id="amenities" className="scroll-mt-32 py-6 border-t border-neutral-200">
+                <h2 className="text-lg font-bold text-neutral-800 mb-4">Amenities</h2>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                  {hotel.amenities.slice(0, 5).map((a) => {
+                    const Icon = AMENITY_ICONS[a.icon] ?? SparklesIcon;
+                    return (
+                      <span key={a.label} className="flex items-center gap-2 text-sm text-neutral-700">
+                        <Icon className="w-5 h-5 text-neutral-400 shrink-0" />
+                        {a.label}
+                      </span>
+                    );
+                  })}
+                  {totalAmenityCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setAmenitiesOpen(true)}
+                      className="text-sm font-semibold text-primary-500 hover:text-primary-600 hover:underline"
+                    >
+                      View All Amenities ({totalAmenityCount})
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="hidden lg:block">
               <BookingSummary hotel={hotel} selected={!!selected} current={current} onBook={() => jump("rooms")} />
@@ -763,29 +741,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
           {/* Amenities — compact preview only; the full list lives in the
               "View All" modal instead of being dumped inline, which used to
               leave a long, unbroken wall of checkmarks on every hotel page. */}
-          <section id="amenities" className="scroll-mt-32 py-6 border-t border-neutral-200">
-            <h2 className="text-lg font-bold text-neutral-800 mb-4">Amenities</h2>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              {hotel.amenities.slice(0, 5).map((a) => {
-                const Icon = AMENITY_ICONS[a.icon] ?? SparklesIcon;
-                return (
-                  <span key={a.label} className="flex items-center gap-2 text-sm text-neutral-700">
-                    <Icon className="w-5 h-5 text-neutral-400 shrink-0" />
-                    {a.label}
-                  </span>
-                );
-              })}
-              {totalAmenityCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setAmenitiesOpen(true)}
-                  className="text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline"
-                >
-                  View All Amenities ({totalAmenityCount})
-                </button>
-              )}
-            </div>
-          </section>
+
 
           <AmenitiesModal
             hotelName={hotel.name}
@@ -804,120 +760,84 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
                   room={room}
                   selectedRate={selected?.roomId === room.id ? selected.plan.id : null}
                   onSelectRate={selectRate}
+                  onViewDetails={() => setDetailsRoom(room)}
                 />
               ))}
             </div>
           </section>
 
+          <RoomDetailsModal
+            room={detailsRoom}
+            open={!!detailsRoom}
+            onClose={() => setDetailsRoom(null)}
+          />
+
           {/* Location */}
           <section id="location" className="scroll-mt-32 py-6 border-t border-neutral-200">
             <h2 className="text-lg font-bold text-neutral-800 mb-4">Location & Surroundings</h2>
-            <div className={cn("grid gap-4", hasLandmarks ? "sm:grid-cols-[1fr_260px]" : "sm:grid-cols-1")}>
-              <div className="relative isolate h-64 rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200">
-                {hasCoords ? (
-                  <HotelLocationMap
-                    latitude={hotel.latitude as number}
-                    longitude={hotel.longitude as number}
-                    name={hotel.name}
-                    address={hotel.address}
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="flex flex-col items-center gap-1 bg-white/90 rounded-xl px-4 py-3 shadow">
-                      <MapPinIcon className="w-6 h-6 text-primary-600" />
-                      <span className="text-xs font-semibold text-neutral-700">{hotel.area}, {hotel.city}</span>
-                    </span>
-                  </div>
-                )}
-                {hasCoords && (
-                  <a
-                    href={`https://www.google.com/maps?q=${hotel.latitude},${hotel.longitude}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute bottom-2 right-2 z-[400] flex items-center gap-1 text-xs font-semibold bg-white text-primary-600 rounded-lg px-2.5 py-1.5 shadow hover:bg-primary-50 transition-colors"
-                  >
-                    <MapPinIcon className="w-3.5 h-3.5" /> Get Directions
-                  </a>
-                )}
-              </div>
-              {hasLandmarks && (
-                <div>
-                  <div className="flex gap-1 mb-3 border-b border-neutral-200">
-                    {hotel.landmarks.filter((l) => l.items.length > 0).map((l, i) => (
-                      <button
-                        key={l.category}
-                        onClick={() => setLandmarkTab(i)}
-                        className={cn(
-                          "text-xs font-semibold px-2 py-2 border-b-2 -mb-px transition-colors",
-                          landmarkTab === i ? "border-primary-600 text-primary-600" : "border-transparent text-neutral-500"
-                        )}
-                      >
-                        {l.category}
-                      </button>
-                    ))}
-                  </div>
-                  <ul className="space-y-2.5">
-                    {hotel.landmarks.filter((l) => l.items.length > 0)[landmarkTab]?.items.map((it) => (
-                      <li key={it.name} className="flex items-center justify-between gap-2 text-sm">
-                        <span className="flex items-center gap-1.5 text-neutral-600">
-                          <MapPinIcon className="w-3.5 h-3.5 text-neutral-300" /> {it.name}
-                        </span>
-                        <span className="text-xs font-semibold text-neutral-500 shrink-0">{it.distance}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
+            <LocationSurroundings
+              name={hotel.name}
+              address={hotel.address}
+              city={hotel.city}
+              latitude={hotel.latitude}
+              longitude={hotel.longitude}
+              landmarks={hotel.landmarks}
+            />
           </section>
 
-          {/* Property rules */}
+          {/* Property Rules — MMT-style header, all rules shown inline (no popup) */}
           <section className="py-6 border-t border-neutral-200">
-            <h2 className="text-lg font-bold text-neutral-800 mb-4">Property Rules</h2>
-            <div className="flex flex-wrap gap-6 mb-4">
-              <div className="flex items-center gap-2">
-                <ClockIcon className="w-5 h-5 text-primary-500" />
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-neutral-400 font-semibold">Check-in</p>
-                  <p className="text-sm font-semibold text-neutral-800">{hotel.rules.checkIn}</p>
-                </div>
+            <Card variant="elevated" radius="md" className="p-5">
+              <h2 className="text-lg font-bold text-neutral-800">Property Rules</h2>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-neutral-600 mt-1 mb-4">
+                <span><span className="font-semibold text-neutral-800">Check-in:</span> {hotel.policies.checkIn}</span>
+                <span><span className="font-semibold text-neutral-800">Check-out:</span> {hotel.policies.checkOut}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <ClockIcon className="w-5 h-5 text-primary-500" />
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-neutral-400 font-semibold">Check-out</p>
-                  <p className="text-sm font-semibold text-neutral-800">{hotel.rules.checkOut}</p>
-                </div>
-              </div>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-5">
-              <div>
-                <p className="text-sm font-bold text-neutral-700 mb-2">Guest Profile</p>
-                <ul className="space-y-1.5">
-                  {hotel.rules.guestProfile.map((g) => (
-                    <li key={g} className="flex items-start gap-2 text-sm text-neutral-600">
-                      <CheckIcon className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" /> {g}
-                    </li>
+
+              {hotel.policies.badges && hotel.policies.badges.length > 0 && (
+                <div className="flex flex-wrap gap-x-4 gap-y-3 pt-4 border-t border-neutral-100">
+                  {hotel.policies.badges.map((b) => (
+                    <PolicyBadge key={b.label} icon={b.icon} label={b.label} active={b.active} />
                   ))}
-                </ul>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-neutral-700 mb-2">Must Read</p>
-                <ul className="space-y-1.5">
-                  {hotel.rules.mustRead.map((m) => (
-                    <li key={m} className="flex items-start gap-2 text-sm text-neutral-600">
-                      <span className="text-neutral-300 mt-0.5">•</span> {m}
-                    </li>
+                </div>
+              )}
+
+              {(hotel.policies.couplesRule || hotel.policies.minAgeRule) && (
+                <div className="pt-4 border-t border-neutral-100">
+                  {hotel.policies.couplesRule && (
+                    <p className="text-sm text-neutral-600 border border-neutral-200 rounded-xl px-3 py-2 max-w-md mb-3">{hotel.policies.couplesRule}</p>
+                  )}
+                  {hotel.policies.minAgeRule && (
+                    <p className="flex items-start gap-2 text-sm text-neutral-600">
+                      <span className="w-1.5 h-1.5 rounded-full border border-neutral-400 shrink-0 mt-1.5" /> {hotel.policies.minAgeRule}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {ruleGroups.length > 0 && (
+                <div className="grid sm:grid-cols-2 gap-x-8 gap-y-5 mt-5 pt-4 border-t border-neutral-100">
+                  {ruleGroups.map((g) => (
+                    <div key={g.title}>
+                      <p className="text-sm font-bold text-neutral-700 mb-2">{g.title}</p>
+                      <ul className="space-y-1.5">
+                        {g.items.map((item) => (
+                          <li key={item} className="flex items-start gap-2 text-sm text-neutral-600">
+                            <span className="w-1.5 h-1.5 rounded-full border border-neutral-400 shrink-0 mt-1.5" /> {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
-                </ul>
-              </div>
-            </div>
+                </div>
+              )}
+            </Card>
           </section>
         </div>
 
         {/* Reviews (full width) */}
         <div className="py-6 border-t border-neutral-200 mt-2">
-          <Reviews hotel={hotel} />
+          <ReviewsSection hotel={hotel} />
         </div>
 
         {/* Similar properties */}

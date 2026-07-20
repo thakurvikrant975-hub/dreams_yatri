@@ -146,6 +146,7 @@ export default async function PackagePage({
     const initialChildAges = spStr(sp.children)
         ? spStr(sp.children).split(",").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
         : undefined;
+    const initialRooms = Math.max(1, parseInt(spStr(sp.rooms) || "0", 10) || 0) || undefined;
     const initialTravelDate = spStr(sp.date) || undefined;
     const fromId = spStr(sp.from);
     const initialLeavingFrom = fromId
@@ -582,6 +583,7 @@ export default async function PackagePage({
                 recentEnquiryCount={pageData.recentEnquiryCount}
                 initialAdults={initialAdults}
                 initialChildAges={initialChildAges}
+                initialRooms={initialRooms}
                 initialTravelDate={initialTravelDate}
                 initialLeavingFrom={initialLeavingFrom}
                 cabTypes={pageData.cabTypes}

@@ -8,6 +8,9 @@ and is only summarized here. For the admin travel-packages feature (package CRUD
 builder, itinerary builder, stay tiers, pricing engine) — schema, admin UI, server actions,
 and pricing-calculation logic — see
 [`docs/packages/admin-package-itinerary-builder.md`](./packages/admin-package-itinerary-builder.md).
+For the hotel-owner self-service portal (signup/auth, listing wizard, rates & inventory,
+bookings, revenue, reviews, guest messaging, notifications) — see
+[`docs/hotel-connect/hotel-connect-dashboard.md`](./hotel-connect/hotel-connect-dashboard.md).
 For a full endpoint-by-endpoint and
 action-by-action reference (every `app/api/**/route.ts` handler and every
 `app/actions/**` Server Action/service function — auth requirements, request/response
@@ -18,7 +21,7 @@ shapes, side effects), see [`docs/API_REFERENCE.md`](./API_REFERENCE.md).
 ## 1. What this is
 
 Dreams Yatri is a travel-booking platform built as a single Next.js (App Router) app
-with two halves that share one codebase and one database:
+with three route-group "halves" that share one codebase and one database:
 
 - **Public website** (`app/(website)`) — destinations, hotels, activities, travel
   packages, blog, package quoting/checkout, and a customer profile/bookings area.
@@ -26,9 +29,13 @@ with two halves that share one codebase and one database:
   content (hotels, packages, activities, regions, blogs), sales/CRM (queries,
   follow-ups, package builder), cab operations, finance (transactions, refunds,
   settlements), and team/role administration.
+- **Hotel-Connect** (`app/(hotel-connect)`) — self-service portal for hotel/homestay
+  owners: signup, listing wizard, rates & inventory, bookings, revenue, reviews, guest
+  messaging, notifications. Fully documented in
+  [`docs/hotel-connect/hotel-connect-dashboard.md`](./hotel-connect/hotel-connect-dashboard.md).
 
-Both halves run from the same `next dev` / `next build` process; they're split by
-route groups and by **two independent NextAuth instances** (see §3).
+All three run from the same `next dev` / `next build` process; they're split by
+route groups and by **three independent NextAuth instances** (see §3).
 
 ---
 
@@ -56,7 +63,7 @@ route groups and by **two independent NextAuth instances** (see §3).
 
 ---
 
-## 3. Authentication — two independent systems
+## 3. Authentication — three independent systems
 
 ### 3.1 Public site auth (`app/lib/auth.ts`)
 - NextAuth instance exported as `{ handlers, auth, signIn, signOut }`.
@@ -76,8 +83,19 @@ route groups and by **two independent NextAuth instances** (see §3).
   site's session cookie. JWT session, 8-hour lifetime.
 - Sign-in/error page: `/dashboard/login`.
 
-### 3.3 Middleware (`middleware.ts`)
-For any `/dashboard/*` request:
+### 3.3 Hotel-Connect auth (`app/lib/auth-hotel-connect.ts`)
+- Third separate NextAuth instance: `{ hotelConnectAuth, hotelConnectSignIn,
+  hotelConnectSignOut, hotelConnectHandlers }`.
+- Single **Credentials** provider against `HotelOwner` (bcrypt), gated by owner
+  `status` (`ACTIVE` only).
+- **Custom session cookie** `dy.hotel-connect.session-token`, `path: /hotel-connect`.
+  JWT session, 24-hour lifetime.
+- Sign-in/error page: `/hotel-connect/login`. Full detail in
+  [`docs/hotel-connect/hotel-connect-dashboard.md`](./hotel-connect/hotel-connect-dashboard.md).
+
+### 3.4 Middleware (`middleware.ts`)
+Handles `/dashboard/*`, `/hotel-connect/*`, and public routes separately. For any
+`/dashboard/*` request:
 - Reads the `dy.dashboard.session-token` JWT.
 - Redirects logged-in staff away from `/dashboard/login` → `/dashboard`.
 - Redirects unauthenticated requests to `/dashboard/login`.
@@ -174,6 +192,15 @@ app/
 │       ├── package-bookings/ verify-cabs/ verify-hotels/ assign-driver/
 │       └── lib/rbac/        # permissions, field-registry, nav-items, nav-hrefs
 │
+├── (hotel-connect)/hotel-connect/    # Hotel-owner self-service portal
+│   ├── (auth)/login signup forgot-password reset-password verify-email
+│   └── (main)/                        # everything behind hotelConnectAuth
+│       ├── layout.tsx                  # auth gate, sidebar, header
+│       ├── properties/                 # list, new, [id]/edit (wizard), calendar, rates
+│       ├── bookings/ revenue/ reviews/ inbox/ account/
+│       └── components/                 # ConnectSidebar, ConnectHeader, NotificationBell, ...
+│       # full reference: docs/hotel-connect/hotel-connect-dashboard.md
+│
 ├── actions/               # Server Actions, grouped by domain
 │   ├── packages/           # CRUD + pricing + itinerary builder + gallery + search
 │   ├── payment/            # booking creation, finalize, cancel, change-date, reconcile, reminders
@@ -216,7 +243,10 @@ prisma/
 └── seed/                   # department / team-role / team-member / sales-query seeders
 
 docs/
-└── booking/               # in-depth booking & payment system docs (phases 1–9)
+├── booking/               # in-depth booking & payment system docs (phases 1–9)
+├── channel-management/    # channel-manager / real-time inventory sync docs
+├── packages/              # admin travel-packages / itinerary-builder docs
+└── hotel-connect/         # hotel-owner self-service portal docs
 
 scripts/                   # one-off + recurring scripts (reindex, reconcile, e2e, tests)
 ```
@@ -248,10 +278,21 @@ scripts/                   # one-off + recurring scripts (reindex, reconcile, e2
   `hotel_room_images`.
 - Pricing: `hotel_room_pricing`, `hotel_room_pricing_season`,
   `hotel_room_pricing_season_occupancy`, `hotel_room_occupancy_prices`.
+- Availability: `hotel_room_availability` (per-date ARI ledger).
 - Meals: `meal_types`, `diet_types`, `hotel_meal_pricing`,
   `hotel_meal_pricing_season`.
 - `hotel_child_policies` (`RoomSharingType`, `MealType`, `FoodPreference`,
   `MealPlan`).
+- `hotel_review` (guest reviews + owner `host_response`).
+- `conversation`, `conversation_message` (`ConversationSender`) — host↔guest messaging.
+
+### Hotel-Connect (hotel-owner portal)
+Fully documented in [`docs/hotel-connect/hotel-connect-dashboard.md`](./hotel-connect/hotel-connect-dashboard.md).
+- `HotelOwner` (`HotelOwnerStatus`) — owner account, 1:many with `hotels` (`owner_id`).
+- `HotelOwnerNotification`, `HotelOwnerFeedback` — in-app notifications and beta feedback.
+- `hotels.listing_status` (`HotelListingStatus`: DRAFT → SUBMITTED → UNDER_REVIEW →
+  APPROVED/REJECTED → LIVE), `property_category`/`property_sub_type`
+  (`PropertyCategory`/`PropertySubType`) drive the owner-side listing wizard.
 
 ### Activities
 - `activities`, `activity_categories`, `activity_images`.

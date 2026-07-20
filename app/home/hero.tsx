@@ -143,7 +143,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
     const [fromLoc, setFromLoc] = useState<LocationValue | null>(null)
     const [toLoc, setToLoc] = useState<LocationValue | null>(null)
     const [departDate, setDepartDate] = useState<Date | null>(null)
-    const [travellers, setTravellers] = useState<TravellersValue>({ adults: 2, childrenAges: [] })
+    const [travellers, setTravellers] = useState<TravellersValue>({ adults: 2, childrenAges: [], rooms: 1 })
 
     function handleSearch() {
         if (!toLoc) { toast.error('Please choose where you want to go.'); return }
@@ -161,6 +161,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
         }
         params.set('adults', String(travellers.adults))
         if (travellers.childrenAges.length) params.set('children', travellers.childrenAges.join(','))
+        params.set('rooms', String(travellers.rooms ?? 1))
         startTransition(() => { router.push(`/packages?${params.toString()}`) })
     }
 
@@ -168,7 +169,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
     const [hotelCity, setHotelCity] = useState<LocationValue | null>(null)
     const [checkIn, setCheckIn] = useState<Date | null>(null)
     const [checkOut, setCheckOut] = useState<Date | null>(null)
-    const [hotelGuests, setHotelGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [] })
+    const [hotelGuests, setHotelGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [], rooms: 1 })
 
     function ymd(d: Date): string {
         const y = d.getFullYear()
@@ -185,6 +186,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
         if (checkOut && (!checkIn || checkOut > checkIn)) params.set('out', ymd(checkOut))
         params.set('adults', String(hotelGuests.adults))
         if (hotelGuests.childrenAges.length) params.set('children', hotelGuests.childrenAges.join(','))
+        params.set('rooms', String(hotelGuests.rooms ?? 1))
         startTransition(() => { router.push(`/hotels?${params.toString()}`) })
     }
 
@@ -361,7 +363,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                 {/* Travellers */}
                                 <div className="flex flex-col gap-1.5">
                                     <label className={FIELD_LABEL_CLASS}>Travellers</label>
-                                    <TravellersField value={travellers} onChange={setTravellers} />
+                                    <TravellersField value={travellers} onChange={setTravellers} showRooms />
                                 </div>
 
                             </div>
@@ -429,7 +431,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                 {/* Guests */}
                                 <div className="flex flex-col gap-1.5">
                                     <label className={FIELD_LABEL_CLASS}>Guests</label>
-                                    <TravellersField value={hotelGuests} onChange={setHotelGuests} />
+                                    <TravellersField value={hotelGuests} onChange={setHotelGuests} showRooms />
                                 </div>
 
                             </div>

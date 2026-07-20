@@ -45,6 +45,7 @@ export default async function HotelsIndexPage({
   const childAges = pick(sp.children)
     ? pick(sp.children).split(",").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
     : [];
+  const rooms = Math.max(1, parseInt(pick(sp.rooms) || "1", 10) || 1);
 
   const hotels = await searchHotels({ city: city || undefined });
   const stayQs = new URLSearchParams({ ...(inISO ? { in: inISO } : {}), ...(outISO ? { out: outISO } : {}) }).toString();
@@ -57,7 +58,7 @@ export default async function HotelsIndexPage({
         initialCity={cityValue(city)}
         initialCheckIn={toDate(inISO)}
         initialCheckOut={toDate(outISO)}
-        initialGuests={{ adults, childrenAges: childAges }}
+        initialGuests={{ adults, childrenAges: childAges, rooms }}
       />
 
       <div className="screen-space py-8">

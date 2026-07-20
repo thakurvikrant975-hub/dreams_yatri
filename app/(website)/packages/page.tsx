@@ -79,6 +79,7 @@ export default async function PackagesIndexPage({
     const childAges = childrenRaw
         ? childrenRaw.split(",").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
         : [];
+    const rooms = Math.max(1, parseInt(pick(sp.rooms) || "1", 10) || 1);
 
     const travellers = travellersLabel(adults, childAges.length);
     const dateLabel = formatDate(date);
@@ -94,7 +95,7 @@ export default async function PackagesIndexPage({
                 initialFrom={toLocationValue(from, fromName, fromType)}
                 initialTo={toLocationValue(to, toName, toType)}
                 initialDate={initialDate}
-                initialTravellers={{ adults, childrenAges: childAges }}
+                initialTravellers={{ adults, childrenAges: childAges, rooms }}
             />
 
             <div className="screen-space py-8">

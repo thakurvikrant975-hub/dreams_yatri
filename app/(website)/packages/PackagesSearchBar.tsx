@@ -54,6 +54,7 @@ export default function PackagesSearchBar({
         }
         p.set('adults', String(travellers.adults))
         if (travellers.childrenAges.length) p.set('children', travellers.childrenAges.join(','))
+        p.set('rooms', String(travellers.rooms ?? 1))
         const qs = p.toString()
         startTransition(() => {
             router.push(qs ? `/packages?${qs}` : '/packages')
@@ -87,7 +88,7 @@ export default function PackagesSearchBar({
 
                         <div className="flex flex-col gap-1" role="group" aria-labelledby="label-travellers">
                             <Label id="label-travellers">Travellers</Label>
-                            <TravellersField value={travellers} onChange={setTravellers} />
+                            <TravellersField value={travellers} onChange={setTravellers} showRooms />
                         </div>
 
                         <div className="flex flex-col gap-1">

@@ -338,6 +338,7 @@ model hotel_review {
   rating           Int
   comment          String?
   guest_name       String
+  images           String[]  @default([])
   host_response    String?
   host_response_at DateTime?
   created_at       DateTime  @default(now())
@@ -365,6 +366,8 @@ model hotel_landmark {
   category   String
   name       String
   distance_m Int
+  lat        Decimal? @db.Decimal(10, 7)
+  lon        Decimal? @db.Decimal(10, 7)
   created_at DateTime @default(now())
   hotel      hotels   @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
 
@@ -927,35 +930,35 @@ model policies {
 }
 
 model HotelOwner {
-  id                   String           @id @default(cuid())
-  email                String           @unique
-  password             String
-  name                 String
-  phone                String?
-  whatsapp             String?
-  businessName         String?
-  status               HotelOwnerStatus @default(PENDING_VERIFICATION)
-  verifiedAt           DateTime?
-  verifiedById         String?
-  lastLoginAt          DateTime?
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  business_description String?
-  founded_year         Int?
-  gender               String?
-  languages            String[]         @default([])
-  logo_url             String?
-  phone_cc             String?          @default("+91")
-  property_count       Int              @default(1)
-  whatsapp_cc          String?          @default("+91")
-  email_verified              Boolean   @default(false)
-  email_verification_token    String?   @unique
-  email_verification_expires  DateTime?
-  password_reset_token        String?   @unique
-  password_reset_expires      DateTime?
-  hotels               hotels[]
-  feedback             HotelOwnerFeedback[]
-  notifications        HotelOwnerNotification[]
+  id                         String                   @id @default(cuid())
+  email                      String                   @unique
+  password                   String
+  name                       String
+  phone                      String?
+  whatsapp                   String?
+  businessName               String?
+  status                     HotelOwnerStatus         @default(PENDING_VERIFICATION)
+  verifiedAt                 DateTime?
+  verifiedById               String?
+  lastLoginAt                DateTime?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  business_description       String?
+  founded_year               Int?
+  gender                     String?
+  languages                  String[]                 @default([])
+  logo_url                   String?
+  phone_cc                   String?                  @default("+91")
+  property_count             Int                      @default(1)
+  whatsapp_cc                String?                  @default("+91")
+  email_verified             Boolean                  @default(false)
+  email_verification_token   String?                  @unique
+  email_verification_expires DateTime?
+  password_reset_token       String?                  @unique
+  password_reset_expires     DateTime?
+  hotels                     hotels[]
+  feedback                   HotelOwnerFeedback[]
+  notifications              HotelOwnerNotification[]
 
   @@index([email])
   @@map("hotel_owners")
@@ -1162,7 +1165,7 @@ model hotels {
   room_availability           hotel_room_availability[]
   reservations                hotel_reservation[]
   channel_connections         hotel_channel_connection[]
-  conversations                conversation[]
+  conversations               conversation[]
   reviews                     hotel_review[]
   wishlisted_by               hotel_wishlist[]
   landmarks                   hotel_landmark[]
@@ -2000,16 +2003,16 @@ model itinerary_activities {
 }
 
 model vehicles {
-  id                 Int                   @id @default(autoincrement())
+  id                 Int                    @id @default(autoincrement())
   name               String
   type               VehicleType
   passenger_capacity Int
-  luggage_bags       Int                   @default(0)
+  luggage_bags       Int                    @default(0)
   description        String?
-  is_active          Boolean               @default(true)
-  created_at         DateTime              @default(now())
-  updated_at         DateTime              @updatedAt
-  has_ac             Boolean               @default(false)
+  is_active          Boolean                @default(true)
+  created_at         DateTime               @default(now())
+  updated_at         DateTime               @updatedAt
+  has_ac             Boolean                @default(false)
   image_key          String?
   fuel_type          FuelType?
   created_by         String?
@@ -2415,53 +2418,55 @@ model package_queries {
 }
 
 model custom_packages {
-  id             String               @id @default(cuid())
-  queryId        String               @unique
-  title          String
-  description    String?
-  coverImage     String?
-  /** Vertical focal point for the cover image's object-position (0 = top,
+  id                 String                   @id @default(cuid())
+  queryId            String                   @unique
+  title              String
+  description        String?
+  coverImage         String?
+  /**
+   * Vertical focal point for the cover image's object-position (0 = top,
    * 50 = center, 100 = bottom) — lets the exec re-center an image that
-   * object-cover crops awkwardly, without re-uploading/re-cropping it. */
-  coverImagePosition Float @default(50)
-  destination    String
-  startingPoint  String?
-  totalDays      Int
-  totalNights    Int
-  travelDate     DateTime?
-  adults         Int                  @default(1)
-  children       Int                  @default(0)
-  infants        Int                  @default(0)
-  pricePerPerson Float?
-  totalPrice     Float?
-  currency       String               @default("INR")
-  marginPercentage Float              @default(25)
-  gstPercentage    Float              @default(5)
-  inclusions     String[]
-  exclusions     String[]
-  termsNotes     String?
-  status          CustomPackageStatus  @default(DRAFT)
-  builtBy         String
-  builtByName     String?
-  sentAt          DateTime?
-  pdfUrl          String?
-  viewedAt        DateTime?
-  viewCount       Int                  @default(0)
-  previousSnapshot Json?
-  flightsIncluded Boolean              @default(false)
-  flightNotes     String?
-  flightFrom      String?
-  flightTo        String?
-  trainIncluded   Boolean              @default(false)
-  trainNotes      String?
-  trainFrom       String?
-  trainTo         String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  itineraries     custom_itineraries[]
-  stops           custom_package_stops[]
-  tickets         custom_package_tickets[]
-  query           package_queries      @relation(fields: [queryId], references: [id])
+   * object-cover crops awkwardly, without re-uploading/re-cropping it.
+   */
+  coverImagePosition Float                    @default(50)
+  destination        String
+  startingPoint      String?
+  totalDays          Int
+  totalNights        Int
+  travelDate         DateTime?
+  adults             Int                      @default(1)
+  children           Int                      @default(0)
+  infants            Int                      @default(0)
+  pricePerPerson     Float?
+  totalPrice         Float?
+  currency           String                   @default("INR")
+  marginPercentage   Float                    @default(25)
+  gstPercentage      Float                    @default(5)
+  inclusions         String[]
+  exclusions         String[]
+  termsNotes         String?
+  status             CustomPackageStatus      @default(DRAFT)
+  builtBy            String
+  builtByName        String?
+  sentAt             DateTime?
+  pdfUrl             String?
+  viewedAt           DateTime?
+  viewCount          Int                      @default(0)
+  previousSnapshot   Json?
+  flightsIncluded    Boolean                  @default(false)
+  flightNotes        String?
+  flightFrom         String?
+  flightTo           String?
+  trainIncluded      Boolean                  @default(false)
+  trainNotes         String?
+  trainFrom          String?
+  trainTo            String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  itineraries        custom_itineraries[]
+  stops              custom_package_stops[]
+  tickets            custom_package_tickets[]
+  query              package_queries          @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
@@ -2476,8 +2481,10 @@ model custom_package_stops {
   customPackageId String
   name            String
   nights          Int             @default(1)
-  /** Manual override for the "Places You Gonna Visit" tile image — when
-   * set, takes priority over the auto-resolved destination catalog photo. */
+  /**
+   * Manual override for the "Places You Gonna Visit" tile image — when
+   * set, takes priority over the auto-resolved destination catalog photo.
+   */
   image           String?
   sortOrder       Int             @default(0)
   createdAt       DateTime        @default(now())
@@ -2523,37 +2530,37 @@ enum TicketType {
 }
 
 model custom_itineraries {
-  id              String                        @id @default(cuid())
-  customPackageId String
-  day             Int
-  title           String
-  description     String?
-  meals           String[]
-  accommodation   String?
-  accommodationPhoto String?
-  accommodationRoomPhotos String[] @default([])
-  accommodationLocation String?
-  accommodationRoomSpecs String?
+  id                        String                        @id @default(cuid())
+  customPackageId           String
+  day                       Int
+  title                     String
+  description               String?
+  meals                     String[]
+  accommodation             String?
+  accommodationPhoto        String?
+  accommodationRoomPhotos   String[]                      @default([])
+  accommodationLocation     String?
+  accommodationRoomSpecs    String?
   accommodationRoomCapacity Int?
-  roomPricingId   Int?
-  cabPricingId    Int?
-  hotelCheckIn    String?
-  hotelCheckOut   String?
-  hotelMealPlan   String?
-  transport       String?
-  transportPhoto  String?
-  transportVehicleType String?
-  transportSeats  Int?
-  transportPickup String?
-  transportPickupLat Float?
-  transportPickupLng Float?
-  transportDrop   String?
-  transportDistanceKm Float?
-  notes           String?
-  createdAt       DateTime                      @default(now())
-  updatedAt       DateTime                      @updatedAt
-  package         custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
-  activities      custom_itinerary_activities[]
+  roomPricingId             Int?
+  cabPricingId              Int?
+  hotelCheckIn              String?
+  hotelCheckOut             String?
+  hotelMealPlan             String?
+  transport                 String?
+  transportPhoto            String?
+  transportVehicleType      String?
+  transportSeats            Int?
+  transportPickup           String?
+  transportPickupLat        Float?
+  transportPickupLng        Float?
+  transportDrop             String?
+  transportDistanceKm       Float?
+  notes                     String?
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
+  package                   custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  activities                custom_itinerary_activities[]
 
   @@index([customPackageId])
   @@index([day])

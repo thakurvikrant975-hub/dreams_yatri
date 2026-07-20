@@ -31,6 +31,7 @@ export type Room = {
   view: string;
   occupancy: string;
   amenities: string[];
+  allAmenities?: { group: string; items: { label: string; icon: string }[] }[];
   ratePlans: RatePlan[];
   roomsLeft: number | null;
 };
@@ -42,6 +43,12 @@ export type ReviewItem = {
   date: string;
   rating: number;
   text: string;
+  images?: string[];
+  hostResponse?: string | null;
+  hostResponseAt?: string | null;
+  roomType?: string | null;
+  travelMonth?: string | null;
+  tags?: string[];
 };
 
 export type SimilarHotel = {
@@ -72,12 +79,15 @@ export type Hotel = {
   about: string;
   amenities: { icon: string; label: string }[];
   allAmenities: { group: string; items: { label: string; icon: string }[] }[];
-  landmarks: { category: string; items: { name: string; distance: string }[] }[];
-  rules: {
+  landmarks: { category: string; items: { name: string; distance: string; lat?: number | null; lon?: number | null }[] }[];
+  policies: {
     checkIn: string;
     checkOut: string;
-    guestProfile: string[];
-    mustRead: string[];
+    couplesRule: string | null;
+    minAgeRule: string | null;
+    badges?: { icon: string; label: string; active: boolean }[];
+    sections: { title: string; items: string[] }[];
+    importantInfo: { title: string; items: string[] }[];
   };
   rooms: Room[];
   // Present only for HOMESTAY_VILLA properties — MMT/Goibibo-style "Property
@@ -194,19 +204,34 @@ export const hotel: Hotel = {
       ],
     },
   ],
-  rules: {
+  policies: {
     checkIn: "12:00 PM",
     checkOut: "11:00 AM",
-    guestProfile: [
-      "Couples are welcome.",
-      "Guests below 18 years of age are not allowed without a guardian.",
-      "Local ids are allowed.",
+    couplesRule: "Unmarried couples allowed. Local ids allowed.",
+    minAgeRule: "Primary guest should be at least 18 years of age.",
+    sections: [
+      {
+        title: "Guest Profile",
+        items: [
+          "Couples are welcome.",
+          "Guests below 18 years of age are not allowed without a guardian.",
+          "Local guests with a same-city ID are accepted.",
+        ],
+      },
+      { title: "Pets", items: ["Pets are not allowed."] },
     ],
-    mustRead: [
-      "Passport, Aadhaar, Driving License and Govt. ID are accepted as ID proof(s).",
-      "Pets are not allowed.",
-      "Outside food is not allowed.",
-      "Smoking within the premises is not allowed.",
+    importantInfo: [
+      {
+        title: "We Should Mention",
+        items: [
+          "Free cancellation until 24 hours before check-in.",
+          "Accepted ID proofs: Passport, Aadhaar, Driving License, Govt. ID.",
+        ],
+      },
+      {
+        title: "You Need to Know",
+        items: ["Smoking is not allowed on the property."],
+      },
     ],
   },
   rooms: [
@@ -322,6 +347,13 @@ export const hotel: Hotel = {
         date: "12 Jan 2026",
         rating: 5,
         text: "Loved every bit of the stay. Rooms were spotless, the breakfast spread was generous, and the staff went out of their way to arrange an early check-in for us. The location is very convenient — walkable to the mall and a short ride to the ghats.",
+        images: [
+          IMG("photo-1618773928121-c32242e63f39", 600, 450),
+          IMG("photo-1595576508898-0ad5c879a061", 600, 450),
+        ],
+        hostResponse:
+          "Thank you so much for the kind words, Ananya! We're delighted the early check-in and breakfast spread made your stay special. Looking forward to hosting you again.",
+        hostResponseAt: "14 Jan 2026",
       },
       {
         id: "r2",
@@ -338,6 +370,14 @@ export const hotel: Hotel = {
         date: "28 Dec 2025",
         rating: 5,
         text: "Upgraded to the suite and it was fantastic — spacious living area, a bathtub, and the complimentary beers were a nice touch. Very couple-friendly, no hassles at check-in. Will definitely return.",
+        images: [
+          IMG("photo-1590490360182-c33d57733427", 600, 450),
+          IMG("photo-1560448204-e02f11c3d0e2", 600, 450),
+          IMG("photo-1582719478250-c89cae4dc85b", 600, 450),
+        ],
+        hostResponse:
+          "So glad you enjoyed the suite, Meera! We'll pass your compliments on to the housekeeping team. Can't wait to welcome you back on your next visit to Varanasi.",
+        hostResponseAt: "29 Dec 2025",
       },
       {
         id: "r4",
