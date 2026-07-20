@@ -1403,25 +1403,6 @@ export function ItineraryDocument({
             </div>
           </div>
 
-          {form.travelBenefits.length > 0 && (
-            <div className="rounded-2xl border border-primary-100 bg-primary-50/40 overflow-hidden" style={{ breakInside: "avoid" }}>
-              <div className="flex items-center gap-2 px-4 py-3 bg-primary-50/70 border-b border-primary-100">
-                <span className="flex items-center justify-center size-6 rounded-lg bg-primary-100 shrink-0">
-                  <Sparkles size={13} className="text-primary-600" />
-                </span>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-primary-700">Benefits of Travelling With Us</h3>
-              </div>
-              <ul className="p-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-neutral-600">
-                {form.travelBenefits.map((b) => (
-                  <li key={b} className="flex items-start gap-2">
-                    <CheckCircle size={12} className="text-primary-500 shrink-0 mt-0.5" />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
             <div className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50/70 border-b border-emerald-100">
@@ -1513,6 +1494,25 @@ export function ItineraryDocument({
                   </ul>
                 </div>
               )}
+            </div>
+          )}
+
+          {form.travelBenefits.length > 0 && (
+            <div className="rounded-2xl border border-teal-100 bg-white overflow-hidden" style={{ breakInside: "avoid" }}>
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-teal-50/70 border-b border-teal-100">
+                <span className="flex items-center justify-center size-6 rounded-lg bg-teal-100 shrink-0">
+                  <Sparkles size={12} className="text-teal-600" />
+                </span>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-teal-700">Why Book With Us</h3>
+              </div>
+              <ul className="p-3.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] text-neutral-600">
+                {form.travelBenefits.map((b) => (
+                  <li key={b} className="flex items-start gap-1.5">
+                    <span className="mt-1.5 size-1 rounded-full bg-teal-400 shrink-0" />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

@@ -3194,7 +3194,7 @@ export default function PackageBuilderDetailPage() {
 
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <Sparkles size={15} className="text-dashboard-primary" /> Benefits of Travelling With Us
+                    <Sparkles size={15} className="text-dashboard-primary" /> Why Book With Us
                   </h2>
                   <EditableList
                     label="Benefits"

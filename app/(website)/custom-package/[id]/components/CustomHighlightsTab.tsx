@@ -22,23 +22,6 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
         <Text size="sm" intent="secondary" className="leading-relaxed block">{form.description}</Text>
       )}
 
-      {form.travelBenefits.length > 0 && (
-        <div className="rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles size={15} className="text-primary-600" />
-            <Text size="sm" weight="bold" intent="primary" className="font-heading">Benefits of Travelling With Us</Text>
-          </div>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
-            {form.travelBenefits.map((item, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <CheckCircle size={14} className="text-primary-500 shrink-0 mt-0.5" />
-                <Text size="sm" intent="secondary">{item}</Text>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {(form.inclusions.length > 0 || form.exclusions.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {form.inclusions.length > 0 && (
@@ -120,6 +103,23 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
               </ul>
             </div>
           )}
+        </div>
+      )}
+
+      {form.travelBenefits.length > 0 && (
+        <div className="rounded-2xl border border-teal-100 bg-white p-3.5">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={13} className="text-teal-600" />
+            <Text size="xs" weight="bold" className="font-heading text-teal-700 uppercase tracking-wide">Why Book With Us</Text>
+          </div>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+            {form.travelBenefits.map((item, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className="mt-1.5 size-1 rounded-full bg-teal-400 shrink-0" />
+                <Text size="xs" intent="secondary">{item}</Text>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
