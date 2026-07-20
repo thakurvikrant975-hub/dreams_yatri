@@ -134,6 +134,21 @@ function refCode(queryId: string): string {
   return queryId.slice(-8).toUpperCase();
 }
 
+/** Day N's actual calendar date — Day 1 is the travel date itself, Day 2 is
+ * travel date + 1, etc. Same offset the pricing engine uses to pick
+ * season/weekend rates per day (package-pricing.service.ts), just surfaced
+ * here for display. Null when there's no travel date to anchor to yet. */
+function dayCalendarDate(travelDate: string, dayNumber: number): Date | null {
+  if (!travelDate) return null;
+  const base = new Date(travelDate);
+  if (Number.isNaN(base.getTime())) return null;
+  return new Date(base.getTime() + (dayNumber - 1) * 24 * 60 * 60 * 1000);
+}
+
+function formatShortDate(d: Date): string {
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" });
+}
+
 /** "manali" / "NEW DELHI" → "Manali" / "New Delhi" — route stop names are
  * free-typed by the exec, so casing isn't guaranteed. */
 export function titleCase(text: string): string {
@@ -457,7 +472,7 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
 
 /** Compact "Day | Hotel | Meals | Cab" grid so the pattern across the whole
  * trip is visible at a glance, ahead of the detailed per-day cards below. */
-export function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
+export function DaySummaryTable({ itineraries, travelDate }: { itineraries: DayItinerary[]; travelDate?: string }) {
   const shiftedMeals = computeShiftedMeals(itineraries);
   return (
     <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
@@ -471,14 +486,24 @@ export function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }
           </tr>
         </thead>
         <tbody>
-          {itineraries.map((d, i) => (
+          {itineraries.map((d, i) => {
+            const date = travelDate ? dayCalendarDate(travelDate, d.day) : null;
+            return (
             <tr key={d.day} className={`border-t border-neutral-100 ${i % 2 === 1 ? "bg-neutral-50/60" : ""}`}>
-              <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">Day {d.day}</td>
+              <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">
+                Day {d.day}
+                {date && (
+                  <span className="block font-normal text-neutral-400 text-[10px]">
+                    {formatShortDate(date)}
+                  </span>
+                )}
+              </td>
               <td className="px-3 py-2 text-neutral-600">{d.accommodation || "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{d.transport || d.transportVehicleType || "—"}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -695,11 +720,12 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
 }
 
 function DayCardPreview({
-  day, adults, childCount, onImageChange, onActivityCaptionChange,
+  day, adults, childCount, travelDate, onImageChange, onActivityCaptionChange,
 }: {
   day: DayItinerary;
   adults: number;
   childCount: number;
+  travelDate: string;
   onImageChange?: OnImageChange;
   onActivityCaptionChange?: (day: number, activityIndex: number, photoIndex: number, caption: string) => void;
 }) {
@@ -709,6 +735,11 @@ function DayCardPreview({
     .map((a, originalIndex) => ({ a, originalIndex }))
     .filter(({ a }) => a.title.trim());
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
+  // Check-in lands on this day's own date; check-out is the following
+  // morning — same "shifted" convention the meal algorithm uses, since a
+  // day's hotel is the one you sleep in that night and leave the next day.
+  const checkInDate = dayCalendarDate(travelDate, day.day);
+  const checkOutDate = dayCalendarDate(travelDate, day.day + 1);
   const mealText = mealIncludedText(day.hotelMealPlan);
   const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0 || !!onImageChange;
   const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
@@ -731,7 +762,9 @@ function DayCardPreview({
           {day.day}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-primary-500 leading-none mb-0.5">Day {day.day}</p>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-primary-500 leading-none mb-0.5">
+            Day {day.day}{checkInDate && ` · ${formatShortDate(checkInDate)}`}
+          </p>
           <p className="text-sm font-bold text-neutral-800 truncate leading-tight">
             {day.title || `Day ${day.day}`}
           </p>
@@ -769,18 +802,20 @@ function DayCardPreview({
                   {occupancyText(day.accommodationRoomCapacity, adults, childCount)}
                 </p>
 
-                {(day.hotelCheckIn || day.hotelCheckOut) && (
+                {(day.hotelCheckIn || day.hotelCheckOut || checkInDate) && (
                   <div className="flex items-center gap-2 pt-1">
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogIn size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-in</span>
                       <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn || "—"}</span>
+                      {checkInDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkInDate)}</span>}
                     </div>
                     <div className="flex-1 border-t border-dashed border-neutral-300 self-center" />
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogOut size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-out</span>
                       <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckOut || "—"}</span>
+                      {checkOutDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkOutDate)}</span>}
                     </div>
                   </div>
                 )}
@@ -1435,7 +1470,7 @@ export function ItineraryDocument({
 
           <div className="space-y-3">
             <SectionHeader icon={Calendar} label="Day-wise Summary" />
-            <DaySummaryTable itineraries={form.itineraries} />
+            <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} />
           </div>
 
           <div className="space-y-3">
@@ -1447,6 +1482,7 @@ export function ItineraryDocument({
                   day={d}
                   adults={form.adults}
                   childCount={form.children}
+                  travelDate={form.travelDate}
                   onImageChange={onImageChange}
                   onActivityCaptionChange={onActivityCaptionChange}
                 />
