@@ -2423,6 +2423,15 @@ model custom_packages {
   inclusions     String[]
   exclusions     String[]
   termsNotes     String?
+  /** Short, removable bullet points — seeded with company-wide defaults the
+   * exec can trim/extend per package, distinct from the free-text termsNotes
+   * above (kept as a separate general-notes field). */
+  termsConditions String[]
+  paymentPolicy   String[]
+  amendmentPolicy String[]
+  /** "Benefits of Travelling With Us" — marketing bullets shown on the
+   * client-facing document/page, same removable-default pattern as above. */
+  travelBenefits  String[]
   status          CustomPackageStatus  @default(DRAFT)
   builtBy         String
   builtByName     String?

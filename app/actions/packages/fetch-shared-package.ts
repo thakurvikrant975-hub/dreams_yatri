@@ -20,6 +20,7 @@ export async function getSharedPackage(packageId: string) {
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
       pricePerPerson: true, totalPrice: true, currency: true, paymentLink: true,
       inclusions: true, exclusions: true, termsNotes: true,
+      termsConditions: true, paymentPolicy: true, amendmentPolicy: true, travelBenefits: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
       tickets: {
         orderBy: { sortOrder: "asc" },
@@ -90,6 +91,10 @@ export async function getSharedPackage(packageId: string) {
     inclusions:      pkg.inclusions,
     exclusions:      pkg.exclusions,
     termsNotes:      pkg.termsNotes ?? "",
+    termsConditions: pkg.termsConditions,
+    paymentPolicy:   pkg.paymentPolicy,
+    amendmentPolicy: pkg.amendmentPolicy,
+    travelBenefits:  pkg.travelBenefits,
     stops:           pkg.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
     stopImages,
     tickets: pkg.tickets.map((t) => ({

@@ -132,6 +132,45 @@ const DEFAULT_EXCLUSIONS = [
   "Adventure activity charges",
 ];
 
+// Common, company-wide defaults an exec can trim/extend per package —
+// condensed from the published Terms & Conditions / Payment / Cancellation
+// policies into short, removable bullet points.
+const DEFAULT_TERMS_CONDITIONS = [
+  "Dreams Yatri acts as a facilitator between travellers and third-party suppliers (hotels, airlines, cabs).",
+  "All bookings are subject to availability and supplier confirmation.",
+  "Traveller details must be accurate — we aren't liable for losses due to incorrect information.",
+  "Package prices are subject to change until full payment is received.",
+  "Confirmed bookings are locked at the agreed price.",
+  "All disputes are subject to the jurisdiction of courts in Shimla, Himachal Pradesh.",
+];
+
+const DEFAULT_PAYMENT_POLICY = [
+  "30% advance required to confirm your booking.",
+  "50% additional payment due 30 days before departure.",
+  "Remaining balance must be cleared 7 days before departure.",
+  "Accepted: UPI, Net Banking, Credit/Debit Card, Bank Transfer.",
+  "All prices are inclusive of GST unless stated otherwise.",
+  "Payments are processed securely via authorized payment gateways only.",
+];
+
+const DEFAULT_AMENDMENT_POLICY = [
+  "Date changes are permitted a maximum of 2 times per booking.",
+  "New travel dates must be within 12 months of the original booking date.",
+  "Amendment charges apply based on how close to departure the change is requested.",
+  "Hotel & flight availability at the time of change is not guaranteed.",
+  "Any fare differences on amendment will be charged to the traveller.",
+  "Amendment requests must be submitted in writing via email or WhatsApp.",
+];
+
+const DEFAULT_TRAVEL_BENEFITS = [
+  "Hassle-free, end-to-end trip planning",
+  "No hotel or cab scams — all our partners are verified",
+  "Safe & secure travel with 24x7 support",
+  "Handpicked stays and vetted local partners",
+  "Transparent pricing, no hidden charges",
+  "Dedicated travel manager for your trip",
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Small UI helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1468,6 +1507,10 @@ interface PackageForm {
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
+  termsConditions: string[];
+  paymentPolicy: string[];
+  amendmentPolicy: string[];
+  travelBenefits: string[];
   paymentLink: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
@@ -1752,6 +1795,10 @@ export default function PackageBuilderDetailPage() {
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
     termsNotes: "Package price is subject to availability. 50% advance required to confirm booking.",
+    termsConditions: DEFAULT_TERMS_CONDITIONS,
+    paymentPolicy: DEFAULT_PAYMENT_POLICY,
+    amendmentPolicy: DEFAULT_AMENDMENT_POLICY,
+    travelBenefits: DEFAULT_TRAVEL_BENEFITS,
     paymentLink: "",
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
@@ -1820,6 +1867,17 @@ export default function PackageBuilderDetailPage() {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
+          // Previously never re-loaded on reopen — always silently reset to
+          // the DEFAULT_* seed instead of what was actually saved. Fixed
+          // here alongside adding the 4 new policy lists below, since it's
+          // the exact same select/hydrate gap.
+          inclusions: cp.inclusions.length > 0 ? cp.inclusions : f.inclusions,
+          exclusions: cp.exclusions.length > 0 ? cp.exclusions : f.exclusions,
+          termsNotes: cp.termsNotes ?? f.termsNotes,
+          termsConditions: cp.termsConditions.length > 0 ? cp.termsConditions : f.termsConditions,
+          paymentPolicy: cp.paymentPolicy.length > 0 ? cp.paymentPolicy : f.paymentPolicy,
+          amendmentPolicy: cp.amendmentPolicy.length > 0 ? cp.amendmentPolicy : f.amendmentPolicy,
+          travelBenefits: cp.travelBenefits.length > 0 ? cp.travelBenefits : f.travelBenefits,
           paymentLink: cp.paymentLink ?? "",
           stops: cp.stops,
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
@@ -3108,6 +3166,42 @@ export default function PackageBuilderDetailPage() {
                     items={form.exclusions}
                     onChange={(v) => setForm((f) => ({ ...f, exclusions: v }))}
                     placeholder="Add exclusion…"
+                  />
+                </div>
+
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <Info size={15} className="text-dashboard-primary" /> Policies
+                  </h2>
+                  <EditableList
+                    label="Terms & Conditions"
+                    items={form.termsConditions}
+                    onChange={(v) => setForm((f) => ({ ...f, termsConditions: v }))}
+                    placeholder="Add a term…"
+                  />
+                  <EditableList
+                    label="Payment Policy"
+                    items={form.paymentPolicy}
+                    onChange={(v) => setForm((f) => ({ ...f, paymentPolicy: v }))}
+                    placeholder="Add a payment rule…"
+                  />
+                  <EditableList
+                    label="Amendment Policy"
+                    items={form.amendmentPolicy}
+                    onChange={(v) => setForm((f) => ({ ...f, amendmentPolicy: v }))}
+                    placeholder="Add an amendment rule…"
+                  />
+                </div>
+
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <Sparkles size={15} className="text-dashboard-primary" /> Benefits of Travelling With Us
+                  </h2>
+                  <EditableList
+                    label="Benefits"
+                    items={form.travelBenefits}
+                    onChange={(v) => setForm((f) => ({ ...f, travelBenefits: v }))}
+                    placeholder="Add a benefit…"
                   />
                 </div>
 

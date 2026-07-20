@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle, Calendar, Milestone } from "lucide-react";
+import { CheckCircle, XCircle, Calendar, Milestone, Sparkles, IndianRupee, Info } from "lucide-react";
 import { Text } from "@/app/components/ui/Typography";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import { ItineraryMap } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryMap";
@@ -20,6 +20,23 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
     <div className="flex flex-col gap-8">
       {form.description && (
         <Text size="sm" intent="secondary" className="leading-relaxed block">{form.description}</Text>
+      )}
+
+      {form.travelBenefits.length > 0 && (
+        <div className="rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={15} className="text-primary-600" />
+            <Text size="sm" weight="bold" intent="primary" className="font-heading">Benefits of Travelling With Us</Text>
+          </div>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+            {form.travelBenefits.map((item, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <CheckCircle size={14} className="text-primary-500 shrink-0 mt-0.5" />
+                <Text size="sm" intent="secondary">{item}</Text>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {(form.inclusions.length > 0 || form.exclusions.length > 0) && (
@@ -44,6 +61,59 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
                 {form.exclusions.map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <XCircle size={14} className="text-error-500 shrink-0 mt-0.5" />
+                    <Text size="sm" intent="secondary">{item}</Text>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(form.termsConditions.length > 0 || form.paymentPolicy.length > 0 || form.amendmentPolicy.length > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {form.termsConditions.length > 0 && (
+            <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Info size={14} className="text-neutral-500" />
+                <Text size="sm" weight="bold" intent="primary" className="font-heading">Terms & Conditions</Text>
+              </div>
+              <ul className="space-y-1.5">
+                {form.termsConditions.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="mt-2 size-1 rounded-full bg-neutral-400 shrink-0" />
+                    <Text size="sm" intent="secondary">{item}</Text>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {form.paymentPolicy.length > 0 && (
+            <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <IndianRupee size={14} className="text-neutral-500" />
+                <Text size="sm" weight="bold" intent="primary" className="font-heading">Payment Policy</Text>
+              </div>
+              <ul className="space-y-1.5">
+                {form.paymentPolicy.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="mt-2 size-1 rounded-full bg-neutral-400 shrink-0" />
+                    <Text size="sm" intent="secondary">{item}</Text>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {form.amendmentPolicy.length > 0 && (
+            <div className="rounded-2xl border border-neutral-200 bg-white p-4 sm:col-span-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar size={14} className="text-neutral-500" />
+                <Text size="sm" weight="bold" intent="primary" className="font-heading">Amendment Policy</Text>
+              </div>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                {form.amendmentPolicy.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="mt-2 size-1 rounded-full bg-neutral-400 shrink-0" />
                     <Text size="sm" intent="secondary">{item}</Text>
                   </li>
                 ))}

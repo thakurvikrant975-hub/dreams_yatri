@@ -462,6 +462,13 @@ export interface QueryDetail extends QueryRow {
     totalPrice:      number | null;
     marginPercentage: number;
     gstPercentage:    number;
+    inclusions:      string[];
+    exclusions:      string[];
+    termsNotes:      string | null;
+    termsConditions: string[];
+    paymentPolicy:   string[];
+    amendmentPolicy: string[];
+    travelBenefits:  string[];
     paymentLink:     string | null;
     /** Frozen hotel/cab/ticket/margin/GST breakdown, written once when the
      * package is sent — see PricingSnapshot in sendPackageToClient. */
@@ -568,6 +575,10 @@ export interface PackageInput {
   inclusions:      string[];
   exclusions:      string[];
   termsNotes:      string;
+  termsConditions: string[];
+  paymentPolicy:   string[];
+  amendmentPolicy: string[];
+  travelBenefits:  string[];
   paymentLink:     string;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
@@ -994,6 +1005,13 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           totalPrice:      true,
           marginPercentage: true,
           gstPercentage:    true,
+          inclusions:      true,
+          exclusions:      true,
+          termsNotes:      true,
+          termsConditions: true,
+          paymentPolicy:   true,
+          amendmentPolicy: true,
+          travelBenefits:  true,
           paymentLink:     true,
           pricingSnapshot: true,
           stops: {
@@ -1086,7 +1104,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency, inclusions, exclusions,
-      termsNotes, paymentLink,
+      termsNotes, termsConditions, paymentPolicy, amendmentPolicy, travelBenefits, paymentLink,
       status, stops, itineraries, tickets,
     } = input;
 
@@ -1167,6 +1185,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         inclusions,
         exclusions,
         termsNotes:      termsNotes || null,
+        termsConditions,
+        paymentPolicy,
+        amendmentPolicy,
+        travelBenefits,
         paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
@@ -1201,6 +1223,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         inclusions,
         exclusions,
         termsNotes:      termsNotes || null,
+        termsConditions,
+        paymentPolicy,
+        amendmentPolicy,
+        travelBenefits,
         paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
