@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { db } from "@/app/lib/db";
 import { verifyCheckoutSignature } from "@/app/lib/razorpay";
 import { createBooking, createOrderForBooking, createBookingAndOrder } from "./create-booking.service";
+import { createBookingFromCustomPackage } from "./create-booking-from-custom-package.service";
 import { createBalanceOrderForBooking } from "./balance-payment.service";
 import { cancelBooking, previewCancellation } from "./cancel-booking.service";
 import { changeTravelDate, previewDateChange } from "./change-date.service";
@@ -27,6 +28,24 @@ export async function createBookingDraft(
         return await createBooking({ quoteId, userId: user.id, paymentChoice: opts?.paymentChoice, details: opts?.details });
     } catch (err) {
         console.error("[createBookingDraft] failed", err);
+        return { success: false, reason: "error", message: "Could not start your booking. Please try again." };
+    }
+}
+
+/**
+ * Same Step 1, for a custom (sales-exec-built) package instead of a catalog
+ * quote — see create-booking-from-custom-package.service.ts. No traveller
+ * details/payment-choice here: pax counts and contact info are already fixed
+ * on the sales query, and the payment plan is always policy-derived.
+ */
+export async function createCustomPackageBookingDraft(customPackageId: string): Promise<CreateBookingResult> {
+    const user = await getAuthenticatedUser();
+    if (!user?.id) return { success: false, reason: "unauthenticated" };
+
+    try {
+        return await createBookingFromCustomPackage({ customPackageId, userId: user.id });
+    } catch (err) {
+        console.error("[createCustomPackageBookingDraft] failed", err);
         return { success: false, reason: "error", message: "Could not start your booking. Please try again." };
     }
 }

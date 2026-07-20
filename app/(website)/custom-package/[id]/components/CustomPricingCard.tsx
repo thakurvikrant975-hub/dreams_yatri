@@ -1,17 +1,23 @@
-import { ArrowRight } from "lucide-react";
+"use client";
+
+import { ArrowRight, Loader2 } from "lucide-react";
 import Card from "@/app/components/ui/Card";
 import { Text } from "@/app/components/ui/Typography";
 import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
+import { useBookCustomPackage } from "./useBookCustomPackage";
 
 /** Mirrors the catalog page's PricingCard chrome (Card, spacing, typography)
- * but with locked, total-only content — no per-adult/GST breakdown, no
- * "Book this package" quote flow. Just the frozen total and Pay Now. */
-export function CustomPricingCard({ form }: { form: PreviewData }) {
+ * but with locked, total-only content — no per-adult/GST breakdown. "Book
+ * Now" creates a real Booking from the locked price (see
+ * useBookCustomPackage) and hands off to the same login/pay/webhook
+ * pipeline the catalog flow already uses, instead of a manual payment link. */
+export function CustomPricingCard({ form, packageId }: { form: PreviewData; packageId: string }) {
   const totalPax = form.adults + form.children;
   const priceStr = form.totalPrice ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}` : "To be confirmed";
   const perPersonStr = form.pricePerPerson
     ? `${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
     : null;
+  const { handleBookNow, submitting, error } = useBookCustomPackage(packageId);
 
   return (
     <Card className="px-6 py-5">
@@ -38,15 +44,20 @@ export function CustomPricingCard({ form }: { form: PreviewData }) {
         </Text>
       )}
 
-      {form.paymentLink && (
-        <a
-          href={form.paymentLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 w-full mt-4 bg-primary-500 hover:bg-primary-600 text-white font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
+      {form.totalPrice ? (
+        <button
+          type="button"
+          onClick={handleBookNow}
+          disabled={submitting}
+          className="flex items-center justify-center gap-1.5 w-full mt-4 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
         >
-          Pay Now <ArrowRight size={14} />
-        </a>
+          {submitting ? <Loader2 size={14} className="animate-spin" /> : <>Book Now <ArrowRight size={14} /></>}
+        </button>
+      ) : null}
+      {error && (
+        <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">
+          {error}
+        </Text>
       )}
     </Card>
   );
