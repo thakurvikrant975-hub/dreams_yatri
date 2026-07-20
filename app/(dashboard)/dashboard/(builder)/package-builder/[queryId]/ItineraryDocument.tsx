@@ -28,6 +28,33 @@ export type ImageEditTarget =
 
 type OnImageChange = (target: ImageEditTarget, url: string) => void;
 
+/** Plain `<img>` that swaps to the standard dashed-box placeholder if the URL
+ * 404s or otherwise fails to load — needed for AI-sourced photos (cover,
+ * activity, stop images from the AI Itinerary Builder), which aren't
+ * guaranteed to be real, working URLs the way manually-searched hotel/cab
+ * inventory photos are. Without this a broken AI-hallucinated URL renders as
+ * the browser's raw broken-image icon instead of degrading gracefully. */
+export function SafeImg({
+  src, alt, className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div className={cn("bg-neutral-50 border-2 border-dashed border-neutral-200 flex items-center justify-center", className)}>
+        <ImageIcon size={16} className="text-neutral-300" />
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog/AI-sourced URL, not a static app asset
+    <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
+  );
+}
+
 /** Small round edit affordance shown on hover (parent needs a `group` class)
  * — opens the same drag-drop / upload / paste-link controls as the cover
  * image's popup, scoped to whichever photo it's attached to. Position/size
@@ -249,8 +276,7 @@ function ActivityRow({
               <div key={i} className="group relative rounded-lg overflow-hidden">
                 {src ? (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                    <img src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
+                    <SafeImg src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
                     <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent px-1.5 py-1 pt-3">
                       <p className="text-[9px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
                     </div>
@@ -471,6 +497,42 @@ export function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Se
   return null;
 }
 
+function StopTile({
+  stop, img, onImageChange, stopIndex,
+}: {
+  stop: StopInput;
+  img: string | null;
+  onImageChange?: OnImageChange;
+  stopIndex: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  const showPhoto = img && !failed;
+  return (
+    <div className="group relative flex-1 min-w-0">
+      {showPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog/AI-sourced URL, not a static app asset
+        <img src={img} alt={stop.name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        <div className="w-full h-full bg-linear-to-br from-primary-500 to-primary-700 flex items-center justify-center">
+          <MapPin size={22} className="text-white/70" />
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/30 to-transparent px-2.5 py-2 pt-8">
+        <p className="text-white text-xs font-bold truncate leading-tight">{stop.name ? titleCase(stop.name) : "—"}</p>
+        <p className="text-white/75 text-[10px] font-medium">{stop.nights} Night{stop.nights !== 1 ? "s" : ""}</p>
+      </div>
+      {onImageChange && (
+        <ImageEditButton
+          value={img ?? ""}
+          onChange={(url) => onImageChange({ kind: "stop", stopIndex }, url)}
+          dialogTitle={`${stop.name ? titleCase(stop.name) : "Stop"} Photo`}
+          className="top-1.5 right-1.5 size-6"
+        />
+      )}
+    </div>
+  );
+}
+
 function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChange?: OnImageChange }) {
   if (form.stops.length === 0) return null;
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
@@ -495,30 +557,7 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
             || firstDayPhotoForStop(form.itineraries, dayNumbers)
             || packageFallback
             || null;
-          return (
-            <div key={i} className="group relative flex-1 min-w-0">
-              {img ? (
-                // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog URL, not a static app asset
-                <img src={img} alt={s.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-linear-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-                  <MapPin size={22} className="text-white/70" />
-                </div>
-              )}
-              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/30 to-transparent px-2.5 py-2 pt-8">
-                <p className="text-white text-xs font-bold truncate leading-tight">{s.name ? titleCase(s.name) : "—"}</p>
-                <p className="text-white/75 text-[10px] font-medium">{s.nights} Night{s.nights !== 1 ? "s" : ""}</p>
-              </div>
-              {onImageChange && (
-                <ImageEditButton
-                  value={img ?? ""}
-                  onChange={(url) => onImageChange({ kind: "stop", stopIndex: i }, url)}
-                  dialogTitle={`${s.name ? titleCase(s.name) : "Stop"} Photo`}
-                  className="top-1.5 right-1.5 size-6"
-                />
-              )}
-            </div>
-          );
+          return <StopTile key={i} stop={s} img={img} onImageChange={onImageChange} stopIndex={i} />;
         })}
       </div>
     </div>
@@ -913,7 +952,16 @@ function HeroCover({
   onCoverImageChange?: (url: string) => void;
   onCoverImagePositionChange?: (position: number) => void;
 }) {
-  const hasImage = !!form.coverImage;
+  const [coverFailed, setCoverFailed] = useState(false);
+  // Reset the failed flag when the cover image URL changes, without an
+  // effect — setting state during render (guarded by the changed check) is
+  // the React-recommended pattern for "adjust state in response to a prop change".
+  const [lastCoverSrc, setLastCoverSrc] = useState(form.coverImage);
+  if (form.coverImage !== lastCoverSrc) {
+    setLastCoverSrc(form.coverImage);
+    setCoverFailed(false);
+  }
+  const hasImage = !!form.coverImage && !coverFailed;
   const editable = !!onCoverImageChange;
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -971,6 +1019,7 @@ function HeroCover({
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: `center ${form.coverImagePosition ?? 50}%` }}
+          onError={() => setCoverFailed(true)}
         />
       ) : (
         <div className="absolute inset-0 bg-linear-to-br from-primary-700 via-primary-600 to-primary-900" />

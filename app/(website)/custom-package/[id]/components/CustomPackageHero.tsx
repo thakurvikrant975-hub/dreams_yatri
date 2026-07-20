@@ -1,14 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { ImagesIcon, CarIcon, BedIcon, ForkKnifeIcon, BinocularsIcon } from "@phosphor-icons/react";
 import { Heading, Text } from "@/app/components/ui/Typography";
 import ImageLightbox, { type LightboxImage } from "@/app/(website)/packages/[slug]/[duration]/[route]/[stay]/components/ImageLightbox";
+import { SafeImage } from "./SafeImage";
 import {
   deriveDayLocations, firstDayPhotoForStop,
   type PreviewData,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
+
+const IMAGE_FALLBACK = (
+  <div className="absolute inset-0 w-full h-full bg-linear-to-br from-primary-500 to-primary-700 flex items-center justify-center">
+    <ImagesIcon weight="duotone" className="size-8 text-white/40" />
+  </div>
+);
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=60";
 
@@ -116,7 +122,7 @@ export function CustomPackageHero({ form }: { form: PreviewData }) {
       {/* Mobile photo layout */}
       <div className="md:hidden mt-2 space-y-1.5">
         <div className="relative aspect-4/3 rounded-2xl overflow-hidden bg-neutral-100">
-          <Image src={heroPhoto} alt={form.title} fill sizes="100vw" className="object-cover" />
+          <SafeImage src={heroPhoto} alt={form.title} className="absolute inset-0 w-full h-full object-cover" fallback={IMAGE_FALLBACK} />
           <button
             type="button"
             onClick={() => setLightboxIdx(0)}
@@ -133,7 +139,7 @@ export function CustomPackageHero({ form }: { form: PreviewData }) {
               onClick={() => setLightboxIdx(i + 1)}
               className="relative aspect-square rounded-xl overflow-hidden bg-neutral-100"
             >
-              <Image src={src} alt="" fill sizes="50vw" className="object-cover" />
+              <SafeImage src={src} alt="" className="absolute inset-0 w-full h-full object-cover" fallback={IMAGE_FALLBACK} />
             </button>
           ))}
         </div>
@@ -146,7 +152,7 @@ export function CustomPackageHero({ form }: { form: PreviewData }) {
           onClick={() => setLightboxIdx(0)}
           className="relative col-span-2 row-span-2 group cursor-pointer overflow-hidden bg-neutral-100"
         >
-          <Image src={heroPhoto} alt={form.title} fill sizes="50vw" className="object-cover" />
+          <SafeImage src={heroPhoto} alt={form.title} className="absolute inset-0 w-full h-full object-cover" fallback={IMAGE_FALLBACK} />
           <span className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold group-hover:bg-black/75 transition-colors">
             <ImagesIcon weight="duotone" className="size-5" /> View Gallery
           </span>
@@ -158,7 +164,7 @@ export function CustomPackageHero({ form }: { form: PreviewData }) {
             onClick={() => setLightboxIdx(i + 1)}
             className="relative group cursor-pointer overflow-hidden bg-neutral-100"
           >
-            <Image src={src} alt="" fill sizes="25vw" className="object-cover" />
+            <SafeImage src={src} alt="" className="absolute inset-0 w-full h-full object-cover" fallback={IMAGE_FALLBACK} />
           </button>
         ))}
       </div>

@@ -9,6 +9,7 @@ import { Text } from "@/app/components/ui/Typography";
 import { Carousel } from "@/app/components/ui/Carousel";
 import ImageLightbox, { type LightboxImage } from "@/app/(website)/packages/[slug]/[duration]/[route]/[stay]/components/ImageLightbox";
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
+import { SafeImage } from "./SafeImage";
 import {
   computeShiftedMeals, mealIncludedText, occupancyText, formatTime12h,
   type PreviewData,
@@ -300,7 +301,12 @@ function ActivityBlock({ activity, index }: { activity: ActivityInput; index: nu
                     onClick={() => setLightboxIdx(idx)}
                     className="relative rounded-xl overflow-hidden w-full"
                   >
-                    <Image src={img.src} alt={img.label} width={400} height={240} className="w-full aspect-5/3 object-cover hover:scale-[1.03] transition-transform duration-300" />
+                    <SafeImage
+                      src={img.src}
+                      alt={img.label}
+                      className="w-full aspect-5/3 object-cover hover:scale-[1.03] transition-transform duration-300"
+                      fallback={<div className="w-full aspect-5/3 bg-neutral-100" />}
+                    />
                   </button>
                 )}
               />

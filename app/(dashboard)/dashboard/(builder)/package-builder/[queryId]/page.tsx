@@ -44,7 +44,7 @@ import {
   type TicketInput,
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
-import { ItineraryDocument, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { ItineraryDocument, SafeImg, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
@@ -465,12 +465,10 @@ function ActivityListEditor({ activities, location, onChange }: {
                 </button>
                 <div className="grid grid-cols-3 gap-1.5">
                   {a.photos.slice(0, 3).map((src, i) => (
-                    <Image
+                    <SafeImg
                       key={i}
                       src={src}
                       alt={a.photoLabels[i] || a.title || "Activity"}
-                      width={100}
-                      height={80}
                       className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
                     />
                   ))}
@@ -2360,37 +2358,47 @@ Spend the itinerary days in the order the destinations are listed, matching the 
 Return exactly this JSON shape:
 
 {
-  "description": "1-2 sentence overview of the whole trip",
-  "coverImage": "<a real, high-quality landscape photo URL from Unsplash (https://images.unsplash.com/photo-...) representing the overall trip>",
+  "description": "2-3 sentence overview of the whole trip",
+  "coverImage": "<a real, working, high-quality landscape photo URL representing the overall trip>",
   "stops": [
-    { "name": "<destination name, matching the list above>", "image": "<Unsplash landscape photo URL of this destination>" }
+    { "name": "<destination name, matching the list above>", "image": "<real landscape photo URL of this destination>" }
   ],
   "days": [
     {
       "day": 1,
       "title": "<day title, under 10 words>",
-      "description": "<day description, under 25 words>",
+      "description": "<day description, 35-55 words — see style example below>",
       "transportPickup": "<pickup point for this day's transfer>",
       "transportDrop": "<drop point for this day's transfer>",
       "transportDistanceKm": <approximate distance in km as a number>,
       "travelTimeApprox": "<approx travel time, e.g. \\"2h 30m\\">",
       "activities": [
         {
-          "title": "<activity title, under 10 words>",
-          "description": "<activity description, under 25 words>",
-          "photos": ["<Unsplash landscape URL 1>", "<Unsplash landscape URL 2>", "<Unsplash landscape URL 3>"]
+          "title": "<activity title, a short descriptive phrase — see style example below>",
+          "description": "<activity description, 25-40 words — see style example below>",
+          "photos": ["<real landscape photo URL 1>", "<real landscape photo URL 2>", "<real landscape photo URL 3>"]
         }
       ]
     }
   ]
 }
 
+Style examples (match this tone, level of detail, and length — not generic one-liners):
+
+Day description:
+"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
+
+Activity title + description:
+"Tea Garden Walk in Munnar" — "Take a refreshing walk through Munnar's sprawling tea plantations, surrounded by rolling green hills and fresh mountain air. Enjoy scenic views, learn about tea cultivation, and experience the tranquil beauty of Kerala's famous hill station."
+
+Note activity titles are a full descriptive phrase naming the place (e.g. "Tea Garden Walk in Munnar", "Fort Kochi Heritage Walk") — never a bare noun like "Tea Gardens" or "Fort Kochi" alone.
+
 Rules:
 - Exactly one "days" entry per day (${form.totalDays} total), numbered sequentially from 1.
 - 2-3 activities per day is enough — don't overload the day.
-- Every image URL must be a real, working Unsplash photo URL (https://images.unsplash.com/... or https://plus.unsplash.com/...), landscape orientation, high quality, and visually relevant to that destination/activity.
+- Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
 - Do not include hotel or cab pricing/selection — that's handled separately, manually.
-- Keep titles and descriptions concise and professional — no fluff, no emojis.`;
+- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.`;
   }
 
   function copyAIPrompt() {
