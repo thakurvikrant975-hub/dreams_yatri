@@ -835,6 +835,10 @@ function DayCard({
       accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
       meals: hotelMeals.length > 0 ? hotelMeals : data.meals,
+      // The hotel's own check-in/check-out policy — previously never fetched
+      // at all, so this always stayed blank unless typed in by hand.
+      hotelCheckIn: raw.checkInTime ?? data.hotelCheckIn,
+      hotelCheckOut: raw.checkOutTime ?? data.hotelCheckOut,
       // Links this night to the real hotel_room_pricing row so the package
       // price can be computed from its actual date/occupancy-aware rate.
       roomPricingId: raw.id,
@@ -2432,6 +2436,8 @@ export default function PackageBuilderDetailPage() {
               accommodationRoomCapacity: room.roomCapacity ?? it.accommodationRoomCapacity,
               hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
               meals: hotelMeals.length > 0 ? hotelMeals : it.meals,
+              hotelCheckIn: room.checkInTime ?? it.hotelCheckIn,
+              hotelCheckOut: room.checkOutTime ?? it.hotelCheckOut,
               roomPricingId: room.id,
             }
           : it,

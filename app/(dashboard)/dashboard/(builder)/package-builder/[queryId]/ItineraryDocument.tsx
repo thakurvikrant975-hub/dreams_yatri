@@ -173,11 +173,14 @@ function formatTicketDate(iso: string): string {
   return d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** "1 Room | 2 Adults, 1 Child" — computed against room capacity so it
- * always reflects the query's actual traveller count, not stale text. */
-export function occupancyText(capacity: number | null, adults: number, children: number): string {
+/** "1 Room | 2 Adults, 1 Child" — the room count auto-computes from capacity
+ * vs traveller count, UNLESS the exec explicitly overrode it (roomsOverride,
+ * from the day's "Rooms needed" field) — that override was already used for
+ * pricing but never actually shown here, so a package priced for e.g. 3
+ * rooms displayed as "1 Room" regardless. */
+export function occupancyText(capacity: number | null, adults: number, children: number, roomsOverride?: number | null): string {
   const totalPax = adults + children;
-  const rooms = capacity && capacity > 0 ? Math.max(1, Math.ceil(totalPax / capacity)) : 1;
+  const rooms = roomsOverride ?? (capacity && capacity > 0 ? Math.max(1, Math.ceil(totalPax / capacity)) : 1);
   return `${rooms} Room${rooms !== 1 ? "s" : ""} | ${adults} Adult${adults !== 1 ? "s" : ""}` +
     (children > 0 ? `, ${children} Child${children !== 1 ? "ren" : ""}` : "");
 }
@@ -821,7 +824,7 @@ function DayCardPreview({
 
                 <p className="text-[11px] text-neutral-500 flex items-center gap-1">
                   <Users size={10} className="text-neutral-400 shrink-0" />
-                  {occupancyText(day.accommodationRoomCapacity, adults, childCount)}
+                  {occupancyText(day.accommodationRoomCapacity, adults, childCount, day.roomsCount)}
                 </p>
 
                 {(day.hotelCheckIn || day.hotelCheckOut || checkInDate) && (
@@ -932,6 +935,7 @@ function DayCardPreview({
               <div className="flex-1 min-w-0 space-y-2">
                 {day.transport && (
                   <p className="text-sm font-semibold text-neutral-800">
+                    {day.cabQuantity && day.cabQuantity > 1 ? `${day.cabQuantity}× ` : ""}
                     {day.transport}
                     {day.transportVehicleType && <span className="font-normal text-neutral-500"> · {day.transportVehicleType}</span>}
                     {day.transportSeats && <span className="font-normal text-neutral-500"> · {day.transportSeats} Seats</span>}
