@@ -73,15 +73,15 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
       {(form.termsConditions.length > 0 || form.paymentPolicy.length > 0 || form.amendmentPolicy.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {form.termsConditions.length > 0 && (
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/30 p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Info size={14} className="text-neutral-500" />
-                <Text size="sm" weight="bold" intent="primary" className="font-heading">Terms & Conditions</Text>
+                <Info size={14} className="text-blue-600" />
+                <Text size="sm" weight="bold" className="font-heading text-blue-700">Terms & Conditions</Text>
               </div>
               <ul className="space-y-1.5">
                 {form.termsConditions.map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="mt-2 size-1 rounded-full bg-neutral-400 shrink-0" />
+                    <span className="mt-2 size-1 rounded-full bg-blue-400 shrink-0" />
                     <Text size="sm" intent="secondary">{item}</Text>
                   </li>
                 ))}
@@ -89,15 +89,15 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
             </div>
           )}
           {form.paymentPolicy.length > 0 && (
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/30 p-4">
               <div className="flex items-center gap-2 mb-2">
-                <IndianRupee size={14} className="text-neutral-500" />
-                <Text size="sm" weight="bold" intent="primary" className="font-heading">Payment Policy</Text>
+                <IndianRupee size={14} className="text-amber-600" />
+                <Text size="sm" weight="bold" className="font-heading text-amber-700">Payment Policy</Text>
               </div>
               <ul className="space-y-1.5">
                 {form.paymentPolicy.map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="mt-2 size-1 rounded-full bg-neutral-400 shrink-0" />
+                    <span className="mt-2 size-1 rounded-full bg-amber-400 shrink-0" />
                     <Text size="sm" intent="secondary">{item}</Text>
                   </li>
                 ))}
@@ -105,15 +105,15 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
             </div>
           )}
           {form.amendmentPolicy.length > 0 && (
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4 sm:col-span-2">
+            <div className="rounded-2xl border border-purple-100 bg-purple-50/30 p-4 sm:col-span-2">
               <div className="flex items-center gap-2 mb-2">
-                <Calendar size={14} className="text-neutral-500" />
-                <Text size="sm" weight="bold" intent="primary" className="font-heading">Amendment Policy</Text>
+                <Calendar size={14} className="text-purple-600" />
+                <Text size="sm" weight="bold" className="font-heading text-purple-700">Amendment Policy</Text>
               </div>
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
                 {form.amendmentPolicy.map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="mt-2 size-1 rounded-full bg-neutral-400 shrink-0" />
+                    <span className="mt-2 size-1 rounded-full bg-purple-400 shrink-0" />
                     <Text size="sm" intent="secondary">{item}</Text>
                   </li>
                 ))}
