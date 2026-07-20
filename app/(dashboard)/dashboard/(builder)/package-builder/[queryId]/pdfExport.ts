@@ -3,6 +3,19 @@ import { jsPDF } from "jspdf";
 
 export const A4_WIDTH_MM = 210;
 export const A4_HEIGHT_MM = 297;
+/** Top margin applied when placing a page's image (matches the 10mm
+ * left/right margin already baked into the document's own horizontal
+ * padding) — but ONLY when that page's own content already leaves at least
+ * this much slack below A4_HEIGHT_MM (see buildPdf). Pages are sliced using
+ * the FULL page height (no budget pre-shrunk for a margin): reserving less
+ * content budget up front just makes "push a whole card to the next page"
+ * gaps more frequent and bigger, without helping the page that's actually
+ * tightly packed at all. So instead: a page that already has slack (because
+ * something got pushed off it) gets a clean top margin, since it costs
+ * nothing there — a page with none skips it rather than clipping content
+ * that was already using the full page. First page always skips it too, so
+ * the cover photo can bleed to the true top edge. */
+export const PAGE_MARGIN_MM = 10;
 
 export type PdfPage = {
   dataUrl: string;
@@ -13,19 +26,27 @@ export type PdfPage = {
 };
 
 /** Elements the document already marks as "don't split across a page break"
- * (breakInside/breakAfter: avoid, used throughout ItineraryDocument for
- * cards, tables, section headers) — read back off computed style so this
- * stays in sync with that markup without needing a second source of truth. */
+ * (breakInside: avoid, used throughout ItineraryDocument for cards, table
+ * rows, activity/ticket blocks) — read back off computed style so this stays
+ * in sync with that markup without needing a second source of truth. Also
+ * covers breakAfter: avoid (SectionHeader's "keep with next" hint, which the
+ * real print/@page pipeline honors natively but this canvas-based one
+ * otherwise has no concept of at all) by padding a little past the element
+ * itself, so a heading can never end up as the last thing on a page with its
+ * content starting fresh on the next one. */
 function findUnsafeRanges(root: HTMLElement): { top: number; bottom: number }[] {
   const rootTop = root.getBoundingClientRect().top;
   const ranges: { top: number; bottom: number }[] = [];
   const all = root.querySelectorAll<HTMLElement>("*");
   for (const el of all) {
     const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    if (rect.height <= 0) continue;
     if (style.breakInside === "avoid" || style.breakInside === "avoid-page") {
-      const rect = el.getBoundingClientRect();
-      if (rect.height <= 0) continue;
       ranges.push({ top: rect.top - rootTop, bottom: rect.bottom - rootTop });
+    }
+    if (style.breakAfter === "avoid" || style.breakAfter === "avoid-page") {
+      ranges.push({ top: rect.top - rootTop, bottom: rect.bottom - rootTop + 40 });
     }
   }
   return ranges;
@@ -43,10 +64,13 @@ function computePageBreaks(totalHeightPx: number, pageHeightPx: number, unsafeRa
     let next = Math.min(cursor + pageHeightPx, totalHeightPx);
     const blocking = unsafeRanges.find((r) => r.top < next && next < r.bottom && r.top > cursor);
     if (blocking) {
-      // Only push back if that still leaves a non-trivial page — an
-      // oversized block taller than one full page can't be avoided, so let
-      // it get cut rather than looping forever on zero progress.
-      if (blocking.top - cursor > pageHeightPx * 0.15) {
+      // Always push the block to the next page instead — a page ending with
+      // some extra blank space reads far more professional than a photo or
+      // paragraph sliced in half. The only time it's left alone is a block
+      // genuinely taller than one whole page, which has no page-sized spot
+      // it could ever fit into no matter where it starts.
+      const blockHeight = blocking.bottom - blocking.top;
+      if (blockHeight <= pageHeightPx) {
         next = blocking.top;
       }
     }
@@ -315,6 +339,12 @@ async function captureMapsSeparately(root: HTMLElement, scale: number): Promise<
  */
 export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<PdfPage[]> {
   const rootWidthPx = root.offsetWidth;
+  // Slice using the FULL page height — shrinking this budget up front to
+  // "make room for a margin" only forces more (and bigger) whole-card
+  // pushes to the next page, which is worse than the thing it's trying to
+  // avoid. Margins are applied afterward, per page, only where they're free
+  // (see buildPdf) — never at the cost of pushing content that would
+  // otherwise have fit.
   const pageHeightPx = rootWidthPx * (A4_HEIGHT_MM / A4_WIDTH_MM);
 
   await waitForLeafletMaps(root);
@@ -402,7 +432,18 @@ export function buildPdf(pages: PdfPage[]): jsPDF {
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   pages.forEach((page, i) => {
     if (i > 0) pdf.addPage();
-    pdf.addImage(page.dataUrl, "JPEG", 0, 0, A4_WIDTH_MM, page.heightMm);
+    // First page always bleeds to the true top edge — a margin there would
+    // just be a blank band above the cover photo.
+    //
+    // Every other page gets as much of the top margin as it can actually
+    // afford: the full 10mm when there's slack to spare (this page ended
+    // early because a card got pushed whole to the next one, so the margin
+    // is free), scaled down to whatever's left when there's only a little,
+    // and 0 only for the rare page that fills the full height exactly —
+    // never enough clipped off to cut into real content.
+    const slackMm = A4_HEIGHT_MM - page.heightMm;
+    const y = i === 0 ? 0 : Math.max(0, Math.min(PAGE_MARGIN_MM, slackMm));
+    pdf.addImage(page.dataUrl, "JPEG", 0, y, A4_WIDTH_MM, page.heightMm);
   });
   return pdf;
 }

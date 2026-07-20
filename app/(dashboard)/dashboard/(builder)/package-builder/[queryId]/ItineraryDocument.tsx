@@ -470,10 +470,20 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
   });
 }
 
-/** Compact "Day | Hotel | Meals | Cab" grid so the pattern across the whole
- * trip is visible at a glance, ahead of the detailed per-day cards below. */
-export function DaySummaryTable({ itineraries, travelDate }: { itineraries: DayItinerary[]; travelDate?: string }) {
+/** Compact "Day | Destination | Hotel | Meals | Cab" grid so the pattern
+ * across the whole trip is visible at a glance, ahead of the detailed
+ * per-day cards below. */
+export function DaySummaryTable({
+  itineraries, travelDate, stops = [],
+}: {
+  itineraries: DayItinerary[];
+  travelDate?: string;
+  /** Route stops — used to derive which city each day is in when the day's
+   * own hotel doesn't have a location on file yet. */
+  stops?: StopInput[];
+}) {
   const shiftedMeals = computeShiftedMeals(itineraries);
+  const dayLocations = deriveDayLocations(stops, itineraries.length);
   return (
     // No breakInside:avoid on this outer wrapper: for a long itinerary, the
     // WHOLE table would then be one indivisible unit taller than a single
@@ -486,6 +496,7 @@ export function DaySummaryTable({ itineraries, travelDate }: { itineraries: DayI
         <thead>
           <tr className="bg-primary-50/70 text-primary-700/80 uppercase tracking-wide text-[9px]" style={{ breakInside: "avoid" }}>
             <th className="text-left px-3 py-2.5 font-bold">Day</th>
+            <th className="text-left px-3 py-2.5 font-bold">Destination</th>
             <th className="text-left px-3 py-2.5 font-bold">Hotel</th>
             <th className="text-left px-3 py-2.5 font-bold">Meals</th>
             <th className="text-left px-3 py-2.5 font-bold">Cab</th>
@@ -494,6 +505,10 @@ export function DaySummaryTable({ itineraries, travelDate }: { itineraries: DayI
         <tbody>
           {itineraries.map((d, i) => {
             const date = travelDate ? dayCalendarDate(travelDate, d.day) : null;
+            // The hotel's own location (real once a room is picked) wins —
+            // it's literally where the client is staying that night; the
+            // route stop is just a fallback for a day with no hotel yet.
+            const destination = d.accommodationLocation || dayLocations[i] || "—";
             return (
             <tr key={d.day} className={`border-t border-neutral-100 ${i % 2 === 1 ? "bg-neutral-50/60" : ""}`} style={{ breakInside: "avoid" }}>
               <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">
@@ -504,6 +519,7 @@ export function DaySummaryTable({ itineraries, travelDate }: { itineraries: DayI
                   </span>
                 )}
               </td>
+              <td className="px-3 py-2 text-neutral-600">{destination ? titleCase(destination) : "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{d.accommodation || "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{d.transport || d.transportVehicleType || "—"}</td>
@@ -992,7 +1008,7 @@ function DayCardPreview({
 
         {/* Meals */}
         {day.meals.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" style={{ breakInside: "avoid" }}>
             <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Meals</p>
             <MealsRow meals={day.meals} />
           </div>
@@ -1001,21 +1017,37 @@ function DayCardPreview({
         {/* Activities */}
         {activities.length > 0 && (
           <div className="space-y-2.5 pt-2.5 border-t border-neutral-100">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Experiences</p>
-            {activities.map(({ a, originalIndex }) => (
-              <ActivityRow
-                key={originalIndex}
-                activity={a}
-                dayNumber={day.day}
-                activityIndex={originalIndex}
-                onImageChange={onImageChange}
-                onCaptionChange={
-                  onActivityCaptionChange
-                    ? (activityIndex, photoIndex, caption) => onActivityCaptionChange(day.day, activityIndex, photoIndex, caption)
-                    : undefined
-                }
-              />
-            ))}
+            {activities.map(({ a, originalIndex }, idx) => {
+              const row = (
+                <ActivityRow
+                  key={originalIndex}
+                  activity={a}
+                  dayNumber={day.day}
+                  activityIndex={originalIndex}
+                  onImageChange={onImageChange}
+                  onCaptionChange={
+                    onActivityCaptionChange
+                      ? (activityIndex, photoIndex, caption) => onActivityCaptionChange(day.day, activityIndex, photoIndex, caption)
+                      : undefined
+                  }
+                />
+              );
+              // The "Experiences" label was previously its own unprotected
+              // paragraph — nothing stopped it from landing alone at the
+              // bottom of a page with every activity starting fresh on the
+              // next one. Pairing it with just the FIRST activity (not the
+              // whole list) keeps the heading attached to real content
+              // without forcing every activity onto one page together.
+              if (idx === 0) {
+                return (
+                  <div key={originalIndex} className="space-y-2.5" style={{ breakInside: "avoid" }}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Experiences</p>
+                    {row}
+                  </div>
+                );
+              }
+              return row;
+            })}
           </div>
         )}
 
@@ -1499,7 +1531,7 @@ export function ItineraryDocument({
 
           <div className="space-y-3">
             <SectionHeader icon={Calendar} label="Day-wise Summary" />
-            <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} />
+            <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} stops={form.stops} />
           </div>
 
           <div className="space-y-3">
@@ -1531,15 +1563,15 @@ export function ItineraryDocument({
           />
 
           <div className="rounded-2xl overflow-hidden" style={{ breakInside: "avoid", boxShadow: "0 12px 28px -10px rgba(0,0,0,0.35)" }}>
-            <div className="bg-linear-to-br from-neutral-900 via-neutral-950 to-neutral-950 p-5">
-              <div className="flex items-center gap-2.5 mb-4">
-                <span className="flex items-center justify-center size-7 rounded-xl bg-primary-500/20 text-primary-400 shrink-0">
+            <div className="bg-linear-to-br from-neutral-900 via-neutral-950 to-neutral-950 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="flex items-center justify-center size-6 rounded-xl bg-primary-500/20 text-primary-400 shrink-0">
                   <IndianRupee size={14} />
                 </span>
-                <h2 className="text-[13px] font-extrabold text-white uppercase tracking-wide">Price Summary</h2>
+                <h2 className="text-[11px] font-extrabold text-white uppercase tracking-wide">Price Summary</h2>
               </div>
 
-              <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="flex flex-wrap items-end justify-between gap-1">
                 <div className="space-y-1">
                   <p className="text-sm text-white/90 font-medium">{paxLine}</p>
                   {perPersonStr && <p className="text-xs text-white/60">{perPersonStr}</p>}
@@ -1548,8 +1580,8 @@ export function ItineraryDocument({
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold mb-0.5">Total Package Price</p>
-                  <p className="text-[28px] font-extrabold text-white leading-none">{priceStr}</p>
+                  <p className="text-[9px] text-white/60 uppercase tracking-widest font-bold mb-0.5">Total Package Price</p>
+                  <p className="text-[17px] font-extrabold text-white leading-none">{priceStr}</p>
                 </div>
               </div>
 
@@ -1605,7 +1637,7 @@ export function ItineraryDocument({
           </div>
 
           {(form.termsConditions.length > 0 || form.paymentPolicy.length > 0 || form.amendmentPolicy.length > 0) && (
-            <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
+            <div className="gap-4 flex flex-col" style={{ breakInside: "avoid" }}>
               {form.termsConditions.length > 0 && (
                 <div className="rounded-2xl border border-blue-100 bg-white overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-3 bg-blue-50/70 border-b border-blue-100">
@@ -1650,7 +1682,7 @@ export function ItineraryDocument({
                     </span>
                     <h3 className="text-xs font-bold uppercase tracking-wide text-purple-700">Amendment Policy</h3>
                   </div>
-                  <ul className="p-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-neutral-600">
+                  <ul className="p-4 grid gap-x-4 gap-y-2 text-xs text-neutral-600">
                     {form.amendmentPolicy.map((t) => (
                       <li key={t} className="flex items-start gap-2">
                         <span className="mt-1.5 size-1 rounded-full bg-purple-400 shrink-0" />
@@ -1671,7 +1703,7 @@ export function ItineraryDocument({
                 </span>
                 <h3 className="text-xs font-bold uppercase tracking-wide text-teal-700">Why Book With Us</h3>
               </div>
-              <ul className="p-3.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] text-neutral-600">
+              <ul className="p-3.5 grid gap-x-4 gap-y-1.5 text-[11px] text-neutral-600">
                 {form.travelBenefits.map((b) => (
                   <li key={b} className="flex items-start gap-1.5">
                     <span className="mt-1.5 size-1 rounded-full bg-teal-400 shrink-0" />

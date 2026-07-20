@@ -104,7 +104,7 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
             {generating && !pages ? (
               <div className="flex flex-col items-center justify-center gap-2 py-24 text-dashboard-base-content/50">
                 <Loader2 size={20} className="animate-spin" />
-                <span className="text-xs">Rendering pages…</span>
+                <span className="text-xs">Designing pdf...</span>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-6 py-4">
