@@ -1403,6 +1403,14 @@ function DayCard({
                 className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
+            <div className="mt-2">
+              <Input
+                value={data.transportTravelTime}
+                onChange={(e) => onChange({ ...data, transportTravelTime: e.target.value })}
+                placeholder="Estimated travel time, e.g. 3h 15m"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+            </div>
           </div>
 
           {/* Meals */}
@@ -1564,6 +1572,19 @@ function formatDuration(ms: number): string {
   return `${mins}m`;
 }
 
+/** Detects the "[label](https://...)" markdown-link/citation pattern
+ * sometimes left behind when copying a JSON response out of ChatGPT's chat
+ * bubble (as opposed to its code block's own copy button) — a link wrapped
+ * around plain text inside a JSON string is still syntactically valid JSON,
+ * so JSON.parse succeeds but every wrapped field ends up garbled. Recurses
+ * through the whole parsed value looking for the tell-tale "](http" bytes. */
+function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
+  if (typeof value === "string") return /\]\(https?:\/\//.test(value);
+  if (Array.isArray(value)) return value.some(looksLikeMarkdownLinkCorruption);
+  if (value && typeof value === "object") return Object.values(value).some(looksLikeMarkdownLinkCorruption);
+  return false;
+}
+
 const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
   meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
@@ -1572,7 +1593,7 @@ const emptyDay = (day: number): DayItinerary => ({
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,
-  transportDrop: "", transportDistanceKm: null,
+  transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
   cabPricingId: null,
   notes: "",
 });
@@ -2194,6 +2215,24 @@ export default function PackageBuilderDetailPage() {
     }));
   }
 
+  /** Companion to handleItineraryImageChange for the caption shown under an
+   * activity photo (`photoLabels[i]`), edited from the same dialog. */
+  function handleActivityCaptionChange(day: number, activityIndex: number, photoIndex: number, caption: string) {
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((d) => {
+        if (d.day !== day) return d;
+        const activities = d.activities.map((a, i) => {
+          if (i !== activityIndex) return a;
+          const photoLabels = [...a.photoLabels];
+          photoLabels[photoIndex] = caption;
+          return { ...a, photoLabels };
+        });
+        return { ...d, activities };
+      }),
+    }));
+  }
+
   function addTicket(type: "FLIGHT" | "TRAIN") {
     setForm((f) => ({
       ...f,
@@ -2345,7 +2384,9 @@ export default function PackageBuilderDetailPage() {
 
     return `AI Itinerary Builder Prompt
 
-Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with ONLY raw JSON — no markdown code fences, no explanation, no text before or after the JSON.
+Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
+
+Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). If you look anything up (e.g. to find real image URLs), still write the result as a plain string value, not a hyperlink/citation. A markdown link anywhere inside the JSON will break the import.
 
 Package: "${form.title || "Untitled Package"}" — ${form.totalDays} Day${form.totalDays !== 1 ? "s" : ""} / ${form.totalNights} Night${form.totalNights !== 1 ? "s" : ""}
 Destinations (in order, with nights at each): ${destinationsLine}
@@ -2398,7 +2439,8 @@ Rules:
 - 2-3 activities per day is enough — don't overload the day.
 - Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
 - Do not include hotel or cab pricing/selection — that's handled separately, manually.
-- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.`;
+- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.
+- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
   }
 
   function copyAIPrompt() {
@@ -2434,6 +2476,13 @@ Rules:
     }
     if (!parsed || typeof parsed !== "object") {
       toast.error("Unexpected response shape — please try again.");
+      return;
+    }
+    if (looksLikeMarkdownLinkCorruption(parsed)) {
+      toast.error(
+        "This response looks corrupted — it has markdown links mixed into the text (a common artifact of copying from ChatGPT's chat bubble instead of its code block). Ask it to resend as a single ```json code block with no citations, then paste that instead.",
+        { duration: 9000 },
+      );
       return;
     }
 
@@ -2482,7 +2531,7 @@ Rules:
             if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
             if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
             if (src.transportDistanceKm != null && updated.transportDistanceKm == null) updated.transportDistanceKm = src.transportDistanceKm;
-            if (src.travelTimeApprox && !updated.notes.trim()) updated.notes = `Estimated travel time: ${src.travelTimeApprox}`;
+            if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
             if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
               updated.activities = src.activities
                 .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
@@ -2680,6 +2729,7 @@ Rules:
               onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={handleItineraryImageChange}
+              onActivityCaptionChange={handleActivityCaptionChange}
               variant="flat"
             />
           </div>
@@ -2700,6 +2750,7 @@ Rules:
                 onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={handleItineraryImageChange}
+              onActivityCaptionChange={handleActivityCaptionChange}
               variant="flat"
               />
             </div>

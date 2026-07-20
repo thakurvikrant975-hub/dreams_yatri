@@ -540,6 +540,9 @@ export interface DayItinerary {
   transportPickupLng: number | null;
   transportDrop:      string;
   transportDistanceKm: number | null;
+  /** Free-text estimate like "3h 15m" — typed by the exec or filled in by
+   * the AI Itinerary Builder. */
+  transportTravelTime: string;
   /** The exact `cab_pricing` row picked for this day — lets the package price
    * be computed from real, season/date-aware cab rates instead of typed in by
    * hand. Null when the vehicle was picked from the unscoped fleet catalog
@@ -745,6 +748,9 @@ export async function copyPackageIntoDraft(
       transportPickupLng: null,
       transportDrop:      transfer?.drop_name ?? "",
       transportDistanceKm: transfer?.distance_km ?? null,
+      // The catalog itinerary_transfers model has no travel-time field to
+      // copy from — left blank, same as the other transfer fields noted above.
+      transportTravelTime: "",
       // fetchPackagePageData doesn't expose the transfer's raw cab_pricing id
       // either — left null on copy, same as transportPickupLat/Lng; the exec
       // can re-pick the cab via search to back-fill it for auto-pricing.
@@ -894,7 +900,7 @@ function normalizeItinerary(it: {
   transportSeats: number | null; transportPickup: string | null;
   transportPickupLat: number | null; transportPickupLng: number | null;
   transportDrop: string | null;
-  transportDistanceKm: number | null; notes: string | null;
+  transportDistanceKm: number | null; transportTravelTime: string | null; notes: string | null;
   cabPricingId: number | null;
   cabQuantity: number | null;
   extraCabs: Prisma.JsonValue;
@@ -928,6 +934,7 @@ function normalizeItinerary(it: {
     transportPickupLng:        it.transportPickupLng ?? null,
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
+    transportTravelTime:       it.transportTravelTime ?? "",
     cabPricingId:              it.cabPricingId ?? null,
     cabQuantity:               it.cabQuantity ?? null,
     extraCabs:                 parseCabSelections(it.extraCabs),
@@ -1057,6 +1064,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               transportPickupLng: true,
               transportDrop:      true,
               transportDistanceKm: true,
+              transportTravelTime: true,
               cabPricingId:       true,
               cabQuantity:        true,
               extraCabs:          true,
@@ -1301,6 +1309,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               transportPickupLng: it.transportPickupLng ?? null,
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,
+              transportTravelTime: it.transportTravelTime || null,
               cabPricingId:       it.cabPricingId ?? null,
               cabQuantity:        it.cabQuantity ?? null,
               // Same "drop unfinished rows" filter as extraRooms above.

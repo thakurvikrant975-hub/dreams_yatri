@@ -2566,6 +2566,9 @@ model custom_itineraries {
   transportPickupLng Float?
   transportDrop   String?
   transportDistanceKm Float?
+  /** Free-text estimate like "3h 15m" — typed by the exec or filled in by the
+   * AI Itinerary Builder, shown in the Transport/Cab section of the day. */
+  transportTravelTime String?
   notes           String?
   createdAt       DateTime                      @default(now())
   updatedAt       DateTime                      @updatedAt

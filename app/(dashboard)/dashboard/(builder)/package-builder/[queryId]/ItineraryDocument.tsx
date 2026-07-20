@@ -15,6 +15,7 @@ import { cn } from "@/app/lib/utils";
 import { ItineraryMap } from "./ItineraryMap";
 import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
+import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 
 /** Identifies exactly which image a click on an edit button refers to, so
  * one onImageChange callback (threaded down from page.tsx) can cover every
@@ -42,6 +43,15 @@ export function SafeImg({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
+  // Reset the failed flag when src changes (e.g. the user replaces a broken
+  // AI-provided photo via the edit dialog) — without this, a tile that once
+  // 404'd stays stuck on the placeholder forever, even after a working URL
+  // is saved in its place.
+  const [lastSrc, setLastSrc] = useState(src);
+  if (src !== lastSrc) {
+    setLastSrc(src);
+    setFailed(false);
+  }
   if (!src || failed) {
     return (
       <div className={cn("bg-neutral-50 border-2 border-dashed border-neutral-200 flex items-center justify-center", className)}>
@@ -61,12 +71,16 @@ export function SafeImg({
  * via `className` (e.g. "top-1 right-1 size-6") since it's reused at very
  * different thumbnail sizes across the document. */
 function ImageEditButton({
-  value, onChange, dialogTitle, className,
+  value, onChange, dialogTitle, className, captionValue, onCaptionChange,
 }: {
   value: string;
   onChange: (url: string) => void;
   dialogTitle: string;
   className?: string;
+  /** When both are given, the dialog also offers a caption field — used for
+   * activity photos, where `photoLabels[i]` is shown as the caption overlay. */
+  captionValue?: string;
+  onCaptionChange?: (caption: string) => void;
 }) {
   return (
     <Dialog>
@@ -90,6 +104,17 @@ function ImageEditButton({
           </DialogDescription>
         </DialogHeader>
         <ImageDropField value={value} onChange={onChange} />
+        {onCaptionChange && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-neutral-600">Caption</label>
+            <Input
+              value={captionValue ?? ""}
+              onChange={(e) => onCaptionChange(e.target.value)}
+              placeholder="e.g. Tea Garden Walk in Munnar"
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -241,12 +266,13 @@ function SectionHeader({
 }
 
 function ActivityRow({
-  activity, dayNumber, activityIndex, onImageChange,
+  activity, dayNumber, activityIndex, onImageChange, onCaptionChange,
 }: {
   activity: ActivityInput;
   dayNumber?: number;
   activityIndex?: number;
   onImageChange?: OnImageChange;
+  onCaptionChange?: (activityIndex: number, photoIndex: number, caption: string) => void;
 }) {
   if (!activity.title.trim()) return null;
   const gallery = activity.photos.length > 0 ? activity.photos : (activity.photo ? [activity.photo] : []);
@@ -292,6 +318,8 @@ function ActivityRow({
                     onChange={(url) => onImageChange!({ kind: "activityPhoto", day: dayNumber!, activityIndex: activityIndex!, photoIndex: i }, url)}
                     dialogTitle="Activity Photo"
                     className="top-1 right-1 size-6"
+                    captionValue={activity.photoLabels[i] ?? ""}
+                    onCaptionChange={onCaptionChange ? (caption) => onCaptionChange(activityIndex!, i, caption) : undefined}
                   />
                 )}
               </div>
@@ -506,6 +534,14 @@ function StopTile({
   stopIndex: number;
 }) {
   const [failed, setFailed] = useState(false);
+  // Same reset-on-change need as SafeImg: once a broken (e.g. AI-hallucinated)
+  // URL fails once, `failed` must not stay stuck true after the user edits
+  // this tile's photo to a new, working one.
+  const [lastImg, setLastImg] = useState(img);
+  if (img !== lastImg) {
+    setLastImg(img);
+    setFailed(false);
+  }
   const showPhoto = img && !failed;
   return (
     <div className="group relative flex-1 min-w-0">
@@ -659,12 +695,13 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
 }
 
 function DayCardPreview({
-  day, adults, childCount, onImageChange,
+  day, adults, childCount, onImageChange, onActivityCaptionChange,
 }: {
   day: DayItinerary;
   adults: number;
   childCount: number;
   onImageChange?: OnImageChange;
+  onActivityCaptionChange?: (day: number, activityIndex: number, photoIndex: number, caption: string) => void;
 }) {
   // Keeps each activity's original index (for onImageChange targeting) even
   // though blank ones are filtered out of what's actually rendered.
@@ -823,10 +860,11 @@ function DayCardPreview({
                 <Car size={11} className="text-neutral-600" />
               </span>
               <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">Transport</p>
-              {(day.transportDistanceKm || (day.transportPickup && day.transportDrop)) && (
+              {(day.transportDistanceKm || day.transportTravelTime || (day.transportPickup && day.transportDrop)) && (
                 <span className="text-[10px] text-neutral-400 truncate">
                   · {[
                     day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
+                    day.transportTravelTime || null,
                     day.transportPickup && day.transportDrop ? `${day.transportPickup} → ${day.transportDrop}` : null,
                   ].filter(Boolean).join(" · ")}
                 </span>
@@ -854,8 +892,13 @@ function DayCardPreview({
                       <p className="text-neutral-500">
                         Pickup Point: <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
                       </p>
-                      {day.transportDistanceKm && (
-                        <p className="text-[11px] text-neutral-400 py-1">{day.transportDistanceKm} km</p>
+                      {(day.transportDistanceKm || day.transportTravelTime) && (
+                        <p className="text-[11px] text-neutral-400 py-1">
+                          {[
+                            day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
+                            day.transportTravelTime || null,
+                          ].filter(Boolean).join(" · ")}
+                        </p>
                       )}
                       <p className="text-neutral-500">
                         Drop Point: <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
@@ -925,6 +968,11 @@ function DayCardPreview({
                 dayNumber={day.day}
                 activityIndex={originalIndex}
                 onImageChange={onImageChange}
+                onCaptionChange={
+                  onActivityCaptionChange
+                    ? (activityIndex, photoIndex, caption) => onActivityCaptionChange(day.day, activityIndex, photoIndex, caption)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -1229,7 +1277,7 @@ const PRINT_STYLES = `
 `;
 
 export function ItineraryDocument({
-  form, onCoverImageChange, onCoverImagePositionChange, onImageChange, variant = "card",
+  form, onCoverImageChange, onCoverImagePositionChange, onImageChange, onActivityCaptionChange, variant = "card",
 }: {
   form: PreviewData;
   /** Present only in the internal builder's live preview — enables dropping
@@ -1241,6 +1289,9 @@ export function ItineraryDocument({
    * every other photo in the document (stops, hotel, room, transport,
    * activities) — see ImageEditTarget for what each edit refers to. */
   onImageChange?: OnImageChange;
+  /** Same gating again — edits an activity photo's caption (`photoLabels[i]`)
+   * alongside the image itself, from the same edit dialog. */
+  onActivityCaptionChange?: (day: number, activityIndex: number, photoIndex: number, caption: string) => void;
   /** "card" (default) keeps the rounded corners + drop shadow used to present
    * the document on the public share page's colored background. "flat" drops
    * both so the on-screen preview reads as a plain A4 page — matching exactly
@@ -1397,6 +1448,7 @@ export function ItineraryDocument({
                   adults={form.adults}
                   childCount={form.children}
                   onImageChange={onImageChange}
+                  onActivityCaptionChange={onActivityCaptionChange}
                 />
               ))}
             </div>

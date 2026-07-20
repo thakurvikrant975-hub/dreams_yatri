@@ -41,7 +41,7 @@ export async function getSharedPackage(packageId: string) {
           roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           transport: true, transportPhoto: true, transportVehicleType: true, transportSeats: true,
-          transportPickup: true, transportDrop: true, transportDistanceKm: true, notes: true,
+          transportPickup: true, transportDrop: true, transportDistanceKm: true, transportTravelTime: true, notes: true,
           cabQuantity: true, extraCabs: true,
           activities: {
             orderBy: { sortOrder: "asc" },
@@ -148,6 +148,7 @@ export async function getSharedPackage(packageId: string) {
       transportPickupLng:        null,
       transportDrop:             it.transportDrop ?? "",
       transportDistanceKm:       it.transportDistanceKm ?? null,
+      transportTravelTime:       it.transportTravelTime ?? "",
       cabPricingId:              null,
       cabQuantity:               it.cabQuantity ?? null,
       extraCabs:                 parseCabSelections(it.extraCabs),
