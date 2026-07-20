@@ -2,7 +2,8 @@
 
 'use client'
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import Link                    from "next/link";
 import { Section }             from "./Section";
 import Tabs                    from "@/app/components/ui/Tabs";
 import Button                  from "@/app/components/ui/Button";
@@ -21,8 +22,6 @@ import {
 } from "@phosphor-icons/react";
 import type { Icon }           from "@phosphor-icons/react";
 import { EmptyState }          from "./EmptyState";
-import { BookingStatusModal, type BookingStatusSummary } from "./BookingStatusModal";
-import { BOOKING_STATUS_INFO } from "@/app/lib/booking-display-status";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,7 +49,6 @@ interface Booking {
   cancelReason:  string | null;
   cancelledAt:   string | null;
   createdAt:     string;
-  rawStatus:     keyof typeof BOOKING_STATUS_INFO;
   destination: {
     name:      string;
     country:   string;
@@ -112,18 +110,11 @@ function BookingCard({ booking }: { booking: Booking }) {
     ? `${booking.destination.name}, ${booking.destination.country}`
     : booking.destination.country;
 
-  const [statusOpen, setStatusOpen] = useState(false);
-
-  const statusSummary: BookingStatusSummary = {
-    bookingNumber: booking.bookingNumber,
-    rawStatus:     booking.rawStatus,
-    cancelReason:  booking.cancelReason,
-    destination:   booking.destination,
-    package:       booking.package,
-  };
-
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden hover:border-neutral-300 hover:shadow-sm shadow-neutral-100 transition-all">
+    <Link
+      href={`/bookings/${booking.id}/status`}
+      className="block bg-white border border-neutral-200 rounded-xl overflow-hidden hover:border-neutral-300 hover:shadow-sm shadow-neutral-100 transition-all"
+    >
       <div className="flex flex-col sm:flex-row">
 
         {/* Destination image */}
@@ -227,18 +218,18 @@ function BookingCard({ booking }: { booking: Booking }) {
             </div>
           )}
 
-          {/* Footer actions */}
+          {/* Footer actions — the whole card is a Link, so this is a
+              decorative affordance rather than its own interactive control
+              (a nested <button> inside the card's <a> would be invalid HTML). */}
           <div className="flex justify-end pt-1">
-            <Button variant="outline" size="sm" onClick={() => setStatusOpen(true)}>
+            <span className="rounded-button flex items-center justify-center gap-2 font-medium px-3 py-2 text-sm bg-white text-(--text-secondary) shadow-md shadow-neutral-200 ring-1 ring-inset ring-(--border-default)">
               <InfoIcon weight="bold" className="size-3.5" />
               View status
-            </Button>
+            </span>
           </div>
         </div>
       </div>
-
-      <BookingStatusModal booking={statusSummary} open={statusOpen} onClose={setStatusOpen} />
-    </div>
+    </Link>
   );
 }
 

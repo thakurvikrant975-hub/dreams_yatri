@@ -10,7 +10,7 @@ export default function DashboardNotFound() {
             <h1 className="mt-4 text-4xl font-bold text-gray-800">
                 You came to the wrong neighborhood
             </h1>
-            <p className="mt-1 text-[7px] font-semibold text-red-400">MotherF****r</p>
+            <p className="mt-1 text-[7px] font-semibold text-red-400">MotherFather</p>
 
             <div className="mt-4 h-px w-20 bg-gray-200" />
 
