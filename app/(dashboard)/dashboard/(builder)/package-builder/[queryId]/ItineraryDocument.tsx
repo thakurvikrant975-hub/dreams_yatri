@@ -475,10 +475,16 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
 export function DaySummaryTable({ itineraries, travelDate }: { itineraries: DayItinerary[]; travelDate?: string }) {
   const shiftedMeals = computeShiftedMeals(itineraries);
   return (
-    <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
+    // No breakInside:avoid on this outer wrapper: for a long itinerary, the
+    // WHOLE table would then be one indivisible unit taller than a single
+    // page, which forces the browser to ignore the hint and split it at an
+    // arbitrary point anyway (mid-row). Instead each <tr> below is protected
+    // individually, so the table breaks cleanly between days — with the
+    // header row repeating on each new page, standard table pagination.
+    <div className="rounded-xl border border-neutral-200 overflow-hidden">
       <table className="w-full text-[11px]">
         <thead>
-          <tr className="bg-primary-50/70 text-primary-700/80 uppercase tracking-wide text-[9px]">
+          <tr className="bg-primary-50/70 text-primary-700/80 uppercase tracking-wide text-[9px]" style={{ breakInside: "avoid" }}>
             <th className="text-left px-3 py-2.5 font-bold">Day</th>
             <th className="text-left px-3 py-2.5 font-bold">Hotel</th>
             <th className="text-left px-3 py-2.5 font-bold">Meals</th>
@@ -489,7 +495,7 @@ export function DaySummaryTable({ itineraries, travelDate }: { itineraries: DayI
           {itineraries.map((d, i) => {
             const date = travelDate ? dayCalendarDate(travelDate, d.day) : null;
             return (
-            <tr key={d.day} className={`border-t border-neutral-100 ${i % 2 === 1 ? "bg-neutral-50/60" : ""}`}>
+            <tr key={d.day} className={`border-t border-neutral-100 ${i % 2 === 1 ? "bg-neutral-50/60" : ""}`} style={{ breakInside: "avoid" }}>
               <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">
                 Day {d.day}
                 {date && (
@@ -1232,7 +1238,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
   ];
 
   return (
-    <footer className="bg-neutral-950 text-slate-300 mt-2" style={{ breakInside: "avoid" }}>
+    <footer className="doc-footer bg-neutral-950 text-slate-300 mt-2" style={{ breakInside: "avoid" }}>
       <div className="px-[10mm] pt-9 pb-6">
         <div className="flex flex-wrap items-start justify-between gap-8 pb-7 border-b border-white/10">
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
@@ -1307,7 +1313,27 @@ const PRINT_STYLES = `
       overflow: visible !important;
     }
     .itinerary-print-area { width: 210mm; margin: 0 auto !important; box-shadow: none !important; border-radius: 0 !important; border: none !important; }
-    @page { size: A4; margin: 0; }
+
+    /* Left/right stay 0 here — the existing 10mm horizontal padding inside
+       the page (px-[10mm] on header/main/footer) already provides that
+       margin at the full 210mm page width, so reserving it again via @page
+       would double it and force the page narrower than its own content.
+       Top/bottom get a real page-box margin instead, matching that 10mm. */
+    @page { size: A4; margin: 10mm 0mm 10mm 0mm; }
+    /* Page 1 always opens on the hero cover — let it bleed to the true top
+       edge instead of sitting inside a blank 10mm band. */
+    @page :first { margin-top: 0mm; }
+
+    /* The closing dark band is always the very last thing on the document,
+       so it always lands on the actual last page — bleed it through that
+       page's reserved bottom margin to the true edge, the same "close the
+       book" look as the hero's top-edge bleed on page 1. Interior pages
+       keep the normal 10mm bottom margin untouched. */
+    .doc-footer { padding-bottom: 10mm; margin-bottom: -10mm; }
+
+    /* Never stand a single line of a paragraph alone at the top/bottom of a
+       page — pushes the whole paragraph along instead of leaving an orphan. */
+    .itinerary-print-area p { orphans: 3; widows: 3; }
   }
 `;
 
@@ -1387,7 +1413,10 @@ export function ItineraryDocument({
 
         {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
         <div className="relative z-10 px-[10mm]" style={{ marginTop: "-13mm" }}>
-          <div className="bg-white rounded-2xl  border-neutral-100 grid grid-cols-4 divide-x divide-neutral-100 overflow-hidden" style={{ boxShadow: "0 10px 30px -8px rgba(0,0,0,0.18)" }}>
+          <div
+            className="bg-white rounded-2xl  border-neutral-100 grid grid-cols-4 divide-x divide-neutral-100 overflow-hidden"
+            style={{ boxShadow: "0 10px 30px -8px rgba(0,0,0,0.18)", breakInside: "avoid" }}
+          >
             <StatCell icon={Calendar} label="Travel Date" value={travelDateStr} />
             <StatCell icon={Moon} label="Duration" value={durationLabel} />
             <StatCell icon={Users} label="Travellers" value={paxLine} />
