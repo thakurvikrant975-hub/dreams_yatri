@@ -1,5 +1,7 @@
 "use server";
 
+import { haversineMeters } from "@/app/lib/hotel-inventory/geo";
+
 // Driving/walking directions + destination search for the Location &
 // Surroundings map — reuses the same free OSM ecosystem as the landmarks
 // feature (Overpass) rather than a paid/keyed provider like Google
@@ -20,17 +22,6 @@ const USER_AGENT = "DreamsYatri/1.0 (hotel route-directions feature)";
 // than a driving one — hilly terrain especially can make the drive to a spot
 // a few hundred metres away many times longer via the road network.
 const WALK_THRESHOLD_M = 1500;
-
-function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6_371_000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 export type RouteResult = {
   geometry: [number, number][];

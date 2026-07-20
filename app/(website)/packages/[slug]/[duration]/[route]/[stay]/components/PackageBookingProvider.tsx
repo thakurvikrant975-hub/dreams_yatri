@@ -11,7 +11,8 @@ import {
 } from 'react';
 import { handleComputePackagePrice } from '@/app/actions/packages/pricing.actions';
 import type { LocationValue } from '@/app/components/ui/LocationSearchSelect';
-import type { CabTypeOption } from '@/app/actions/packages/fetch-page-data';
+import type { CabTypeOption, RoomOption } from '@/app/actions/packages/fetch-page-data';
+import { fetchRoomAlternatives, fetchHotelAlternatives } from '@/app/actions/packages/hotel-alternatives.actions';
 
 // ── Safe pricing — only these fields reach the browser ──────────────────────
 
@@ -82,6 +83,17 @@ export interface BookingContextValue {
     cabGroups:         CabGroup[];
     cabSelections:     Map<string, number>; // groupKey → cabTypeId
     setCabForGroup:    (groupKey: string, cabTypeId: number) => void;
+
+    // Hotel/room selection — itinerary_stays.id → chosen room_pricing_id.
+    // Both "Change Room" (same hotel) and "Change Hotel" (nearby) resolve
+    // through this one override; the candidate lists differ, the mechanism doesn't.
+    roomSelections:          Map<number, number>; // itineraryStayId → room_pricing_id
+    setRoomForStay:          (itineraryStayId: number, roomPricingId: number) => void;
+    roomAlternatesByStay:    Map<number, RoomOption[]>; // same-hotel room/plan options
+    hotelAlternatesByStay:   Map<number, RoomOption[]>; // nearby-hotel options
+    loadRoomAlternatives:    (itineraryStayId: number, hotelId: number) => Promise<void>;
+    loadHotelAlternatives:   (itineraryStayId: number, hotelId: number) => Promise<void>;
+    isLoadingAlternatives:   boolean;
 
     // Pricing output (safe)
     pricing:          SafePricing | null;
@@ -184,6 +196,11 @@ export function PackageBookingProvider({
         () => initialCabSelections(buildCabGroups(cabTypes), (initialAdults ?? 2) + (initialChildAges?.length ?? 0)),
     );
 
+    const [roomSelections, setRoomSelections] = useState<Map<number, number>>(new Map());
+    const [roomAlternatesByStay, setRoomAlternatesByStay] = useState<Map<number, RoomOption[]>>(new Map());
+    const [hotelAlternatesByStay, setHotelAlternatesByStay] = useState<Map<number, RoomOption[]>>(new Map());
+    const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
+
     // Auto-upgrade cabs whenever passenger count changes
     useEffect(() => {
         const passengers = adults + childCount;
@@ -239,6 +256,36 @@ export function PackageBookingProvider({
         });
     }
 
+    function setRoomForStay(itineraryStayId: number, roomPricingId: number) {
+        setRoomSelections(prev => {
+            const next = new Map(prev);
+            next.set(itineraryStayId, roomPricingId);
+            return next;
+        });
+    }
+
+    async function loadRoomAlternatives(itineraryStayId: number, hotelId: number) {
+        if (roomAlternatesByStay.has(itineraryStayId)) return;
+        setIsLoadingAlternatives(true);
+        try {
+            const rows = await fetchRoomAlternatives(hotelId);
+            setRoomAlternatesByStay(prev => new Map(prev).set(itineraryStayId, rows));
+        } finally {
+            setIsLoadingAlternatives(false);
+        }
+    }
+
+    async function loadHotelAlternatives(itineraryStayId: number, hotelId: number) {
+        if (hotelAlternatesByStay.has(itineraryStayId)) return;
+        setIsLoadingAlternatives(true);
+        try {
+            const rows = await fetchHotelAlternatives(hotelId);
+            setHotelAlternatesByStay(prev => new Map(prev).set(itineraryStayId, rows));
+        } finally {
+            setIsLoadingAlternatives(false);
+        }
+    }
+
     // Re-fetch price whenever pax changes (debounced 400 ms)
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -246,6 +293,9 @@ export function PackageBookingProvider({
             setLoading(true);
             try {
                 const cabTypeIds = Array.from(cabSelections.values());
+                const roomOverrides = Array.from(roomSelections.entries()).map(
+                    ([itinerary_stay_id, room_pricing_id]) => ({ itinerary_stay_id, room_pricing_id }),
+                );
                 const res = await handleComputePackagePrice({
                     package_id:       packageId,
                     duration_id:      durationId,
@@ -257,6 +307,7 @@ export function PackageBookingProvider({
                     child_ages:       childAges.length === childCount ? childAges : undefined,
                     travel_date:      travelDate || (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })(),
                     cab_type_ids:     cabTypeIds.length > 0 ? cabTypeIds : null,
+                    room_pricing_overrides: roomOverrides.length > 0 ? roomOverrides : null,
                 });
                 if (res.success) {
                     if (res.data.missing_pricing_config) {
@@ -294,13 +345,15 @@ export function PackageBookingProvider({
 
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [adults, childCount, infants, childAges, travelDate, cabSelections, packageId, durationId, routeId, stayCategoryId]);
+    }, [adults, childCount, infants, childAges, travelDate, cabSelections, roomSelections, packageId, durationId, routeId, stayCategoryId]);
 
     return (
         <BookingContext.Provider value={{
             adults, childCount, infants, childAges, rooms, travelDate, leavingFrom,
             setAdults, setChildCount, setInfants, setChildAge, setRooms, setTravelDate, setLeavingFrom, setTravellers,
             cabGroups, cabSelections, setCabForGroup,
+            roomSelections, setRoomForStay, roomAlternatesByStay, hotelAlternatesByStay,
+            loadRoomAlternatives, loadHotelAlternatives, isLoadingAlternatives,
             pricing, isPricingLoading, packageName, recentEnquiryCount,
             packageId, durationId, routeId, stayCategoryId,
             dateHighlight, setDateHighlight,

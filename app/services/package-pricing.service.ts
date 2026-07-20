@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "../lib/db";
+import type { Prisma } from "@/app/generated/prisma/client";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -15,6 +16,10 @@ export type PricingInput = {
   child_ages?: number[];
   cab_type_ids?: number[] | null; // if null/empty → use is_default cab types for duration (one per group)
   travel_date?: string | null;   // ISO date "YYYY-MM-DD"; null = fall back to today for seasonal pricing
+  /** Per-stay hotel/room override — swaps which hotel_room_pricing rates a given
+   *  itinerary_stays row, in place of its DB-configured default. Unknown/inactive
+   *  ids fall back silently to the original room_pricing. */
+  room_pricing_overrides?: { itinerary_stay_id: number; room_pricing_id: number }[] | null;
 };
 
 export type DayHotelLine = {
@@ -134,6 +139,48 @@ export type FullPricingBreakdown = {
   price_per_adult: number;
   missing_pricing_config: boolean;
 };
+
+// ── Hotel room-pricing select shape ─────────────────────────────────────────
+// Shared between the itinerary's embedded default room_pricing and the
+// override batch-fetch below, so both produce identical payload shapes and
+// can be freely swapped for one another.
+const STAY_ROOM_PRICING_SELECT = {
+  id: true,
+  plan_name: true,
+  price_per_night: true,
+  is_active: true,
+  hotel: {
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      state: true,
+      address: true,
+      check_in_time: true,
+      check_out_time: true,
+    },
+  },
+  extra_bed_rate: true,
+  room: { select: { id: true, name: true, max_occupancy: true, extra_bed_capacity: true } },
+  occupancy_prices: {
+    orderBy: { occupancy: "asc" },
+    select: { occupancy: true, price_per_night: true },
+  },
+  seasons: {
+    where: { is_active: true },
+    orderBy: { sort_order: "asc" },
+    select: {
+      valid_from: true,
+      valid_to: true,
+      price_per_night: true,
+      weekend_price_per_night: true,
+      occupancy_prices: {
+        orderBy: { occupancy: "asc" },
+        select: { occupancy: true, price_per_night: true },
+      },
+    },
+  },
+} satisfies Prisma.hotel_room_pricingSelect;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -335,7 +382,7 @@ export async function computePackagePrice(
   const {
     package_id, duration_id, route_id, stay_category_id,
     adults, children, infants, child_ages,
-    cab_type_ids, travel_date,
+    cab_type_ids, travel_date, room_pricing_overrides,
   } = input;
 
   // When no travel date is provided, fall back to today so seasonal pricing is applied.
@@ -350,43 +397,7 @@ export async function computePackagePrice(
         itineraryStays: {
           where: { stay_category_id },
           include: {
-            room_pricing: {
-              select: {
-                plan_name: true,
-                price_per_night: true,
-                hotel: {
-                  select: {
-                    id: true,
-                    name: true,
-                    city: true,
-                    state: true,
-                    address: true,
-                    check_in_time: true,
-                    check_out_time: true,
-                  },
-                },
-                extra_bed_rate: true,
-                room: { select: { id: true, name: true, max_occupancy: true, extra_bed_capacity: true } },
-                occupancy_prices: {
-                  orderBy: { occupancy: "asc" },
-                  select: { occupancy: true, price_per_night: true },
-                },
-                seasons: {
-                  where: { is_active: true },
-                  orderBy: { sort_order: "asc" },
-                  select: {
-                    valid_from: true,
-                    valid_to: true,
-                    price_per_night: true,
-                    weekend_price_per_night: true,
-                    occupancy_prices: {
-                      orderBy: { occupancy: "asc" },
-                      select: { occupancy: true, price_per_night: true },
-                    },
-                  },
-                },
-              },
-            },
+            room_pricing: { select: STAY_ROOM_PRICING_SELECT },
           },
         },
         // ── Activities ─────────────────────────────────────────────────────
@@ -478,6 +489,35 @@ export async function computePackagePrice(
     }),
   ]);
 
+  // ── Hotel/room override resolution ──────────────────────────────────────
+  // Swaps in an alternate hotel_room_pricing row for specific itinerary_stays,
+  // in place of their DB-configured default. Unknown or inactive override ids
+  // fall back silently to the original room_pricing, never leaving a stay
+  // unpriced. Applied once, up front, so every downstream usage of
+  // `itineraries` for stay-related data (meal-hotel lookup, day costing) sees
+  // the resolved selection.
+  const overridesByStayId = new Map<number, number>(
+    (room_pricing_overrides ?? []).map((o) => [o.itinerary_stay_id, o.room_pricing_id]),
+  );
+  const overrideRoomPricingIds = [...new Set(overridesByStayId.values())];
+  const overrideRows = overrideRoomPricingIds.length > 0
+    ? await db.hotel_room_pricing.findMany({
+        where: { id: { in: overrideRoomPricingIds } },
+        select: STAY_ROOM_PRICING_SELECT,
+      })
+    : [];
+  const overrideRowsById = new Map(overrideRows.map((r) => [r.id, r]));
+
+  const resolvedItineraries = itineraries.map((itin) => ({
+    ...itin,
+    itineraryStays: itin.itineraryStays.map((stay) => {
+      const overrideId = overridesByStayId.get(stay.id);
+      const overrideRow = overrideId != null ? overrideRowsById.get(overrideId) : undefined;
+      if (!overrideRow || !overrideRow.is_active) return stay; // deleted/inactive → keep original
+      return { ...stay, room_pricing_id: overrideRow.id, room_pricing: overrideRow };
+    }),
+  }));
+
   // ── Cab upgrade logic ──────────────────────────────────────────────────────
   // Group all cab types by their first segment's day range, then for each group
   // pick the preferred cab (from cab_type_ids / is_default). If it can't fit all
@@ -562,7 +602,7 @@ export async function computePackagePrice(
 
   const stayHotelIds = [
     ...new Set(
-      itineraries.flatMap((itin) => itin.itineraryStays.map((s) => s.room_pricing.hotel.id)),
+      resolvedItineraries.flatMap((itin) => itin.itineraryStays.map((s) => s.room_pricing.hotel.id)),
     ),
   ];
 
@@ -703,9 +743,9 @@ export async function computePackagePrice(
   // A stay with check-in on Day D and num_nights=N is "active" on nights D, D+1 … D+N-1.
   // - Breakfast on Day N  = served by the hotel from stayByDay[N-1] (checkout morning)
   // - All other meals     = served by the hotel from stayByDay[N]   (arrival evening)
-  type StayRecord = (typeof itineraries)[0]["itineraryStays"][0];
+  type StayRecord = (typeof resolvedItineraries)[0]["itineraryStays"][0];
   const stayByDay = new Map<number, StayRecord>();
-  for (const itin of itineraries) {
+  for (const itin of resolvedItineraries) {
     for (const stay of itin.itineraryStays) {
       for (let d = itin.day; d < itin.day + stay.num_nights; d++) {
         stayByDay.set(d, stay);
@@ -717,7 +757,7 @@ export async function computePackagePrice(
   let meal_subtotal = 0;
   let activity_subtotal = 0;
 
-  const days: DayPricingBreakdown[] = itineraries.map((itin) => {
+  const days: DayPricingBreakdown[] = resolvedItineraries.map((itin) => {
 
     // Compute the actual calendar date for this specific day of the itinerary.
     // Day 1 = travelDate, Day 2 = travelDate + 1 day, etc.

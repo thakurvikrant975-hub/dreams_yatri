@@ -1,6 +1,7 @@
 import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { computePackagePrice } from "@/app/services/package-pricing.service";
+import { parseRoomAmenities } from "@/app/lib/hotel-inventory/room-amenities";
 
 // ── Output types ───────────────────────────────────────────────────────────
 
@@ -45,6 +46,11 @@ export type StayCategoryOption = {
 
 export type HotelDay = {
   id: number;
+  /** itinerary_stays row id — the atomic "this hotel, booked for this stay" unit;
+   *  the key used to override which room_pricing rates this stay (Change Hotel/Room). */
+  itinerary_stay_id: number;
+  room_pricing_id: number;
+  destination_id: number | null;
   sort_order: number;
   name: string;
   slug: string;
@@ -67,7 +73,130 @@ export type HotelDay = {
   original_price: number | null;
   images: { url: string | null; thumbnail: string | null; alt: string | null }[];
   room_images: { url: string; thumbnail: string | null; alt: string | null }[];
+  room_amenities: string[];
 };
+
+// ── Alternate hotel/room options (Change Hotel / Change Room) ──────────────
+
+/** Reused by both the default itinerary-stay query below and the on-demand
+ *  alternatives fetch in hotel-alternatives.actions.ts, so both produce
+ *  identical payload shapes. */
+export const ROOM_PRICING_DISPLAY_SELECT = {
+  id: true,
+  plan_name: true,
+  price_per_night: true,
+  original_price: true,
+  meal_type: { select: { name: true } },
+  hotel: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      destination_id: true,
+      stay_type: true,
+      check_in_time: true,
+      check_out_time: true,
+      address: true,
+      location: {
+        select: {
+          name: true,
+          type: true,
+          city:  { select: { name: true } },
+          state: { select: { name: true } },
+        },
+      },
+      images: {
+        where: { category: { room_pricing_id: null } },
+        orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+        take: 5,
+        select: { url: true, thumbnail: true, alt: true },
+      },
+    },
+  },
+  room: {
+    select: {
+      name: true,
+      max_occupancy: true,
+      area_sqft: true,
+      bed_type: true,
+      view_type: true,
+      extra_bed_capacity: true,
+      amenities: true,
+      images: {
+        orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+        take: 2,
+        select: { url: true, thumbnail: true, alt: true },
+      },
+    },
+  },
+} satisfies Prisma.hotel_room_pricingSelect;
+
+type RoomPricingRow = Prisma.hotel_room_pricingGetPayload<{ select: typeof ROOM_PRICING_DISPLAY_SELECT }>;
+
+export type RoomOption = {
+  room_pricing_id: number;
+  hotel_id: number;
+  hotel_name: string;
+  hotel_slug: string;
+  destination_id: number | null;
+  stay_type: string | null;
+  check_in_time: string | null;
+  check_out_time: string | null;
+  address: string | null;
+  location: string | null;
+  plan_name: string | null;
+  meal_type: string | null;
+  room_name: string | null;
+  room_capacity: number | null;
+  room_bed_type: string | null;
+  room_area_sqft: number | null;
+  room_view: string | null;
+  room_extra_beds: number;
+  price_per_night: number;
+  original_price: number | null;
+  images: { url: string | null; thumbnail: string | null; alt: string | null }[];
+  room_images: { url: string; thumbnail: string | null; alt: string | null }[];
+  /** Real, owner-set room amenities (hotel_rooms.amenities) — e.g. "Mineral Water", "Room Service". */
+  room_amenities: string[];
+};
+
+/** "City, State" derived from a hotel's stored location, falling back to its raw address. */
+export function resolveHotelLocationLabel(
+  loc: { name: string; type: string; city: { name: string } | null; state: { name: string } | null } | null,
+  address: string | null,
+): string | null {
+  const city  = loc?.city?.name  ?? (loc?.type === "CITY"  ? loc.name : null);
+  const state = loc?.state?.name ?? (loc?.type === "STATE" ? loc.name : null);
+  return [city, state].filter(Boolean).join(", ") || loc?.name || address || null;
+}
+
+export function mapRoomPricingRowToOption(rp: RoomPricingRow): RoomOption {
+  return {
+    room_pricing_id: rp.id,
+    hotel_id: rp.hotel.id,
+    hotel_name: rp.hotel.name,
+    hotel_slug: rp.hotel.slug,
+    destination_id: rp.hotel.destination_id,
+    stay_type: rp.hotel.stay_type,
+    check_in_time: rp.hotel.check_in_time,
+    check_out_time: rp.hotel.check_out_time,
+    address: rp.hotel.address,
+    location: resolveHotelLocationLabel(rp.hotel.location, rp.hotel.address),
+    plan_name: rp.plan_name,
+    meal_type: rp.meal_type?.name ?? null,
+    room_name: rp.room?.name ?? null,
+    room_capacity: rp.room?.max_occupancy ?? null,
+    room_bed_type: rp.room?.bed_type ?? null,
+    room_area_sqft: rp.room?.area_sqft ?? null,
+    room_view: rp.room?.view_type ?? null,
+    room_extra_beds: rp.room?.extra_bed_capacity ?? 0,
+    price_per_night: Number(rp.price_per_night),
+    original_price: rp.original_price ? Number(rp.original_price) : null,
+    images: rp.hotel.images,
+    room_images: rp.room?.images ?? [],
+    room_amenities: parseRoomAmenities(rp.room?.amenities),
+  };
+}
 
 export type ActivityDay = {
   id: number;
@@ -380,57 +509,11 @@ export async function fetchPackagePageData(
           where: { stay_category_id: selectedStay.id },
           take: 1,
           select: {
+            id: true,
             sort_order: true,
             num_nights: true,
             active_meals: true,
-            room_pricing: {
-              select: {
-                plan_name: true,
-                price_per_night: true,
-                original_price: true,
-                meal_type: { select: { name: true } },
-                hotel: {
-                  select: {
-                    id: true,
-                    name: true,
-                    slug: true,
-                    stay_type: true,
-                    check_in_time: true,
-                    check_out_time: true,
-                    address: true,
-                    location: {
-                      select: {
-                        name: true,
-                        type: true,
-                        city:  { select: { name: true } },
-                        state: { select: { name: true } },
-                      },
-                    },
-                    images: {
-                      where: { category: { room_pricing_id: null } },
-                      orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
-                      take: 5,
-                      select: { url: true, thumbnail: true, alt: true },
-                    },
-                  },
-                },
-                room: {
-                  select: {
-                    name: true,
-                    max_occupancy: true,
-                    area_sqft: true,
-                    bed_type: true,
-                    view_type: true,
-                    extra_bed_capacity: true,
-                    images: {
-                      orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
-                      take: 2,
-                      select: { url: true, thumbnail: true, alt: true },
-                    },
-                  },
-                },
-              },
-            },
+            room_pricing: { select: ROOM_PRICING_DISPLAY_SELECT },
           },
         },
         itinerary_activities: {
@@ -645,39 +728,22 @@ export async function fetchPackagePageData(
     const stay = day.itineraryStays[0] ?? null;
     const rp = stay?.room_pricing ?? null;
 
-    const hotel: HotelDay | null = rp
-      ? {
-          id: rp.hotel.id,
-          sort_order: stay?.sort_order ?? 0,
-          name: rp.hotel.name,
-          slug: rp.hotel.slug,
-          stay_type: rp.hotel.stay_type,
-          check_in_time: rp.hotel.check_in_time,
-          check_out_time: rp.hotel.check_out_time,
-          address: rp.hotel.address,
-          location: (() => {
-            // Resolve "City, State" from the hotel's linked Location (set via the
-            // location search-select). The location may itself be a CITY/STATE, or
-            // carry city/state relations; fall back to its own name, then address.
-            const loc = rp.hotel.location;
-            const city  = loc?.city?.name  ?? (loc?.type === "CITY"  ? loc.name : null);
-            const state = loc?.state?.name ?? (loc?.type === "STATE" ? loc.name : null);
-            return [city, state].filter(Boolean).join(", ") || loc?.name || rp.hotel.address || null;
-          })(),
-          plan_name: rp.plan_name,
-          meal_type: rp.meal_type?.name ?? null,
-          active_meals: stay?.active_meals ?? [],
-          room_name: rp.room?.name ?? null,
-          room_capacity: rp.room?.max_occupancy ?? null,
-          room_bed_type: rp.room?.bed_type ?? null,
-          room_area_sqft: rp.room?.area_sqft ?? null,
-          room_view: rp.room?.view_type ?? null,
-          room_extra_beds: rp.room?.extra_bed_capacity ?? 0,
-          price_per_night: Number(rp.price_per_night),
-          original_price: rp.original_price ? Number(rp.original_price) : null,
-          images: rp.hotel.images,
-          room_images: rp.room?.images ?? [],
-        }
+    const hotel: HotelDay | null = (rp && stay)
+      ? (() => {
+          const opt = mapRoomPricingRowToOption(rp);
+          const { hotel_id, hotel_name, hotel_slug, ...rest } = opt;
+          return {
+            ...rest,
+            id: hotel_id,
+            name: hotel_name,
+            slug: hotel_slug,
+            itinerary_stay_id: stay.id,
+            room_pricing_id: rp.id,
+            destination_id: rp.hotel.destination_id,
+            sort_order: stay.sort_order,
+            active_meals: stay.active_meals ?? [],
+          };
+        })()
       : null;
 
     const activities: ActivityDay[] = day.itinerary_activities.map((ia) => ({

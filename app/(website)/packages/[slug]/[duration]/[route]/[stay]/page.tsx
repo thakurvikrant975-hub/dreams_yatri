@@ -426,6 +426,11 @@ export default async function PackagePage({
         const hotelSections: SortableSection[] = (d.hotel && runNights !== undefined) ? [{
             _sort: d.hotel.sort_order,
             type: "stay" as const,
+            itineraryStayId: d.hotel.itinerary_stay_id,
+            hotelId: d.hotel.id,
+            destinationId: d.hotel.destination_id,
+            roomPricingId: d.hotel.room_pricing_id,
+            pricePerNight: d.hotel.price_per_night,
             nights: runNights,
             dayNumber: d.day,
             hotelName: d.hotel.name,

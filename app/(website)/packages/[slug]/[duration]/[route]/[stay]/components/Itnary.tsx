@@ -2,7 +2,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
-import { useBooking } from './PackageBookingProvider';
+import { useBooking, type CabGroup } from './PackageBookingProvider';
+import type { CabTypeOption, RoomOption } from '@/app/actions/packages/fetch-page-data';
+import { getCardImage } from '@/app/lib/imageUrl';
+import { iconFor } from '@/app/lib/hotel-inventory/room-amenities';
+import { AMENITY_ICONS } from '@/app/(website)/hotels/[slug]/amenity-icons';
 import ImageLightbox from '@/app/components/gallery/ImageLightbox';
 import { Dialog, VisuallyHidden } from 'radix-ui';
 import { cn } from '@/app/lib/utils';
@@ -33,6 +37,8 @@ import {
   CheersIcon,
   NotePencilIcon,
   RoadHorizonIcon,
+  SeatIcon,
+  SnowflakeIcon,
 } from '@phosphor-icons/react';
 import { CheckInIcon, CheckOutIcon } from '@/app/components/icons/cusomIcon';
 import Image from 'next/image';
@@ -76,6 +82,11 @@ interface CabSection {
 }
 interface StaySection {
   type: 'stay';
+  itineraryStayId: number;
+  hotelId: number;
+  destinationId: number | null;
+  roomPricingId: number;
+  pricePerNight: number;
   nights: number;
   dayNumber: number;
   hotelName: string;
@@ -423,7 +434,8 @@ function FlightContent({ section }: { section: FlightSection }) {
 const CAB_PLACEHOLDER = "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=70";
 
 function CabContent({ section, day }: { section: CabSection; day?: number }) {
-  const { cabGroups, cabSelections } = useBooking();
+  const { cabGroups, cabSelections, setCabForGroup, isPricingLoading } = useBooking();
+  const [vehicleSidebarOpen, setVehicleSidebarOpen] = useState(false);
 
   // Find the selected cab for this day's range
   const cabGroup = day != null
@@ -433,6 +445,7 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
   const selectedCab = cabGroup?.cabs.find(c => c.id === selectedCabId)
     ?? cabGroup?.cabs.find(c => c.is_default)
     ?? cabGroup?.cabs[0];
+  const canChangeVehicle = !!cabGroup && cabGroup.cabs.length > 1;
 
   const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
   const resolvedName = selectedCab?.label ?? section.vehicle_name;
@@ -480,9 +493,15 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
                   </>
                 )}
               </div>
-              <button className="text-sm text-primary-500 hover:text-primary-600 font-semibold cursor-pointer">
-                Change Vehicle
-              </button>
+              {canChangeVehicle && (
+                <button
+                  type="button"
+                  onClick={() => setVehicleSidebarOpen(true)}
+                  className="text-xs text-primary-500 hover:text-primary-600 font-semibold cursor-pointer shrink-0 "
+                >
+                  Choose Vehicle
+                </button>
+              )}
             </div>
           )}
 
@@ -531,7 +550,264 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
 
 
       </div>
+
+      {cabGroup && (
+        <ChangeVehicleSidebar
+          open={vehicleSidebarOpen}
+          onClose={() => setVehicleSidebarOpen(false)}
+          cabGroup={cabGroup}
+          selectedCab={selectedCab}
+          fromLabel={section.from.value}
+          toLabel={section.to.value}
+          onSelect={(cabTypeId) => {
+            setCabForGroup(cabGroup.groupKey, cabTypeId);
+            setVehicleSidebarOpen(false);
+          }}
+          isPricingLoading={isPricingLoading}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Change Vehicle Sidebar ───────────────────────────────────────────────────
+
+/** "TEMPO_TRAVELLER" → "Tempo Traveller"; "LUXURY_SUV" → "Luxury SUV" */
+function formatVehicleType(type: string): string {
+  return type
+    .toLowerCase()
+    .split('_')
+    .map(w => (w === 'suv' ? 'SUV' : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ');
+}
+
+/** Price difference vs. the currently selected vehicle, computed from real
+ *  segment rates (PER_DAY diff × days in range; PER_KM shown as a rate diff
+ *  since total distance isn't known client-side). Only comparable when both
+ *  cabs use the same pricing type. */
+function vehicleDelta(
+  cab: CabTypeOption,
+  selectedCab: CabTypeOption | undefined,
+  days: number,
+): { text: string; isIncrease: boolean } | null {
+  if (!selectedCab || cab.id === selectedCab.id) return null;
+  const segA = cab.segments[0];
+  const segB = selectedCab.segments[0];
+  if (!segA || !segB || segA.pricing_type !== segB.pricing_type) return null;
+  const perUnitDiff = segA.price - segB.price;
+  if (perUnitDiff === 0) return null;
+  const isPerDay = segA.pricing_type === 'PER_DAY';
+  const totalDiff = isPerDay ? perUnitDiff * days : perUnitDiff;
+  const amount = Math.round(Math.abs(totalDiff)).toLocaleString('en-IN');
+  return {
+    text: `${totalDiff > 0 ? '+' : '−'} ₹${amount}${isPerDay ? '' : ' /km'}`,
+    isIncrease: totalDiff > 0,
+  };
+}
+
+function VehicleOptionCard({
+  cab,
+  selected,
+  delta,
+  onSelect,
+}: {
+  cab: CabTypeOption;
+  selected: boolean;
+  delta: { text: string; isIncrease: boolean } | null;
+  onSelect: () => void;
+}) {
+  const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
+  const image = cab.vehicle.image_key
+    ? (cab.vehicle.image_key.startsWith('http') ? cab.vehicle.image_key : `${R2}/${cab.vehicle.image_key}`)
+    : CAB_PLACEHOLDER;
+
+  return (
+    <div
+      className={cn(
+        'rounded-2xl bg-white transition-all duration-200',
+        selected
+          ? 'ring-2 ring-primary-500 shadow-md shadow-primary-200/40'
+          : 'ring-1 ring-inset ring-(--border-default) shadow-sm shadow-neutral-200/50 hover:ring-(--border-strong) hover:shadow-md hover:shadow-neutral-200/70',
+      )}
+    >
+      {/* Selected banner — flows in normal layout, never overlaps content below */}
+      {selected && (
+        <div className="flex items-center gap-1.5 bg-primary-500 text-white text-[10px] font-bold uppercase tracking-wide px-3.5 py-2 rounded-t-[inherit]">
+          <CheckCircleIcon className="size-3.5" />
+          Selected Vehicle
+        </div>
+      )}
+
+      <div className="flex gap-3.5 p-3.5">
+        {/* Full, uncropped vehicle photo — letterboxed on a neutral backdrop */}
+        <div className="relative w-28 h-20 shrink-0 rounded-xl overflow-hidden bg-neutral-50 ring-1 ring-inset ring-(--border-muted)">
+          <Image src={image} alt={cab.label} fill sizes="112px" className="object-contain p-1.5" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <Text size="sm" weight="bold" intent="primary" className="font-heading">
+              {cab.label}
+            </Text>
+            <Text size="xs" intent="muted">(or similar)</Text>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+            <span className="text-[10px] font-semibold text-secondary bg-neutral-100 rounded-full px-2 py-0.5">
+              {formatVehicleType(cab.vehicle.type)}
+            </span>
+            {cab.is_default && (
+              <span className="text-[10px] font-semibold text-primary-600 bg-primary-50 rounded-full px-2 py-0.5">
+                Recommended
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 mt-2.5">
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-secondary">
+              <span className="flex items-center justify-center size-5 rounded-full bg-neutral-100 shrink-0">
+                <SeatIcon weight="duotone" className="size-3 text-muted" />
+              </span>
+              {cab.vehicle.passenger_capacity} Seater
+            </span>
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-secondary">
+              <span className={cn('flex items-center justify-center size-5 rounded-full shrink-0', cab.vehicle.has_ac ? 'bg-info-50' : 'bg-neutral-100')}>
+                {cab.vehicle.has_ac
+                  ? <SnowflakeIcon weight="duotone" className="size-3 text-info-500" />
+                  : <XCircleIcon className="size-3 text-muted" />}
+              </span>
+              {cab.vehicle.has_ac ? 'AC' : 'Non-AC'}
+            </span>
+          </div>
+
+          {cab.note && (
+            <Text size="xs" intent="muted" className="mt-2 leading-snug line-clamp-2">{cab.note}</Text>
+          )}
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          'flex items-center justify-end gap-3 px-3.5 py-2.5 border-t rounded-b-[inherit]',
+          selected ? 'border-primary-100 bg-primary-50/60' : 'border-(--border-muted) bg-neutral-50/70',
+        )}
+      >
+        {selected ? (
+          <Text as="span" size="xs" weight="semibold" intent="brand" className="whitespace-nowrap flex items-center gap-1">
+            <CheckIcon className="size-3.5" /> Selected
+          </Text>
+        ) : (
+          <div className="flex items-center gap-2.5 shrink-0">
+            {delta && (
+              <Text
+                size="sm"
+                weight="bold"
+                className={cn('font-heading whitespace-nowrap', delta.isIncrease ? 'text-primary' : 'text-success-600')}
+              >
+                {delta.text}
+              </Text>
+            )}
+            <button
+              type="button"
+              onClick={onSelect}
+              className="text-xs font-semibold text-primary-600 ring-1 ring-inset ring-primary-300 hover:bg-primary-50 rounded-full px-3.5 py-1.5 cursor-pointer transition-colors whitespace-nowrap"
+            >
+              Select
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChangeVehicleSidebar({
+  open,
+  onClose,
+  cabGroup,
+  selectedCab,
+  fromLabel,
+  toLabel,
+  onSelect,
+  isPricingLoading,
+}: {
+  open: boolean;
+  onClose: () => void;
+  cabGroup: CabGroup;
+  selectedCab?: CabTypeOption;
+  fromLabel?: string;
+  toLabel?: string;
+  onSelect: (cabTypeId: number) => void;
+  isPricingLoading: boolean;
+}) {
+  const days = Math.max(1, cabGroup.dayTo - cabGroup.dayFrom + 1);
+  const dayRangeLabel = cabGroup.dayFrom === cabGroup.dayTo
+    ? `Applies to Day ${cabGroup.dayFrom}`
+    : `Applies to Day ${cabGroup.dayFrom} – ${cabGroup.dayTo}`;
+  const routeLabel = fromLabel && toLabel && fromLabel !== '–' && toLabel !== '–'
+    ? `${fromLabel} → ${toLabel}`
+    : null;
+
+  return (
+    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-9999 bg-black/50 backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
+        <Dialog.Content
+          data-layout="website"
+          className="fixed inset-y-0 right-0 z-9999 flex h-full w-full flex-col bg-white shadow-2xl outline-none sm:w-135 sm:max-w-[90vw] data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right duration-300"
+          aria-describedby={undefined}
+        >
+          <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-(--border-muted) bg-white">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="flex items-center justify-center size-10 rounded-xl bg-primary-50 shrink-0 mt-0.5">
+                <CarIcon weight="duotone" className="size-5.5 text-brand" />
+              </div>
+              <div className="min-w-0">
+                <Dialog.Title asChild>
+                  <Text size="base" weight="bold" intent="primary" className="font-heading">
+                    Change Vehicle
+                  </Text>
+                </Dialog.Title>
+                {routeLabel && (
+                  <Text size="sm" intent="secondary" weight="medium" className="mt-0.5">{routeLabel}</Text>
+                )}
+                <Text size="xs" intent="muted" className="mt-0.5">{dayRangeLabel} of your itinerary</Text>
+              </div>
+            </div>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                aria-label="Close"
+                className="size-8 rounded-full flex items-center justify-center text-muted hover:bg-neutral-100 hover:text-primary transition-colors cursor-pointer shrink-0"
+              >
+                <XMarkIcon className="size-5" />
+              </button>
+            </Dialog.Close>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3 bg-neutral-50/60">
+            {cabGroup.cabs.map((cab) => (
+              
+              <VehicleOptionCard
+                key={cab.id}
+                cab={cab}
+                selected={cab.id === selectedCab?.id}
+                delta={vehicleDelta(cab, selectedCab, days)}
+                onSelect={() => onSelect(cab.id)}
+              />
+            ))}
+          </div>
+
+          <div className="px-5 py-3.5 border-t border-(--border-muted)">
+            <Text size="xs" intent="muted" className="text-center">
+              {isPricingLoading
+                ? 'Updating your package price…'
+                : 'Your package price updates automatically for the selected vehicle.'}
+            </Text>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -597,6 +873,285 @@ function mealSummaryText(meals: string[]): string {
   return labels.length === 0 ? 'Room only · No meals included' : `${formatList(labels)} included`;
 }
 
+// ── Change Hotel / Change Room helpers ──────────────────────────────────────
+
+function formatTime12(t: string | null | undefined): string {
+  if (!t) return '';
+  const [hStr, mStr] = t.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr ?? '0', 10);
+  if (isNaN(h)) return t;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+/** Interleaves hotel + room photos into a single gallery — mirrors the same
+ *  slot logic used server-side when building the default StaySection. */
+function interleaveStayImages(
+  hotelImages: { url: string | null }[],
+  roomImages: { url: string | null }[],
+): string[] {
+  const hotelPool = hotelImages.map(img => img.url ? getCardImage(img.url) : null).filter(Boolean) as string[];
+  const roomPool = roomImages.map(img => img.url ? getCardImage(img.url) : null).filter(Boolean) as string[];
+  const take = (primary: string[], fallback: string[]) => primary.shift() ?? fallback.shift();
+  const slots: string[] = [];
+  const s1 = take(hotelPool, roomPool); if (s1) slots.push(s1);
+  for (let i = 0; i < 2; i++) { const v = take(roomPool, hotelPool); if (v) slots.push(v); }
+  for (let i = 0; i < 2; i++) { const v = take(hotelPool, roomPool); if (v) slots.push(v); }
+  return slots;
+}
+
+/** Price difference vs. the current stay's rate, computed from real
+ *  price_per_night figures × nights — same approach as vehicleDelta(). */
+function priceDeltaLabel(
+  candidatePricePerNight: number,
+  currentPricePerNight: number,
+  numNights: number,
+): { text: string; isIncrease: boolean } | null {
+  const diff = (candidatePricePerNight - currentPricePerNight) * numNights;
+  if (diff === 0) return null;
+  const amount = Math.round(Math.abs(diff)).toLocaleString('en-IN');
+  return { text: `${diff > 0 ? '+' : '−'} ₹${amount}`, isIncrease: diff > 0 };
+}
+
+function StayOptionCard({
+  option,
+  selected,
+  delta,
+  emphasizeRoom,
+  onSelect,
+}: {
+  option: RoomOption;
+  selected: boolean;
+  delta: { text: string; isIncrease: boolean } | null;
+  /** true for "Change Room" cards — prioritizes the room's own photo/amenities
+   *  over the hotel's, since the card represents a specific room, not the property. */
+  emphasizeRoom: boolean;
+  onSelect: () => void;
+}) {
+  const primaryImageKey = emphasizeRoom
+    ? (option.room_images[0]?.url ?? option.images[0]?.url ?? null)
+    : (option.images[0]?.url ?? option.room_images[0]?.url ?? null);
+  const image = primaryImageKey ? getCardImage(primaryImageKey) : null;
+  const roomTitle = [option.room_name, option.plan_name].filter(Boolean).join(' - ');
+  const amenities = emphasizeRoom ? option.room_amenities.slice(0, 6) : [];
+
+  return (
+    <div
+      className={cn(
+        'rounded-2xl bg-white transition-all duration-200',
+        selected
+          ? 'ring-2 ring-primary-500 shadow-md shadow-primary-200/40'
+          : 'ring-1 ring-inset ring-(--border-default) shadow-sm shadow-neutral-200/50 hover:ring-(--border-strong) hover:shadow-md hover:shadow-neutral-200/70',
+      )}
+    >
+      {/* Selected banner — flows in normal layout, never overlaps content below */}
+      {selected && (
+        <div className="flex items-center gap-1.5 bg-primary-500 text-white text-[10px] font-bold uppercase tracking-wide px-3.5 py-2 rounded-t-[inherit]">
+          <CheckCircleIcon className="size-3.5" />
+          Selected
+        </div>
+      )}
+
+      <div className={cn(
+        'relative w-full h-36 bg-neutral-50 flex items-center justify-center overflow-hidden',
+        !selected && 'rounded-t-[inherit]',
+      )}>
+        {image ? (
+          <Image src={image} alt={roomTitle || option.hotel_name} fill sizes="500px" className="object-cover" />
+        ) : (
+          <BuildingOffice2Icon className="size-10 text-neutral-300" />
+        )}
+      </div>
+
+      <div className="p-3.5">
+        {!emphasizeRoom && (
+          <>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Text size="sm" weight="bold" intent="primary" className="font-heading truncate">
+                {option.hotel_name}
+              </Text>
+              {option.stay_type && <HotelStars stayType={option.stay_type} />}
+            </div>
+            {option.location && (
+              <div className="flex items-center gap-1 mt-0.5 min-w-0">
+                <MapPinIcon weight="duotone" className="size-3 text-muted shrink-0" />
+                <Text size="xs" intent="secondary" className="truncate">{option.location}</Text>
+              </div>
+            )}
+          </>
+        )}
+        {roomTitle && (
+          <Text size="sm" weight="semibold" intent="primary" className={cn('font-heading leading-snug', !emphasizeRoom && 'mt-2')}>
+            {roomTitle}
+          </Text>
+        )}
+        {option.room_capacity && (
+          <Text size="xs" intent="muted" className="mt-0.5">Sleeps {option.room_capacity}</Text>
+        )}
+
+        {amenities.length > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-2.5 pt-2.5 border-t border-(--border-muted)">
+            {amenities.map((label) => {
+              const Icon = AMENITY_ICONS[iconFor(label)] ?? CheckCircleIcon;
+              return (
+                <span key={label} className="flex items-center gap-1 text-[11px] font-medium text-secondary">
+                  <Icon className="size-3.5 text-muted shrink-0" />
+                  {label}
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div
+        className={cn(
+          'flex items-center justify-end gap-3 px-3.5 py-2.5 border-t rounded-b-[inherit]',
+          selected ? 'border-primary-100 bg-primary-50/60' : 'border-(--border-muted) bg-neutral-50/70',
+        )}
+      >
+        {selected ? (
+          <Text as="span" size="xs" weight="semibold" intent="brand" className="whitespace-nowrap flex items-center gap-1">
+            <CheckIcon className="size-3.5" /> Selected
+          </Text>
+        ) : (
+          <div className="flex items-center gap-2.5 shrink-0">
+            {delta && (
+              <Text
+                size="sm"
+                weight="bold"
+                className={cn('font-heading whitespace-nowrap', delta.isIncrease ? 'text-primary' : 'text-success-600')}
+              >
+                {delta.text}
+              </Text>
+            )}
+            <button
+              type="button"
+              onClick={onSelect}
+              className="text-xs font-semibold text-primary-600 ring-1 ring-inset ring-primary-300 hover:bg-primary-50 rounded-full px-3.5 py-1.5 cursor-pointer transition-colors whitespace-nowrap"
+            >
+              Select
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChangeStaySidebar({
+  open,
+  onClose,
+  title,
+  subtitle,
+  stayType,
+  location,
+  options,
+  isLoading,
+  currentRoomPricingId,
+  currentPricePerNight,
+  numNights,
+  emphasizeRoom,
+  onSelect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string | null;
+  /** Shown next to the subtitle — the one hotel every card in this list belongs to. */
+  stayType?: string | null;
+  location?: string | null;
+  options: RoomOption[];
+  isLoading: boolean;
+  currentRoomPricingId: number;
+  currentPricePerNight: number;
+  numNights: number;
+  emphasizeRoom: boolean;
+  onSelect: (roomPricingId: number) => void;
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-9999 bg-black/50 backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
+        <Dialog.Content
+          data-layout="website"
+          className="fixed inset-y-0 right-0 z-9999 flex h-full w-full flex-col bg-white shadow-2xl outline-none sm:w-135 sm:max-w-[90vw] data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right duration-300"
+          aria-describedby={undefined}
+        >
+          <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-(--border-muted) bg-white">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="flex items-center justify-center size-10 rounded-xl bg-primary-50 shrink-0 mt-0.5">
+                <BedIcon weight="duotone" className="size-5.5 text-brand" />
+              </div>
+              <div className="min-w-0">
+                <Dialog.Title asChild>
+                  <Text size="base" weight="bold" intent="primary" className="font-heading">
+                    {title}
+                  </Text>
+                </Dialog.Title>
+                {subtitle && (
+                  <div className="mt-0.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Text size="sm" intent="secondary" weight="medium" className="truncate">{subtitle}</Text>
+                      {stayType && <HotelStars stayType={stayType} />}
+                    </div>
+                    {location && (
+                      <div className="flex items-center gap-1 mt-0.5 min-w-0">
+                        <MapPinIcon weight="duotone" className="size-3 text-muted shrink-0" />
+                        <Text size="xs" intent="secondary" className="truncate">{location}</Text>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                aria-label="Close"
+                className="size-8 rounded-full flex items-center justify-center text-muted hover:bg-neutral-100 hover:text-primary transition-colors cursor-pointer shrink-0"
+              >
+                <XMarkIcon className="size-5" />
+              </button>
+            </Dialog.Close>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3 bg-neutral-50/60">
+            {isLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-32 rounded-2xl bg-neutral-100 animate-pulse" />
+              ))
+            ) : options.length === 0 ? (
+              <div className="py-10 text-center">
+                <Text size="sm" intent="secondary">No other options available right now.</Text>
+              </div>
+            ) : (
+              options.map((opt) => (
+                <StayOptionCard
+                  key={opt.room_pricing_id}
+                  option={opt}
+                  selected={opt.room_pricing_id === currentRoomPricingId}
+                  delta={priceDeltaLabel(opt.price_per_night, currentPricePerNight, numNights)}
+                  emphasizeRoom={emphasizeRoom}
+                  onSelect={() => onSelect(opt.room_pricing_id)}
+                />
+              ))
+            )}
+          </div>
+
+          <div className="px-5 py-3.5 border-t border-(--border-muted)">
+            <Text size="xs" intent="muted" className="text-center">
+              Your package price updates automatically for the selected option.
+            </Text>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 function HotelStars({ stayType }: { stayType: string }) {
   const count = parseInt(stayType) || 0;
   if (count < 1 || count > 5) return <span className="text-xs text-muted">{stayType}</span>;
@@ -613,26 +1168,61 @@ function HotelStars({ stayType }: { stayType: string }) {
 }
 
 function StayContent({ section }: { section: StaySection }) {
+  const {
+    adults, childCount, travelDate,
+    roomSelections, setRoomForStay,
+    roomAlternatesByStay, hotelAlternatesByStay,
+    loadRoomAlternatives, loadHotelAlternatives, isLoadingAlternatives,
+  } = useBooking();
+
+  const [roomSidebarOpen, setRoomSidebarOpen] = useState(false);
+  const [hotelSidebarOpen, setHotelSidebarOpen] = useState(false);
+
+  // ── Resolve display data — the user's selected alternate, else the server default ──
+  const selectedRoomPricingId = roomSelections.get(section.itineraryStayId);
+  const selectedOption: RoomOption | null =
+    selectedRoomPricingId != null && selectedRoomPricingId !== section.roomPricingId
+      ? roomAlternatesByStay.get(section.itineraryStayId)?.find(r => r.room_pricing_id === selectedRoomPricingId)
+        ?? hotelAlternatesByStay.get(section.itineraryStayId)?.find(r => r.room_pricing_id === selectedRoomPricingId)
+        ?? null
+      : null;
+
+  const hotelName     = selectedOption?.hotel_name ?? section.hotelName;
+  const stayType      = selectedOption?.stay_type ?? section.stayType;
+  const location       = selectedOption?.location ?? section.location;
+  const roomName       = selectedOption?.room_name ?? section.roomName;
+  const roomCapacity   = selectedOption?.room_capacity ?? section.roomCapacity;
+  const roomBedType    = selectedOption?.room_bed_type ?? section.roomBedType;
+  const roomAreaSqft   = selectedOption?.room_area_sqft ?? section.roomAreaSqft;
+  const roomView       = selectedOption?.room_view ?? section.roomView;
+  const roomExtraBeds  = selectedOption?.room_extra_beds ?? section.roomExtraBeds;
+  const planName        = selectedOption?.plan_name ?? section.planName;
+  const mealTypeVal     = selectedOption?.meal_type ?? section.mealType;
+  const checkIn         = selectedOption ? formatTime12(selectedOption.check_in_time) : section.checkIn;
+  const checkOut        = selectedOption ? formatTime12(selectedOption.check_out_time) : section.checkOut;
+  const images          = selectedOption ? interleaveStayImages(selectedOption.images, selectedOption.room_images) : section.images;
+  const currentPricePerNight = selectedOption?.price_per_night ?? section.pricePerNight;
+  const currentHotelId       = selectedOption?.hotel_id ?? section.hotelId;
+
   const meals = section.activeMeals.length > 0
     ? section.activeMeals
-    : parseMealTypes(section.mealType, section.planName);
+    : parseMealTypes(mealTypeVal, planName);
 
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const closeLightbox = useCallback(() => setLightboxIdx(null), []);
   const navigateLightbox = useCallback((i: number) => setLightboxIdx(i), []);
 
-  const lightboxImgs = section.images.map((src, i) => ({
+  const lightboxImgs = images.map((src, i) => ({
     src,
-    label: i === 0 ? section.hotelName : (section.roomName ?? section.hotelName),
+    label: i === 0 ? hotelName : (roomName ?? hotelName),
   }));
 
-  const hasMealInfo = meals.length > 0 || section.planName || section.mealType;
+  const hasMealInfo = meals.length > 0 || planName || mealTypeVal;
 
   // ── Occupancy + stay dates (from the traveller's booking context) ──
-  const { adults, childCount, travelDate } = useBooking();
   const totalPax = adults + childCount;
-  const rooms = section.roomCapacity && section.roomCapacity > 0
-    ? Math.max(1, Math.ceil(totalPax / section.roomCapacity))
+  const rooms = roomCapacity && roomCapacity > 0
+    ? Math.max(1, Math.ceil(totalPax / roomCapacity))
     : 1;
   const occupancy =
     `${rooms} Room${rooms !== 1 ? 's' : ''} | ${adults} Adult${adults !== 1 ? 's' : ''}` +
@@ -649,14 +1239,14 @@ function StayContent({ section }: { section: StaySection }) {
   }
 
   // ── Room type (from the room pricing variant) ──
-  const roomTitle = [section.roomName, section.planName].filter(Boolean).join(' - ');
+  const roomTitle = [roomName, planName].filter(Boolean).join(' - ');
   const roomSpecs = [
-    section.roomAreaSqft ? `${section.roomAreaSqft} sq.ft` : null,
-    section.roomBedType,
-    section.roomView,
+    roomAreaSqft ? `${roomAreaSqft} sq.ft` : null,
+    roomBedType,
+    roomView,
   ].filter(Boolean).join(' | ');
-  const extraBedNote = section.roomExtraBeds > 0
-    ? `${section.roomExtraBeds} Extra bed${section.roomExtraBeds !== 1 ? 's' : ''}/mattress${section.roomExtraBeds !== 1 ? 'es' : ''} will be provided at no extra cost`
+  const extraBedNote = roomExtraBeds > 0
+    ? `${roomExtraBeds} Extra bed${roomExtraBeds !== 1 ? 's' : ''}/mattress${roomExtraBeds !== 1 ? 'es' : ''} will be provided at no extra cost`
     : null;
   const hasRoomInfo = !!(roomTitle || roomSpecs || extraBedNote);
 
@@ -665,18 +1255,27 @@ function StayContent({ section }: { section: StaySection }) {
       <div className="w-10 shrink-0" />
       <div className="flex-1 flex flex-col">
 
-        {/* ── Hotel name + stars + address ── */}
+        {/* ── Hotel name + stars + address + change actions ── */}
         <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
-              {section.hotelName}
-            </Text>
-            {section.stayType && <HotelStars stayType={section.stayType} />}
+          <div className="flex items-center gap-2.5 justify-between flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
+                {hotelName}
+              </Text>
+              {stayType && <HotelStars stayType={stayType} />}
+            </div>
+            <button
+              type="button"
+              onClick={() => { loadHotelAlternatives(section.itineraryStayId, currentHotelId); setHotelSidebarOpen(true); }}
+              className="text-xs text-primary-500 hover:text-primary-600 font-semibold cursor-pointer shrink-0"
+            >
+              Change Hotel
+            </button>
           </div>
-          {section.location && (
+          {location && (
             <div className="flex items-center gap-1.5 mt-1">
               <MapPinIcon weight="duotone" className="size-3.5 text-muted shrink-0" />
-              <Text size="xs" intent="secondary" className="leading-snug">{section.location}</Text>
+              <Text size="xs" intent="secondary" className="leading-snug">{location}</Text>
             </div>
           )}
         </div>
@@ -710,7 +1309,7 @@ function StayContent({ section }: { section: StaySection }) {
                   </div>
                   <div className="flex flex-col items-center gap-1 w-full mt-0.5">
                     <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
-                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkIn}</Text>
+                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">{checkIn}</Text>
                   </div>
                 </div>
               </div>
@@ -729,7 +1328,7 @@ function StayContent({ section }: { section: StaySection }) {
                   </div>
                   <div className="flex flex-col items-center gap-1 w-full">
                     <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check Out:</Text>
-                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
+                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">{checkOut}</Text>
                   </div>
                 </div>
               </div>
@@ -738,11 +1337,20 @@ function StayContent({ section }: { section: StaySection }) {
             {/* Room type — from the selected room pricing variant */}
             {hasRoomInfo && (
               <div className="flex flex-col gap-1 pt-2.5 border-t border-(--border-muted)">
-                {roomTitle && (
-                  <Text size="sm" weight="semibold" className="text-primary font-heading leading-snug">
-                    {roomTitle}
-                  </Text>
-                )}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  {roomTitle && (
+                    <Text size="sm" weight="semibold" className="text-primary font-heading leading-snug">
+                      {roomTitle}
+                    </Text>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { loadRoomAlternatives(section.itineraryStayId, currentHotelId); setRoomSidebarOpen(true); }}
+                    className="text-xs text-primary-500 hover:text-primary-600 font-semibold cursor-pointer shrink-0"
+                  >
+                    Change Room
+                  </button>
+                </div>
                 {roomSpecs && (
                   <Text size="xs" intent="muted">({roomSpecs})</Text>
                 )}
@@ -765,15 +1373,15 @@ function StayContent({ section }: { section: StaySection }) {
 
           </div>
 
-          {section.images.length > 0 && (
+          {images.length > 0 && (
             <div className="sm:shrink-0 sm:w-64">
               <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-44 sm:h-52 w-full">
-                {section.images.slice(0, 5).map((src, i) => (
+                {images.slice(0, 5).map((src, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => setLightboxIdx(i)}
-                    aria-label={`View ${section.hotelName} photo ${i + 1}`}
+                    aria-label={`View ${hotelName} photo ${i + 1}`}
                     className={cn(
                       'relative overflow-hidden cursor-pointer focus-visible:outline-2 focus-visible:outline-primary-400 focus-visible:-outline-offset-2',
                       i === 0 && 'row-span-3 col-span-4',
@@ -781,7 +1389,7 @@ function StayContent({ section }: { section: StaySection }) {
                   >
                     <Image
                       src={src}
-                      alt={i === 0 ? section.hotelName : `${section.hotelName} photo ${i + 1}`}
+                      alt={i === 0 ? hotelName : `${hotelName} photo ${i + 1}`}
                       fill
                       sizes="(min-width: 640px) 256px, 100vw"
                       className="object-cover transition-opacity hover:opacity-90"
@@ -805,6 +1413,35 @@ function StayContent({ section }: { section: StaySection }) {
         )}
 
       </div>
+
+      <ChangeStaySidebar
+        open={roomSidebarOpen}
+        onClose={() => setRoomSidebarOpen(false)}
+        title="Change Room"
+        subtitle={hotelName}
+        stayType={stayType}
+        location={location}
+        options={roomAlternatesByStay.get(section.itineraryStayId) ?? []}
+        isLoading={isLoadingAlternatives && roomSidebarOpen}
+        currentRoomPricingId={selectedRoomPricingId ?? section.roomPricingId}
+        currentPricePerNight={currentPricePerNight}
+        numNights={section.nights}
+        emphasizeRoom
+        onSelect={(id) => { setRoomForStay(section.itineraryStayId, id); setRoomSidebarOpen(false); }}
+      />
+      <ChangeStaySidebar
+        open={hotelSidebarOpen}
+        onClose={() => setHotelSidebarOpen(false)}
+        title="Change Hotel"
+        subtitle={location}
+        options={hotelAlternatesByStay.get(section.itineraryStayId) ?? []}
+        isLoading={isLoadingAlternatives && hotelSidebarOpen}
+        currentRoomPricingId={selectedRoomPricingId ?? section.roomPricingId}
+        currentPricePerNight={currentPricePerNight}
+        numNights={section.nights}
+        emphasizeRoom={false}
+        onSelect={(id) => { setRoomForStay(section.itineraryStayId, id); setHotelSidebarOpen(false); }}
+      />
     </div>
   );
 }

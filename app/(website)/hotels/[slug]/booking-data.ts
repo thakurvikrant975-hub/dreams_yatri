@@ -8,6 +8,7 @@ import { HOTEL_PHOTO_TAGS, GUEST_HOUSE_PHOTO_TAGS } from "@/app/(hotel-connect)/
 import type { Hotel, Room, RatePlan, BedroomLayout, ReviewItem } from "./dummy";
 import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
 import { getOrFetchLandmarks } from "@/app/lib/hotel-inventory/landmarks";
+import { parseRoomAmenities, iconFor } from "@/app/lib/hotel-inventory/room-amenities";
 
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&h=800&q=80";
@@ -67,18 +68,6 @@ function prettify(key: string): string {
   return key.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function iconFor(label: string): string {
-  const l = label.toLowerCase();
-  if (l.includes("wifi") || l.includes("wi-fi") || l.includes("internet")) return "wifi";
-  if (l.includes("park")) return "parking";
-  if (l.includes("restaurant") || l.includes("dining") || l.includes("food")) return "restaurant";
-  if (l.includes("ac") || l.includes("air condition")) return "ac";
-  if (l.includes("pool") || l.includes("swim")) return "pool";
-  if (l.includes("gym") || l.includes("fitness")) return "gym";
-  if (l.includes("spa") || l.includes("wellness")) return "spa";
-  return "desk";
-}
-
 function isAmenityOn(v: unknown): boolean {
   return (
     v === true ||
@@ -121,20 +110,6 @@ function groupedAmenities(raw: unknown): { group: string; items: { label: string
 // Guest-friendlier copy for a couple of the wizard's internal group labels —
 // cosmetic only, doesn't change which amenities land in which group.
 const ROOM_GROUP_DISPLAY_LABEL: Record<string, string> = { Mandatory: "Basic Facilities" };
-
-/**
- * hotel_rooms.amenities is saved by the room wizard as either a raw
- * string[] (legacy rows) or { selected: string[], details }
- * (room-actions.ts's save shape) — never a property_amenities-style on/off
- * map, so amenityLabels() doesn't apply here.
- */
-function parseRoomAmenities(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.map(String);
-  if (raw && typeof raw === "object" && Array.isArray((raw as { selected?: unknown }).selected)) {
-    return (raw as { selected: unknown[] }).selected.map(String);
-  }
-  return [];
-}
 
 /** Group a room's selected amenity names by the same categories the room wizard's Amenities step (ROOM_AMENITY_GROUPS) uses. */
 function groupedRoomAmenities(names: string[]): { group: string; items: { label: string; icon: string }[] }[] {
