@@ -1,18 +1,13 @@
 "use server";
 
-import crypto from "crypto";
-import { hash } from "bcryptjs";
-import { db } from "@/app/lib/db";
+import { db, type TransactionClient } from "@/app/lib/db";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Prisma, type PropertyCategory, type PropertySubType } from "@/app/generated/prisma";
+import { Prisma } from "@/app/generated/prisma";
 import { ALL_SYSTEM_HOTEL_CATEGORIES, REQUIRED_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 import { actionError } from "@/app/lib/action-error";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
-import { sendEmail } from "@/app/lib/functions/sendEmail";
-import { hotelOwnerMigrationWelcomeTemplate } from "@/app/lib/functions/emailTemplates";
-import { totalTabsFor } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/wizard-progress";
 import { createLog } from "../lib/logger";
 import { PLAN_NOTES_MAX_LEN } from "./constants";
 
@@ -32,7 +27,7 @@ const SAFE_HOTEL_SCALARS = {
   thumbnail: true, city: true, state: true, country: true, pincode: true,
   business_phone: true, business_email: true, whatsapp_number: true, b2b_email: true,
   location_id: true, margin_percentage: true, gst_percentage: true,
-  created_by: true, updated_by: true, owner_id: true,
+  created_by: true, updated_by: true,
 } as const;
 
 const SAFE_HOTEL_ROOM_SCALARS = {
@@ -1045,12 +1040,13 @@ export async function upsertOccupancyPrice(
   occupancy: number,
   price_per_night: number,
   original_price?: number | null,
+  weekend_price_per_night?: number | null,
 ): Promise<HotelFormState> {
   try {
     await db.hotel_room_occupancy_prices.upsert({
       where: { pricing_id_occupancy: { pricing_id, occupancy } },
-      create: { pricing_id, occupancy, price_per_night, original_price: original_price ?? null },
-      update: { price_per_night, original_price: original_price ?? null },
+      create: { pricing_id, occupancy, price_per_night, original_price: original_price ?? null, weekend_price_per_night: weekend_price_per_night ?? null },
+      update: { price_per_night, original_price: original_price ?? null, weekend_price_per_night: weekend_price_per_night ?? null },
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Occupancy price saved" };
@@ -1074,9 +1070,10 @@ export async function deleteOccupancyPrice(id: number, hotel_id: number): Promis
 // ── Pricing Seasons ───────────────────────────────────────────────────────
 
 export type HotelSeasonOccupancyInput = {
-  occupancy:       number;
-  price_per_night: number;
-  original_price?: number | null;
+  occupancy:                number;
+  price_per_night:          number;
+  original_price?:          number | null;
+  weekend_price_per_night?: number | null;
 };
 
 export type HotelSeasonInput = {
@@ -1087,6 +1084,8 @@ export type HotelSeasonInput = {
   weekend_price_per_night?: number | null;
   original_price?:         number | null;
   extra_bed_rate?:         number | null;
+  weekend_extra_bed_rate?: number | null;
+  color?:                  string | null;
   occupancy_prices?:       HotelSeasonOccupancyInput[];
   is_active:               boolean;
 };
@@ -1116,6 +1115,8 @@ export async function createPricingSeason(
           weekend_price_per_night: data.weekend_price_per_night ?? null,
           original_price:          data.original_price  ?? null,
           extra_bed_rate:          data.extra_bed_rate   ?? null,
+          weekend_extra_bed_rate:  data.weekend_extra_bed_rate ?? null,
+          color:                   data.color            ?? null,
           is_active:               data.is_active,
           sort_order:              count,
         },
@@ -1127,6 +1128,7 @@ export async function createPricingSeason(
             occupancy:       op.occupancy,
             price_per_night: op.price_per_night,
             original_price:  op.original_price ?? null,
+            weekend_price_per_night: op.weekend_price_per_night ?? null,
           })),
         });
       }
@@ -1164,6 +1166,8 @@ export async function updatePricingSeason(
           weekend_price_per_night: data.weekend_price_per_night ?? null,
           original_price:          data.original_price  ?? null,
           extra_bed_rate:          data.extra_bed_rate   ?? null,
+          weekend_extra_bed_rate:  data.weekend_extra_bed_rate ?? null,
+          color:                   data.color            ?? null,
           is_active:               data.is_active,
         },
       });
@@ -1175,6 +1179,7 @@ export async function updatePricingSeason(
             occupancy:       op.occupancy,
             price_per_night: op.price_per_night,
             original_price:  op.original_price ?? null,
+            weekend_price_per_night: op.weekend_price_per_night ?? null,
           })),
         });
       }
@@ -1206,18 +1211,60 @@ const PlanNotesSchema = z.string().trim().max(
 ).nullable().optional();
 
 export type PlanInput = {
-  room_id:           number;
-  plan_name?:        string | null;
-  meal_type_id?:     number | null;
-  diet_type_id?:     number | null;
-  price_per_night?:  number | null;
-  extra_bed_rate?:   number | null;
-  margin_percentage: number;
-  gst_percentage:    number;
-  is_active:         boolean;
-  notes?:            string | null;
-  seasons:           HotelSeasonInput[];
+  room_id:                  number;
+  plan_name?:               string | null;
+  meal_type_id?:            number | null;
+  diet_type_id?:            number | null;
+  price_per_night?:         number | null;
+  extra_bed_rate?:          number | null;
+  weekend_price_per_night?: number | null;
+  weekend_extra_bed_rate?:  number | null;
+  margin_percentage:        number;
+  gst_percentage:           number;
+  is_active:                boolean;
+  notes?:                   string | null;
+  seasons:                  HotelSeasonInput[];
 };
+
+// Shared by create/update/season-only paths — full-replace so trimmed/split
+// seasons (from the calendar's auto-overlap-resolution) always land in one
+// consistent write per plan.
+async function replaceSeasonsForPricing(
+  tx:         TransactionClient,
+  pricing_id: number,
+  seasons:    HotelSeasonInput[],
+) {
+  await tx.hotel_room_pricing_season.deleteMany({ where: { pricing_id } });
+  for (const [i, s] of seasons.entries()) {
+    const season = await tx.hotel_room_pricing_season.create({
+      data: {
+        pricing_id,
+        season_name:             s.season_name.trim(),
+        valid_from:              new Date(s.valid_from),
+        valid_to:                new Date(s.valid_to),
+        price_per_night:         s.price_per_night,
+        weekend_price_per_night: s.weekend_price_per_night ?? null,
+        original_price:          s.original_price  ?? null,
+        extra_bed_rate:          s.extra_bed_rate   ?? null,
+        weekend_extra_bed_rate:  s.weekend_extra_bed_rate ?? null,
+        color:                   s.color            ?? null,
+        is_active:               s.is_active,
+        sort_order:              i,
+      },
+    });
+    if (s.occupancy_prices && s.occupancy_prices.length > 0) {
+      await tx.hotel_room_pricing_season_occupancy.createMany({
+        data: s.occupancy_prices.map(op => ({
+          season_id:       season.id,
+          occupancy:       op.occupancy,
+          price_per_night: op.price_per_night,
+          original_price:  op.original_price ?? null,
+          weekend_price_per_night: op.weekend_price_per_night ?? null,
+        })),
+      });
+    }
+  }
+}
 
 export async function createRoomPricingWithSeasons(
   hotel_id: number,
@@ -1245,6 +1292,8 @@ export async function createRoomPricingWithSeasons(
           diet_type_id:      data.diet_type_id      ?? null,
           price_per_night:   basePricePerNight,
           extra_bed_rate:    data.extra_bed_rate     ?? null,
+          weekend_price_per_night: data.weekend_price_per_night ?? null,
+          weekend_extra_bed_rate:  data.weekend_extra_bed_rate  ?? null,
           margin_percentage: data.margin_percentage,
           gst_percentage:    data.gst_percentage,
           is_active:         data.is_active,
@@ -1252,32 +1301,7 @@ export async function createRoomPricingWithSeasons(
           sort_order:        count,
         },
       });
-      for (const [i, s] of data.seasons.entries()) {
-        const season = await tx.hotel_room_pricing_season.create({
-          data: {
-            pricing_id:              p.id,
-            season_name:             s.season_name.trim(),
-            valid_from:              new Date(s.valid_from),
-            valid_to:                new Date(s.valid_to),
-            price_per_night:         s.price_per_night,
-            weekend_price_per_night: s.weekend_price_per_night ?? null,
-            original_price:          s.original_price  ?? null,
-            extra_bed_rate:          s.extra_bed_rate   ?? null,
-            is_active:               s.is_active,
-            sort_order:              i,
-          },
-        });
-        if (s.occupancy_prices && s.occupancy_prices.length > 0) {
-          await tx.hotel_room_pricing_season_occupancy.createMany({
-            data: s.occupancy_prices.map(op => ({
-              season_id:       season.id,
-              occupancy:       op.occupancy,
-              price_per_night: op.price_per_night,
-              original_price:  op.original_price ?? null,
-            })),
-          });
-        }
-      }
+      await replaceSeasonsForPricing(tx, p.id, data.seasons);
       return p;
     });
 
@@ -1315,44 +1339,38 @@ export async function updateRoomPricingWithSeasons(
           diet_type_id:      data.diet_type_id      ?? null,
           price_per_night:   basePricePerNight,
           extra_bed_rate:    data.extra_bed_rate     ?? null,
+          weekend_price_per_night: data.weekend_price_per_night ?? null,
+          weekend_extra_bed_rate:  data.weekend_extra_bed_rate  ?? null,
           margin_percentage: data.margin_percentage,
           gst_percentage:    data.gst_percentage,
           is_active:         data.is_active,
           notes,
         },
       });
-      // Replace all seasons (cascade deletes season occupancy_prices)
-      await tx.hotel_room_pricing_season.deleteMany({ where: { pricing_id: id } });
-      for (const [i, s] of data.seasons.entries()) {
-        const season = await tx.hotel_room_pricing_season.create({
-          data: {
-            pricing_id:              id,
-            season_name:             s.season_name.trim(),
-            valid_from:              new Date(s.valid_from),
-            valid_to:                new Date(s.valid_to),
-            price_per_night:         s.price_per_night,
-            weekend_price_per_night: s.weekend_price_per_night ?? null,
-            original_price:          s.original_price  ?? null,
-            extra_bed_rate:          s.extra_bed_rate   ?? null,
-            is_active:               s.is_active,
-            sort_order:              i,
-          },
-        });
-        if (s.occupancy_prices && s.occupancy_prices.length > 0) {
-          await tx.hotel_room_pricing_season_occupancy.createMany({
-            data: s.occupancy_prices.map(op => ({
-              season_id:       season.id,
-              occupancy:       op.occupancy,
-              price_per_night: op.price_per_night,
-              original_price:  op.original_price ?? null,
-            })),
-          });
-        }
-      }
+      await replaceSeasonsForPricing(tx, id, data.seasons);
     });
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Pricing plan updated" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+/** Replaces just the seasons for an already-saved plan, without touching its
+ * base fields — used when the Seasonal Rate Calendar's "Viewing Rates For"
+ * dropdown is switched to a sibling plan of the same room (one not currently
+ * open in the add/edit form) and its seasons are changed there. */
+export async function updatePricingSeasonsOnly(
+  pricing_id: number,
+  hotel_id:   number,
+  seasons:    HotelSeasonInput[],
+): Promise<HotelFormState> {
+  try {
+    await db.$transaction(tx => replaceSeasonsForPricing(tx, pricing_id, seasons));
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Seasonal rates updated" };
   } catch (e) {
     console.error(e);
     return actionError(e);
@@ -1980,225 +1998,4 @@ export async function deleteAddon(id: number, hotel_id: number): Promise<HotelFo
     console.error(e);
     return actionError(e);
   }
-}
-
-// ── Migrate to Hotel Connect ──────────────────────────────────────────────
-//
-// Ops-created hotels always have owner_id = null (see createHotel above) so
-// they never appear in any owner's hotel-connect account. This links a
-// specific hotel to a real HotelOwner and backfills the wizard fields
-// hotel-connect's completeness logic depends on (property_category,
-// wizard_step, listing_status) — set together, deliberately, one hotel at a
-// time, rather than a bulk script, since several of the mappings below are
-// best-guess and every hotel needs a human to confirm the owner match.
-
-// Best-guess mapping from the legacy ops `category` value (constants.ts
-// CATEGORIES) to the wizard's PropertyCategory/PropertySubType enums. Several
-// entries are inherently fuzzy (no exact wizard equivalent) — the migration
-// dialog always shows this guess to ops as an editable dropdown, never
-// applies it silently.
-const CATEGORY_MIGRATION_MAP: Record<string, { propertyCategory: PropertyCategory; propertySubType: PropertySubType }> = {
-  hotel:               { propertyCategory: "HOTEL",          propertySubType: "HOTEL" },
-  resort:              { propertyCategory: "HOTEL",          propertySubType: "RESORT" },
-  homestay:            { propertyCategory: "HOMESTAY_VILLA", propertySubType: "HOMESTAY" },
-  apartment:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "APARTMENT" },
-  serviced_apartment:  { propertyCategory: "HOMESTAY_VILLA", propertySubType: "APARTMENT" },
-  villa:               { propertyCategory: "HOMESTAY_VILLA", propertySubType: "VILLA" },
-  guest_house:         { propertyCategory: "HOTEL",          propertySubType: "GUEST_HOUSE" },
-  hostel:              { propertyCategory: "HOTEL",          propertySubType: "HOSTEL" },
-  bed_and_breakfast:   { propertyCategory: "HOTEL",          propertySubType: "BED_AND_BREAKFAST" },
-  holiday_home:        { propertyCategory: "HOMESTAY_VILLA", propertySubType: "HOLIDAY_HOME" },
-  cottage:             { propertyCategory: "HOMESTAY_VILLA", propertySubType: "COTTAGE" },
-  chalet:              { propertyCategory: "HOMESTAY_VILLA", propertySubType: "COTTAGE" },
-  bungalow:            { propertyCategory: "HOMESTAY_VILLA", propertySubType: "VILLA" },
-  farm_stay:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "FARMHOUSE" },
-  camp:                { propertyCategory: "HOTEL",          propertySubType: "CAMP" },
-  glamping:            { propertyCategory: "HOTEL",          propertySubType: "LUXURY_CAMPS" },
-  treehouse:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "TREEHOUSE" },
-  jungle_lodge:        { propertyCategory: "HOTEL",          propertySubType: "LODGE" },
-  eco_lodge:           { propertyCategory: "HOTEL",          propertySubType: "LODGE" },
-  houseboat:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "HOUSEBOAT" },
-  boutique_hotel:      { propertyCategory: "HOTEL",          propertySubType: "HOTEL" },
-  heritage_hotel:      { propertyCategory: "HOTEL",          propertySubType: "PALACE" },
-  luxury_hotel:        { propertyCategory: "HOTEL",          propertySubType: "HOTEL" },
-  business_hotel:      { propertyCategory: "HOTEL",          propertySubType: "HOTEL" },
-  capsule_hotel:       { propertyCategory: "HOTEL",          propertySubType: "HOSTEL" },
-  dharamshala:         { propertyCategory: "HOTEL",          propertySubType: "DHARAMSHALA" },
-  ashram_stay:         { propertyCategory: "HOTEL",          propertySubType: "ASHRAM" },
-  extended_stay_hotel: { propertyCategory: "HOTEL",          propertySubType: "APART_HOTEL" },
-  co_living_space:     { propertyCategory: "HOMESTAY_VILLA", propertySubType: "APARTMENT" },
-};
-const DEFAULT_CATEGORY_GUESS = { propertyCategory: "HOTEL" as PropertyCategory, propertySubType: "HOTEL" as PropertySubType };
-
-export type MigrationPreview = {
-  ownerEmail: string;
-  ownerExists: boolean;
-  existingOwnerName: string | null;
-  suggestedOwnerName: string;
-  propertyCategory: PropertyCategory;
-  propertySubType: PropertySubType;
-  hasOwnLatLng: boolean;
-  fallbackLatitude: number | null;
-  fallbackLongitude: number | null;
-  // Raw ingredients for computeEffectiveWizardStep — exposed as-is (not a
-  // server-baked completeness number) so the dialog can recompute live as
-  // ops changes the category/sub-type dropdowns or the lat-lng checkbox,
-  // using the same pure function this returns instead of duplicating it.
-  wizardInput: {
-    address: string | null; city: string | null; state: string | null;
-    country: string | null; pincode: string | null;
-    wizard_step: number; roomCount: number; imageCount: number;
-  };
-};
-
-export async function getHotelMigrationPreview(id: number): Promise<MigrationPreview | null> {
-  const hotel = await db.hotels.findUnique({
-    where: { id },
-    select: {
-      name: true, category: true, is_active: true,
-      business_email: true, contact_email: true,
-      address: true, city: true, state: true, country: true, pincode: true,
-      latitude: true, longitude: true, wizard_step: true,
-      destination: { select: { latitude: true, longitude: true } },
-      location: { select: { latitude: true, longitude: true } },
-      _count: { select: { hotelRooms: true, images: true } },
-    },
-  });
-  if (!hotel) return null;
-
-  const ownerEmail = hotel.business_email ?? hotel.contact_email ?? "";
-  const existingOwner = ownerEmail
-    ? await db.hotelOwner.findUnique({ where: { email: ownerEmail }, select: { name: true } })
-    : null;
-
-  const guess = (hotel.category && CATEGORY_MIGRATION_MAP[hotel.category]) || DEFAULT_CATEGORY_GUESS;
-
-  const fallbackLat = hotel.location?.latitude ?? hotel.destination?.latitude ?? null;
-  const fallbackLng = hotel.location?.longitude ?? hotel.destination?.longitude ?? null;
-
-  return {
-    ownerEmail,
-    ownerExists: !!existingOwner,
-    existingOwnerName: existingOwner?.name ?? null,
-    suggestedOwnerName: hotel.name,
-    propertyCategory: guess.propertyCategory,
-    propertySubType: guess.propertySubType,
-    hasOwnLatLng: hotel.latitude != null,
-    fallbackLatitude: fallbackLat != null ? Number(fallbackLat) : null,
-    fallbackLongitude: fallbackLng != null ? Number(fallbackLng) : null,
-    wizardInput: {
-      address: hotel.address, city: hotel.city, state: hotel.state,
-      country: hotel.country, pincode: hotel.pincode,
-      wizard_step: hotel.wizard_step,
-      roomCount: hotel._count.hotelRooms,
-      imageCount: hotel._count.images,
-    },
-  };
-}
-
-export type MigrateResult = { success: boolean; message: string; ownerCreated?: boolean };
-
-export async function migrateHotelToHotelConnect(
-  id: number,
-  input: {
-    ownerEmail: string;
-    ownerName: string;
-    propertyCategory: PropertyCategory;
-    propertySubType: PropertySubType;
-    applyLatLngFallback?: { latitude: number; longitude: number };
-  },
-): Promise<MigrateResult> {
-  const { session, actorId, actorName } = await requireSession();
-
-  const hotel = await db.hotels.findUnique({ where: { id }, select: { owner_id: true, is_active: true, slug: true } });
-  if (!hotel) return { success: false, message: "Hotel not found." };
-  if (hotel.owner_id) return { success: false, message: "This hotel is already linked to a Hotel Connect account." };
-
-  const email = input.ownerEmail.trim().toLowerCase();
-  if (!email) return { success: false, message: "An owner email is required." };
-
-  let ownerId: string;
-  let ownerCreated = false;
-
-  const existingOwner = await db.hotelOwner.findUnique({ where: { email }, select: { id: true } });
-  if (existingOwner) {
-    ownerId = existingOwner.id;
-  } else {
-    // Random, never-communicated placeholder password — the owner's first
-    // real action is setting their own password via the same reset-password
-    // flow forgot-password already uses (forgot-password/actions.ts).
-    const placeholderPassword = crypto.randomBytes(24).toString("hex");
-    const hashed = await hash(placeholderPassword, 12);
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days — a mailbox check, not a live session
-
-    try {
-      const created = await db.hotelOwner.create({
-        data: {
-          name: input.ownerName.trim() || hotel.slug,
-          email,
-          password: hashed,
-          status: "ACTIVE",
-          email_verified: true, // ops already has a working business email on file for this property
-          password_reset_token: resetToken,
-          password_reset_expires: resetExpires,
-        },
-        select: { id: true },
-      });
-      ownerId = created.id;
-      ownerCreated = true;
-
-      const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/hotel-connect/reset-password?token=${resetToken}`;
-      sendEmail({
-        to: email,
-        subject: "Your property is ready on Dreams Yatri Hotel Connect",
-        html: hotelOwnerMigrationWelcomeTemplate(input.ownerName.trim() || hotel.slug, resetUrl),
-      }).catch((err) => console.error("[migrateHotelToHotelConnect] welcome email failed:", err));
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        return { success: false, message: "An account with this email was just created — please retry." };
-      }
-      console.error("[migrateHotelToHotelConnect] owner create failed:", err);
-      return { success: false, message: "Could not create the owner account." };
-    }
-  }
-
-  const goingLive = hotel.is_active;
-  await db.hotels.update({
-    where: { id },
-    data: {
-      owner_id: ownerId,
-      property_category: input.propertyCategory,
-      property_sub_type: input.propertySubType,
-      wizard_step: totalTabsFor(input.propertyCategory),
-      updated_by: actorId,
-      ...(goingLive ? { listing_status: "LIVE", submitted_at: new Date(), approved_at: new Date() } : {}),
-      ...(input.applyLatLngFallback ? {
-        latitude: input.applyLatLngFallback.latitude,
-        longitude: input.applyLatLngFallback.longitude,
-      } : {}),
-    },
-  });
-
-  await createLog({
-    action: "UPDATE",
-    entity: "Hotel",
-    entityId: String(id),
-    entitySlug: hotel.slug,
-    description: `Migrated to Hotel Connect, linked to owner ${email}${ownerCreated ? " (new account)" : ""}`,
-    metadata: { operation: "migrate_to_hotel_connect", ownerCreated },
-    userName: actorName ?? undefined,
-    userEmail: session?.user?.email ?? undefined,
-  });
-
-  revalidatePath(`/dashboard/hotels/${id}`);
-  revalidatePath("/dashboard/hotels");
-
-  return {
-    success: true,
-    ownerCreated,
-    message: ownerCreated
-      ? "Hotel linked and a new owner account was created — an email was sent with a link to set their password."
-      : "Hotel linked to the existing owner account.",
-  };
 }

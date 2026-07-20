@@ -1286,6 +1286,8 @@ model hotel_room_pricing {
   price_per_night      Decimal                       @db.Decimal(10, 2)
   original_price       Decimal?                      @db.Decimal(10, 2)
   extra_bed_rate       Decimal?                      @db.Decimal(10, 2)
+  weekend_price_per_night Decimal?                   @db.Decimal(10, 2)
+  weekend_extra_bed_rate  Decimal?                   @db.Decimal(10, 2)
   margin_percentage    Decimal                       @default(10) @db.Decimal(5, 2)
   is_active            Boolean                       @default(true)
   sort_order           Int                           @default(0)
@@ -1327,6 +1329,8 @@ model hotel_room_pricing_season {
   // Per-season child rate — the parent hotel_room_pricing has this but a
   // season previously couldn't override it for its own date range.
   extra_child_rate        Decimal?                              @db.Decimal(10, 2)
+  weekend_extra_bed_rate  Decimal?                              @db.Decimal(10, 2)
+  color                   String?
   occupancy_prices        hotel_room_pricing_season_occupancy[]
   pricing                 hotel_room_pricing                    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
@@ -1335,12 +1339,13 @@ model hotel_room_pricing_season {
 }
 
 model hotel_room_pricing_season_occupancy {
-  id              Int                       @id @default(autoincrement())
-  season_id       Int
-  occupancy       Int
-  price_per_night Decimal                   @db.Decimal(10, 2)
-  original_price  Decimal?                  @db.Decimal(10, 2)
-  season          hotel_room_pricing_season @relation(fields: [season_id], references: [id], onDelete: Cascade)
+  id                      Int                       @id @default(autoincrement())
+  season_id               Int
+  occupancy               Int
+  price_per_night         Decimal                   @db.Decimal(10, 2)
+  original_price          Decimal?                  @db.Decimal(10, 2)
+  weekend_price_per_night Decimal?                  @db.Decimal(10, 2)
+  season                  hotel_room_pricing_season @relation(fields: [season_id], references: [id], onDelete: Cascade)
 
   @@unique([season_id, occupancy])
   @@index([season_id])
@@ -1423,12 +1428,13 @@ model hotel_addon_seasons {
 }
 
 model hotel_room_occupancy_prices {
-  id              Int                @id @default(autoincrement())
-  pricing_id      Int
-  occupancy       Int
-  price_per_night Decimal            @db.Decimal(10, 2)
-  original_price  Decimal?           @db.Decimal(10, 2)
-  pricing         hotel_room_pricing @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
+  id                      Int                @id @default(autoincrement())
+  pricing_id              Int
+  occupancy               Int
+  price_per_night         Decimal            @db.Decimal(10, 2)
+  original_price          Decimal?           @db.Decimal(10, 2)
+  weekend_price_per_night Decimal?           @db.Decimal(10, 2)
+  pricing                 hotel_room_pricing @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
   @@unique([pricing_id, occupancy])
   @@index([pricing_id])
@@ -2113,6 +2119,8 @@ model cab_pricing_season {
   is_active     Boolean        @default(true)
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
+  color         String?
+  season_name   String?
   pricing       cab_pricing    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
   @@index([pricing_id])
@@ -2426,47 +2434,64 @@ model custom_packages {
   /**
    * Vertical focal point for the cover image's object-position (0 = top,
    * 50 = center, 100 = bottom) — lets the exec re-center an image that
-   * object-cover crops awkwardly, without re-uploading/re-cropping it.
-   */
-  coverImagePosition Float                    @default(50)
-  destination        String
-  startingPoint      String?
-  totalDays          Int
-  totalNights        Int
-  travelDate         DateTime?
-  adults             Int                      @default(1)
-  children           Int                      @default(0)
-  infants            Int                      @default(0)
-  pricePerPerson     Float?
-  totalPrice         Float?
-  currency           String                   @default("INR")
-  marginPercentage   Float                    @default(25)
-  gstPercentage      Float                    @default(5)
-  inclusions         String[]
-  exclusions         String[]
-  termsNotes         String?
-  status             CustomPackageStatus      @default(DRAFT)
-  builtBy            String
-  builtByName        String?
-  sentAt             DateTime?
-  pdfUrl             String?
-  viewedAt           DateTime?
-  viewCount          Int                      @default(0)
-  previousSnapshot   Json?
-  flightsIncluded    Boolean                  @default(false)
-  flightNotes        String?
-  flightFrom         String?
-  flightTo           String?
-  trainIncluded      Boolean                  @default(false)
-  trainNotes         String?
-  trainFrom          String?
-  trainTo            String?
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  itineraries        custom_itineraries[]
-  stops              custom_package_stops[]
-  tickets            custom_package_tickets[]
-  query              package_queries          @relation(fields: [queryId], references: [id])
+   * object-cover crops awkwardly, without re-uploading/re-cropping it. */
+  coverImagePosition Float @default(50)
+  destination    String
+  startingPoint  String?
+  totalDays      Int
+  totalNights    Int
+  travelDate     DateTime?
+  adults         Int                  @default(1)
+  children       Int                  @default(0)
+  infants        Int                  @default(0)
+  pricePerPerson Float?
+  totalPrice     Float?
+  currency       String               @default("INR")
+  marginPercentage Float              @default(25)
+  gstPercentage    Float              @default(5)
+  inclusions     String[]
+  exclusions     String[]
+  termsNotes     String?
+  /** Short, removable bullet points — seeded with company-wide defaults the
+   * exec can trim/extend per package, distinct from the free-text termsNotes
+   * above (kept as a separate general-notes field). */
+  termsConditions String[]
+  paymentPolicy   String[]
+  amendmentPolicy String[]
+  /** "Benefits of Travelling With Us" — marketing bullets shown on the
+   * client-facing document/page, same removable-default pattern as above. */
+  travelBenefits  String[]
+  status          CustomPackageStatus  @default(DRAFT)
+  builtBy         String
+  builtByName     String?
+  sentAt          DateTime?
+  pdfUrl          String?
+  viewedAt        DateTime?
+  viewCount       Int                  @default(0)
+  previousSnapshot Json?
+  /** Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
+   * exact locked total) — the client-facing "Pay Now" button opens this.
+   * No gateway/webhook integration; purely a manual URL field. */
+  paymentLink     String?
+  /** Frozen hotel/cab/ticket/margin/GST breakdown, computed server-side and
+   * written once when the package is sent — lets the exec recheck later how
+   * the delivered total was built, independent of any later catalog rate
+   * changes. Never shown on the client-facing page. */
+  pricingSnapshot Json?
+  flightsIncluded Boolean              @default(false)
+  flightNotes     String?
+  flightFrom      String?
+  flightTo        String?
+  trainIncluded   Boolean              @default(false)
+  trainNotes      String?
+  trainFrom       String?
+  trainTo         String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  itineraries     custom_itineraries[]
+  stops           custom_package_stops[]
+  tickets         custom_package_tickets[]
+  query           package_queries      @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
@@ -2542,25 +2567,44 @@ model custom_itineraries {
   accommodationLocation     String?
   accommodationRoomSpecs    String?
   accommodationRoomCapacity Int?
-  roomPricingId             Int?
-  cabPricingId              Int?
-  hotelCheckIn              String?
-  hotelCheckOut             String?
-  hotelMealPlan             String?
-  transport                 String?
-  transportPhoto            String?
-  transportVehicleType      String?
-  transportSeats            Int?
-  transportPickup           String?
-  transportPickupLat        Float?
-  transportPickupLng        Float?
-  transportDrop             String?
-  transportDistanceKm       Float?
-  notes                     String?
-  createdAt                 DateTime                      @default(now())
-  updatedAt                 DateTime                      @updatedAt
-  package                   custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
-  activities                custom_itinerary_activities[]
+  roomPricingId   Int?
+  /** Overrides the auto-computed (adults+children ÷ room capacity) room
+   * count for the primary `roomPricingId` above — set when the exec
+   * explicitly says how many of that room type are needed instead of
+   * letting occupancy drive it. Null keeps the auto-computed behavior. */
+  roomsCount      Int?
+  /** Additional, DIFFERENT room types booked for the same night (e.g. one
+   * couple in a Deluxe Room, another in a Suite) — each a
+   * {roomPricingId, label, quantity} entry; priced by summing quantity ×
+   * that room's own resolved per-night rate, no auto occupancy/mattress
+   * logic (that only applies to the primary roomPricingId above). */
+  extraRooms      Json?
+  cabPricingId    Int?
+  /** Same override pattern as roomsCount, for the primary cabPricingId. */
+  cabQuantity     Int?
+  /** Additional, DIFFERENT cabs for the same day (e.g. one Sedan + one
+   * SUV) — each a {cabPricingId, label, quantity} entry. */
+  extraCabs       Json?
+  hotelCheckIn    String?
+  hotelCheckOut   String?
+  hotelMealPlan   String?
+  transport       String?
+  transportPhoto  String?
+  transportVehicleType String?
+  transportSeats  Int?
+  transportPickup String?
+  transportPickupLat Float?
+  transportPickupLng Float?
+  transportDrop   String?
+  transportDistanceKm Float?
+  /** Free-text estimate like "3h 15m" — typed by the exec or filled in by the
+   * AI Itinerary Builder, shown in the Transport/Cab section of the day. */
+  transportTravelTime String?
+  notes           String?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+  package         custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  activities      custom_itinerary_activities[]
 
   @@index([customPackageId])
   @@index([day])

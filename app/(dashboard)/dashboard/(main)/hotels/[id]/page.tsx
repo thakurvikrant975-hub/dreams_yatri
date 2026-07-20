@@ -7,7 +7,8 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { HotelTabsClient } from "./HotelTabsClient";
 import {
     getHotelById,
     getDestinationsForSelect,
@@ -83,12 +84,15 @@ export default async function HotelEditPage({
                 price_per_night: Number(p.price_per_night),
                 original_price: p.original_price ? Number(p.original_price) : null,
                 extra_bed_rate: p.extra_bed_rate ? Number(p.extra_bed_rate) : null,
+                weekend_price_per_night: p.weekend_price_per_night ? Number(p.weekend_price_per_night) : null,
+                weekend_extra_bed_rate: p.weekend_extra_bed_rate ? Number(p.weekend_extra_bed_rate) : null,
                 margin_percentage: Number(p.margin_percentage),
                 gst_percentage: Number(p.gst_percentage),
                 occupancy_prices: p.occupancy_prices.map((op) => ({
                     ...op,
                     price_per_night: Number(op.price_per_night),
                     original_price: op.original_price ? Number(op.original_price) : null,
+                    weekend_price_per_night: op.weekend_price_per_night ? Number(op.weekend_price_per_night) : null,
                 })),
             })),
         })),  
@@ -97,12 +101,15 @@ export default async function HotelEditPage({
             price_per_night: Number(p.price_per_night),
             original_price: p.original_price ? Number(p.original_price) : null,
             extra_bed_rate: p.extra_bed_rate ? Number(p.extra_bed_rate) : null,
+            weekend_price_per_night: p.weekend_price_per_night ? Number(p.weekend_price_per_night) : null,
+            weekend_extra_bed_rate: p.weekend_extra_bed_rate ? Number(p.weekend_extra_bed_rate) : null,
             margin_percentage: Number(p.margin_percentage),
             gst_percentage: Number(p.gst_percentage),
             occupancy_prices: p.occupancy_prices.map((op) => ({
                 ...op,
                 price_per_night: Number(op.price_per_night),
                 original_price: op.original_price ? Number(op.original_price) : null,
+                weekend_price_per_night: op.weekend_price_per_night ? Number(op.weekend_price_per_night) : null,
             })),
             seasons: p.seasons.map((s) => ({
                 ...s,
@@ -110,10 +117,12 @@ export default async function HotelEditPage({
                 weekend_price_per_night: s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
                 original_price:          s.original_price  ? Number(s.original_price)  : null,
                 extra_bed_rate:          s.extra_bed_rate   ? Number(s.extra_bed_rate)  : null,
+                weekend_extra_bed_rate:  s.weekend_extra_bed_rate ? Number(s.weekend_extra_bed_rate) : null,
                 occupancy_prices: s.occupancy_prices.map((op) => ({
                     ...op,
                     price_per_night: Number(op.price_per_night),
                     original_price:  op.original_price ? Number(op.original_price) : null,
+                    weekend_price_per_night: op.weekend_price_per_night ? Number(op.weekend_price_per_night) : null,
                 })),
             })),
         })),
@@ -173,7 +182,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                         </Badge>
                     </div>
                     <p className="text-sm text-dashboard-base-content/60">
-                        {hotel.destination?.name}
+                        {hotel.destination?.name ?? "No destination set"}
                         {totalRooms > 0 && ` · ${totalRooms} room${totalRooms !== 1 ? "s" : ""}`}
                         {totalPlans > 0 && ` · ${totalPlans} plan${totalPlans !== 1 ? "s" : ""}`}
                         {totalImages > 0 && ` · ${totalImages} image${totalImages !== 1 ? "s" : ""}`}
@@ -183,7 +192,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="details">
+            <HotelTabsClient>
                 <TabsList className="grid w-full grid-cols-6">
                     <TabsTrigger value="details">Details</TabsTrigger>
                     <TabsTrigger value="rooms">
@@ -267,7 +276,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                     <ImagesTab hotel_id={id} categories={serializedCategories} />
                 </TabsContent>
 
-            </Tabs>
+            </HotelTabsClient>
         </div>
     );
 }

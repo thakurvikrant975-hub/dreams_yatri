@@ -7,6 +7,9 @@ import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { sendEmail } from "@/app/lib/functions/sendEmail";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
+import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
+import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
+import type { RoomSelection, CabSelection } from "./room-cab-selections";
 import type { Prisma } from "@/app/generated/prisma";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
@@ -459,6 +462,17 @@ export interface QueryDetail extends QueryRow {
     totalPrice:      number | null;
     marginPercentage: number;
     gstPercentage:    number;
+    inclusions:      string[];
+    exclusions:      string[];
+    termsNotes:      string | null;
+    termsConditions: string[];
+    paymentPolicy:   string[];
+    amendmentPolicy: string[];
+    travelBenefits:  string[];
+    paymentLink:     string | null;
+    /** Frozen hotel/cab/ticket/margin/GST breakdown, written once when the
+     * package is sent — see PricingSnapshot in sendPackageToClient. */
+    pricingSnapshot: unknown;
     stops:           StopInput[];
     itineraries:     DayItinerary[];
     tickets:         TicketInput[];
@@ -501,6 +515,15 @@ export interface DayItinerary {
    * package price be computed from real, date/occupancy-aware hotel rates
    * instead of typed in by hand. Null when the hotel was entered as free text. */
   roomPricingId:      number | null;
+  /** Overrides the auto-computed (adults+children ÷ room capacity) room
+   * count for roomPricingId above — set when the exec explicitly says how
+   * many of that room type are needed. Null/undefined keeps the
+   * auto-computed behavior (unchanged from before this field existed). */
+  roomsCount?:        number | null;
+  /** Additional, different room types for the same night — see
+   * RoomSelection. Empty/undefined when this night only has the one
+   * primary room. */
+  extraRooms?:        RoomSelection[];
   hotelCheckIn:       string;
   hotelCheckOut:      string;
   hotelMealPlan:      string;
@@ -517,11 +540,19 @@ export interface DayItinerary {
   transportPickupLng: number | null;
   transportDrop:      string;
   transportDistanceKm: number | null;
+  /** Free-text estimate like "3h 15m" — typed by the exec or filled in by
+   * the AI Itinerary Builder. */
+  transportTravelTime: string;
   /** The exact `cab_pricing` row picked for this day — lets the package price
    * be computed from real, season/date-aware cab rates instead of typed in by
    * hand. Null when the vehicle was picked from the unscoped fleet catalog
    * (no real rate to reference) or entered as free text. */
   cabPricingId:       number | null;
+  /** Overrides the implicit quantity of 1 for cabPricingId above — e.g. 2 of
+   * the same Sedan. Null/undefined keeps the previous implicit-1 behavior. */
+  cabQuantity?:       number | null;
+  /** Additional, different cabs for the same day — see CabSelection. */
+  extraCabs?:         CabSelection[];
   notes:              string;
 }
 
@@ -547,6 +578,11 @@ export interface PackageInput {
   inclusions:      string[];
   exclusions:      string[];
   termsNotes:      string;
+  termsConditions: string[];
+  paymentPolicy:   string[];
+  amendmentPolicy: string[];
+  travelBenefits:  string[];
+  paymentLink:     string;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
   itineraries:     DayItinerary[];
@@ -712,6 +748,9 @@ export async function copyPackageIntoDraft(
       transportPickupLng: null,
       transportDrop:      transfer?.drop_name ?? "",
       transportDistanceKm: transfer?.distance_km ?? null,
+      // The catalog itinerary_transfers model has no travel-time field to
+      // copy from — left blank, same as the other transfer fields noted above.
+      transportTravelTime: "",
       // fetchPackagePageData doesn't expose the transfer's raw cab_pricing id
       // either — left null on copy, same as transportPickupLat/Lng; the exec
       // can re-pick the cab via search to back-fill it for auto-pricing.
@@ -854,13 +893,17 @@ function normalizeItinerary(it: {
   accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
   accommodationLocation: string | null; accommodationRoomSpecs: string | null; accommodationRoomCapacity: number | null;
   roomPricingId: number | null;
+  roomsCount: number | null;
+  extraRooms: Prisma.JsonValue;
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
   transportPickupLat: number | null; transportPickupLng: number | null;
   transportDrop: string | null;
-  transportDistanceKm: number | null; notes: string | null;
+  transportDistanceKm: number | null; transportTravelTime: string | null; notes: string | null;
   cabPricingId: number | null;
+  cabQuantity: number | null;
+  extraCabs: Prisma.JsonValue;
   activities: Parameters<typeof normalizeActivity>[0][];
 }): DayItinerary {
   return {
@@ -877,6 +920,8 @@ function normalizeItinerary(it: {
     accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
     accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
     roomPricingId:             it.roomPricingId ?? null,
+    roomsCount:                it.roomsCount ?? null,
+    extraRooms:                parseRoomSelections(it.extraRooms),
     hotelCheckIn:              it.hotelCheckIn ?? "",
     hotelCheckOut:             it.hotelCheckOut ?? "",
     hotelMealPlan:             it.hotelMealPlan ?? "",
@@ -889,7 +934,10 @@ function normalizeItinerary(it: {
     transportPickupLng:        it.transportPickupLng ?? null,
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
+    transportTravelTime:       it.transportTravelTime ?? "",
     cabPricingId:              it.cabPricingId ?? null,
+    cabQuantity:               it.cabQuantity ?? null,
+    extraCabs:                 parseCabSelections(it.extraCabs),
     notes:                     it.notes ?? "",
   };
 }
@@ -964,6 +1012,15 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           totalPrice:      true,
           marginPercentage: true,
           gstPercentage:    true,
+          inclusions:      true,
+          exclusions:      true,
+          termsNotes:      true,
+          termsConditions: true,
+          paymentPolicy:   true,
+          amendmentPolicy: true,
+          travelBenefits:  true,
+          paymentLink:     true,
+          pricingSnapshot: true,
           stops: {
             orderBy: { sortOrder: "asc" },
             select: { id: true, name: true, nights: true, image: true },
@@ -993,6 +1050,8 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               accommodationRoomSpecs: true,
               accommodationRoomCapacity: true,
               roomPricingId:      true,
+              roomsCount:         true,
+              extraRooms:         true,
               hotelCheckIn:       true,
               hotelCheckOut:      true,
               hotelMealPlan:      true,
@@ -1005,7 +1064,10 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               transportPickupLng: true,
               transportDrop:      true,
               transportDistanceKm: true,
+              transportTravelTime: true,
               cabPricingId:       true,
+              cabQuantity:        true,
+              extraCabs:          true,
               notes:              true,
               activities: {
                 orderBy: { sortOrder: "asc" },
@@ -1050,7 +1112,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency, inclusions, exclusions,
-      termsNotes,
+      termsNotes, termsConditions, paymentPolicy, amendmentPolicy, travelBenefits, paymentLink,
       status, stops, itineraries, tickets,
     } = input;
 
@@ -1131,6 +1193,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         inclusions,
         exclusions,
         termsNotes:      termsNotes || null,
+        termsConditions,
+        paymentPolicy,
+        amendmentPolicy,
+        travelBenefits,
+        paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
         flightFrom:      flightFrom || null,
@@ -1164,6 +1231,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         inclusions,
         exclusions,
         termsNotes:      termsNotes || null,
+        termsConditions,
+        paymentPolicy,
+        amendmentPolicy,
+        travelBenefits,
+        paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
         flightFrom:      flightFrom || null,
@@ -1220,6 +1292,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               accommodationRoomSpecs: it.accommodationRoomSpecs || null,
               accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
               roomPricingId:      it.roomPricingId ?? null,
+              roomsCount:         it.roomsCount ?? null,
+              // Drop any "add another room" row the exec never finished
+              // picking a room for (roomPricingId still 0, the picker's
+              // "unselected" sentinel) rather than persisting junk entries.
+              extraRooms:         (it.extraRooms ?? []).filter((r) => r.roomPricingId > 0) as unknown as Prisma.InputJsonValue,
               hotelCheckIn:       it.hotelCheckIn || null,
               hotelCheckOut:      it.hotelCheckOut || null,
               hotelMealPlan:      it.hotelMealPlan || null,
@@ -1232,7 +1309,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               transportPickupLng: it.transportPickupLng ?? null,
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,
+              transportTravelTime: it.transportTravelTime || null,
               cabPricingId:       it.cabPricingId ?? null,
+              cabQuantity:        it.cabQuantity ?? null,
+              // Same "drop unfinished rows" filter as extraRooms above.
+              extraCabs:          (it.extraCabs ?? []).filter((c) => c.label.trim()) as unknown as Prisma.InputJsonValue,
               notes:              it.notes || null,
               activities: {
                 create: it.activities
@@ -1305,13 +1386,14 @@ export async function sendPackageToClient(packageId: string): Promise<{
       include: {
         query:       true,
         itineraries: { orderBy: { day: "asc" } },
+        tickets:     { orderBy: { sortOrder: "asc" } },
       },
     });
 
     if (!pkg) return { success: false, error: "Package not found" };
 
     const baseUrl  = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-    const shareUrl = `${baseUrl}/itinerary/${packageId}`;
+    const shareUrl = `${baseUrl}/custom-package/${packageId}`;
 
     // ── Build WhatsApp deep-link ─────────────────────────────────────────────
     const rawPhone  = pkg.query.phone.replace(/\D/g, "");
@@ -1357,11 +1439,84 @@ export async function sendPackageToClient(packageId: string): Promise<{
 
     const whatsappUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
 
+    // ── Freeze the pricing breakdown ─────────────────────────────────────────
+    // Computed fresh from the actual priced hotel/cab/ticket rows (not trusted
+    // from client state) at the exact moment the package is sent, so the exec
+    // can recheck later how the delivered total was built — mirrors the
+    // arithmetic in the builder's own computeFinalPricing (page.tsx): base →
+    // +margin% → taxable → +gst% → final, tickets always at a flat 5% margin.
+    const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
+    const [hotelPricing, cabPricing] = await Promise.all([
+      computeBuilderHotelPricing({
+        travelDate: travelDateIso,
+        adults:     pkg.adults,
+        children:   pkg.children,
+        days: pkg.itineraries.map((it) => ({
+          day:           it.day,
+          roomPricingId: it.roomPricingId,
+          roomsCount:    it.roomsCount,
+          extraRooms:    parseRoomSelections(it.extraRooms),
+        })),
+      }),
+      computeBuilderCabPricing({
+        travelDate: travelDateIso,
+        days: pkg.itineraries.map((it) => ({
+          day:                 it.day,
+          cabPricingId:        it.cabPricingId,
+          transportDistanceKm: it.transportDistanceKm,
+          cabQuantity:         it.cabQuantity,
+          extraCabs:           parseCabSelections(it.extraCabs),
+        })),
+      }),
+    ]);
+
+    const TICKET_MARGIN_PCT = 5;
+    const ticketsSubtotal = pkg.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
+    const hotelCabBase = hotelPricing.hotelSubtotal + cabPricing.cabSubtotal;
+    const baseCost = hotelCabBase + ticketsSubtotal;
+    const hotelCabMarginAmount = Math.round(hotelCabBase * pkg.marginPercentage / 100);
+    const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
+    const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
+    const taxable = baseCost + marginAmount;
+    const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
+    const finalPrice = taxable + gstAmount;
+    const totalPax = pkg.adults + pkg.children;
+    const pricePerPersonComputed = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
+
+    const pricingSnapshot = {
+      lockedAt: new Date().toISOString(),
+      currency: pkg.currency,
+      hotel: { subtotal: hotelPricing.hotelSubtotal, nightsCounted: hotelPricing.nightsCounted, lines: hotelPricing.days },
+      cab:   { subtotal: cabPricing.cabSubtotal, daysCounted: cabPricing.daysCounted, lines: cabPricing.days },
+      tickets: {
+        subtotal: ticketsSubtotal,
+        lines: pkg.tickets.map((t) => ({
+          type: t.type, provider: t.provider ?? "", fromPlace: t.fromPlace ?? "", toPlace: t.toPlace ?? "",
+          fare: t.fare, ticketCount: t.ticketCount,
+        })),
+      },
+      baseCost,
+      marginPercentage: pkg.marginPercentage,
+      hotelCabMarginAmount,
+      ticketsMarginAmount,
+      marginAmount,
+      taxable,
+      gstPercentage: pkg.gstPercentage,
+      gstAmount,
+      finalPrice,
+      pricePerPerson: pricePerPersonComputed,
+      // What was actually shown to the client at lock time (the exec may
+      // have hand-typed a different number than the computed one above) —
+      // lets a later recheck spot drift between the two.
+      displayedTotalPrice:     pkg.totalPrice ?? null,
+      displayedPricePerPerson: pkg.pricePerPerson ?? null,
+    } as unknown as Prisma.InputJsonValue;
+
     // ── Update DB ────────────────────────────────────────────────────────────
     await db.$transaction([
       db.custom_packages.update({
         where: { id: packageId },
-        data:  { status: "SENT", sentAt: new Date() },
+        data:  { status: "SENT", sentAt: new Date(), pricingSnapshot },
       }),
       db.package_queries.update({
         where: { id: pkg.queryId },

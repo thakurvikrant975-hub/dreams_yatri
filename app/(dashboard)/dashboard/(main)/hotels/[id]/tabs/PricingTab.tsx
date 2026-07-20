@@ -7,6 +7,7 @@ import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Switch } from "../../../components/ui/switch";
 import { Textarea } from "../../../components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../components/ui/card";
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
@@ -18,15 +19,12 @@ import {
   AlertDialogTrigger,
 } from "../../../components/ui/alert-dialog";
 import {
-  Plus, Pencil, Trash2, Loader2, Check, X,
-  ChevronDown, ChevronRight, Users, Calendar, AlertTriangle,
-  CalendarDays, Info, StickyNote,
+  Plus, Pencil, Trash2, Loader2, Check, X,  
+  ChevronDown, ChevronRight, Users, Calendar,
+  CalendarDays, AlertTriangle, StickyNote,
 } from "lucide-react";
-import {
-  PricingRangeCalendarPicker,
-  type DateRange,
-  type SeasonRange,
-} from "../../../components/ui/pricing-range-calendar";
+import { SeasonalRateCalendar, type SeasonalRateCalendarItem } from "../../../components/ui/seasonal-rate-calendar";
+import { type RateSeasonBase, defaultRangeLabel } from "../../../components/ui/seasonal-rate-calendar-logic";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { PLAN_NOTES_MAX_LEN } from "../../constants";
@@ -34,14 +32,15 @@ import {
   deleteRoomPricing,
   upsertOccupancyPrice, deleteOccupancyPrice,
   createRoomPricingWithSeasons, updateRoomPricingWithSeasons,
+  updatePricingSeasonsOnly,
   type HotelSeasonInput,
 } from "../../actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type RoomOption = { id: number; name: string };
-type MealType   = { id: number; name: string; covered_meals: string[] };
-type DietType   = { id: number; name: string };
+type MealType = { id: number; name: string; covered_meals: string[] };
+type DietType = { id: number; name: string };
 
 type OccupancyPrice = {
   id: number;
@@ -49,6 +48,7 @@ type OccupancyPrice = {
   occupancy: number;
   price_per_night: number;
   original_price: number | null;
+  weekend_price_per_night: number | null;
 };
 
 type SeasonOccupancyPrice = {
@@ -57,6 +57,7 @@ type SeasonOccupancyPrice = {
   occupancy: number;
   price_per_night: number;
   original_price: number | null;
+  weekend_price_per_night: number | null;
 };
 
 type HotelSeason = {
@@ -69,6 +70,8 @@ type HotelSeason = {
   weekend_price_per_night: number | null;
   original_price: number | null;
   extra_bed_rate: number | null;
+  weekend_extra_bed_rate: number | null;
+  color: string | null;
   is_active: boolean;
   sort_order: number;
   occupancy_prices: SeasonOccupancyPrice[];
@@ -84,6 +87,8 @@ type PricingPlan = {
   price_per_night: number;
   original_price: number | null;
   extra_bed_rate: number | null;
+  weekend_price_per_night: number | null;
+  weekend_extra_bed_rate: number | null;
   margin_percentage: number;
   gst_percentage: number;
   notes: string | null;
@@ -98,56 +103,66 @@ type PricingPlan = {
   seasons: HotelSeason[];
 };
 
-type OccupancyEntry = { occupancy: number; price: string; original: string };
+// weekendPrice is only ever populated for the dedicated single-occupancy
+// toggle — the generic occupancy grid (2P/3P/4P) leaves it undefined.
+type OccupancyEntry = { occupancy: number; price: string; original: string; weekendPrice?: string };
 
 // Local season entry (before save) — only the fields we need
 type SeasonEntry = {
-  tempId:                  string;
-  valid_from:              string;
-  valid_to:                string;
-  price_per_night:         string;
+  tempId: string;
+  label: string;
+  valid_from: string;
+  valid_to: string;
+  price_per_night: string;
   weekend_price_per_night: string;
-  extra_bed_rate:          string;
-  occupancy_prices:        OccupancyEntry[];
+  extra_bed_rate: string;
+  weekend_extra_bed_rate: string;
+  single_occupancy_price: string;
+  single_occupancy_weekend_price: string;
+  color: string;
 };
 
 type PricingFormState = {
-  room_id:             string;
-  plan_name:           string;
-  meal_type_id:        string;
-  diet_type_id:        string;
+  room_id: string;
+  plan_name: string;
+  meal_type_id: string;
+  diet_type_id: string;
   base_price_per_night: string;
-  base_extra_bed_rate:  string;
-  margin_percentage:   string;
-  gst_percentage:      string;
-  is_active:           boolean;
-  notes:               string;
-  occupancy_prices:    OccupancyEntry[];
-  seasons:             SeasonEntry[];
+  base_weekend_price_per_night: string;
+  base_extra_bed_rate: string;
+  base_weekend_extra_bed_rate: string;
+  margin_percentage: string;
+  gst_percentage: string;
+  is_active: boolean;
+  notes: string;
+  // Single (1P) occupancy is priced cheaper than the base (double) rate — kept
+  // as its own toggle + field rather than folded into the generic occupancy
+  // grid below, since it's the one tier managers set on nearly every plan.
+  single_occupancy_enabled: boolean;
+  single_occupancy_price: string;
+  single_occupancy_weekend_price: string;
+  occupancy_prices: OccupancyEntry[];
+  seasons: SeasonEntry[];
 };
 
 const EMPTY_FORM: PricingFormState = {
-  room_id:              "",
-  plan_name:            "",
-  meal_type_id:         "",
-  diet_type_id:         "",
+  room_id: "",
+  plan_name: "",
+  meal_type_id: "",
+  diet_type_id: "",
   base_price_per_night: "",
-  base_extra_bed_rate:  "",
-  margin_percentage:    "10",
-  gst_percentage:       "18",
-  is_active:            true,
-  notes:                "",
-  occupancy_prices:     [],
-  seasons:              [],
-};
-
-const EMPTY_SEASON: Omit<SeasonEntry, "tempId"> = {
-  valid_from:              "",
-  valid_to:                "",
-  price_per_night:         "",
-  weekend_price_per_night: "",
-  extra_bed_rate:          "",
-  occupancy_prices:        [],
+  base_weekend_price_per_night: "",
+  base_extra_bed_rate: "",
+  base_weekend_extra_bed_rate: "",
+  margin_percentage: "10",
+  gst_percentage: "18",
+  is_active: true,
+  notes: "",
+  single_occupancy_enabled: false,
+  single_occupancy_price: "",
+  single_occupancy_weekend_price: "",
+  occupancy_prices: [],
+  seasons: [],
 };
 
 const OCCUPANCY_LABELS: Record<number, string> = {
@@ -177,347 +192,429 @@ function toDateObj(str: string): Date | undefined {
   return isNaN(d.getTime()) ? undefined : d;
 }
 
-function fromDateObj(d: Date | undefined): string {
-  if (!d) return "";
-  const y   = d.getFullYear();
-  const m   = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 function fmtMonthDay(dateStr: string): string {
   const d = toDateObj(dateStr);
   if (!d) return dateStr;
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function overlappingIds(seasons: SeasonEntry[]): Set<string> {
-  const withDates = seasons.filter(s => s.valid_from && s.valid_to);
-  const out = new Set<string>();
-  for (let i = 0; i < withDates.length; i++) {
-    for (let j = i + 1; j < withDates.length; j++) {
-      const a = withDates[i], b = withDates[j];
-      if (a.valid_from <= b.valid_to && b.valid_from <= a.valid_to) {
-        out.add(a.tempId); out.add(b.tempId);
-      }
-    }
-  }
-  return out;
-}
-
 function toFormState(p: PricingPlan): PricingFormState {
+  const singleOcc = p.occupancy_prices.find(op => op.occupancy === 1);
   return {
-    room_id:              String(p.room_id),
-    plan_name:            p.plan_name         ?? "",
-    meal_type_id:         p.meal_type_id      ? String(p.meal_type_id)  : "none",
-    diet_type_id:         p.diet_type_id      ? String(p.diet_type_id)  : "",
-    base_price_per_night: p.price_per_night   ? String(p.price_per_night)  : "",
-    base_extra_bed_rate:  p.extra_bed_rate    ? String(p.extra_bed_rate)   : "",
-    margin_percentage:    String(p.margin_percentage),
-    gst_percentage:       String(p.gst_percentage),
-    is_active:            p.is_active,
-    notes:                p.notes ?? "",
-    occupancy_prices:     [],
-    seasons:              (p.seasons ?? []).map(s => ({
-      tempId:                  uid(),
-      valid_from:              toISODate(s.valid_from),
-      valid_to:                toISODate(s.valid_to),
-      price_per_night:         String(s.price_per_night),
-      weekend_price_per_night: s.weekend_price_per_night ? String(s.weekend_price_per_night) : "",
-      extra_bed_rate:          s.extra_bed_rate ? String(s.extra_bed_rate) : "",
-      occupancy_prices:        (s.occupancy_prices ?? []).map(op => ({
-        occupancy: op.occupancy,
-        price:     String(op.price_per_night),
-        original:  op.original_price != null ? String(op.original_price) : "",
-      })),
-    })),
+    room_id: String(p.room_id),
+    plan_name: p.plan_name ?? "",
+    meal_type_id: p.meal_type_id ? String(p.meal_type_id) : "none",
+    diet_type_id: p.diet_type_id ? String(p.diet_type_id) : "",
+    base_price_per_night: p.price_per_night ? String(p.price_per_night) : "",
+    base_weekend_price_per_night: p.weekend_price_per_night ? String(p.weekend_price_per_night) : "",
+    base_extra_bed_rate: p.extra_bed_rate ? String(p.extra_bed_rate) : "",
+    base_weekend_extra_bed_rate: p.weekend_extra_bed_rate ? String(p.weekend_extra_bed_rate) : "",
+    margin_percentage: String(p.margin_percentage),
+    gst_percentage: String(p.gst_percentage),
+    is_active: p.is_active,
+    notes: p.notes ?? "",
+    single_occupancy_enabled: !!singleOcc,
+    single_occupancy_price: singleOcc ? String(singleOcc.price_per_night) : "",
+    single_occupancy_weekend_price: singleOcc?.weekend_price_per_night ? String(singleOcc.weekend_price_per_night) : "",
+    occupancy_prices: p.occupancy_prices
+      .filter(op => op.occupancy !== 1)
+      .map(op => ({ occupancy: op.occupancy, price: String(op.price_per_night), original: op.original_price ? String(op.original_price) : "" })),
+    seasons: (p.seasons ?? []).map(s => {
+      const from = toISODate(s.valid_from);
+      const to = toISODate(s.valid_to);
+      const autoRangeText = `${fmtMonthDay(from)} → ${fmtMonthDay(to)}`;
+      const singleOccSeason = s.occupancy_prices.find(op => op.occupancy === 1);
+      return {
+        tempId: uid(),
+        label: s.season_name && s.season_name !== autoRangeText ? s.season_name : "",
+        valid_from: from,
+        valid_to: to,
+        price_per_night: String(s.price_per_night),
+        weekend_price_per_night: s.weekend_price_per_night ? String(s.weekend_price_per_night) : "",
+        extra_bed_rate: s.extra_bed_rate ? String(s.extra_bed_rate) : "",
+        weekend_extra_bed_rate: s.weekend_extra_bed_rate ? String(s.weekend_extra_bed_rate) : "",
+        single_occupancy_price: singleOccSeason ? String(singleOccSeason.price_per_night) : "",
+        single_occupancy_weekend_price: singleOccSeason?.weekend_price_per_night ? String(singleOccSeason.weekend_price_per_night) : "",
+        color: s.color ?? "",
+      };
+    }),
   };
 }
 
-// ── Inline Season List (inside PricingForm) ───────────────────────────────
+// ── Seasonal Pricing Section (inside PricingForm) ─────────────────────────
+// Seasons are scoped per pricing plan (the "item"). The calendar's item
+// switcher shows every pricing plan created for this HOTEL (across every
+// room, not just the one currently being edited) — the plan currently being
+// added/edited here, plus every other plan already saved for the hotel — so
+// a manager can compare/adjust seasonal rates across the whole property
+// without leaving the modal. Edits to the in-progress plan buffer into the
+// local form (saved via the "Save Plan" button); edits to any other
+// (already persisted) plan save immediately, since there's no other save
+// mechanism reachable for it from here.
 
-function SeasonsInlineList({
+type HotelRateSeason = RateSeasonBase & {
+  weekendPrice: number | null;
+  extraBedRate: number | null;
+  weekendExtraBedRate: number | null;
+  // Single (1P) occupancy override for this season — only ever surfaced in
+  // the UI when the plan itself has single-occupancy pricing enabled.
+  singleOccupancyPrice: number | null;
+  singleOccupancyWeekendPrice: number | null;
+};
+
+const NEW_PLAN_ITEM_ID = "new-plan";
+
+function seasonLabelOrUndefined(seasonName: string, fromISO: string, toISO: string): string | undefined {
+  const autoRangeText = `${fmtMonthDay(fromISO)} → ${fmtMonthDay(toISO)}`;
+  return seasonName && seasonName !== autoRangeText ? seasonName : undefined;
+}
+
+function seasonEntriesToRateSeasons(seasons: SeasonEntry[], itemId: string): HotelRateSeason[] {
+  return seasons
+    .filter(s => s.valid_from && s.valid_to && Number(s.price_per_night) > 0)
+    .map(s => ({
+      id: s.tempId,
+      itemId,
+      label: s.label || undefined,
+      startDate: s.valid_from,
+      endDate: s.valid_to,
+      color: s.color || "#f97316",
+      rate: Number(s.price_per_night) || 0,
+      weekendPrice: s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
+      extraBedRate: s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
+      weekendExtraBedRate: s.weekend_extra_bed_rate ? Number(s.weekend_extra_bed_rate) : null,
+      singleOccupancyPrice: s.single_occupancy_price ? Number(s.single_occupancy_price) : null,
+      singleOccupancyWeekendPrice: s.single_occupancy_weekend_price ? Number(s.single_occupancy_weekend_price) : null,
+    }));
+}
+
+function savedSeasonsToRateSeasons(seasons: HotelSeason[], itemId: string): HotelRateSeason[] {
+  return seasons.map(s => {
+    const from = toISODate(s.valid_from);
+    const to = toISODate(s.valid_to);
+    const singleOcc = s.occupancy_prices.find(op => op.occupancy === 1);
+    return {
+      id: String(s.id),
+      itemId,
+      label: seasonLabelOrUndefined(s.season_name, from, to),
+      startDate: from,
+      endDate: to,
+      color: s.color ?? "#f97316",
+      rate: s.price_per_night,
+      weekendPrice: s.weekend_price_per_night,
+      extraBedRate: s.extra_bed_rate,
+      weekendExtraBedRate: s.weekend_extra_bed_rate,
+      singleOccupancyPrice: singleOcc ? singleOcc.price_per_night : null,
+      singleOccupancyWeekendPrice: singleOcc?.weekend_price_per_night ?? null,
+    };
+  });
+}
+
+function rateSeasonToSeasonEntry(rs: HotelRateSeason): SeasonEntry {
+  return {
+    tempId: rs.id,
+    label: rs.label ?? "",
+    valid_from: rs.startDate,
+    valid_to: rs.endDate,
+    price_per_night: String(rs.rate),
+    weekend_price_per_night: rs.weekendPrice != null ? String(rs.weekendPrice) : "",
+    extra_bed_rate: rs.extraBedRate != null ? String(rs.extraBedRate) : "",
+    weekend_extra_bed_rate: rs.weekendExtraBedRate != null ? String(rs.weekendExtraBedRate) : "",
+    single_occupancy_price: rs.singleOccupancyPrice != null ? String(rs.singleOccupancyPrice) : "",
+    single_occupancy_weekend_price: rs.singleOccupancyWeekendPrice != null ? String(rs.singleOccupancyWeekendPrice) : "",
+    color: rs.color,
+  };
+}
+
+function rateSeasonToHotelSeasonInput(rs: HotelRateSeason): HotelSeasonInput {
+  return {
+    season_name: rs.label?.trim() || defaultRangeLabel(rs.startDate, rs.endDate),
+    valid_from: rs.startDate,
+    valid_to: rs.endDate,
+    price_per_night: rs.rate,
+    weekend_price_per_night: rs.weekendPrice,
+    original_price: null,
+    extra_bed_rate: rs.extraBedRate,
+    weekend_extra_bed_rate: rs.weekendExtraBedRate,
+    color: rs.color,
+    is_active: true,
+    occupancy_prices: rs.singleOccupancyPrice != null
+      ? [{ occupancy: 1, price_per_night: rs.singleOccupancyPrice, original_price: null, weekend_price_per_night: rs.singleOccupancyWeekendPrice }]
+      : [],
+  };
+}
+
+function rateSeasonsToOptimisticSeasons(rateSeasons: HotelRateSeason[], pricingId: number): HotelSeason[] {
+  const baseTime = Date.now();
+  return rateSeasons.map((rs, i) => ({
+    id: /^\d+$/.test(rs.id) ? Number(rs.id) : baseTime + i,
+    pricing_id: pricingId,
+    season_name: rs.label?.trim() || defaultRangeLabel(rs.startDate, rs.endDate),
+    valid_from: new Date(rs.startDate),
+    valid_to: new Date(rs.endDate),
+    price_per_night: rs.rate,
+    weekend_price_per_night: rs.weekendPrice,
+    original_price: null,
+    extra_bed_rate: rs.extraBedRate,
+    weekend_extra_bed_rate: rs.weekendExtraBedRate,
+    color: rs.color,
+    is_active: true,
+    sort_order: i,
+    occupancy_prices: rs.singleOccupancyPrice != null
+      ? [{
+          id: baseTime + i,
+          season_id: /^\d+$/.test(rs.id) ? Number(rs.id) : baseTime + i,
+          occupancy: 1,
+          price_per_night: rs.singleOccupancyPrice,
+          original_price: null,
+          weekend_price_per_night: rs.singleOccupancyWeekendPrice,
+        }]
+      : [],
+  }));
+}
+
+const seasonExtraFieldClass =
+  "h-8 w-full rounded-lg border border-neutral-200 bg-white px-2.5 text-xs text-neutral-900 " +
+  "placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400";
+
+function SeasonalPricingSection({
   seasons,
   onChange,
   basePricePerNight = 0,
+  baseWeekendPricePerNight,
+  baseExtraBedRate,
+  baseWeekendExtraBedRate,
+  singleOccupancyEnabled,
+  baseSingleOccupancyPrice,
+  baseSingleOccupancyWeekendPrice,
+  planLabel,
+  currentPlanId,
+  hotelId,
+  siblingPlans,
+  onSiblingSeasonsUpdated,
 }: {
-  seasons:           SeasonEntry[];
-  onChange:          (s: SeasonEntry[]) => void;
+  seasons: SeasonEntry[];
+  onChange: (s: SeasonEntry[]) => void;
   basePricePerNight?: number;
+  baseWeekendPricePerNight?: number | null;
+  baseExtraBedRate?: number | null;
+  baseWeekendExtraBedRate?: number | null;
+  // Whether the CURRENT plan (being added/edited) has single-occupancy
+  // pricing turned on — siblings each carry their own, derived below.
+  singleOccupancyEnabled?: boolean;
+  baseSingleOccupancyPrice?: number | null;
+  baseSingleOccupancyWeekendPrice?: number | null;
+  planLabel: string;
+  currentPlanId: number | null;
+  hotelId: number;
+  siblingPlans: PricingPlan[];
+  onSiblingSeasonsUpdated: (planId: number, seasons: HotelSeason[]) => void;
 }) {
-  const overlapping = overlappingIds(seasons);
+  const [open, setOpen] = useState(false);
+  const currentItemId = currentPlanId != null ? String(currentPlanId) : NEW_PLAN_ITEM_ID;
+  const [activeItemId, setActiveItemId] = useState(currentItemId);
 
-  const calendarSeasons: SeasonRange[] = seasons
-    .filter(x => x.valid_from && x.valid_to && Number(x.price_per_night) > 0)
-    .map(x => ({
-      from:           x.valid_from,
-      to:             x.valid_to,
-      weekdayPrice:   Number(x.price_per_night),
-      weekendPrice:   x.weekend_price_per_night ? Number(x.weekend_price_per_night) : null,
-      weekendEnabled: !!x.weekend_price_per_night,
-    }));
+  const currentRateSeasons = seasonEntriesToRateSeasons(seasons, currentItemId);
+  const siblingRateSeasons = siblingPlans.flatMap(p => savedSeasonsToRateSeasons(p.seasons, String(p.id)));
+  const allRateSeasons = [...currentRateSeasons, ...siblingRateSeasons];
+  const seasonCount = currentRateSeasons.length;
 
-  function addSeason() {
-    onChange([...seasons, { ...EMPTY_SEASON, tempId: uid() }]);
+  const itemMetaById: Record<string, {
+    extraBedRate: number | null;
+    weekendExtraBedRate: number | null;
+    singleOccupancyEnabled: boolean;
+    singleOccupancyPrice: number | null;
+    singleOccupancyWeekendPrice: number | null;
+  }> = {
+    [currentItemId]: {
+      extraBedRate: baseExtraBedRate ?? null,
+      weekendExtraBedRate: baseWeekendExtraBedRate ?? null,
+      singleOccupancyEnabled: !!singleOccupancyEnabled,
+      singleOccupancyPrice: baseSingleOccupancyPrice ?? null,
+      singleOccupancyWeekendPrice: baseSingleOccupancyWeekendPrice ?? null,
+    },
+  };
+  for (const p of siblingPlans) {
+    const singleOcc = p.occupancy_prices.find(op => op.occupancy === 1);
+    itemMetaById[String(p.id)] = {
+      extraBedRate: p.extra_bed_rate,
+      weekendExtraBedRate: p.weekend_extra_bed_rate,
+      singleOccupancyEnabled: !!singleOcc,
+      singleOccupancyPrice: singleOcc ? singleOcc.price_per_night : null,
+      singleOccupancyWeekendPrice: singleOcc?.weekend_price_per_night ?? null,
+    };
   }
 
-  function updSeason<K extends keyof Omit<SeasonEntry, "tempId">>(
-    tempId: string,
-    key: K,
-    value: Omit<SeasonEntry, "tempId">[K],
-  ) {
-    onChange(seasons.map(s => s.tempId === tempId ? { ...s, [key]: value } : s));
-  }
+  const items: SeasonalRateCalendarItem[] = [
+    { id: currentItemId, label: planLabel || "This plan", baseRate: basePricePerNight, baseWeekendRate: baseWeekendPricePerNight ?? null },
+    ...siblingPlans.map(p => ({
+      id: String(p.id),
+      label: p.room?.name ? `${p.room.name} — ${p.plan_name || "Unnamed plan"}` : (p.plan_name || "Unnamed plan"),
+      baseRate: p.price_per_night,
+      baseWeekendRate: p.weekend_price_per_night,
+    })),
+  ];
 
-  function removeSeason(tempId: string) {
-    onChange(seasons.filter(s => s.tempId !== tempId));
+  async function handleSiblingSave(planId: number, rateSeasonsForPlan: HotelRateSeason[]) {
+    const input = rateSeasonsForPlan.map(rateSeasonToHotelSeasonInput);
+    const result = await updatePricingSeasonsOnly(planId, hotelId, input);
+    if (!result.success) { toast.error(result.message); return; }
+    onSiblingSeasonsUpdated(planId, rateSeasonsToOptimisticSeasons(rateSeasonsForPlan, planId));
+    toast.success("Seasonal rates updated");
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
           <CalendarDays className="h-3.5 w-3.5" />
-          Seasonal Date Ranges
+          Seasonal Rates
           <span className="font-normal normal-case text-muted-foreground/60">— optional</span>
         </p>
-      </div>
-
-      {overlapping.size > 0 ? (
-        <div className="flex items-center gap-2 rounded-lg border border-dashboard-error/30 bg-dashboard-error/5 px-3 py-2 text-xs text-dashboard-error">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Overlapping seasons detected. Fix the highlighted seasons before saving.
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 rounded-lg border border-dashboard-info/40 bg-dashboard-info/10 px-3 py-2 text-xs text-dashboard-base-content/70">
-          <Info className="h-3.5 w-3.5 shrink-0 text-dashboard-secondary" />
-          Click a start date then an end date on the calendar to set the season range.
-        </div>
-      )}
-
-      {seasons.map(s => (
-        <SeasonCard
-          key={s.tempId}
-          season={s}
-          hasOverlap={overlapping.has(s.tempId)}
-          onUpdate={(key, value) => updSeason(s.tempId, key, value)}
-          onDateRangeChange={range => {
-            onChange(seasons.map(s2 =>
-              s2.tempId === s.tempId
-                ? { ...s2, valid_from: fromDateObj(range?.from), valid_to: fromDateObj(range?.to) }
-                : s2,
-            ));
-          }}
-          onRemove={() => removeSeason(s.tempId)}
-          calendarSeasons={calendarSeasons}
-          basePricePerNight={basePricePerNight}
-        />
-      ))}
-
-      <Button
-        type="button" variant="outline" size="sm"
-        className="h-8 text-xs gap-1.5 w-full border-dashed border-dashboard-base-content/30 bg-dashboard-base-100 text-dashboard-base-content/60 hover:bg-dashboard-base-200 hover:text-dashboard-base-content cursor-pointer"
-        onClick={addSeason}
-      >
-        <Plus className="h-3.5 w-3.5" /> Add Season
-      </Button>
-    </div>
-  );
-}
-
-// ── One season card — local state for the collapsible occupancy section ──
-
-function SeasonCard({
-  season: s,
-  hasOverlap,
-  onUpdate,
-  onDateRangeChange,
-  onRemove,
-  calendarSeasons,
-  basePricePerNight,
-}: {
-  season:             SeasonEntry;
-  hasOverlap:         boolean;
-  onUpdate:           <K extends keyof Omit<SeasonEntry, "tempId">>(key: K, value: Omit<SeasonEntry, "tempId">[K]) => void;
-  onDateRangeChange:  (range: DateRange | undefined) => void;
-  onRemove:           () => void;
-  calendarSeasons:    SeasonRange[];
-  basePricePerNight:  number;
-}) {
-  // Local, not persisted — derived once from whatever was already saved so
-  // editing an existing season with occupancy prices opens with them visible.
-  const [showOccupancy, setShowOccupancy] = useState(s.occupancy_prices.length > 0);
-
-  const dateRange: DateRange | undefined =
-    s.valid_from && s.valid_to
-      ? { from: toDateObj(s.valid_from), to: toDateObj(s.valid_to) }
-      : s.valid_from
-      ? { from: toDateObj(s.valid_from), to: undefined }
-      : undefined;
-
-  const rangeLabel =
-    s.valid_from && s.valid_to
-      ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
-      : "";
-
-  return (
-    <div
-      className={cn(
-        "border rounded-xl p-3 space-y-3",
-        hasOverlap
-          ? "border-dashboard-error/40 bg-dashboard-error/5"
-          : "border-dashboard-base-content/20 bg-dashboard-base-200/50",
-      )}
-    >
-      {/* Card header */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">
-          {rangeLabel || "New season"}
-        </span>
-        <div className="flex items-center gap-1">
-          {hasOverlap && (
-            <span className="text-[10px] text-destructive flex items-center gap-0.5">
-              <AlertTriangle className="h-3 w-3" /> Overlap
-            </span>
-          )}
-          <Button
-            type="button" size="icon" variant="ghost"
-            className="h-6 w-6 text-destructive hover:text-destructive"
-            onClick={onRemove}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Price/Night + Extra Bed */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">
-            Weekday Price / Night (₹) <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            type="number"
-            className={cn("h-8 text-sm", !s.price_per_night && "border-destructive/50")}
-            placeholder="e.g. 4500"
-            value={s.price_per_night}
-            onChange={e => onUpdate("price_per_night", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Extra Bed (₹)</Label>
-          <Input
-            type="number"
-            className="h-8 text-sm"
-            placeholder="optional"
-            value={s.extra_bed_rate}
-            onChange={e => onUpdate("extra_bed_rate", e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Weekend rate */}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id={`weekend-${s.tempId}`}
-            checked={!!s.weekend_price_per_night}
-            onChange={e => {
-              if (!e.target.checked) onUpdate("weekend_price_per_night", "");
-              else onUpdate("weekend_price_per_night", s.price_per_night);
-            }}
-            className="h-3.5 w-3.5 accent-primary"
-          />
-          <Label htmlFor={`weekend-${s.tempId}`} className="text-xs cursor-pointer">
-            Weekend rate (Sat &amp; Sun)
-            {s.price_per_night && (
-              <span className="text-muted-foreground ml-1">(base ₹{Number(s.price_per_night).toLocaleString("en-IN")}/night)</span>
-            )}
-          </Label>
-        </div>
-        {s.weekend_price_per_night !== "" && (
-          <Input
-            type="number"
-            className="h-8 text-sm"
-            placeholder="Same as weekday"
-            value={s.weekend_price_per_night}
-            onChange={e => onUpdate("weekend_price_per_night", e.target.value)}
-          />
+        {seasonCount > 0 && (
+          <span className="text-[11px] text-dashboard-base-content/50">
+            {seasonCount} range{seasonCount !== 1 ? "s" : ""}
+          </span>
         )}
       </div>
 
-      {/* Occupancy prices for this season — same 1/2/3/4P tiers as the
-          plan-level fallback, but scoped to just this date range. Hidden
-          behind a checkbox since most seasons won't need a per-occupancy
-          override and the four rows take up real space. */}
-      <div className="space-y-1.5 border-t border-dashboard-base-content/10 pt-2.5">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id={`occupancy-${s.tempId}`}
-            checked={showOccupancy}
-            onChange={e => {
-              setShowOccupancy(e.target.checked);
-              if (!e.target.checked) onUpdate("occupancy_prices", []);
-            }}
-            className="h-3.5 w-3.5 accent-primary"
-          />
-          <Label htmlFor={`occupancy-${s.tempId}`} className="text-xs cursor-pointer flex items-center gap-1">
-            <Users className="h-3 w-3" /> Occupancy prices for this range
-            <span className="text-muted-foreground font-normal">— optional</span>
-          </Label>
-        </div>
-        {showOccupancy && OCCUPANCY_OPTIONS.map(occ => {
-          const entry = s.occupancy_prices.find(e => e.occupancy === occ.value);
+      <Button
+        type="button" variant="outline" size="sm"
+        className="h-9 text-xs gap-1.5 w-full border-dashed border-dashboard-base-content/30 bg-dashboard-base-100 text-dashboard-base-content/70 hover:bg-dashboard-base-200 hover:text-dashboard-base-content cursor-pointer"
+        onClick={() => { setActiveItemId(currentItemId); setOpen(true); }}
+      >
+        <CalendarDays className="h-3.5 w-3.5" />
+        {seasonCount > 0 ? "Manage Seasonal Rates" : "Add Seasonal Rates"}
+      </Button>
+
+      <SeasonalRateCalendar<HotelRateSeason>
+        open={open}
+        onOpenChange={setOpen}
+        title="Seasonal Rate Calendar"
+        subtitle={planLabel}
+        items={items}
+        activeItemId={activeItemId}
+        onActiveItemChange={setActiveItemId}
+        seasons={allRateSeasons}
+        onSave={(next, changedItemId) => {
+          if (changedItemId === currentItemId) {
+            onChange(next.filter(rs => rs.itemId === currentItemId).map(rateSeasonToSeasonEntry));
+            return;
+          }
+          const planId = Number(changedItemId);
+          if (!Number.isFinite(planId)) return;
+          void handleSiblingSave(planId, next.filter(rs => rs.itemId === changedItemId));
+        }}
+        unitLabel="per night"
+        getDefaultDraft={item => ({
+          weekendPrice: item.baseWeekendRate ?? null,
+          extraBedRate: itemMetaById[item.id]?.extraBedRate ?? null,
+          weekendExtraBedRate: itemMetaById[item.id]?.weekendExtraBedRate ?? null,
+          singleOccupancyPrice: itemMetaById[item.id]?.singleOccupancyPrice ?? null,
+          singleOccupancyWeekendPrice: itemMetaById[item.id]?.singleOccupancyWeekendPrice ?? null,
+        })}
+        getGroupKey={s =>
+          `${s.rate}|${s.weekendPrice ?? s.rate}|${s.extraBedRate ?? "none"}|${s.weekendExtraBedRate ?? s.extraBedRate ?? "none"}|${s.singleOccupancyPrice ?? "none"}|${s.singleOccupancyWeekendPrice ?? s.singleOccupancyPrice ?? "none"}`
+        }
+        getSeasonWeekendRate={s => s.weekendPrice}
+        renderGroupExtra={s => {
+          const weekendRate = s.weekendPrice ?? s.rate;
+          const weekendMatchesWeekday = s.weekendPrice == null || s.weekendPrice === s.rate;
+          const hasExtraBed = s.extraBedRate != null;
+          const weekendExtraBed = s.weekendExtraBedRate ?? s.extraBedRate;
+          const weekendExtraBedMatchesWeekday = s.weekendExtraBedRate == null || s.weekendExtraBedRate === s.extraBedRate;
           return (
-            <div key={occ.value} className="flex items-center gap-2">
-              <span className="text-xs w-20 shrink-0 text-muted-foreground">{occ.label}</span>
-              <Input
-                type="number"
-                className="h-7 text-xs flex-1"
-                placeholder="Price"
-                value={entry?.price ?? ""}
-                onChange={e => {
-                  const price = e.target.value;
-                  const rest = s.occupancy_prices.filter(x => x.occupancy !== occ.value);
-                  const next = price
-                    ? [...rest, { occupancy: occ.value, price, original: entry?.original ?? "" }].sort((a, b) => a.occupancy - b.occupancy)
-                    : rest;
-                  onUpdate("occupancy_prices", next);
-                }}
-              />
-              <Input
-                type="number"
-                className="h-7 text-xs flex-1"
-                placeholder="MRP (optional)"
-                value={entry?.original ?? ""}
-                onChange={e => {
-                  const original = e.target.value;
-                  if (!entry?.price) return;
-                  const rest = s.occupancy_prices.filter(x => x.occupancy !== occ.value);
-                  const next = [...rest, { occupancy: occ.value, price: entry.price, original }].sort((a, b) => a.occupancy - b.occupancy);
-                  onUpdate("occupancy_prices", next);
-                }}
-              />
+            <div className="text-[10px] text-neutral-500 space-y-0.5">
+              <p>
+                Weekend: <span className="font-semibold text-neutral-700">₹{weekendRate.toLocaleString("en-IN")}</span>
+                {weekendMatchesWeekday && <span className="text-neutral-400"> (same as weekday)</span>}
+              </p>
+              <p>
+                Extra bed: <span className="font-semibold text-neutral-700">{hasExtraBed ? `₹${s.extraBedRate!.toLocaleString("en-IN")}` : "—"}</span>
+                {hasExtraBed && (
+                  <>
+                    {" · Weekend: "}
+                    <span className="font-semibold text-neutral-700">₹{weekendExtraBed!.toLocaleString("en-IN")}</span>
+                    {weekendExtraBedMatchesWeekday && <span className="text-neutral-400"> (same as weekday)</span>}
+                  </>
+                )}
+              </p>
+              {s.singleOccupancyPrice != null && (
+                <p>
+                  Single occupancy: <span className="font-semibold text-neutral-700">₹{s.singleOccupancyPrice.toLocaleString("en-IN")}</span>
+                  {" · Weekend: "}
+                  <span className="font-semibold text-neutral-700">
+                    ₹{(s.singleOccupancyWeekendPrice ?? s.singleOccupancyPrice).toLocaleString("en-IN")}
+                  </span>
+                  {s.singleOccupancyWeekendPrice == null && <span className="text-neutral-400"> (same as weekday)</span>}
+                </p>
+              )}
             </div>
           );
-        })}
-      </div>
+        }}
+        renderRateExtra={({ draft, onChange: onExtraChange }) => (
+          <div>
+            <label className="text-[10px] text-neutral-500 mb-0.5 block">Weekend price (₹)</label>
+            <input
+              type="number" min={0}
+              placeholder="Same as weekday"
+              value={draft.weekendPrice ?? ""}
+              onChange={e => onExtraChange({ weekendPrice: e.target.value ? Number(e.target.value) : null })}
+              className={seasonExtraFieldClass}
+            />
+          </div>
+        )}
+        renderExtraFields={({ draft, onChange: onExtraChange }) => (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-neutral-500 mb-0.5 block">Extra bed (₹)</label>
+              <input
+                type="number" min={0}
+                placeholder="optional"
+                value={draft.extraBedRate ?? ""}
+                onChange={e => onExtraChange({ extraBedRate: e.target.value ? Number(e.target.value) : null })}
+                className={seasonExtraFieldClass}
+              />
+            </div>
 
-      {/* Calendar date range picker */}
-      <div className="space-y-1">
-        <Label className="text-xs">
-          Date Range <span className="text-destructive">*</span>
-        </Label>
-        <PricingRangeCalendarPicker
-          value={dateRange}
-          onChange={onDateRangeChange}
-          seasons={calendarSeasons}
-          basePrice={basePricePerNight}
-          error={hasOverlap}
-        />
-      </div>
+            <div>
+              <label className="text-[10px] text-neutral-500 mb-0.5 block">Weekend extra bed (₹)</label>
+              <input
+                type="number" min={0}
+                placeholder="Same as weekday"
+                value={draft.weekendExtraBedRate ?? ""}
+                onChange={e => onExtraChange({ weekendExtraBedRate: e.target.value ? Number(e.target.value) : null })}
+                className={seasonExtraFieldClass}
+              />
+            </div>
+
+            {itemMetaById[activeItemId]?.singleOccupancyEnabled && (
+              <>
+                <div>
+                  <label className="text-[10px] text-neutral-500 mb-0.5 block">Single occupancy price (₹)</label>
+                  <input
+                    type="number" min={0}
+                    placeholder="optional"
+                    value={draft.singleOccupancyPrice ?? ""}
+                    onChange={e => onExtraChange({ singleOccupancyPrice: e.target.value ? Number(e.target.value) : null })}
+                    className={seasonExtraFieldClass}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-neutral-500 mb-0.5 block">Weekend single occupancy (₹)</label>
+                  <input
+                    type="number" min={0}
+                    placeholder="Same as weekday"
+                    value={draft.singleOccupancyWeekendPrice ?? ""}
+                    onChange={e => onExtraChange({ singleOccupancyWeekendPrice: e.target.value ? Number(e.target.value) : null })}
+                    className={seasonExtraFieldClass}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      />
     </div>
   );
 }
@@ -552,15 +649,26 @@ function PricingForm({
   onCancel,
   isSaving,
   isNew = false,
+  planId = null,
+  hotelId,
+  allPlans,
+  onSiblingSeasonsUpdated,
 }: {
-  initial:   PricingFormState;
-  rooms:     RoomOption[];
+  initial: PricingFormState;
+  rooms: RoomOption[];
   mealTypes: MealType[];
   dietTypes: DietType[];
-  onSave:    (form: PricingFormState) => void;
-  onCancel:  () => void;
-  isSaving:  boolean;
-  isNew?:    boolean;
+  onSave: (form: PricingFormState) => void;
+  onCancel: () => void;
+  isSaving: boolean;
+  isNew?: boolean;
+  /** null when adding a brand-new plan, the real id when editing one. */
+  planId?: number | null;
+  hotelId: number;
+  /** Every pricing plan for this hotel — filtered down to the currently
+   * selected room's siblings for the seasonal calendar's item switcher. */
+  allPlans: PricingPlan[];
+  onSiblingSeasonsUpdated: (planId: number, seasons: HotelSeason[]) => void;
 }) {
   const [form, setForm] = useState<PricingFormState>(initial);
   const autoNameRef = useRef(!initial.plan_name); // true = plan name was auto-filled (or blank on new)
@@ -596,7 +704,6 @@ function PricingForm({
     upd("plan_name", v);
   }
 
-  const seasonOverlaps = overlappingIds(form.seasons);
   const notesTooLong = form.notes.trim().length > PLAN_NOTES_MAX_LEN;
 
   const isValid =
@@ -604,10 +711,9 @@ function PricingForm({
     !!form.meal_type_id &&
     !!form.base_price_per_night && Number(form.base_price_per_night) > 0 &&
     !notesTooLong &&
-    seasonOverlaps.size === 0 &&
     form.seasons.every(
       s => !!s.valid_from && !!s.valid_to &&
-           !!s.price_per_night && Number(s.price_per_night) > 0,
+        !!s.price_per_night && Number(s.price_per_night) > 0,
     );
 
   return (
@@ -679,6 +785,56 @@ function PricingForm({
         </div>
       </div>
 
+      {/* Row 3b: Weekend overrides for base price + extra bed */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm text-dashboard-base-content/70">
+            Weekend Price / Night (₹) <span className="text-xs font-normal text-dashboard-base-content/40">(optional)</span>
+          </Label>
+          <Input type="number" placeholder={form.base_price_per_night ? `Same as weekday (₹${form.base_price_per_night})` : "Same as weekday"}
+            value={form.base_weekend_price_per_night}
+            onChange={e => upd("base_weekend_price_per_night", e.target.value)}
+            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-dashboard-base-content/70">
+            Weekend Extra Bed (₹) <span className="text-xs font-normal text-dashboard-base-content/40">(optional)</span>
+          </Label>
+          <Input type="number" placeholder={form.base_extra_bed_rate ? `Same as weekday (₹${form.base_extra_bed_rate})` : "Same as weekday"}
+            value={form.base_weekend_extra_bed_rate}
+            onChange={e => upd("base_weekend_extra_bed_rate", e.target.value)}
+            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+        </div>
+      </div>
+
+      {/* Single occupancy pricing — cheaper rate for 1 guest instead of the base (double) rate */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Switch checked={form.single_occupancy_enabled} onCheckedChange={v => upd("single_occupancy_enabled", v)} />
+          <span className="text-sm text-dashboard-base-content">Add single occupancy pricing</span>
+        </div>
+        {form.single_occupancy_enabled && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm text-dashboard-base-content">Single Occupancy Price / Night (₹)</Label>
+              <Input type="number" placeholder="e.g. 2200"
+                value={form.single_occupancy_price}
+                onChange={e => upd("single_occupancy_price", e.target.value)}
+                className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm text-dashboard-base-content/70">
+                Weekend Single Occupancy (₹) <span className="text-xs font-normal text-dashboard-base-content/40">(optional)</span>
+              </Label>
+              <Input type="number" placeholder={form.single_occupancy_price ? `Same as weekday (₹${form.single_occupancy_price})` : "Same as weekday"}
+                value={form.single_occupancy_weekend_price}
+                onChange={e => upd("single_occupancy_weekend_price", e.target.value)}
+                className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Row 4: Margin + GST */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
@@ -727,17 +883,36 @@ function PricingForm({
 
       {/* ── Seasons ─────────────────────────────────── */}
       <div className="border-t border-dashboard-base-content/10 pt-3">
-        <SeasonsInlineList seasons={form.seasons} onChange={s => upd("seasons", s)}
-          basePricePerNight={Number(form.base_price_per_night) || 0} />
+        <SeasonalPricingSection
+          seasons={form.seasons}
+          onChange={s => upd("seasons", s)}
+          basePricePerNight={Number(form.base_price_per_night) || 0}
+          baseWeekendPricePerNight={form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null}
+          baseExtraBedRate={form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null}
+          baseWeekendExtraBedRate={form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null}
+          singleOccupancyEnabled={form.single_occupancy_enabled}
+          baseSingleOccupancyPrice={form.single_occupancy_price ? Number(form.single_occupancy_price) : null}
+          baseSingleOccupancyWeekendPrice={form.single_occupancy_weekend_price ? Number(form.single_occupancy_weekend_price) : null}
+          planLabel={(() => {
+            const roomName = rooms.find(r => String(r.id) === form.room_id)?.name;
+            const label = form.plan_name || "This plan";
+            return roomName ? `${roomName} — ${label}` : label;
+          })()}
+          currentPlanId={planId}
+          hotelId={hotelId}
+          siblingPlans={allPlans.filter(p => p.id !== planId)}
+          onSiblingSeasonsUpdated={onSiblingSeasonsUpdated}
+        />
       </div>
 
-      {/* Occupancy prices (only on new plan creation) */}
+      {/* Occupancy prices (only on new plan creation) — single (1P) has its own
+          dedicated toggle above, so it's excluded from this generic grid. */}
       {isNew && (
         <div className="border-t border-dashboard-base-content/10 pt-3 space-y-2">
           <p className="text-xs font-semibold text-dashboard-base-content/60 uppercase tracking-wide">
             Plan-level Occupancy Prices <span className="font-normal normal-case">(optional fallback)</span>
           </p>
-          {OCCUPANCY_OPTIONS.map(occ => {
+          {OCCUPANCY_OPTIONS.filter(occ => occ.value !== 1).map(occ => {
             const entry = form.occupancy_prices.find(e => e.occupancy === occ.value);
             return (
               <div key={occ.value} className="flex items-center gap-2">
@@ -764,12 +939,6 @@ function PricingForm({
 
       {/* Footer */}
       <div className="space-y-2 pt-1 border-t border-dashboard-base-content/10">
-        {seasonOverlaps.size > 0 && (
-          <div className="flex items-center gap-2 rounded-xl border border-dashboard-error/30 bg-dashboard-error/5 px-3 py-2 text-xs text-dashboard-error">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            Overlapping season date ranges — fix the highlighted seasons before saving.
-          </div>
-        )}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Switch checked={form.is_active} onCheckedChange={v => upd("is_active", v)} />
@@ -798,21 +967,24 @@ function OccupancyPricesPanel({
   hotelId,
   onUpdated,
 }: {
-  plan:     PricingPlan;
-  hotelId:  number;
+  plan: PricingPlan;
+  hotelId: number;
   onUpdated: (prices: OccupancyPrice[]) => void;
 }) {
-  const [saving, setSaving]     = useState<number | null>(null);
+  const [saving, setSaving] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [editOccupancy, setEditOccupancy] = useState<number | null>(null);
-  const [addOccupancy, setAddOccupancy]   = useState<string>("");
-  const [addPrice, setAddPrice]     = useState("");
+  const [addOccupancy, setAddOccupancy] = useState<string>("");
+  const [addPrice, setAddPrice] = useState("");
   const [addOriginal, setAddOriginal] = useState("");
-  const [editPrice, setEditPrice]     = useState("");
+  const [editPrice, setEditPrice] = useState("");
   const [editOriginal, setEditOriginal] = useState("");
 
-  const existingOccupancies = new Set(plan.occupancy_prices.map(p => p.occupancy));
-  const availableOccupancies = [1, 2, 3, 4].filter(o => !existingOccupancies.has(o));
+  // Single (1P) occupancy is managed via the dedicated toggle on the plan's
+  // edit form, not here, so it's excluded from both the list and add-picker.
+  const occupancyPrices = plan.occupancy_prices.filter(p => p.occupancy !== 1);
+  const existingOccupancies = new Set(occupancyPrices.map(p => p.occupancy));
+  const availableOccupancies = [2, 3, 4].filter(o => !existingOccupancies.has(o));
 
   async function handleUpsert(occupancy: number, price: string, original: string, existingId?: number) {
     const p = Number(price);
@@ -826,6 +998,7 @@ function OccupancyPricesPanel({
       pricing_id: plan.id, occupancy,
       price_per_night: p,
       original_price: original ? Number(original) : null,
+      weekend_price_per_night: null,
     };
     onUpdated(
       existingId
@@ -852,7 +1025,7 @@ function OccupancyPricesPanel({
         <span className="font-normal normal-case text-dashboard-base-content/40 ml-1">— fallback when season has no override</span>
       </p>
 
-      {plan.occupancy_prices.map(op => (
+      {occupancyPrices.map(op => (
         <div key={op.occupancy} className="flex items-center gap-2 rounded-lg bg-dashboard-base-200 px-3 py-1.5">
           <span className="text-xs font-medium w-24 shrink-0 text-dashboard-base-content">{OCCUPANCY_LABELS[op.occupancy] ?? `${op.occupancy}P`}</span>
           {editOccupancy === op.occupancy ? (
@@ -917,7 +1090,7 @@ function OccupancyPricesPanel({
         </div>
       )}
 
-      {plan.occupancy_prices.length === 0 && !addOccupancy && (
+      {occupancyPrices.length === 0 && !addOccupancy && (
         <p className="text-[10px] text-dashboard-base-content/40 italic">
           No plan-level occupancy prices — season prices apply directly.
         </p>
@@ -944,27 +1117,18 @@ function SeasonsSummaryPanel({ seasons }: { seasons: HotelSeason[] }) {
         <Calendar className="h-3 w-3" /> Seasonal Pricing
       </p>
       {seasons.map(s => (
-        <div key={s.id} className="rounded-lg px-3 py-1.5 bg-dashboard-base-200 space-y-1">
-          <div className="flex items-center gap-2 text-xs flex-wrap">
-            <span className="text-dashboard-base-content/60 shrink-0">
-              {fmtMonthDay(toISODate(s.valid_from))} → {fmtMonthDay(toISODate(s.valid_to))}
-            </span>
-            <span className="font-semibold ml-2 text-dashboard-base-content">₹{Number(s.price_per_night).toLocaleString()}/night</span>
-            {s.weekend_price_per_night ? (
-              <span className="text-dashboard-base-content/50 shrink-0">· ₹{Number(s.weekend_price_per_night).toLocaleString()} wknd</span>
-            ) : null}
-            {s.extra_bed_rate ? (
-              <span className="text-dashboard-base-content/50 shrink-0">+₹{Number(s.extra_bed_rate).toLocaleString()} EB</span>
-            ) : null}
-          </div>
-          {s.occupancy_prices.length > 0 && (
-            <p className="text-[10px] text-dashboard-primary/70 flex items-center gap-1">
-              <Users className="h-2.5 w-2.5" />
-              {s.occupancy_prices
-                .map(op => `${OCCUPANCY_LABELS[op.occupancy] ?? `${op.occupancy}P`}: ₹${Number(op.price_per_night).toLocaleString()}`)
-                .join(" · ")}
-            </p>
-          )}
+        <div key={s.id} className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs bg-dashboard-base-200">
+          <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: s.color ?? "#f97316" }} />
+          <span className="text-dashboard-base-content/60 shrink-0">
+            {fmtMonthDay(toISODate(s.valid_from))} → {fmtMonthDay(toISODate(s.valid_to))}
+          </span>
+          <span className="font-semibold ml-2 text-dashboard-base-content">₹{Number(s.price_per_night).toLocaleString()}/night</span>
+          {s.weekend_price_per_night ? (
+            <span className="text-dashboard-base-content/50 shrink-0">· ₹{Number(s.weekend_price_per_night).toLocaleString()} wknd</span>
+          ) : null}
+          {s.extra_bed_rate ? (
+            <span className="text-dashboard-base-content/50 shrink-0">+₹{Number(s.extra_bed_rate).toLocaleString()} EB</span>
+          ) : null}
         </div>
       ))}
     </div>
@@ -995,6 +1159,7 @@ function PlanRow({
   rooms,
   mealTypes,
   dietTypes,
+  allPlans,
   isPending,
   onEdit,
   onSaveEdit,
@@ -1003,19 +1168,20 @@ function PlanRow({
   onOccupancyUpdated,
   onSeasonsUpdated,
 }: {
-  plan:               PricingPlan;
-  hotelId:            number;
-  editId:             number | null;
-  rooms:              RoomOption[];
-  mealTypes:          MealType[];
-  dietTypes:          DietType[];
-  isPending:          boolean;
-  onEdit:             (id: number) => void;
-  onSaveEdit:         (id: number, form: PricingFormState) => void;
-  onCancelEdit:       () => void;
-  onDelete:           (id: number) => void;
+  plan: PricingPlan;
+  hotelId: number;
+  editId: number | null;
+  rooms: RoomOption[];
+  mealTypes: MealType[];
+  dietTypes: DietType[];
+  allPlans: PricingPlan[];
+  isPending: boolean;
+  onEdit: (id: number) => void;
+  onSaveEdit: (id: number, form: PricingFormState) => void;
+  onCancelEdit: () => void;
+  onDelete: (id: number) => void;
   onOccupancyUpdated: (planId: number, prices: OccupancyPrice[]) => void;
-  onSeasonsUpdated:   (planId: number, seasons: HotelSeason[]) => void;
+  onSeasonsUpdated: (planId: number, seasons: HotelSeason[]) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -1030,12 +1196,16 @@ function PlanRow({
           onSave={form => onSaveEdit(plan.id, form)}
           onCancel={onCancelEdit}
           isSaving={isPending}
+          planId={plan.id}
+          hotelId={hotelId}
+          allPlans={allPlans}
+          onSiblingSeasonsUpdated={onSeasonsUpdated}
         />
       </div>
     );
   }
 
-  const seasonCount      = plan.seasons?.length ?? 0;
+  const seasonCount = plan.seasons?.length ?? 0;
   const occupancySummary = plan.occupancy_prices
     .map(op => `${op.occupancy}P: ₹${op.price_per_night.toLocaleString()}`)
     .join(" · ");
@@ -1139,36 +1309,41 @@ export function PricingTab({
   mealTypes,
   dietTypes,
 }: {
-  hotel_id:  number;
-  rooms:     RoomOption[];
-  pricing:   PricingPlan[];
+  hotel_id: number;
+  rooms: RoomOption[];
+  pricing: PricingPlan[];
   mealTypes: MealType[];
   dietTypes: DietType[];
 }) {
   const [pricing, setPricing] = useState<PricingPlan[]>(initialPricing);
-  const [adding, setAdding]   = useState(false);
-  const [editId, setEditId]   = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function buildSeasonsInput(form: PricingFormState): HotelSeasonInput[] {
     return form.seasons.map(s => ({
-      season_name:             s.valid_from && s.valid_to
-        ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
-        : "Season",
-      valid_from:              s.valid_from,
-      valid_to:                s.valid_to,
-      price_per_night:         Number(s.price_per_night),
+      season_name: s.label.trim()
+        ? s.label.trim()
+        : s.valid_from && s.valid_to
+          ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
+          : "Season",
+      valid_from: s.valid_from,
+      valid_to: s.valid_to,
+      price_per_night: Number(s.price_per_night),
       weekend_price_per_night: s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
-      original_price:          null,
-      extra_bed_rate:          s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
-      is_active:               true,
-      occupancy_prices:        s.occupancy_prices
-        .filter(e => e.price && Number(e.price) > 0)
-        .map(e => ({
-          occupancy:       e.occupancy,
-          price_per_night: Number(e.price),
-          original_price:  e.original ? Number(e.original) : null,
-        })),
+      original_price: null,
+      extra_bed_rate: s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
+      weekend_extra_bed_rate: s.weekend_extra_bed_rate ? Number(s.weekend_extra_bed_rate) : null,
+      color: s.color || null,
+      is_active: true,
+      occupancy_prices: s.single_occupancy_price
+        ? [{
+            occupancy: 1,
+            price_per_night: Number(s.single_occupancy_price),
+            original_price: null,
+            weekend_price_per_night: s.single_occupancy_weekend_price ? Number(s.single_occupancy_weekend_price) : null,
+          }]
+        : [],
     }));
   }
 
@@ -1178,25 +1353,45 @@ export function PricingTab({
     baseTime: number,
   ): HotelSeason[] {
     return seasonsInput.map((s, i) => ({
-      id:                      baseTime + i,
-      pricing_id:              planId,
-      season_name:             s.season_name,
-      valid_from:              new Date(s.valid_from),
-      valid_to:                new Date(s.valid_to),
-      price_per_night:         s.price_per_night,
+      id: baseTime + i,
+      pricing_id: planId,
+      season_name: s.season_name,
+      valid_from: new Date(s.valid_from),
+      valid_to: new Date(s.valid_to),
+      price_per_night: s.price_per_night,
       weekend_price_per_night: s.weekend_price_per_night ?? null,
-      original_price:          null,
-      extra_bed_rate:          s.extra_bed_rate ?? null,
-      is_active:               true,
-      sort_order:      i,
+      original_price: null,
+      extra_bed_rate: s.extra_bed_rate ?? null,
+      weekend_extra_bed_rate: s.weekend_extra_bed_rate ?? null,
+      color: s.color ?? null,
+      is_active: true,
+      sort_order: i,
       occupancy_prices: (s.occupancy_prices ?? []).map((op, j) => ({
-        id:              baseTime + i * 100 + j,
-        season_id:       baseTime + i,
-        occupancy:       op.occupancy,
+        id: baseTime + i * 100 + j,
+        season_id: baseTime + i,
+        occupancy: op.occupancy,
         price_per_night: op.price_per_night,
-        original_price:  op.original_price ?? null,
+        original_price: op.original_price ?? null,
+        weekend_price_per_night: op.weekend_price_per_night ?? null,
       })),
     }));
+  }
+
+  // Merges the generic occupancy grid (2P/3P/4P) with the dedicated single
+  // (1P) occupancy toggle into one list to persist — single occupancy is kept
+  // as its own form fields rather than folded into `occupancy_prices` live,
+  // so the two editing surfaces never fight over the same array entry.
+  function combinedOccupancyEntries(form: PricingFormState): OccupancyEntry[] {
+    const rest = form.occupancy_prices.filter(e => e.occupancy !== 1);
+    if (form.single_occupancy_enabled && form.single_occupancy_price) {
+      return [...rest, {
+        occupancy: 1,
+        price: form.single_occupancy_price,
+        original: "",
+        weekendPrice: form.single_occupancy_weekend_price || undefined,
+      }];
+    }
+    return rest;
   }
 
   function handleAdd(form: PricingFormState) {
@@ -1204,16 +1399,18 @@ export function PricingTab({
       const seasons = buildSeasonsInput(form);
 
       const result = await createRoomPricingWithSeasons(hotel_id, {
-        room_id:           Number(form.room_id),
-        plan_name:         form.plan_name || null,
-        meal_type_id:      form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
-        diet_type_id:      form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
-        price_per_night:   Number(form.base_price_per_night) || null,
-        extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+        room_id: Number(form.room_id),
+        plan_name: form.plan_name || null,
+        meal_type_id: form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
+        diet_type_id: form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
+        price_per_night: Number(form.base_price_per_night) || null,
+        extra_bed_rate: form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+        weekend_price_per_night: form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null,
+        weekend_extra_bed_rate: form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
         margin_percentage: Number(form.margin_percentage) || 10,
-        gst_percentage:    Number(form.gst_percentage) || 18,
-        is_active:         form.is_active,
-        notes:             form.notes.trim() || null,
+        gst_percentage: Number(form.gst_percentage) || 18,
+        is_active: form.is_active,
+        notes: form.notes.trim() || null,
         seasons,
       });
 
@@ -1221,10 +1418,11 @@ export function PricingTab({
 
       const planId = result.id!;
       const savedPrices: OccupancyPrice[] = [];
-      for (const entry of form.occupancy_prices) {
+      for (const entry of combinedOccupancyEntries(form)) {
         if (entry.price && Number(entry.price) > 0) {
           const r = await upsertOccupancyPrice(planId, hotel_id, entry.occupancy, Number(entry.price),
-            entry.original ? Number(entry.original) : null);
+            entry.original ? Number(entry.original) : null,
+            entry.weekendPrice ? Number(entry.weekendPrice) : null);
           if (r.success) {
             savedPrices.push({
               id: Date.now() + savedPrices.length,
@@ -1232,6 +1430,7 @@ export function PricingTab({
               occupancy: entry.occupancy,
               price_per_night: Number(entry.price),
               original_price: entry.original ? Number(entry.original) : null,
+              weekend_price_per_night: entry.weekendPrice ? Number(entry.weekendPrice) : null,
             });
           }
         }
@@ -1240,35 +1439,37 @@ export function PricingTab({
       toast.success(result.message);
       setAdding(false);
 
-      const roomId  = Number(form.room_id);
-      const mealId  = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
-      const dietId  = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
+      const roomId = Number(form.room_id);
+      const mealId = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
+      const dietId = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
       const now = Date.now();
 
       setPricing(prev => [
         ...prev,
         {
-          id:                planId,
+          id: planId,
           hotel_id,
-          room_id:           roomId,
-          plan_name:         form.plan_name || null,
-          meal_type_id:      mealId,
-          diet_type_id:      dietId,
-          price_per_night:   Number(form.base_price_per_night) || Number(seasons[0]?.price_per_night) || 0,
-          original_price:    null,
-          extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+          room_id: roomId,
+          plan_name: form.plan_name || null,
+          meal_type_id: mealId,
+          diet_type_id: dietId,
+          price_per_night: Number(form.base_price_per_night) || Number(seasons[0]?.price_per_night) || 0,
+          original_price: null,
+          extra_bed_rate: form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+          weekend_price_per_night: form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null,
+          weekend_extra_bed_rate: form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
           margin_percentage: Number(form.margin_percentage),
-          gst_percentage:    Number(form.gst_percentage),
-          notes:             form.notes.trim() || null,
-          valid_from:        null,
-          valid_to:          null,
-          is_active:         form.is_active,
-          sort_order:        prev.length,
-          room:              rooms.find(r => r.id === roomId) ?? null,
-          meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
-          diet_type:         dietTypes.find(d => d.id === dietId) ?? null,
-          occupancy_prices:  savedPrices,
-          seasons:           buildOptimisticSeasons(seasons, planId, now),
+          gst_percentage: Number(form.gst_percentage),
+          notes: form.notes.trim() || null,
+          valid_from: null,
+          valid_to: null,
+          is_active: form.is_active,
+          sort_order: prev.length,
+          room: rooms.find(r => r.id === roomId) ?? null,
+          meal_type: mealTypes.find(m => m.id === mealId) ?? null,
+          diet_type: dietTypes.find(d => d.id === dietId) ?? null,
+          occupancy_prices: savedPrices,
+          seasons: buildOptimisticSeasons(seasons, planId, now),
         },
       ]);
     });
@@ -1279,20 +1480,52 @@ export function PricingTab({
       const seasons = buildSeasonsInput(form);
 
       const result = await updateRoomPricingWithSeasons(id, hotel_id, {
-        room_id:           Number(form.room_id),
-        plan_name:         form.plan_name || null,
-        meal_type_id:      form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
-        diet_type_id:      form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
-        price_per_night:   Number(form.base_price_per_night) || null,
-        extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+        room_id: Number(form.room_id),
+        plan_name: form.plan_name || null,
+        meal_type_id: form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
+        diet_type_id: form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
+        price_per_night: Number(form.base_price_per_night) || null,
+        extra_bed_rate: form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+        weekend_price_per_night: form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null,
+        weekend_extra_bed_rate: form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
         margin_percentage: Number(form.margin_percentage) || 10,
-        gst_percentage:    Number(form.gst_percentage) || 18,
-        is_active:         form.is_active,
-        notes:             form.notes.trim() || null,
+        gst_percentage: Number(form.gst_percentage) || 18,
+        is_active: form.is_active,
+        notes: form.notes.trim() || null,
         seasons,
       });
 
       if (!result.success) { toast.error(result.message); return; }
+
+      // Reconcile occupancy prices against what the plan had before this
+      // edit — upsert anything present now, delete anything removed (most
+      // commonly: single occupancy toggled off).
+      const existingPlan = pricing.find(p => p.id === id);
+      const initialOccMap = new Map((existingPlan?.occupancy_prices ?? []).map(op => [op.occupancy, op]));
+      const finalMap = new Map(
+        combinedOccupancyEntries(form)
+          .filter(e => e.price && Number(e.price) > 0)
+          .map(e => [e.occupancy, e]),
+      );
+      const updatedPrices: OccupancyPrice[] = [];
+      for (const [occ, entry] of finalMap) {
+        const r = await upsertOccupancyPrice(id, hotel_id, occ, Number(entry.price), entry.original ? Number(entry.original) : null,
+          entry.weekendPrice ? Number(entry.weekendPrice) : null);
+        if (r.success) {
+          updatedPrices.push({
+            id: initialOccMap.get(occ)?.id ?? Date.now() + occ,
+            pricing_id: id,
+            occupancy: occ,
+            price_per_night: Number(entry.price),
+            original_price: entry.original ? Number(entry.original) : null,
+            weekend_price_per_night: entry.weekendPrice ? Number(entry.weekendPrice) : null,
+          });
+        }
+      }
+      for (const [occ, op] of initialOccMap) {
+        if (!finalMap.has(occ)) await deleteOccupancyPrice(op.id, hotel_id);
+      }
+
       toast.success(result.message);
       setEditId(null);
 
@@ -1305,20 +1538,23 @@ export function PricingTab({
         prev.map(p =>
           p.id === id ? {
             ...p,
-            room_id:           roomId,
-            plan_name:         form.plan_name || null,
-            meal_type_id:      mealId,
-            diet_type_id:      dietId,
-            price_per_night:   Number(form.base_price_per_night) || Number(seasons[0]?.price_per_night) || p.price_per_night,
-            extra_bed_rate:    form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+            room_id: roomId,
+            plan_name: form.plan_name || null,
+            meal_type_id: mealId,
+            diet_type_id: dietId,
+            price_per_night: Number(form.base_price_per_night) || Number(seasons[0]?.price_per_night) || p.price_per_night,
+            extra_bed_rate: form.base_extra_bed_rate ? Number(form.base_extra_bed_rate) : null,
+            weekend_price_per_night: form.base_weekend_price_per_night ? Number(form.base_weekend_price_per_night) : null,
+            weekend_extra_bed_rate: form.base_weekend_extra_bed_rate ? Number(form.base_weekend_extra_bed_rate) : null,
+            occupancy_prices: updatedPrices,
             margin_percentage: Number(form.margin_percentage),
-            gst_percentage:    Number(form.gst_percentage),
-            notes:             form.notes.trim() || null,
-            is_active:         form.is_active,
-            room:              rooms.find(r => r.id === roomId) ?? null,
-            meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
-            diet_type:         dietTypes.find(d => d.id === dietId) ?? null,
-            seasons:           buildOptimisticSeasons(seasons, id, now),
+            gst_percentage: Number(form.gst_percentage),
+            notes: form.notes.trim() || null,
+            is_active: form.is_active,
+            room: rooms.find(r => r.id === roomId) ?? null,
+            meal_type: mealTypes.find(m => m.id === mealId) ?? null,
+            diet_type: dietTypes.find(d => d.id === dietId) ?? null,
+            seasons: buildOptimisticSeasons(seasons, id, now),
           } : p,
         ),
       );
@@ -1370,7 +1606,8 @@ export function PricingTab({
 
       {adding && (
         <PricingForm initial={EMPTY_FORM} rooms={rooms} mealTypes={mealTypes} dietTypes={dietTypes}
-          onSave={handleAdd} onCancel={() => setAdding(false)} isSaving={isPending} isNew />
+          onSave={handleAdd} onCancel={() => setAdding(false)} isSaving={isPending} isNew
+          hotelId={hotel_id} allPlans={pricing} onSiblingSeasonsUpdated={handleSeasonsUpdated} />
       )}
 
       {byRoom.length > 0 ? (
@@ -1381,7 +1618,7 @@ export function PricingTab({
               <div className="space-y-2">
                 {plans.map(plan => (
                   <PlanRow key={plan.id} plan={plan} hotelId={hotel_id} editId={editId}
-                    rooms={rooms} mealTypes={mealTypes} dietTypes={dietTypes} isPending={isPending}
+                    rooms={rooms} mealTypes={mealTypes} dietTypes={dietTypes} allPlans={pricing} isPending={isPending}
                     onEdit={setEditId} onSaveEdit={handleEdit} onCancelEdit={() => setEditId(null)}
                     onDelete={handleDelete} onOccupancyUpdated={handleOccupancyUpdated} onSeasonsUpdated={handleSeasonsUpdated} />
                 ))}

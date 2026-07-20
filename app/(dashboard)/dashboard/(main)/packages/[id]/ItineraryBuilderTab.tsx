@@ -1,13 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../../components/ui/alert-dialog";
 import { StayTiersSection } from "./StayTiersSection";
 import { ItineraryDaySidebar } from "./ItineraryDaySidebar";
 import { CopyFromRouteDialog } from "./CopyFromRouteDialog";
-import { handleGetItineraryData } from "@/app/actions/packages/itinerary-builder.actions";
+import { handleGetItineraryData, handleDeleteItineraryDay } from "@/app/actions/packages/itinerary-builder.actions";
 import type { DayData, StayCategoryFull } from "@/app/services/itinerary-builder.service";
 import {
   CalendarDays,
@@ -21,6 +28,7 @@ import {
   Camera,
   MapPin,
   Copy,
+  Trash2,
 } from "lucide-react";
 
 import { cn } from "@/app/lib/utils";
@@ -157,73 +165,129 @@ function computeStopGroups(stops: RouteStop[]) {
 
 // ── Day Card ───────────────────────────────────────────────────────────────
 
-function DayCard({ day, occupiedBy, onClick }: { day: DayData; occupiedBy?: OccupiedBy; onClick: () => void }) {
+function DayCard({
+  day, occupiedBy, onClick, onDelete, blockedReason,
+}: {
+  day: DayData; occupiedBy?: OccupiedBy; onClick: () => void; onDelete: () => void; blockedReason?: string;
+}) {
   const hasAny =
     day.id !== null &&
     day.activities.length + day.transfers.length + day.notes.length + day.stays.length + day.attractions.length > 0;
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       className={cn(
-        "text-left p-3 rounded-xl border border-dashboard-base-content/20 cursor-pointer transition-all hover:border-primary/50 hover:shadow-sm group",
+        "relative text-left p-3 rounded-xl border border-dashboard-base-content/20 transition-all hover:border-primary/50 hover:shadow-sm group",
         occupiedBy ? "bg-violet-50/60 border-violet-200" : day.id ? "bg-background" : "bg-muted/20 border-dashed",
       )}
     >
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-primary">Day {day.day}</span>
-        <ChevronRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`Open Day ${day.day}`}
+        className="absolute inset-0 w-full h-full rounded-xl cursor-pointer"
+      />
+
+      <div className="relative pointer-events-none">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-primary">Day {day.day}</span>
+          <ChevronRight className="h-3 w-3 text-muted-foreground/40 group-hover:opacity-0 transition-opacity" />
+        </div>
+
+        <p className="text-xs font-medium line-clamp-2 mb-2">{day.title}</p>
+
+        {occupiedBy ? (
+          <div className="flex items-center gap-1 mt-1">
+            <Bed className="h-2.5 w-2.5 text-violet-500 shrink-0" />
+            <span className="text-[10px] text-violet-600 font-medium truncate">
+              Night {occupiedBy.nightIndex} of {occupiedBy.numNights} · from Day {occupiedBy.fromDay}
+            </span>
+          </div>
+        ) : hasAny ? (
+          <div className="flex flex-wrap gap-1.5">
+            {day.transfers.length > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <Car className="h-2.5 w-2.5" />{day.transfers.length}
+              </span>
+            )}
+            {day.activities.length > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <Activity className="h-2.5 w-2.5" />{day.activities.length}
+              </span>
+            )}
+            {day.stays.length > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <Bed className="h-2.5 w-2.5" />
+                {day.stays[0]?.num_nights > 1 ? `${day.stays[0].num_nights} nights` : day.stays.length}
+              </span>
+            )}
+            {day.notes.length > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <StickyNote className="h-2.5 w-2.5" />{day.notes.length}
+              </span>
+            )}
+            {day.attractions.length > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <Camera className="h-2.5 w-2.5" />{day.attractions.length}
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="text-[10px] text-muted-foreground/50 italic">No items yet</p>
+        )}
       </div>
 
-      <p className="text-xs font-medium line-clamp-2 mb-2">{day.title}</p>
-
-      {occupiedBy ? (
-        <div className="flex items-center gap-1 mt-1">
-          <Bed className="h-2.5 w-2.5 text-violet-500 shrink-0" />
-          <span className="text-[10px] text-violet-600 font-medium truncate">
-            Night {occupiedBy.nightIndex} of {occupiedBy.numNights} · from Day {occupiedBy.fromDay}
-          </span>
-        </div>
-      ) : hasAny ? (
-        <div className="flex flex-wrap gap-1.5">
-          {day.transfers.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Car className="h-2.5 w-2.5" />{day.transfers.length}
-            </span>
-          )}
-          {day.activities.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Activity className="h-2.5 w-2.5" />{day.activities.length}
-            </span>
-          )}
-          {day.stays.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Bed className="h-2.5 w-2.5" />
-              {day.stays[0]?.num_nights > 1 ? `${day.stays[0].num_nights} nights` : day.stays.length}
-            </span>
-          )}
-          {day.notes.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <StickyNote className="h-2.5 w-2.5" />{day.notes.length}
-            </span>
-          )}
-          {day.attractions.length > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Camera className="h-2.5 w-2.5" />{day.attractions.length}
-            </span>
-          )}
-        </div>
-      ) : (
-        <p className="text-[10px] text-muted-foreground/50 italic">No items yet</p>
-      )}
-    </button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-2 right-2 h-5 w-5 z-10 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-dashboard-error hover:bg-dashboard-error/10 cursor-pointer"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </AlertDialogTrigger>
+        {blockedReason ? (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Can&apos;t delete Day {day.day}</AlertDialogTitle>
+              <AlertDialogDescription>{blockedReason}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="cursor-pointer">OK</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        ) : (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Day {day.day}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove all activities, transfers, stays, notes and attractions saved for Day {day.day},
+                shift every later day back by one, and reduce that stop&apos;s night count in the route. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={onDelete}
+                className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
+    </div>
   );
 }
 
 // ── Main Tab ───────────────────────────────────────────────────────────────
 
 export function ItineraryBuilderTab({ packageId, destinationId, durations, stayCategories: initialStayCategories }: Props) {
+  const router = useRouter();
   const defaultDuration = durations.find((d) => d.is_default) ?? durations[0] ?? null;
   const [selectedDurationId, setSelectedDurationId] = useState<number | null>(defaultDuration?.id ?? null);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(
@@ -277,6 +341,28 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
 
   function handleDaySaved(updatedDay: DayData) {
     setDays((prev) => (prev ? prev.map((d) => (d.day === updatedDay.day ? updatedDay : d)) : prev));
+  }
+
+  async function handleDeleteDay(day: number) {
+    if (!selectedDurationId || !selectedRouteId) return;
+    const res = await handleDeleteItineraryDay(packageId, selectedDurationId, selectedRouteId, day);
+    if (!res.success) {
+      toast.error(res.message ?? "Failed to delete day");
+      return;
+    }
+    toast.success(`Day ${day} deleted`);
+    if (openDay?.day === day) {
+      setSidebarOpen(false);
+      setOpenDay(null);
+    }
+    // Deleting a day also shrinks the owning stop's nights, which can move the
+    // route to a different duration — refresh the server-fetched route/duration
+    // data and re-point selection at wherever the route ended up.
+    const { durationId: newDurationId, routeId: newRouteId } = res.data;
+    setSelectedDurationId(newDurationId);
+    setSelectedRouteId(newRouteId);
+    router.refresh();
+    loadDays(newDurationId, newRouteId);
   }
 
   // Build a map of days that are "covered" by a multi-night stay from a prior day
@@ -397,7 +483,11 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-muted-foreground">
-              {selectedDuration ? `${selectedDuration.days} days` : "Days"}
+              {selectedDuration
+                ? days && days.length > selectedDuration.days
+                  ? `${selectedDuration.days} days (${days.length - selectedDuration.days} extra with leftover content)`
+                  : `${selectedDuration.days} days`
+                : "Days"}
             </p>
             {days && (
               <p className="text-[10px] text-dashboard-base-content/60">
@@ -410,11 +500,15 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : days ? (  
+          ) : days ? (
             selectedRoute?.stops?.length ? (
               <div className="space-y-5">
-                {computeStopGroups(selectedRoute.stops).map((group) => {
+                {computeStopGroups(selectedRoute.stops).map((group, groupIdx) => {
                   const stopDays = days.filter((d) => d.day >= group.startDay && d.day <= group.endDay);
+                  const stopStayDays = selectedRoute.stops![groupIdx].stay_days;
+                  const groupBlockedReason = stopStayDays <= 1
+                    ? `This is the only night at ${group.name}. Removing it would drop that stop from the route — edit the route in Route Builder instead.`
+                    : undefined;
                   // Show copy button only if another route in any duration has the same stop
                   const hasCopySource = durations.some((dur) =>
                     dur.routes.some((r) =>
@@ -454,12 +548,46 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                               setOpenDay(day);
                               setSidebarOpen(true);
                             }}
+                            onDelete={() => handleDeleteDay(day.day)}
+                            blockedReason={groupBlockedReason}
                           />
                         ))}
                       </div>
                     </div>
                   );
                 })}
+                {(() => {
+                  const groups = computeStopGroups(selectedRoute.stops);
+                  const extraDays = days.filter((d) => !groups.some((g) => d.day >= g.startDay && d.day <= g.endDay));
+                  if (extraDays.length === 0) return null;
+                  const lastStop = selectedRoute.stops![selectedRoute.stops!.length - 1];
+                  const extraBlockedReason = lastStop.stay_days <= 1
+                    ? `This is the only night at ${lastStop.place_name}. Removing it would drop that stop from the route — edit the route in Route Builder instead.`
+                    : undefined;
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <MapPin className="h-3 w-3 text-dashboard-error shrink-0" />
+                        <span className="text-xs font-semibold text-dashboard-error">Extra days (not part of the current route)</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {extraDays.map((day) => (
+                          <DayCard
+                            key={day.day}
+                            day={day}
+                            occupiedBy={occupiedDays.get(day.day)}
+                            onClick={() => {
+                              setOpenDay(day);
+                              setSidebarOpen(true);
+                            }}
+                            onDelete={() => handleDeleteDay(day.day)}
+                            blockedReason={extraBlockedReason}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -472,6 +600,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                       setOpenDay(day);
                       setSidebarOpen(true);
                     }}
+                    onDelete={() => handleDeleteDay(day.day)}
                   />
                 ))}
               </div>

@@ -354,7 +354,7 @@ export function ItineraryMap({
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-4" style={{ breakInside: "avoid" }}>
-      <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-500 mb-3">Route Map</h3>
+      {/* <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-500 mb-3">Route Map</h3>
 
       {geocoded === null && (
         <div className="h-72 rounded-lg border border-dashed border-neutral-200 flex items-center justify-center">
@@ -391,7 +391,7 @@ export function ItineraryMap({
             )}
           </div>
         </>
-      )}
+      )} */}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { cn } from "@/app/lib/utils";
 import { ItineraryMap } from "./ItineraryMap";
 import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
+import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 
 /** Identifies exactly which image a click on an edit button refers to, so
  * one onImageChange callback (threaded down from page.tsx) can cover every
@@ -28,18 +29,58 @@ export type ImageEditTarget =
 
 type OnImageChange = (target: ImageEditTarget, url: string) => void;
 
+/** Plain `<img>` that swaps to the standard dashed-box placeholder if the URL
+ * 404s or otherwise fails to load — needed for AI-sourced photos (cover,
+ * activity, stop images from the AI Itinerary Builder), which aren't
+ * guaranteed to be real, working URLs the way manually-searched hotel/cab
+ * inventory photos are. Without this a broken AI-hallucinated URL renders as
+ * the browser's raw broken-image icon instead of degrading gracefully. */
+export function SafeImg({
+  src, alt, className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  // Reset the failed flag when src changes (e.g. the user replaces a broken
+  // AI-provided photo via the edit dialog) — without this, a tile that once
+  // 404'd stays stuck on the placeholder forever, even after a working URL
+  // is saved in its place.
+  const [lastSrc, setLastSrc] = useState(src);
+  if (src !== lastSrc) {
+    setLastSrc(src);
+    setFailed(false);
+  }
+  if (!src || failed) {
+    return (
+      <div className={cn("bg-neutral-50 border-2 border-dashed border-neutral-200 flex items-center justify-center", className)}>
+        <ImageIcon size={16} className="text-neutral-300" />
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog/AI-sourced URL, not a static app asset
+    <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
+  );
+}
+
 /** Small round edit affordance shown on hover (parent needs a `group` class)
  * — opens the same drag-drop / upload / paste-link controls as the cover
  * image's popup, scoped to whichever photo it's attached to. Position/size
  * via `className` (e.g. "top-1 right-1 size-6") since it's reused at very
  * different thumbnail sizes across the document. */
 function ImageEditButton({
-  value, onChange, dialogTitle, className,
+  value, onChange, dialogTitle, className, captionValue, onCaptionChange,
 }: {
   value: string;
   onChange: (url: string) => void;
   dialogTitle: string;
   className?: string;
+  /** When both are given, the dialog also offers a caption field — used for
+   * activity photos, where `photoLabels[i]` is shown as the caption overlay. */
+  captionValue?: string;
+  onCaptionChange?: (caption: string) => void;
 }) {
   return (
     <Dialog>
@@ -63,6 +104,17 @@ function ImageEditButton({
           </DialogDescription>
         </DialogHeader>
         <ImageDropField value={value} onChange={onChange} />
+        {onCaptionChange && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-neutral-600">Caption</label>
+            <Input
+              value={captionValue ?? ""}
+              onChange={(e) => onCaptionChange(e.target.value)}
+              placeholder="e.g. Tea Garden Walk in Munnar"
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -75,10 +127,6 @@ const COMPANY_PHONE = "+91 9812345678";
 const COMPANY_EMAIL = "hello@dreamyatri.com";
 const COMPANY_ADDRESS = "Shimla, Himachal Pradesh - 171001";
 
-// TODO: swap in the real payment link once it's available — the "Pay Now"
-// button on the price summary opens this in a new tab.
-const PAYMENT_LINK = "";
-
 /** "AB12CD34" — the last 8 characters of the query's cuid, uppercased, as a
  * short human-referenceable quote number instead of exposing the client's
  * raw phone/email back to them on their own document. */
@@ -86,14 +134,29 @@ function refCode(queryId: string): string {
   return queryId.slice(-8).toUpperCase();
 }
 
+/** Day N's actual calendar date — Day 1 is the travel date itself, Day 2 is
+ * travel date + 1, etc. Same offset the pricing engine uses to pick
+ * season/weekend rates per day (package-pricing.service.ts), just surfaced
+ * here for display. Null when there's no travel date to anchor to yet. */
+function dayCalendarDate(travelDate: string, dayNumber: number): Date | null {
+  if (!travelDate) return null;
+  const base = new Date(travelDate);
+  if (Number.isNaN(base.getTime())) return null;
+  return new Date(base.getTime() + (dayNumber - 1) * 24 * 60 * 60 * 1000);
+}
+
+function formatShortDate(d: Date): string {
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" });
+}
+
 /** "manali" / "NEW DELHI" → "Manali" / "New Delhi" — route stop names are
  * free-typed by the exec, so casing isn't guaranteed. */
-function titleCase(text: string): string {
+export function titleCase(text: string): string {
   return text.replace(/\w\S*/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
 }
 
 /** "14:30" (24h, as stored from <input type="time">) → "2:30 PM". */
-function formatTime12h(hhmm: string): string {
+export function formatTime12h(hhmm: string): string {
   if (!hhmm) return "";
   const [h, m] = hhmm.split(":").map(Number);
   if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
@@ -112,7 +175,7 @@ function formatTicketDate(iso: string): string {
 
 /** "1 Room | 2 Adults, 1 Child" — computed against room capacity so it
  * always reflects the query's actual traveller count, not stale text. */
-function occupancyText(capacity: number | null, adults: number, children: number): string {
+export function occupancyText(capacity: number | null, adults: number, children: number): string {
   const totalPax = adults + children;
   const rooms = capacity && capacity > 0 ? Math.max(1, Math.ceil(totalPax / capacity)) : 1;
   return `${rooms} Room${rooms !== 1 ? "s" : ""} | ${adults} Adult${adults !== 1 ? "s" : ""}` +
@@ -121,7 +184,7 @@ function occupancyText(capacity: number | null, adults: number, children: number
 
 /** Parses free-text meal-plan strings ("MAP - Breakfast & Dinner") into a
  * clean "Breakfast & Dinner included" summary line. */
-function mealIncludedText(planText: string): string | null {
+export function mealIncludedText(planText: string): string | null {
   if (!planText) return null;
   const lower = planText.toLowerCase();
   const found: string[] = [];
@@ -156,9 +219,20 @@ export interface PreviewData {
   pricePerPerson: string;
   totalPrice: string;
   currency: string;
+  /** Exec-pasted payment link (e.g. a Razorpay Payment Link) for this exact
+   * locked total — the "Pay Now" button opens this. Omitted/empty hides the
+   * button rather than linking nowhere. */
+  paymentLink?: string;
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
+  /** Short, removable bullet points seeded with company-wide defaults —
+   * distinct from the free-text termsNotes above. */
+  termsConditions: string[];
+  paymentPolicy: string[];
+  amendmentPolicy: string[];
+  /** "Benefits of Travelling With Us" — marketing bullets. */
+  travelBenefits: string[];
   stops: StopInput[];
   itineraries: DayItinerary[];
   /** Flight/train legs with fares — flightsIncluded/flightFrom/etc for the
@@ -207,12 +281,13 @@ function SectionHeader({
 }
 
 function ActivityRow({
-  activity, dayNumber, activityIndex, onImageChange,
+  activity, dayNumber, activityIndex, onImageChange, onCaptionChange,
 }: {
   activity: ActivityInput;
   dayNumber?: number;
   activityIndex?: number;
   onImageChange?: OnImageChange;
+  onCaptionChange?: (activityIndex: number, photoIndex: number, caption: string) => void;
 }) {
   if (!activity.title.trim()) return null;
   const gallery = activity.photos.length > 0 ? activity.photos : (activity.photo ? [activity.photo] : []);
@@ -222,7 +297,7 @@ function ActivityRow({
   const slots: (string | null)[] = gallery.length > 0 ? gallery.slice(0, 3) : (editable ? [null] : []);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" style={{ breakInside: "avoid" }}>
       <div className="flex items-start gap-2">
         <span className="flex items-center justify-center size-5 rounded-full bg-primary-100 text-primary-600 shrink-0 mt-0.5">
           <Sparkles size={11} />
@@ -242,8 +317,7 @@ function ActivityRow({
               <div key={i} className="group relative rounded-lg overflow-hidden">
                 {src ? (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                    <img src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
+                    <SafeImg src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
                     <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent px-1.5 py-1 pt-3">
                       <p className="text-[9px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
                     </div>
@@ -259,6 +333,8 @@ function ActivityRow({
                     onChange={(url) => onImageChange!({ kind: "activityPhoto", day: dayNumber!, activityIndex: activityIndex!, photoIndex: i }, url)}
                     dialogTitle="Activity Photo"
                     className="top-1 right-1 size-6"
+                    captionValue={activity.photoLabels[i] ?? ""}
+                    onCaptionChange={onCaptionChange ? (caption) => onCaptionChange(activityIndex!, i, caption) : undefined}
                   />
                 )}
               </div>
@@ -338,7 +414,7 @@ function TermsAndConditions({ text }: { text: string }) {
         <span className="flex items-center justify-center size-6 rounded-lg bg-neutral-100 shrink-0">
           <Info size={13} className="text-neutral-500" />
         </span>
-        <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-600">Terms & Conditions</h3>
+        <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-600">Additional Notes</h3>
       </div>
       <div className="p-4 space-y-3.5">
         {blocks.map((block, i) => (
@@ -365,9 +441,39 @@ function TermsAndConditions({ text }: { text: string }) {
   );
 }
 
+const MEAL_DISPLAY_ORDER = ["breakfast", "morning snacks", "lunch", "evening snacks", "dinner"];
+
+function orderMeals(meals: string[]): string[] {
+  return [...meals].sort((a, b) => {
+    const ia = MEAL_DISPLAY_ORDER.indexOf(a.toLowerCase());
+    const ib = MEAL_DISPLAY_ORDER.indexOf(b.toLowerCase());
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+}
+
+/** Breakfast is served by the PREVIOUS night's hotel — the client eats it the
+ * morning they check out, not the day they check in — so day N's displayed
+ * breakfast is pulled from day N-1's stored meals, while lunch/dinner/snacks
+ * come from day N's own stored meals (excluding any breakfast already
+ * assigned to the day it's checking out of). Mirrors the public package
+ * page's meal-shift algorithm (app/(website)/packages/.../page.tsx). */
+export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
+  return itineraries.map((day, i) => {
+    const chosen = new Set<string>();
+    const prevMeals = i > 0 ? itineraries[i - 1].meals : [];
+    if (prevMeals.some((m) => m.toLowerCase().includes("breakfast"))) chosen.add("Breakfast");
+    for (const m of day.meals) {
+      if (m.toLowerCase().includes("breakfast")) continue;
+      chosen.add(m);
+    }
+    return orderMeals([...chosen]);
+  });
+}
+
 /** Compact "Day | Hotel | Meals | Cab" grid so the pattern across the whole
  * trip is visible at a glance, ahead of the detailed per-day cards below. */
-function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
+export function DaySummaryTable({ itineraries, travelDate }: { itineraries: DayItinerary[]; travelDate?: string }) {
+  const shiftedMeals = computeShiftedMeals(itineraries);
   return (
     <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
       <table className="w-full text-[11px]">
@@ -380,14 +486,24 @@ function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
           </tr>
         </thead>
         <tbody>
-          {itineraries.map((d, i) => (
+          {itineraries.map((d, i) => {
+            const date = travelDate ? dayCalendarDate(travelDate, d.day) : null;
+            return (
             <tr key={d.day} className={`border-t border-neutral-100 ${i % 2 === 1 ? "bg-neutral-50/60" : ""}`}>
-              <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">Day {d.day}</td>
+              <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">
+                Day {d.day}
+                {date && (
+                  <span className="block font-normal text-neutral-400 text-[10px]">
+                    {formatShortDate(date)}
+                  </span>
+                )}
+              </td>
               <td className="px-3 py-2 text-neutral-600">{d.accommodation || "—"}</td>
-              <td className="px-3 py-2 text-neutral-600">{d.meals.length > 0 ? d.meals.join(", ") : "—"}</td>
+              <td className="px-3 py-2 text-neutral-600">{shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{d.transport || d.transportVehicleType || "—"}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -402,7 +518,7 @@ function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
 /** One location name per day, derived from the route stops' night counts —
  * mirrors deriveDayLocations in page.tsx (kept as a local copy since that
  * one isn't exported) so a stop's own days can be found here too. */
-function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
+export function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
   if (stops.length === 0) return Array(totalDays).fill("");
   const locations: string[] = [];
   for (const stop of stops) {
@@ -420,7 +536,7 @@ function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
  * there), then that stop's own hotel photo — before any package-wide
  * fallback, so a stop without a catalog match still shows something from
  * its own itinerary instead of a random unrelated day. */
-function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Set<number>): string | null {
+export function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Set<number>): string | null {
   const daysInStop = itineraries.filter((d) => dayNumbers.has(d.day));
   for (const day of daysInStop) {
     for (const activity of day.activities) {
@@ -432,6 +548,50 @@ function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Set<numbe
     if (day.accommodationPhoto) return day.accommodationPhoto;
   }
   return null;
+}
+
+function StopTile({
+  stop, img, onImageChange, stopIndex,
+}: {
+  stop: StopInput;
+  img: string | null;
+  onImageChange?: OnImageChange;
+  stopIndex: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  // Same reset-on-change need as SafeImg: once a broken (e.g. AI-hallucinated)
+  // URL fails once, `failed` must not stay stuck true after the user edits
+  // this tile's photo to a new, working one.
+  const [lastImg, setLastImg] = useState(img);
+  if (img !== lastImg) {
+    setLastImg(img);
+    setFailed(false);
+  }
+  const showPhoto = img && !failed;
+  return (
+    <div className="group relative flex-1 min-w-0">
+      {showPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog/AI-sourced URL, not a static app asset
+        <img src={img} alt={stop.name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        <div className="w-full h-full bg-linear-to-br from-primary-500 to-primary-700 flex items-center justify-center">
+          <MapPin size={22} className="text-white/70" />
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/30 to-transparent px-2.5 py-2 pt-8">
+        <p className="text-white text-xs font-bold truncate leading-tight">{stop.name ? titleCase(stop.name) : "—"}</p>
+        <p className="text-white/75 text-[10px] font-medium">{stop.nights} Night{stop.nights !== 1 ? "s" : ""}</p>
+      </div>
+      {onImageChange && (
+        <ImageEditButton
+          value={img ?? ""}
+          onChange={(url) => onImageChange({ kind: "stop", stopIndex }, url)}
+          dialogTitle={`${stop.name ? titleCase(stop.name) : "Stop"} Photo`}
+          className="top-1.5 right-1.5 size-6"
+        />
+      )}
+    </div>
+  );
 }
 
 function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChange?: OnImageChange }) {
@@ -458,30 +618,7 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
             || firstDayPhotoForStop(form.itineraries, dayNumbers)
             || packageFallback
             || null;
-          return (
-            <div key={i} className="group relative flex-1 min-w-0">
-              {img ? (
-                // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog URL, not a static app asset
-                <img src={img} alt={s.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-linear-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-                  <MapPin size={22} className="text-white/70" />
-                </div>
-              )}
-              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/30 to-transparent px-2.5 py-2 pt-8">
-                <p className="text-white text-xs font-bold truncate leading-tight">{s.name ? titleCase(s.name) : "—"}</p>
-                <p className="text-white/75 text-[10px] font-medium">{s.nights} Night{s.nights !== 1 ? "s" : ""}</p>
-              </div>
-              {onImageChange && (
-                <ImageEditButton
-                  value={img ?? ""}
-                  onChange={(url) => onImageChange({ kind: "stop", stopIndex: i }, url)}
-                  dialogTitle={`${s.name ? titleCase(s.name) : "Stop"} Photo`}
-                  className="top-1.5 right-1.5 size-6"
-                />
-              )}
-            </div>
-          );
+          return <StopTile key={i} stop={s} img={img} onImageChange={onImageChange} stopIndex={i} />;
         })}
       </div>
     </div>
@@ -555,7 +692,7 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
 
 /** Flight and train legs get their own labeled sections (never merged) so a
  * trip with both reads as two distinct groups, not one mixed list. */
-function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
+export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
   const flights = tickets.filter((t) => t.type === "FLIGHT");
   const trains = tickets.filter((t) => t.type === "TRAIN");
   if (flights.length === 0 && trains.length === 0) return null;
@@ -565,7 +702,7 @@ function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       {flights.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={Plane} label="Flight Details" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3">
             {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
         </div>
@@ -573,7 +710,7 @@ function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       {trains.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={TrainFront} label="Train Details" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3">
             {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
         </div>
@@ -583,12 +720,14 @@ function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
 }
 
 function DayCardPreview({
-  day, adults, childCount, onImageChange,
+  day, adults, childCount, travelDate, onImageChange, onActivityCaptionChange,
 }: {
   day: DayItinerary;
   adults: number;
   childCount: number;
+  travelDate: string;
   onImageChange?: OnImageChange;
+  onActivityCaptionChange?: (day: number, activityIndex: number, photoIndex: number, caption: string) => void;
 }) {
   // Keeps each activity's original index (for onImageChange targeting) even
   // though blank ones are filtered out of what's actually rendered.
@@ -596,21 +735,36 @@ function DayCardPreview({
     .map((a, originalIndex) => ({ a, originalIndex }))
     .filter(({ a }) => a.title.trim());
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
+  // Check-in lands on this day's own date; check-out is the following
+  // morning — same "shifted" convention the meal algorithm uses, since a
+  // day's hotel is the one you sleep in that night and leave the next day.
+  const checkInDate = dayCalendarDate(travelDate, day.day);
+  const checkOutDate = dayCalendarDate(travelDate, day.day + 1);
   const mealText = mealIncludedText(day.hotelMealPlan);
   const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0 || !!onImageChange;
+  const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
+  const extraCabs = (day.extraCabs ?? []).filter((c) => c.label.trim());
 
   return (
     <div
       className="rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm"
-      style={{ breakInside: "avoid" }}
     >
-      {/* Day header — numbered badge + title */}
+      {/* Day header — numbered badge + title. Deliberately NOT wrapping the
+          whole card in breakInside:avoid — a day with several activities and
+          photos routinely runs taller than one PDF page, and forcing the
+          entire card onto a fresh page just to avoid a mid-card split leaves
+          a large blank gap at the bottom of the previous page. Instead, only
+          the Hotel/Transport/Activity sub-cards below are individually
+          protected, so a tall day can still split page-to-page at a clean
+          boundary between them. */}
       <div className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-100 bg-linear-to-r from-primary-50/70 to-transparent">
         <span className="shrink-0 flex items-center justify-center size-9 rounded-xl bg-linear-to-br from-primary-500 to-primary-700 text-white text-sm font-extrabold shadow-sm">
           {day.day}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-primary-500 leading-none mb-0.5">Day {day.day}</p>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-primary-500 leading-none mb-0.5">
+            Day {day.day}{checkInDate && ` · ${formatShortDate(checkInDate)}`}
+          </p>
           <p className="text-sm font-bold text-neutral-800 truncate leading-tight">
             {day.title || `Day ${day.day}`}
           </p>
@@ -624,7 +778,7 @@ function DayCardPreview({
 
         {/* Hotel info */}
         {hasHotel && (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden">
+          <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
             <div className="flex items-center gap-2 px-3 py-2 bg-primary-50/70 border-b border-primary-100">
               <span className="flex items-center justify-center size-5 rounded-lg bg-primary-100 shrink-0">
                 <Hotel size={11} className="text-primary-600" />
@@ -648,18 +802,20 @@ function DayCardPreview({
                   {occupancyText(day.accommodationRoomCapacity, adults, childCount)}
                 </p>
 
-                {(day.hotelCheckIn || day.hotelCheckOut) && (
+                {(day.hotelCheckIn || day.hotelCheckOut || checkInDate) && (
                   <div className="flex items-center gap-2 pt-1">
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogIn size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-in</span>
                       <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn || "—"}</span>
+                      {checkInDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkInDate)}</span>}
                     </div>
                     <div className="flex-1 border-t border-dashed border-neutral-300 self-center" />
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogOut size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-out</span>
                       <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckOut || "—"}</span>
+                      {checkOutDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkOutDate)}</span>}
                     </div>
                   </div>
                 )}
@@ -672,6 +828,16 @@ function DayCardPreview({
                   <p className="text-[11px] text-neutral-500 flex items-center gap-1">
                     <Utensils size={10} className="text-primary-400 shrink-0" /> {mealText}
                   </p>
+                )}
+
+                {extraRooms.length > 0 && (
+                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                    {extraRooms.map((r, i) => (
+                      <p key={i} className="text-[11px] text-neutral-500">
+                        + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
+                      </p>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -723,16 +889,17 @@ function DayCardPreview({
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden">
+          <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
             <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border-b border-neutral-100">
               <span className="flex items-center justify-center size-5 rounded-lg bg-neutral-200/70 shrink-0">
                 <Car size={11} className="text-neutral-600" />
               </span>
               <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">Transport</p>
-              {(day.transportDistanceKm || (day.transportPickup && day.transportDrop)) && (
+              {(day.transportDistanceKm || day.transportTravelTime || (day.transportPickup && day.transportDrop)) && (
                 <span className="text-[10px] text-neutral-400 truncate">
                   · {[
                     day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
+                    day.transportTravelTime || null,
                     day.transportPickup && day.transportDrop ? `${day.transportPickup} → ${day.transportDrop}` : null,
                   ].filter(Boolean).join(" · ")}
                 </span>
@@ -760,13 +927,28 @@ function DayCardPreview({
                       <p className="text-neutral-500">
                         Pickup Point: <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
                       </p>
-                      {day.transportDistanceKm && (
-                        <p className="text-[11px] text-neutral-400 py-1">{day.transportDistanceKm} km</p>
+                      {(day.transportDistanceKm || day.transportTravelTime) && (
+                        <p className="text-[11px] text-neutral-400 py-1">
+                          {[
+                            day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
+                            day.transportTravelTime || null,
+                          ].filter(Boolean).join(" · ")}
+                        </p>
                       )}
                       <p className="text-neutral-500">
                         Drop Point: <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
                       </p>
                     </div>
+                  </div>
+                )}
+
+                {extraCabs.length > 0 && (
+                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                    {extraCabs.map((c, i) => (
+                      <p key={i} className="text-[11px] text-neutral-500">
+                        + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
+                      </p>
+                    ))}
                   </div>
                 )}
               </div>
@@ -821,6 +1003,11 @@ function DayCardPreview({
                 dayNumber={day.day}
                 activityIndex={originalIndex}
                 onImageChange={onImageChange}
+                onCaptionChange={
+                  onActivityCaptionChange
+                    ? (activityIndex, photoIndex, caption) => onActivityCaptionChange(day.day, activityIndex, photoIndex, caption)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -848,10 +1035,32 @@ function HeroCover({
   onCoverImageChange?: (url: string) => void;
   onCoverImagePositionChange?: (position: number) => void;
 }) {
-  const hasImage = !!form.coverImage;
+  const [coverFailed, setCoverFailed] = useState(false);
+  // Reset the failed flag when the cover image URL changes, without an
+  // effect — setting state during render (guarded by the changed check) is
+  // the React-recommended pattern for "adjust state in response to a prop change".
+  const [lastCoverSrc, setLastCoverSrc] = useState(form.coverImage);
+  if (form.coverImage !== lastCoverSrc) {
+    setLastCoverSrc(form.coverImage);
+    setCoverFailed(false);
+  }
+  const hasImage = !!form.coverImage && !coverFailed;
   const editable = !!onCoverImageChange;
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Journey route — pickup point, each stop with its night count, then the
+  // drop point. Pickup/drop come from the first/last day's transport fields;
+  // either (or both) is simply left out of the strip when not set.
+  const firstDay = form.itineraries[0];
+  const lastDay = form.itineraries[form.itineraries.length - 1];
+  const pickupPoint = firstDay?.transportPickup || "";
+  const dropPoint = lastDay?.transportDrop || "";
+  const routeSteps: { label: string; nights?: number }[] = [
+    ...(pickupPoint ? [{ label: `${pickupPoint} pickup` }] : []),
+    ...form.stops.filter((s) => s.name.trim()).map((s) => ({ label: titleCase(s.name), nights: s.nights })),
+    ...(dropPoint ? [{ label: `${dropPoint} drop` }] : []),
+  ];
 
   async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
@@ -893,6 +1102,7 @@ function HeroCover({
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: `center ${form.coverImagePosition ?? 50}%` }}
+          onError={() => setCoverFailed(true)}
         />
       ) : (
         <div className="absolute inset-0 bg-linear-to-br from-primary-700 via-primary-600 to-primary-900" />
@@ -949,7 +1159,7 @@ function HeroCover({
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 px-[15mm] pb-[15mm]">
+      <div className="absolute inset-x-0 bottom-0 px-[10mm] pb-[15mm]">
         {form.totalDays > 0 && (
           <span className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm border border-white/25 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-3">
             <Compass size={11} /> {form.totalDays} Day Journey
@@ -958,14 +1168,34 @@ function HeroCover({
         <h1 className="text-[30px] leading-[1.15] font-extrabold text-white" style={{ maxWidth: "150mm" }}>
           {form.title || "Untitled Package"}
         </h1>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5">
-          <span className="flex items-center gap-1.5 text-white text-sm font-semibold">
-            <MapPin size={14} className="shrink-0" />
-            {form.startingPoint ? `${form.startingPoint} → ` : ""}{form.destination || "—"}
-          </span>
-          <span className="text-white/50">·</span>
-          <span className="text-white/85 text-sm font-medium">{durationLabel}</span>
-        </div>
+
+        {routeSteps.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1 mt-3" style={{ maxWidth: "175mm" }}>
+            {routeSteps.map((step, i) => (
+              <div key={i} className="flex items-center gap-1">
+                {i > 0 && <ArrowRight size={11} className="text-white/40 shrink-0 mx-0.5" />}
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 backdrop-blur-sm px-1.5 py-0.5 text-[10px] text-white whitespace-nowrap">
+                  <MapPin size={9} className="shrink-0 text-white/60" />
+                  {step.label}
+                  {step.nights != null && (
+                    <span className="rounded-full bg-white/20 px-1 py-0.5 text-[7px] font-bold text-white/90">
+                      {step.nights}N
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5">
+            <span className="flex items-center gap-1.5 text-white text-sm font-semibold">
+              <MapPin size={14} className="shrink-0" />
+              {form.startingPoint ? `${form.startingPoint} → ` : ""}{form.destination || "—"}
+            </span>
+            <span className="text-white/50">·</span>
+            <span className="text-white/85 text-sm font-medium">{durationLabel}</span>
+          </div>
+        )}
       </div>
 
       {/* Wave transition into the white body below */}
@@ -1003,7 +1233,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
 
   return (
     <footer className="bg-neutral-950 text-slate-300 mt-2" style={{ breakInside: "avoid" }}>
-      <div className="px-[15mm] pt-9 pb-6">
+      <div className="px-[10mm] pt-9 pb-6">
         <div className="flex flex-wrap items-start justify-between gap-8 pb-7 border-b border-white/10">
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
             <DyLogo className="h-7 text-primary-500" />
@@ -1060,14 +1290,29 @@ const PRINT_STYLES = `
   @media print {
     body * { visibility: hidden; }
     .itinerary-print-area, .itinerary-print-area * { visibility: visible; }
-    .itinerary-print-area { position: absolute; inset: 0; width: 210mm; box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
     .no-print { display: none !important; }
+
+    /* The builder page wraps the preview in a sticky header, a
+       position:relative split-pane, and a scrolling overflow-auto <aside> —
+       any one of those can clip or mis-position an absolutely-positioned
+       print area. Instead, strip every layout constraint on that ancestor
+       chain (marked .print-reset) so the print area sits in plain normal
+       flow and paginates like any other block content. */
+    html, body { height: auto !important; overflow: visible !important; }
+    .print-reset {
+      position: static !important;
+      display: block !important;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    .itinerary-print-area { width: 210mm; margin: 0 auto !important; box-shadow: none !important; border-radius: 0 !important; border: none !important; }
     @page { size: A4; margin: 0; }
   }
 `;
 
 export function ItineraryDocument({
-  form, onCoverImageChange, onCoverImagePositionChange, onImageChange,
+  form, onCoverImageChange, onCoverImagePositionChange, onImageChange, onActivityCaptionChange, variant = "card",
 }: {
   form: PreviewData;
   /** Present only in the internal builder's live preview — enables dropping
@@ -1079,6 +1324,14 @@ export function ItineraryDocument({
    * every other photo in the document (stops, hotel, room, transport,
    * activities) — see ImageEditTarget for what each edit refers to. */
   onImageChange?: OnImageChange;
+  /** Same gating again — edits an activity photo's caption (`photoLabels[i]`)
+   * alongside the image itself, from the same edit dialog. */
+  onActivityCaptionChange?: (day: number, activityIndex: number, photoIndex: number, caption: string) => void;
+  /** "card" (default) keeps the rounded corners + drop shadow used to present
+   * the document on the public share page's colored background. "flat" drops
+   * both so the on-screen preview reads as a plain A4 page — matching exactly
+   * what window.print() produces, where these are already stripped. */
+  variant?: "card" | "flat";
 }) {
   const travelDateStr = form.travelDate
     ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
@@ -1103,23 +1356,20 @@ export function ItineraryDocument({
   // comment on PreviewData.tickets for why these aren't separate fields.
   const transport = deriveTransportFields(form.tickets);
 
-  // Category subtotals for the Price Summary — per-leg fares stay hidden on
-  // each ticket card, but the exec still wants the client to see what the
-  // flight/train cost comes to as part of the overall price breakdown.
-  const flightSubtotal = form.tickets.filter((t) => t.type === "FLIGHT").reduce((sum, t) => sum + (t.fare ?? 0), 0);
-  const trainSubtotal = form.tickets.filter((t) => t.type === "TRAIN").reduce((sum, t) => sum + (t.fare ?? 0), 0);
-
   return (
     <div>
       <style>{PRINT_STYLES}</style>
 
       {/* ── A4 page ─────────────────────────────────────────────────────────── */}
       <div
-        className="itinerary-print-area mx-auto bg-white rounded-lg shadow-xl overflow-hidden"
+        className={cn(
+          "itinerary-print-area mx-auto bg-white overflow-hidden",
+          variant === "flat" ? "border border-neutral-200" : "rounded-lg shadow-xl",
+        )}
         style={{ width: "210mm", minHeight: "297mm" }}
       >
         {/* ── Header ────────────────────────────────────────────────────────── */}
-        <header className="flex items-center justify-between px-[15mm] py-4">
+        <header className="flex items-center justify-between px-[10mm] py-4">
           <DyLogo className="h-7 text-primary-600" />
           <div className="text-right text-[11px] text-neutral-500 space-y-0.5">
             <p className="flex items-center justify-end gap-1.5"><Phone size={10} className="text-primary-500" /> {COMPANY_PHONE}</p>
@@ -1136,7 +1386,7 @@ export function ItineraryDocument({
         />
 
         {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-        <div className="relative z-10 px-[15mm]" style={{ marginTop: "-13mm" }}>
+        <div className="relative z-10 px-[10mm]" style={{ marginTop: "-13mm" }}>
           <div className="bg-white rounded-2xl  border-neutral-100 grid grid-cols-4 divide-x divide-neutral-100 overflow-hidden" style={{ boxShadow: "0 10px 30px -8px rgba(0,0,0,0.18)" }}>
             <StatCell icon={Calendar} label="Travel Date" value={travelDateStr} />
             <StatCell icon={Moon} label="Duration" value={durationLabel} />
@@ -1151,7 +1401,7 @@ export function ItineraryDocument({
         </div>
 
         {/* ── Body ──────────────────────────────────────────────────────────── */}
-        <main className="px-[15mm] pt-7 pb-2 space-y-7">
+        <main className="px-[10mm] pt-7 pb-2 space-y-7">
           {(form.clientName || form.execName) && (
             <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden" style={{ breakInside: "avoid" }}>
               <div className="grid grid-cols-2 divide-x divide-neutral-100">
@@ -1220,7 +1470,7 @@ export function ItineraryDocument({
 
           <div className="space-y-3">
             <SectionHeader icon={Calendar} label="Day-wise Summary" />
-            <DaySummaryTable itineraries={form.itineraries} />
+            <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} />
           </div>
 
           <div className="space-y-3">
@@ -1232,7 +1482,9 @@ export function ItineraryDocument({
                   day={d}
                   adults={form.adults}
                   childCount={form.children}
+                  travelDate={form.travelDate}
                   onImageChange={onImageChange}
+                  onActivityCaptionChange={onActivityCaptionChange}
                 />
               ))}
             </div>
@@ -1258,23 +1510,6 @@ export function ItineraryDocument({
                 <h2 className="text-[13px] font-extrabold text-white uppercase tracking-wide">Price Summary</h2>
               </div>
 
-              {(flightSubtotal > 0 || trainSubtotal > 0) && (
-                <div className="space-y-1.5 mb-4 pb-4 border-b border-white/10">
-                  {flightSubtotal > 0 && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 text-white/70"><Plane size={11} /> Flight</span>
-                      <span className="font-semibold text-white">₹{flightSubtotal.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-                  {trainSubtotal > 0 && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 text-white/70"><TrainFront size={11} /> Train</span>
-                      <span className="font-semibold text-white">₹{trainSubtotal.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="space-y-1">
                   <p className="text-sm text-white/90 font-medium">{paxLine}</p>
@@ -1289,17 +1524,19 @@ export function ItineraryDocument({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10">
-                <p className="text-[10px] text-white/60">Secure your booking online, anytime.</p>
-                <a
-                  href={PAYMENT_LINK || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-400 text-white font-bold text-xs px-4 py-2 rounded-full transition-colors shrink-0"
-                >
-                  Pay Now <ArrowRight size={13} />
-                </a>
-              </div>
+              {form.paymentLink && (
+                <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10">
+                  <p className="text-[10px] text-white/60">Secure your booking online, anytime.</p>
+                  <a
+                    href={form.paymentLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-400 text-white font-bold text-xs px-4 py-2 rounded-full transition-colors shrink-0"
+                  >
+                    Pay Now <ArrowRight size={13} />
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1337,6 +1574,84 @@ export function ItineraryDocument({
               </ul>
             </div>
           </div>
+
+          {(form.termsConditions.length > 0 || form.paymentPolicy.length > 0 || form.amendmentPolicy.length > 0) && (
+            <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
+              {form.termsConditions.length > 0 && (
+                <div className="rounded-2xl border border-blue-100 bg-white overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 bg-blue-50/70 border-b border-blue-100">
+                    <span className="flex items-center justify-center size-6 rounded-lg bg-blue-100 shrink-0">
+                      <Info size={13} className="text-blue-600" />
+                    </span>
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-blue-700">Terms & Conditions</h3>
+                  </div>
+                  <ul className="p-4 space-y-2 text-xs text-neutral-600">
+                    {form.termsConditions.map((t) => (
+                      <li key={t} className="flex items-start gap-2">
+                        <span className="mt-1.5 size-1 rounded-full bg-blue-400 shrink-0" />
+                        <span>{t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {form.paymentPolicy.length > 0 && (
+                <div className="rounded-2xl border border-amber-100 bg-white overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 bg-amber-50/70 border-b border-amber-100">
+                    <span className="flex items-center justify-center size-6 rounded-lg bg-amber-100 shrink-0">
+                      <IndianRupee size={13} className="text-amber-600" />
+                    </span>
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-amber-700">Payment Policy</h3>
+                  </div>
+                  <ul className="p-4 space-y-2 text-xs text-neutral-600">
+                    {form.paymentPolicy.map((t) => (
+                      <li key={t} className="flex items-start gap-2">
+                        <span className="mt-1.5 size-1 rounded-full bg-amber-400 shrink-0" />
+                        <span>{t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {form.amendmentPolicy.length > 0 && (
+                <div className="rounded-2xl border border-purple-100 bg-white overflow-hidden col-span-2">
+                  <div className="flex items-center gap-2 px-4 py-3 bg-purple-50/70 border-b border-purple-100">
+                    <span className="flex items-center justify-center size-6 rounded-lg bg-purple-100 shrink-0">
+                      <Calendar size={13} className="text-purple-600" />
+                    </span>
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-purple-700">Amendment Policy</h3>
+                  </div>
+                  <ul className="p-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-neutral-600">
+                    {form.amendmentPolicy.map((t) => (
+                      <li key={t} className="flex items-start gap-2">
+                        <span className="mt-1.5 size-1 rounded-full bg-purple-400 shrink-0" />
+                        <span>{t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {form.travelBenefits.length > 0 && (
+            <div className="rounded-2xl border border-teal-100 bg-white overflow-hidden" style={{ breakInside: "avoid" }}>
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-teal-50/70 border-b border-teal-100">
+                <span className="flex items-center justify-center size-6 rounded-lg bg-teal-100 shrink-0">
+                  <Sparkles size={12} className="text-teal-600" />
+                </span>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-teal-700">Why Book With Us</h3>
+              </div>
+              <ul className="p-3.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] text-neutral-600">
+                {form.travelBenefits.map((b) => (
+                  <li key={b} className="flex items-start gap-1.5">
+                    <span className="mt-1.5 size-1 rounded-full bg-teal-400 shrink-0" />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {form.termsNotes && <TermsAndConditions text={form.termsNotes} />}
 

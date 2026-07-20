@@ -10,7 +10,7 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
-  Image as ImageIcon, Printer, X, Sparkles, Percent,
+  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -44,7 +44,8 @@ import {
   type TicketInput,
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
-import { ItineraryDocument, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { ItineraryDocument, SafeImg, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -119,16 +120,54 @@ async function geocodeCity(query: string): Promise<{ lat: number; lng: number } 
 
 const DEFAULT_INCLUSIONS = [
   "Accommodation as per itinerary",
-  "Daily breakfast",
+  "Meals as per itinerary",
   "All transfers by private cab",
   "GST & service taxes",
 ];
 
 const DEFAULT_EXCLUSIONS = [
-  "Airfare / train tickets",
+  "Airfare / train tickets not mentioned in the itinerary",
   "Personal expenses",
   "Meals not mentioned",
   "Adventure activity charges",
+];
+
+// Common, company-wide defaults an exec can trim/extend per package —
+// condensed from the published Terms & Conditions / Payment / Cancellation
+// policies into short, removable bullet points.
+const DEFAULT_TERMS_CONDITIONS = [
+  "Dreams Yatri acts as a facilitator between travellers and third-party suppliers (hotels, airlines, cabs).",
+  "All bookings are subject to availability and supplier confirmation.",
+  "Traveller details must be accurate — we aren't liable for losses due to incorrect information.",
+  "Package prices are subject to change until booking amount is received.",
+  "Confirmed bookings are locked at the agreed price.",
+  "All disputes are subject to the jurisdiction of courts in Shimla, Himachal Pradesh.",
+];
+
+const DEFAULT_PAYMENT_POLICY = [
+  "50% advance required to confirm your booking.",
+  "Remaining balance must be cleared 7 days before departure.",
+  "Accepted: UPI, Net Banking, Credit/Debit Card, Bank Transfer.",
+  "All prices are inclusive of GST unless stated otherwise.",
+  "Payments are processed securely via authorized payment gateways only.",
+];
+
+const DEFAULT_AMENDMENT_POLICY = [
+  "Date changes are permitted a maximum of 2 times per booking.",
+  "New travel dates must be within 12 months of the original booking date.",
+  "Amendment charges apply based on how close to departure the change is requested.",
+  "Hotel & flight availability at the time of change is not guaranteed.",
+  "Any fare differences on amendment will be charged to the traveller.",
+  "Amendment requests must be submitted in writing via email or WhatsApp.",
+];
+
+const DEFAULT_TRAVEL_BENEFITS = [
+  "Hassle-free, end-to-end trip planning",
+  "No hotel or cab scams — all our partners are verified",
+  "Safe & secure travel with 24x7 support",
+  "Handpicked stays and vetted local partners",
+  "Transparent pricing, no hidden charges",
+  "Dedicated travel manager for your trip",
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -426,12 +465,10 @@ function ActivityListEditor({ activities, location, onChange }: {
                 </button>
                 <div className="grid grid-cols-3 gap-1.5">
                   {a.photos.slice(0, 3).map((src, i) => (
-                    <Image
+                    <SafeImg
                       key={i}
                       src={src}
                       alt={a.photoLabels[i] || a.title || "Activity"}
-                      width={100}
-                      height={80}
                       className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
                     />
                   ))}
@@ -876,6 +913,92 @@ function DayCard({
               )}
             </div>
 
+            {/* Rooms needed — auto-computed from traveller count, but
+               overridable when the group is splitting across separately
+               booked rooms rather than sharing by pure occupancy. */}
+            {data.roomPricingId != null && (
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={data.roomsCount ?? ""}
+                  onChange={(e) => onChange({
+                    ...data,
+                    roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                  })}
+                  placeholder="Auto"
+                  className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+                <p className="text-[10px] text-dashboard-base-content/40">
+                  Leave blank to auto-compute from traveller count
+                </p>
+              </div>
+            )}
+
+            {/* Additional, different room types for the same night — e.g. one
+               couple in this room, another in a different room type. */}
+            {(data.extraRooms ?? []).length > 0 && (
+              <div className="space-y-2">
+                {(data.extraRooms ?? []).map((room, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 p-2">
+                    <div className="flex-1 min-w-0">
+                      <HotelRoomPicker
+                        value={room.roomPricingId || null}
+                        initialLabel={room.label}
+                        searchCity={searchCity}
+                        refCoords={cityCoords}
+                        onSelect={(r) => {
+                          const next = [...(data.extraRooms ?? [])];
+                          next[i] = { roomPricingId: r.id, label: `${r.hotelName} — ${r.roomName}`, quantity: next[i].quantity };
+                          onChange({ ...data, extraRooms: next });
+                        }}
+                        onClear={() => {
+                          const next = [...(data.extraRooms ?? [])];
+                          next[i] = { ...next[i], roomPricingId: 0, label: "" };
+                          onChange({ ...data, extraRooms: next });
+                        }}
+                        placeholder="Search another room type…"
+                      />
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={room.quantity}
+                      onChange={(e) => {
+                        const next = [...(data.extraRooms ?? [])];
+                        next[i] = { ...next[i], quantity: Math.max(1, parseInt(e.target.value, 10) || 1) };
+                        onChange({ ...data, extraRooms: next });
+                      }}
+                      className="text-sm h-9 w-16 shrink-0 border-dashboard-base-300 rounded-md"
+                    />
+                    <Button
+                      type="button" variant="ghost" size="icon"
+                      className="h-9 w-9 shrink-0 text-dashboard-error hover:bg-dashboard-error/10"
+                      onClick={() => onChange({
+                        ...data,
+                        extraRooms: (data.extraRooms ?? []).filter((_, idx) => idx !== i),
+                      })}
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchCity && (
+              <Button
+                type="button" variant="outline" size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => onChange({
+                  ...data,
+                  extraRooms: [...(data.extraRooms ?? []), { roomPricingId: 0, label: "", quantity: 1 }],
+                })}
+              >
+                <Plus size={12} /> Add another room type
+              </Button>
+            )}
+
             {showRoomApplyPrompt && lastRoom && (
               <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -1087,6 +1210,85 @@ function DayCard({
               )}
             </div>
 
+            {/* Cab quantity — e.g. 2 of the same vehicle for a large group. */}
+            {data.cabPricingId != null && (
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Quantity</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={data.cabQuantity ?? ""}
+                  onChange={(e) => onChange({
+                    ...data,
+                    cabQuantity: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                  })}
+                  placeholder="1"
+                  className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+            )}
+
+            {/* Additional, different cabs for the same day — e.g. one sedan
+               plus one SUV, each with its own quantity. */}
+            {(data.extraCabs ?? []).length > 0 && (
+              <div className="space-y-2 mb-2">
+                {(data.extraCabs ?? []).map((cab, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 p-2">
+                    <div className="flex-1 min-w-0">
+                      <SearchSelect
+                        value={null}
+                        onChange={(_id, option) => {
+                          const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
+                          if (!raw) return;
+                          const isPriced = "vehicleName" in raw;
+                          const next = [...(data.extraCabs ?? [])];
+                          next[i] = {
+                            cabPricingId: isPriced ? raw.id : null,
+                            label: isPriced ? raw.vehicleName : raw.name,
+                            quantity: next[i].quantity,
+                          };
+                          onChange({ ...data, extraCabs: next });
+                        }}
+                        fetchOptions={fetchCabOptions}
+                        placeholder={cab.label || "Search another cab…"}
+                      />
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={cab.quantity}
+                      onChange={(e) => {
+                        const next = [...(data.extraCabs ?? [])];
+                        next[i] = { ...next[i], quantity: Math.max(1, parseInt(e.target.value, 10) || 1) };
+                        onChange({ ...data, extraCabs: next });
+                      }}
+                      className="text-sm h-9 w-16 shrink-0 border-dashboard-base-300 rounded-md"
+                    />
+                    <Button
+                      type="button" variant="ghost" size="icon"
+                      className="h-9 w-9 shrink-0 text-dashboard-error hover:bg-dashboard-error/10"
+                      onClick={() => onChange({
+                        ...data,
+                        extraCabs: (data.extraCabs ?? []).filter((_, idx) => idx !== i),
+                      })}
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button" variant="outline" size="sm"
+              className="h-8 text-xs gap-1.5 mb-2"
+              onClick={() => onChange({
+                ...data,
+                extraCabs: [...(data.extraCabs ?? []), { cabPricingId: null, label: "", quantity: 1 }],
+              })}
+            >
+              <Plus size={12} /> Add another cab
+            </Button>
+
             {showApplyPrompt && lastVehicle && (
               <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -1201,6 +1403,14 @@ function DayCard({
                 className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
+            <div className="mt-2">
+              <Input
+                value={data.transportTravelTime}
+                onChange={(e) => onChange({ ...data, transportTravelTime: e.target.value })}
+                placeholder="Estimated travel time, e.g. 3h 15m"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+            </div>
           </div>
 
           {/* Meals */}
@@ -1302,6 +1512,11 @@ interface PackageForm {
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
+  termsConditions: string[];
+  paymentPolicy: string[];
+  amendmentPolicy: string[];
+  travelBenefits: string[];
+  paymentLink: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
   /** Each row is one flight or train leg (onward, return, connecting…) —
@@ -1357,6 +1572,19 @@ function formatDuration(ms: number): string {
   return `${mins}m`;
 }
 
+/** Detects the "[label](https://...)" markdown-link/citation pattern
+ * sometimes left behind when copying a JSON response out of ChatGPT's chat
+ * bubble (as opposed to its code block's own copy button) — a link wrapped
+ * around plain text inside a JSON string is still syntactically valid JSON,
+ * so JSON.parse succeeds but every wrapped field ends up garbled. Recurses
+ * through the whole parsed value looking for the tell-tale "](http" bytes. */
+function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
+  if (typeof value === "string") return /\]\(https?:\/\//.test(value);
+  if (Array.isArray(value)) return value.some(looksLikeMarkdownLinkCorruption);
+  if (value && typeof value === "object") return Object.values(value).some(looksLikeMarkdownLinkCorruption);
+  return false;
+}
+
 const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
   meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
@@ -1365,7 +1593,7 @@ const emptyDay = (day: number): DayItinerary => ({
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,
-  transportDrop: "", transportDistanceKm: null,
+  transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
   cabPricingId: null,
   notes: "",
 });
@@ -1559,7 +1787,7 @@ export default function PackageBuilderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("client");
-  const [packageId, setPackageId] = useState<string | null>(null);
+  const [, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
   const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
@@ -1571,6 +1799,11 @@ export default function PackageBuilderDetailPage() {
   // suggestion already uses, so a route stop like "Manali" picks up the
   // actual destination photo automatically, no manual upload needed.
   const [stopImages, setStopImages] = useState<Record<string, string | null>>({});
+
+  // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (external
+  // LLM, no direct API call from here). See buildAIPrompt/applyAIItinerary.
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiJsonInput, setAiJsonInput] = useState("");
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -1584,7 +1817,12 @@ export default function PackageBuilderDetailPage() {
     currency: "INR",
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
-    termsNotes: "Package price is subject to availability. 50% advance required to confirm booking.",
+    termsNotes: "",
+    termsConditions: DEFAULT_TERMS_CONDITIONS,
+    paymentPolicy: DEFAULT_PAYMENT_POLICY,
+    amendmentPolicy: DEFAULT_AMENDMENT_POLICY,
+    travelBenefits: DEFAULT_TRAVEL_BENEFITS,
+    paymentLink: "",
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
     tickets: [],
@@ -1652,6 +1890,18 @@ export default function PackageBuilderDetailPage() {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
+          // Previously never re-loaded on reopen — always silently reset to
+          // the DEFAULT_* seed instead of what was actually saved. Fixed
+          // here alongside adding the 4 new policy lists below, since it's
+          // the exact same select/hydrate gap.
+          inclusions: cp.inclusions.length > 0 ? cp.inclusions : f.inclusions,
+          exclusions: cp.exclusions.length > 0 ? cp.exclusions : f.exclusions,
+          termsNotes: cp.termsNotes ?? f.termsNotes,
+          termsConditions: cp.termsConditions.length > 0 ? cp.termsConditions : f.termsConditions,
+          paymentPolicy: cp.paymentPolicy.length > 0 ? cp.paymentPolicy : f.paymentPolicy,
+          amendmentPolicy: cp.amendmentPolicy.length > 0 ? cp.amendmentPolicy : f.amendmentPolicy,
+          travelBenefits: cp.travelBenefits.length > 0 ? cp.travelBenefits : f.travelBenefits,
+          paymentLink: cp.paymentLink ?? "",
           stops: cp.stops,
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
           tickets: cp.tickets,
@@ -1714,10 +1964,14 @@ export default function PackageBuilderDetailPage() {
   // Recomputes the real hotel cost (season/occupancy-aware) whenever any of
   // those three inputs change — the sales exec still applies it manually via
   // the "Use this price" button so an already-typed price isn't clobbered.
-  const roomPricingKey = form.itineraries.map((it) => `${it.day}:${it.roomPricingId ?? ""}`).join("|");
+  const roomPricingKey = form.itineraries
+    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${JSON.stringify(it.extraRooms ?? [])}`)
+    .join("|");
   useEffect(() => {
-    const days = form.itineraries.map((it) => ({ day: it.day, roomPricingId: it.roomPricingId }));
-    if (days.every((d) => d.roomPricingId == null)) {
+    const days = form.itineraries.map((it) => ({
+      day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount, extraRooms: it.extraRooms,
+    }));
+    if (days.every((d) => d.roomPricingId == null && (d.extraRooms ?? []).length === 0)) {
       setHotelPricing(null);
       return;
     }  
@@ -1744,13 +1998,14 @@ export default function PackageBuilderDetailPage() {
   // that day's transportDistanceKm, so a multi-day cab hire naturally sums
   // across however many days it was applied to.
   const cabPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}`)
+    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
+      cabQuantity: it.cabQuantity, extraCabs: it.extraCabs,
     }));
-    if (days.every((d) => d.cabPricingId == null)) {
+    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0)) {
       setCabPricing(null);
       return;
     }
@@ -1796,18 +2051,33 @@ export default function PackageBuilderDetailPage() {
   // final_price — same walkthrough the admin catalog's full pricing engine
   // uses (computePackagePrice in package-pricing.service.ts), just without
   // the meal/activity/permit layers that only exist for catalog packages.
+  // Flight/train fares only ever carry a flat 5% margin — never the
+  // configurable hotel/cab margin (25% by default) — since tickets are
+  // priced closer to cost and don't bear the same markup as inventory the
+  // agency sources and stays in.
+  const TICKET_MARGIN_PCT = 5;
+
   function computeFinalPricing() {
     const marginPct = parseFloat(form.marginPercentage) || 0;
     const gstPct = parseFloat(form.gstPercentage) || 0;
+    const hotelCabBase = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0);
     const ticketsSubtotal = form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
-    const baseCost = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0) + ticketsSubtotal;
-    const marginAmount = Math.round(baseCost * marginPct / 100);
+    const baseCost = hotelCabBase + ticketsSubtotal;
+
+    const hotelCabMarginAmount = Math.round(hotelCabBase * marginPct / 100);
+    const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
+    const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
+
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
     const finalPrice = taxable + gstAmount;
     const totalPax = form.adults + form.children;
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
-    return { marginPct, gstPct, baseCost, ticketsSubtotal, marginAmount, taxable, gstAmount, finalPrice, perPerson };
+    return {
+      marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase,
+      hotelCabMarginAmount, ticketsMarginAmount, marginAmount,
+      taxable, gstAmount, finalPrice, perPerson,
+    };
   }
 
   function applyComputedPricing() {
@@ -1839,26 +2109,28 @@ export default function PackageBuilderDetailPage() {
   // ── Send ───────────────────────────────────────────────────────────────────
   function handleSend() {
     startSend(async () => {
-      let pkgId = packageId;
-      if (!pkgId) {
-        const result = await saveCustomPackage({
-          queryId,
-          ...form,
-          pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-          marginPercentage: parseFloat(form.marginPercentage) || 0,
-          gstPercentage: parseFloat(form.gstPercentage) || 0,
-          status: "READY",
-        });
-        if (!result.success) return;
-        pkgId = result.id;
-        setPackageId(pkgId);
-      }
-      const result = await sendPackageToClient(pkgId);
-      if (result.success && result.whatsappUrl) {
-        window.open(result.whatsappUrl, "_blank");
-        if (result.shareUrl) {
-          const link = result.shareUrl;
+      // Always save first — sendPackageToClient reads straight from the DB
+      // row, so any edit made since the last save (a freshly-pasted payment
+      // link, a price tweak, a room swap) would otherwise silently never
+      // reach the client if the package already existed.
+      const result = await saveCustomPackage({
+        queryId,
+        ...form,
+        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+        marginPercentage: parseFloat(form.marginPercentage) || 0,
+        gstPercentage: parseFloat(form.gstPercentage) || 0,
+        status: "READY",
+      });
+      if (!result.success) return;
+      const pkgId = result.id;
+      setPackageId(pkgId);
+
+      const result2 = await sendPackageToClient(pkgId);
+      if (result2.success && result2.whatsappUrl) {
+        window.open(result2.whatsappUrl, "_blank");
+        if (result2.shareUrl) {
+          const link = result2.shareUrl;
           toast.success("Sent! Client link ready.", {
             description: link,
             action: {
@@ -1939,6 +2211,24 @@ export default function PackageBuilderDetailPage() {
           default:
             return d;
         }
+      }),
+    }));
+  }
+
+  /** Companion to handleItineraryImageChange for the caption shown under an
+   * activity photo (`photoLabels[i]`), edited from the same dialog. */
+  function handleActivityCaptionChange(day: number, activityIndex: number, photoIndex: number, caption: string) {
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((d) => {
+        if (d.day !== day) return d;
+        const activities = d.activities.map((a, i) => {
+          if (i !== activityIndex) return a;
+          const photoLabels = [...a.photoLabels];
+          photoLabels[photoIndex] = caption;
+          return { ...a, photoLabels };
+        });
+        return { ...d, activities };
       }),
     }));
   }
@@ -2070,6 +2360,208 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
+  // ── AI Itinerary Builder ────────────────────────────────────────────────────
+  // Copy-a-prompt / paste-back-JSON workflow: no direct LLM API call from this
+  // app — the exec copies the generated prompt into their own ChatGPT session,
+  // pastes the JSON it returns back here, and we parse + merge it into the
+  // form. Kept strictly additive (never overwrites a day/field the exec has
+  // already filled in), same philosophy as autoFillDayTitles/autoFillPickupDrop.
+
+  /** Builds the copy-paste prompt from the package's current state — title,
+   * day count, destinations with night counts (falls back to the single
+   * `destination` + total nights when no stops have been added yet), pickup
+   * point, and the last day's drop point. */
+  function buildAIPrompt(): string {
+    const destinationsLine = form.stops.length > 0
+      ? form.stops.map((s) => `${s.name} (${s.nights} Night${s.nights !== 1 ? "s" : ""})`).join(", ")
+      : `${form.destination || "the destination"} (${Math.max(form.totalNights, 1)} Night${Math.max(form.totalNights, 1) !== 1 ? "s" : ""})`;
+    const pickup = form.startingPoint.trim() || "(not specified — choose a sensible pickup point for this destination)";
+    const lastDay = form.itineraries[form.itineraries.length - 1];
+    const drop = lastDay?.transportDrop.trim() || "(not specified — same as the pickup point unless the route suggests otherwise)";
+    const totalPax = form.adults + form.children;
+    const paxLine = `${form.adults} Adult${form.adults !== 1 ? "s" : ""}` +
+      (form.children > 0 ? ` + ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "");
+
+    return `AI Itinerary Builder Prompt
+
+Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
+
+Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). If you look anything up (e.g. to find real image URLs), still write the result as a plain string value, not a hyperlink/citation. A markdown link anywhere inside the JSON will break the import.
+
+Package: "${form.title || "Untitled Package"}" — ${form.totalDays} Day${form.totalDays !== 1 ? "s" : ""} / ${form.totalNights} Night${form.totalNights !== 1 ? "s" : ""}
+Destinations (in order, with nights at each): ${destinationsLine}
+Travellers: ${paxLine}${totalPax === 0 ? " (assume 2 adults if unspecified)" : ""}
+Pickup point: ${pickup}
+Drop point: ${drop}
+
+Spend the itinerary days in the order the destinations are listed, matching the night count at each one.
+
+Return exactly this JSON shape:
+
+{
+  "description": "2-3 sentence overview of the whole trip",
+  "coverImage": "<a real, working, high-quality landscape photo URL representing the overall trip>",
+  "stops": [
+    { "name": "<destination name, matching the list above>", "image": "<real landscape photo URL of this destination>" }
+  ],
+  "days": [
+    {
+      "day": 1,
+      "title": "<day title, under 10 words>",
+      "description": "<day description, 35-55 words — see style example below>",
+      "transportPickup": "<pickup point for this day's transfer>",
+      "transportDrop": "<drop point for this day's transfer>",
+      "transportDistanceKm": <approximate distance in km as a number>,
+      "travelTimeApprox": "<approx travel time, e.g. \\"2h 30m\\">",
+      "activities": [
+        {
+          "title": "<activity title, a short descriptive phrase — see style example below>",
+          "description": "<activity description, 25-40 words — see style example below>",
+          "photos": ["<real landscape photo URL 1>", "<real landscape photo URL 2>", "<real landscape photo URL 3>"]
+        }
+      ]
+    }
+  ]
+}
+
+Style examples (match this tone, level of detail, and length — not generic one-liners):
+
+Day description:
+"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
+
+Activity title + description:
+"Tea Garden Walk in Munnar" — "Take a refreshing walk through Munnar's sprawling tea plantations, surrounded by rolling green hills and fresh mountain air. Enjoy scenic views, learn about tea cultivation, and experience the tranquil beauty of Kerala's famous hill station."
+
+Note activity titles are a full descriptive phrase naming the place (e.g. "Tea Garden Walk in Munnar", "Fort Kochi Heritage Walk") — never a bare noun like "Tea Gardens" or "Fort Kochi" alone.
+
+Rules:
+- Exactly one "days" entry per day (${form.totalDays} total), numbered sequentially from 1.
+- 2-3 activities per day is enough — don't overload the day.
+- Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
+- Do not include hotel or cab pricing/selection — that's handled separately, manually.
+- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.
+- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
+  }
+
+  function copyAIPrompt() {
+    navigator.clipboard.writeText(buildAIPrompt());
+    toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
+  }
+
+  type AIItineraryActivity = { title?: string; description?: string; photos?: string[] };
+  type AIItineraryDay = {
+    day?: number; title?: string; description?: string;
+    transportPickup?: string; transportDrop?: string; transportDistanceKm?: number;
+    travelTimeApprox?: string; activities?: AIItineraryActivity[];
+  };
+  type AIItineraryResponse = {
+    description?: string; coverImage?: string;
+    stops?: { name?: string; image?: string }[];
+    days?: AIItineraryDay[];
+  };
+
+  /** Parses the pasted JSON and merges it into the form — fills only empty
+   * fields (title/description/pickup/drop/distance), replaces a day's
+   * activities only when that day currently has none, and extends the
+   * itinerary if the response has more days than currently exist. Never
+   * touches hotel/cab selection (roomPricingId/cabPricingId untouched). */
+  function applyAIItinerary() {
+    let parsed: AIItineraryResponse;
+    try {
+      const cleaned = aiJsonInput.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      toast.error("That doesn't look like valid JSON — check the format and try again.");
+      return;
+    }
+    if (!parsed || typeof parsed !== "object") {
+      toast.error("Unexpected response shape — please try again.");
+      return;
+    }
+    if (looksLikeMarkdownLinkCorruption(parsed)) {
+      toast.error(
+        "This response looks corrupted — it has markdown links mixed into the text (a common artifact of copying from ChatGPT's chat bubble instead of its code block). Ask it to resend as a single ```json code block with no citations, then paste that instead.",
+        { duration: 9000 },
+      );
+      return;
+    }
+
+    try {
+      setForm((f) => {
+        const next = { ...f };
+
+        if (parsed.description && !next.description.trim()) next.description = parsed.description;
+        if (parsed.coverImage && !next.coverImage.trim()) next.coverImage = parsed.coverImage;
+
+        if (Array.isArray(parsed.stops) && parsed.stops.length > 0) {
+          const validStops = parsed.stops.filter((s): s is { name: string; image?: string } => !!s?.name);
+          if (next.stops.length === 0 && validStops.length > 0) {
+            const perStopNights = Math.max(1, Math.round((next.totalNights || validStops.length) / validStops.length));
+            next.stops = validStops.map((s) => ({ name: s.name, nights: perStopNights, image: s.image || undefined }));
+          } else {
+            next.stops = next.stops.map((st) => {
+              if (st.image) return st;
+              const match = validStops.find((s) => s.name.trim().toLowerCase() === st.name.trim().toLowerCase());
+              return match?.image ? { ...st, image: match.image } : st;
+            });
+          }
+        }
+
+        if (Array.isArray(parsed.days) && parsed.days.length > 0) {
+          const byDayNum = new Map<number, AIItineraryDay>();
+          parsed.days.forEach((d, i) => { if (d) byDayNum.set(d.day ?? i + 1, d); });
+
+          let itineraries = next.itineraries;
+          if (parsed.days.length > itineraries.length) {
+            const extra = Array.from(
+              { length: parsed.days.length - itineraries.length },
+              (_, i) => emptyDay(itineraries.length + i + 1),
+            );
+            itineraries = [...itineraries, ...extra];
+            next.totalDays = itineraries.length;
+            next.totalNights = Math.max(0, itineraries.length - 1);
+          }
+
+          next.itineraries = itineraries.map((day) => {
+            const src = byDayNum.get(day.day);
+            if (!src) return day;
+            const updated = { ...day };
+            if (src.title && !updated.title.trim()) updated.title = src.title;
+            if (src.description && !updated.description.trim()) updated.description = src.description;
+            if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
+            if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
+            if (src.transportDistanceKm != null && updated.transportDistanceKm == null) updated.transportDistanceKm = src.transportDistanceKm;
+            if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
+            if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
+              updated.activities = src.activities
+                .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
+                .map((a) => {
+                  const photos = Array.isArray(a.photos) ? a.photos.filter((p): p is string => !!p).slice(0, 3) : [];
+                  return {
+                    title: a.title,
+                    description: a.description ?? "",
+                    photo: photos[0] ?? "",
+                    photos,
+                    photoLabels: photos.map(() => a.title),
+                  };
+                });
+            }
+            return updated;
+          });
+        }
+
+        return next;
+      });
+    } catch {
+      toast.error("Couldn't apply that response — its shape didn't match what was expected.");
+      return;
+    }
+
+    setAiJsonInput("");
+    setAiDialogOpen(false);
+    toast.success("Itinerary generated from the AI response.");
+  }
+
   function field<K extends keyof PackageForm>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -2135,10 +2627,10 @@ export default function PackageBuilderDetailPage() {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="print-reset min-h-screen flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
+      <header className="no-print sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
         <div className="flex items-center justify-between px-4 h-14 gap-3">
           {/* Left */}
           <div className="flex items-center gap-3 min-w-0">
@@ -2208,15 +2700,7 @@ export default function PackageBuilderDetailPage() {
               </span>
             </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
-              onClick={() => window.print()}
-            >
-              <Printer size={13} />
-              <span className="hidden sm:inline text-xs">Print / Save as PDF</span>
-            </Button>
+            <ItineraryPdfExport form={previewForm} />
 
             <Button
               size="sm"
@@ -2235,23 +2719,25 @@ export default function PackageBuilderDetailPage() {
       </header>
 
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
-      <div className="flex relative h-[calc(100vh-3.5rem)]">
+      <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
-          <div className="px-6 py-8">
+        <aside className="print-reset hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
+          <div className="print-reset px-6 py-8">
             <ItineraryDocument
               form={previewForm}
               onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={handleItineraryImageChange}
+              onActivityCaptionChange={handleActivityCaptionChange}
+              variant="flat"
             />
           </div>
         </aside>
 
         {/* Mobile preview overlay */}
         {mobilePreviewOpen && (
-          <div className="lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
+          <div className="no-print lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
             <div className="no-print flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100 z-10">
               <span className="text-sm font-semibold text-dashboard-base-content">Live Preview</span>
               <button onClick={() => setMobilePreviewOpen(false)}>
@@ -2264,33 +2750,35 @@ export default function PackageBuilderDetailPage() {
                 onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={handleItineraryImageChange}
+              onActivityCaptionChange={handleActivityCaptionChange}
+              variant="flat"
               />
             </div>
           </div>
         )}
 
         {/* ── RIGHT: Tabbed Editor ──────────────────────────────────────────────── */}
-        <main className="w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
+        <main className="no-print w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
           <div className="px-4 pt-5 pb-4">
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
-              <TabsList className="w-full sm:w-fit overflow-x-auto sticky top-0 z-10 bg-dashboard-base-200/95 backdrop-blur">
-                <TabsTrigger value="client" className="gap-1.5">
+              <TabsList className="w-full max-w-full overflow-x-auto flex-nowrap justify-start sticky top-0 z-10 bg-dashboard-base-200/95 backdrop-blur">
+                <TabsTrigger value="client" className="gap-1.5 flex-none">
                   <User size={13} /> Client Info
                 </TabsTrigger>
-                <TabsTrigger value="details" className="gap-1.5">
+                <TabsTrigger value="details" className="gap-1.5 flex-none">
                   <Package size={13} /> Package Details
                 </TabsTrigger>
-                <TabsTrigger value="itinerary" className="gap-1.5">
+                <TabsTrigger value="itinerary" className="gap-1.5 flex-none">
                   <Calendar size={13} /> Itinerary
                 </TabsTrigger>
-                <TabsTrigger value="tickets" className="gap-1.5">
+                <TabsTrigger value="tickets" className="gap-1.5 flex-none">
                   <Plane size={13} /> Tickets
                 </TabsTrigger>
-                <TabsTrigger value="pricing" className="gap-1.5">
+                <TabsTrigger value="pricing" className="gap-1.5 flex-none">
                   <IndianRupee size={13} /> Pricing Breakdown
                 </TabsTrigger>
-                <TabsTrigger value="inclusions" className="gap-1.5">
+                <TabsTrigger value="inclusions" className="gap-1.5 flex-none">
                   <ListChecks size={13} /> Inclusions & Terms
                 </TabsTrigger>
               </TabsList>
@@ -2476,7 +2964,9 @@ export default function PackageBuilderDetailPage() {
                           {form.travelDate ? `, from ${new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}
                         </span>
                         <div className="text-dashboard-base-content/50 mt-0.5">
-                          + {form.marginPercentage || 0}% margin + {form.gstPercentage || 0}% GST → ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")}/person
+                          + {form.marginPercentage || 0}% margin (Hotel/Cab)
+                          {form.tickets.length > 0 ? ` + ${TICKET_MARGIN_PCT}% margin (Tickets)` : ""}
+                          {" "}+ {form.gstPercentage || 0}% GST → ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")}/person
                           {" "}(edit in Pricing Breakdown tab)
                         </div>
                       </div>
@@ -2545,6 +3035,15 @@ export default function PackageBuilderDetailPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-8 gap-1 border-dashboard-primary/40 text-dashboard-primary rounded-md"
+                      onClick={() => setAiDialogOpen(true)}
+                      title="Generate a copy-paste prompt for ChatGPT, then paste its JSON response back here to fill in day titles, descriptions, activities, and photos at once"
+                    >
+                      <Wand2 size={13} /> AI Itinerary Builder
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="h-8 gap-1 border-dashboard-base-300 duration-300 transition-transform hover:scale-105 text-dashboard-base-content rounded-md"
                       onClick={addDay}
                     >
@@ -2552,6 +3051,63 @@ export default function PackageBuilderDetailPage() {
                     </Button>
                   </div>
                 </div>
+
+                <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+                  <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="text-sm flex items-center gap-2">
+                        <Wand2 size={15} className="text-dashboard-primary" /> AI Itinerary Builder
+                      </DialogTitle>
+                      <DialogDescription className="text-xs">
+                        Copy the prompt below into ChatGPT, then paste the JSON it gives you back — day titles, descriptions, activities, and photos get filled in at once. Only empty fields are touched; hotel/cab selection stays manual.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-semibold text-dashboard-base-content/90">Step 1 — Copy this prompt</label>
+                          <Button variant="outline" size="sm" onClick={copyAIPrompt} className="h-7 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md">
+                            <Copy size={11} /> Copy Prompt
+                          </Button>
+                        </div>
+                        <Textarea
+                          readOnly
+                          value={buildAIPrompt()}
+                          rows={8}
+                          className="text-[11px] font-mono resize-none border-dashboard-base-300 bg-dashboard-base-200/40 rounded-md"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-dashboard-base-content/90 mb-1.5 block">
+                          Step 2 — Paste the JSON response here
+                        </label>
+                        <Textarea
+                          value={aiJsonInput}
+                          onChange={(e) => setAiJsonInput(e.target.value)}
+                          rows={8}
+                          placeholder="Paste the JSON ChatGPT gave you…"
+                          className="text-[11px] font-mono resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setAiDialogOpen(false)} className="border-dashboard-base-300 rounded-md">
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={applyAIItinerary}
+                          disabled={!aiJsonInput.trim()}
+                          className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md"
+                        >
+                          <Wand2 size={13} /> Generate Package
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
                 {form.itineraries.map((day, idx) => (
                   <DayCard
@@ -2666,8 +3222,8 @@ export default function PackageBuilderDetailPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {hotelPricing.days.map((d) => (
-                                  <tr key={d.day} className="border-t border-dashboard-base-300">
+                                {hotelPricing.days.map((d, i) => (
+                                  <tr key={`${d.day}-${i}`} className="border-t border-dashboard-base-300">
                                     <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
                                     <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
@@ -2725,8 +3281,8 @@ export default function PackageBuilderDetailPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {cabPricing.days.map((d) => (
-                                  <tr key={d.day} className="border-t border-dashboard-base-300">
+                                {cabPricing.days.map((d, i) => (
+                                  <tr key={`${d.day}-${i}`} className="border-t border-dashboard-base-300">
                                     <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">{d.vehicleName}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">
@@ -2805,7 +3361,8 @@ export default function PackageBuilderDetailPage() {
                       <p className="text-[11px] text-dashboard-base-content/50">
                         Hotels are computed from each day&apos;s selected room (season/occupancy-aware rate) and adult/child count; cabs from each
                         day&apos;s selected cab (season/weekday-weekend-aware rate, per day or per km as configured) — both checked against the travel date;
-                        tickets from the fares entered on the Tickets tab.
+                        tickets from the fares entered on the Tickets tab. Hotel/cab carry the margin % set below; ticket fares only ever carry a
+                        flat {TICKET_MARGIN_PCT}% margin, regardless of that setting.
                         Activities aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details if needed.
                       </p>
 
@@ -2845,13 +3402,25 @@ export default function PackageBuilderDetailPage() {
                               <table className="w-full text-xs">
                                 <tbody>
                                   <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">Base Cost (Hotel + Cab + Tickets)</td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.baseCost.toLocaleString("en-IN")}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">Hotel + Cab Base</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabBase.toLocaleString("en-IN")}</td>
                                   </tr>
                                   <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin ({p.marginPct}%)</td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.marginAmount.toLocaleString("en-IN")}</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin on Hotel/Cab ({p.marginPct}%)</td>
+                                    <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabMarginAmount.toLocaleString("en-IN")}</td>
                                   </tr>
+                                  {p.ticketsSubtotal > 0 && (
+                                    <>
+                                      <tr className="border-b border-dashboard-base-300">
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">Tickets Base (Flight/Train)</td>
+                                        <td className="px-3 py-2 text-right font-medium">₹{p.ticketsSubtotal.toLocaleString("en-IN")}</td>
+                                      </tr>
+                                      <tr className="border-b border-dashboard-base-300">
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin on Tickets ({TICKET_MARGIN_PCT}% fixed)</td>
+                                        <td className="px-3 py-2 text-right font-medium">₹{p.ticketsMarginAmount.toLocaleString("en-IN")}</td>
+                                      </tr>
+                                    </>
+                                  )}
                                   <tr className="border-b border-dashboard-base-300 bg-dashboard-base-200/40">
                                     <td className="px-3 py-2 font-semibold">= Subtotal</td>
                                     <td className="px-3 py-2 text-right font-semibold">₹{p.taxable.toLocaleString("en-IN")}</td>
@@ -2911,6 +3480,42 @@ export default function PackageBuilderDetailPage() {
                   />
                 </div>
 
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <Info size={15} className="text-dashboard-primary" /> Policies
+                  </h2>
+                  <EditableList
+                    label="Terms & Conditions"
+                    items={form.termsConditions}
+                    onChange={(v) => setForm((f) => ({ ...f, termsConditions: v }))}
+                    placeholder="Add a term…"
+                  />
+                  <EditableList
+                    label="Payment Policy"
+                    items={form.paymentPolicy}
+                    onChange={(v) => setForm((f) => ({ ...f, paymentPolicy: v }))}
+                    placeholder="Add a payment rule…"
+                  />
+                  <EditableList
+                    label="Amendment Policy"
+                    items={form.amendmentPolicy}
+                    onChange={(v) => setForm((f) => ({ ...f, amendmentPolicy: v }))}
+                    placeholder="Add an amendment rule…"
+                  />
+                </div>
+
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <Sparkles size={15} className="text-dashboard-primary" /> Why Book With Us
+                  </h2>
+                  <EditableList
+                    label="Benefits"
+                    items={form.travelBenefits}
+                    onChange={(v) => setForm((f) => ({ ...f, travelBenefits: v }))}
+                    placeholder="Add a benefit…"
+                  />
+                </div>
+
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <Info size={15} className="text-dashboard-primary" /> Terms & Notes
@@ -2922,6 +3527,21 @@ export default function PackageBuilderDetailPage() {
                     placeholder="Payment terms, cancellation policy, important notes…"
                     className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
+                </div>
+
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <CreditCard size={15} className="text-dashboard-primary" /> Payment Link
+                  </h2>
+                  <Input
+                    value={form.paymentLink}
+                    onChange={field("paymentLink")}
+                    placeholder="https://rzp.io/i/…"
+                    className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                  />
+                  <p className="text-[11px] text-dashboard-base-content/50">
+                    Paste a payment link for this exact locked price (e.g. a Razorpay Payment Link) — the client&apos;s &quot;Pay Now&quot; button on their itinerary page opens this. Leave blank to hide the button.
+                  </p>
                 </div>
               </TabsContent>
             </Tabs>
@@ -3031,6 +3651,107 @@ function PreviousVersionDialog({ snapshot }: { snapshot: unknown }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Locked pricing snapshot — frozen breakdown written by sendPackageToClient
+// at the moment the package was sent, so the exec can recheck later how the
+// delivered total was actually built (and whether the shown price was hand-
+// overridden from what the line items alone would compute to).
+// ─────────────────────────────────────────────────────────────────────────────
+type PricingSnapshot = {
+  lockedAt: string;
+  currency: string;
+  hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number }[] };
+  cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number }[] };
+  tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
+  baseCost: number;
+  marginPercentage: number;
+  hotelCabMarginAmount: number;
+  ticketsMarginAmount: number;
+  marginAmount: number;
+  taxable: number;
+  gstPercentage: number;
+  gstAmount: number;
+  finalPrice: number;
+  pricePerPerson: number;
+  displayedTotalPrice: number | null;
+  displayedPricePerPerson: number | null;
+};
+
+function LockedPricingDialog({ snapshot }: { snapshot: unknown }) {
+  const s = snapshot as PricingSnapshot | null;
+  if (!s) return null;
+  const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+  const drifted = s.displayedTotalPrice != null && Math.round(s.displayedTotalPrice) !== Math.round(s.finalPrice);
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 w-full mt-1">
+          <CreditCard size={12} /> View locked pricing
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-sm">Locked Pricing Breakdown</DialogTitle>
+          <DialogDescription className="text-xs">
+            Frozen {new Date(s.lockedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} — the exact hotel/cab/ticket costs behind the price sent to the client.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-xs">
+          {s.hotel.lines.length > 0 && (
+            <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+              <p className="font-semibold">Hotel · {inr(s.hotel.subtotal)}</p>
+              {s.hotel.lines.map((l, i) => (
+                <p key={i} className="text-dashboard-base-content/60">
+                  Day {l.day}: {l.hotelName} — {l.roomName} × {l.roomsNeeded} = {inr(l.total)}
+                  {l.mattresses > 0 && ` (+${l.mattresses} mattress)`}
+                </p>
+              ))}
+            </div>
+          )}
+          {s.cab.lines.length > 0 && (
+            <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+              <p className="font-semibold">Cab · {inr(s.cab.subtotal)}</p>
+              {s.cab.lines.map((l, i) => (
+                <p key={i} className="text-dashboard-base-content/60">
+                  Day {l.day}: {l.vehicleName} ({l.pricingType}) = {inr(l.total)}
+                </p>
+              ))}
+            </div>
+          )}
+          {s.tickets.lines.length > 0 && (
+            <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+              <p className="font-semibold">Tickets · {inr(s.tickets.subtotal)}</p>
+              {s.tickets.lines.map((l, i) => (
+                <p key={i} className="text-dashboard-base-content/60">
+                  {l.type} {l.provider && `(${l.provider})`}: {l.fromPlace} → {l.toPlace} × {l.ticketCount} = {l.fare != null ? inr(l.fare) : "—"}
+                </p>
+              ))}
+            </div>
+          )}
+          <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1">
+            <p className="flex justify-between"><span className="text-dashboard-base-content/60">Base cost</span> <span>{inr(s.baseCost)}</span></p>
+            <p className="flex justify-between"><span className="text-dashboard-base-content/60">Margin ({s.marginPercentage}% hotel/cab + 5% tickets)</span> <span>{inr(s.marginAmount)}</span></p>
+            <p className="flex justify-between"><span className="text-dashboard-base-content/60">GST ({s.gstPercentage}%)</span> <span>{inr(s.gstAmount)}</span></p>
+            <p className="flex justify-between font-semibold border-t border-dashboard-base-300 pt-1"><span>Computed total</span> <span>{inr(s.finalPrice)}</span></p>
+            <p className="text-dashboard-base-content/60">{inr(s.pricePerPerson)} per person</p>
+          </div>
+          {drifted && s.displayedTotalPrice != null && (
+            <div className="rounded-lg border border-dashboard-warning/40 bg-dashboard-warning/10 p-2.5">
+              <p className="font-semibold text-dashboard-warning-content flex items-center gap-1">
+                <AlertCircle size={12} /> Hand-overridden
+              </p>
+              <p className="text-dashboard-base-content/60">
+                The exec sent {inr(s.displayedTotalPrice)} instead of the computed {inr(s.finalPrice)}.
+              </p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sidebar content
 // ─────────────────────────────────────────────────────────────────────────────
 function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
@@ -3094,6 +3815,9 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
           />
           {query.customPackage.previousSnapshot != null && (
             <PreviousVersionDialog snapshot={query.customPackage.previousSnapshot} />
+          )}
+          {query.customPackage.pricingSnapshot != null && (
+            <LockedPricingDialog snapshot={query.customPackage.pricingSnapshot} />
           )}
         </SectionCard>
       )}
