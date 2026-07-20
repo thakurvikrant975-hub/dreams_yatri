@@ -120,13 +120,13 @@ async function geocodeCity(query: string): Promise<{ lat: number; lng: number } 
 
 const DEFAULT_INCLUSIONS = [
   "Accommodation as per itinerary",
-  "Daily breakfast",
+  "Meals as per itinerary",
   "All transfers by private cab",
   "GST & service taxes",
 ];
 
 const DEFAULT_EXCLUSIONS = [
-  "Airfare / train tickets",
+  "Airfare / train tickets not mentioned in the itinerary",
   "Personal expenses",
   "Meals not mentioned",
   "Adventure activity charges",
@@ -139,14 +139,13 @@ const DEFAULT_TERMS_CONDITIONS = [
   "Dreams Yatri acts as a facilitator between travellers and third-party suppliers (hotels, airlines, cabs).",
   "All bookings are subject to availability and supplier confirmation.",
   "Traveller details must be accurate — we aren't liable for losses due to incorrect information.",
-  "Package prices are subject to change until full payment is received.",
+  "Package prices are subject to change until booking amount is received.",
   "Confirmed bookings are locked at the agreed price.",
   "All disputes are subject to the jurisdiction of courts in Shimla, Himachal Pradesh.",
 ];
 
 const DEFAULT_PAYMENT_POLICY = [
-  "30% advance required to confirm your booking.",
-  "50% additional payment due 30 days before departure.",
+  "50% advance required to confirm your booking.",
   "Remaining balance must be cleared 7 days before departure.",
   "Accepted: UPI, Net Banking, Credit/Debit Card, Bank Transfer.",
   "All prices are inclusive of GST unless stated otherwise.",
@@ -1794,7 +1793,7 @@ export default function PackageBuilderDetailPage() {
     currency: "INR",
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
-    termsNotes: "Package price is subject to availability. 50% advance required to confirm booking.",
+    termsNotes: "",
     termsConditions: DEFAULT_TERMS_CONDITIONS,
     paymentPolicy: DEFAULT_PAYMENT_POLICY,
     amendmentPolicy: DEFAULT_AMENDMENT_POLICY,

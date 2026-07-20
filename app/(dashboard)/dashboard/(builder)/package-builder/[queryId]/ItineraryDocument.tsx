@@ -345,7 +345,7 @@ function TermsAndConditions({ text }: { text: string }) {
         <span className="flex items-center justify-center size-6 rounded-lg bg-neutral-100 shrink-0">
           <Info size={13} className="text-neutral-500" />
         </span>
-        <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-600">Terms & Conditions</h3>
+        <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-600">Additional Notes</h3>
       </div>
       <div className="p-4 space-y-3.5">
         {blocks.map((block, i) => (
