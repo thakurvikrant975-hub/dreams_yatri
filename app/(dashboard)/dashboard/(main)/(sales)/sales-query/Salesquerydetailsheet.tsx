@@ -452,7 +452,7 @@ export function SalesQueryDetailSheet({
                                     <Calendar className="h-4 w-4 text-amber-600" />
                                     <div>
                                         <span className="text-amber-700 dark:text-amber-400 font-medium">
-                                            Next follow-up:{" "}
+                                            Follow ups:{" "}
                                         </span>
                                         <span className="text-amber-600 text-xs">
                                             {format(new Date(query.nextFollowUpAt), "dd MMM yyyy, hh:mm a")}
