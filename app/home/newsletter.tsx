@@ -127,7 +127,7 @@ function EmailCard() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label required>Phone No</Label>
-                  <Input type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="eg. 9812345678" required />
+                  <Input type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="eg. 7807727100" required />
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">

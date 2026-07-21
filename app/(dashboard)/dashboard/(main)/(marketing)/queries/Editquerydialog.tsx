@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { Pencil, MapPin, Users, Calendar, Globe, MessageSquare, User, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -84,20 +84,36 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
     const [destValue, setDestValue]      = useState<string>("");   // "id::name"
     const [selectedPkgTitle, setSelectedPkgTitle] = useState<string>("");
 
+    // This dialog is reused as a single component instance across different
+    // queries (e.g. Querydetailsheet swaps its `query` prop without
+    // unmounting), and React 18 Strict Mode double-invokes this effect on
+    // mount in dev. A `cancelled` flag set in the cleanup — rather than a
+    // ref bumped ad hoc — is the standard React pattern for this: the
+    // cleanup fires deterministically between the two Strict Mode
+    // invocations (or when a newer query opens), so a torn-down run's
+    // fetch can never land after a fresher one, and each run's own state
+    // resets (including loadingPkgs, which previously wasn't reset here —
+    // a dropped stale response left the Package select stuck on "Loading…").
+    const requestIdRef = useRef(0); // still used by handleDestChange below
+
     // ── Reset & pre-populate on open ─────────────────────────────────────────
     useEffect(() => {
         if (!open) return;
+        let cancelled = false;
+        requestIdRef.current++; // invalidate any fetch handleDestChange kicked off for a prior query
 
         // Reset to saved values immediately (before async)
         // We keep the text visible while destinations are loading.
         setDestValue("");            // cleared until we confirm the ID from DB
         setSelectedPkgTitle(query.packageName ?? "");
         setPackages([]);
+        setLoadingPkgs(false);
         setErrors({});
         setSource(query.source);
 
         setLoadingDests(true);
         getDestinationsForQuery().then((dests) => {
+            if (cancelled) return;
             setDestinations(dests);
             setLoadingDests(false);
 
@@ -106,6 +122,15 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
             // Match the saved destination name to get its numeric id
             const match = dests.find((d) => d.name === query.destination);
             if (!match) {
+                // TEMP DEBUG — remove after diagnosing the "not found" mismatch.
+                console.warn("[EditQueryDialog] destination match failed", {
+                    queryDestination: query.destination,
+                    queryDestinationCodes: [...(query.destination ?? "")].map((c) => c.charCodeAt(0)),
+                    destCount: dests.length,
+                    closestNames: dests
+                        .filter((d) => d.name.toLowerCase().includes((query.destination ?? "").slice(0, 6).toLowerCase()))
+                        .map((d) => ({ name: d.name, codes: [...d.name].map((c) => c.charCodeAt(0)) })),
+                });
                 // Destination no longer exists in DB — show it as plain text fallback
                 // (the Select won't be able to select it, but we still send the name on submit)
                 return;
@@ -119,6 +144,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
             // Load packages for this destination
             setLoadingPkgs(true);
             getPackagesByDestination(match.id).then((pkgs) => {
+                if (cancelled) return;
                 setPackages(pkgs);
                 setLoadingPkgs(false);
 
@@ -132,6 +158,8 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                 // If no match, keep the original saved title so it stays visible below the select
             });
         });
+
+        return () => { cancelled = true; };
     }, [open, query.id]); // query.id as dep so re-opening for a different query resets properly
 
     // ── Helpers derived from destValue ────────────────────────────────────────
@@ -149,6 +177,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
     // ── Destination change by user interaction ────────────────────────────────
 
     function handleDestChange(value: string) {
+        const id = ++requestIdRef.current; // invalidate any in-flight fetch (initial load or a prior selection)
         setDestValue(value);
         setSelectedPkgTitle("");   // clear package selection when dest changes
         setPackages([]);
@@ -158,6 +187,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
 
         setLoadingPkgs(true);
         getPackagesByDestination(parsed.id).then((pkgs) => {
+            if (id !== requestIdRef.current) return; // stale — destination changed again since
             setPackages(pkgs);
             setLoadingPkgs(false);
         });
