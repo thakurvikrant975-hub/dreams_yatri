@@ -45,6 +45,7 @@ const HOTEL_ROOM_SELECT = {
       // rating the user actually means by "3/4/5 star" lives in `stay_type`
       // as free text ("3 Star", "4 Star", …) — both are exposed separately.
       name: true, category: true, stay_type: true, thumbnail: true, city: true, state: true,
+      check_in_time: true, check_out_time: true,
       images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 1 },
       location: { select: { latitude: true, longitude: true } },
     },
@@ -76,6 +77,11 @@ export interface HotelRoomResult {
   starRating:    string | null;
   /** "City, State" — shown under the hotel name in the preview. */
   location:      string | null;
+  /** e.g. "2:00 PM" / "11:00 AM", as set on the hotel's own record — filled
+   * into the day's hotelCheckIn/hotelCheckOut automatically on selection so
+   * an exec doesn't have to know and re-type the hotel's actual policy. */
+  checkInTime:   string | null;
+  checkOutTime:  string | null;
   /** e.g. "1 Double Bed | Mountain View | 250 sq.ft | 3 Star | Sleeps 3 | +1 extra bed" —
    * includes star rating and occupancy/extra-bed info so the choice stays
    * legible after selection (this text is what persists onto the itinerary
@@ -147,6 +153,8 @@ function mapHotelRoomRow(
     category:      item.hotel.category,
     starRating:    item.hotel.stay_type,
     location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
+    checkInTime:   item.hotel.check_in_time ?? null,
+    checkOutTime:  item.hotel.check_out_time ?? null,
     roomSpecs,
     roomCapacity:  item.room?.max_occupancy ?? null,
     maxAdults:     item.room?.max_adults ?? null,

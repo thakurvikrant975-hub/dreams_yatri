@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ImagesIcon, CarIcon, BedIcon, ForkKnifeIcon, BinocularsIcon } from "@phosphor-icons/react";
 import { Heading, Text } from "@/app/components/ui/Typography";
-import ImageLightbox, { type LightboxImage } from "@/app/(website)/packages/[slug]/[duration]/[route]/[stay]/components/ImageLightbox";
+import ImageLightbox, { type LightboxImage } from "@/app/components/gallery/ImageLightbox";
 import { SafeImage } from "./SafeImage";
 import {
   deriveDayLocations, firstDayPhotoForStop,

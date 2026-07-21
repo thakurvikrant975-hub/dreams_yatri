@@ -128,7 +128,7 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
           <Calendar size={16} className="text-primary-500" />
           <Text size="sm" weight="bold" intent="primary" className="font-heading">Day-wise Summary</Text>
         </div>
-        <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} />
+        <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} stops={form.stops} />
       </div>
 
       {form.tickets.length > 0 && <TicketsSection tickets={form.tickets} />}

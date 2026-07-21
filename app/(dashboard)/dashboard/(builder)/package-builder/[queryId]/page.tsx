@@ -401,87 +401,96 @@ function ActivityListEditor({ activities, location, onChange }: {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1">
-          <Zap size={11} /> Activities
-        </label>
+    <DaySectionCard
+      icon={Zap}
+      label="Activities"
+      color="violet"
+      badge={activities.length > 0 && (
+        <span className="text-[10px] font-semibold text-violet-600 bg-violet-100 rounded-full px-1.5 py-0.5 shrink-0">
+          {activities.length}
+        </span>
+      )}
+      action={
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={addActivity}
-          className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
+          className="h-6 px-2 text-[11px] gap-1 border-violet-200 text-violet-700 hover:bg-violet-100 rounded-md shrink-0"
         >
           <Plus size={11} /> Add Manually
         </Button>
-      </div>
+      }
+    >
       {location ? (
-        <div className="mb-2">
-          <SearchSelect
-            value={null}
-            onChange={handleActivitySelect}
-            fetchOptions={fetchActivityOptions}
-            placeholder={`Search activities in ${location}…`}
-          />
-        </div>
+        <SearchSelect
+          value={null}
+          onChange={handleActivitySelect}
+          fetchOptions={fetchActivityOptions}
+          placeholder={`Search activities in ${location}…`}
+        />
       ) : (
-        <p className="text-[11px] text-dashboard-base-content/40 italic mb-2">
+        <p className="text-[11px] text-dashboard-base-content/40 italic">
           Add route stops in Package Details to search real activities here
         </p>
       )}
       <div className="space-y-2">
         {activities.map((a, idx) => (
-          <div key={idx} className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Input
-                value={a.title}
-                onChange={(e) => updateActivity(idx, { title: e.target.value })}
-                placeholder="Activity title, e.g. Paragliding"
-                className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <button
-                onClick={() => removeActivity(idx)}
-                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-            <Textarea
-              value={a.description}
-              onChange={(e) => updateActivity(idx, { description: e.target.value })}
-              placeholder="Short description of the experience…"
-              rows={2}
-              className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
-            {a.photos.length > 0 && (
-              <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2">
+          <div key={idx} className="flex gap-2 rounded-lg border border-violet-100 bg-violet-50/30 p-2.5">
+            <span className="flex items-center justify-center size-5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-bold shrink-0 mt-0.5">
+              {idx + 1}
+            </span>
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={a.title}
+                  onChange={(e) => updateActivity(idx, { title: e.target.value })}
+                  placeholder="Activity title, e.g. Paragliding"
+                  className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-violet-300 focus-visible:border-violet-400 rounded-md bg-dashboard-base-100"
+                />
                 <button
-                  type="button"
-                  onClick={() => updateActivity(idx, { photo: "", photos: [], photoLabels: [] })}
-                  className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
+                  onClick={() => removeActivity(idx)}
+                  className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
                 >
-                  ×
+                  <Trash2 size={12} />
                 </button>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {a.photos.slice(0, 3).map((src, i) => (
-                    <SafeImg
-                      key={i}
-                      src={src}
-                      alt={a.photoLabels[i] || a.title || "Activity"}
-                      className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
-                    />
-                  ))}
-                </div>
               </div>
-            )}
+              <Textarea
+                value={a.description}
+                onChange={(e) => updateActivity(idx, { description: e.target.value })}
+                placeholder="Short description of the experience…"
+                rows={2}
+                className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-violet-300 focus-visible:border-violet-400 rounded-md bg-dashboard-base-100"
+              />
+              {a.photos.length > 0 && (
+                <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2">
+                  <button
+                    type="button"
+                    onClick={() => updateActivity(idx, { photo: "", photos: [], photoLabels: [] })}
+                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
+                  >
+                    ×
+                  </button>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {a.photos.slice(0, 3).map((src, i) => (
+                      <SafeImg
+                        key={i}
+                        src={src}
+                        alt={a.photoLabels[i] || a.title || "Activity"}
+                        className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
         {activities.length === 0 && (
           <p className="text-xs text-dashboard-base-content/40 italic">No activities added for this day.</p>
         )}
       </div>
-    </div>
+    </DaySectionCard>
   );
 }
 
@@ -602,11 +611,86 @@ function RouteStopsEditor({ stops, onChange }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DaySectionCard — a colored container for one part of a day (Hotel /
+// Transport / Meals / Activities) so the sidebar reads at a glance instead of
+// every block looking like the same gray box.
+// ─────────────────────────────────────────────────────────────────────────────
+const SECTION_THEMES = {
+  amber:   { border: "border-amber-200",   headerBg: "bg-amber-50",   iconBg: "bg-amber-100",   iconText: "text-amber-600",   labelText: "text-amber-800" },
+  sky:     { border: "border-sky-200",     headerBg: "bg-sky-50",     iconBg: "bg-sky-100",     iconText: "text-sky-600",     labelText: "text-sky-800" },
+  emerald: { border: "border-emerald-200", headerBg: "bg-emerald-50", iconBg: "bg-emerald-100", iconText: "text-emerald-600", labelText: "text-emerald-800" },
+  violet:  { border: "border-violet-200",  headerBg: "bg-violet-50",  iconBg: "bg-violet-100",  iconText: "text-violet-600",  labelText: "text-violet-800" },
+} as const;
+
+function DaySectionCard({
+  icon: Icon, label, color, badge, action, children,
+}: {
+  icon: React.ElementType;
+  label: string;
+  color: keyof typeof SECTION_THEMES;
+  /** Small trailing hint, e.g. a filled-in count. */
+  badge?: React.ReactNode;
+  /** Right-aligned header action, e.g. an "Add" button. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const theme = SECTION_THEMES[color];
+  return (
+    <div className={cn("rounded-xl border overflow-hidden bg-dashboard-base-100", theme.border)}>
+      <div className={cn("flex items-center gap-2 px-3 py-2", theme.headerBg)}>
+        <span className={cn("flex items-center justify-center size-6 rounded-lg shrink-0", theme.iconBg, theme.iconText)}>
+          <Icon size={12} />
+        </span>
+        <p className={cn("text-xs font-bold uppercase tracking-wide flex-1 min-w-0 truncate", theme.labelText)}>{label}</p>
+        {badge}
+        {action}
+      </div>
+      <div className="p-3 space-y-3">{children}</div>
+    </div>
+  );
+}
+
+/** "Remove" / "All days" pair for a DaySectionCard header — the one obvious
+ * action that clears a section's pricing link (roomPricingId/cabPricingId)
+ * along with its visible fields, instead of an exec having to guess that
+ * blanking the name/photo text isn't enough to stop it being priced. */
+function RemoveSectionActions({
+  onRemove, onRemoveAll, totalDays,
+}: {
+  onRemove: () => void;
+  onRemoveAll: () => void;
+  totalDays: number;
+}) {
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex items-center gap-1 text-[10px] font-medium text-dashboard-error/80 hover:text-dashboard-error hover:bg-dashboard-error/10 rounded px-1.5 py-0.5 transition-colors"
+        title="Remove for this day (also clears its price)"
+      >
+        <Trash2 size={10} /> Remove
+      </button>
+      {totalDays > 1 && (
+        <button
+          type="button"
+          onClick={onRemoveAll}
+          className="text-[10px] font-medium text-dashboard-error/80 hover:text-dashboard-error hover:bg-dashboard-error/10 rounded px-1.5 py-0.5 transition-colors"
+          title="Remove from every day (also clears their price)"
+        >
+          All days
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Day Itinerary Card
 // ─────────────────────────────────────────────────────────────────────────────
 function DayCard({
   day, data, location, totalDays, onChange, onRemove,
-  onApplyVehicleToDays, onApplyRoomToDays, stayPreference,
+  onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
 }: {
   day: number;
   data: DayItinerary;
@@ -616,6 +700,11 @@ function DayCard({
   onRemove: () => void;
   onApplyVehicleToDays: (vehicle: VehicleResult, dayNumbers: number[], cabPricingId: number | null) => void;
   onApplyRoomToDays: (room: HotelRoomResult, dayNumbers: number[]) => void;
+  /** Clears the hotel/cab (including their pricing link) for the given day
+   * numbers — used for both "remove just this day" and "remove from every
+   * day" actions next to the Hotel Info / Transport section headers. */
+  onRemoveRoomFromDays: (dayNumbers: number[]) => void;
+  onRemoveCabFromDays: (dayNumbers: number[]) => void;
   /** Stay-type preferences from the client's requirement form (e.g. ["STAR_4", "RESORT"]) — shown as a hint above the hotel search so the exec knows what to look for. */
   stayPreference?: string[];
 }) {
@@ -705,11 +794,29 @@ function DayCard({
     onChange({ ...data, meals });
   }
 
+  /** Full hotel removal for this day — clears every hotel-related field,
+   * including roomPricingId (what the pricing engine actually keys off).
+   * Previously an exec could only blank the visible accommodation text/photo
+   * without a dedicated button, which left roomPricingId pointing at the old
+   * room — the price kept showing even though the card looked empty. */
   function handleHotelRoomClear() {
     onChange({
       ...data,
       accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
-      roomPricingId: null,
+      accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+      roomPricingId: null, roomsCount: null, extraRooms: [],
+      hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
+    });
+  }
+
+  /** Same idea for the cab — zeroes cabPricingId so a removed vehicle stops
+   * contributing to price. Pickup/drop/distance/travel-time are left as-is
+   * since those describe the route, not which vehicle covers it. */
+  function handleCabRemove() {
+    onChange({
+      ...data,
+      transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
+      cabPricingId: null, cabQuantity: null, extraCabs: [],
     });
   }
 
@@ -728,6 +835,10 @@ function DayCard({
       accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
       meals: hotelMeals.length > 0 ? hotelMeals : data.meals,
+      // The hotel's own check-in/check-out policy — previously never fetched
+      // at all, so this always stayed blank unless typed in by hand.
+      hotelCheckIn: raw.checkInTime ?? data.hotelCheckIn,
+      hotelCheckOut: raw.checkOutTime ?? data.hotelCheckOut,
       // Links this night to the real hotel_room_pricing row so the package
       // price can be computed from its actual date/occupancy-aware rate.
       roomPricingId: raw.id,
@@ -809,12 +920,19 @@ function DayCard({
     }
   }
 
+  // Collapsed-state summary dots — lets an exec scan the whole trip for
+  // gaps (e.g. "Day 4 has no cab yet") without opening every card.
+  const hasHotel = !!data.accommodation;
+  const hasCab = !!data.transport || data.cabPricingId != null;
+  const hasMeals = data.meals.length > 0;
+  const hasActivities = data.activities.some((a) => a.title.trim());
+
   return (
     <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-dashboard-base-100 border-b border-dashboard-base-300">
-        <button onClick={() => setOpen(!open)} className="flex items-center gap-2 flex-1 text-left">
-          <div className="h-7 w-7 rounded-lg bg-dashboard-primary text-dashboard-primary-content text-xs font-bold flex items-center justify-center shrink-0">
+        <button onClick={() => setOpen(!open)} className="flex items-center gap-2 flex-1 text-left min-w-0">
+          <div className="h-7 w-7 rounded-lg bg-linear-to-br from-dashboard-primary to-dashboard-primary/80 text-dashboard-primary-content text-xs font-bold flex items-center justify-center shrink-0">
             {day}
           </div>
           <div className="flex-1 min-w-0">
@@ -831,6 +949,14 @@ function DayCard({
               </span>
             }
           </div>
+          {!open && (
+            <div className="flex items-center gap-1 shrink-0" title="Hotel · Transport · Meals · Activities">
+              <span className={cn("size-1.5 rounded-full", hasHotel ? "bg-amber-500" : "bg-dashboard-base-300")} />
+              <span className={cn("size-1.5 rounded-full", hasCab ? "bg-sky-500" : "bg-dashboard-base-300")} />
+              <span className={cn("size-1.5 rounded-full", hasMeals ? "bg-emerald-500" : "bg-dashboard-base-300")} />
+              <span className={cn("size-1.5 rounded-full", hasActivities ? "bg-violet-500" : "bg-dashboard-base-300")} />
+            </div>
+          )}
         </button>
         <div className="flex items-center gap-1 shrink-0">
           <button
@@ -863,10 +989,18 @@ function DayCard({
           </div>
 
           {/* Accommodation */}
-          <div className="rounded-lg border border-dashboard-base-300 p-3 space-y-3">
-            <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1 block">
-              <Hotel size={11} /> Hotel Info
-            </label>
+          <DaySectionCard
+            icon={Hotel}
+            label="Hotel Info"
+            color="amber"
+            action={(data.accommodation || data.roomPricingId != null) && (
+              <RemoveSectionActions
+                onRemove={handleHotelRoomClear}
+                onRemoveAll={() => onRemoveRoomFromDays(Array.from({ length: totalDays }, (_, i) => i + 1))}
+                totalDays={totalDays}
+              />
+            )}
+          >
             {stayPreference && stayPreference.length > 0 && (
               <p className="text-[11px] text-dashboard-base-content/70 -mt-1.5 flex flex-wrap items-center gap-1">
                 <span className="text-dashboard-base-content/50">Client wants:</span>
@@ -1139,13 +1273,21 @@ function DayCard({
                 className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
-          </div>
+          </DaySectionCard>
 
           {/* Transport */}
-          <div>
-            <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
-              <Car size={11} /> Transport
-            </label>
+          <DaySectionCard
+            icon={Car}
+            label="Transport / Cab"
+            color="sky"
+            action={(data.transport || data.cabPricingId != null) && (
+              <RemoveSectionActions
+                onRemove={handleCabRemove}
+                onRemoveAll={() => onRemoveCabFromDays(Array.from({ length: totalDays }, (_, i) => i + 1))}
+                totalDays={totalDays}
+              />
+            )}
+          >
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div>
                 <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Pickup Point</label>
@@ -1411,13 +1553,10 @@ function DayCard({
                 className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
-          </div>
+          </DaySectionCard>
 
           {/* Meals */}
-          <div>
-            <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
-              <Utensils size={11} /> Meals Included
-            </label>
+          <DaySectionCard icon={Utensils} label="Meals Included" color="emerald">
             {data.roomPricingId != null ? (
               // A real room is selected — its meal plan is fixed (covered_meals
               // on the room's meal_type), so only those meals show and none can
@@ -1429,7 +1568,7 @@ function DayCard({
                     data.meals.map((m) => (
                       <span
                         key={m}
-                        className="text-xs px-3 py-1 rounded-full border font-medium bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
+                        className="text-xs px-3 py-1 rounded-full border font-medium bg-emerald-600 text-white border-emerald-600"
                       >
                         {m}
                       </span>
@@ -1451,8 +1590,8 @@ function DayCard({
                     className={cn(
                       "text-xs px-3 py-1 rounded-full border font-medium transition-all",
                       data.meals.includes(m)
-                        ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
-                        : "bg-dashboard-base-200 text-dashboard-base-content/50 border-dashboard-base-300 hover:border-dashboard-primary/50 hover:text-dashboard-primary cursor-pointer"
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-dashboard-base-200 text-dashboard-base-content/50 border-dashboard-base-300 hover:border-emerald-400 hover:text-emerald-700 cursor-pointer"
                     )}
                   >
                     {m}
@@ -1460,7 +1599,7 @@ function DayCard({
                 ))}
               </div>
             )}
-          </div>
+          </DaySectionCard>
 
           {/* Activities */}
           <ActivityListEditor
@@ -2297,7 +2436,52 @@ export default function PackageBuilderDetailPage() {
               accommodationRoomCapacity: room.roomCapacity ?? it.accommodationRoomCapacity,
               hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
               meals: hotelMeals.length > 0 ? hotelMeals : it.meals,
+              hotelCheckIn: room.checkInTime ?? it.hotelCheckIn,
+              hotelCheckOut: room.checkOutTime ?? it.hotelCheckOut,
               roomPricingId: room.id,
+            }
+          : it,
+      ),
+    }));
+  }
+
+  /** Clears every hotel-related field for the given days — including
+   * roomPricingId, which is what the pricing engine actually keys off. Just
+   * blanking the visible accommodation text/photo (the only thing an exec
+   * could previously do without a dedicated button) left roomPricingId
+   * pointing at the old room, so the price kept showing even though the
+   * card looked empty — this is the one action guaranteed to zero it out. */
+  function removeRoomFromDays(dayNumbers: number[]) {
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        dayNumbers.includes(it.day)
+          ? {
+              ...it,
+              accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+              accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+              roomPricingId: null, roomsCount: null, extraRooms: [],
+              hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
+            }
+          : it,
+      ),
+    }));
+  }
+
+  /** Same idea as removeRoomFromDays, for the cab side — zeroes cabPricingId
+   * (and any extra cabs) so a removed vehicle stops contributing to price.
+   * Pickup/drop/distance/travel-time are left alone since those describe the
+   * route itself, not which vehicle is doing it — removing the cab just
+   * means "no vehicle picked yet for this route", not "forget the route". */
+  function removeCabFromDays(dayNumbers: number[]) {
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        dayNumbers.includes(it.day)
+          ? {
+              ...it,
+              transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
+              cabPricingId: null, cabQuantity: null, extraCabs: [],
             }
           : it,
       ),
@@ -3005,7 +3189,7 @@ Rules:
 
               {/* ── Tab: Itinerary ───────────────────────────────────────────────── */}
               <TabsContent value="itinerary" className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between overflow-auto">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <Calendar size={15} className="text-dashboard-primary" />
                     Day-wise Itinerary
@@ -3120,6 +3304,8 @@ Rules:
                     onRemove={() => removeDay(idx)}
                     onApplyVehicleToDays={applyVehicleToDays}
                     onApplyRoomToDays={applyRoomToDays}
+                    onRemoveRoomFromDays={removeRoomFromDays}
+                    onRemoveCabFromDays={removeCabFromDays}
                     stayPreference={s?.types}
                   />
                 ))}

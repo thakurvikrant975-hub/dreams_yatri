@@ -11,7 +11,7 @@ import { CustomItinerarySection } from "./components/CustomItinerarySection";
 import { CustomHighlightsTab } from "./components/CustomHighlightsTab";
 
 export const metadata: Metadata = {
-  title: "Your Itinerary | DreamsYatri",
+  title: "Your Itinerary",
   robots: { index: false, follow: false },
 };
 
@@ -42,11 +42,11 @@ export default async function CustomPackagePage({
       <CustomPackageHero form={data} />
       <ClientDetailsStrip form={data} />
       <CustomPackageTabs
-        pricing={<CustomPricingCard form={data} />}
+        pricing={<CustomPricingCard form={data} packageId={id} />}
         itinerary={<CustomItinerarySection form={data} />}
         highlights={<CustomHighlightsTab form={data} />}
         policies={<PackagePolicy />}
-        mobileFooter={<CustomMobileFooterBar form={data} />}
+        mobileFooter={<CustomMobileFooterBar form={data} packageId={id} />}
       />
     </div>
   );

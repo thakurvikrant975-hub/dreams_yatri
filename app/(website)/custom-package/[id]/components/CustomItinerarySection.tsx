@@ -7,7 +7,7 @@ import { CheckCheck, CircleX } from "lucide-react";
 import { Accordion } from "@/app/components/ui/Accordian";
 import { Text } from "@/app/components/ui/Typography";
 import { Carousel } from "@/app/components/ui/Carousel";
-import ImageLightbox, { type LightboxImage } from "@/app/(website)/packages/[slug]/[duration]/[route]/[stay]/components/ImageLightbox";
+import ImageLightbox, { type LightboxImage } from "@/app/components/gallery/ImageLightbox";
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { SafeImage } from "./SafeImage";
 import {
@@ -100,7 +100,9 @@ function TransferBlock({ day }: { day: DayItinerary }) {
         <div className="flex-1 flex gap-3">
           <div className="flex-1">
             <div className="flex items-center gap-2.5 mb-3">
-              <Text size="base" weight="semibold" intent="primary" className="font-heading">{vehicleName}</Text>
+              <Text size="base" weight="semibold" intent="primary" className="font-heading">
+                {day.cabQuantity && day.cabQuantity > 1 ? `${day.cabQuantity}× ` : ""}{vehicleName}
+              </Text>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
               <RouteTimeline from={day.transportPickup} to={day.transportDrop} distanceKm={day.transportDistanceKm} />
@@ -150,7 +152,7 @@ function StayBlock({ day, adults, childCount }: { day: DayItinerary; adults: num
           <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
             <div className="flex-1 flex flex-col gap-2.5 min-w-0">
               <div className="flex flex-col gap-1 mt-1">
-                <Text size="xs" intent="secondary">{occupancyText(day.accommodationRoomCapacity, adults, childCount)}</Text>
+                <Text size="xs" intent="secondary">{occupancyText(day.accommodationRoomCapacity, adults, childCount, day.roomsCount)}</Text>
               </div>
 
               {(day.hotelCheckIn || day.hotelCheckOut) && (
