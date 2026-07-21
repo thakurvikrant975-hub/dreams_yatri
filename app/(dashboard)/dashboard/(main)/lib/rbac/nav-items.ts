@@ -4,6 +4,7 @@ import {
   ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
+  ShieldCheck, NotebookPen,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -84,6 +85,7 @@ export const NAV_GROUPS = [
       { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
       { title: "Package Library", href: "/dashboard/package-library", icon: BookOpen },
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },
+      { title: "Verify Packages", href: "/dashboard/verify-packages", icon: ShieldCheck },
       { title: "My Bookings", href: "/dashboard/my-bookings", icon: PackagePlus },
     ],
   },
@@ -113,6 +115,7 @@ export const NAV_GROUPS = [
     id: "settings", label: "Settings",
     items: [
       { title: "General", href: "/dashboard/settings", icon: Settings },
+      { title: "Itinerary Settings", href: "/dashboard/itinerary-settings", icon: NotebookPen },
     ],
   },
 ];

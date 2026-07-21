@@ -11,6 +11,7 @@ import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/serv
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
 import type { RoomSelection, CabSelection } from "./room-cab-selections";
 import type { Prisma } from "@/app/generated/prisma";
+import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -18,6 +19,15 @@ import type { Prisma } from "@/app/generated/prisma";
 const MEAL_KEY_LABELS: Record<string, string> = {
   breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
 };
+
+/** Lets the client component gate edit access to the inclusions/exclusions/
+ * policy bullet lists — those are company-wide standard content, not
+ * something any individual Sales Executive should be able to alter per
+ * package. Returns null when there's no session/team member match. */
+export async function getCurrentUserRole(): Promise<string | null> {
+  const { actor } = await getCurrentActor();
+  return (actor as unknown as { role?: string } | undefined)?.role ?? null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Real hotel-room / activity search, scoped by city name.
@@ -466,6 +476,8 @@ export interface QueryDetail extends QueryRow {
     description:     string | null;
     coverImage:      string | null;
     coverImagePosition: number;
+    totalDays:       number;
+    totalNights:     number;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
@@ -1016,6 +1028,8 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           description:     true,
           coverImage:      true,
           coverImagePosition: true,
+          totalDays:       true,
+          totalNights:     true,
           pricePerPerson:  true,
           totalPrice:      true,
           marginPercentage: true,
@@ -1119,8 +1133,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     const {
       queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
-      pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency, inclusions, exclusions,
-      termsNotes, termsConditions, paymentPolicy, amendmentPolicy, travelBenefits, paymentLink,
+      pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
+      termsNotes, paymentLink,
       status, stops, itineraries, tickets,
     } = input;
 
@@ -1176,6 +1190,19 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       } as unknown as Prisma.InputJsonValue;
     }
 
+    // Inclusions/exclusions/T&C/payment/amendment/benefits are one global
+    // set of company-wide content, edited only on /dashboard/itinerary-
+    // settings — never trust client input for these, always write the
+    // current global values so the row stays in sync with what's shown.
+    const itinerarySettings = await getItinerarySettings();
+    const effectiveInclusions      = itinerarySettings.inclusions;
+    const effectiveExclusions      = itinerarySettings.exclusions;
+    const effectiveTermsConditions = itinerarySettings.termsConditions;
+    const effectivePaymentPolicy   = itinerarySettings.paymentPolicy;
+    const effectiveAmendmentPolicy = itinerarySettings.amendmentPolicy;
+    const effectiveTravelBenefits  = itinerarySettings.travelBenefits;
+    const effectiveCustomPolicySections = itinerarySettings.customPolicySections as unknown as Prisma.InputJsonValue;
+
     // Upsert the custom package (unique on queryId)
     const pkg = await db.custom_packages.upsert({
       where:  { queryId },
@@ -1198,13 +1225,14 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         marginPercentage,
         gstPercentage,
         currency,
-        inclusions,
-        exclusions,
+        inclusions:      effectiveInclusions,
+        exclusions:      effectiveExclusions,
         termsNotes:      termsNotes || null,
-        termsConditions,
-        paymentPolicy,
-        amendmentPolicy,
-        travelBenefits,
+        termsConditions: effectiveTermsConditions,
+        paymentPolicy:   effectivePaymentPolicy,
+        amendmentPolicy: effectiveAmendmentPolicy,
+        travelBenefits:  effectiveTravelBenefits,
+        customPolicySections: effectiveCustomPolicySections,
         paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
@@ -1236,13 +1264,14 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         marginPercentage,
         gstPercentage,
         currency,
-        inclusions,
-        exclusions,
+        inclusions:      effectiveInclusions,
+        exclusions:      effectiveExclusions,
         termsNotes:      termsNotes || null,
-        termsConditions,
-        paymentPolicy,
-        amendmentPolicy,
-        travelBenefits,
+        termsConditions: effectiveTermsConditions,
+        paymentPolicy:   effectivePaymentPolicy,
+        amendmentPolicy: effectiveAmendmentPolicy,
+        travelBenefits:  effectiveTravelBenefits,
+        customPolicySections: effectiveCustomPolicySections,
         paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,

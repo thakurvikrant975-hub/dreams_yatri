@@ -2461,6 +2461,10 @@ model custom_packages {
   /** "Benefits of Travelling With Us" — marketing bullets shown on the
    * client-facing document/page, same removable-default pattern as above. */
   travelBenefits  String[]
+  /** Mirrors itinerary_settings.customPolicySections at save time — admin-
+   * defined extra policy blocks (`{ id, title, items }[]`) beyond the six
+   * fixed lists above. */
+  customPolicySections Json?
   status          CustomPackageStatus  @default(DRAFT)
   builtBy         String
   builtByName     String?
@@ -2469,6 +2473,13 @@ model custom_packages {
   viewedAt        DateTime?
   viewCount       Int                  @default(0)
   previousSnapshot Json?
+  /** Internal pricing double-check, independent of the client-facing status
+   * (accepted/declined) — a reviewer confirms the locked pricingSnapshot
+   * math and the sent total actually agree before/after it's out the door. */
+  verified        Boolean              @default(false)
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  verifiedByName  String?
   /** Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
    * exact locked total) — the client-facing "Pay Now" button opens this.
    * No gateway/webhook integration; purely a manual URL field. */
@@ -2496,6 +2507,33 @@ model custom_packages {
   @@index([queryId])
   @@index([builtBy])
   @@index([status])
+}
+
+/** Single global row (fixed id "singleton") holding the company-wide
+ * itinerary document header/footer/contact details and the standard
+ * Inclusions/Exclusions/T&C/Payment/Amendment/Benefits content — edited only
+ * from /dashboard/itinerary-settings and never per-package, so every sent
+ * itinerary stays consistent and Sales Executives can't drift it. */
+model itinerary_settings {
+  id                 String   @id @default("singleton")
+  companyPhone       String   @default("+91 7807727100")
+  companyEmail       String   @default("hello@dreamyatri.com")
+  companyAddress     String   @default("Shimla, Himachal Pradesh - 171001")
+  companyDescription String   @default("At Dreams Yatri, we turn journeys into stories. From Himalayan escapes to luxury international holidays, our experts design custom, budget-smart, worry-free trips — so you focus on memories, not logistics.")
+  documentDisclaimer String   @default("This is a custom itinerary, subject to availability at the time of booking.")
+  inclusions         String[]
+  exclusions         String[]
+  termsConditions    String[]
+  paymentPolicy      String[]
+  amendmentPolicy    String[]
+  travelBenefits     String[]
+  /** Admin-defined extra policy blocks beyond the six fixed ones above —
+   * each `{ id, title, items }`, rendered on the document as its own titled
+   * bullet list in the order stored here. */
+  customPolicySections Json     @default("[]")
+  updatedAt          DateTime @updatedAt
+  updatedBy          String?
+  updatedByName      String?
 }
 
 // A route stop within a custom package — e.g. "Manali, 2 nights" — used to
