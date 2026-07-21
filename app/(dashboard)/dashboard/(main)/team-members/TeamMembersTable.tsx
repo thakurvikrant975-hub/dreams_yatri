@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   MoreHorizontal, Trash2, Power, Pencil, Key,
@@ -25,32 +25,40 @@ import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 type SelectOption = { id: string; name: string };
 
 interface Props {
-  paginated:   PaginatedMembers;
-  totalStats:  { total: number; active: number; inactive: number; departments: number };
-  departments: SelectOption[];
-  roles:       SelectOption[];
-  currentPage: number;
+  paginated:         PaginatedMembers;
+  totalStats:        { total: number; active: number; inactive: number; departments: number };
+  departments:       SelectOption[];
+  roles:             SelectOption[];
+  currentPage:       number;
+  currentSearch:     string;
+  currentDepartment: string;
+  currentRole:       string;
 }
 
-export function TeamMembersTable({ paginated, totalStats, departments, roles, currentPage }: Props) {
-  const { members, totalPages } = paginated;
+export function TeamMembersTable({
+  paginated, totalStats, departments, roles,
+  currentPage, currentSearch, currentDepartment, currentRole,
+}: Props) {
+  const { members, totalPages, pageSize } = paginated;
   const router       = useRouter();
   const searchParams = useSearchParams();
 
-  const [search,     setSearch]     = useState("");
-  const [deptFilter, setDeptFilter] = useState("all");
-  const [roleFilter, setRoleFilter] = useState("all");
   const [isPending, startTransition] = useTransition();
   const [drawerMember, setDrawerMember] = useState<TeamMember | null>(null);
 
-  const filtered = useMemo(() => members.filter((m) => {
-    const matchSearch = m.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.email.toLowerCase().includes(search.toLowerCase()) ||
-      m.employeeId.toLowerCase().includes(search.toLowerCase());
-    const matchDept = deptFilter === "all" || m.department?.id === deptFilter;
-    const matchRole = roleFilter === "all" || m.role?.id === roleFilter;
-    return matchSearch && matchDept && matchRole;
-  }), [members, search, deptFilter, roleFilter]);
+  // Search/filters/page-size are server-driven (URL params) so they apply to
+  // the whole dataset, not just whatever rows happen to be on the current
+  // page — filtering `members` client-side here would only ever search the
+  // slice of rows Prisma already returned for this one page.
+  function updateParams(patch: Record<string, string | null>, resetPage = true) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null || value === "" || value === "all") params.delete(key);
+      else params.set(key, value);
+    }
+    if (resetPage) params.delete("page");
+    startTransition(() => router.replace(`?${params.toString()}`));
+  }
 
   const goToPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -174,22 +182,31 @@ export function TeamMembersTable({ paginated, totalStats, departments, roles, cu
       </StatGrid>
 
       <TableFilters
-        search={search} onSearchChange={setSearch}
+        search={currentSearch} onSearchChange={(v) => updateParams({ search: v })}
         searchPlaceholder="Search by name, email, or employee ID…"
-        filteredCount={filtered.length} totalCount={members.length}
+        filteredCount={paginated.total} totalCount={totalStats.total}
         filters={[
-          { value: deptFilter, onChange: setDeptFilter, placeholder: "All Departments", options: departments.map((d) => ({ label: d.name, value: d.id })) },
-          { value: roleFilter, onChange: setRoleFilter, placeholder: "All Roles",       options: roles.map((r) => ({ label: r.name, value: r.id })) },
+          {
+            value: currentDepartment, onChange: (v) => updateParams({ department: v }), placeholder: "All Departments",
+            options: departments.map((d) => ({ label: d.name, value: d.id })),
+          },
+          {
+            value: currentRole, onChange: (v) => updateParams({ role: v }), placeholder: "All Roles",
+            options: roles.map((r) => ({ label: r.name, value: r.id })),
+          },
         ]}
       />
 
       <DataTable
-        data={filtered}
+        data={members}
         columns={columns}
         rowKey={(m) => m.id}
         onRowClick={(m) => setDrawerMember(m)}
         emptyState={<TableEmptyState title="No team members found" description="Try adjusting your filters" />}
-        pagination={{ currentPage, totalPages, onPageChange: goToPage }}
+        pagination={{
+          currentPage, totalPages, onPageChange: goToPage,
+          pageSize, onPageSizeChange: (size) => updateParams({ pageSize: String(size) }),
+        }}
       />
 
       {drawerMember && (

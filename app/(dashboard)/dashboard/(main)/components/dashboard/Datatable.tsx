@@ -12,6 +12,10 @@ import {
     PaginationNext, PaginationPrevious,
 } from "../ui/pagination";
 import { cn } from "@/app/lib/utils";
+import {
+    Select, SelectContent, SelectItem,
+    SelectTrigger, SelectValue,
+} from "../ui/select";
 
 // ── Column Definition ─────────────────────────────────────────────────────────
 export interface ColumnDef<T> {
@@ -30,15 +34,22 @@ function TablePagination({
     buildHref,
     onPageChange,
     label,
+    pageSize,
+    onPageSizeChange,
+    pageSizeOptions = [10, 25, 50, 100],
 }: {
     currentPage: number;
     totalPages: number;
     buildHref?: (page: number) => string;
     onPageChange?: (page: number) => void;
     label?: string;
+    pageSize?: number;
+    onPageSizeChange?: (pageSize: number) => void;
+    pageSizeOptions?: number[];
 }) {
     const showPagination = totalPages > 1;
-    if (!showPagination && !label) return null;
+    const showPageSize = pageSize != null && typeof onPageSizeChange === "function";
+    if (!showPagination && !label && !showPageSize) return null;
 
     const isClientSide = typeof onPageChange === "function";
     const href = buildHref ?? ((p: number) => `?page=${p}`);
@@ -67,10 +78,29 @@ function TablePagination({
     }
 
     return (
-        <div className="border-t border-dashboard-base-300 px-4 py-3 flex items-center justify-between">
-            <p className="text-xs text-dashboard-base-content/75 whitespace-nowrap">
-                {label ?? `Page ${currentPage} of ${totalPages}`}
-            </p>
+        <div className="border-t border-dashboard-base-300 px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 shrink-0">
+                <p className="text-xs text-dashboard-base-content/75 whitespace-nowrap">
+                    {label ?? `Page ${currentPage} of ${totalPages}`}
+                </p>
+                {showPageSize && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-dashboard-base-content/60 whitespace-nowrap">Rows per page</span>
+                        <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange!(Number(v))}>
+                            <SelectTrigger className="h-8 w-[70px] text-xs rounded-md border-dashboard-base-300 bg-dashboard-base-100">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-lg border-dashboard-base-300 bg-dashboard-base-100">
+                                {pageSizeOptions.map((n) => (
+                                    <SelectItem key={n} value={String(n)} className="text-xs cursor-pointer">
+                                        {n}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
+            </div>
             {showPagination && <Pagination>
                 <PaginationContent>
                     <PaginationItem>
@@ -140,6 +170,9 @@ interface DataTableProps<T> {
         buildHref?: (page: number) => string;
         onPageChange?: (page: number) => void;
         label?: string;
+        pageSize?: number;
+        onPageSizeChange?: (pageSize: number) => void;
+        pageSizeOptions?: number[];
     };
 }
 
@@ -281,6 +314,9 @@ export function DataTable<T>({
                     buildHref={pagination.buildHref}
                     onPageChange={pagination.onPageChange}
                     label={pagination.label}
+                    pageSize={pagination.pageSize}
+                    onPageSizeChange={pagination.onPageSizeChange}
+                    pageSizeOptions={pagination.pageSizeOptions}
                 />
             )}
         </div>

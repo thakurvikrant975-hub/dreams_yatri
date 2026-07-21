@@ -121,7 +121,7 @@ function buildCreateInitialData(): Record<string, Record<string, unknown>> {
       country:     "India",
       _countryLoc: INDIA_DEFAULT,
     },
-    details: { is_active: false },
+    details: { is_active: true },
   };
 }
 

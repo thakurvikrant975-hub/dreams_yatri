@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { Pencil, MapPin, Users, Calendar, Globe, MessageSquare, User, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -84,20 +84,36 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
     const [destValue, setDestValue]      = useState<string>("");   // "id::name"
     const [selectedPkgTitle, setSelectedPkgTitle] = useState<string>("");
 
+    // This dialog is reused as a single component instance across different
+    // queries (e.g. Querydetailsheet swaps its `query` prop without
+    // unmounting), and React 18 Strict Mode double-invokes this effect on
+    // mount in dev. A `cancelled` flag set in the cleanup — rather than a
+    // ref bumped ad hoc — is the standard React pattern for this: the
+    // cleanup fires deterministically between the two Strict Mode
+    // invocations (or when a newer query opens), so a torn-down run's
+    // fetch can never land after a fresher one, and each run's own state
+    // resets (including loadingPkgs, which previously wasn't reset here —
+    // a dropped stale response left the Package select stuck on "Loading…").
+    const requestIdRef = useRef(0); // still used by handleDestChange below
+
     // ── Reset & pre-populate on open ─────────────────────────────────────────
     useEffect(() => {
         if (!open) return;
+        let cancelled = false;
+        requestIdRef.current++; // invalidate any fetch handleDestChange kicked off for a prior query
 
         // Reset to saved values immediately (before async)
         // We keep the text visible while destinations are loading.
         setDestValue("");            // cleared until we confirm the ID from DB
         setSelectedPkgTitle(query.packageName ?? "");
         setPackages([]);
+        setLoadingPkgs(false);
         setErrors({});
         setSource(query.source);
 
         setLoadingDests(true);
         getDestinationsForQuery().then((dests) => {
+            if (cancelled) return;
             setDestinations(dests);
             setLoadingDests(false);
 
@@ -119,6 +135,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
             // Load packages for this destination
             setLoadingPkgs(true);
             getPackagesByDestination(match.id).then((pkgs) => {
+                if (cancelled) return;
                 setPackages(pkgs);
                 setLoadingPkgs(false);
 
@@ -132,6 +149,8 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                 // If no match, keep the original saved title so it stays visible below the select
             });
         });
+
+        return () => { cancelled = true; };
     }, [open, query.id]); // query.id as dep so re-opening for a different query resets properly
 
     // ── Helpers derived from destValue ────────────────────────────────────────
@@ -149,6 +168,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
     // ── Destination change by user interaction ────────────────────────────────
 
     function handleDestChange(value: string) {
+        const id = ++requestIdRef.current; // invalidate any in-flight fetch (initial load or a prior selection)
         setDestValue(value);
         setSelectedPkgTitle("");   // clear package selection when dest changes
         setPackages([]);
@@ -158,6 +178,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
 
         setLoadingPkgs(true);
         getPackagesByDestination(parsed.id).then((pkgs) => {
+            if (id !== requestIdRef.current) return; // stale — destination changed again since
             setPackages(pkgs);
             setLoadingPkgs(false);
         });
@@ -174,17 +195,25 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
         formData.set("packageName", selectedPkgTitle);
 
         startTransition(async () => {
-            const result = await updateQuery(query.id, formData);
-            if (result.success) {
-                toast.success(result.message);
-                setOpen(false);
-                setErrors({});
-                onDone?.();
-            } else if (result.errors) {
-                setErrors(result.errors);
-                toast.error(result.message);
-            } else {
-                toast.error(result.message);
+            try {
+                const result = await updateQuery(query.id, formData);
+                if (result.success) {
+                    toast.success(result.message);
+                    setOpen(false);
+                    setErrors({});
+                    onDone?.();
+                } else if (result.errors) {
+                    setErrors(result.errors);
+                    toast.error(result.message);
+                } else {
+                    toast.error(result.message);
+                }
+            } catch (err) {
+                // Network/serialization failure calling the server action —
+                // catch it here so the dialog stays open with the user's
+                // input intact instead of crashing/unmounting the form.
+                console.error("[EditQueryDialog] updateQuery failed:", err);
+                toast.error("Failed to save changes — please try again.");
             }
         });
     }

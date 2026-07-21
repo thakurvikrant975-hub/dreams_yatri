@@ -123,7 +123,7 @@ function ImageEditButton({
 // Real contact details — kept identical to app/components/navigation/Footer.tsx
 // (the live marketing site's footer) so a client sees the same phone/email
 // whether they're on the website or reading this document.
-const COMPANY_PHONE = "+91 9812345678";
+const COMPANY_PHONE = "+91 7807727100";
 const COMPANY_EMAIL = "hello@dreamyatri.com";
 const COMPANY_ADDRESS = "Shimla, Himachal Pradesh - 171001";
 
