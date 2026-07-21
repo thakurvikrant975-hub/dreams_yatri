@@ -33,7 +33,7 @@ export async function saveLocation(
 
   const hotel = await db.hotels.findFirst({
     where: { id: hotelId, owner_id: session.user.id },
-    select: { id: true, wizard_step: true },
+    select: { id: true, name: true, wizard_step: true, location_id: true },
   });
   if (!hotel) return { error: "Property not found." };
 
@@ -52,6 +52,37 @@ export async function saveLocation(
         wizard_step: Math.max(hotel.wizard_step, 3),
       },
     });
+
+    // Mirror the pinned coordinates into a HOTEL-type Location row so this
+    // property's geo-point exists in the same table the rest of the app
+    // (destinations, cab routes, activities) uses for location data.
+    // is_active: false keeps it out of the general city/destination search
+    // endpoints (app/api/locations/search's Postgres fallback path filters
+    // only on is_active, not is_searchable) — this row exists purely to be
+    // referenced via hotels.location_id, not to be found by name search.
+    if (hotel.location_id) {
+      await db.location.update({
+        where: { id: hotel.location_id },
+        data: { name: hotel.name, latitude, longitude },
+      });
+    } else {
+      const hotelLocation = await db.location.create({
+        data: {
+          type: "HOTEL",
+          name: hotel.name,
+          slug: `hotel-${hotelId}`,
+          latitude,
+          longitude,
+          is_active: false,
+          is_searchable: false,
+        },
+        select: { id: true },
+      });
+      await db.hotels.update({
+        where: { id: hotelId },
+        data: { location_id: hotelLocation.id },
+      });
+    }
   } catch (err) {
     console.error("[saveLocation]", err);
     return { error: "Failed to save location. Please try again." };

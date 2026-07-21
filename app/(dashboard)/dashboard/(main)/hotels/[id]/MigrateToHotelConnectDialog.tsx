@@ -114,6 +114,7 @@ export default function MigrateToHotelConnectDialog({ hotelId }: { hotelId: numb
           <DialogTitle>Migrate to Hotel Connect</DialogTitle>
           <DialogDescription>
             Link this property to a real owner account so they can self-manage it from Hotel Connect.
+            It stays in Draft — the owner must review its details and submit it before it goes live.
           </DialogDescription>
         </DialogHeader>
 
