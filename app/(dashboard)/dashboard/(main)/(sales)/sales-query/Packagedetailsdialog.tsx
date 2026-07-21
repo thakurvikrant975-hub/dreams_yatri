@@ -350,6 +350,70 @@ function ToggleButton({
     );
 }
 
+/** Fixes three classic controlled-`<input type="number">` bugs seen on
+ * every count field in this form (adults/children/infants/ages/days/nights):
+ * (1) clamping to min/max on every keystroke means the field can never
+ * actually go blank, so typing "7" over a shown "1" appends into "17"
+ * instead of replacing it — this keeps its own draft string and only
+ * clamps on blur; (2) selects existing text on focus so a direct
+ * click-and-type replaces the value like users expect; (3) blurs on wheel
+ * so scrolling over the field doesn't silently bump the number. */
+function NumberField({
+    id, value, min, max, step, placeholder, className, onCommit, onBlurCommit,
+}: {
+    id?: string;
+    value: number;
+    min?: number;
+    max?: number;
+    step?: number;
+    placeholder?: string;
+    className?: string;
+    /** Fires with a best-effort parsed number on every valid keystroke (so
+     * live summaries like "Total Pax" stay in sync while typing), and again
+     * with the clamped final value on blur (unless onBlurCommit is given). */
+    onCommit: (n: number) => void;
+    /** Overrides what fires on blur — e.g. Number of Days also needs to
+     * cascade into Number of Nights (= days - 1) once the exec is done
+     * typing, not on every keystroke. */
+    onBlurCommit?: (n: number) => void;
+}) {
+    const [draft, setDraft] = useState(String(value));
+
+    useEffect(() => {
+        setDraft(String(value));
+    }, [value]);
+
+    return (
+        <Input
+            id={id}
+            type="number"
+            min={min}
+            max={max}
+            step={step}
+            placeholder={placeholder}
+            className={className}
+            value={draft}
+            onFocus={(e) => e.target.select()}
+            onWheel={(e) => e.currentTarget.blur()}
+            onChange={(e) => {
+                const raw = e.target.value;
+                setDraft(raw);
+                if (raw === "") return; // let the field go visibly blank while typing
+                const parsed = parseInt(raw, 10);
+                if (!Number.isNaN(parsed)) onCommit(parsed);
+            }}
+            onBlur={(e) => {
+                let n = parseInt(e.target.value, 10);
+                if (Number.isNaN(n)) n = min ?? 0;
+                if (min !== undefined) n = Math.max(min, n);
+                if (max !== undefined) n = Math.min(max, n);
+                setDraft(String(n));
+                (onBlurCommit ?? onCommit)(n);
+            }}
+        />
+    );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 type Props = {
@@ -625,12 +689,11 @@ export function PackageDetailsDialog({
                                             Adults
                                             <span className="text-muted-foreground text-[10px] ml-1">12+ yrs</span>
                                         </Label>
-                                        <Input
+                                        <NumberField
                                             id="adults"
-                                            type="number"
                                             min={1}
                                             value={reqs.travellers.adults}
-                                            onChange={e => updateTravellerCounts({ adults: Math.max(1, parseInt(e.target.value) || 1) })}
+                                            onCommit={n => updateTravellerCounts({ adults: n })}
                                         />
                                     </div>
                                     <div className="space-y-1.5">
@@ -638,12 +701,11 @@ export function PackageDetailsDialog({
                                             Children
                                             <span className="text-muted-foreground text-[10px] ml-1">2–12 yrs</span>
                                         </Label>
-                                        <Input
+                                        <NumberField
                                             id="children"
-                                            type="number"
                                             min={0}
                                             value={reqs.travellers.children}
-                                            onChange={e => updateTravellerCounts({ children: Math.max(0, parseInt(e.target.value) || 0) })}
+                                            onCommit={n => updateTravellerCounts({ children: n })}
                                         />
                                     </div>
                                     <div className="space-y-1.5">
@@ -651,12 +713,11 @@ export function PackageDetailsDialog({
                                             Infants
                                             <span className="text-muted-foreground text-[10px] ml-1">&lt;2 yrs</span>
                                         </Label>
-                                        <Input
+                                        <NumberField
                                             id="infants"
-                                            type="number"
                                             min={0}
                                             value={reqs.travellers.infants}
-                                            onChange={e => updateTravellerCounts({ infants: Math.max(0, parseInt(e.target.value) || 0) })}
+                                            onCommit={n => updateTravellerCounts({ infants: n })}
                                         />
                                     </div>
                                 </div>
@@ -697,14 +758,13 @@ export function PackageDetailsDialog({
                                                         placeholder={`Traveller ${i + 1} name`}
                                                         className="flex-1"
                                                     />
-                                                    <Input
-                                                        type="number"
+                                                    <NumberField
                                                         min={0}
                                                         max={120}
                                                         value={m.age}
-                                                        onChange={e => {
+                                                        onCommit={n => {
                                                             const members = [...(reqs.travellers.members ?? [])];
-                                                            members[i] = { ...members[i], age: Math.max(0, parseInt(e.target.value) || 0) };
+                                                            members[i] = { ...members[i], age: n };
                                                             update("travellers", { members });
                                                         }}
                                                         placeholder="Age"
@@ -906,57 +966,24 @@ export function PackageDetailsDialog({
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
                                         <Label htmlFor="days">Number of Days</Label>
-                                        <Input
+                                        <NumberField
                                             id="days"
-                                            type="number"
                                             min={1}
                                             value={reqs.journey.noOfDays}
-                                            onChange={e => {
-                                                const value = e.target.value;
-
-                                                // Allow empty input while typing
-                                                if (value === "") {
-                                                    update("journey", { noOfDays: 0 });
-                                                    return;
-                                                }
-
-                                                update("journey", {
-                                                    noOfDays: parseInt(value) || 0,
-                                                });
-                                            }}
-                                            onBlur={e => {
-                                                const d = Math.max(1, parseInt(e.target.value) || 1);
-                                                update("journey", {
-                                                    noOfDays: d,
-                                                    noOfNights: Math.max(0, d - 1),
-                                                });
-                                            }}
+                                            onCommit={n => update("journey", { noOfDays: n })}
+                                            onBlurCommit={n => update("journey", {
+                                                noOfDays: n,
+                                                noOfNights: Math.max(0, n - 1),
+                                            })}
                                         />
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label htmlFor="nights">Number of Nights</Label>
-                                        <Input
+                                        <NumberField
                                             id="nights"
-                                            type="number"
                                             min={0}
                                             value={reqs.journey.noOfNights}
-                                            onChange={e => {
-                                                const value = e.target.value;
-
-                                                if (value === "") {
-                                                    update("journey", { noOfNights: 0 });
-                                                    return;
-                                                }
-
-                                                update("journey", {
-                                                    noOfNights: parseInt(value) || 0,
-                                                });
-                                            }}
-                                            onBlur={e => {
-                                                update("journey", {
-                                                    noOfNights: Math.max(0, parseInt(e.target.value) || 0),
-                                                });
-                                            }}
+                                            onCommit={n => update("journey", { noOfNights: n })}
                                         />
                                     </div>
                                 </div>
@@ -1324,6 +1351,8 @@ export function PackageDetailsDialog({
                                             step={500}
                                             placeholder="e.g. 15000"
                                             value={reqs.budget.min ?? ""}
+                                            onFocus={e => e.target.select()}
+                                            onWheel={e => e.currentTarget.blur()}
                                             onChange={e => update("budget", {
                                                 min: e.target.value ? parseInt(e.target.value) : undefined,
                                             })}
@@ -1340,6 +1369,8 @@ export function PackageDetailsDialog({
                                             step={500}
                                             placeholder="e.g. 25000"
                                             value={reqs.budget.max ?? ""}
+                                            onFocus={e => e.target.select()}
+                                            onWheel={e => e.currentTarget.blur()}
                                             onChange={e => update("budget", {
                                                 max: e.target.value ? parseInt(e.target.value) : undefined,
                                             })}

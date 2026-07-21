@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useTransition } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
@@ -10,7 +11,8 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
-  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy,
+  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -42,13 +44,15 @@ import {
   type CabPricingResult,
   type PackageCopyPayload,
   type TicketInput,
+  getCurrentUserRole,
 } from "../action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
-import { ItineraryDocument, SafeImg, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { ItineraryDocument, SafeImg, formatTime12h, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
+import { getItinerarySettings, type ItinerarySettings, type PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -231,8 +235,12 @@ function SpecialNote({ text }: { text?: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // EditableList
 // ─────────────────────────────────────────────────────────────────────────────
-function EditableList({ label, items, onChange, placeholder }: {
+function EditableList({ label, items, onChange, placeholder, readOnly }: {
   label: string; items: string[]; onChange: (v: string[]) => void; placeholder?: string;
+  /** Company-wide standard content (inclusions/exclusions/policies/benefits)
+   * that Sales Executives can see but not edit per package — see
+   * getCurrentUserRole in action.ts. */
+  readOnly?: boolean;
 }) {
   const [input, setInput] = useState("");
   function add() {
@@ -241,24 +249,33 @@ function EditableList({ label, items, onChange, placeholder }: {
   }
   return (
     <div>
-      <label className="text-xs font-medium text-dashboard-base-content/90 mb-2 block">{label}</label>
-      <div className="flex gap-2 mb-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
-          placeholder={placeholder ?? "Add item…"}
-          className="text-sm h-9 flex-1 border-dashboard-neutral-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={add}
-          className="h-9 px-3 border-dashboard-base-300 rounded-md bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90"
-        >
-          <Plus size={16} />
-        </Button>
-      </div>
+      <label className="text-xs font-medium text-dashboard-base-content/90 mb-2 flex items-center gap-1.5">
+        {label}
+        {readOnly && (
+          <span className="inline-flex items-center gap-0.5 text-[10px] font-normal text-dashboard-base-content/50">
+            <Lock size={10} /> Locked
+          </span>
+        )}
+      </label>
+      {!readOnly && (
+        <div className="flex gap-2 mb-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
+            placeholder={placeholder ?? "Add item…"}
+            className="text-sm h-9 flex-1 border-dashboard-neutral-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={add}
+            className="h-9 px-3 border-dashboard-base-300 rounded-md bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90"
+          >
+            <Plus size={16} />
+          </Button>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1.5">
         {items.map((item, i) => (
           <span
@@ -266,10 +283,12 @@ function EditableList({ label, items, onChange, placeholder }: {
             className="flex items-center gap-1 text-xs bg-dashboard-base-200 text-dashboard-base-content px-2.5 py-1 rounded-full border border-dashboard-base-300"
           >
             {item}
-            <button
-              onClick={() => onChange(items.filter((_, j) => j !== i))}
-              className="text-dashboard-base-content/50 hover:text-dashboard-error transition-colors ml-0.5"
-            >×</button>
+            {!readOnly && (
+              <button
+                onClick={() => onChange(items.filter((_, j) => j !== i))}
+                className="text-dashboard-base-content/50 hover:text-dashboard-error transition-colors ml-0.5"
+              >×</button>
+            )}
           </span>
         ))}
       </div>
@@ -836,9 +855,12 @@ function DayCard({
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
       meals: hotelMeals.length > 0 ? hotelMeals : data.meals,
       // The hotel's own check-in/check-out policy — previously never fetched
-      // at all, so this always stayed blank unless typed in by hand.
-      hotelCheckIn: raw.checkInTime ?? data.hotelCheckIn,
-      hotelCheckOut: raw.checkOutTime ?? data.hotelCheckOut,
+      // at all, so this always stayed blank unless typed in by hand. Stored
+      // as 24h "HH:MM" on the hotel record (<input type="time">) — converted
+      // to "2:00 PM" here so it reads the same as a hand-typed value both in
+      // this field and in the document.
+      hotelCheckIn: raw.checkInTime ? formatTime12h(raw.checkInTime) : data.hotelCheckIn,
+      hotelCheckOut: raw.checkOutTime ? formatTime12h(raw.checkOutTime) : data.hotelCheckOut,
       // Links this night to the real hotel_room_pricing row so the package
       // price can be computed from its actual date/occupancy-aware rate.
       roomPricingId: raw.id,
@@ -1655,6 +1677,7 @@ interface PackageForm {
   paymentPolicy: string[];
   amendmentPolicy: string[];
   travelBenefits: string[];
+  customPolicySections: PolicySection[];
   paymentLink: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
@@ -1924,6 +1947,12 @@ export default function PackageBuilderDetailPage() {
 
   const [query, setQuery] = useState<QueryDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  // Inclusions/exclusions/policies/benefits are company-wide standard
+  // content — edited only on /dashboard/itinerary-settings, never per
+  // package. See the "Load itinerary settings" effect below.
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const isSalesExecutive = userRole?.toLowerCase() === "sales executive";
+  const [itinerarySettings, setItinerarySettings] = useState<ItinerarySettings | null>(null);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("client");
   const [, setPackageId] = useState<string | null>(null);
@@ -1961,12 +1990,45 @@ export default function PackageBuilderDetailPage() {
     paymentPolicy: DEFAULT_PAYMENT_POLICY,
     amendmentPolicy: DEFAULT_AMENDMENT_POLICY,
     travelBenefits: DEFAULT_TRAVEL_BENEFITS,
+    customPolicySections: [],
     paymentLink: "",
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
     tickets: [],
     execName: "", execEmail: "", execDesignation: "",
   });
+
+  // ── Current user's role — gates editing of the standard content lists ──────
+  useEffect(() => {
+    let cancelled = false;
+    getCurrentUserRole().then((role) => {
+      if (!cancelled) setUserRole(role);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Load itinerary settings — the single global source for Inclusions/
+  // Exclusions/T&C/Payment/Amendment/Benefits + document header/footer.
+  // Always wins over whatever's stored on the package row, so the builder
+  // never shows stale per-package content that a save would overwrite anyway.
+  useEffect(() => {
+    let cancelled = false;
+    getItinerarySettings().then((settings) => {
+      if (cancelled) return;
+      setItinerarySettings(settings);
+      setForm((f) => ({
+        ...f,
+        inclusions: settings.inclusions,
+        exclusions: settings.exclusions,
+        termsConditions: settings.termsConditions,
+        paymentPolicy: settings.paymentPolicy,
+        amendmentPolicy: settings.amendmentPolicy,
+        travelBenefits: settings.travelBenefits,
+        customPolicySections: settings.customPolicySections,
+      }));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Load query ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2029,20 +2091,30 @@ export default function PackageBuilderDetailPage() {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
-          // Previously never re-loaded on reopen — always silently reset to
-          // the DEFAULT_* seed instead of what was actually saved. Fixed
-          // here alongside adding the 4 new policy lists below, since it's
-          // the exact same select/hydrate gap.
-          inclusions: cp.inclusions.length > 0 ? cp.inclusions : f.inclusions,
-          exclusions: cp.exclusions.length > 0 ? cp.exclusions : f.exclusions,
+          // Inclusions/exclusions/termsConditions/paymentPolicy/amendmentPolicy/
+          // travelBenefits are intentionally NOT re-hydrated from cp here —
+          // they're company-wide global content, always sourced live from
+          // the "Load itinerary settings" effect instead of the (possibly
+          // stale) snapshot stored on this package row.
           termsNotes: cp.termsNotes ?? f.termsNotes,
-          termsConditions: cp.termsConditions.length > 0 ? cp.termsConditions : f.termsConditions,
-          paymentPolicy: cp.paymentPolicy.length > 0 ? cp.paymentPolicy : f.paymentPolicy,
-          amendmentPolicy: cp.amendmentPolicy.length > 0 ? cp.amendmentPolicy : f.amendmentPolicy,
-          travelBenefits: cp.travelBenefits.length > 0 ? cp.travelBenefits : f.travelBenefits,
           paymentLink: cp.paymentLink ?? "",
           stops: cp.stops,
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
+          // Duration shown in the header/cover — previously left at whatever
+          // the initial setForm above seeded from the client's ORIGINAL
+          // requirement (j.noOfDays/noOfNights), even when the actual saved
+          // package has a different route/day count. Auto-calculated here
+          // the same way the rest of the builder already does it — from the
+          // route stops' night counts when stops exist (recalcFromStops,
+          // same as editing the Route Stops list), else from the actual
+          // number of saved day-cards — so it can never drift from what's
+          // really in the Itinerary tab. cp.totalDays/totalNights is only a
+          // fallback for a package with neither stops nor days saved yet.
+          ...(cp.stops.length > 0
+            ? recalcFromStops(cp.stops)
+            : cp.itineraries.length > 0
+              ? { totalDays: cp.itineraries.length, totalNights: Math.max(0, cp.itineraries.length - 1) }
+              : { totalDays: cp.totalDays, totalNights: cp.totalNights }),
           tickets: cp.tickets,
         }));
       } else {
@@ -2436,8 +2508,8 @@ export default function PackageBuilderDetailPage() {
               accommodationRoomCapacity: room.roomCapacity ?? it.accommodationRoomCapacity,
               hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
               meals: hotelMeals.length > 0 ? hotelMeals : it.meals,
-              hotelCheckIn: room.checkInTime ?? it.hotelCheckIn,
-              hotelCheckOut: room.checkOutTime ?? it.hotelCheckOut,
+              hotelCheckIn: room.checkInTime ? formatTime12h(room.checkInTime) : it.hotelCheckIn,
+              hotelCheckOut: room.checkOutTime ? formatTime12h(room.checkOutTime) : it.hotelCheckOut,
               roomPricingId: room.id,
             }
           : it,
@@ -2805,6 +2877,15 @@ Rules:
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",
     queryId,
+    companySettings: itinerarySettings
+      ? {
+          phone: itinerarySettings.companyPhone,
+          email: itinerarySettings.companyEmail,
+          address: itinerarySettings.companyAddress,
+          description: itinerarySettings.companyDescription,
+          disclaimer: itinerarySettings.documentDisclaimer,
+        }
+      : undefined,
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -3071,7 +3152,11 @@ Rules:
                             type="number" min={0}
                             value={form.totalNights}
                             disabled={form.stops.length > 0}
-                            onChange={(e) => setForm((f) => ({ ...f, totalNights: +e.target.value }))}
+                            onChange={(e) => setForm((f) => ({
+                              ...f,
+                              totalNights: +e.target.value,
+                              totalDays: +e.target.value + 1,
+                            }))}
                             className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
                           />
                           <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Nights</p>
@@ -3648,6 +3733,21 @@ Rules:
 
               {/* ── Tab: Inclusions & Terms ──────────────────────────────────────── */}
               <TabsContent value="inclusions" className="space-y-6">
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-dashboard-base-300 bg-dashboard-base-200/40 px-4 py-3">
+                  <p className="text-xs text-dashboard-base-content/70 flex items-center gap-1.5">
+                    <Lock size={12} /> These are company-wide, applied to every itinerary — edited only in Itinerary Settings.
+                  </p>
+                  {!isSalesExecutive && (
+                    <Link
+                      href="/dashboard/itinerary-settings"
+                      target="_blank"
+                      className="text-xs font-semibold text-dashboard-primary hover:underline flex items-center gap-1 shrink-0"
+                    >
+                      Manage <ExternalLink size={12} />
+                    </Link>
+                  )}
+                </div>
+
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                     <CheckCircle size={15} className="text-dashboard-primary" /> Inclusions & Exclusions
@@ -3657,12 +3757,14 @@ Rules:
                     items={form.inclusions}
                     onChange={(v) => setForm((f) => ({ ...f, inclusions: v }))}
                     placeholder="Add inclusion…"
+                    readOnly
                   />
                   <EditableList
                     label="Exclusions"
                     items={form.exclusions}
                     onChange={(v) => setForm((f) => ({ ...f, exclusions: v }))}
                     placeholder="Add exclusion…"
+                    readOnly
                   />
                 </div>
 
@@ -3675,18 +3777,21 @@ Rules:
                     items={form.termsConditions}
                     onChange={(v) => setForm((f) => ({ ...f, termsConditions: v }))}
                     placeholder="Add a term…"
+                    readOnly
                   />
                   <EditableList
                     label="Payment Policy"
                     items={form.paymentPolicy}
                     onChange={(v) => setForm((f) => ({ ...f, paymentPolicy: v }))}
                     placeholder="Add a payment rule…"
+                    readOnly
                   />
                   <EditableList
                     label="Amendment Policy"
                     items={form.amendmentPolicy}
                     onChange={(v) => setForm((f) => ({ ...f, amendmentPolicy: v }))}
                     placeholder="Add an amendment rule…"
+                    readOnly
                   />
                 </div>
 
@@ -3699,8 +3804,26 @@ Rules:
                     items={form.travelBenefits}
                     onChange={(v) => setForm((f) => ({ ...f, travelBenefits: v }))}
                     placeholder="Add a benefit…"
+                    readOnly
                   />
                 </div>
+
+                {form.customPolicySections.length > 0 && (
+                  <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
+                    <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                      <Info size={15} className="text-dashboard-primary" /> Custom Policy Sections
+                    </h2>
+                    {form.customPolicySections.map((section) => (
+                      <EditableList
+                        key={section.id}
+                        label={section.title || "Untitled section"}
+                        items={section.items}
+                        onChange={() => {}}
+                        readOnly
+                      />
+                    ))}
+                  </div>
+                )}
 
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
                   <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">

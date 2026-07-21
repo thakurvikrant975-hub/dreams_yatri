@@ -323,9 +323,14 @@ export async function closeSalesQuery(packageQueryId: string, formData: FormData
             },
         });
 
+        const closeReasonLabel = (await _getCloseReasons()).find(r => r.id === parsed.data.closeReasonId)?.label
+            ?? parsed.data.closeReasonId;
+        const closeTimelineMsg = `❌ Closed — ${closeReasonLabel}` +
+            (parsed.data.closeReasonOther ? `: "${parsed.data.closeReasonOther}"` : "");
+
         await logTimeline(
             packageQueryId,
-            isConverted ? `✅ Converted — Booking Confirmed` : `❌ Closed — ${parsed.data.closeReasonId}`,
+            isConverted ? `✅ Converted — Booking Confirmed` : closeTimelineMsg,
             teamMemberId ?? undefined,
             teamMemberName ?? undefined,
         );

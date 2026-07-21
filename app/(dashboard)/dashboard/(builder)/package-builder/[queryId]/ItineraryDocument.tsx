@@ -120,12 +120,16 @@ function ImageEditButton({
   );
 }
 
-// Real contact details — kept identical to app/components/navigation/Footer.tsx
-// (the live marketing site's footer) so a client sees the same phone/email
-// whether they're on the website or reading this document.
+// Fallback contact/footer content — used only if a caller hasn't fetched
+// form.companySettings from /dashboard/itinerary-settings (the source of
+// truth an admin edits), so the document never renders blank.
 const COMPANY_PHONE = "+91 7807727100";
 const COMPANY_EMAIL = "hello@dreamyatri.com";
 const COMPANY_ADDRESS = "Shimla, Himachal Pradesh - 171001";
+const DEFAULT_COMPANY_DESCRIPTION =
+  "At Dreams Yatri, we turn journeys into stories. From Himalayan escapes to luxury international " +
+  "holidays, our experts design custom, budget-smart, worry-free trips — so you focus on memories, not logistics.";
+const DEFAULT_DOCUMENT_DISCLAIMER = "This is a custom itinerary, subject to availability at the time of booking.";
 
 /** "AB12CD34" — the last 8 characters of the query's cuid, uppercased, as a
  * short human-referenceable quote number instead of exposing the client's
@@ -258,6 +262,19 @@ export interface PreviewData {
    * optional since the public share-link path (getSharedPackage) may not
    * always have a match; the strip falls back gracefully when absent. */
   stopImages?: Record<string, string | null>;
+  /** Company-wide header/footer content from /dashboard/itinerary-settings —
+   * optional so callers that haven't fetched it yet fall back to the
+   * hardcoded defaults below rather than rendering blank contact info. */
+  companySettings?: {
+    phone: string;
+    email: string;
+    address: string;
+    description: string;
+    disclaimer: string;
+  };
+  /** Admin-defined extra policy blocks (title + bullet points) beyond the
+   * six fixed lists above, in the order set on /dashboard/itinerary-settings. */
+  customPolicySections?: { id: string; title: string; items: string[] }[];
 }
 
 /** Icon-badge + bold label + trailing rule — the section-opener used
@@ -832,14 +849,14 @@ function DayCardPreview({
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogIn size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-in</span>
-                      <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn || "—"}</span>
+                      <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn ? formatTime12h(day.hotelCheckIn) : "—"}</span>
                       {checkInDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkInDate)}</span>}
                     </div>
                     <div className="flex-1 border-t border-dashed border-neutral-300 self-center" />
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogOut size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-out</span>
-                      <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckOut || "—"}</span>
+                      <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckOut ? formatTime12h(day.hotelCheckOut) : "—"}</span>
                       {checkOutDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkOutDate)}</span>}
                     </div>
                   </div>
@@ -1267,10 +1284,17 @@ function StatCell({ icon: Icon, label, value }: { icon: React.ElementType; label
  * (app/components/navigation/Footer.tsx), scaled down to what makes sense in
  * a static, per-client document (no nav links, no social icons). */
 function DocumentFooter({ form }: { form: PreviewData }) {
+  const cs = form.companySettings;
+  const phone = cs?.phone ?? COMPANY_PHONE;
+  const email = cs?.email ?? COMPANY_EMAIL;
+  const address = cs?.address ?? COMPANY_ADDRESS;
+  const description = cs?.description ?? DEFAULT_COMPANY_DESCRIPTION;
+  const disclaimer = cs?.disclaimer ?? DEFAULT_DOCUMENT_DISCLAIMER;
+
   const contactRows = [
-    { icon: Phone, label: "24 × 7 Helpline", value: COMPANY_PHONE },
-    { icon: Mail, label: "Email Us", value: COMPANY_EMAIL },
-    { icon: MapPin, label: "Head Office", value: COMPANY_ADDRESS },
+    { icon: Phone, label: "24 × 7 Helpline", value: phone },
+    { icon: Mail, label: "Email Us", value: email },
+    { icon: MapPin, label: "Head Office", value: address },
   ];
 
   return (
@@ -1280,9 +1304,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
             <DyLogo className="h-7 text-primary-500" />
             <p className="text-slate-400 text-[11px] leading-relaxed">
-              At Dreams Yatri, we turn journeys into stories. From Himalayan escapes to luxury international
-              holidays, our experts design custom, budget-smart, worry-free trips — so you focus on memories,
-              not logistics.
+              {description}
             </p>
           </div>
 
@@ -1313,7 +1335,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 text-[10px] text-slate-500">
           <p>© {new Date().getFullYear()} Dreams Yatri. All rights reserved.</p>
-          <p>This is a custom itinerary, subject to availability at the time of booking.</p>
+          <p>{disclaimer}</p>
         </div>
       </div>
     </footer>
@@ -1434,8 +1456,8 @@ export function ItineraryDocument({
         <header className="flex items-center justify-between px-[10mm] py-4">
           <DyLogo className="h-7 text-primary-600" />
           <div className="text-right text-[11px] text-neutral-500 space-y-0.5">
-            <p className="flex items-center justify-end gap-1.5"><Phone size={10} className="text-primary-500" /> {COMPANY_PHONE}</p>
-            <p className="flex items-center justify-end gap-1.5"><Mail size={10} className="text-primary-500" /> {COMPANY_EMAIL}</p>
+            <p className="flex items-center justify-end gap-1.5"><Phone size={10} className="text-primary-500" /> {form.companySettings?.phone ?? COMPANY_PHONE}</p>
+            <p className="flex items-center justify-end gap-1.5"><Mail size={10} className="text-primary-500" /> {form.companySettings?.email ?? COMPANY_EMAIL}</p>
           </div>
         </header>
 
@@ -1717,6 +1739,29 @@ export function ItineraryDocument({
               </ul>
             </div>
           )}
+
+          {(form.customPolicySections ?? []).filter((s) => s.items.length > 0).map((section) => (
+            <div
+              key={section.id}
+              className="rounded-2xl border border-slate-200 bg-white overflow-hidden"
+              style={{ breakInside: "avoid" }}
+            >
+              <div className="flex items-center gap-2 px-4 py-3 bg-slate-50/70 border-b border-slate-100">
+                <span className="flex items-center justify-center size-6 rounded-lg bg-slate-100 shrink-0">
+                  <Info size={13} className="text-slate-600" />
+                </span>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">{section.title}</h3>
+              </div>
+              <ul className="p-4 space-y-2 text-xs text-neutral-600">
+                {section.items.map((t) => (
+                  <li key={t} className="flex items-start gap-2">
+                    <span className="mt-1.5 size-1 rounded-full bg-slate-400 shrink-0" />
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
           {form.termsNotes && <TermsAndConditions text={form.termsNotes} />}
 
