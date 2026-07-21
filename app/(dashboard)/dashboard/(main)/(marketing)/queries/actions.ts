@@ -847,7 +847,12 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
             },
         });
 
-        await logTimeline(queryId, `✏️ Query details updated`, actor?.id, actor?.name ?? undefined);
+        // Timeline logging is an audit trail, not core to the update — the query
+        // record above already saved successfully, so a logging failure here
+        // must not make the caller think the whole edit failed.
+        await logTimeline(queryId, `✏️ Query details updated`, actor?.id, actor?.name ?? undefined)
+            .catch((e) => console.error("[updateQuery] logTimeline failed:", e));
+
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query updated successfully" };
     } catch (e) {

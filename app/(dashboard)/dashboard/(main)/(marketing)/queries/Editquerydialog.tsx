@@ -174,17 +174,25 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
         formData.set("packageName", selectedPkgTitle);
 
         startTransition(async () => {
-            const result = await updateQuery(query.id, formData);
-            if (result.success) {
-                toast.success(result.message);
-                setOpen(false);
-                setErrors({});
-                onDone?.();
-            } else if (result.errors) {
-                setErrors(result.errors);
-                toast.error(result.message);
-            } else {
-                toast.error(result.message);
+            try {
+                const result = await updateQuery(query.id, formData);
+                if (result.success) {
+                    toast.success(result.message);
+                    setOpen(false);
+                    setErrors({});
+                    onDone?.();
+                } else if (result.errors) {
+                    setErrors(result.errors);
+                    toast.error(result.message);
+                } else {
+                    toast.error(result.message);
+                }
+            } catch (err) {
+                // Network/serialization failure calling the server action —
+                // catch it here so the dialog stays open with the user's
+                // input intact instead of crashing/unmounting the form.
+                console.error("[EditQueryDialog] updateQuery failed:", err);
+                toast.error("Failed to save changes — please try again.");
             }
         });
     }

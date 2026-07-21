@@ -2989,6 +2989,7 @@ enum QuerySource {
   OTHER
   CONTACT_FORM
   PACKAGE_FORM
+  META
 }
 
 enum GallerySourceType {
