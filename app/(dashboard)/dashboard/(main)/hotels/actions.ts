@@ -2054,6 +2054,218 @@ const CATEGORY_MIGRATION_MAP: Record<string, { propertyCategory: PropertyCategor
 };
 const DEFAULT_CATEGORY_GUESS = { propertyCategory: "HOTEL" as PropertyCategory, propertySubType: "HOTEL" as PropertySubType };
 
+// ── Post-migration data conversion ─────────────────────────────────────────
+//
+// Ops and Hotel Connect share some tables verbatim (room pricing — same
+// hotel_room_pricing columns on both sides, no conversion needed) but three
+// areas use genuinely different shapes for the same real-world fact. Each
+// converter below only fills fields that are still empty/null — it never
+// overwrites anything an owner may have already set by editing in Hotel
+// Connect — and is best-effort: a failure here is logged but never fails
+// the migration itself, since the hotel is already correctly linked by the
+// time these run.
+
+// Ops's photo category (hotel_image_categories.name) → Hotel Connect's real
+// tag vocabulary (hotel_images.tags, see photo-tags-data.ts). Ops's own
+// categories are broader/combined ("Lobby / Reception"), so this is a
+// many-to-one best guess, not an exact restatement.
+const IMAGE_CATEGORY_TO_TAG: Record<string, { hotel: string; guestHouse?: string }> = {
+  "Facade / Exterior":   { hotel: "Facade",        guestHouse: "Facade" },
+  "Lobby / Reception":   { hotel: "Lobby",         guestHouse: "Common Area" },
+  "Restaurant / Dining": { hotel: "Restaurant",    guestHouse: "Dining Area" },
+  "Swimming Pool":       { hotel: "Swimming Pool" },
+  "Gym / Fitness":       { hotel: "Gym" },
+  "Spa / Wellness":      { hotel: "Spa" },
+  "Parking Area":        { hotel: "Parking",       guestHouse: "Parking" },
+  "Garden / Outdoor":    { hotel: "Garden",         guestHouse: "Garden" },
+  "View / Scenery":      { hotel: "Outside View",   guestHouse: "Outside View" },
+};
+
+async function convertImageCategoriesToTags(hotelId: number, isGuestHouse: boolean): Promise<number> {
+  const images = await db.hotel_images.findMany({
+    where: { hotel_id: hotelId },
+    select: { id: true, tags: true, category: { select: { name: true } } },
+  });
+  let converted = 0;
+  for (const img of images) {
+    if (img.tags.length > 0) continue; // owner (or a prior migration run) already tagged this one
+    const mapping = IMAGE_CATEGORY_TO_TAG[img.category.name];
+    const tag = mapping ? (isGuestHouse ? mapping.guestHouse : mapping.hotel) : undefined;
+    if (!tag) continue;
+    await db.hotel_images.update({ where: { id: img.id }, data: { tags: [tag] } });
+    converted++;
+  }
+  return converted;
+}
+
+// Ops's bed_type is a descriptive string ("2 King Beds", "Queen + Sofa Bed");
+// Hotel Connect stores structured { type, count } pairs from a short fixed
+// vocabulary. Keyword match in priority order; falls back to "King" —
+// the same zero-data default Hotel Connect's own wizard already uses.
+const BED_TYPE_KEYWORDS: { pattern: RegExp; type: string }[] = [
+  { pattern: /king/i,   type: "King" },
+  { pattern: /queen/i,  type: "Queen" },
+  { pattern: /double/i, type: "Double" },
+  { pattern: /single/i, type: "Single" },
+  { pattern: /twin/i,   type: "Twin" },
+  { pattern: /bunk/i,   type: "Bunk Bed" },
+  { pattern: /sofa/i,   type: "Sofa Bed" },
+  { pattern: /murphy/i, type: "Murphy Bed" },
+  { pattern: /futon/i,  type: "Futon" },
+];
+function inferBedType(opsBedType: string | null): string {
+  if (opsBedType) {
+    for (const { pattern, type } of BED_TYPE_KEYWORDS) if (pattern.test(opsBedType)) return type;
+  }
+  return "King";
+}
+
+// Ops's room name is the only signal for a "room type" — Hotel Connect
+// requires one from a fixed list with no free-text option, unlike ops which
+// never captures this at all. Keyword match against the room name; "Other"
+// (a real option in both lists) when nothing matches, not a fabricated guess.
+const ROOM_TYPE_KEYWORDS: { pattern: RegExp; type: string }[] = [
+  { pattern: /suite/i,     type: "Suite" },
+  { pattern: /studio/i,    type: "Studio" },
+  { pattern: /villa/i,     type: "Villa" },
+  { pattern: /family/i,    type: "Family" },
+  { pattern: /dorm/i,      type: "Dorm room" },
+  { pattern: /apartment/i, type: "Apartment" },
+  { pattern: /bungalow/i,  type: "Bungalow" },
+  { pattern: /chalet/i,    type: "Chalet" },
+  { pattern: /cottage/i,   type: "Cottage" },
+  { pattern: /honeymoon/i, type: "For Honeymooners" },
+  { pattern: /master/i,    type: "Master" },
+  { pattern: /tent/i,      type: "Tent" },
+  { pattern: /luxury/i,    type: "Luxury" },
+  { pattern: /deluxe/i,    type: "Deluxe" },
+];
+function inferRoomType(roomName: string, isGuestHouse: boolean): string {
+  if (isGuestHouse) {
+    if (/deluxe/i.test(roomName)) return "Deluxe";
+    if (/family/i.test(roomName)) return "Family";
+    if (/dorm/i.test(roomName)) return "Dormitory";
+    if (/ac\b/i.test(roomName) && !/non.?ac/i.test(roomName)) return "AC Room";
+    if (/non.?ac/i.test(roomName)) return "Non-AC Room";
+    return "Standard";
+  }
+  for (const { pattern, type } of ROOM_TYPE_KEYWORDS) if (pattern.test(roomName)) return type;
+  return "Other";
+}
+
+// Ops's amenity labels ("Wi-Fi", "Electric Kettle") don't string-match Hotel
+// Connect's ROOM_MANDATORY_CONFIG names ("Wifi", "Kettle") even when they
+// mean the same thing — an explicit alias table (rather than fuzzy string
+// matching) so every mapping here is a reviewable, deliberate choice. Hotel
+// Connect requires at least 3 of these answered "Yes" before a room can be
+// saved; ops rooms have none marked, which would otherwise hard-block the
+// owner from editing a room that already exists and is bookable.
+const MANDATORY_AMENITY_ALIASES: Record<string, string[]> = {
+  "Bathtub": ["Bathtub"],
+  "Hairdryer": ["Hairdryer"],
+  "Hot & Cold Water": ["Hot Water"],
+  "Toiletries": ["Toiletries"],
+  "Towels": ["Towels"],
+  "TV": ["TV", "Cable TV", "Smart TV"],
+  "Balcony": ["Balcony / Terrace"],
+  "Private Pool": ["Private Pool"],
+  "Air Conditioning": ["Air Conditioning"],
+  "Iron/Ironing Board": ["Iron / Ironing Board"],
+  "Mineral Water": ["Mineral Water"],
+  "Kettle": ["Electric Kettle"],
+  "Wifi": ["Wi-Fi"],
+  "Safe": ["Electronic Safe"],
+  "Bathroom": [],
+  "Peep Hole": ["Peep Hole"],
+};
+
+async function convertRoomsForHotelConnect(hotelId: number, isGuestHouse: boolean): Promise<number> {
+  const rooms = await db.hotel_rooms.findMany({
+    where: { hotel_id: hotelId },
+    select: { id: true, name: true, bed_type: true, bed_count: true, amenities: true, room_type: true, meal_plan: true, beds: true },
+  });
+
+  let converted = 0;
+  for (const room of rooms) {
+    const data: Prisma.hotel_roomsUpdateInput = {};
+
+    if (!room.room_type) data.room_type = inferRoomType(room.name, isGuestHouse);
+    if (!room.meal_plan) data.meal_plan = "accommodation_only"; // most conservative default — never assert meals that may not be included
+    if (!room.beds) {
+      data.beds = [{ kind: "bedroom", beds: [{ type: inferBedType(room.bed_type), count: room.bed_count || 1 }] }] as Prisma.InputJsonValue;
+    }
+
+    const opsAmenities = Array.isArray(room.amenities) ? (room.amenities as string[]) : [];
+    const currentSelected = !Array.isArray(room.amenities) && room.amenities && typeof room.amenities === "object"
+      ? ((room.amenities as { selected?: string[] }).selected ?? [])
+      : [];
+    if (currentSelected.length === 0 && opsAmenities.length > 0) {
+      const matched = Object.entries(MANDATORY_AMENITY_ALIASES)
+        .filter(([, aliases]) => aliases.some((a) => opsAmenities.includes(a)))
+        .map(([mandatoryName]) => mandatoryName);
+      if (matched.length > 0) {
+        data.amenities = { selected: matched, details: {} } as Prisma.InputJsonValue;
+      }
+    }
+
+    if (Object.keys(data).length > 0) {
+      await db.hotel_rooms.update({ where: { id: room.id }, data });
+      converted++;
+    }
+  }
+  return converted;
+}
+
+// Ops's hotel_child_policies are structured age-banded rows (age_from,
+// age_to, charge_type, price) — Hotel Connect's guest-facing policy card
+// reads flat boolean/string columns directly on `hotels` instead and has no
+// concept of arbitrary age bands. This mapping is inherently lossy (ops
+// doesn't record a bed type to disambiguate "extra bed" charges), so it only
+// sets fields that are still unanswered (null), never overwrites an owner's
+// own policy answers.
+async function convertChildPoliciesForHotelConnect(hotelId: number): Promise<number> {
+  const policies = await db.hotel_child_policies.findMany({
+    where: { hotel_id: hotelId, is_active: true },
+    orderBy: { age_from: "asc" },
+  });
+  if (policies.length === 0) return 0;
+
+  const current = await db.hotels.findUnique({
+    where: { id: hotelId },
+    select: {
+      infant_free_occupancy: true, provide_bed_extra_kids: true,
+      extra_bed_kids_avail: true, extra_bed_kids_types: true,
+      extra_cot_charge_child: true, extra_mattress_charge_child: true,
+    },
+  });
+  if (!current) return 0;
+
+  const data: Prisma.hotelsUpdateInput = {};
+
+  // A FREE row for a young age band (0–5) is the closest ops equivalent of
+  // "infants stay free" — anything else touching a young band we leave alone
+  // rather than guess.
+  const infantFree = policies.find((p) => p.age_from === 0 && p.age_to <= 5 && p.charge_type === "FREE");
+  if (infantFree && current.infant_free_occupancy == null) data.infant_free_occupancy = true;
+
+  // Any chargeable row for an older band implies an extra bed is offered —
+  // bed type isn't recorded by ops, so "Mattress" (the same generic default
+  // used elsewhere in this codebase) stands in for the specific type.
+  const extraBedRow = policies.find((p) => p.age_from > 0 && ["EXTRA_BED", "FIXED_RATE", "SHARING_BED"].includes(p.charge_type));
+  if (extraBedRow && current.provide_bed_extra_kids == null) {
+    data.provide_bed_extra_kids = true;
+    data.extra_bed_kids_avail = "yes";
+    if (current.extra_bed_kids_types.length === 0) data.extra_bed_kids_types = ["Mattress"];
+    if (extraBedRow.price != null && current.extra_mattress_charge_child == null) {
+      data.extra_mattress_charge_child = extraBedRow.price.toString();
+    }
+  }
+
+  if (Object.keys(data).length === 0) return 0;
+  await db.hotels.update({ where: { id: hotelId }, data });
+  return 1;
+}
+
 export type MigrationPreview = {
   ownerEmail: string;
   ownerExists: boolean;
@@ -2134,9 +2346,24 @@ export async function migrateHotelToHotelConnect(
 ): Promise<MigrateResult> {
   const { session, actorId, actorName } = await requireSession();
 
-  const hotel = await db.hotels.findUnique({ where: { id }, select: { owner_id: true, is_active: true, slug: true } });
+  const hotel = await db.hotels.findUnique({ where: { id }, select: { owner_id: true, slug: true, name: true } });
   if (!hotel) return { success: false, message: "Hotel not found." };
   if (hotel.owner_id) return { success: false, message: "This hotel is already linked to a Hotel Connect account." };
+
+  // Ops data has real duplicate-name rows (e.g. two "Prodcheck Test Hotel"
+  // entries for the same property) — block migrating a second row for a
+  // name that's already been migrated, rather than creating two separate
+  // owner-facing listings for what's likely the same physical property.
+  const alreadyMigrated = await db.hotels.findFirst({
+    where: { name: hotel.name, owner_id: { not: null }, id: { not: id } },
+    select: { id: true },
+  });
+  if (alreadyMigrated) {
+    return {
+      success: false,
+      message: `Already migrated — another hotel named "${hotel.name}" (id ${alreadyMigrated.id}) is already linked to a Hotel Connect account.`,
+    };
+  }
 
   const email = input.ownerEmail.trim().toLowerCase();
   if (!email) return { success: false, message: "An owner email is required." };
@@ -2187,7 +2414,13 @@ export async function migrateHotelToHotelConnect(
     }
   }
 
-  const goingLive = hotel.is_active;
+  // Deliberately does NOT touch listing_status — it stays whatever it already
+  // is (DRAFT, for every ops-created hotel). The property_category/wizard_step
+  // backfill just lets the wizard correctly reflect the real data ops already
+  // entered; going live still requires the owner to open the wizard and use
+  // the real "Submit for Review" flow (review-actions.ts), same as any
+  // self-onboarded property — migration links the account, it doesn't grant
+  // a live listing.
   await db.hotels.update({
     where: { id },
     data: {
@@ -2196,7 +2429,6 @@ export async function migrateHotelToHotelConnect(
       property_sub_type: input.propertySubType,
       wizard_step: totalTabsFor(input.propertyCategory),
       updated_by: actorId,
-      ...(goingLive ? { listing_status: "LIVE", submitted_at: new Date(), approved_at: new Date() } : {}),
       ...(input.applyLatLngFallback ? {
         latitude: input.applyLatLngFallback.latitude,
         longitude: input.applyLatLngFallback.longitude,
@@ -2204,13 +2436,34 @@ export async function migrateHotelToHotelConnect(
     },
   });
 
+  // Best-effort enrichment so the owner sees usable data rather than
+  // required-field gaps the moment they open the wizard — never fatal to
+  // the migration itself, since the hotel is already correctly linked above.
+  const isGuestHouse = input.propertySubType === "GUEST_HOUSE";
+  let imagesConverted = 0, roomsConverted = 0, policiesConverted = 0;
+  try {
+    imagesConverted = await convertImageCategoriesToTags(id, isGuestHouse);
+  } catch (err) {
+    console.error("[migrateHotelToHotelConnect] image tag conversion failed:", err);
+  }
+  try {
+    roomsConverted = await convertRoomsForHotelConnect(id, isGuestHouse);
+  } catch (err) {
+    console.error("[migrateHotelToHotelConnect] room conversion failed:", err);
+  }
+  try {
+    policiesConverted = await convertChildPoliciesForHotelConnect(id);
+  } catch (err) {
+    console.error("[migrateHotelToHotelConnect] child policy conversion failed:", err);
+  }
+
   await createLog({
     action: "UPDATE",
     entity: "Hotel",
     entityId: String(id),
     entitySlug: hotel.slug,
     description: `Migrated to Hotel Connect, linked to owner ${email}${ownerCreated ? " (new account)" : ""}`,
-    metadata: { operation: "migrate_to_hotel_connect", ownerCreated },
+    metadata: { operation: "migrate_to_hotel_connect", ownerCreated, imagesConverted, roomsConverted, policiesConverted },
     userName: actorName ?? undefined,
     userEmail: session?.user?.email ?? undefined,
   });
@@ -2218,11 +2471,18 @@ export async function migrateHotelToHotelConnect(
   revalidatePath(`/dashboard/hotels/${id}`);
   revalidatePath("/dashboard/hotels");
 
+  const conversionNote = [
+    imagesConverted > 0 ? `${imagesConverted} photo(s) tagged` : null,
+    roomsConverted > 0 ? `${roomsConverted} room(s) filled in` : null,
+    policiesConverted > 0 ? `child policy backfilled` : null,
+  ].filter(Boolean).join(", ");
+
   return {
     success: true,
     ownerCreated,
-    message: ownerCreated
-      ? "Hotel linked and a new owner account was created — an email was sent with a link to set their password."
-      : "Hotel linked to the existing owner account.",
+    message: (ownerCreated
+      ? "Hotel linked and a new owner account was created — an email was sent with a link to set their password. It stays in Draft until the owner reviews and submits it."
+      : "Hotel linked to the existing owner account. It stays in Draft until the owner reviews and submits it.")
+      + (conversionNote ? ` Converted: ${conversionNote} — review before submitting.` : ""),
   };
 }
