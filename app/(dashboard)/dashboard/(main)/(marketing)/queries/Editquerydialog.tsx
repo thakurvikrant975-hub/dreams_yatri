@@ -122,15 +122,6 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
             // Match the saved destination name to get its numeric id
             const match = dests.find((d) => d.name === query.destination);
             if (!match) {
-                // TEMP DEBUG — remove after diagnosing the "not found" mismatch.
-                console.warn("[EditQueryDialog] destination match failed", {
-                    queryDestination: query.destination,
-                    queryDestinationCodes: [...(query.destination ?? "")].map((c) => c.charCodeAt(0)),
-                    destCount: dests.length,
-                    closestNames: dests
-                        .filter((d) => d.name.toLowerCase().includes((query.destination ?? "").slice(0, 6).toLowerCase()))
-                        .map((d) => ({ name: d.name, codes: [...d.name].map((c) => c.charCodeAt(0)) })),
-                });
                 // Destination no longer exists in DB — show it as plain text fallback
                 // (the Select won't be able to select it, but we still send the name on submit)
                 return;
