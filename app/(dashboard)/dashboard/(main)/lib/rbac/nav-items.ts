@@ -4,7 +4,7 @@ import {
   ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
-  ShieldCheck, NotebookPen,
+  ShieldCheck, NotebookPen, Eye,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -49,6 +49,7 @@ export const NAV_GROUPS = [
     items: [
       { title: "Hotels", href: "/dashboard/hotels", icon: BuildingIcon, phosphor: true },
       { title: "Hotel Directory", href: "/dashboard/hotels/overview", icon: Map },
+      { title: "Hotel Inventory", href: "/dashboard/hotel-inventory", icon: Eye },
       { title: "Property Submissions", href: "/dashboard/property-submissions", icon: ClipboardCheck },
       { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: KeyRound },
       { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: IdCardLanyard },
@@ -60,6 +61,7 @@ export const NAV_GROUPS = [
     items: [
       { title: "Vehicle Types", href: "/dashboard/vehicles", icon: Car, phosphor: true },
       { title: "Cab Pricing", href: "/dashboard/cab-pricing", icon: IndianRupee },
+      { title: "Cab Inventory", href: "/dashboard/cab-inventory", icon: Eye },
       { title: "Permits", href: "/dashboard/permits", icon: TicketCheck },
       { title: "Cab Drivers", href: "/dashboard/cab-drivers", icon: SteeringWheelIcon, phosphor: true },
       { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: Car },

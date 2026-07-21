@@ -23,6 +23,7 @@ export const ALL_HREFS = [
   // Hotels
   "/dashboard/hotels",
   "/dashboard/hotels/overview",
+  "/dashboard/hotel-inventory",
   "/dashboard/property-submissions",
   "/dashboard/hotels/meal-types",
   "/dashboard/hotels/diet-types",
@@ -33,6 +34,7 @@ export const ALL_HREFS = [
   // Cab Management
   "/dashboard/vehicles",
   "/dashboard/cab-pricing",
+  "/dashboard/cab-inventory",
   "/dashboard/permits",
   "/dashboard/cab-drivers",
   "/dashboard/verify-cabs",

@@ -171,7 +171,13 @@ export default async function HotelInventoryDetailPage({
                     </div>
                 )}
 
-                {hotel.hotelRooms.map((room) => (
+                {hotel.hotelRooms.map((room) => {
+                    const amenities = Array.isArray(room.amenities) ? room.amenities as string[] : [];
+                    // hotel.room_pricing (flat, hotel-level) carries seasons + occupancy
+                    // prices that room.pricing (nested under hotelRooms) doesn't — see
+                    // getHotelById's baseInclude vs roomPricingWithSeasons.
+                    const roomPricing = hotel.room_pricing.filter((p) => p.room_id === room.id);
+                    return (
                     <div key={room.id} className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
                         <div className="flex items-center justify-between gap-3 px-5 py-3.5 bg-dashboard-base-200/50 border-b border-dashboard-base-300">
                             <div>
@@ -195,9 +201,9 @@ export default async function HotelInventoryDetailPage({
                             </span>
                         </div>
 
-                        {room.amenities && room.amenities.length > 0 && (
+                        {amenities.length > 0 && (
                             <div className="px-5 pt-3 flex flex-wrap gap-1.5">
-                                {room.amenities.map((a) => (
+                                {amenities.map((a) => (
                                     <span key={a} className="text-[11px] px-2 py-0.5 rounded-full bg-dashboard-base-200 text-dashboard-base-content/70">
                                         {a}
                                     </span>
@@ -206,10 +212,10 @@ export default async function HotelInventoryDetailPage({
                         )}
 
                         <div className="p-5 space-y-3">
-                            {room.pricing.length === 0 ? (
+                            {roomPricing.length === 0 ? (
                                 <p className="text-xs text-dashboard-base-content/45">No pricing configured for this room yet.</p>
                             ) : (
-                                room.pricing.map((p) => (
+                                roomPricing.map((p) => (
                                     <div key={p.id} className="rounded-xl border border-dashboard-base-300 overflow-hidden">
                                         <div className="flex items-center justify-between gap-2 px-4 py-2 bg-dashboard-primary/5 border-b border-dashboard-base-300">
                                             <p className="text-xs font-semibold text-dashboard-base-content flex items-center gap-1.5">
@@ -269,7 +275,8 @@ export default async function HotelInventoryDetailPage({
                             )}
                         </div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );
