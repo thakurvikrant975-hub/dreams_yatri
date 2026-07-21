@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
     Package, Search, MapPin, Route, BedDouble, CalendarDays, Loader2, Sparkles, ArrowRight, IndianRupee,
-    Users, Calendar,
+    Users, Calendar, Plus, X,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -116,6 +116,14 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
     const hasBudget = budget != null && (budget.min != null || budget.max != null);
 
     const [search, setSearch] = useState("");
+    // Route search: sales exec keys in the stops of the itinerary ("Munnar",
+    // "Alleppey", "Kovalam", …) instead of a free-text query, and we look
+    // for a catalog package whose route covers every one of them.
+    const [routeMode, setRouteMode] = useState(false);
+    const [routeStops, setRouteStops] = useState<string[]>(["", ""]);
+    const cleanRouteStops = routeStops.map((s) => s.trim()).filter(Boolean);
+    const routeStopsKey = routeStops.join("|");
+
     const [packages, setPackages] = useState<TemplatePackage[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -132,6 +140,8 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
     useEffect(() => {
         if (!open) return;
         setSearch(destination ?? "");
+        setRouteMode(false);
+        setRouteStops(["", ""]);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
@@ -142,7 +152,8 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
         setLoadingMessage(randomLoadingMessage());
         const timer = setTimeout(async () => {
             const result = await searchPackageLibraryForTemplate({
-                search, page: 1, size: PAGE_SIZE,
+                search: routeMode ? "" : search, page: 1, size: PAGE_SIZE,
+                routeStops: routeMode ? cleanRouteStops : undefined,
                 travelDate, ...pax,
                 budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
                 queryDestination: destination ?? undefined,
@@ -153,18 +164,19 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
             setTotal(result.total);
             setPage(1);
             setLoading(false);
-        }, search ? 300 : 0);
+        }, search || routeMode ? 300 : 0);
         return () => clearTimeout(timer);
-        // Deliberately re-runs only on `open`/`search` — pax/travelDate/budget
+        // Deliberately re-runs only on `open`/`search`/route state — pax/travelDate/budget
         // come from props that don't change while the dialog is open.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, search]);
+    }, [open, search, routeMode, routeStopsKey]);
 
     async function loadMore() {
         setLoadingMore(true);
         const next = page + 1;
         const result = await searchPackageLibraryForTemplate({
-            search, page: next, size: PAGE_SIZE,
+            search: routeMode ? "" : search, page: next, size: PAGE_SIZE,
+            routeStops: routeMode ? cleanRouteStops : undefined,
             travelDate, ...pax,
             budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
             queryDestination: destination ?? undefined,
@@ -272,14 +284,67 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
                     </div>
                 )}
 
-                <div className="relative shrink-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search by title, location, or destination…"
-                        className="pl-9 h-9 text-sm"
-                    />
+                <div className="shrink-0 space-y-2">
+                    {routeMode ? (
+                        <div className="space-y-1.5">
+                            {routeStops.map((stop, idx) => (
+                                <div key={idx} className="relative flex items-center gap-1.5">
+                                    <Route className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                    <Input
+                                        value={stop}
+                                        onChange={(e) => setRouteStops((prev) =>
+                                            prev.map((s, i) => (i === idx ? e.target.value : s)),
+                                        )}
+                                        placeholder={`Destination ${idx + 1}`}
+                                        className="pl-9 h-9 text-sm"
+                                    />
+                                    {routeStops.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setRouteStops((prev) => prev.filter((_, i) => i !== idx))}
+                                            className="shrink-0 h-9 w-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                            aria-label={`Remove destination ${idx + 1}`}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                            <div className="flex items-center justify-between">
+                                <button
+                                    type="button"
+                                    onClick={() => setRouteStops((prev) => [...prev, ""])}
+                                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                >
+                                    <Plus size={12} /> Add destination
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setRouteMode(false)}
+                                    className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                                >
+                                    Back to keyword search
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search by title, location, or destination…"
+                                className="pl-9 pr-32 h-9 text-sm"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setRouteMode(true)}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                            >
+                                <Route size={12} /> Search by route
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
@@ -294,7 +359,13 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
                         <div className="py-6">
                             <TableEmptyState
                                 title="No matching packages"
-                                description={search ? `Nothing found for "${search}" — try a different search.` : "No packages in the library yet."}
+                                description={
+                                    routeMode && cleanRouteStops.length > 0
+                                        ? `No package covers ${cleanRouteStops.join(", ")} — try fewer stops.`
+                                        : search
+                                            ? `Nothing found for "${search}" — try a different search.`
+                                            : "No packages in the library yet."
+                                }
                             />
                         </div>
                     ) : (

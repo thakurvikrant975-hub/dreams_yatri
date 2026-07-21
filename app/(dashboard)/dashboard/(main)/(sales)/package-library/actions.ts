@@ -93,20 +93,17 @@ export type TemplatePackage = LibraryPackage & {
 };
 
 async function priceForPackage(
-    row: {
-        id: number;
-        durations: { id: number; routes: { id: number }[] }[];
-    },
+    packageId: number,
+    duration: { id: number } | undefined,
+    route: { id: number } | undefined,
     stayCategoryId: number | undefined,
     opts: { adults: number; children: number; infants: number; travelDate: string | null },
 ): Promise<{ estimatedPrice: number | null; pricePerAdult: number | null }> {
-    const duration = row.durations[0];
-    const route = duration?.routes[0];
     if (!duration || !route || !stayCategoryId) return { estimatedPrice: null, pricePerAdult: null };
 
     try {
         const breakdown = await computePackagePrice({
-            package_id:       row.id,
+            package_id:       packageId,
             duration_id:      duration.id,
             route_id:         route.id,
             stay_category_id: stayCategoryId,
@@ -145,7 +142,7 @@ export async function getTemplatePackagePriceForCategory(params: {
     if (!duration || !duration.routes[0]) return { estimatedPrice: null, pricePerAdult: null };
 
     return priceForPackage(
-        { id: packageId, durations: [{ id: duration.id, routes: [{ id: duration.routes[0].id }] }] },
+        packageId, { id: duration.id }, { id: duration.routes[0].id },
         stayCategoryId,
         { adults, children, infants, travelDate },
     );
@@ -171,17 +168,24 @@ export async function searchPackageLibraryForTemplate(params: {
      * from their submitted packageUrl) — beats destination/budget sorting
      * entirely, since it's not a guess, it's literally the page they were on. */
     querySlug?: string;
+    /** Multi-stop route search — e.g. ["Munnar", "Alleppey", "Kovalam"].
+     * Only packages that have at least one route whose stops cover every
+     * name given here are returned; the matching route (not necessarily the
+     * package's default one) is what gets shown/priced/used-as-template. */
+    routeStops?: string[];
 } = {}): Promise<{ packages: TemplatePackage[]; total: number }> {
     const {
         search = "", page = 1, size = 12,
         travelDate = null, adults = 2, children = 0, infants = 0,
         budgetMin, budgetMax, budgetType = "PER_PERSON",
-        queryDestination, querySlug,
+        queryDestination, querySlug, routeStops,
     } = params;
     const safeSize = Math.min(size, 50);
     const hasBudget = budgetMin != null || budgetMax != null;
     const hasDestinationPriority = !!queryDestination?.trim();
     const hasSlugPriority = !!querySlug?.trim();
+    const cleanStops = (routeStops ?? []).map((s) => s.trim()).filter(Boolean);
+    const hasRouteStops = cleanStops.length > 0;
     const needsInMemorySort = hasBudget || hasDestinationPriority || hasSlugPriority;
     // With a budget or destination-priority sort, we price/sort every match
     // (catalog is small — capped for safety) instead of just whichever page
@@ -197,6 +201,56 @@ export async function searchPackageLibraryForTemplate(params: {
                 { destination: { region: { name: { contains: search, mode: "insensitive" as const } } } },
             ],
         } : {}),
+        // Only keep packages that have a route covering every requested stop —
+        // order isn't enforced, just "this itinerary passes through all of these".
+        ...(hasRouteStops ? {
+            durations: {
+                some: {
+                    is_active: true,
+                    routes: {
+                        some: {
+                            is_active: true,
+                            AND: cleanStops.map((name) => ({
+                                stops: { some: { place_name: { contains: name, mode: "insensitive" as const } } },
+                            })),
+                        },
+                    },
+                },
+            },
+        } : {}),
+    };
+
+    // Route search needs to look at every duration/route/stop combo (not just
+    // the package's default) to find the one that actually matches — a match
+    // is often a non-default variant.
+    const TEMPLATE_ROW_SELECT_ROUTE_MATCH = {
+        id:          true,
+        title:       true,
+        slug:        true,
+        thumbnail:   true,
+        description: true,
+        destination: { select: { name: true, region: { select: { name: true } } } },
+        stay_categories: {
+            where:   { is_active: true as const },
+            orderBy: { sort_order: "asc" as const },
+            select:  { id: true, label: true, is_default: true },
+        },
+        durations: {
+            where:   { is_active: true as const },
+            orderBy: { sort_order: "asc" as const },
+            select:  {
+                id: true, slug: true, days: true, nights: true, is_default: true,
+                routes: {
+                    where:   { is_active: true as const },
+                    orderBy: { sort_order: "asc" as const },
+                    select:  {
+                        id:    true,
+                        slug:  true,
+                        stops: { orderBy: { sort_order: "asc" as const }, select: { place_name: true } },
+                    },
+                },
+            },
+        },
     };
 
     const TEMPLATE_ROW_SELECT = {
@@ -229,18 +283,46 @@ export async function searchPackageLibraryForTemplate(params: {
         },
     };
 
+    /** Picks which duration/route to show for a package. Normally that's just
+     * the default one; for a route search it's whichever route actually
+     * covers every requested stop (default duration preferred among matches,
+     * since `where` already guarantees at least one match exists). */
+    function pickDurationRoute(durations: {
+        id: number; slug: string; days: number; nights: number; is_default?: boolean;
+        routes: { id: number; slug: string; stops: { place_name: string }[] }[];
+    }[]) {
+        if (!hasRouteStops) {
+            const duration = durations[0];
+            return { duration, route: duration?.routes[0] };
+        }
+        const ordered = [...durations].sort((a, b) =>
+            a.is_default === b.is_default ? 0 : a.is_default ? -1 : 1,
+        );
+        for (const duration of ordered) {
+            const route = duration.routes.find((rt) => {
+                const names = rt.stops.map((s) => s.place_name.toLowerCase());
+                return cleanStops.every((stop) => names.some((n) => n.includes(stop.toLowerCase())));
+            });
+            if (route) return { duration, route };
+        }
+        // Shouldn't happen — `where` already required a matching route to exist.
+        const duration = durations[0];
+        return { duration, route: duration?.routes[0] };
+    }
+
     async function mapTemplateRow(r: {
         id: number; title: string; slug: string; thumbnail: string | null; description: string | null;
         destination: { name: string; region: { name: string } | null };
         stay_categories: { id: number; label: string; is_default: boolean }[];
-        durations: { id: number; slug: string; days: number; nights: number;
+        durations: { id: number; slug: string; days: number; nights: number; is_default?: boolean;
             routes: { id: number; slug: string; stops: { place_name: string }[] }[] }[];
     }): Promise<TemplatePackage> {
-        const duration = r.durations[0];
-        const route = duration?.routes[0];
+        const { duration, route } = pickDurationRoute(r.durations);
         const stayCategory = r.stay_categories.find((s) => s.is_default) ?? r.stay_categories[0];
 
-        const { estimatedPrice, pricePerAdult } = await priceForPackage(r, stayCategory?.id, { adults, children, infants, travelDate });
+        const { estimatedPrice, pricePerAdult } = await priceForPackage(
+            r.id, duration, route, stayCategory?.id, { adults, children, infants, travelDate },
+        );
 
         let withinBudget: boolean | null = null;
         if (hasBudget && estimatedPrice != null) {
@@ -270,6 +352,8 @@ export async function searchPackageLibraryForTemplate(params: {
         };
     }
 
+    const rowSelect = hasRouteStops ? TEMPLATE_ROW_SELECT_ROUTE_MATCH : TEMPLATE_ROW_SELECT;
+
     let [total, rows] = await Promise.all([
         db.packages.count({ where }),
         db.packages.findMany({
@@ -278,7 +362,7 @@ export async function searchPackageLibraryForTemplate(params: {
             ...(needsInMemorySort
                 ? { take: PRICE_ALL_CAP }
                 : { skip: (page - 1) * safeSize, take: safeSize }),
-            select: TEMPLATE_ROW_SELECT,
+            select: rowSelect,
         }),
     ]);
 
@@ -292,7 +376,7 @@ export async function searchPackageLibraryForTemplate(params: {
     if (hasSlugPriority && page === 1 && !packages.some((p) => p.slug === querySlug)) {
         const pinnedRow = await db.packages.findFirst({
             where:  { slug: querySlug, is_active: true },
-            select: TEMPLATE_ROW_SELECT,
+            select: rowSelect,
         });
         if (pinnedRow) {
             packages.unshift(await mapTemplateRow(pinnedRow));
