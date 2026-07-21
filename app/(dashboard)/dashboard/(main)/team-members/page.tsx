@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 interface PageProps {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; search?: string; department?: string; role?: string; pageSize?: string }>;
 }
 
 export default function Page({ searchParams }: PageProps) {

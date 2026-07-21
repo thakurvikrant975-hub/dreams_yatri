@@ -38,15 +38,21 @@ function TableSkeleton() {
 }
 
 interface PageProps {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; search?: string; department?: string; role?: string; pageSize?: string }>;
 }
 
 async function PageContent({ searchParams }: PageProps) {
-  const params = await searchParams;
-  const page   = Math.max(1, parseInt(params.page ?? "1", 10));
+  const params   = await searchParams;
+  const page     = Math.max(1, parseInt(params.page ?? "1", 10));
+  const pageSize = params.pageSize ? Math.max(1, parseInt(params.pageSize, 10)) : undefined;
 
   const [paginated, departments, roles, allMembers] = await Promise.all([
-    getTeamMembersPaginated(page),
+    getTeamMembersPaginated(page, {
+      search: params.search,
+      departmentId: params.department,
+      roleId: params.role,
+      pageSize,
+    }),
     getDepartmentsForSelect(),
     getRolesForSelect(),
     db.teamMember.findMany({
@@ -75,6 +81,9 @@ async function PageContent({ searchParams }: PageProps) {
         departments={departments}
         roles={roles}
         currentPage={page}
+        currentSearch={params.search ?? ""}
+        currentDepartment={params.department ?? "all"}
+        currentRole={params.role ?? "all"}
       />
     </>
   );

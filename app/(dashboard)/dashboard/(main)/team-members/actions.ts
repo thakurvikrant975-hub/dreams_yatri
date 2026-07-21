@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/app/lib/db";
+import type { Prisma } from "@/app/generated/prisma";
 import { revalidatePath } from "next/cache";
 import { hash } from "bcryptjs";
 import { z } from "zod";
@@ -114,20 +115,38 @@ async function generateEmployeeId(): Promise<string> {
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
 
-export async function getTeamMembersPaginated(page = 1): Promise<PaginatedMembers> {
-  const skip = (page - 1) * PAGE_SIZE;
+export async function getTeamMembersPaginated(
+  page = 1,
+  opts?: { search?: string; departmentId?: string; roleId?: string; pageSize?: number },
+): Promise<PaginatedMembers> {
+  const pageSize = opts?.pageSize && opts.pageSize > 0 ? opts.pageSize : PAGE_SIZE;
+  const skip = (page - 1) * pageSize;
+
+  const search = opts?.search?.trim();
+  const where: Prisma.TeamMemberWhereInput = {
+    ...(opts?.departmentId ? { departmentId: opts.departmentId } : {}),
+    ...(opts?.roleId ? { teamRoleId: opts.roleId } : {}),
+    ...(search ? {
+      OR: [
+        { name: { contains: search, mode: "insensitive" as const } },
+        { email: { contains: search, mode: "insensitive" as const } },
+        { employeeId: { contains: search, mode: "insensitive" as const } },
+      ],
+    } : {}),
+  };
 
   const [raw, total] = await Promise.all([
     db.teamMember.findMany({
+      where,
       skip,
-      take: PAGE_SIZE,
+      take: pageSize,
       orderBy: { createdAt: "desc" },
       include: {
         department: { select: { id: true, name: true } },
         teamRole:   { select: { id: true, name: true } },
       },
     }),
-    db.teamMember.count(),
+    db.teamMember.count({ where }),
   ]);
 
   const members: TeamMember[] = raw.map(({ teamRole, ...m }) => ({
@@ -135,7 +154,7 @@ export async function getTeamMembersPaginated(page = 1): Promise<PaginatedMember
     role: teamRole,
   }));
 
-  return { members, total, page, pageSize: PAGE_SIZE, totalPages: Math.ceil(total / PAGE_SIZE) };
+  return { members, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 export async function getDepartmentsForSelect() {
