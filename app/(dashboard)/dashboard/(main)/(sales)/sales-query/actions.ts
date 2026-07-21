@@ -163,7 +163,10 @@ export async function getMyFollowUps(packageQueryId?: string) {
         orderBy: [{ followUpAt: "asc" }, { createdAt: "desc" }],
         include: {
             packageQuery: {
-                select: { id: true, name: true, destination: true, status: true },
+                select: {
+                    id: true, name: true, phone: true, email: true,
+                    destination: true, packageName: true, status: true,
+                },
             },
         },
     });

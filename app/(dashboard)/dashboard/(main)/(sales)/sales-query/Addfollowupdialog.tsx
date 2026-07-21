@@ -83,6 +83,15 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
 
+        // The <input type="datetime-local"> value has no timezone info
+        // ("2026-07-30T14:45") — `new Date()` parsing that string SERVER-SIDE
+        // would interpret it in the server's timezone, not the user's. Convert
+        // it here (in the browser, where the string genuinely means "local
+        // time") into an unambiguous ISO instant before it leaves the client.
+        if (followUpAtValue) {
+            formData.set("followUpAt", new Date(followUpAtValue).toISOString());
+        }
+
         startTransition(async () => {
             const result = await addFollowUp(salesQueryId, formData);
             if (result.success) {

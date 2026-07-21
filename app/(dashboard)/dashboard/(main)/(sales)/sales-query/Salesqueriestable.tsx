@@ -405,7 +405,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
             ),
         },
         {
-            header: "Next Follow-Up",
+            header: "Follow up",
             sortKey: (q) => q.nextFollowUpAt ? new Date(q.nextFollowUpAt).getTime() : 0,
             cell: (q) => (
                 <div className="text-xs">
@@ -424,18 +424,26 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
         },
         {
             header: "Assigned",
+            width: "w-[84px]",
             sortKey: (q) => q.assignedAt ? new Date(q.assignedAt).getTime() : 0,
             cell: (q) => (
-                <div className="space-y-0.5 text-xs text-muted-foreground">
+                <div
+                    className="space-y-0.5 text-xs leading-tight"
+                    // Relative time ("2 hours ago") moved to a hover title instead of
+                    // a third visible line — keeps the column from growing taller/wider.
+                    title={q.assignedAt ? formatDistanceToNow(new Date(q.assignedAt), { addSuffix: true }) : undefined}
+                >
                     {q.assignedAt ? (
                         <>
-                            <p className="font-medium text-foreground text-[11px]">
+                            <p className="font-medium text-foreground text-[11px] whitespace-nowrap">
+                                {format(new Date(q.assignedAt), "hh:mm a")}
+                            </p>
+                            <p className="text-muted-foreground whitespace-nowrap">
                                 {format(new Date(q.assignedAt), "dd MMM yy")}
                             </p>
-                            <p>{formatDistanceToNow(new Date(q.assignedAt), { addSuffix: true })}</p>
                         </>
                     ) : (
-                        <span className="italic">—</span>
+                        <span className="text-muted-foreground italic">—</span>
                     )}
                 </div>
             ),
