@@ -333,13 +333,15 @@ function toMealFormState(m: HotelMealPricing): MealFormState {
 }
 
 function buildMealInput(form: MealFormState): MealPricingInput {
+  const vegPrice    = form.veg_non_veg && form.veg_price     ? Number(form.veg_price)     : null;
+  const nonVegPrice = form.veg_non_veg && form.non_veg_price ? Number(form.non_veg_price)  : null;
   return {
     meal_type:     form.meal_type,
     label:         form.label.trim(),
-    price:         form.veg_non_veg ? Number(form.veg_price) : Number(form.price),
+    price:         form.veg_non_veg ? Number(vegPrice ?? nonVegPrice) : Number(form.price),
     weekend_price: form.weekend_price ? Number(form.weekend_price) : null,
-    veg_price:     form.veg_non_veg ? Number(form.veg_price) : null,
-    non_veg_price: form.veg_non_veg ? Number(form.non_veg_price) : null,
+    veg_price:     vegPrice,
+    non_veg_price: nonVegPrice,
     is_active:     form.is_active,
     seasons:       form.seasons
       .filter((s) => s.valid_from && s.valid_to && Number(s.price) > 0)
@@ -373,8 +375,10 @@ function MealForm({
   }
 
   const overlaps = overlappingIds(form.seasons);
+  const vegPriceInvalid    = form.veg_price !== ""     && Number(form.veg_price) <= 0;
+  const nonVegPriceInvalid = form.non_veg_price !== "" && Number(form.non_veg_price) <= 0;
   const priceValid = form.veg_non_veg
-    ? (!!form.veg_price && Number(form.veg_price) > 0 && !!form.non_veg_price && Number(form.non_veg_price) > 0)
+    ? ((!!form.veg_price || !!form.non_veg_price) && !vegPriceInvalid && !nonVegPriceInvalid)
     : (!!form.price && Number(form.price) > 0);
   const isValid =
     !!form.meal_type && !!form.label.trim() &&
@@ -450,29 +454,37 @@ function MealForm({
       </div>
 
       {form.veg_non_veg ? (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-dashboard-base-content">
-              Veg Price (₹/person) <span className="text-dashboard-error">*</span>
-            </Label>
-            <Input
-              type="number" min={0} placeholder="100"
-              value={form.veg_price}
-              onChange={(e) => upd("veg_price", e.target.value)}
-              className="bg-dashboard-base-100 border-dashboard-base-content/20"
-            />
+        <div className="space-y-1.5">
+          <p className="text-xs text-dashboard-base-content/50">
+            Leave a price blank if the hotel doesn&rsquo;t offer that option — at least one is required.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-dashboard-base-content">
+                Veg Price (₹/person)
+              </Label>
+              <Input
+                type="number" min={0} placeholder="Not offered"
+                value={form.veg_price}
+                onChange={(e) => upd("veg_price", e.target.value)}
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-dashboard-base-content">
+                Non-Veg Price (₹/person)
+              </Label>
+              <Input
+                type="number" min={0} placeholder="Not offered"
+                value={form.non_veg_price}
+                onChange={(e) => upd("non_veg_price", e.target.value)}
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-dashboard-base-content">
-              Non-Veg Price (₹/person) <span className="text-dashboard-error">*</span>
-            </Label>
-            <Input
-              type="number" min={0} placeholder="150"
-              value={form.non_veg_price}
-              onChange={(e) => upd("non_veg_price", e.target.value)}
-              className="bg-dashboard-base-100 border-dashboard-base-content/20"
-            />
-          </div>
+          {!form.veg_price && !form.non_veg_price && (
+            <p className="text-xs text-dashboard-error">Enter at least one of Veg or Non-Veg price.</p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -520,7 +532,7 @@ function MealForm({
         <SeasonsInlineList
           seasons={form.seasons}
           onChange={(s) => upd("seasons", s)}
-          basePrice={form.veg_non_veg ? (Number(form.veg_price) || 0) : (Number(form.price) || 0)}
+          basePrice={form.veg_non_veg ? (Number(form.veg_price) || Number(form.non_veg_price) || 0) : (Number(form.price) || 0)}
         />
       </div>
 
@@ -584,6 +596,10 @@ function MealCard({
             <p className="text-xs text-dashboard-base-content/50">
               {meal.veg_price && meal.non_veg_price
                 ? `Veg ₹${meal.veg_price.toLocaleString("en-IN")} · Non-veg ₹${meal.non_veg_price.toLocaleString("en-IN")}/person`
+                : meal.veg_price
+                ? `Veg ₹${meal.veg_price.toLocaleString("en-IN")}/person`
+                : meal.non_veg_price
+                ? `Non-veg ₹${meal.non_veg_price.toLocaleString("en-IN")}/person`
                 : `₹${meal.price.toLocaleString("en-IN")}/person weekday`}
               {meal.weekend_price ? ` · ₹${meal.weekend_price.toLocaleString("en-IN")} weekend` : ""}
               {meal.seasons.length > 0
