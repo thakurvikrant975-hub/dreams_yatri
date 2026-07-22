@@ -1125,10 +1125,10 @@ function HeroCover({
   const lastDay = form.itineraries[form.itineraries.length - 1];
   const pickupPoint = firstDay?.transportPickup || "";
   const dropPoint = lastDay?.transportDrop || "";
-  const routeSteps: { label: string; nights?: number }[] = [
-    ...(pickupPoint ? [{ label: `${pickupPoint} pickup` }] : []),
-    ...form.stops.filter((s) => s.name.trim()).map((s) => ({ label: titleCase(s.name), nights: s.nights })),
-    ...(dropPoint ? [{ label: `${dropPoint} drop` }] : []),
+  const routeSteps: { label: string; nights?: number; kind: "pickup" | "drop" | "stop" }[] = [
+    ...(pickupPoint ? [{ label: `${pickupPoint} pickup`, kind: "pickup" as const }] : []),
+    ...form.stops.filter((s) => s.name.trim()).map((s) => ({ label: titleCase(s.name), nights: s.nights, kind: "stop" as const })),
+    ...(dropPoint ? [{ label: `${dropPoint} drop`, kind: "drop" as const }] : []),
   ];
 
   async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -1244,7 +1244,9 @@ function HeroCover({
               <div key={i} className="flex items-center gap-1">
                 {i > 0 && <ArrowRight size={11} className="text-white/40 shrink-0 mx-0.5" />}
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 backdrop-blur-sm px-1.5 py-0.5 text-[10px] text-white whitespace-nowrap">
-                  <MapPin size={9} className="shrink-0 text-white/60" />
+                  {step.kind === "stop"
+                    ? <MapPin size={9} className="shrink-0 text-white/60" />
+                    : <Car size={9} className="shrink-0 text-white/60" />}
                   {step.label}
                   {step.nights != null && (
                     <span className="rounded-full bg-white/20 px-1 py-0.5 text-[7px] font-bold text-white/90">
