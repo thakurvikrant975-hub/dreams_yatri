@@ -277,6 +277,10 @@ export async function getHotelRoomByIdForBuilder(
 export interface ActivityResult {
   id:            number;
   name:          string;
+  /** The catalog's own write-up for this activity — what actually goes into
+   * the day card's description on selection (see handleActivitySelect in
+   * page.tsx). Null when the catalog entry was never given one. */
+  description:   string | null;
   category:      string | null;
   durationHours: number | null;
   thumbnail:     string | null;
@@ -287,23 +291,39 @@ export interface ActivityResult {
 
 export async function searchActivitiesForBuilder(cityOrDestinationName: string, query: string): Promise<ActivityResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
-  if (!city) return [];
+  const q = query.trim();
+  if (!city && !q) return [];
 
+  // No query: default listing scoped to the day's destination. With a query,
+  // search broadly by activity title OR city/destination — previously this
+  // ANDed the query onto the destination scope, so typing an activity title
+  // from a *different* city (or a city name that isn't also in the day's
+  // destination) silently returned zero/wrong matches.
   const list = await db.activities.findMany({
     where: {
       is_active: true,
-      OR: [
-        { city: { contains: city, mode: "insensitive" } },
-        { destination: { name: { contains: city, mode: "insensitive" } } },
-        // `city`/`destination_id` are unpopulated on virtually every real
-        // activity row — the city instead lives as a suffix in the name
-        // itself (e.g. "Tea Garden Walk munnar"), so match against that too.
-        { name: { contains: city, mode: "insensitive" } },
-      ],
-      ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { city: { contains: q, mode: "insensitive" } },
+              { state: { contains: q, mode: "insensitive" } },
+              { destination: { name: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : {
+            OR: [
+              { city: { contains: city, mode: "insensitive" } },
+              { destination: { name: { contains: city, mode: "insensitive" } } },
+              // `city`/`destination_id` are unpopulated on virtually every real
+              // activity row — the city instead lives as a suffix in the name
+              // itself (e.g. "Tea Garden Walk munnar"), so match against that too.
+              { name: { contains: city, mode: "insensitive" } },
+            ],
+          }),
     },
     select: {
-      id: true, name: true, duration_hours: true,
+      id: true, name: true, description: true, duration_hours: true,
       category: { select: { name: true } },
       images: {
         select: { url: true, thumbnail: true, label: true },
@@ -321,6 +341,7 @@ export async function searchActivitiesForBuilder(cityOrDestinationName: string, 
     return {
       id:            a.id,
       name:          a.name,
+      description:   a.description ?? null,
       category:      a.category?.name ?? null,
       durationHours: a.duration_hours != null ? Number(a.duration_hours) : null,
       thumbnail:     photos[0] ? getThumbnailImage(photos[0]) : null,
@@ -574,6 +595,7 @@ export interface QueryDetail {
     paymentPolicy:   string[];
     amendmentPolicy: string[];
     travelBenefits:  string[];
+    extraPolicyItems: ExtraPolicyItems;
     paymentLink:     string | null;
     /** Frozen hotel/cab/ticket/margin/GST breakdown, written once when the
      * package is sent — see PricingSnapshot in sendPackageToClient. */
@@ -661,6 +683,36 @@ export interface DayItinerary {
   notes:              string;
 }
 
+/** Per-package additions to the six standard lists — see
+ * custom_packages.extraPolicyItems. Anyone (including a Sales Executive, who
+ * can't touch the standard lists themselves) can add/remove items here;
+ * they're always shown on top of, never replacing, the admin-managed
+ * standard list from itinerary_settings. */
+export type ExtraPolicyItems = {
+  inclusions:      string[];
+  exclusions:      string[];
+  termsConditions: string[];
+  paymentPolicy:   string[];
+  amendmentPolicy: string[];
+  travelBenefits:  string[];
+};
+
+/** Defensive against a missing key or non-array value in the stored JSON
+ * (e.g. an older row saved before a key existed) — every key always comes
+ * back as at least an empty array. */
+function normalizeExtraPolicyItems(raw: unknown): ExtraPolicyItems {
+  const obj = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof ExtraPolicyItems, unknown>>;
+  const arr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  return {
+    inclusions:      arr(obj.inclusions),
+    exclusions:      arr(obj.exclusions),
+    termsConditions: arr(obj.termsConditions),
+    paymentPolicy:   arr(obj.paymentPolicy),
+    amendmentPolicy: arr(obj.amendmentPolicy),
+    travelBenefits:  arr(obj.travelBenefits),
+  };
+}
+
 export interface PackageInput {
   /** The package's own identity — client-generated (crypto.randomUUID()) the
    * first time a new draft is saved, then reused on every subsequent save.
@@ -694,6 +746,7 @@ export interface PackageInput {
   paymentPolicy:   string[];
   amendmentPolicy: string[];
   travelBenefits:  string[];
+  extraPolicyItems: ExtraPolicyItems;
   paymentLink:     string;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
@@ -1157,6 +1210,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       paymentPolicy:   true,
       amendmentPolicy: true,
       travelBenefits:  true,
+      extraPolicyItems: true,
       paymentLink:     true,
       pricingSnapshot: true,
       stops: {
@@ -1246,6 +1300,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       stops: pkgRest.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
       itineraries: itineraries.map(normalizeItinerary),
       tickets: tickets.map(normalizeTicket),
+      extraPolicyItems: normalizeExtraPolicyItems(pkgRest.extraPolicyItems),
     },
   };
 }
@@ -1282,7 +1337,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
-      termsNotes, paymentLink,
+      termsNotes, paymentLink, extraPolicyItems,
       status, stops, itineraries, tickets,
     } = input;
 
@@ -1350,6 +1405,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     const effectiveAmendmentPolicy = itinerarySettings.amendmentPolicy;
     const effectiveTravelBenefits  = itinerarySettings.travelBenefits;
     const effectiveCustomPolicySections = itinerarySettings.customPolicySections as unknown as Prisma.InputJsonValue;
+    // Unlike the six lists above, this one DOES trust client input — it's
+    // the per-package additions a Sales Executive (or anyone) is meant to
+    // be able to add, on top of (never replacing) the standard lists.
+    // Normalized defensively since it's untrusted input.
+    const effectiveExtraPolicyItems = normalizeExtraPolicyItems(extraPolicyItems) as unknown as Prisma.InputJsonValue;
 
     // Upsert the custom package (unique on its own id, client-generated on
     // first save — see PackageInput.id — not on queryId, since a query can
@@ -1384,6 +1444,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         amendmentPolicy: effectiveAmendmentPolicy,
         travelBenefits:  effectiveTravelBenefits,
         customPolicySections: effectiveCustomPolicySections,
+        extraPolicyItems: effectiveExtraPolicyItems,
         paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
@@ -1423,6 +1484,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         amendmentPolicy: effectiveAmendmentPolicy,
         travelBenefits:  effectiveTravelBenefits,
         customPolicySections: effectiveCustomPolicySections,
+        extraPolicyItems: effectiveExtraPolicyItems,
         paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,

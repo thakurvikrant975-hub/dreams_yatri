@@ -2469,6 +2469,14 @@ model custom_packages {
    * defined extra policy blocks (`{ id, title, items }[]`) beyond the six
    * fixed lists above. */
   customPolicySections Json?
+  /** Per-package additions to the six standard lists above (inclusions,
+   * exclusions, termsConditions, paymentPolicy, amendmentPolicy,
+   * travelBenefits) — lets a sales exec add something specific to this
+   * client's package (e.g. "Complimentary airport pickup") without being
+   * able to edit or remove the standard items, which stay admin-managed
+   * only via itinerary_settings. Shape: `{ inclusions: string[], ... }`,
+   * one key per standard list, each defaulting to an empty array. */
+  extraPolicyItems Json @default("{}")
   status          CustomPackageStatus  @default(DRAFT)
   builtBy         String
   builtByName     String?

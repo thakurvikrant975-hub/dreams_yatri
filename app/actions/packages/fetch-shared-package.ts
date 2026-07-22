@@ -11,6 +11,21 @@ import { db } from "@/app/lib/db";
 import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 
+/** Mirrors ExtraPolicyItems in package-builder/action.ts — can't import it
+ * directly since that's a "use server" file (only async function exports
+ * allowed there). Per-package additions to the six standard lists below,
+ * e.g. a Sales Executive adding "Complimentary airport pickup" just for
+ * this client — merged in here so the client actually sees them. */
+type ExtraPolicyItems = {
+  inclusions: string[]; exclusions: string[]; termsConditions: string[];
+  paymentPolicy: string[]; amendmentPolicy: string[]; travelBenefits: string[];
+};
+function extraItems(raw: unknown, key: keyof ExtraPolicyItems): string[] {
+  const obj = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof ExtraPolicyItems, unknown>>;
+  const v = obj[key];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
 export async function getSharedPackage(packageId: string) {
   const pkg = await db.custom_packages.findFirst({
     where: { id: packageId, status: "SENT" },
@@ -21,6 +36,7 @@ export async function getSharedPackage(packageId: string) {
       pricePerPerson: true, totalPrice: true, currency: true, paymentLink: true,
       inclusions: true, exclusions: true, termsNotes: true,
       termsConditions: true, paymentPolicy: true, amendmentPolicy: true, travelBenefits: true,
+      extraPolicyItems: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
       tickets: {
         orderBy: { sortOrder: "asc" },
@@ -91,13 +107,13 @@ export async function getSharedPackage(packageId: string) {
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     currency:        pkg.currency,
     paymentLink:     pkg.paymentLink ?? "",
-    inclusions:      pkg.inclusions,
-    exclusions:      pkg.exclusions,
+    inclusions:      [...pkg.inclusions, ...extraItems(pkg.extraPolicyItems, "inclusions")],
+    exclusions:      [...pkg.exclusions, ...extraItems(pkg.extraPolicyItems, "exclusions")],
     termsNotes:      pkg.termsNotes ?? "",
-    termsConditions: pkg.termsConditions,
-    paymentPolicy:   pkg.paymentPolicy,
-    amendmentPolicy: pkg.amendmentPolicy,
-    travelBenefits:  pkg.travelBenefits,
+    termsConditions: [...pkg.termsConditions, ...extraItems(pkg.extraPolicyItems, "termsConditions")],
+    paymentPolicy:   [...pkg.paymentPolicy, ...extraItems(pkg.extraPolicyItems, "paymentPolicy")],
+    amendmentPolicy: [...pkg.amendmentPolicy, ...extraItems(pkg.extraPolicyItems, "amendmentPolicy")],
+    travelBenefits:  [...pkg.travelBenefits, ...extraItems(pkg.extraPolicyItems, "travelBenefits")],
     stops:           pkg.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
     stopImages,
     tickets: pkg.tickets.map((t) => ({

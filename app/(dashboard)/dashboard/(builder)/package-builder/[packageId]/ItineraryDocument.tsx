@@ -313,9 +313,14 @@ function ActivityRow({
   if (!activity.title.trim()) return null;
   const gallery = activity.photos.length > 0 ? activity.photos : (activity.photo ? [activity.photo] : []);
   const editable = !!onImageChange && dayNumber != null && activityIndex != null;
-  // At least one (empty) tile so there's still an "add a photo" affordance
-  // when this activity has none yet — read-only view just shows nothing.
-  const slots: (string | null)[] = gallery.length > 0 ? gallery.slice(0, 3) : (editable ? [null] : []);
+  // Always pad up to 3 tiles when editable — previously this only added an
+  // empty "add a photo" tile when the gallery had zero photos, so once an
+  // activity had even one, there was no way to add the remaining ones up to
+  // the 3-photo max, only replace what was already there. Read-only view
+  // (public page/PDF) still shows exactly what's there, no empty tiles.
+  const slots: (string | null)[] = editable
+    ? [...gallery.slice(0, 3), ...Array(Math.max(0, 3 - gallery.length)).fill(null)]
+    : gallery.slice(0, 3);
 
   return (
     <div className="space-y-2" style={{ breakInside: "avoid" }}>
