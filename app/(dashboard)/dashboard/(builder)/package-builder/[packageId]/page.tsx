@@ -2399,6 +2399,33 @@ export default function PackageBuilderDetailPage() {
   }
 
   // ── Day helpers ────────────────────────────────────────────────────────────
+  // Appends blank day cards to reach targetDays — never removes any, even
+  // when targetDays is smaller, so a mis-typed Duration can never silently
+  // wipe out a day an exec already filled in. Shrinking is only ever done
+  // explicitly, via the "Sync now" button on the day-count mismatch warning.
+  function growItinerariesTo(itineraries: DayItinerary[], targetDays: number): DayItinerary[] {
+    if (targetDays <= itineraries.length) return itineraries;
+    const extra = Array.from(
+      { length: targetDays - itineraries.length },
+      (_, i) => emptyDay(itineraries.length + i + 1),
+    );
+    return [...itineraries, ...extra];
+  }
+
+  // "Sync now" on the mismatch warning — reconciles the day cards to exactly
+  // match Duration, in either direction. Removing days here is an explicit,
+  // informed click (unlike the Duration field itself, which only ever grows
+  // the list) so trimming trailing, presumably-unwanted day cards is safe.
+  function syncItinerariesToDuration() {
+    setForm((f) => {
+      const target = f.totalDays;
+      const itineraries = target >= f.itineraries.length
+        ? growItinerariesTo(f.itineraries, target)
+        : f.itineraries.slice(0, target);
+      return { ...f, itineraries };
+    });
+  }
+
   function addDay() {
     setForm((f) => {
       const next = f.itineraries.length + 1;
@@ -3200,11 +3227,18 @@ Rules:
                             type="number" min={1}
                             value={form.totalDays}
                             disabled={form.stops.length > 0}
-                            onChange={(e) => setForm((f) => ({
-                              ...f,
-                              totalDays: +e.target.value,
-                              totalNights: Math.max(0, +e.target.value - 1),
-                            }))}
+                            onChange={(e) => {
+                              const days = Math.max(1, +e.target.value || 1);
+                              setForm((f) => ({
+                                ...f,
+                                totalDays: days,
+                                totalNights: Math.max(0, days - 1),
+                                // Grows the itinerary to match — never shrinks
+                                // it here, so an exec's already-filled-in days
+                                // are never silently dropped by a typo.
+                                itineraries: growItinerariesTo(f.itineraries, days),
+                              }));
+                            }}
                             className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
                           />
                           <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Days</p>
@@ -3214,11 +3248,16 @@ Rules:
                             type="number" min={0}
                             value={form.totalNights}
                             disabled={form.stops.length > 0}
-                            onChange={(e) => setForm((f) => ({
-                              ...f,
-                              totalNights: +e.target.value,
-                              totalDays: +e.target.value + 1,
-                            }))}
+                            onChange={(e) => {
+                              const nights = Math.max(0, +e.target.value || 0);
+                              const days = nights + 1;
+                              setForm((f) => ({
+                                ...f,
+                                totalNights: nights,
+                                totalDays: days,
+                                itineraries: growItinerariesTo(f.itineraries, days),
+                              }));
+                            }}
                             className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
                           />
                           <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Nights</p>
@@ -3382,6 +3421,23 @@ Rules:
                     </Button>
                   </div>
                 </div>
+
+                {form.itineraries.length !== form.totalDays && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-dashboard-warning/40 bg-dashboard-warning/10 px-3 py-2">
+                    <p className="text-xs text-dashboard-warning-content flex items-center gap-1.5">
+                      <AlertCircle size={13} className="shrink-0" />
+                      Duration is set to {form.totalDays} day{form.totalDays !== 1 ? "s" : ""}, but there {form.itineraries.length === 1 ? "is" : "are"} {form.itineraries.length} day card{form.itineraries.length !== 1 ? "s" : ""} below — these won&apos;t match on the client-facing document.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2.5 shrink-0 border-dashboard-warning/50 text-dashboard-warning-content hover:bg-dashboard-warning/20 rounded-md"
+                      onClick={syncItinerariesToDuration}
+                    >
+                      Sync now
+                    </Button>
+                  </div>
+                )}
 
                 <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                   <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
