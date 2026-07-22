@@ -2095,6 +2095,16 @@ export default function PackageBuilderDetailPage() {
           description: cp.description ?? "",
           coverImage: cp.coverImage ?? "",
           coverImagePosition: cp.coverImagePosition ?? 50,
+          // These previously fell through to whatever the initial setForm
+          // above seeded from the client's ORIGINAL requirement — so a
+          // travel date or traveller count the exec deliberately changed
+          // from that original ask would silently revert the moment the
+          // package was reopened. cp.* (what was actually saved) always
+          // wins here now, same as every other saved field on this package.
+          travelDate: cp.travelDate ? new Date(cp.travelDate).toISOString().split("T")[0] : f.travelDate,
+          adults: cp.adults,
+          children: cp.children,
+          infants: cp.infants,
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",

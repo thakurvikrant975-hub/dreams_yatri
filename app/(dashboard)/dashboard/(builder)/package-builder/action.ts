@@ -559,6 +559,10 @@ export interface QueryDetail {
     coverImagePosition: number;
     totalDays:       number;
     totalNights:     number;
+    travelDate:      Date | null;
+    adults:          number;
+    children:        number;
+    infants:         number;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
@@ -1138,6 +1142,10 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       coverImagePosition: true,
       totalDays:       true,
       totalNights:     true,
+      travelDate:      true,
+      adults:          true,
+      children:        true,
+      infants:         true,
       pricePerPerson:  true,
       totalPrice:      true,
       marginPercentage: true,
