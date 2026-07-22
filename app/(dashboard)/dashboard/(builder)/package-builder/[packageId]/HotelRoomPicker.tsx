@@ -98,7 +98,10 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
   }, [open]);
 
   useEffect(() => {
-    if (!open || !searchCity) { setItems([]); return; }
+    // Without a default city, there's still something to search once the
+    // exec types a query (hotel name or a different city/state) — only
+    // truly nothing to do when both are empty.
+    if (!open || (!searchCity && !query)) { setItems([]); return; }
     let cancelled = false;
     setLoading(true);
     const delay = query === "" ? 0 : 300;
@@ -199,7 +202,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by hotel name…"
+              placeholder="Search hotel name, city, or state…"
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             {loading && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />}
@@ -281,8 +284,10 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
 
           {/* Results */}
           <div className="max-h-[440px] overflow-y-auto divide-y">
-            {!searchCity ? (
-              <p className="px-3 py-6 text-center text-xs text-muted-foreground">Enter a city above to search</p>
+            {!searchCity && !query ? (
+              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                Search a hotel name, city, or state to get started
+              </p>
             ) : loading ? (
               <div className="flex items-center justify-center py-8 gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching hotels…

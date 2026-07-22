@@ -191,7 +191,16 @@ const HOTEL_SORT_ORDER_BY: Record<HotelSortOption, Prisma.hotel_room_pricingOrde
 };
 
 export async function searchHotelRoomsForBuilder(
+  /** The day's auto-derived stop (from Route: Destinations & Nights) — the
+   * default scope shown before the exec types anything. Ignored once `query`
+   * is non-empty, since a typed search is meant to be able to reach hotels
+   * in any city, not just this one (see `query` below). */
   cityOrDestinationName: string,
+  /** Free text from the single hotel search box — matched against the
+   * hotel's name AND its city/state/destination, so typing e.g. "Munnar"
+   * finds hotels there even though the day defaults to a different city,
+   * with no separate city field needed. Empty means "just show the default
+   * city's hotels". */
   query: string,
   refCoords?: { lat: number; lng: number } | null,
   page: number = 1,
@@ -206,18 +215,33 @@ export async function searchHotelRoomsForBuilder(
   sortBy?: HotelSortOption | null,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
-  if (!city) return [];
+  const q = query.trim();
+  if (!city && !q) return [];
 
   const list = await db.hotel_room_pricing.findMany({
     where: {
       is_active: true,
       hotel: {
         is_active: true,
-        OR: [
-          { city: { contains: city, mode: "insensitive" } },
-          { destination: { name: { contains: city, mode: "insensitive" } } },
-        ],
-        ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+        // A typed search reaches anywhere (name or location) — it isn't
+        // scoped to the day's default city, so an exec can jump straight to
+        // a hotel/city they already know without clearing anything first.
+        // With no query, fall back to just the default city/destination.
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { city: { contains: q, mode: "insensitive" } },
+                { state: { contains: q, mode: "insensitive" } },
+                { destination: { name: { contains: q, mode: "insensitive" } } },
+              ],
+            }
+          : {
+              OR: [
+                { city: { contains: city, mode: "insensitive" } },
+                { destination: { name: { contains: city, mode: "insensitive" } } },
+              ],
+            }),
         ...(starFilter ? { stay_type: starFilter } : {}),
         ...(categoryFilter ? { category: categoryFilter } : {}),
       },

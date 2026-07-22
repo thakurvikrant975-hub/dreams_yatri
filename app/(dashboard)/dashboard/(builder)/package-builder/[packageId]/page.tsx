@@ -1038,36 +1038,24 @@ function DayCard({
               </p>
             )}
             <div>
-              <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">
-                Search location (city) — defaults to this day&apos;s stop, editable
-              </label>
-              <Input
-                value={searchCity}
-                onChange={(e) => setSearchCity(e.target.value)}
-                placeholder="e.g. Manali"
-                className="text-sm h-8 mb-2 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              {/* No separate city field — this day's stop (from Route:
+                 Destinations & Nights) is the default search scope
+                 automatically. Typing a hotel name, city, or state in the
+                 search itself reaches anywhere, so switching cities never
+                 needs a dedicated input. */}
+              <HotelRoomPicker
+                value={data.roomPricingId}
+                initialLabel={data.accommodation}
+                searchCity={searchCity}
+                refCoords={cityCoords}
+                onSelect={handleHotelRoomSelect}
+                onClear={handleHotelRoomClear}
+                placeholder={searchCity ? `Search hotels near ${searchCity}…` : "Search hotels by name, city, or state…"}
               />
-              {searchCity ? (
-                <>
-                  <HotelRoomPicker
-                    value={data.roomPricingId}
-                    initialLabel={data.accommodation}
-                    searchCity={searchCity}
-                    refCoords={cityCoords}
-                    onSelect={handleHotelRoomSelect}
-                    onClear={handleHotelRoomClear}
-                    placeholder={`Search hotel rooms in ${searchCity}…`}
-                  />
-                  <p className="text-[10px] text-dashboard-base-content/40 mt-1">
-                    {data.accommodation ? `Currently: ${data.accommodation} — click above to change it. ` : ""}
-                    Searches real inventory in {searchCity}
-                  </p>
-                </>
-              ) : (
-                <p className="text-[11px] text-dashboard-base-content/40 italic">
-                  Enter a city above to search real hotel rooms
-                </p>
-              )}
+              <p className="text-[10px] text-dashboard-base-content/40 mt-1">
+                {data.accommodation ? `Currently: ${data.accommodation} — click above to change it. ` : ""}
+                {searchCity ? `Showing hotels near ${searchCity} by default — search above for a different city.` : "Search by hotel name, city, or state."}
+              </p>
             </div>
 
             {/* Rooms needed — auto-computed from traveller count, but
@@ -1143,18 +1131,16 @@ function DayCard({
                 ))}
               </div>
             )}
-            {searchCity && (
-              <Button
-                type="button" variant="outline" size="sm"
-                className="h-8 text-xs gap-1.5"
-                onClick={() => onChange({
-                  ...data,
-                  extraRooms: [...(data.extraRooms ?? []), { roomPricingId: 0, label: "", quantity: 1 }],
-                })}
-              >
-                <Plus size={12} /> Add another room type
-              </Button>
-            )}
+            <Button
+              type="button" variant="outline" size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => onChange({
+                ...data,
+                extraRooms: [...(data.extraRooms ?? []), { roomPricingId: 0, label: "", quantity: 1 }],
+              })}
+            >
+              <Plus size={12} /> Add another room type
+            </Button>
 
             {showRoomApplyPrompt && lastRoom && (
               <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
