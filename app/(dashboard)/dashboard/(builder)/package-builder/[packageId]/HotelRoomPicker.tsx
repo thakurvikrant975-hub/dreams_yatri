@@ -8,7 +8,7 @@ import {
   Coffee, Sun, Moon, UtensilsCrossed,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult } from "../action";
+import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption } from "../action";
 
 // Mirrors the admin catalog's HOTEL_CAT_LABEL (ItineraryDaySidebar.tsx) — kept
 // as a separate copy since that file lives in a different feature area and
@@ -28,6 +28,17 @@ const CAT_CHIPS = [
   { value: "homestay", label: "Homestay" },
   { value: "houseboat", label: "Houseboat" },
   { value: "camp", label: "Camp" },
+];
+const MEAL_CHIPS = [
+  { value: "breakfast", label: "Breakfast" },
+  { value: "lunch", label: "Lunch" },
+  { value: "dinner", label: "Dinner" },
+];
+const SORT_OPTIONS: { value: HotelSortOption; label: string }[] = [
+  { value: "name_asc", label: "Name (A–Z)" },
+  { value: "price_asc", label: "Price: Low to High" },
+  { value: "price_desc", label: "Price: High to Low" },
+  { value: "rating_desc", label: "Star Rating: High to Low" },
 ];
 
 const MEAL_CFG: Record<string, { Icon: React.ElementType; color: string; bg: string; label: string }> = {
@@ -59,6 +70,9 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
   const [hasMore, setHasMore] = useState(false);
   const [starFilter, setStarFilter] = useState<string | null>(null);
   const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [mealFilter, setMealFilter] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<HotelSortOption>("name_asc");
+  const mealFilterKey = mealFilter.join(",");
   const [currentRoom, setCurrentRoom] = useState<HotelRoomResult | null>(null);
   const [selectedLabel, setSelectedLabel] = useState(initialLabel);
 
@@ -90,7 +104,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     const delay = query === "" ? 0 : 300;
     const timer = setTimeout(async () => {
       try {
-        const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter);
+        const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy);
         if (!cancelled) {
           setItems(results);
           setPage(1);
@@ -104,14 +118,14 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, open, searchCity, starFilter, catFilter]);
+  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, sortBy]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter);
+      const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy);
       setItems((prev) => [...prev, ...results]);
       setPage(nextPage);
       setHasMore(results.length >= PAGE_SIZE);
@@ -223,15 +237,46 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                 {c.label}
               </button>
             ))}
-            {(starFilter || catFilter) && (
+            {MEAL_CHIPS.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMealFilter((prev) =>
+                  prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value],
+                )}
+                className={cn(
+                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                  mealFilter.includes(m.value)
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-background text-muted-foreground border-border hover:border-emerald-400 hover:text-emerald-700",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+            {(starFilter || catFilter || mealFilter.length > 0) && (
               <button
                 type="button"
-                onClick={() => { setStarFilter(null); setCatFilter(null); }}
+                onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); }}
                 className="text-[10px] text-destructive/70 hover:text-destructive px-1"
               >
                 Clear
               </button>
             )}
+          </div>
+
+          {/* Sort */}
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-muted/10">
+            <label className="text-[10px] font-medium text-muted-foreground shrink-0">Sort by</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as HotelSortOption)}
+              className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground outline-none cursor-pointer"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Results */}
@@ -245,7 +290,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
             ) : items.length === 0 ? (
               <div className="py-8 text-center space-y-1">
                 <p className="text-xs text-muted-foreground">No hotels found</p>
-                {(starFilter || catFilter) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
+                {(starFilter || catFilter || mealFilter.length > 0) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
               </div>
             ) : (
               items.map((room) => {

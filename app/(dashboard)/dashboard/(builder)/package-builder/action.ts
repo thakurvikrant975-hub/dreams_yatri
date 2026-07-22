@@ -175,6 +175,21 @@ function mapHotelRoomRow(
   };
 }
 
+/** "price_asc"/"price_desc" sort by the room's actual nightly rate; "rating_desc"
+ * sorts by the hotel's star rating (falls back to name for ties/unrated hotels);
+ * "name_asc" is the original default order. */
+export type HotelSortOption = "price_asc" | "price_desc" | "rating_desc" | "name_asc";
+
+const HOTEL_SORT_ORDER_BY: Record<HotelSortOption, Prisma.hotel_room_pricingOrderByWithRelationInput[]> = {
+  price_asc:    [{ price_per_night: "asc" }, { hotel: { name: "asc" } }],
+  price_desc:   [{ price_per_night: "desc" }, { hotel: { name: "asc" } }],
+  // hotels.stay_type is a free-text string like "4 Star" — descending string
+  // sort still puts 5/4/3/2 Star in the right order since only the leading
+  // digit differs between them.
+  rating_desc:  [{ hotel: { stay_type: "desc" } }, { hotel: { name: "asc" } }],
+  name_asc:     [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+};
+
 export async function searchHotelRoomsForBuilder(
   cityOrDestinationName: string,
   query: string,
@@ -184,6 +199,11 @@ export async function searchHotelRoomsForBuilder(
   starFilter?: string | null,
   /** Free-text `hotels.category` match, e.g. "resort" — the property-type filter chip. */
   categoryFilter?: string | null,
+  /** Lowercase meal keys ("breakfast"/"lunch"/"dinner") the room's plan must
+   * cover — a room needs ALL selected meals to match, not just one. Empty/
+   * omitted means no meal filtering. */
+  mealFilter?: string[] | null,
+  sortBy?: HotelSortOption | null,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   if (!city) return [];
@@ -201,11 +221,14 @@ export async function searchHotelRoomsForBuilder(
         ...(starFilter ? { stay_type: starFilter } : {}),
         ...(categoryFilter ? { category: categoryFilter } : {}),
       },
+      ...(mealFilter && mealFilter.length > 0
+        ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
+        : {}),
     },
     select: HOTEL_ROOM_SELECT,
     take: HOTEL_SEARCH_PAGE_SIZE,
     skip: (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE,
-    orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+    orderBy: HOTEL_SORT_ORDER_BY[sortBy ?? "name_asc"],
   });
 
   return list.map((item) => mapHotelRoomRow(item, refCoords));
