@@ -1,6 +1,6 @@
 import { User, Calendar, Mail } from "lucide-react";
 import { Text } from "@/app/components/ui/Typography";
-import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
+import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 
 function refCode(queryId: string): string {
   return queryId.slice(-8).toUpperCase();

@@ -29,6 +29,8 @@ type FormState = {
     amendmentPolicy: string[];
     travelBenefits: string[];
     customPolicySections: PolicySection[];
+    defaultMarginPercentage: string;
+    defaultGstPercentage: string;
 };
 
 function newSectionId(): string {
@@ -107,12 +109,18 @@ export default function ItinerarySettingsClient({
         amendmentPolicy: settings.amendmentPolicy,
         travelBenefits: settings.travelBenefits,
         customPolicySections: settings.customPolicySections,
+        defaultMarginPercentage: String(settings.defaultMarginPercentage),
+        defaultGstPercentage: String(settings.defaultGstPercentage),
     });
     const [isPending, startTransition] = useTransition();
 
     function save() {
         startTransition(async () => {
-            const result = await updateItinerarySettings(form);
+            const result = await updateItinerarySettings({
+                ...form,
+                defaultMarginPercentage: parseFloat(form.defaultMarginPercentage) || 0,
+                defaultGstPercentage: parseFloat(form.defaultGstPercentage) || 0,
+            });
             if (result.success) toast.success(result.message);
             else toast.error(result.message);
         });
@@ -234,6 +242,47 @@ export default function ItinerarySettingsClient({
                             disabled={readOnly}
                             onChange={(e) => setForm((f) => ({ ...f, documentDisclaimer: e.target.value }))}
                         />
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        {readOnly && <Lock size={14} className="text-muted-foreground" />}
+                        Pricing Defaults
+                    </CardTitle>
+                    <CardDescription>
+                        Starting Margin % and GST % for a brand-new package in the builder — still editable per
+                        package afterward on its Pricing tab.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="defaultMarginPercentage" className="mb-2">Default Margin %</Label>
+                            <Input
+                                id="defaultMarginPercentage"
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={form.defaultMarginPercentage}
+                                disabled={readOnly}
+                                onChange={(e) => setForm((f) => ({ ...f, defaultMarginPercentage: e.target.value }))}
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="defaultGstPercentage" className="mb-2">Default GST %</Label>
+                            <Input
+                                id="defaultGstPercentage"
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={form.defaultGstPercentage}
+                                disabled={readOnly}
+                                onChange={(e) => setForm((f) => ({ ...f, defaultGstPercentage: e.target.value }))}
+                            />
+                        </div>
                     </div>
                 </CardContent>
             </Card>

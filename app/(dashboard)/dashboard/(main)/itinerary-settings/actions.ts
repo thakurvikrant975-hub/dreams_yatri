@@ -29,6 +29,8 @@ export type ItinerarySettings = {
     amendmentPolicy: string[];
     travelBenefits: string[];
     customPolicySections: PolicySection[];
+    defaultMarginPercentage: number;
+    defaultGstPercentage: number;
     updatedAt: Date;
     updatedByName: string | null;
 };
@@ -70,6 +72,8 @@ export async function updateItinerarySettings(data: {
     amendmentPolicy: string[];
     travelBenefits: string[];
     customPolicySections: PolicySection[];
+    defaultMarginPercentage: number;
+    defaultGstPercentage: number;
 }): Promise<ActionResult> {
     try {
         const denied = await assertNotSalesExecutive();

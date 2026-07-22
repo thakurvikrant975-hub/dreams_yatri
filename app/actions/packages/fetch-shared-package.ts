@@ -52,7 +52,10 @@ export async function getSharedPackage(packageId: string) {
       query: { select: { assignedTo: true, name: true, phone: true, countryCode: true, email: true } },
     },
   });
-  if (!pkg) return null;
+  // A package only ever reaches SENT once it has a linked query (a "blank"
+  // package with no lead can't be sent — see sendPackageToClient), so this
+  // also guarantees pkg.query below.
+  if (!pkg || !pkg.query) return null;
 
   const exec = pkg.query.assignedTo
     ? await db.teamMember.findUnique({

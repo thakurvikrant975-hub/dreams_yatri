@@ -41,7 +41,14 @@ export async function tryCreateBookingFromConvertedQuery(
         });
         if (!query) return { created: false, reason: "Query not found" };
 
-        const cp = query.custom_packages;
+        // A query can now have several packages built for it — prefer the one
+        // the client actually accepted, then the most recently sent one, then
+        // just whatever exists, rather than assuming there's only ever one.
+        const cp =
+            query.custom_packages.find((p) => p.status === "ACCEPTED") ??
+            query.custom_packages.find((p) => p.status === "SENT") ??
+            query.custom_packages[0] ??
+            null;
 
         const destinationName = (cp?.destination ?? query.destination ?? "").split(",")[0]?.trim();
         if (!destinationName) {

@@ -253,8 +253,9 @@ export interface PreviewData {
   clientPhone: string;
   clientEmail: string;
   /** The originating query's id — shown as a short quote reference under the
-   * client name instead of exposing their raw phone/email back to them. */
-  queryId: string;
+   * client name instead of exposing their raw phone/email back to them. Null
+   * for a "blank" package with no linked query — no ref code shown then. */
+  queryId: string | null;
   execName: string;
   execEmail: string;
   execDesignation: string;

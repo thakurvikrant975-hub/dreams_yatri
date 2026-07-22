@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useTransition } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -27,7 +27,8 @@ import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/compone
 import { ROUTE_STOP_TYPES, TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { cn } from "@/app/lib/utils";
 import {
-  getQueryDetail,
+  getPackageDetail,
+  getQueryLeadInfo,
   saveCustomPackage,
   sendPackageToClient,
   getDestinationCoverImage,
@@ -1942,8 +1943,13 @@ function TicketEditorCard({
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 export default function PackageBuilderDetailPage() {
-  const params = useParams<{ queryId: string }>();
-  const queryId = params.queryId;
+  const params = useParams<{ packageId: string }>();
+  const packageId = params.packageId;
+  // Present only when landing here for a brand-new (not-yet-saved) package
+  // that's meant to be linked to a query — see the "Load package" effect
+  // below and CreatePackageDialog, which sets this on the navigation URL.
+  const searchParams = useSearchParams();
+  const fromQueryId = searchParams.get("fromQuery");
 
   const [query, setQuery] = useState<QueryDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1955,7 +1961,6 @@ export default function PackageBuilderDetailPage() {
   const [itinerarySettings, setItinerarySettings] = useState<ItinerarySettings | null>(null);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("client");
-  const [, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
   const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
@@ -2030,7 +2035,7 @@ export default function PackageBuilderDetailPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Load query ─────────────────────────────────────────────────────────────
+  // ── Load package ───────────────────────────────────────────────────────────
   useEffect(() => {
     // Guards against React Strict Mode's dev-only double-invocation: without
     // this, the first (soon-to-be-cancelled) run could still consume the
@@ -2039,10 +2044,28 @@ export default function PackageBuilderDetailPage() {
     // the correctly-applied package cover with the generic destination one.
     let cancelled = false;
     (async () => {
-      const data = await getQueryDetail(queryId);
+      // The package is the anchor now (a query can have several), so it's
+      // looked up by its own id first. A miss doesn't mean "not found" — it
+      // means this is a brand-new, not-yet-saved draft (the caller always
+      // navigates here with a freshly-generated id before the first Save),
+      // so fall back to the linked query's lead info for prefill, or a fully
+      // blank shell for a package started with no query at all.
+      let data = await getPackageDetail(packageId);
       if (cancelled) return;
+      if (!data) {
+        data = fromQueryId ? await getQueryLeadInfo(fromQueryId) : null;
+        if (cancelled) return;
+        if (!data) {
+          data = {
+            id: null, name: null, phone: null, countryCode: null, email: null,
+            destination: null, travelDate: null, groupSize: null,
+            assignedToName: null, assignedAt: null, createdAt: null, updatedAt: null,
+            requirements: null, status: null, message: null, packageUrl: null,
+            execEmail: null, execDesignation: null, customPackage: null,
+          };
+        }
+      }
       setQuery(data);
-      if (!data) { setLoading(false); return; }
 
       const r = data.requirements;
       const j = r?.journey;
@@ -2080,7 +2103,6 @@ export default function PackageBuilderDetailPage() {
 
       if (data.customPackage) {
         const cp = data.customPackage;
-        setPackageId(cp.id);
         setForm((f) => ({
           ...f,
           title: cp.title,
@@ -2126,8 +2148,18 @@ export default function PackageBuilderDetailPage() {
           tickets: cp.tickets,
         }));
       } else {
-        // No package built yet — suggest the destination's catalog photo as
-        // the default cover so the header isn't blank from the first draft.
+        // No package built yet — seed Margin%/GST% from the admin-configured
+        // defaults (Itinerary Settings) instead of a hardcoded value, and
+        // suggest the destination's catalog photo as the default cover so
+        // the header isn't blank from the first draft.
+        const settings = await getItinerarySettings();
+        if (cancelled) return;
+        setForm((f) => ({
+          ...f,
+          marginPercentage: String(settings.defaultMarginPercentage),
+          gstPercentage: String(settings.defaultGstPercentage),
+        }));
+
         const destinationName = j?.destinations?.[0] ?? data.destination;
         if (destinationName) {
           const suggested = await getDestinationCoverImage(destinationName);
@@ -2138,8 +2170,8 @@ export default function PackageBuilderDetailPage() {
 
       // ── "Use It" from the Package Library — a copy payload waiting in
       // sessionStorage from the redirect. Confirm before clobbering an
-      // existing saved draft; a brand-new query just applies it directly.
-      const copyKey = `pkgCopyPayload:${queryId}`;
+      // existing saved draft; a brand-new package just applies it directly.
+      const copyKey = `pkgCopyPayload:${packageId}`;
       const rawCopyPayload = sessionStorage.getItem(copyKey);
       if (rawCopyPayload) {
         sessionStorage.removeItem(copyKey);
@@ -2172,7 +2204,7 @@ export default function PackageBuilderDetailPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [queryId]);
+  }, [packageId, fromQueryId]);
 
   // ── Auto-calc total price ──────────────────────────────────────────────────
   useEffect(() => {
@@ -2312,7 +2344,8 @@ export default function PackageBuilderDetailPage() {
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
       const result = await saveCustomPackage({
-        queryId,
+        id: packageId,
+        queryId: query?.id ?? null,
         ...form,
         pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
         totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
@@ -2321,7 +2354,6 @@ export default function PackageBuilderDetailPage() {
         status,
       });
       if (result.success) {
-        setPackageId(result.id);
         setSavedOk(true);
         setTimeout(() => setSavedOk(false), 3000);
       }
@@ -2336,7 +2368,8 @@ export default function PackageBuilderDetailPage() {
       // link, a price tweak, a room swap) would otherwise silently never
       // reach the client if the package already existed.
       const result = await saveCustomPackage({
-        queryId,
+        id: packageId,
+        queryId: query?.id ?? null,
         ...form,
         pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
         totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
@@ -2345,10 +2378,8 @@ export default function PackageBuilderDetailPage() {
         status: "READY",
       });
       if (!result.success) return;
-      const pkgId = result.id;
-      setPackageId(pkgId);
 
-      const result2 = await sendPackageToClient(pkgId);
+      const result2 = await sendPackageToClient(packageId);
       if (result2.success && result2.whatsappUrl) {
         window.open(result2.whatsappUrl, "_blank");
         if (result2.shareUrl) {
@@ -2361,6 +2392,8 @@ export default function PackageBuilderDetailPage() {
             },
           });
         }
+      } else if (!result2.success) {
+        toast.error(result2.error ?? "Failed to send package");
       }
     });
   }
@@ -2884,10 +2917,10 @@ Rules:
     totalPrice: form.totalPrice || (computedPricingForPreview.finalPrice > 0
       ? String(computedPricingForPreview.finalPrice) : form.totalPrice),
     stopImages,
-    clientName: query.name,
+    clientName: query.name ?? "",
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",
-    queryId,
+    queryId: query.id,
     companySettings: itinerarySettings
       ? {
           phone: itinerarySettings.companyPhone,
@@ -2918,7 +2951,7 @@ Rules:
             </button>
             <div className="min-w-0">
               <h1 className="text-sm font-bold truncate leading-tight text-dashboard-base-content">
-                {query.name}
+                {query.name ?? "Blank Package"}
               </h1>
               <p className="text-xs text-dashboard-base-content/75 truncate">
                 {j?.destinations?.join(" › ") ?? query.destination ?? "—"}
@@ -2939,7 +2972,7 @@ Rules:
             </Button>
 
             <CreatePackageDialog
-              queryId={query.id}
+              packageId={packageId}
               destination={j?.destinations?.join(", ") ?? query.destination ?? null}
               packageUrl={query.packageUrl}
               travelDate={j?.travelDate ?? (query.travelDate ? new Date(query.travelDate).toISOString().slice(0, 10) : null)}
@@ -4081,18 +4114,25 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
   return (
     <>
       <SectionCard title="Client Info" icon={<User size={14} />}>
+        {!query.id && (
+          <p className="text-xs text-dashboard-base-content/50 italic">
+            No client linked yet — this is a blank package.
+          </p>
+        )}
         <InfoRow label="Name" value={query.name} />
-        <InfoRow
-          label="Phone"
-          value={
-            <a
-              href={`tel:+${query.countryCode}${query.phone}`}
-              className="text-dashboard-primary hover:underline flex items-center gap-1"
-            >
-              <Phone size={10} /> +{query.countryCode} {query.phone}
-            </a>
-          }
-        />
+        {query.phone && (
+          <InfoRow
+            label="Phone"
+            value={
+              <a
+                href={`tel:+${query.countryCode}${query.phone}`}
+                className="text-dashboard-primary hover:underline flex items-center gap-1"
+              >
+                <Phone size={10} /> +{query.countryCode} {query.phone}
+              </a>
+            }
+          />
+        )}
         {query.email && (
           <InfoRow
             label="Email"

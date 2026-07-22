@@ -456,15 +456,49 @@ export interface QueryRow {
    * lets "Create Package" find the exact originating package, not just a
    * same-destination guess. */
   packageUrl:     string | null;
+  /** Packages already built for this query, most recent first — a query can
+   * have more than one (e.g. two different budget options sent out). Empty
+   * when none have been started yet. */
+  customPackages: { id: string; title: string; status: string }[];
 }
 
-export interface QueryDetail extends QueryRow {
+/** The builder is keyed off the *package*, not the query — a query can now
+ * have several packages built for it, and a package can exist with no
+ * linked query at all ("blank" packages). So every lead-identity field here
+ * is nullable: null means this package has no linked query (or the query
+ * hasn't loaded yet), not that something failed. `customPackage` itself is
+ * never null when returned from getPackageDetail — a null result there
+ * means no package exists yet at that id (a brand-new, unsaved draft; see
+ * getQueryLeadInfo, used to prefill that case instead). */
+export interface QueryDetail {
+  id:             string | null;
+  name:           string | null;
+  phone:          string | null;
+  countryCode:    string | null;
+  email:          string | null;
+  destination:    string | null;
+  travelDate:     Date | null;
+  groupSize:      number | null;
+  assignedToName: string | null;
+  assignedAt:     Date | null;
+  createdAt:      Date | null;
+  updatedAt:      Date | null;
+  requirements:   any;
+  status:         string | null;
+  /** The exact public package page path this lead submitted from (if any),
+   * e.g. "/packages/kerala-highlights/5d-4n/munnar-kochi/super-deluxe" —
+   * lets "Create Package" find the exact originating package, not just a
+   * same-destination guess. */
+  packageUrl:     string | null;
   message: string | null;
   /** Joined from TeamMember — package_queries.assignedTo has no FK relation. */
   execEmail:       string | null;
   execDesignation: string | null;
   customPackage: {
     id:              string;
+    /** The linked query's id, or null for a blank package — immutable after
+     * creation. */
+    queryId:         string | null;
     status:          string;
     sentAt:          Date | null;
     viewedAt:        Date | null;
@@ -577,7 +611,14 @@ export interface DayItinerary {
 }
 
 export interface PackageInput {
-  queryId:         string;
+  /** The package's own identity — client-generated (crypto.randomUUID()) the
+   * first time a new draft is saved, then reused on every subsequent save.
+   * This (not queryId) is what saveCustomPackage upserts on, since a query
+   * can now have more than one package. */
+  id:              string;
+  /** The linked query, or null for a "blank" package with no lead attached.
+   * Only meaningful on first create — never changes after that. */
+  queryId:         string | null;
   title:           string;
   description:     string;
   coverImage:      string;
@@ -853,12 +894,16 @@ export async function getPackageBuilderQueries({
         requirements:   true,
         status:         true,
         packageUrl:     true,
+        custom_packages: {
+          orderBy: { createdAt: "desc" },
+          select: { id: true, title: true, status: true },
+        },
       },
     }),
   ]);
 
   return {
-    queries: queries as QueryRow[],
+    queries: queries.map(({ custom_packages, ...q }) => ({ ...q, customPackages: custom_packages })) as unknown as QueryRow[],
     total,
     page,
     totalPages: Math.ceil(total / safeSize),
@@ -989,140 +1034,188 @@ function normalizeTicket(t: {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Get single query detail (with existing custom package if any)
-// ─────────────────────────────────────────────────────────────────────────────
-export async function getQueryDetail(queryId: string): Promise<QueryDetail | null> {
-  const query = await db.package_queries.findUnique({
-    where: { id: queryId },
-    select: {
-      id:             true,
-      name:           true,
-      phone:          true,
-      countryCode:    true,
-      email:          true,
-      destination:    true,
-      travelDate:     true,
-      groupSize:      true,
-      assignedTo:     true,
-      assignedToName: true,
-      assignedAt:     true,
-      createdAt:      true,
-      updatedAt:      true,
-      requirements:   true,
-      status:         true,
-      message:        true,
-      packageUrl:     true,
-      // custom_packages is a singular 1:1 relation (queryId is @unique on
-      // custom_packages), so no take/orderBy here — those only apply to
-      // to-many relations.
-      custom_packages: {
-        select: {
-          id:              true,
-          status:          true,
-          sentAt:          true,
-          viewedAt:        true,
-          viewCount:       true,
-          previousSnapshot: true,
-          title:           true,
-          description:     true,
-          coverImage:      true,
-          coverImagePosition: true,
-          totalDays:       true,
-          totalNights:     true,
-          pricePerPerson:  true,
-          totalPrice:      true,
-          marginPercentage: true,
-          gstPercentage:    true,
-          inclusions:      true,
-          exclusions:      true,
-          termsNotes:      true,
-          termsConditions: true,
-          paymentPolicy:   true,
-          amendmentPolicy: true,
-          travelBenefits:  true,
-          paymentLink:     true,
-          pricingSnapshot: true,
-          stops: {
-            orderBy: { sortOrder: "asc" },
-            select: { id: true, name: true, nights: true, image: true },
-          },
-          tickets: {
-            orderBy: { sortOrder: "asc" },
-            select: {
-              id: true, type: true, provider: true, ticketNumber: true,
-              fromPlace: true, toPlace: true, travelDate: true,
-              departureTime: true, arrivalTime: true, durationText: true,
-              adults: true, children: true, infants: true,
-              ticketCount: true, fare: true, notes: true,
-            },
-          },
-          itineraries: {
-            orderBy: { day: "asc" },
-            select: {
-              id:                 true,
-              day:                true,
-              title:              true,
-              description:        true,
-              meals:              true,
-              accommodation:      true,
-              accommodationPhoto: true,
-              accommodationRoomPhotos: true,
-              accommodationLocation: true,
-              accommodationRoomSpecs: true,
-              accommodationRoomCapacity: true,
-              roomPricingId:      true,
-              roomsCount:         true,
-              extraRooms:         true,
-              hotelCheckIn:       true,
-              hotelCheckOut:      true,
-              hotelMealPlan:      true,
-              transport:          true,
-              transportPhoto:     true,
-              transportVehicleType: true,
-              transportSeats:     true,
-              transportPickup:    true,
-              transportPickupLat: true,
-              transportPickupLng: true,
-              transportDrop:      true,
-              transportDistanceKm: true,
-              transportTravelTime: true,
-              cabPricingId:       true,
-              cabQuantity:        true,
-              extraCabs:          true,
-              notes:              true,
-              activities: {
-                orderBy: { sortOrder: "asc" },
-                select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+const QUERY_LEAD_SELECT = {
+  id:             true,
+  name:           true,
+  phone:          true,
+  countryCode:    true,
+  email:          true,
+  destination:    true,
+  travelDate:     true,
+  groupSize:      true,
+  assignedTo:     true,
+  assignedToName: true,
+  assignedAt:     true,
+  createdAt:      true,
+  updatedAt:      true,
+  requirements:   true,
+  status:         true,
+  message:        true,
+  packageUrl:     true,
+} as const;
 
-  if (!query) return null;
-
-  // package_queries.assignedTo is a plain string (no FK relation defined),
-  // so the exec's contact details need a separate lookup.
-  const exec = query.assignedTo
+// package_queries.assignedTo is a plain string (no FK relation defined), so
+// the exec's contact details always need a separate lookup.
+async function resolveExecInfo(assignedTo: string | null) {
+  const exec = assignedTo
     ? await db.teamMember.findUnique({
-        where:  { id: query.assignedTo },
+        where:  { id: assignedTo },
         select: { email: true, designation: true },
       })
     : null;
+  return { execEmail: exec?.email ?? null, execDesignation: exec?.designation ?? null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3a. Get a package by its own id — the builder's primary loader. A query can
+// now have several packages built for it, and a package can exist with no
+// linked query at all, so the package row (not the query) is the anchor.
+// Returns null only when this id genuinely doesn't exist yet — the builder
+// treats that as "brand new, unsaved" rather than an error (see
+// getQueryLeadInfo below, used to prefill that brand-new draft).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getPackageDetail(packageId: string): Promise<QueryDetail | null> {
+  const pkg = await db.custom_packages.findUnique({
+    where: { id: packageId },
+    select: {
+      id:              true,
+      queryId:         true,
+      status:          true,
+      sentAt:          true,
+      viewedAt:        true,
+      viewCount:       true,
+      previousSnapshot: true,
+      title:           true,
+      description:     true,
+      coverImage:      true,
+      coverImagePosition: true,
+      totalDays:       true,
+      totalNights:     true,
+      pricePerPerson:  true,
+      totalPrice:      true,
+      marginPercentage: true,
+      gstPercentage:    true,
+      inclusions:      true,
+      exclusions:      true,
+      termsNotes:      true,
+      termsConditions: true,
+      paymentPolicy:   true,
+      amendmentPolicy: true,
+      travelBenefits:  true,
+      paymentLink:     true,
+      pricingSnapshot: true,
+      stops: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, nights: true, image: true },
+      },
+      tickets: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, type: true, provider: true, ticketNumber: true,
+          fromPlace: true, toPlace: true, travelDate: true,
+          departureTime: true, arrivalTime: true, durationText: true,
+          adults: true, children: true, infants: true,
+          ticketCount: true, fare: true, notes: true,
+        },
+      },
+      itineraries: {
+        orderBy: { day: "asc" },
+        select: {
+          id:                 true,
+          day:                true,
+          title:              true,
+          description:        true,
+          meals:              true,
+          accommodation:      true,
+          accommodationPhoto: true,
+          accommodationRoomPhotos: true,
+          accommodationLocation: true,
+          accommodationRoomSpecs: true,
+          accommodationRoomCapacity: true,
+          roomPricingId:      true,
+          roomsCount:         true,
+          extraRooms:         true,
+          hotelCheckIn:       true,
+          hotelCheckOut:      true,
+          hotelMealPlan:      true,
+          transport:          true,
+          transportPhoto:     true,
+          transportVehicleType: true,
+          transportSeats:     true,
+          transportPickup:    true,
+          transportPickupLat: true,
+          transportPickupLng: true,
+          transportDrop:      true,
+          transportDistanceKm: true,
+          transportTravelTime: true,
+          cabPricingId:       true,
+          cabQuantity:        true,
+          extraCabs:          true,
+          notes:              true,
+          activities: {
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
+          },
+        },
+      },
+      query: { select: QUERY_LEAD_SELECT },
+    },
+  });
+
+  if (!pkg) return null;
+
+  const { query, itineraries, tickets, ...pkgRest } = pkg;
+  const { execEmail, execDesignation } = await resolveExecInfo(query?.assignedTo ?? null);
 
   return {
-    ...(query as any),
-    execEmail:       exec?.email ?? null,
-    execDesignation: exec?.designation ?? null,
-    customPackage: query.custom_packages ? {
-      ...query.custom_packages,
-      itineraries: query.custom_packages.itineraries.map(normalizeItinerary),
-      tickets: query.custom_packages.tickets.map(normalizeTicket),
-    } : null,
-  } as QueryDetail;
+    id:             query?.id ?? null,
+    name:           query?.name ?? null,
+    phone:          query?.phone ?? null,
+    countryCode:    query?.countryCode ?? null,
+    email:          query?.email ?? null,
+    destination:    query?.destination ?? null,
+    travelDate:     query?.travelDate ?? null,
+    groupSize:      query?.groupSize ?? null,
+    assignedToName: query?.assignedToName ?? null,
+    assignedAt:     query?.assignedAt ?? null,
+    createdAt:      query?.createdAt ?? null,
+    updatedAt:      query?.updatedAt ?? null,
+    requirements:   query?.requirements ?? null,
+    status:         query?.status ?? null,
+    message:        query?.message ?? null,
+    packageUrl:     query?.packageUrl ?? null,
+    execEmail,
+    execDesignation,
+    customPackage: {
+      ...pkgRest,
+      stops: pkgRest.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
+      itineraries: itineraries.map(normalizeItinerary),
+      tickets: tickets.map(normalizeTicket),
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3b. Lead-only lookup — used to prefill a brand-new (not-yet-saved) package
+// that's being started from a query, before the first Save creates the real
+// custom_packages row. Never carries any existing package data (a query can
+// have several; picking one here would be arbitrary).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getQueryLeadInfo(queryId: string): Promise<QueryDetail | null> {
+  const query = await db.package_queries.findUnique({
+    where:  { id: queryId },
+    select: QUERY_LEAD_SELECT,
+  });
+  if (!query) return null;
+
+  const { execEmail, execDesignation } = await resolveExecInfo(query.assignedTo);
+
+  return {
+    ...query,
+    execEmail,
+    execDesignation,
+    customPackage: null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1131,7 +1224,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
 export async function saveCustomPackage(input: PackageInput): Promise<{ id: string; success: boolean; error?: string }> {
   try {
     const {
-      queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
+      id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
       termsNotes, paymentLink,
@@ -1157,7 +1250,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     // the customer has in hand.
     let previousSnapshot: Prisma.InputJsonValue | undefined;
     const existing = await db.custom_packages.findUnique({
-      where:  { queryId },
+      where:  { id },
       select: {
         status: true, title: true, totalDays: true, totalNights: true, travelDate: true,
         adults: true, children: true, infants: true, pricePerPerson: true, totalPrice: true,
@@ -1203,10 +1296,13 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     const effectiveTravelBenefits  = itinerarySettings.travelBenefits;
     const effectiveCustomPolicySections = itinerarySettings.customPolicySections as unknown as Prisma.InputJsonValue;
 
-    // Upsert the custom package (unique on queryId)
+    // Upsert the custom package (unique on its own id, client-generated on
+    // first save — see PackageInput.id — not on queryId, since a query can
+    // now have several packages).
     const pkg = await db.custom_packages.upsert({
-      where:  { queryId },
+      where:  { id },
       create: {
+        id,
         queryId,
         title,
         description:     description || null,
@@ -1428,6 +1524,10 @@ export async function sendPackageToClient(packageId: string): Promise<{
     });
 
     if (!pkg) return { success: false, error: "Package not found" };
+    // A blank package (no linked query) has no client contact to send to —
+    // it needs to be attached to a lead first via a real query before it can
+    // go out over WhatsApp/email.
+    if (!pkg.query) return { success: false, error: "This package isn't linked to a client query yet, so it can't be sent." };
 
     const baseUrl  = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
     const shareUrl = `${baseUrl}/custom-package/${packageId}`;
@@ -1556,7 +1656,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
         data:  { status: "SENT", sentAt: new Date(), pricingSnapshot },
       }),
       db.package_queries.update({
-        where: { id: pkg.queryId },
+        where: { id: pkg.query.id },
         data:  { status: "PACKAGE_SENT" },
       }),
     ]);

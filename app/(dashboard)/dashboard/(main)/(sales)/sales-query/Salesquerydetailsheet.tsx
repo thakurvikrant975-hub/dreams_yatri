@@ -6,7 +6,7 @@ import {
     Phone, Mail, MapPin, Users, Calendar,
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
-    Package, CheckCircle2, FileText, Heart,
+    Package, CheckCircle2, FileText, Heart, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -23,6 +23,7 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
+import { CreatePackageDialog } from "./CreatePackageDialog";
 import { reopenSalesQuery } from "./actions";
 import type { SentPackageInfo } from "./actions";
 import { PackageRequirements } from "../../(marketing)/queries/actions";
@@ -73,7 +74,7 @@ export type SalesQuery = {
   closedAt: Date | null;
   requirements: unknown;
   _count: { queryFollowUps: number };
-  customPackage: SentPackageInfo | null;
+  customPackages: SentPackageInfo[];
 };
 
 // Mirrors TRIP_TYPES in Packagedetailsdialog.tsx (the "Package Requirements"
@@ -269,60 +270,96 @@ export function SalesQueryDetailSheet({
                         </div>
                     )}
 
-                    {/* Custom package status */}
-                    {query.customPackage && (
-                        <div
-                            className={`mt-2 rounded-lg border px-3 py-2 ${
-                                query.customPackage.status === "SENT"
-                                    ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30"
-                                    : "border-border bg-muted/40"
-                            }`}
-                        >
-                            <div className="flex items-center justify-between gap-2">
-                                <p
-                                    className={`text-[11px] font-semibold uppercase tracking-wide mb-0.5 flex items-center gap-1 ${
-                                        query.customPackage.status === "SENT"
-                                            ? "text-green-700 dark:text-green-400"
-                                            : "text-muted-foreground"
+                    {/* Custom package(s) — a query can now have more than one built for
+                        it (e.g. two different budget options sent to the same client) */}
+                    {query.customPackages.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                            {query.customPackages.map((pkg) => (
+                                <div
+                                    key={pkg.id}
+                                    className={`rounded-lg border px-3 py-2 ${
+                                        pkg.status === "SENT"
+                                            ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30"
+                                            : "border-border bg-muted/40"
                                     }`}
                                 >
-                                    {query.customPackage.status === "SENT" ? (
-                                        <CheckCircle2 className="h-3 w-3" />
-                                    ) : (
-                                        <Package className="h-3 w-3" />
-                                    )}
-                                    {query.customPackage.status === "SENT" ? "Package Sent" : "Package Draft"}
-                                </p>
-                                <a
-                                    href={`/dashboard/package-builder/${query.id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[11px] text-primary hover:underline shrink-0"
-                                >
-                                    Open Builder
-                                </a>
-                            </div>
-                            <p className="text-sm font-medium">{query.customPackage.title}</p>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                                {query.customPackage.totalPrice != null && (
-                                    <span>₹{Number(query.customPackage.totalPrice).toLocaleString("en-IN")}</span>
-                                )}
-                                {query.customPackage.sentAt && (
-                                    <span>· Sent {formatDistanceToNow(new Date(query.customPackage.sentAt), { addSuffix: true })}</span>
-                                )}
-                                {query.customPackage.pdfUrl && (
-                                    <a
-                                        href={query.customPackage.pdfUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-0.5 text-primary hover:underline"
-                                    >
-                                        <FileText className="h-3 w-3" /> PDF
-                                    </a>
-                                )}
-                            </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p
+                                            className={`text-[11px] font-semibold uppercase tracking-wide mb-0.5 flex items-center gap-1 ${
+                                                pkg.status === "SENT"
+                                                    ? "text-green-700 dark:text-green-400"
+                                                    : "text-muted-foreground"
+                                            }`}
+                                        >
+                                            {pkg.status === "SENT" ? (
+                                                <CheckCircle2 className="h-3 w-3" />
+                                            ) : (
+                                                <Package className="h-3 w-3" />
+                                            )}
+                                            {pkg.status === "SENT" ? "Package Sent" : "Package Draft"}
+                                        </p>
+                                        <a
+                                            href={`/dashboard/package-builder/${pkg.id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[11px] text-primary hover:underline shrink-0"
+                                        >
+                                            Open Builder
+                                        </a>
+                                    </div>
+                                    <p className="text-sm font-medium">{pkg.title}</p>
+                                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                        {pkg.totalPrice != null && (
+                                            <span>₹{Number(pkg.totalPrice).toLocaleString("en-IN")}</span>
+                                        )}
+                                        {pkg.sentAt && (
+                                            <span>· Sent {formatDistanceToNow(new Date(pkg.sentAt), { addSuffix: true })}</span>
+                                        )}
+                                        {pkg.pdfUrl && (
+                                            <a
+                                                href={pkg.pdfUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-0.5 text-primary hover:underline"
+                                            >
+                                                <FileText className="h-3 w-3" /> PDF
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
+
+                    <CreatePackageDialog
+                        queryId={query.id}
+                        destination={query.destination}
+                        packageUrl={query.packageUrl}
+                        travelDate={query.travelDate ? query.travelDate.toISOString().slice(0, 10) : reqs?.journey?.travelDate ?? null}
+                        travellers={reqs?.travellers ? {
+                            adults: reqs.travellers.adults,
+                            children: reqs.travellers.children,
+                            infants: reqs.travellers.infants,
+                        } : null}
+                        budget={reqs?.budget && (reqs.budget.min != null || reqs.budget.max != null) ? {
+                            min: reqs.budget.min,
+                            max: reqs.budget.max,
+                            type: reqs.budget.type,
+                        } : null}
+                        duration={reqs?.journey?.noOfDays ? {
+                            days: reqs.journey.noOfDays,
+                            nights: reqs.journey.noOfNights,
+                        } : null}
+                        queryReceivedAt={query.createdAt}
+                    >
+                        <button
+                            type="button"
+                            className="mt-2 w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-dashed border-primary/30 text-primary hover:bg-primary/5 transition-colors cursor-pointer"
+                        >
+                            <Plus className="h-3 w-3" />
+                            {query.customPackages.length > 0 ? "New Package" : "Create Package"}
+                        </button>
+                    </CreatePackageDialog>
                 </SheetHeader>
 
                 <ScrollArea className="flex-1">

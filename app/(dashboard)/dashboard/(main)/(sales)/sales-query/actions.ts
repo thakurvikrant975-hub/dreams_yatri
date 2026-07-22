@@ -95,7 +95,9 @@ export type SentPackageInfo = {
     pdfUrl:         string | null;
 };
 
-export type SalesQueryRow = PackageQuery & { customPackage: SentPackageInfo | null };
+// A query can now have more than one package built for it (e.g. two
+// different budget options sent to the same client) — most recent first.
+export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[] };
 
 const CUSTOM_PACKAGE_SELECT = {
     id: true, title: true, status: true, sentAt: true,
@@ -111,7 +113,7 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
         include: {
             rejection_reasons: { select: { id: true, label: true } },
             _count:            { select: { queryFollowUps: true, notes: true } },
-            custom_packages:   { select: CUSTOM_PACKAGE_SELECT },
+            custom_packages:   { select: CUSTOM_PACKAGE_SELECT, orderBy: { createdAt: "desc" } },
         },
         orderBy: { assignedAt: "desc" },
     }) as any[];
@@ -120,7 +122,7 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
         ...q,
         rejectionReason:  q.rejection_reasons ?? null,
         totalLeadQueries: 1,
-        customPackage:    q.custom_packages ?? null,
+        customPackages:   q.custom_packages ?? [],
     })) as SalesQueryRow[];
 }
 
@@ -137,7 +139,7 @@ export async function getSalesQueryById(id: string) {
             notes:            { orderBy: { createdAt: "asc" } },
             timeline:         { orderBy: { createdAt: "asc" } },
             _count:           { select: { queryFollowUps: true, notes: true } },
-            custom_packages:  { select: CUSTOM_PACKAGE_SELECT },
+            custom_packages:  { select: CUSTOM_PACKAGE_SELECT, orderBy: { createdAt: "desc" } },
         },
     });
 }

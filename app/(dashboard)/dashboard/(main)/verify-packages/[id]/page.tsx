@@ -111,7 +111,10 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
         },
     });
 
-    if (!pkg || !pkg.sentAt) notFound();
+    // sentAt is only ever set once a package has a linked query (a "blank"
+    // package can't be sent — see sendPackageToClient), so this also
+    // guarantees pkg.query below.
+    if (!pkg || !pkg.sentAt || !pkg.query) notFound();
 
     const s = pkg.pricingSnapshot as unknown as PricingSnapshot | null;
     const drifted = s?.displayedTotalPrice != null && Math.round(s.displayedTotalPrice) !== Math.round(s.finalPrice);

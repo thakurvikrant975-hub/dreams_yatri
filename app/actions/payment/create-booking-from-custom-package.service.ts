@@ -40,14 +40,19 @@ export async function createBookingFromCustomPackage(params: {
         where: { id: customPackageId },
         include: { query: { select: { id: true, name: true, phone: true, countryCode: true, email: true } } },
     });
-    if (!cp) return { success: false, reason: "not_found" };
+    // A "blank" package with no linked query has no client to book for, and
+    // can never reach SENT (see sendPackageToClient) — bail the same as a
+    // missing package rather than continuing with no contact info.
+    if (!cp || !cp.query) return { success: false, reason: "not_found" };
+    // Narrowed once here so it survives capture inside the $transaction
+    // closure below (property narrowing on `cp.query` doesn't).
+    const query = cp.query;
 
     // ── Resume path: this custom package already became a booking ─────────────
-    // sourceQueryId is @unique on Booking, and custom_packages.queryId is
-    // @unique too — that pairing is already a clean 1:1 idempotency key, no
-    // new column needed.
+    // sourceQueryId is @unique on Booking — a clean idempotency key once we
+    // know this package has a linked query.
     const existing = await db.booking.findUnique({
-        where: { sourceQueryId: cp.queryId },
+        where: { sourceQueryId: query.id },
         select: { id: true, userId: true, bookingNumber: true },
     });
     if (existing) {
@@ -124,10 +129,10 @@ export async function createBookingFromCustomPackage(params: {
                 paymentStatus: "PENDING",
                 priceSnapshot: cp.pricingSnapshot ?? undefined,
                 packageUrl: `/custom-package/${cp.id}`,
-                sourceQueryId: cp.queryId,
+                sourceQueryId: query.id,
                 convertedAt: new Date(),
-                contactEmail: cp.query.email ?? undefined,
-                contactPhone: cp.query.phone ?? undefined,
+                contactEmail: query.email ?? undefined,
+                contactPhone: query.phone ?? undefined,
                 installments: {
                     create: effInstallments.map((l) => ({
                         type: l.type,
