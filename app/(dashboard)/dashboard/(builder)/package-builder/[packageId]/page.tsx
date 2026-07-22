@@ -2936,7 +2936,17 @@ Rules:
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="print-reset min-h-screen flex flex-col">
+    // h-screen + overflow-hidden (not min-h-screen) — this shell is meant to
+    // scroll only inside the aside/main panels below, never as a whole page.
+    // min-h-screen let the outer document grow past 100vh the moment
+    // anything nudged it even slightly taller (flex min-height:auto quirks,
+    // a border/rounding pixel, etc.), which handed the browser its own
+    // page-level scrollbar — scrolling that dragged the sticky header and
+    // everything else up and off-screen, with dead space revealed below.
+    // Print already strips this via the `.print-reset` @media print rule in
+    // ItineraryDocument's PRINT_STYLES (height: auto !important etc.), so
+    // PDF export/print still gets the full, unclipped document.
+    <div className="print-reset h-screen overflow-hidden flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
       <header className="no-print sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
@@ -3028,10 +3038,18 @@ Rules:
       </header>
 
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
-      <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
+      {/* justify-center + the aside's max-w below keep the preview+editor pair
+          from drifting apart into a big dead grey gap on wide screens — the
+          A4-width (210mm) document no longer had a cap on how much emptier-
+          than-itself its flex-1 pane could grow, so on any laptop wider than
+          ~1300px the doc's own mx-auto centering left a very visible band of
+          bare aside background between it and the editor panel. Capping the
+          aside and centering the whole pair turns that into a normal, even
+          page margin instead. */}
+      <div className="print-reset flex justify-center relative h-[calc(100vh-3.5rem)]">
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="print-reset hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
+        <aside className="print-reset hidden lg:block flex-1 max-w-[880px] border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
           <div className="print-reset px-6 py-8">
             <ItineraryDocument
               form={previewForm}
