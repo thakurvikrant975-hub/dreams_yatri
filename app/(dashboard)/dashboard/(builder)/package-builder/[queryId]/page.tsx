@@ -2099,7 +2099,15 @@ export default function PackageBuilderDetailPage() {
           termsNotes: cp.termsNotes ?? f.termsNotes,
           paymentLink: cp.paymentLink ?? "",
           stops: cp.stops,
-          itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
+          // Renumbered 1..N by array position (already the correct order —
+          // the query sorts by day asc) rather than trusting the stored
+          // `day` field verbatim. Older data can carry a duplicate/gapped
+          // day number (no DB constraint ever enforced uniqueness), which
+          // silently double-charges that day in the Cabs/Hotel pricing
+          // breakdown — every day-priced line is keyed off `it.day`.
+          itineraries: cp.itineraries.length > 0
+            ? cp.itineraries.map((it, idx) => ({ ...it, day: idx + 1 }))
+            : f.itineraries,
           // Duration shown in the header/cover — previously left at whatever
           // the initial setForm above seeded from the client's ORIGINAL
           // requirement (j.noOfDays/noOfNights), even when the actual saved
@@ -2148,6 +2156,9 @@ export default function PackageBuilderDetailPage() {
             setForm((f) => ({
               ...f,
               ...payload,
+              // Same renumber-by-position safety as the cp.itineraries load
+              // above — don't trust the catalog package's stored day numbers.
+              itineraries: payload.itineraries.map((it, idx) => ({ ...it, day: idx + 1 })),
               coverImage: payload.coverImage || f.coverImage,
               startingPoint: payload.startingPoint || f.startingPoint,
             }));
