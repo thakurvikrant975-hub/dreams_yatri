@@ -13,7 +13,7 @@ import { SafeImage } from "./SafeImage";
 import {
   computeShiftedMeals, mealIncludedText, occupancyText, formatTime12h,
   type PreviewData,
-} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 import type { DayItinerary, ActivityInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 const STANDARD_MEAL_CHIPS = [

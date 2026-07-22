@@ -42,13 +42,19 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
     }
   }
 
+  // Both actions always recapture from the live DOM rather than reusing
+  // `pages` from a previous call — the form (and any photo just added
+  // elsewhere in the builder) can have changed since the last preview/
+  // download, and a stale capture would silently ship outdated photos in
+  // the PDF. The cost is a fresh html2canvas pass every click; correctness
+  // here matters more than saving that.
   async function handlePreview() {
     setPreviewOpen(true);
-    if (!pages) await generatePages();
+    await generatePages();
   }
 
   async function handleDownload() {
-    const result = pages ?? (await generatePages());
+    const result = await generatePages();
     if (!result) return;
     const pdf = buildPdf(result);
     pdf.save(pdfFilename(form.title));

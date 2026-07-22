@@ -8,7 +8,7 @@ import { SafeImage } from "./SafeImage";
 import {
   deriveDayLocations, firstDayPhotoForStop,
   type PreviewData,
-} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 
 const IMAGE_FALLBACK = (
   <div className="absolute inset-0 w-full h-full bg-linear-to-br from-primary-500 to-primary-700 flex items-center justify-center">

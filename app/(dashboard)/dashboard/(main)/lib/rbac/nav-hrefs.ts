@@ -23,6 +23,7 @@ export const ALL_HREFS = [
   // Hotels
   "/dashboard/hotels",
   "/dashboard/hotels/overview",
+  "/dashboard/hotel-inventory",
   "/dashboard/property-submissions",
   "/dashboard/hotels/meal-types",
   "/dashboard/hotels/diet-types",
@@ -33,6 +34,7 @@ export const ALL_HREFS = [
   // Cab Management
   "/dashboard/vehicles",
   "/dashboard/cab-pricing",
+  "/dashboard/cab-inventory",
   "/dashboard/permits",
   "/dashboard/cab-drivers",
   "/dashboard/verify-cabs",
@@ -50,6 +52,7 @@ export const ALL_HREFS = [
   "/dashboard/sales-query",
   "/dashboard/package-library",
   "/dashboard/package-builder",
+  "/dashboard/verify-packages",
   // Transactions
   "/dashboard/transactions",
   "/dashboard/failed-transactions",
@@ -61,6 +64,7 @@ export const ALL_HREFS = [
   "/dashboard/roles-and-permissions",
   // Settings
   "/dashboard/settings",
+  "/dashboard/itinerary-settings",
 ];
 
 // Resolve a request pathname to the sidebar href that governs access to it.

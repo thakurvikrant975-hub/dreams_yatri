@@ -1,11 +1,11 @@
 import { CheckCircle, XCircle, Calendar, Milestone, Sparkles, IndianRupee, Info } from "lucide-react";
 import { Text } from "@/app/components/ui/Typography";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { ItineraryMap } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryMap";
+import { ItineraryMap } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryMap";
 import {
   DaySummaryTable, TicketsSection,
   type PreviewData,
-} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 
 /** Trip-level overview content — description, inclusions/exclusions, the
  * day-wise summary table, ticket details, and the route map. Mirrors the

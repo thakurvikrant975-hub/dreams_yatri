@@ -33,7 +33,6 @@ export function CloseQueryDialog({ salesQueryId, leadName, closeReasons, childre
     const formRef = useRef<HTMLFormElement>(null);
 
     const isOther = selectedReason === "OTHER";
-    const requiresNote = closeReasons.find(r => r.id === selectedReason)?.requiresNote ?? false;
 
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -108,16 +107,24 @@ export function CloseQueryDialog({ salesQueryId, leadName, closeReasons, childre
                         )}
                     </div>
 
-                    {/* Other reason textarea — shown only when "Other" is selected */}
-                    {(isOther || requiresNote) && (
+                    {/* Note — required when "Other" is picked, optional (but always
+                        available) for every other reason, e.g. adding "Due to medical
+                        issue" as detail alongside "Travel Cancelled". */}
+                    {selectedReason && (
                         <div className="space-y-1.5">
                             <Label htmlFor="closeReasonOther">
-                                Please Specify <span className="text-destructive">*</span>
+                                {isOther ? (
+                                    <>Please Specify <span className="text-destructive">*</span></>
+                                ) : (
+                                    <>Additional Note <span className="text-muted-foreground text-xs font-normal">(optional)</span></>
+                                )}
                             </Label>
                             <Textarea
                                 id="closeReasonOther"
                                 name="closeReasonOther"
-                                placeholder="Describe the reason for closing this query..."
+                                placeholder={isOther
+                                    ? "Describe the reason for closing this query..."
+                                    : "e.g. Due to a medical issue, client can no longer travel..."}
                                 rows={3}
                                 className={`resize-none text-sm ${errors.closeReasonOther ? "border-destructive" : ""}`}
                             />

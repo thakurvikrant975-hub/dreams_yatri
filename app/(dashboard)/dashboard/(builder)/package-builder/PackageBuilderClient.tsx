@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState, useTransition } from 
 import Link from "next/link";
 import {
     MapPin, Calendar, Users, Phone,
-    Package, Clock, ArrowRight, RefreshCw, Briefcase, ArrowLeft,
+    Package, Clock, ArrowRight, RefreshCw, Briefcase, ArrowLeft, Plus,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
@@ -52,6 +52,12 @@ function formatDate(d: Date | string | null) {
     return new Date(d).toLocaleDateString("en-IN", {
         day: "2-digit", month: "short", year: "numeric",
     });
+}
+
+function newPackageId(): string {
+    return typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `pkg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function getGroupSize(row: QueryRow): number | string {
@@ -328,6 +334,16 @@ export default function PackageBuilderClientPage() {
                 title="Package Builder"
                 description="Queries pending custom package creation"
                 icon={Package}
+                actions={
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => window.open(`/dashboard/package-builder/${newPackageId()}`, "_blank")}
+                    >
+                        <Plus size={14} /> Blank Package
+                    </Button>
+                }
             />
                 
             <StatGrid cols={3}>
@@ -368,7 +384,16 @@ export default function PackageBuilderClientPage() {
                 columns={columns}
                 rowKey={(r) => r.id}
                 rowClassName={() => "group hover:bg-muted/40 cursor-pointer"}
-                onRowClick={(row) => window.open(`/dashboard/package-builder/${row.id}`, "_blank")}
+                onRowClick={(row) => {
+                    // A query can have several packages now — open the most
+                    // recently built one if it has any, otherwise start a
+                    // brand-new one prefilled from this query's requirements.
+                    const latest = row.customPackages[0];
+                    const url = latest
+                        ? `/dashboard/package-builder/${latest.id}`
+                        : `/dashboard/package-builder/${newPackageId()}?fromQuery=${row.id}`;
+                    window.open(url, "_blank");
+                }}
                 emptyState={
                     isPending ? (
                         <p className="text-sm text-muted-foreground animate-pulse">Loading queries…</p>

@@ -6,7 +6,7 @@ import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
-    CircleX, Package, RefreshCw,
+    CircleX, Package, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -180,7 +180,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                 // Map queryFollowUps → followUps for the detail sheet
                 followUps: (full as any).queryFollowUps ?? [],
                 notes: (full as any).notes ?? [],
-                customPackage: (full as any).custom_packages ?? null,
+                customPackages: (full as any).custom_packages ?? [],
             };
 
             setDetailQuery(normalized);
@@ -318,9 +318,14 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                     } : null,
                     queryReceivedAt: q.createdAt,
                 };
+                // A query can have several packages now — the most recent one
+                // (customPackages is already ordered newest-first) is what
+                // "View Package" opens; the "+" lets an exec start another,
+                // e.g. a second budget option for the same client.
+                const latest = q.customPackages[0] ?? null;
                 return (
                     <div onClick={(e) => e.stopPropagation()} className="flex items-center justify-center gap-1.5">
-                        {!q.customPackage ? (
+                        {!latest ? (
                             <CreatePackageDialog {...dialogProps}>
                                 <button
                                     type="button"
@@ -332,25 +337,26 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                         ) : (
                             <>
                                 <a
-                                    href={`/dashboard/package-builder/${q.id}`}
+                                    href={`/dashboard/package-builder/${latest.id}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={cn(
                                         "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
-                                        q.customPackage.status === "SENT"
+                                        latest.status === "SENT"
                                             ? "text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-900 dark:bg-green-950/30"
                                             : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/20"
                                     )}
                                 >
-                                    <Eye className="h-3 w-3" /> View Package
+                                    <Eye className="h-3 w-3" />
+                                    View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
                                 </a>
                                 <CreatePackageDialog {...dialogProps}>
                                     <button
                                         type="button"
-                                        title="Pick a different library template — replaces the current draft"
+                                        title="Create another package for this query"
                                         className="inline-flex items-center justify-center h-6.5 w-6.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
                                     >
-                                        <RefreshCw className="h-3 w-3" />
+                                        <Plus className="h-3 w-3" />
                                     </button>
                                 </CreatePackageDialog>
                             </>
@@ -405,7 +411,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
             ),
         },
         {
-            header: "Next Follow-Up",
+            header: "Follow up",
             sortKey: (q) => q.nextFollowUpAt ? new Date(q.nextFollowUpAt).getTime() : 0,
             cell: (q) => (
                 <div className="text-xs">
@@ -424,18 +430,26 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
         },
         {
             header: "Assigned",
+            width: "w-[84px]",
             sortKey: (q) => q.assignedAt ? new Date(q.assignedAt).getTime() : 0,
             cell: (q) => (
-                <div className="space-y-0.5 text-xs text-muted-foreground">
+                <div
+                    className="space-y-0.5 text-xs leading-tight"
+                    // Relative time ("2 hours ago") moved to a hover title instead of
+                    // a third visible line — keeps the column from growing taller/wider.
+                    title={q.assignedAt ? formatDistanceToNow(new Date(q.assignedAt), { addSuffix: true }) : undefined}
+                >
                     {q.assignedAt ? (
                         <>
-                            <p className="font-medium text-foreground text-[11px]">
+                            <p className="font-medium text-foreground text-[11px] whitespace-nowrap">
+                                {format(new Date(q.assignedAt), "hh:mm a")}
+                            </p>
+                            <p className="text-muted-foreground whitespace-nowrap">
                                 {format(new Date(q.assignedAt), "dd MMM yy")}
                             </p>
-                            <p>{formatDistanceToNow(new Date(q.assignedAt), { addSuffix: true })}</p>
                         </>
                     ) : (
-                        <span className="italic">—</span>
+                        <span className="text-muted-foreground italic">—</span>
                     )}
                 </div>
             ),
@@ -561,7 +575,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                     onRowClick={(q) => openDetail(q)}
                     rowClassName={(q) => {
                         if (isClosedStatus(q.status as SalesQueryStatus)) return "opacity-60 hover:opacity-80";
-                        if (q.customPackage?.status === "SENT") return "bg-green-50/60 dark:bg-green-950/20 hover:bg-green-100/70 dark:hover:bg-green-900/30";
+                        if (q.customPackages.some((p) => p.status === "SENT")) return "bg-green-50/60 dark:bg-green-950/20 hover:bg-green-100/70 dark:hover:bg-green-900/30";
                         if (q.status === "SUBMITTED") return "bg-amber-50/40 dark:bg-amber-950/10";
                         return "";
                     }}

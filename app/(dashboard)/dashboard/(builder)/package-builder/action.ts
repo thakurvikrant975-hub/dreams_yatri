@@ -11,6 +11,7 @@ import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/serv
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
 import type { RoomSelection, CabSelection } from "./room-cab-selections";
 import type { Prisma } from "@/app/generated/prisma";
+import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -18,6 +19,15 @@ import type { Prisma } from "@/app/generated/prisma";
 const MEAL_KEY_LABELS: Record<string, string> = {
   breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
 };
+
+/** Lets the client component gate edit access to the inclusions/exclusions/
+ * policy bullet lists — those are company-wide standard content, not
+ * something any individual Sales Executive should be able to alter per
+ * package. Returns null when there's no session/team member match. */
+export async function getCurrentUserRole(): Promise<string | null> {
+  const { actor } = await getCurrentActor();
+  return (actor as unknown as { role?: string } | undefined)?.role ?? null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Real hotel-room / activity search, scoped by city name.
@@ -165,8 +175,32 @@ function mapHotelRoomRow(
   };
 }
 
+/** "price_asc"/"price_desc" sort by the room's actual nightly rate; "rating_desc"
+ * sorts by the hotel's star rating (falls back to name for ties/unrated hotels);
+ * "name_asc" is the original default order. */
+export type HotelSortOption = "price_asc" | "price_desc" | "rating_desc" | "name_asc";
+
+const HOTEL_SORT_ORDER_BY: Record<HotelSortOption, Prisma.hotel_room_pricingOrderByWithRelationInput[]> = {
+  price_asc:    [{ price_per_night: "asc" }, { hotel: { name: "asc" } }],
+  price_desc:   [{ price_per_night: "desc" }, { hotel: { name: "asc" } }],
+  // hotels.stay_type is a free-text string like "4 Star" — descending string
+  // sort still puts 5/4/3/2 Star in the right order since only the leading
+  // digit differs between them.
+  rating_desc:  [{ hotel: { stay_type: "desc" } }, { hotel: { name: "asc" } }],
+  name_asc:     [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+};
+
 export async function searchHotelRoomsForBuilder(
+  /** The day's auto-derived stop (from Route: Destinations & Nights) — the
+   * default scope shown before the exec types anything. Ignored once `query`
+   * is non-empty, since a typed search is meant to be able to reach hotels
+   * in any city, not just this one (see `query` below). */
   cityOrDestinationName: string,
+  /** Free text from the single hotel search box — matched against the
+   * hotel's name AND its city/state/destination, so typing e.g. "Munnar"
+   * finds hotels there even though the day defaults to a different city,
+   * with no separate city field needed. Empty means "just show the default
+   * city's hotels". */
   query: string,
   refCoords?: { lat: number; lng: number } | null,
   page: number = 1,
@@ -174,28 +208,51 @@ export async function searchHotelRoomsForBuilder(
   starFilter?: string | null,
   /** Free-text `hotels.category` match, e.g. "resort" — the property-type filter chip. */
   categoryFilter?: string | null,
+  /** Lowercase meal keys ("breakfast"/"lunch"/"dinner") the room's plan must
+   * cover — a room needs ALL selected meals to match, not just one. Empty/
+   * omitted means no meal filtering. */
+  mealFilter?: string[] | null,
+  sortBy?: HotelSortOption | null,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
-  if (!city) return [];
+  const q = query.trim();
+  if (!city && !q) return [];
 
   const list = await db.hotel_room_pricing.findMany({
     where: {
       is_active: true,
       hotel: {
         is_active: true,
-        OR: [
-          { city: { contains: city, mode: "insensitive" } },
-          { destination: { name: { contains: city, mode: "insensitive" } } },
-        ],
-        ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+        // A typed search reaches anywhere (name or location) — it isn't
+        // scoped to the day's default city, so an exec can jump straight to
+        // a hotel/city they already know without clearing anything first.
+        // With no query, fall back to just the default city/destination.
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { city: { contains: q, mode: "insensitive" } },
+                { state: { contains: q, mode: "insensitive" } },
+                { destination: { name: { contains: q, mode: "insensitive" } } },
+              ],
+            }
+          : {
+              OR: [
+                { city: { contains: city, mode: "insensitive" } },
+                { destination: { name: { contains: city, mode: "insensitive" } } },
+              ],
+            }),
         ...(starFilter ? { stay_type: starFilter } : {}),
         ...(categoryFilter ? { category: categoryFilter } : {}),
       },
+      ...(mealFilter && mealFilter.length > 0
+        ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
+        : {}),
     },
     select: HOTEL_ROOM_SELECT,
     take: HOTEL_SEARCH_PAGE_SIZE,
     skip: (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE,
-    orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+    orderBy: HOTEL_SORT_ORDER_BY[sortBy ?? "name_asc"],
   });
 
   return list.map((item) => mapHotelRoomRow(item, refCoords));
@@ -220,6 +277,10 @@ export async function getHotelRoomByIdForBuilder(
 export interface ActivityResult {
   id:            number;
   name:          string;
+  /** The catalog's own write-up for this activity — what actually goes into
+   * the day card's description on selection (see handleActivitySelect in
+   * page.tsx). Null when the catalog entry was never given one. */
+  description:   string | null;
   category:      string | null;
   durationHours: number | null;
   thumbnail:     string | null;
@@ -230,23 +291,39 @@ export interface ActivityResult {
 
 export async function searchActivitiesForBuilder(cityOrDestinationName: string, query: string): Promise<ActivityResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
-  if (!city) return [];
+  const q = query.trim();
+  if (!city && !q) return [];
 
+  // No query: default listing scoped to the day's destination. With a query,
+  // search broadly by activity title OR city/destination — previously this
+  // ANDed the query onto the destination scope, so typing an activity title
+  // from a *different* city (or a city name that isn't also in the day's
+  // destination) silently returned zero/wrong matches.
   const list = await db.activities.findMany({
     where: {
       is_active: true,
-      OR: [
-        { city: { contains: city, mode: "insensitive" } },
-        { destination: { name: { contains: city, mode: "insensitive" } } },
-        // `city`/`destination_id` are unpopulated on virtually every real
-        // activity row — the city instead lives as a suffix in the name
-        // itself (e.g. "Tea Garden Walk munnar"), so match against that too.
-        { name: { contains: city, mode: "insensitive" } },
-      ],
-      ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { city: { contains: q, mode: "insensitive" } },
+              { state: { contains: q, mode: "insensitive" } },
+              { destination: { name: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : {
+            OR: [
+              { city: { contains: city, mode: "insensitive" } },
+              { destination: { name: { contains: city, mode: "insensitive" } } },
+              // `city`/`destination_id` are unpopulated on virtually every real
+              // activity row — the city instead lives as a suffix in the name
+              // itself (e.g. "Tea Garden Walk munnar"), so match against that too.
+              { name: { contains: city, mode: "insensitive" } },
+            ],
+          }),
     },
     select: {
-      id: true, name: true, duration_hours: true,
+      id: true, name: true, description: true, duration_hours: true,
       category: { select: { name: true } },
       images: {
         select: { url: true, thumbnail: true, label: true },
@@ -264,6 +341,7 @@ export async function searchActivitiesForBuilder(cityOrDestinationName: string, 
     return {
       id:            a.id,
       name:          a.name,
+      description:   a.description ?? null,
       category:      a.category?.name ?? null,
       durationHours: a.duration_hours != null ? Number(a.duration_hours) : null,
       thumbnail:     photos[0] ? getThumbnailImage(photos[0]) : null,
@@ -446,15 +524,49 @@ export interface QueryRow {
    * lets "Create Package" find the exact originating package, not just a
    * same-destination guess. */
   packageUrl:     string | null;
+  /** Packages already built for this query, most recent first — a query can
+   * have more than one (e.g. two different budget options sent out). Empty
+   * when none have been started yet. */
+  customPackages: { id: string; title: string; status: string }[];
 }
 
-export interface QueryDetail extends QueryRow {
+/** The builder is keyed off the *package*, not the query — a query can now
+ * have several packages built for it, and a package can exist with no
+ * linked query at all ("blank" packages). So every lead-identity field here
+ * is nullable: null means this package has no linked query (or the query
+ * hasn't loaded yet), not that something failed. `customPackage` itself is
+ * never null when returned from getPackageDetail — a null result there
+ * means no package exists yet at that id (a brand-new, unsaved draft; see
+ * getQueryLeadInfo, used to prefill that case instead). */
+export interface QueryDetail {
+  id:             string | null;
+  name:           string | null;
+  phone:          string | null;
+  countryCode:    string | null;
+  email:          string | null;
+  destination:    string | null;
+  travelDate:     Date | null;
+  groupSize:      number | null;
+  assignedToName: string | null;
+  assignedAt:     Date | null;
+  createdAt:      Date | null;
+  updatedAt:      Date | null;
+  requirements:   any;
+  status:         string | null;
+  /** The exact public package page path this lead submitted from (if any),
+   * e.g. "/packages/kerala-highlights/5d-4n/munnar-kochi/super-deluxe" —
+   * lets "Create Package" find the exact originating package, not just a
+   * same-destination guess. */
+  packageUrl:     string | null;
   message: string | null;
   /** Joined from TeamMember — package_queries.assignedTo has no FK relation. */
   execEmail:       string | null;
   execDesignation: string | null;
   customPackage: {
     id:              string;
+    /** The linked query's id, or null for a blank package — immutable after
+     * creation. */
+    queryId:         string | null;
     status:          string;
     sentAt:          Date | null;
     viewedAt:        Date | null;
@@ -466,6 +578,12 @@ export interface QueryDetail extends QueryRow {
     description:     string | null;
     coverImage:      string | null;
     coverImagePosition: number;
+    totalDays:       number;
+    totalNights:     number;
+    travelDate:      Date | null;
+    adults:          number;
+    children:        number;
+    infants:         number;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
@@ -477,6 +595,7 @@ export interface QueryDetail extends QueryRow {
     paymentPolicy:   string[];
     amendmentPolicy: string[];
     travelBenefits:  string[];
+    extraPolicyItems: ExtraPolicyItems;
     paymentLink:     string | null;
     /** Frozen hotel/cab/ticket/margin/GST breakdown, written once when the
      * package is sent — see PricingSnapshot in sendPackageToClient. */
@@ -564,8 +683,45 @@ export interface DayItinerary {
   notes:              string;
 }
 
+/** Per-package additions to the six standard lists — see
+ * custom_packages.extraPolicyItems. Anyone (including a Sales Executive, who
+ * can't touch the standard lists themselves) can add/remove items here;
+ * they're always shown on top of, never replacing, the admin-managed
+ * standard list from itinerary_settings. */
+export type ExtraPolicyItems = {
+  inclusions:      string[];
+  exclusions:      string[];
+  termsConditions: string[];
+  paymentPolicy:   string[];
+  amendmentPolicy: string[];
+  travelBenefits:  string[];
+};
+
+/** Defensive against a missing key or non-array value in the stored JSON
+ * (e.g. an older row saved before a key existed) — every key always comes
+ * back as at least an empty array. */
+function normalizeExtraPolicyItems(raw: unknown): ExtraPolicyItems {
+  const obj = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof ExtraPolicyItems, unknown>>;
+  const arr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  return {
+    inclusions:      arr(obj.inclusions),
+    exclusions:      arr(obj.exclusions),
+    termsConditions: arr(obj.termsConditions),
+    paymentPolicy:   arr(obj.paymentPolicy),
+    amendmentPolicy: arr(obj.amendmentPolicy),
+    travelBenefits:  arr(obj.travelBenefits),
+  };
+}
+
 export interface PackageInput {
-  queryId:         string;
+  /** The package's own identity — client-generated (crypto.randomUUID()) the
+   * first time a new draft is saved, then reused on every subsequent save.
+   * This (not queryId) is what saveCustomPackage upserts on, since a query
+   * can now have more than one package. */
+  id:              string;
+  /** The linked query, or null for a "blank" package with no lead attached.
+   * Only meaningful on first create — never changes after that. */
+  queryId:         string | null;
   title:           string;
   description:     string;
   coverImage:      string;
@@ -590,6 +746,7 @@ export interface PackageInput {
   paymentPolicy:   string[];
   amendmentPolicy: string[];
   travelBenefits:  string[];
+  extraPolicyItems: ExtraPolicyItems;
   paymentLink:     string;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
@@ -841,12 +998,16 @@ export async function getPackageBuilderQueries({
         requirements:   true,
         status:         true,
         packageUrl:     true,
+        custom_packages: {
+          orderBy: { createdAt: "desc" },
+          select: { id: true, title: true, status: true },
+        },
       },
     }),
   ]);
 
   return {
-    queries: queries as QueryRow[],
+    queries: queries.map(({ custom_packages, ...q }) => ({ ...q, customPackages: custom_packages })) as unknown as QueryRow[],
     total,
     page,
     totalPages: Math.ceil(total / safeSize),
@@ -977,138 +1138,194 @@ function normalizeTicket(t: {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Get single query detail (with existing custom package if any)
-// ─────────────────────────────────────────────────────────────────────────────
-export async function getQueryDetail(queryId: string): Promise<QueryDetail | null> {
-  const query = await db.package_queries.findUnique({
-    where: { id: queryId },
-    select: {
-      id:             true,
-      name:           true,
-      phone:          true,
-      countryCode:    true,
-      email:          true,
-      destination:    true,
-      travelDate:     true,
-      groupSize:      true,
-      assignedTo:     true,
-      assignedToName: true,
-      assignedAt:     true,
-      createdAt:      true,
-      updatedAt:      true,
-      requirements:   true,
-      status:         true,
-      message:        true,
-      packageUrl:     true,
-      // custom_packages is a singular 1:1 relation (queryId is @unique on
-      // custom_packages), so no take/orderBy here — those only apply to
-      // to-many relations.
-      custom_packages: {
-        select: {
-          id:              true,
-          status:          true,
-          sentAt:          true,
-          viewedAt:        true,
-          viewCount:       true,
-          previousSnapshot: true,
-          title:           true,
-          description:     true,
-          coverImage:      true,
-          coverImagePosition: true,
-          pricePerPerson:  true,
-          totalPrice:      true,
-          marginPercentage: true,
-          gstPercentage:    true,
-          inclusions:      true,
-          exclusions:      true,
-          termsNotes:      true,
-          termsConditions: true,
-          paymentPolicy:   true,
-          amendmentPolicy: true,
-          travelBenefits:  true,
-          paymentLink:     true,
-          pricingSnapshot: true,
-          stops: {
-            orderBy: { sortOrder: "asc" },
-            select: { id: true, name: true, nights: true, image: true },
-          },
-          tickets: {
-            orderBy: { sortOrder: "asc" },
-            select: {
-              id: true, type: true, provider: true, ticketNumber: true,
-              fromPlace: true, toPlace: true, travelDate: true,
-              departureTime: true, arrivalTime: true, durationText: true,
-              adults: true, children: true, infants: true,
-              ticketCount: true, fare: true, notes: true,
-            },
-          },
-          itineraries: {
-            orderBy: { day: "asc" },
-            select: {
-              id:                 true,
-              day:                true,
-              title:              true,
-              description:        true,
-              meals:              true,
-              accommodation:      true,
-              accommodationPhoto: true,
-              accommodationRoomPhotos: true,
-              accommodationLocation: true,
-              accommodationRoomSpecs: true,
-              accommodationRoomCapacity: true,
-              roomPricingId:      true,
-              roomsCount:         true,
-              extraRooms:         true,
-              hotelCheckIn:       true,
-              hotelCheckOut:      true,
-              hotelMealPlan:      true,
-              transport:          true,
-              transportPhoto:     true,
-              transportVehicleType: true,
-              transportSeats:     true,
-              transportPickup:    true,
-              transportPickupLat: true,
-              transportPickupLng: true,
-              transportDrop:      true,
-              transportDistanceKm: true,
-              transportTravelTime: true,
-              cabPricingId:       true,
-              cabQuantity:        true,
-              extraCabs:          true,
-              notes:              true,
-              activities: {
-                orderBy: { sortOrder: "asc" },
-                select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+const QUERY_LEAD_SELECT = {
+  id:             true,
+  name:           true,
+  phone:          true,
+  countryCode:    true,
+  email:          true,
+  destination:    true,
+  travelDate:     true,
+  groupSize:      true,
+  assignedTo:     true,
+  assignedToName: true,
+  assignedAt:     true,
+  createdAt:      true,
+  updatedAt:      true,
+  requirements:   true,
+  status:         true,
+  message:        true,
+  packageUrl:     true,
+} as const;
 
-  if (!query) return null;
-
-  // package_queries.assignedTo is a plain string (no FK relation defined),
-  // so the exec's contact details need a separate lookup.
-  const exec = query.assignedTo
+// package_queries.assignedTo is a plain string (no FK relation defined), so
+// the exec's contact details always need a separate lookup.
+async function resolveExecInfo(assignedTo: string | null) {
+  const exec = assignedTo
     ? await db.teamMember.findUnique({
-        where:  { id: query.assignedTo },
+        where:  { id: assignedTo },
         select: { email: true, designation: true },
       })
     : null;
+  return { execEmail: exec?.email ?? null, execDesignation: exec?.designation ?? null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3a. Get a package by its own id — the builder's primary loader. A query can
+// now have several packages built for it, and a package can exist with no
+// linked query at all, so the package row (not the query) is the anchor.
+// Returns null only when this id genuinely doesn't exist yet — the builder
+// treats that as "brand new, unsaved" rather than an error (see
+// getQueryLeadInfo below, used to prefill that brand-new draft).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getPackageDetail(packageId: string): Promise<QueryDetail | null> {
+  const pkg = await db.custom_packages.findUnique({
+    where: { id: packageId },
+    select: {
+      id:              true,
+      queryId:         true,
+      status:          true,
+      sentAt:          true,
+      viewedAt:        true,
+      viewCount:       true,
+      previousSnapshot: true,
+      title:           true,
+      description:     true,
+      coverImage:      true,
+      coverImagePosition: true,
+      totalDays:       true,
+      totalNights:     true,
+      travelDate:      true,
+      adults:          true,
+      children:        true,
+      infants:         true,
+      pricePerPerson:  true,
+      totalPrice:      true,
+      marginPercentage: true,
+      gstPercentage:    true,
+      inclusions:      true,
+      exclusions:      true,
+      termsNotes:      true,
+      termsConditions: true,
+      paymentPolicy:   true,
+      amendmentPolicy: true,
+      travelBenefits:  true,
+      extraPolicyItems: true,
+      paymentLink:     true,
+      pricingSnapshot: true,
+      stops: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, nights: true, image: true },
+      },
+      tickets: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, type: true, provider: true, ticketNumber: true,
+          fromPlace: true, toPlace: true, travelDate: true,
+          departureTime: true, arrivalTime: true, durationText: true,
+          adults: true, children: true, infants: true,
+          ticketCount: true, fare: true, notes: true,
+        },
+      },
+      itineraries: {
+        orderBy: { day: "asc" },
+        select: {
+          id:                 true,
+          day:                true,
+          title:              true,
+          description:        true,
+          meals:              true,
+          accommodation:      true,
+          accommodationPhoto: true,
+          accommodationRoomPhotos: true,
+          accommodationLocation: true,
+          accommodationRoomSpecs: true,
+          accommodationRoomCapacity: true,
+          roomPricingId:      true,
+          roomsCount:         true,
+          extraRooms:         true,
+          hotelCheckIn:       true,
+          hotelCheckOut:      true,
+          hotelMealPlan:      true,
+          transport:          true,
+          transportPhoto:     true,
+          transportVehicleType: true,
+          transportSeats:     true,
+          transportPickup:    true,
+          transportPickupLat: true,
+          transportPickupLng: true,
+          transportDrop:      true,
+          transportDistanceKm: true,
+          transportTravelTime: true,
+          cabPricingId:       true,
+          cabQuantity:        true,
+          extraCabs:          true,
+          notes:              true,
+          activities: {
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
+          },
+        },
+      },
+      query: { select: QUERY_LEAD_SELECT },
+    },
+  });
+
+  if (!pkg) return null;
+
+  const { query, itineraries, tickets, ...pkgRest } = pkg;
+  const { execEmail, execDesignation } = await resolveExecInfo(query?.assignedTo ?? null);
 
   return {
-    ...(query as any),
-    execEmail:       exec?.email ?? null,
-    execDesignation: exec?.designation ?? null,
-    customPackage: query.custom_packages ? {
-      ...query.custom_packages,
-      itineraries: query.custom_packages.itineraries.map(normalizeItinerary),
-      tickets: query.custom_packages.tickets.map(normalizeTicket),
-    } : null,
-  } as QueryDetail;
+    id:             query?.id ?? null,
+    name:           query?.name ?? null,
+    phone:          query?.phone ?? null,
+    countryCode:    query?.countryCode ?? null,
+    email:          query?.email ?? null,
+    destination:    query?.destination ?? null,
+    travelDate:     query?.travelDate ?? null,
+    groupSize:      query?.groupSize ?? null,
+    assignedToName: query?.assignedToName ?? null,
+    assignedAt:     query?.assignedAt ?? null,
+    createdAt:      query?.createdAt ?? null,
+    updatedAt:      query?.updatedAt ?? null,
+    requirements:   query?.requirements ?? null,
+    status:         query?.status ?? null,
+    message:        query?.message ?? null,
+    packageUrl:     query?.packageUrl ?? null,
+    execEmail,
+    execDesignation,
+    customPackage: {
+      ...pkgRest,
+      stops: pkgRest.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
+      itineraries: itineraries.map(normalizeItinerary),
+      tickets: tickets.map(normalizeTicket),
+      extraPolicyItems: normalizeExtraPolicyItems(pkgRest.extraPolicyItems),
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3b. Lead-only lookup — used to prefill a brand-new (not-yet-saved) package
+// that's being started from a query, before the first Save creates the real
+// custom_packages row. Never carries any existing package data (a query can
+// have several; picking one here would be arbitrary).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getQueryLeadInfo(queryId: string): Promise<QueryDetail | null> {
+  const query = await db.package_queries.findUnique({
+    where:  { id: queryId },
+    select: QUERY_LEAD_SELECT,
+  });
+  if (!query) return null;
+
+  const { execEmail, execDesignation } = await resolveExecInfo(query.assignedTo);
+
+  return {
+    ...query,
+    execEmail,
+    execDesignation,
+    customPackage: null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1117,10 +1334,10 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
 export async function saveCustomPackage(input: PackageInput): Promise<{ id: string; success: boolean; error?: string }> {
   try {
     const {
-      queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
+      id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
-      pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency, inclusions, exclusions,
-      termsNotes, termsConditions, paymentPolicy, amendmentPolicy, travelBenefits, paymentLink,
+      pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
+      termsNotes, paymentLink, extraPolicyItems,
       status, stops, itineraries, tickets,
     } = input;
 
@@ -1143,7 +1360,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     // the customer has in hand.
     let previousSnapshot: Prisma.InputJsonValue | undefined;
     const existing = await db.custom_packages.findUnique({
-      where:  { queryId },
+      where:  { id },
       select: {
         status: true, title: true, totalDays: true, totalNights: true, travelDate: true,
         adults: true, children: true, infants: true, pricePerPerson: true, totalPrice: true,
@@ -1176,10 +1393,31 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       } as unknown as Prisma.InputJsonValue;
     }
 
-    // Upsert the custom package (unique on queryId)
+    // Inclusions/exclusions/T&C/payment/amendment/benefits are one global
+    // set of company-wide content, edited only on /dashboard/itinerary-
+    // settings — never trust client input for these, always write the
+    // current global values so the row stays in sync with what's shown.
+    const itinerarySettings = await getItinerarySettings();
+    const effectiveInclusions      = itinerarySettings.inclusions;
+    const effectiveExclusions      = itinerarySettings.exclusions;
+    const effectiveTermsConditions = itinerarySettings.termsConditions;
+    const effectivePaymentPolicy   = itinerarySettings.paymentPolicy;
+    const effectiveAmendmentPolicy = itinerarySettings.amendmentPolicy;
+    const effectiveTravelBenefits  = itinerarySettings.travelBenefits;
+    const effectiveCustomPolicySections = itinerarySettings.customPolicySections as unknown as Prisma.InputJsonValue;
+    // Unlike the six lists above, this one DOES trust client input — it's
+    // the per-package additions a Sales Executive (or anyone) is meant to
+    // be able to add, on top of (never replacing) the standard lists.
+    // Normalized defensively since it's untrusted input.
+    const effectiveExtraPolicyItems = normalizeExtraPolicyItems(extraPolicyItems) as unknown as Prisma.InputJsonValue;
+
+    // Upsert the custom package (unique on its own id, client-generated on
+    // first save — see PackageInput.id — not on queryId, since a query can
+    // now have several packages).
     const pkg = await db.custom_packages.upsert({
-      where:  { queryId },
+      where:  { id },
       create: {
+        id,
         queryId,
         title,
         description:     description || null,
@@ -1198,13 +1436,15 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         marginPercentage,
         gstPercentage,
         currency,
-        inclusions,
-        exclusions,
+        inclusions:      effectiveInclusions,
+        exclusions:      effectiveExclusions,
         termsNotes:      termsNotes || null,
-        termsConditions,
-        paymentPolicy,
-        amendmentPolicy,
-        travelBenefits,
+        termsConditions: effectiveTermsConditions,
+        paymentPolicy:   effectivePaymentPolicy,
+        amendmentPolicy: effectiveAmendmentPolicy,
+        travelBenefits:  effectiveTravelBenefits,
+        customPolicySections: effectiveCustomPolicySections,
+        extraPolicyItems: effectiveExtraPolicyItems,
         paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
@@ -1236,13 +1476,15 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         marginPercentage,
         gstPercentage,
         currency,
-        inclusions,
-        exclusions,
+        inclusions:      effectiveInclusions,
+        exclusions:      effectiveExclusions,
         termsNotes:      termsNotes || null,
-        termsConditions,
-        paymentPolicy,
-        amendmentPolicy,
-        travelBenefits,
+        termsConditions: effectiveTermsConditions,
+        paymentPolicy:   effectivePaymentPolicy,
+        amendmentPolicy: effectiveAmendmentPolicy,
+        travelBenefits:  effectiveTravelBenefits,
+        customPolicySections: effectiveCustomPolicySections,
+        extraPolicyItems: effectiveExtraPolicyItems,
         paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
@@ -1399,6 +1641,10 @@ export async function sendPackageToClient(packageId: string): Promise<{
     });
 
     if (!pkg) return { success: false, error: "Package not found" };
+    // A blank package (no linked query) has no client contact to send to —
+    // it needs to be attached to a lead first via a real query before it can
+    // go out over WhatsApp/email.
+    if (!pkg.query) return { success: false, error: "This package isn't linked to a client query yet, so it can't be sent." };
 
     const baseUrl  = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
     const shareUrl = `${baseUrl}/custom-package/${packageId}`;
@@ -1527,7 +1773,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
         data:  { status: "SENT", sentAt: new Date(), pricingSnapshot },
       }),
       db.package_queries.update({
-        where: { id: pkg.queryId },
+        where: { id: pkg.query.id },
         data:  { status: "PACKAGE_SENT" },
       }),
     ]);

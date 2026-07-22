@@ -3,7 +3,7 @@
 import { ArrowRight, Loader2 } from "lucide-react";
 import Card from "@/app/components/ui/Card";
 import { Text } from "@/app/components/ui/Typography";
-import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[queryId]/ItineraryDocument";
+import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 
 /** Mirrors the catalog page's PricingCard chrome (Card, spacing, typography)

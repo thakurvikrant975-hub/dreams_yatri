@@ -88,8 +88,22 @@ function parsePackageSlug(packageUrl: string | null | undefined): string | null 
 
 export type QueryBudget = { min?: number; max?: number; type: "PER_PERSON" | "TOTAL" };
 
-export function CreatePackageDialog({ queryId, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
-    queryId: string;
+function newPackageId(): string {
+    return typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `pkg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function CreatePackageDialog({ queryId, packageId, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
+    /** Query to attach a brand-new package to — pass this from a "Create
+     * Package" entry point (Sales Query table/sheet) where no package
+     * exists yet. Exactly one of queryId/packageId should be given. */
+    queryId?: string;
+    /** An already-existing package's own id — pass this from inside the
+     * builder itself ("Change Template" on the current draft), which swaps
+     * this dialog's copy-into-draft behavior in place instead of creating
+     * a new package. */
+    packageId?: string;
     destination: string | null;
     /** The exact public package page path this lead submitted their query
      * from, if any — used to reliably surface the originating package first,
@@ -188,19 +202,30 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
         setLoadingMore(false);
     }
 
+    // Reuses the existing draft's id when swapping its template in place
+    // ("Change Template", packageId given); mints a fresh one when this is
+    // creating a brand-new package for a query — the builder lazily
+    // persists it on the first Save, same as starting fully blank.
+    function targetUrl(id: string): string {
+        return queryId && !packageId
+            ? `/dashboard/package-builder/${id}?fromQuery=${queryId}`
+            : `/dashboard/package-builder/${id}`;
+    }
+
     async function handleUseTemplate(pkg: TemplatePackage) {
         setApplyingSlug(pkg.slug);
         try {
             const payload = await copyPackageIntoDraft(pkg.slug, pkg.durationSlug ?? "", pkg.routeSlug ?? "", "");
+            const targetId = packageId ?? newPackageId();
             if (payload) {
-                sessionStorage.setItem(`pkgCopyPayload:${queryId}`, JSON.stringify(payload));
+                sessionStorage.setItem(`pkgCopyPayload:${targetId}`, JSON.stringify(payload));
             }
             setOpen(false);
             // Hard navigation (not router.push) — this dialog can be opened from
             // the builder page itself to swap an already-copied template, and a
             // soft push to the same route wouldn't remount the page, so the
             // builder's "apply sessionStorage payload" effect would never re-run.
-            window.location.href = `/dashboard/package-builder/${queryId}`;
+            window.location.href = targetUrl(targetId);
         } finally {
             setApplyingSlug(null);
         }
@@ -231,7 +256,10 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
 
     function handleSkip() {
         setOpen(false);
-        router.push(`/dashboard/package-builder/${queryId}`);
+        // "Change Template" mode — already inside the builder editing this
+        // exact package, so there's nothing to create; just close.
+        if (packageId) return;
+        router.push(targetUrl(newPackageId()));
     }
 
     return (
@@ -503,7 +531,7 @@ export function CreatePackageDialog({ queryId, destination, packageUrl, travelDa
                         {total > 0 ? `${total} package${total !== 1 ? "s" : ""} available` : ""}
                     </p>
                     <Button type="button" variant="ghost" onClick={handleSkip} className="gap-1.5 text-xs h-8">
-                        Skip — start blank <ArrowRight size={12} />
+                        {packageId ? "Cancel" : "Skip — start blank"} <ArrowRight size={12} />
                     </Button>
                 </div>
             </DialogContent>
