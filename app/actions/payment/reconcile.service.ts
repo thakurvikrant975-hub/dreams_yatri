@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { ChargeStatus, RefundStatus, GatewayId } from "@/app/lib/payments/types";
 import { finalizeCapturedPayment } from "./finalize.service";
+import { confirmHotelReservationForBooking } from "./hotel-confirmation";
 import { notifyRefund } from "@/app/services/notifications/booking-notify";
 
 /**
@@ -48,7 +49,7 @@ export async function reconcilePendingPayments(opts?: {
         try {
             const status = await statusOf(p.gateway as GatewayId, p.gatewayOrderId!);
             if (status.state === "captured" && status.gatewayPaymentId) {
-                await db.$transaction((tx) =>
+                const fin = await db.$transaction((tx) =>
                     finalizeCapturedPayment(tx, {
                         paymentId: p.id,
                         gatewayPaymentId: status.gatewayPaymentId!,
@@ -56,6 +57,9 @@ export async function reconcilePendingPayments(opts?: {
                         webhookEventId: null,
                     }),
                 );
+                if (fin.result === "finalized" && fin.purpose === "INITIAL") {
+                    try { await confirmHotelReservationForBooking(fin.bookingId); } catch (e) { console.error("[recon] hotel confirm failed", e); }
+                }
                 finalized++;
             } else if (status.state === "failed") {
                 await db.payment.update({ where: { id: p.id }, data: { status: "FAILED", failureReason: "reconciled: no successful payment" } });

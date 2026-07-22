@@ -96,10 +96,12 @@ async function BookingsData({
                 paymentPlan: true,
                 createdAt: true,
                 contactEmail: true,
+                packageId: true,
                 user: { select: { name: true, email: true } },
                 package: { select: { title: true } },
                 destination: { select: { name: true } },
                 packageUrl: true,
+                hotelBookings: { take: 1, select: { hotel: { select: { name: true, city: true } } } },
             },
         }),
     ]);

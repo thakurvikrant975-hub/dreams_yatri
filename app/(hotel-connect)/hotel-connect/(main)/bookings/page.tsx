@@ -18,6 +18,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { BookingStatus } from "@/app/generated/prisma";
 import { cn } from "@/app/lib/utils";
+import BookingRequestActions from "./BookingRequestActions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ type BookingSummary = {
 
 type Stats = {
   total: number;
+  actionNeeded: number;
   upcoming: number;
   ongoing: number;
   completed: number;
@@ -66,7 +68,7 @@ async function getOwnerBookings(
   const hotelIds = ownerHotels.map((h) => h.id);
 
   const emptyStats: Stats = {
-    total: 0, upcoming: 0, ongoing: 0,
+    total: 0, actionNeeded: 0, upcoming: 0, ongoing: 0,
     completed: 0, cancelled: 0, revenue: 0,
   };
 
@@ -85,22 +87,27 @@ async function getOwnerBookings(
 
   // Status filter mapping
   const STATUS_FILTER: Partial<Record<string, BookingStatus[]>> = {
+    action:    ["HOTEL_VERIFICATION"],
     upcoming:  ["UPCOMING", "CONFIRMED"],
     ongoing:   ["ONGOING"],
     completed: ["COMPLETED"],
     cancelled: ["CANCELLED", "REJECTED"],
   };
   const statusFilter = STATUS_FILTER[filter];
-  const baseWhere = { id: { in: allBookingIds } };
+  // Only surface bookings the guest actually paid for — an abandoned checkout
+  // (paymentStatus PENDING) or a failed payment attempt isn't a real request
+  // yet and shouldn't show up on the owner's dashboard at all.
+  const baseWhere = { id: { in: allBookingIds }, paymentStatus: { notIn: ["PENDING", "FAILED"] as ("PENDING" | "FAILED")[] } };
   const filteredWhere = { ...baseWhere, ...(statusFilter ? { status: { in: statusFilter } } : {}) };
 
   // Counts + revenue are aggregated in the DB rather than loading every
   // booking row into memory — this stays cheap regardless of how many
   // bookings an owner accumulates over time.
   const [
-    totalCount, upcomingCount, ongoingCount, completedCount, cancelledCount, revenueAgg, raw,
+    totalCount, actionNeededCount, upcomingCount, ongoingCount, completedCount, cancelledCount, revenueAgg, raw,
   ] = await Promise.all([
     db.booking.count({ where: filteredWhere }),
+    db.booking.count({ where: { ...baseWhere, status: "HOTEL_VERIFICATION" } }),
     db.booking.count({ where: { ...baseWhere, status: { in: ["UPCOMING", "CONFIRMED"] } } }),
     db.booking.count({ where: { ...baseWhere, status: "ONGOING" } }),
     db.booking.count({ where: { ...baseWhere, status: "COMPLETED" } }),
@@ -147,6 +154,7 @@ async function getOwnerBookings(
 
   const stats: Stats = {
     total:     await db.booking.count({ where: baseWhere }),
+    actionNeeded: actionNeededCount,
     upcoming:  upcomingCount,
     ongoing:   ongoingCount,
     completed: completedCount,
@@ -191,7 +199,7 @@ const STATUS_CONFIG: Record<
   COMPLETED:              { label: "Completed",    bg: "bg-neutral-100", text: "text-neutral-500",  border: "border-neutral-200"},
   CANCELLED:              { label: "Cancelled",    bg: "bg-red-50",      text: "text-red-600",      border: "border-red-200"    },
   PENDING_REVIEW:         { label: "Pending",      bg: "bg-amber-50",    text: "text-amber-700",    border: "border-amber-200"  },
-  HOTEL_VERIFICATION:     { label: "Processing",   bg: "bg-amber-50",    text: "text-amber-700",    border: "border-amber-200"  },
+  HOTEL_VERIFICATION:     { label: "Action needed", bg: "bg-amber-50",   text: "text-amber-700",    border: "border-amber-200"  },
   HOTEL_CONFIRMED:        { label: "Processing",   bg: "bg-amber-50",    text: "text-amber-700",    border: "border-amber-200"  },
   CAB_VERIFICATION:       { label: "Processing",   bg: "bg-amber-50",    text: "text-amber-700",    border: "border-amber-200"  },
   CAB_CONFIRMED:          { label: "Processing",   bg: "bg-amber-50",    text: "text-amber-700",    border: "border-amber-200"  },
@@ -327,7 +335,12 @@ function BookingRow({ booking }: { booking: BookingSummary }) {
             <p className="text-sm font-semibold text-neutral-800 truncate max-w-[140px]">
               {booking.leadName}
             </p>
-            <p className="text-[11px] text-neutral-400 font-mono">#{booking.bookingNumber}</p>
+            <Link
+              href={`/hotel-connect/bookings/${booking.id}`}
+              className="text-[11px] text-neutral-400 hover:text-primary-600 font-mono transition-colors"
+            >
+              #{booking.bookingNumber}
+            </Link>
           </div>
         </div>
       </td>
@@ -369,10 +382,17 @@ function BookingRow({ booking }: { booking: BookingSummary }) {
 
       {/* Action */}
       <td className="px-5 py-4 whitespace-nowrap text-right">
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-400 group-hover:text-primary-500 transition-colors cursor-default">
-          View
-          <ArrowRightIcon size={12} weight="bold" />
-        </span>
+        {booking.status === "HOTEL_VERIFICATION" ? (
+          <BookingRequestActions bookingId={booking.id} />
+        ) : (
+          <Link
+            href={`/hotel-connect/bookings/${booking.id}`}
+            className="inline-flex items-center gap-1 text-xs font-medium text-neutral-400 group-hover:text-primary-500 transition-colors"
+          >
+            View
+            <ArrowRightIcon size={12} weight="bold" />
+          </Link>
+        )}
       </td>
     </tr>
   );
@@ -423,7 +443,8 @@ export default async function HotelConnectBookingsPage({
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const TABS = [
-    { id: "all",       label: "All",        count: stats.total     },
+    { id: "all",       label: "All",           count: stats.total        },
+    { id: "action",    label: "Action needed", count: stats.actionNeeded },
     { id: "upcoming",  label: "Upcoming",   count: stats.upcoming  },
     { id: "ongoing",   label: "Ongoing",    count: stats.ongoing   },
     { id: "completed", label: "Completed",  count: stats.completed },

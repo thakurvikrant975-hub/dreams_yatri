@@ -3,8 +3,8 @@ import Link from "next/link";
 import Header from "@/app/components/navigation/Header";
 import Footer from "@/app/components/navigation/Footer";
 import { getRoomBookingContext } from "../booking-data";
-import { holdRoomReservation } from "../booking-actions";
 import { resolveDates } from "../page";
+import HotelCheckout from "./HotelCheckout";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -30,8 +30,7 @@ export default async function BookPage({
   const ctx = await getRoomBookingContext(slug, roomId, checkIn, checkOut, pricingId);
   if (!ctx) notFound();
 
-  const input = "h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm shadow-sm focus:ring-2 focus:ring-primary-500/20 outline-none";
-  const label = "block text-[11px] font-semibold text-neutral-600 mb-1";
+  const holdKey = globalThis.crypto.randomUUID();
 
   return (
     <>
@@ -41,15 +40,8 @@ export default async function BookPage({
         <h1 className="text-xl font-bold text-neutral-900 mt-2 mb-5">Confirm your booking</h1>
 
         <div className="grid lg:grid-cols-[1fr_340px] gap-6 items-start">
-          {/* Guest form */}
-          <form action={holdRoomReservation} className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-5 space-y-4">
-            <input type="hidden" name="slug" value={slug} />
-            <input type="hidden" name="roomId" value={ctx.roomId} />
-            <input type="hidden" name="checkIn" value={ctx.checkIn} />
-            <input type="hidden" name="checkOut" value={ctx.checkOut} />
-            <input type="hidden" name="units" value={1} />
-            <input type="hidden" name="pricingId" value={pricingId ?? ""} />
-
+          {/* Guest checkout */}
+          <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-5 space-y-4">
             {sp.error && (
               <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{sp.error}</div>
             )}
@@ -59,33 +51,22 @@ export default async function BookPage({
               </div>
             )}
 
-            <p className="text-sm font-bold text-neutral-800">Guest details</p>
-            <div>
-              <label className={label}>Full name</label>
-              <input name="name" required placeholder="e.g. Ananya Sharma" className={input} />
-            </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className={label}>Email</label>
-                <input name="email" type="email" required placeholder="you@example.com" className={input} />
-              </div>
-              <div>
-                <label className={label}>Phone</label>
-                <input name="phone" required placeholder="+91 …" className={input} />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!ctx.available}
-              className="w-full h-11 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold transition-colors disabled:opacity-50"
-            >
-              Reserve room
-            </button>
-            <p className="text-[11px] text-neutral-400 text-center">
-              Your room is held instantly. Payment is collected separately (coming soon).
-            </p>
-          </form>
+            <p className="text-sm font-bold text-neutral-800">Traveller details</p>
+            {ctx.available ? (
+              <HotelCheckout
+                roomId={ctx.roomId}
+                checkIn={ctx.checkIn}
+                checkOut={ctx.checkOut}
+                units={1}
+                pricingId={pricingId}
+                holdKey={holdKey}
+              />
+            ) : (
+              <Link href={`/hotels/${slug}`} className="inline-block text-sm font-semibold text-primary-600 hover:underline">
+                ← Choose different dates
+              </Link>
+            )}
+          </div>
 
           {/* Summary */}
           <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-5 h-fit">

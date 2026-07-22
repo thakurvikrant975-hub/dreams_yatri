@@ -159,7 +159,7 @@ model Booking {
   bookingNumber           String                @unique
   userId                  String
   packageId               Int?
-  destinationId           Int
+  destinationId           Int?
   tripType                TripType
   startDate               DateTime
   endDate                 DateTime
@@ -231,7 +231,7 @@ model Booking {
   cabAssignee             TeamMember?           @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
   currentAssignee         TeamMember?           @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
   currentDepartment       Department?           @relation("BookingCurrentDept", fields: [currentDepartmentId], references: [id])
-  destination             destinations          @relation(fields: [destinationId], references: [id])
+  destination             destinations?         @relation(fields: [destinationId], references: [id])
   hotelAssignee           TeamMember?           @relation("BookingHotelAssignee", fields: [hotelAssigneeId], references: [id])
   opsAssignee             TeamMember?           @relation("BookingOpsAssignee", fields: [opsAssigneeId], references: [id])
   package                 packages?             @relation(fields: [packageId], references: [id])

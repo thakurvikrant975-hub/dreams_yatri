@@ -113,13 +113,23 @@ export function DatePicker({
 
   const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
 
-  // Scroll selected year into view when year panel opens
+  // Scroll selected year into view when year panel opens — scoped to the
+  // year grid's own scroll container (block: "nearest") so this can never
+  // walk up and move the page's scroll position, only the grid's.
   useEffect(() => {
     if (mode === "year" && yearRef.current) {
       const el = yearRef.current.querySelector("[data-selected='true']") as HTMLElement;
-      el?.scrollIntoView({ block: "center" });
+      el?.scrollIntoView({ block: "nearest" });
     }
   }, [mode]);
+
+  // Switching mode (year/month → calendar) unmounts the clicked button; the
+  // browser then drops focus to <body> per spec, which some browsers resolve
+  // by auto-scrolling the page back to the top. Keep focus inside the popover
+  // instead, with preventScroll so refocusing itself can't trigger a scroll.
+  useEffect(() => {
+    if (open) refs.floating.current?.focus({ preventScroll: true });
+  }, [mode, open, refs.floating]);
 
   // Sync view when value changes externally
   useEffect(() => {
@@ -213,9 +223,10 @@ export function DatePicker({
           <FloatingPortal>
             <div
               ref={refs.setFloating}
+              tabIndex={-1}
               style={floatingStyles}
               {...getFloatingProps()}
-              className="z-99999 rounded-2xl bg-white ring-1 ring-black/10 shadow-xl overflow-hidden "
+              className="z-99999 rounded-2xl bg-white ring-1 ring-black/10 shadow-xl overflow-hidden outline-none"
             >
 
               {/* ── Calendar ── */}

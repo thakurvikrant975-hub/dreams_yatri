@@ -45,10 +45,12 @@ type Booking = {
     paymentPlan: string | null;
     createdAt: Date;
     contactEmail: string | null;
+    packageId: number | null;
     user: { name: string | null; email: string | null } | null;
     package: { title: string } | null;
     destination: { name: string } | null;
     packageUrl: string | null;
+    hotelBookings: { hotel: { name: string; city: string | null } }[];
 };
 
 export function PackageBookingsTable({
@@ -133,8 +135,21 @@ export function PackageBookingsTable({
             ),
         },
         {
-            header: "Package",
+            header: "Package / Hotel",
             cell: (b) => {
+                if (b.packageId == null) {
+                    const stay = b.hotelBookings[0];
+                    return (
+                        <div>
+                            <p className="text-sm font-medium text-dashboard-base-content line-clamp-1 max-w-48">
+                                {stay?.hotel.name ?? "—"}
+                            </p>
+                            <p className="text-xs text-dashboard-base-content/55">
+                                Direct hotel booking{stay?.hotel.city ? ` · ${stay.hotel.city}` : ""}
+                            </p>
+                        </div>
+                    );
+                }
                 const href = b.packageUrl
                     ? (() => {
                         const params = new URLSearchParams();

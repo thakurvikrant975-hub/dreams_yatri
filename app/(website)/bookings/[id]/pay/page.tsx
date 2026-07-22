@@ -49,7 +49,9 @@ export default async function BookingPaymentPage({ params }: { params: Promise<{
                 id: true, userId: true, bookingNumber: true, status: true, paymentStatus: true, paymentPlan: true,
                 startDate: true, endDate: true, travellers: true, contactEmail: true, contactPhone: true,
                 totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
+                packageId: true,
                 package: { select: { title: true, thumbnail: true } },
+                hotelBookings: { take: 1, select: { hotel: { select: { name: true, thumbnail: true } } } },
             },
         });
 
@@ -59,9 +61,11 @@ export default async function BookingPaymentPage({ params }: { params: Promise<{
             content = <StatusScreen heading="Booking cancelled" body="This booking has been cancelled and can no longer be paid." />;
         } else {
             const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
-            const thumb = booking.package?.thumbnail
-                ? (booking.package.thumbnail.startsWith('http') ? booking.package.thumbnail : `${R2}/${booking.package.thumbnail}`)
-                : null;
+            const isHotelOnly = booking.packageId == null;
+            const hotel = booking.hotelBookings[0]?.hotel;
+            const title = isHotelOnly ? (hotel?.name ?? 'Your stay') : (booking.package?.title ?? 'Your package');
+            const rawThumb = isHotelOnly ? hotel?.thumbnail : booking.package?.thumbnail;
+            const thumb = rawThumb ? (rawThumb.startsWith('http') ? rawThumb : `${R2}/${rawThumb}`) : null;
 
             if (booking.paymentStatus !== 'PENDING') {
                 // Already settled the initial leg — only payable now if a hotel/room
@@ -71,7 +75,7 @@ export default async function BookingPaymentPage({ params }: { params: Promise<{
                         <PaymentStep
                             bookingId={booking.id}
                             bookingNumber={booking.bookingNumber}
-                            packageTitle={booking.package?.title ?? 'Your package'}
+                            packageTitle={title}
                             thumbnail={thumb}
                             dateRange={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`}
                             travellers={booking.travellers}
@@ -107,7 +111,7 @@ export default async function BookingPaymentPage({ params }: { params: Promise<{
                     <PaymentStep
                         bookingId={booking.id}
                         bookingNumber={booking.bookingNumber}
-                        packageTitle={booking.package?.title ?? 'Your package'}
+                        packageTitle={title}
                         thumbnail={thumb}
                         dateRange={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`}
                         travellers={booking.travellers}

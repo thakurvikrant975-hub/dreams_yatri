@@ -118,6 +118,20 @@ export function cancellationEmail(d: {
     };
 }
 
+// ── Hotel accepted the booking request ────────────────────────────────────────
+export function hotelBookingConfirmedEmail(d: {
+    bookingNumber: string;
+    hotelName: string;
+    voucherUrl: string;
+}): EmailContent {
+    return {
+        subject: `Booking confirmed — ${d.hotelName} (${d.bookingNumber})`,
+        html: layout("Your booking is confirmed 🎉", `
+      <p style="margin:0 0 12px"><strong>${d.hotelName}</strong> has confirmed your booking <strong>${d.bookingNumber}</strong>.</p>
+      ${cta(d.voucherUrl, "View booking")}`),
+    };
+}
+
 // ── Refund confirmed ──────────────────────────────────────────────────────────
 export function refundConfirmedEmail(d: {
     bookingNumber: string;
@@ -156,6 +170,30 @@ export function opsNewBookingEmail(d: {
 }
 
 // ── Hotel owner notification (hotel-connect) ──────────────────────────────────
+export function ownerBookingPendingApprovalEmail(d: {
+    hotelName: string;
+    bookingNumber: string;
+    checkInDate: string;
+    checkOutDate: string;
+    roomType: string;
+    roomsCount: number;
+    bookingsUrl: string;
+}): EmailContent {
+    return {
+        subject: `Action needed — new booking request at ${d.hotelName}`,
+        html: layout("A guest is waiting on your confirmation", `
+      <p style="margin:0 0 12px">A new booking at <strong>${d.hotelName}</strong> needs your confirmation before it's finalized. The guest has already paid — please accept or decline as soon as you can.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin:8px 0">
+        ${row("Booking", d.bookingNumber)}
+        ${row("Check-in", fmtDate(d.checkInDate))}
+        ${row("Check-out", fmtDate(d.checkOutDate))}
+        ${row("Room", d.roomType)}
+        ${row("Rooms", String(d.roomsCount))}
+      </table>
+      ${cta(d.bookingsUrl, "Review this request")}`),
+    };
+}
+
 export function ownerBookingConfirmedEmail(d: {
     hotelName: string;
     bookingNumber: string;

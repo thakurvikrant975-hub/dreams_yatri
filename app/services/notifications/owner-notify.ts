@@ -1,7 +1,55 @@
 import "server-only";
 import { db } from "@/app/lib/db";
-import { ownerBookingConfirmedEmail, ownerBookingCancelledEmail, ownerReviewReceivedEmail } from "./booking-emails";
+import { ownerBookingPendingApprovalEmail, ownerBookingConfirmedEmail, ownerBookingCancelledEmail, ownerReviewReceivedEmail } from "./booking-emails";
 import { sendBookingEmail } from "./send";
+
+/**
+ * Hotel-owner-facing notification for a new booking request awaiting their
+ * accept/reject decision (direct hotel-only bookings only — the guest has
+ * already paid; see app/actions/payment/hotel-confirmation.ts).
+ */
+export async function notifyOwnerBookingPendingApproval(params: {
+    hotelId: number;
+    bookingNumber: string;
+    checkInDate: Date;
+    checkOutDate: Date;
+    roomType: string;
+    roomsCount: number;
+}): Promise<void> {
+    const hotel = await db.hotels.findUnique({
+        where: { id: params.hotelId },
+        select: { name: true, owner_id: true, owner: { select: { email: true } } },
+    });
+    if (!hotel || !hotel.owner_id) return;
+
+    const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+    const link = "/hotel-connect/bookings";
+
+    try {
+        await db.hotelOwnerNotification.create({
+            data: {
+                owner_id: hotel.owner_id,
+                hotel_id: params.hotelId,
+                type: "BOOKING_PENDING_APPROVAL",
+                title: `New booking request — ${hotel.name}`,
+                body: `${params.roomType} · ${isoDate(params.checkInDate)} → ${isoDate(params.checkOutDate)} · ${params.roomsCount} room${params.roomsCount === 1 ? "" : "s"} · needs your confirmation`,
+                link,
+            },
+        });
+    } catch (e) {
+        console.error("[notifyOwnerBookingPendingApproval] db row", e);
+    }
+
+    await sendBookingEmail(hotel.owner?.email, ownerBookingPendingApprovalEmail({
+        hotelName: hotel.name,
+        bookingNumber: params.bookingNumber,
+        checkInDate: isoDate(params.checkInDate),
+        checkOutDate: isoDate(params.checkOutDate),
+        roomType: params.roomType,
+        roomsCount: params.roomsCount,
+        bookingsUrl: `${process.env.NEXT_PUBLIC_BASE_URL ?? ""}${link}`,
+    }));
+}
 
 /**
  * Hotel-owner-facing notification for a confirmed booking at their property.

@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
+import { cancelReservation } from "@/app/lib/hotel-inventory/reservations";
 import { computeCancellationRefund } from "@/app/services/cancellation-policy/engine";
 import { notifyCancellation } from "@/app/services/notifications/booking-notify";
 import { notifyOwnerBookingCancelled } from "@/app/services/notifications/owner-notify";
@@ -89,6 +90,13 @@ export async function cancelBooking(params: {
     });
 
     try { await notifyCancellation(booking.id, policy.refundablePaise, policy.feePaise); } catch (e) { console.error("[cancelBooking] email failed", e); }
+
+    try {
+        const reservation = await db.hotel_reservation.findFirst({ where: { booking_id: booking.id }, select: { id: true } });
+        if (reservation) await cancelReservation(reservation.id);
+    } catch (e) {
+        console.error("[cancelBooking] hotel hold release failed", e);
+    }
 
     for (const hb of booking.hotelBookings) {
         try {

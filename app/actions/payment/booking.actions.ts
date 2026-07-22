@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { db } from "@/app/lib/db";
 import { verifyCheckoutSignature } from "@/app/lib/razorpay";
 import { createBooking, createOrderForBooking, createBookingAndOrder } from "./create-booking.service";
+import { createHotelBooking } from "./create-hotel-booking.service";
 import { createBookingFromCustomPackage } from "./create-booking-from-custom-package.service";
 import { createBalanceOrderForBooking } from "./balance-payment.service";
 import { cancelBooking, previewCancellation } from "./cancel-booking.service";
@@ -28,6 +29,32 @@ export async function createBookingDraft(
         return await createBooking({ quoteId, userId: user.id, paymentChoice: opts?.paymentChoice, details: opts?.details });
     } catch (err) {
         console.error("[createBookingDraft] failed", err);
+        return { success: false, reason: "error", message: "Could not start your booking. Please try again." };
+    }
+}
+
+/**
+ * Step 1 of checkout for a direct hotel-only booking (single room, no
+ * package) — same contract as createBookingDraft, backed by
+ * create-hotel-booking.service.ts instead of a catalog quote.
+ */
+export async function createHotelBookingDraft(params: {
+    roomId: number;
+    checkIn: string;
+    checkOut: string;
+    units?: number;
+    pricingId?: number;
+    holdKey: string;
+    paymentChoice?: "FULL" | "DEPOSIT";
+    details?: CheckoutInput;
+}): Promise<CreateBookingResult> {
+    const user = await getAuthenticatedUser();
+    if (!user?.id) return { success: false, reason: "unauthenticated" };
+
+    try {
+        return await createHotelBooking({ ...params, userId: user.id });
+    } catch (err) {
+        console.error("[createHotelBookingDraft] failed", err);
         return { success: false, reason: "error", message: "Could not start your booking. Please try again." };
     }
 }

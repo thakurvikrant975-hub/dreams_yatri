@@ -55,7 +55,9 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                 id: true, userId: true, bookingNumber: true, status: true, paymentStatus: true, paymentPlan: true,
                 startDate: true, endDate: true, travellers: true,
                 totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
+                packageId: true,
                 package: { select: { title: true } },
+                hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } },
             },
         });
 
@@ -66,6 +68,8 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
             const cancelled = booking.status === 'CANCELLED';
             const isFull = booking.paymentPlan === 'FULL';
             const paidPaise = isFull ? booking.totalAmount_paise : booking.advanceAmount_paise;
+            const isHotelOnly = booking.packageId == null;
+            const tripLabel = isHotelOnly ? (booking.hotelBookings[0]?.hotel.name ?? 'Your stay') : (booking.package?.title ?? 'Your package');
 
             // If still pending, is there an in-flight charge (PENDING payment) or did
             // the last attempt fail? A failed attempt → offer a retry instead of
@@ -135,7 +139,7 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                         <Text size="xs" weight="semibold" intent="secondary" className="uppercase tracking-wide">Trip details</Text>
                                     </div>
                                     <div className="divide-y divide-(--border-muted)">
-                                        <DetailRow icon={MapTrifoldIcon} label="Package" value={booking.package?.title ?? 'Your package'} />
+                                        <DetailRow icon={MapTrifoldIcon} label={isHotelOnly ? 'Hotel' : 'Package'} value={tripLabel} />
                                         <DetailRow icon={CalendarBlankIcon} label="Travel dates" value={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`} />
                                         <DetailRow icon={UsersThreeIcon} label="Travellers" value={String(booking.travellers)} />
                                     </div>

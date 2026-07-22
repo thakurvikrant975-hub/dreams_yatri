@@ -68,7 +68,11 @@ export async function getGeneralAnalytics(fromStr: string, toStr: string): Promi
     }),
   ]);
 
-  const destIds = destGroups.map((g) => g.destinationId);
+  // Hotel-only bookings have no destinationId (that catalog is a package-browsing
+  // concept) — exclude them from the "top destinations" breakdown rather than
+  // showing a meaningless "Destination #null" bucket.
+  const destGroupsWithDest = destGroups.filter((g): g is typeof g & { destinationId: number } => g.destinationId != null);
+  const destIds = destGroupsWithDest.map((g) => g.destinationId);
   const destNames = destIds.length > 0
     ? await db.destinations.findMany({ where: { id: { in: destIds } }, select: { id: true, name: true } })
     : [];
@@ -112,7 +116,7 @@ export async function getGeneralAnalytics(fromStr: string, toStr: string): Promi
     }))
     .sort((a, b) => b.value - a.value);
 
-  const topDestinations = destGroups.map((g, i) => ({
+  const topDestinations = destGroupsWithDest.map((g, i) => ({
     name: destNameMap.get(g.destinationId) ?? `Destination #${g.destinationId}`,
     value: g._count._all,
     color: DEST_PALETTE[i % DEST_PALETTE.length],

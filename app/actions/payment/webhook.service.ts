@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
 import { finalizeCapturedPayment } from "./finalize.service";
+import { confirmHotelReservationForBooking } from "./hotel-confirmation";
 import { notifyBookingConfirmed, notifyRefund } from "@/app/services/notifications/booking-notify";
 
 /**
@@ -98,6 +99,7 @@ export async function processGatewayWebhook(
             if (outcome.status === "fail") return { httpStatus: 500, result: "error", detail: "finalize failed" };
             if (outcome.confirmInitial && outcome.bookingId) {
                 try { await notifyBookingConfirmed(outcome.bookingId); } catch (e) { console.error("[webhook] confirm-email failed", e); }
+                try { await confirmHotelReservationForBooking(outcome.bookingId); } catch (e) { console.error("[webhook] hotel confirm failed", e); }
             }
             return { httpStatus: 200, result: "processed" };
         }

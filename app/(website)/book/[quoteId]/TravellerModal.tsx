@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Dialog, VisuallyHidden } from 'radix-ui';
 import { XIcon, CheckCircleIcon, UserIcon } from '@phosphor-icons/react';
 import { Input } from '@/app/components/forms/Input';
+import { Select, Option } from '@/app/components/forms/Select';
+import { DatePicker } from '@/app/components/forms/DatePicker';
 import { travellerSchema, type TravellerInput } from '@/app/actions/quote/checkout-schema';
 
 const TITLES: TravellerInput['title'][] = ['Mr', 'Mrs', 'Ms', 'Dr'];
@@ -14,9 +16,6 @@ const GENDERS: { value: TravellerInput['gender']; label: string }[] = [
     { value: 'OTHER', label: 'Other' },
     { value: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say' },
 ];
-
-const selectCls =
-    'h-11 w-full rounded-xl bg-white px-3 text-sm font-medium text-(--text-primary) ring-[0.09em] ring-inset ring-neutral-400/80 outline-none hover:ring-neutral-300 focus:ring-2 focus:ring-primary-400';
 
 function Label({ children }: { children: React.ReactNode }) {
     return (
@@ -145,7 +144,7 @@ export default function TravellerModal({
     }
 
     return (
-        <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }} modal={false}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-9998 bg-black/40 backdrop-blur-[1px]" />
                 <Dialog.Content
@@ -199,9 +198,14 @@ export default function TravellerModal({
                             <div>
                                 <Label>First name</Label>
                                 <div className="flex gap-2">
-                                    <select className={selectCls + ' w-22 shrink-0'} value={cur.title} onChange={(e) => setField('title', e.target.value)}>
-                                        {TITLES.map((t) => <option key={t} value={t}>{t}</option>)}
-                                    </select>
+                                    <Select
+                                        wrapperClassName="w-24 shrink-0"
+                                        className="h-11"
+                                        value={cur.title}
+                                        onChange={(v) => setField('title', v)}
+                                    >
+                                        {TITLES.map((t) => <Option key={t} value={t!}>{t}</Option>)}
+                                    </Select>
                                     <Input value={cur.firstName} placeholder="First name" wrapperClassName="flex-1" onChange={(e) => setField('firstName', e.target.value)} error={fieldErr('firstName')} />
                                 </div>
                             </div>
@@ -211,12 +215,11 @@ export default function TravellerModal({
                             </div>
                             <div>
                                 <Label>Date of birth</Label>
-                                <Input
-                                    type="date"
-                                    min={dobLimits(cur.type).min}
-                                    max={dobLimits(cur.type).max}
+                                <DatePicker
+                                    minDate={dobLimits(cur.type).min}
+                                    maxDate={dobLimits(cur.type).max}
                                     value={cur.dob}
-                                    onChange={(e) => setField('dob', e.target.value)}
+                                    onChange={(v) => setField('dob', v)}
                                     error={dobError}
                                 />
                                 {age !== null && (
@@ -227,9 +230,9 @@ export default function TravellerModal({
                             </div>
                             <div>
                                 <Label>Gender</Label>
-                                <select className={selectCls} value={cur.gender} onChange={(e) => setField('gender', e.target.value)}>
-                                    {GENDERS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-                                </select>
+                                <Select className="h-11" value={cur.gender} onChange={(v) => setField('gender', v)}>
+                                    {GENDERS.map((g) => <Option key={g.value} value={g.value}>{g.label}</Option>)}
+                                </Select>
                             </div>
                         </div>
                     </div>

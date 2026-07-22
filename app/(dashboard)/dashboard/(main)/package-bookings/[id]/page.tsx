@@ -330,6 +330,13 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             user: { select: { name: true, email: true } },
             package: { select: { title: true } },
             destination: { select: { name: true } },
+            hotelBookings: {
+                select: {
+                    hotelId: true, checkInDate: true, checkOutDate: true, roomType: true, roomsCount: true,
+                    ratePerRoom: true, totalCost: true, isConfirmed: true, status: true,
+                    hotel: { select: { name: true, city: true, state: true } },
+                },
+            },
             travellersList: { orderBy: { isLead: "desc" }, select: { id: true, fullName: true, type: true, gender: true, dateOfBirth: true, isLead: true } },
             installments: { orderBy: { sequence: "asc" }, select: { id: true, type: true, sequence: true, amount_paise: true, dueDate: true, status: true, paidAt: true } },
             payments: { orderBy: { createdAt: "desc" }, select: { id: true, gateway: true, method: true, amount_paise: true, status: true, purpose: true, gatewayPaymentId: true, gatewayOrderId: true, failureReason: true, createdAt: true, paidAt: true } },
@@ -341,7 +348,9 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
     const isFull = booking.paymentPlan === "FULL";
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
-    const fulfillment = await getBookingFulfillment(id);
+    const isHotelOnly = booking.packageId == null;
+    const stay = booking.hotelBookings[0];
+    const fulfillment = isHotelOnly ? null : await getBookingFulfillment(id);
 
     return (
         <div className="flex flex-col gap-5">
@@ -371,21 +380,39 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 <div className="lg:col-span-2 flex flex-col gap-5">
                     <Section title="Trip">
                         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                            <Field
-                                label="Package"
-                                value={booking.packageUrl && booking.package?.title ? (() => {
-                                    const params = new URLSearchParams();
-                                    params.set("adults", String(booking.travellers));
-                                    params.set("date", booking.startDate.toISOString().slice(0, 10));
-                                    return (
-                                        <Link href={`${booking.packageUrl}?${params.toString()}`} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
-                                            {booking.package.title}
-                                            <ExternalLink className="size-3.5" />
-                                        </Link>
-                                    );
-                                })() : booking.package?.title}
-                            />
-                            <Field label="Destination" value={booking.destination?.name} />
+                            {isHotelOnly ? (
+                                <>
+                                    <Field label="Type" value="Direct hotel booking" />
+                                    <Field
+                                        label="Property"
+                                        value={stay ? (
+                                            <Link href={`/dashboard/hotels/${stay.hotelId}`} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
+                                                {stay.hotel.name}
+                                                <ExternalLink className="size-3.5" />
+                                            </Link>
+                                        ) : null}
+                                    />
+                                    <Field label="Location" value={stay ? [stay.hotel.city, stay.hotel.state].filter(Boolean).join(", ") : null} />
+                                </>
+                            ) : (
+                                <>
+                                    <Field
+                                        label="Package"
+                                        value={booking.packageUrl && booking.package?.title ? (() => {
+                                            const params = new URLSearchParams();
+                                            params.set("adults", String(booking.travellers));
+                                            params.set("date", booking.startDate.toISOString().slice(0, 10));
+                                            return (
+                                                <Link href={`${booking.packageUrl}?${params.toString()}`} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
+                                                    {booking.package.title}
+                                                    <ExternalLink className="size-3.5" />
+                                                </Link>
+                                            );
+                                        })() : booking.package?.title}
+                                    />
+                                    <Field label="Destination" value={booking.destination?.name} />
+                                </>
+                            )}
                             <Field label="Trip type" value={titleCase(booking.tripType)} />
                             <Field label="Travel dates" value={`${fmtDate(booking.startDate)} – ${fmtDate(booking.endDate)}`} />
                             <Field label="Duration" value={`${booking.duration} day${booking.duration !== 1 ? "s" : ""}`} />
@@ -413,19 +440,37 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         )}
                     </Section>
 
-                    <Section
-                        title="Itinerary (as booked)"
-                        action={
-                            <Link
-                                href={`/dashboard/verify-hotels/${booking.id}`}
-                                className="inline-flex items-center gap-1 rounded-md border border-dashboard-base-300 px-2.5 py-1 text-xs text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
-                            >
-                                🏨 Manage Hotels →
-                            </Link>
-                        }
-                    >
-                        <BookedItinerary snapshot={snapshot} />
-                    </Section>
+                    {isHotelOnly ? (
+                        <Section title="Property & stay">
+                            {stay ? (
+                                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                                    <Field label="Room type" value={stay.roomType} />
+                                    <Field label="Rooms" value={stay.roomsCount} />
+                                    <Field label="Check-in" value={fmtDate(stay.checkInDate)} />
+                                    <Field label="Check-out" value={fmtDate(stay.checkOutDate)} />
+                                    <Field label="Rate / room / night" value={inr(Number(stay.ratePerRoom))} />
+                                    <Field label="Total" value={inr(Number(stay.totalCost))} />
+                                    <Field label="Fulfilment" value={titleCase(stay.status)} />
+                                </div>
+                            ) : (
+                                <p className="text-sm text-dashboard-neutral">No stay details found for this booking.</p>
+                            )}
+                        </Section>
+                    ) : (
+                        <Section
+                            title="Itinerary (as booked)"
+                            action={
+                                <Link
+                                    href={`/dashboard/verify-hotels/${booking.id}`}
+                                    className="inline-flex items-center gap-1 rounded-md border border-dashboard-base-300 px-2.5 py-1 text-xs text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
+                                >
+                                    🏨 Manage Hotels →
+                                </Link>
+                            }
+                        >
+                            <BookedItinerary snapshot={snapshot} />
+                        </Section>
+                    )}
 
                     {fulfillment && (
                         <Section title="Fulfilment status">
