@@ -33,7 +33,14 @@ function createPool() {
     user:     decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     ssl:      isLocal ? false : { rejectUnauthorized: false, servername: url.hostname },
-    max:      3,
+    // PgBouncer (Neon pooler) still does the real pooling against Postgres,
+    // but 3 was too tight for our own side: a single page render routinely
+    // fires several Prisma calls concurrently (e.g. sales-query's
+    // Promise.all of 3 queries), which alone maxed out the pool — any
+    // other concurrent request (even just the session's teamMember lookup)
+    // then queued behind it and could exceed connectionTimeoutMillis,
+    // surfacing as "Connection terminated due to connection timeout".
+    max:      10,
     // 30 s keeps connections alive across typical Neon idle gaps (compute
     // stays warm for ~5 min) without leaving them open forever.
     idleTimeoutMillis:      30_000,

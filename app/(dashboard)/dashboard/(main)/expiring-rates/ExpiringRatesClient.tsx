@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { CalendarClock, AlertTriangle, TimerOff, Building2 } from "lucide-react";
-import { getExpiringSeasonalRates, type ExpiryWindow } from "./actions";
+import { getExpiringSeasonalRates } from "./actions";
+import type { ExpiryWindow } from "./windows";
 import { ExpiringRatesTable } from "./ExpiringRatesTable";
 import {
     Breadcrumb, BreadcrumbItem,

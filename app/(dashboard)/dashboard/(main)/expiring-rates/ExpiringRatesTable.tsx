@@ -9,7 +9,7 @@ import { cn } from "@/app/lib/utils";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
-import { EXPIRY_WINDOWS, type ExpiryWindow } from "./actions";
+import { EXPIRY_WINDOWS, type ExpiryWindow } from "./windows";
 import type { getExpiringSeasonalRates } from "./actions";
 
 type SeasonRow = Awaited<ReturnType<typeof getExpiringSeasonalRates>>["seasons"][number];

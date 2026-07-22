@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import ExpiringRatesClient from "./ExpiringRatesClient";
-import { isExpiryWindow, type ExpiryWindow } from "./actions";
+import { isExpiryWindow, type ExpiryWindow } from "./windows";
 
 export const metadata: Metadata = {
     title: "Expiring Seasonal Rates - Dashboard",

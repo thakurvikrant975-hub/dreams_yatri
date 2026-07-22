@@ -2,28 +2,7 @@
 
 import { addDays, addMonths, addYears } from "date-fns";
 import { db } from "@/app/lib/db";
-
-// ── Expiry window options ────────────────────────────────────────────────
-// Each seasonal rate (hotel_room_pricing_season) has its own valid_to date —
-// the hotel team needs to catch these before they lapse and a room silently
-// falls back to its base (non-seasonal) price.
-
-export const EXPIRY_WINDOWS = [
-  { value: "7d",      label: "Within 7 days" },
-  { value: "15d",     label: "Within 15 days" },
-  { value: "1m",      label: "Within 1 month" },
-  { value: "3m",      label: "Within 3 months" },
-  { value: "6m",      label: "Within 6 months" },
-  { value: "1y",      label: "Within 1 year" },
-  { value: "2y",      label: "Within 2 years" },
-  { value: "expired", label: "Already expired" },
-] as const;
-
-export type ExpiryWindow = (typeof EXPIRY_WINDOWS)[number]["value"];
-const WINDOW_VALUES = EXPIRY_WINDOWS.map((w) => w.value);
-export function isExpiryWindow(v: string): v is ExpiryWindow {
-  return (WINDOW_VALUES as readonly string[]).includes(v);
-}
+import type { ExpiryWindow } from "./windows";
 
 function cutoffFor(window: ExpiryWindow, from: Date): Date {
   switch (window) {
