@@ -762,7 +762,7 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
 }
 
 function DayCardPreview({
-  day, adults, childCount, travelDate, onImageChange, onActivityCaptionChange,
+  day, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals,
 }: {
   day: DayItinerary;
   adults: number;
@@ -770,6 +770,9 @@ function DayCardPreview({
   travelDate: string;
   onImageChange?: OnImageChange;
   onActivityCaptionChange?: (day: number, activityIndex: number, photoIndex: number, caption: string) => void;
+  /** Breakfast-shifted meals for this day — see computeShiftedMeals. Falls
+   * back to the raw day.meals if not supplied. */
+  shiftedMeals?: string[];
 }) {
   // Keeps each activity's original index (for onImageChange targeting) even
   // though blank ones are filtered out of what's actually rendered.
@@ -1027,11 +1030,12 @@ function DayCardPreview({
           </div>
         )}
 
-        {/* Meals */}
-        {day.meals.length > 0 && (
+        {/* Meals — shifted so breakfast shows on the day it's actually eaten
+            (the morning of checkout), not the day the hotel was checked into. */}
+        {(shiftedMeals ?? day.meals).length > 0 && (
           <div className="space-y-1.5" style={{ breakInside: "avoid" }}>
             <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Meals</p>
-            <MealsRow meals={day.meals} />
+            <MealsRow meals={shiftedMeals ?? day.meals} />
           </div>
         )}
 
@@ -1423,6 +1427,8 @@ export function ItineraryDocument({
 
   const durationLabel = `${form.totalDays}D / ${form.totalNights}N`;
 
+  const detailedShiftedMeals = computeShiftedMeals(form.itineraries);
+
   const paxLine =
     `${form.adults} Adult${form.adults !== 1 ? "s" : ""}` +
     (form.children ? `, ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "") +
@@ -1563,7 +1569,7 @@ export function ItineraryDocument({
           <div className="space-y-3">
             <SectionHeader icon={Milestone} label="Detailed Itinerary" />
             <div className="space-y-3">
-              {form.itineraries.map((d) => (
+              {form.itineraries.map((d, i) => (
                 <DayCardPreview
                   key={d.day}
                   day={d}
@@ -1572,6 +1578,7 @@ export function ItineraryDocument({
                   travelDate={form.travelDate}
                   onImageChange={onImageChange}
                   onActivityCaptionChange={onActivityCaptionChange}
+                  shiftedMeals={detailedShiftedMeals[i]}
                 />
               ))}
             </div>
