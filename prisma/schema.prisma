@@ -1335,6 +1335,10 @@ model hotel_room_pricing_season {
   pricing                 hotel_room_pricing                    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
   @@index([pricing_id])
+  // Powers the Expiring Rates dashboard page: every query there filters
+  // is_active=true and a valid_to range (and sorts by valid_to) — without
+  // this, that page falls back to a full table scan as seasons grow.
+  @@index([is_active, valid_to])
   @@map("hotel_room_pricing_seasons")
 }
 

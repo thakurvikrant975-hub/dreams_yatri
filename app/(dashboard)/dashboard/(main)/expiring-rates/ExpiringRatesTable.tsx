@@ -143,6 +143,8 @@ export function ExpiringRatesTable({
             cell: (row) => (
                 <Link
                     href={`/dashboard/hotels/${row.hotelId}?tab=pricing`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-primary hover:underline"
                 >
                     Fix <ChevronRight className="h-3 w-3" />
@@ -161,10 +163,10 @@ export function ExpiringRatesTable({
                     {
                         value: window,
                         onChange: (v) => updateParam("window", v),
-                        placeholder: "Within 3 months",
+                        placeholder: "Already expired",
                         width: "w-44",
-                        allValue: "3m",
-                        options: EXPIRY_WINDOWS.filter((w) => w.value !== "3m").map((w) => ({ label: w.label, value: w.value })),
+                        allValue: "expired",
+                        options: EXPIRY_WINDOWS.filter((w) => w.value !== "expired").map((w) => ({ label: w.label, value: w.value })),
                     },
                 ]}
             />
@@ -179,7 +181,12 @@ export function ExpiringRatesTable({
                         description="Nothing in this window — try widening the filter"
                     />
                 }
-                pagination={{ currentPage, totalPages, buildHref, label: paginationLabel }}
+                pagination={{
+                    currentPage, totalPages, buildHref, label: paginationLabel,
+                    pageSize: limit,
+                    onPageSizeChange: (size) => updateParam("limit", String(size)),
+                    pageSizeOptions: [10, 20, 50],
+                }}
             />
         </div>
     );

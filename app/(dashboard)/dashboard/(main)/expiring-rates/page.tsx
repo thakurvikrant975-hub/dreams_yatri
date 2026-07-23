@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 const VALID_LIMITS = [10, 20, 50] as const;
-const DEFAULT_WINDOW: ExpiryWindow = "3m";
+const DEFAULT_WINDOW: ExpiryWindow = "expired";
 
 export default async function ExpiringRatesPage({
     searchParams,

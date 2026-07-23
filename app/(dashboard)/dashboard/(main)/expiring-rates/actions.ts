@@ -2,6 +2,7 @@
 
 import { addDays, addMonths, addYears } from "date-fns";
 import { db } from "@/app/lib/db";
+import { Prisma } from "@/app/generated/prisma";
 import type { ExpiryWindow } from "./windows";
 
 function cutoffFor(window: ExpiryWindow, from: Date): Date {
@@ -33,7 +34,7 @@ export interface GetExpiringSeasonalRatesParams {
 }
 
 export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesParams = {}) {
-  const { page = 1, limit = 20, search = "", window = "3m" } = params;
+  const { page = 1, limit = 20, search = "", window = "expired" } = params;
   const skip = (page - 1) * limit;
   const now = new Date();
 
@@ -52,7 +53,19 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
 
   const where = { ...ACTIVE_CHAIN, valid_to: dateFilter, ...searchFilter };
 
-  const [rows, totalCount, statsTotal, statsExpired, statsUrgent, affectedRows] = await Promise.all([
+  // "Hotels Affected" needs a distinct count, not rows — doing that by
+  // fetching every matching season and de-duping hotel ids in JS doesn't
+  // scale (it pulls the *entire* filtered result set across the wire just
+  // to throw most of it away). COUNT(DISTINCT ...) computed in Postgres
+  // stays O(1) result size no matter how many seasons match.
+  const dateConditionSql = window === "expired"
+    ? Prisma.sql`s.valid_to < ${now}`
+    : Prisma.sql`s.valid_to >= ${now} AND s.valid_to <= ${cutoffFor(window, now)}`;
+  const searchConditionSql = search
+    ? Prisma.sql`AND (s.season_name ILIKE ${`%${search}%`} OR r.name ILIKE ${`%${search}%`} OR h.name ILIKE ${`%${search}%`} OR h.city ILIKE ${`%${search}%`})`
+    : Prisma.empty;
+
+  const [rows, totalCount, statsTotal, statsExpired, statsUrgent, hotelsAffectedRows] = await Promise.all([
     db.hotel_room_pricing_season.findMany({
       where,
       orderBy: { valid_to: "asc" },
@@ -74,15 +87,19 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
     db.hotel_room_pricing_season.count({ where: ACTIVE_CHAIN }),
     db.hotel_room_pricing_season.count({ where: { ...ACTIVE_CHAIN, valid_to: { lt: now } } }),
     db.hotel_room_pricing_season.count({ where: { ...ACTIVE_CHAIN, valid_to: { gte: now, lte: addDays(now, 7) } } }),
-    // Distinct hotels affected by the *current* filter — a lightweight
-    // projection (no pagination) since seasonal-rate volume is modest.
-    db.hotel_room_pricing_season.findMany({
-      where,
-      select: { pricing: { select: { hotel: { select: { id: true } } } } },
-    }),
+    db.$queryRaw<{ count: number }[]>`
+      SELECT COUNT(DISTINCT h.id)::int AS count
+      FROM hotel_room_pricing_seasons s
+      JOIN hotel_room_pricing p ON p.id = s.pricing_id
+      JOIN hotel_rooms r ON r.id = p.room_id
+      JOIN hotels h ON h.id = p.hotel_id
+      WHERE s.is_active = true AND p.is_active = true AND r.is_active = true AND h.is_active = true
+        AND ${dateConditionSql}
+        ${searchConditionSql}
+    `,
   ]);
 
-  const hotelsAffected = new Set(affectedRows.map((r) => r.pricing.hotel.id)).size;
+  const hotelsAffected = hotelsAffectedRows[0]?.count ?? 0;
 
   const seasons = rows.map((s) => {
     const daysRemaining = Math.ceil((s.valid_to.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
