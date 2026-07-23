@@ -2,6 +2,18 @@ import type { NextConfig } from "next";
 
 /** @type {import('next').NextConfig} */
 const nextConfig: NextConfig = {
+  // Without this, Turbopack auto-detects the workspace root by walking up
+  // for lockfiles — and finds a stray package-lock.json at /Users/apple,
+  // so it picks the *entire home directory* as the root and file-watches
+  // everything under it (Desktop, Documents, other projects, caches...).
+  // That's what was pinning next-server at 500%+ CPU continuously. Pinning
+  // the root here scopes the watcher to just this project.
+  // (Not __dirname: in this config file it resolves one directory too high
+  // and broke module resolution entirely. next dev is always run with
+  // cwd = the project root, so process.cwd() is unambiguous here.)
+  turbopack: {
+    root: process.cwd(),
+  },
   // Keep the dashboard layout's RSC payload (sidebar + header) cached on the
   // client across navigations so it doesn't re-fetch/flicker on every route change.
   experimental: {

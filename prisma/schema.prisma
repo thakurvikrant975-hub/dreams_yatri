@@ -2542,6 +2542,7 @@ model custom_packages {
   itineraries          custom_itineraries[]
   stops                custom_package_stops[]
   tickets              custom_package_tickets[]
+  addOns               custom_package_addons[]
   query                package_queries?         @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
@@ -2630,6 +2631,27 @@ model custom_package_tickets {
   infants         Int             @default(0)
   ticketCount     Int             @default(1)
   fare            Float?
+  notes           String?
+  sortOrder       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+
+  @@index([customPackageId])
+}
+
+// A priced add-on for a custom package — e.g. "Honeymoon Kit", "Inner Line
+// Permit" — each with its own per-unit price and quantity. Subtotal (price ×
+// quantity, summed across rows) feeds into the package's computed pricing
+// the same way hotel/cab costs do — see computeFinalPricing in the builder's
+// page.tsx, which applies the standard (configurable, 25% by default)
+// margin to add-ons, unlike tickets which only ever carry a flat 5%.
+model custom_package_addons {
+  id              String          @id @default(cuid())
+  customPackageId String
+  name            String
+  price           Float           @default(0)
+  quantity        Int             @default(1)
   notes           String?
   sortOrder       Int             @default(0)
   createdAt       DateTime        @default(now())

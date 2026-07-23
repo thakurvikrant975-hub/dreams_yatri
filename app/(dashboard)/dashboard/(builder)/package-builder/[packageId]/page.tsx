@@ -12,7 +12,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink,
+  ExternalLink, Gift,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -48,6 +48,7 @@ import {
   type CabPricingResult,
   type PackageCopyPayload,
   type TicketInput,
+  type AddonInput,
   type ExtraPolicyItems,
   getCurrentUserRole,
 } from "../action";
@@ -1768,6 +1769,9 @@ interface PackageForm {
    * flightsIncluded/flightFrom/etc are derived from this list at save/preview
    * time (see deriveTransportFields) instead of being separately toggled. */
   tickets: TicketInput[];
+  /** Priced add-ons — honeymoon kit, permits, etc. Subtotal (price × qty)
+   * feeds into computeFinalPricing at the standard (25% default) margin. */
+  addOns: AddonInput[];
   execName: string;
   execEmail: string;
   execDesignation: string;
@@ -2086,6 +2090,7 @@ export default function PackageBuilderDetailPage() {
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
     tickets: [],
+    addOns: [],
     execName: "", execEmail: "", execDesignation: "",
   });
 
@@ -2244,6 +2249,7 @@ export default function PackageBuilderDetailPage() {
               ? { totalDays: cp.itineraries.length, totalNights: Math.max(0, cp.itineraries.length - 1) }
               : { totalDays: cp.totalDays, totalNights: cp.totalNights }),
           tickets: cp.tickets,
+          addOns: cp.addOns,
         }));
       } else {
         // No package built yet — seed Margin%/GST% from the admin-configured
@@ -2414,9 +2420,12 @@ export default function PackageBuilderDetailPage() {
     const gstPct = parseFloat(form.gstPercentage) || 0;
     const hotelCabBase = (hotelPricing?.hotelSubtotal ?? 0) + (cabPricing?.cabSubtotal ?? 0);
     const ticketsSubtotal = form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
-    const baseCost = hotelCabBase + ticketsSubtotal;
+    // Add-ons (honeymoon kit, permits, etc.) carry the same configurable
+    // margin as hotel/cab — unlike tickets, which are priced closer to cost.
+    const addonsSubtotal = form.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0);
+    const baseCost = hotelCabBase + addonsSubtotal + ticketsSubtotal;
 
-    const hotelCabMarginAmount = Math.round(hotelCabBase * marginPct / 100);
+    const hotelCabMarginAmount = Math.round((hotelCabBase + addonsSubtotal) * marginPct / 100);
     const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
     const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
 
@@ -2426,7 +2435,7 @@ export default function PackageBuilderDetailPage() {
     const totalPax = form.adults + form.children;
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
     return {
-      marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase,
+      marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase, addonsSubtotal,
       hotelCabMarginAmount, ticketsMarginAmount, marginAmount,
       taxable, gstAmount, finalPrice, perPerson,
     };
@@ -2640,6 +2649,24 @@ export default function PackageBuilderDetailPage() {
 
   function removeTicket(idx: number) {
     setForm((f) => ({ ...f, tickets: f.tickets.filter((_, i) => i !== idx) }));
+  }
+
+  function addAddon() {
+    setForm((f) => ({
+      ...f,
+      addOns: [...f.addOns, { name: "", price: null, quantity: 1, notes: "" }],
+    }));
+  }
+
+  function updateAddon(idx: number, patch: Partial<AddonInput>) {
+    setForm((f) => ({
+      ...f,
+      addOns: f.addOns.map((a, i) => (i === idx ? { ...a, ...patch } : a)),
+    }));
+  }
+
+  function removeAddon(idx: number) {
+    setForm((f) => ({ ...f, addOns: f.addOns.filter((_, i) => i !== idx) }));
   }
 
   /** Reuses one picked cab across multiple days — only the vehicle itself
@@ -3444,6 +3471,62 @@ Rules:
                   </p>
                 </div>
 
+                {/* Add-ons */}
+                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                      <Gift size={15} className="text-dashboard-primary" /> Add-ons
+                    </h2>
+                    <Button type="button" variant="outline" size="sm" onClick={addAddon}>
+                      <Plus size={13} className="mr-1.5" /> Add Add-on
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-dashboard-base-content/50">
+                    Priced extras — honeymoon kit, permits, adventure sport fees, etc. Each unit price × quantity feeds into the
+                    package total on the Pricing Breakdown tab, at the same {form.marginPercentage || 0}% margin as hotels/cabs.
+                  </p>
+                  {form.addOns.length === 0 ? (
+                    <p className="text-[11px] text-dashboard-base-content/40 italic">No add-ons yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.addOns.map((addon, idx) => (
+                        <div key={idx} className="flex items-center gap-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/20 p-2.5">
+                          <Input
+                            value={addon.name}
+                            onChange={(e) => updateAddon(idx, { name: e.target.value })}
+                            placeholder="e.g. Honeymoon Kit"
+                            className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                          />
+                          <Input
+                            type="number" min={0}
+                            value={addon.price ?? ""}
+                            onChange={(e) => updateAddon(idx, { price: e.target.value ? Number(e.target.value) : null })}
+                            placeholder="₹ / unit"
+                            className="text-sm h-8 w-28 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                          />
+                          <Input
+                            type="number" min={1}
+                            value={addon.quantity}
+                            onChange={(e) => updateAddon(idx, { quantity: e.target.value ? Number(e.target.value) : 1 })}
+                            placeholder="Qty"
+                            className="text-sm h-8 w-20 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                          />
+                          <span className="text-xs font-semibold text-dashboard-base-content/70 w-24 text-right shrink-0">
+                            ₹{((addon.price ?? 0) * (addon.quantity || 1)).toLocaleString("en-IN")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeAddon(idx)}
+                            className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Flights & Train */}
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 flex items-center justify-between gap-3 flex-wrap">
                   <div>
@@ -3714,7 +3797,7 @@ Rules:
                     <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
                       <Loader2 size={12} className="animate-spin" /> Calculating price from hotels, cabs + dates…
                     </div>
-                  ) : (hotelPricing && hotelPricing.days.length > 0) || (cabPricing && cabPricing.days.length > 0) || form.tickets.length > 0 ? (
+                  ) : (hotelPricing && hotelPricing.days.length > 0) || (cabPricing && cabPricing.days.length > 0) || form.tickets.length > 0 || form.addOns.length > 0 ? (
                     <>
                       {hotelPricing && hotelPricing.days.length > 0 && (
                         <div className="space-y-3">
@@ -3889,11 +3972,62 @@ Rules:
                         </div>
                       )}
 
+                      {form.addOns.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
+                            <Gift size={12} /> Add-ons
+                          </h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Add-ons Subtotal</p>
+                              <p className="text-base font-bold text-dashboard-base-content">
+                                ₹{form.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0).toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Items</p>
+                              <p className="text-base font-bold text-dashboard-base-content">{form.addOns.length}</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
+                                  <th className="text-left px-3 py-2 font-semibold">Add-on</th>
+                                  <th className="text-right px-3 py-2 font-semibold">₹/unit</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Qty</th>
+                                  <th className="text-right px-3 py-2 font-semibold">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {form.addOns.map((a, idx) => (
+                                  <tr key={idx} className="border-t border-dashboard-base-300">
+                                    <td className="px-3 py-2 font-medium whitespace-nowrap">{a.name || "Untitled add-on"}</td>
+                                    <td className="px-3 py-2 text-right">₹{(a.price ?? 0).toLocaleString("en-IN")}</td>
+                                    <td className="px-3 py-2 text-right">{a.quantity || 1}</td>
+                                    <td className="px-3 py-2 text-right font-semibold">₹{((a.price ?? 0) * (a.quantity || 1)).toLocaleString("en-IN")}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
+                                  <td colSpan={3} className="px-3 py-2 text-right font-semibold">Add-ons Subtotal</td>
+                                  <td className="px-3 py-2 text-right font-bold">
+                                    ₹{form.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0).toLocaleString("en-IN")}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
                       <p className="text-[11px] text-dashboard-base-content/50">
                         Hotels are computed from each day&apos;s selected room (season/occupancy-aware rate) and adult/child count; cabs from each
                         day&apos;s selected cab (season/weekday-weekend-aware rate, per day or per km as configured) — both checked against the travel date;
-                        tickets from the fares entered on the Tickets tab. Hotel/cab carry the margin % set below; ticket fares only ever carry a
-                        flat {TICKET_MARGIN_PCT}% margin, regardless of that setting.
+                        tickets from the fares entered on the Tickets tab; add-ons from the Add-ons list in Package Details. Hotel/cab/add-ons carry
+                        the margin % set below; ticket fares only ever carry a flat {TICKET_MARGIN_PCT}% margin, regardless of that setting.
                         Activities aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details if needed.
                       </p>
 
@@ -3936,8 +4070,16 @@ Rules:
                                     <td className="px-3 py-2 text-dashboard-base-content/70">Hotel + Cab Base</td>
                                     <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabBase.toLocaleString("en-IN")}</td>
                                   </tr>
+                                  {p.addonsSubtotal > 0 && (
+                                    <tr className="border-b border-dashboard-base-300">
+                                      <td className="px-3 py-2 text-dashboard-base-content/70">Add-ons Base</td>
+                                      <td className="px-3 py-2 text-right font-medium">₹{p.addonsSubtotal.toLocaleString("en-IN")}</td>
+                                    </tr>
+                                  )}
                                   <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin on Hotel/Cab ({p.marginPct}%)</td>
+                                    <td className="px-3 py-2 text-dashboard-base-content/70">
+                                      + Margin on Hotel/Cab{p.addonsSubtotal > 0 ? "/Add-ons" : ""} ({p.marginPct}%)
+                                    </td>
                                     <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabMarginAmount.toLocaleString("en-IN")}</td>
                                   </tr>
                                   {p.ticketsSubtotal > 0 && (
