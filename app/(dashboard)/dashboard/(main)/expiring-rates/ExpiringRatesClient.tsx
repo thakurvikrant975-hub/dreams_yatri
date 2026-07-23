@@ -45,7 +45,7 @@ async function ExpiringRatesData({
     return (
         <>
             <StatGrid cols={4}>
-                <StatCard label="Total Seasonal Rates" value={stats.total} icon={CalendarClock} />
+                <StatCard label="Total Pricing Plans" value={stats.total} icon={CalendarClock} />
                 <StatCard label="Expiring in 7 Days" value={stats.urgent7d} icon={AlertTriangle} />
                 <StatCard label="Already Expired" value={stats.expired} icon={TimerOff} />
                 <StatCard label="Hotels Affected" value={stats.hotelsAffected} icon={Building2} sub="In current filter" />

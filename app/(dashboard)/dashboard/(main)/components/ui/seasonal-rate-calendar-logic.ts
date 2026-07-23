@@ -255,3 +255,42 @@ export function formatDateLabel(iso: string): string {
 export function defaultRangeLabel(startDate: string, endDate: string): string {
   return `${formatDateLabel(startDate)} – ${formatDateLabel(endDate)}`;
 }
+
+// ── Plan expiry ──────────────────────────────────────────────────────────────
+// An item's pricing doesn't actually lapse back to the base rate until its
+// LAST season ends — never at any individual season's own end date while a
+// later one still covers the calendar. "YYYY-MM-DD" strings sort correctly
+// with plain string comparison, so no Date parsing is needed here.
+
+/** The item's true expiry — the latest `endDate` among all its seasons, or
+ * `null` if it has none (nothing to expire). */
+export function planExpiryDate<T extends RateSeasonBase>(seasonsForItem: T[]): string | null {
+  if (seasonsForItem.length === 0) return null;
+  return seasonsForItem.reduce((max, s) => (s.endDate > max ? s.endDate : max), seasonsForItem[0].endDate);
+}
+
+/** Calendar days from today (UTC) to `iso` — negative once it's in the past. */
+export function daysUntil(iso: string): number {
+  const target = new Date(`${iso}T00:00:00Z`).getTime();
+  const now = new Date();
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((target - todayUTC) / (1000 * 60 * 60 * 24));
+}
+
+/** "Expires today" / "12d left" / "Expired 3d ago" — mirrors the Expiring
+ * Rates dashboard page's own urgency wording so the two stay consistent. */
+export function expiryLabel(daysRemaining: number): string {
+  if (daysRemaining < 0) return `Expired ${Math.abs(daysRemaining)}d ago`;
+  if (daysRemaining === 0) return "Expires today";
+  return `${daysRemaining}d left`;
+}
+
+/** Tailwind classes for the expiry badge — red once past, orange within a
+ * week, amber within a month, green otherwise. Same thresholds as the
+ * Expiring Rates dashboard page's own urgency coloring. */
+export function expiryClass(daysRemaining: number): string {
+  if (daysRemaining < 0) return "bg-red-50 border-red-200 text-red-700";
+  if (daysRemaining <= 7) return "bg-orange-50 border-orange-200 text-orange-700";
+  if (daysRemaining <= 30) return "bg-amber-50 border-amber-200 text-amber-700";
+  return "bg-green-50 border-green-200 text-green-700";
+}

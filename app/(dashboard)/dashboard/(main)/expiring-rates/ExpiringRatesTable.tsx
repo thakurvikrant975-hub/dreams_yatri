@@ -109,9 +109,14 @@ export function ExpiringRatesTable({
                     <p className="font-medium truncate flex items-center gap-1">
                         <Tag className="h-3 w-3 shrink-0 text-dashboard-base-content/40" />
                         {row.planName || <span className="italic text-dashboard-base-content/40">Unnamed plan</span>}
+                        {row.seasonCount > 1 && (
+                            <span className="ml-1 shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-dashboard-base-200 text-dashboard-base-content/60">
+                                {row.seasonCount} seasons
+                            </span>
+                        )}
                     </p>
                     <p className="text-xs text-dashboard-base-content/60 truncate">
-                        {row.seasonName || "Season"}
+                        Last season: {row.seasonName || "—"}
                     </p>
                     <p className="text-[11px] text-dashboard-base-content/50 flex items-center gap-1">
                         <CalendarRange className="h-3 w-3 shrink-0" />
