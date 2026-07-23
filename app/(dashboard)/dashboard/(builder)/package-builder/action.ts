@@ -765,6 +765,10 @@ export interface AddonInput {
   price:    number | null;
   quantity: number;
   notes:    string;
+  /** Which itinerary day this was added under (added while working on that
+   * day's hotel) — renders under that day's Hotel section in the document.
+   * Null when added generically from the Package Details tab. */
+  day:      number | null;
 }
 
 export interface TicketInput {
@@ -1152,7 +1156,7 @@ function normalizeTicket(t: {
 }
 
 function normalizeAddon(a: {
-  id: string; name: string; price: number | null; quantity: number; notes: string | null;
+  id: string; name: string; price: number | null; quantity: number; notes: string | null; day: number | null;
 }): AddonInput {
   return {
     id:       a.id,
@@ -1160,6 +1164,7 @@ function normalizeAddon(a: {
     price:    a.price ?? null,
     quantity: a.quantity,
     notes:    a.notes ?? "",
+    day:      a.day ?? null,
   };
 }
 
@@ -1254,7 +1259,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       },
       addOns: {
         orderBy: { sortOrder: "asc" },
-        select: { id: true, name: true, price: true, quantity: true, notes: true },
+        select: { id: true, name: true, price: true, quantity: true, notes: true, day: true },
       },
       itineraries: {
         orderBy: { day: "asc" },
@@ -1656,6 +1661,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
           price:           a.price ?? 0,
           quantity:        a.quantity || 1,
           notes:           a.notes || null,
+          day:             a.day ?? null,
           sortOrder:       idx,
         })),
       });

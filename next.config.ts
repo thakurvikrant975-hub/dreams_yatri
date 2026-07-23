@@ -6,13 +6,16 @@ const nextConfig: NextConfig = {
   // for lockfiles — and finds a stray package-lock.json at /Users/apple,
   // so it picks the *entire home directory* as the root and file-watches
   // everything under it (Desktop, Documents, other projects, caches...).
-  // That's what was pinning next-server at 500%+ CPU continuously. Pinning
-  // the root here scopes the watcher to just this project.
-  // (Not __dirname: in this config file it resolves one directory too high
-  // and broke module resolution entirely. next dev is always run with
-  // cwd = the project root, so process.cwd() is unambiguous here.)
+  // That's what was pinning next-server at 500%+ CPU continuously.
+  //
+  // Hardcoded on purpose, not derived: __dirname resolved one directory too
+  // high in this config file, and process.cwd() also turned out to resolve
+  // to the *parent* of this project (whatever launches `npm run dev` here —
+  // an editor task, an alias, an npm --prefix/workspace invocation — doesn't
+  // necessarily cd into this folder first). An absolute literal path removes
+  // that ambiguity regardless of how/where the process gets launched from.
   turbopack: {
-    root: process.cwd(),
+    root: "/Users/apple/Desktop/projects/dreams_yatri",
   },
   // Keep the dashboard layout's RSC payload (sidebar + header) cached on the
   // client across navigations so it doesn't re-fetch/flicker on every route change.

@@ -2653,6 +2653,13 @@ model custom_package_addons {
   price           Float           @default(0)
   quantity        Int             @default(1)
   notes           String?
+  /**
+   * Which itinerary day this was added under (e.g. added while working on
+   * Day 2's hotel) — null means added generically (Package Details tab,
+   * not tied to any day). Drives where it renders in the document: under
+   * that day's Hotel section when set, in the general list when null.
+   */
+  day             Int?
   sortOrder       Int             @default(0)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

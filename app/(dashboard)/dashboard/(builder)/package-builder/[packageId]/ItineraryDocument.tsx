@@ -6,7 +6,7 @@ import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
-  Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight,
+  Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
@@ -205,7 +205,7 @@ export function mealIncludedText(planText: string): string | null {
   return `${joined} included`;
 }
 import DyLogo from "@/app/components/ui/DyLogo";
-import type { DayItinerary, ActivityInput, StopInput, TicketInput } from "../action";
+import type { DayItinerary, ActivityInput, StopInput, TicketInput, AddonInput } from "../action";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 
 export interface PreviewData {
@@ -246,6 +246,10 @@ export interface PreviewData {
    * route map are derived from this list (see deriveTransportFields) rather
    * than stored separately, so they can never drift out of sync. */
   tickets: TicketInput[];
+  /** Priced add-ons (honeymoon kit, permits, etc.) — shown to the client as
+   * name + what's-included, never the raw per-unit price (same privacy
+   * convention as tickets' fare, which is also builder-internal only). */
+  addOns?: AddonInput[];
   /** Who this itinerary is being prepared for — from the originating query,
    * not typed into the package draft itself. Empty on the rare package with
    * no linked query (shouldn't happen in practice, but kept optional-safe). */
@@ -767,8 +771,65 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
   );
 }
 
+/** One add-on tile, shown as what's-included only — never the per-unit price
+ * (same convention as TicketCard hiding fare), since the cost is already
+ * folded into the package total the client sees on the Price Summary card. */
+function AddonCard({ addon }: { addon: AddonInput }) {
+  return (
+    <div className="rounded-xl border border-rose-100 bg-white overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 bg-rose-50/70 border-b border-rose-100">
+        <span className="flex items-center justify-center size-5 rounded-lg bg-rose-100 shrink-0">
+          <Gift size={11} className="text-rose-600" />
+        </span>
+        <p className="text-xs font-semibold text-neutral-800 truncate">
+          {addon.name}{addon.quantity > 1 ? ` × ${addon.quantity}` : ""}
+        </p>
+      </div>
+      {addon.notes && (
+        <p className="p-3 text-[11px] text-neutral-500 leading-relaxed">{addon.notes}</p>
+      )}
+    </div>
+  );
+}
+
+/** General add-ons (day: null) — added from the Package Details tab rather
+ * than a specific day's hotel, so they aren't tied to any one Day card and
+ * are shown here instead, up top with Flight/Train details. */
+export function AddonsSection({ addOns }: { addOns?: AddonInput[] }) {
+  const items = (addOns ?? []).filter((a) => a.name.trim() && a.day == null);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="space-y-3" style={{ breakInside: "avoid" }}>
+      <SectionHeader icon={Gift} label="Add-ons Included" />
+      <div className="grid grid-cols-2 gap-3">
+        {items.map((a, i) => <AddonCard key={i} addon={a} />)}
+      </div>
+    </div>
+  );
+}
+
+/** Add-ons tied to one specific day — rendered inline under that day's Hotel
+ * section (see DayCardPreview) rather than in the general AddonsSection. */
+function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }) {
+  const items = addOns.filter((a) => a.name.trim() && a.day === day);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="space-y-2" style={{ breakInside: "avoid" }}>
+      <div className="flex items-center gap-2 px-1">
+        <Gift size={11} className="text-rose-500 shrink-0" />
+        <p className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Add-ons Included</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {items.map((a, i) => <AddonCard key={i} addon={a} />)}
+      </div>
+    </div>
+  );
+}
+
 function DayCardPreview({
-  day, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals,
+  day, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals, addOns,
 }: {
   day: DayItinerary;
   adults: number;
@@ -779,6 +840,9 @@ function DayCardPreview({
   /** Breakfast-shifted meals for this day — see computeShiftedMeals. Falls
    * back to the raw day.meals if not supplied. */
   shiftedMeals?: string[];
+  /** Full package add-ons list — filtered internally (DayAddonsSection) to
+   * just this day's, shown right below the Hotel section. */
+  addOns?: AddonInput[];
 }) {
   // Keeps each activity's original index (for onImageChange targeting) even
   // though blank ones are filtered out of what's actually rendered.
@@ -937,6 +1001,8 @@ function DayCardPreview({
             </div>
           </div>
         )}
+
+        <DayAddonsSection addOns={addOns ?? []} day={day.day} />
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
@@ -1567,6 +1633,8 @@ export function ItineraryDocument({
 
           <TicketsSection tickets={form.tickets} />
 
+          <AddonsSection addOns={form.addOns} />
+
           <PlacesToVisit form={form} onImageChange={onImageChange} />
 
           <div className="space-y-3">
@@ -1587,6 +1655,7 @@ export function ItineraryDocument({
                   onImageChange={onImageChange}
                   onActivityCaptionChange={onActivityCaptionChange}
                   shiftedMeals={detailedShiftedMeals[i]}
+                  addOns={form.addOns}
                 />
               ))}
             </div>

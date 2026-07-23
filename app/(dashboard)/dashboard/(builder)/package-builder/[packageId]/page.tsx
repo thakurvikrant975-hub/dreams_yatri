@@ -698,6 +698,7 @@ const SECTION_THEMES = {
   sky:     { border: "border-sky-200",     headerBg: "bg-sky-50",     iconBg: "bg-sky-100",     iconText: "text-sky-600",     labelText: "text-sky-800" },
   emerald: { border: "border-emerald-200", headerBg: "bg-emerald-50", iconBg: "bg-emerald-100", iconText: "text-emerald-600", labelText: "text-emerald-800" },
   violet:  { border: "border-violet-200",  headerBg: "bg-violet-50",  iconBg: "bg-violet-100",  iconText: "text-violet-600",  labelText: "text-violet-800" },
+  rose:    { border: "border-rose-200",    headerBg: "bg-rose-50",    iconBg: "bg-rose-100",    iconText: "text-rose-600",    labelText: "text-rose-800" },
 } as const;
 
 function DaySectionCard({
@@ -770,6 +771,7 @@ function DayCard({
   day, data, location, totalDays, onChange, onRemove,
   onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
   focusSection, shiftedMeals,
+  dayAddons, onAddAddon, onUpdateAddon, onRemoveAddon,
 }: {
   day: number;
   data: DayItinerary;
@@ -794,6 +796,15 @@ function DayCard({
    * shown alongside the day's own raw meals (what tonight's hotel plan
    * covers), which is what's actually editable here. */
   shiftedMeals: string[];
+  /** Add-ons added while working on THIS day's hotel — paired with their
+   * index in the parent's full form.addOns array (not this filtered list),
+   * since that's what onUpdateAddon/onRemoveAddon key off. Shown right below
+   * the Hotel section; same underlying list as the Package Details tab's
+   * Add-ons card, just filtered to this day plus a quick-add scoped to it. */
+  dayAddons: { addon: AddonInput; index: number }[];
+  onAddAddon: () => void;
+  onUpdateAddon: (idx: number, patch: Partial<AddonInput>) => void;
+  onRemoveAddon: (idx: number) => void;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -1352,6 +1363,85 @@ function DayCard({
                 className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
+          </DaySectionCard>
+          )}
+
+          {/* Add-ons added for this day — shown right below the Hotel section */}
+          {(focusSection === "all" || focusSection === "hotel") && (
+          <DaySectionCard
+            icon={Gift}
+            label="Add-ons"
+            color="rose"
+            badge={dayAddons.length > 0 && (
+              <span className="text-[10px] font-semibold text-rose-600 bg-rose-100 rounded-full px-1.5 py-0.5 shrink-0">
+                {dayAddons.length}
+              </span>
+            )}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onAddAddon}
+                className="h-6 px-2 text-[11px] gap-1 border-rose-200 text-rose-700 hover:bg-rose-100 rounded-md shrink-0"
+              >
+                <Plus size={11} /> Add Add-on
+              </Button>
+            }
+          >
+            <p className="text-[11px] text-dashboard-base-content/50 -mt-1">
+              Honeymoon kit, permits, etc. added for this day — priced into the package total, shown here in the itinerary
+              document under Day {day}&apos;s hotel.
+            </p>
+            {dayAddons.length === 0 ? (
+              <p className="text-[11px] text-dashboard-base-content/40 italic">No add-ons for this day yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {dayAddons.map(({ addon, index }) => (
+                  <div key={index} className="rounded-lg border border-rose-100 bg-rose-50/30 p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={addon.name}
+                        onChange={(e) => onUpdateAddon(index, { name: e.target.value })}
+                        placeholder="e.g. Honeymoon Kit"
+                        className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md bg-dashboard-base-100"
+                      />
+                      <Input
+                        type="number" min={0}
+                        value={addon.price ?? ""}
+                        onChange={(e) => onUpdateAddon(index, { price: e.target.value ? Number(e.target.value) : null })}
+                        placeholder="₹ / unit"
+                        className="text-sm h-8 w-24 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md bg-dashboard-base-100"
+                      />
+                      <Input
+                        type="number" min={1}
+                        value={addon.quantity}
+                        onChange={(e) => onUpdateAddon(index, { quantity: e.target.value ? Number(e.target.value) : 1 })}
+                        placeholder="Qty"
+                        className="text-sm h-8 w-16 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md bg-dashboard-base-100"
+                      />
+                      <span className="text-xs font-semibold text-dashboard-base-content/70 w-20 text-right shrink-0">
+                        ₹{((addon.price ?? 0) * (addon.quantity || 1)).toLocaleString("en-IN")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveAddon(index)}
+                        className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                    <Textarea
+                      value={addon.notes}
+                      onChange={(e) => onUpdateAddon(index, { notes: e.target.value })}
+                      placeholder="What's included — e.g. candle light dinner, cake, bed decoration…"
+                      rows={2}
+                      className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md bg-dashboard-base-100"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </DaySectionCard>
           )}
 
@@ -2651,10 +2741,10 @@ export default function PackageBuilderDetailPage() {
     setForm((f) => ({ ...f, tickets: f.tickets.filter((_, i) => i !== idx) }));
   }
 
-  function addAddon() {
+  function addAddon(day: number | null = null) {
     setForm((f) => ({
       ...f,
-      addOns: [...f.addOns, { name: "", price: null, quantity: 1, notes: "" }],
+      addOns: [...f.addOns, { name: "", price: null, quantity: 1, notes: "", day }],
     }));
   }
 
@@ -3477,7 +3567,7 @@ Rules:
                     <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
                       <Gift size={15} className="text-dashboard-primary" /> Add-ons
                     </h2>
-                    <Button type="button" variant="outline" size="sm" onClick={addAddon}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => addAddon()}>
                       <Plus size={13} className="mr-1.5" /> Add Add-on
                     </Button>
                   </div>
@@ -3490,37 +3580,49 @@ Rules:
                   ) : (
                     <div className="space-y-2">
                       {form.addOns.map((addon, idx) => (
-                        <div key={idx} className="flex items-center gap-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/20 p-2.5">
-                          <Input
-                            value={addon.name}
-                            onChange={(e) => updateAddon(idx, { name: e.target.value })}
-                            placeholder="e.g. Honeymoon Kit"
-                            className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        <div key={idx} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/20 p-2.5 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-semibold text-dashboard-base-content/50 bg-dashboard-base-200 rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap">
+                              {addon.day != null ? `Day ${addon.day}` : "General"}
+                            </span>
+                            <Input
+                              value={addon.name}
+                              onChange={(e) => updateAddon(idx, { name: e.target.value })}
+                              placeholder="e.g. Honeymoon Kit"
+                              className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                            />
+                            <Input
+                              type="number" min={0}
+                              value={addon.price ?? ""}
+                              onChange={(e) => updateAddon(idx, { price: e.target.value ? Number(e.target.value) : null })}
+                              placeholder="₹ / unit"
+                              className="text-sm h-8 w-28 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                            />
+                            <Input
+                              type="number" min={1}
+                              value={addon.quantity}
+                              onChange={(e) => updateAddon(idx, { quantity: e.target.value ? Number(e.target.value) : 1 })}
+                              placeholder="Qty"
+                              className="text-sm h-8 w-20 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                            />
+                            <span className="text-xs font-semibold text-dashboard-base-content/70 w-24 text-right shrink-0">
+                              ₹{((addon.price ?? 0) * (addon.quantity || 1)).toLocaleString("en-IN")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeAddon(idx)}
+                              className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                          <Textarea
+                            value={addon.notes}
+                            onChange={(e) => updateAddon(idx, { notes: e.target.value })}
+                            placeholder="What's included — e.g. candle light dinner, cake, bed decoration…"
+                            rows={2}
+                            className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                           />
-                          <Input
-                            type="number" min={0}
-                            value={addon.price ?? ""}
-                            onChange={(e) => updateAddon(idx, { price: e.target.value ? Number(e.target.value) : null })}
-                            placeholder="₹ / unit"
-                            className="text-sm h-8 w-28 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                          />
-                          <Input
-                            type="number" min={1}
-                            value={addon.quantity}
-                            onChange={(e) => updateAddon(idx, { quantity: e.target.value ? Number(e.target.value) : 1 })}
-                            placeholder="Qty"
-                            className="text-sm h-8 w-20 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                          />
-                          <span className="text-xs font-semibold text-dashboard-base-content/70 w-24 text-right shrink-0">
-                            ₹{((addon.price ?? 0) * (addon.quantity || 1)).toLocaleString("en-IN")}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removeAddon(idx)}
-                            className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-                          >
-                            <Trash2 size={13} />
-                          </button>
                         </div>
                       ))}
                     </div>
@@ -3735,6 +3837,12 @@ Rules:
                     stayPreference={s?.types}
                     focusSection={focusSection}
                     shiftedMeals={shiftedMeals[idx]}
+                    dayAddons={form.addOns
+                      .map((addon, index) => ({ addon, index }))
+                      .filter(({ addon }) => addon.day === day.day)}
+                    onAddAddon={() => addAddon(day.day)}
+                    onUpdateAddon={updateAddon}
+                    onRemoveAddon={removeAddon}
                   />
                 ))}
               </TabsContent>
