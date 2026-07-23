@@ -1179,6 +1179,11 @@ model hotels {
   @@index([location_id])
   @@index([slug])
   @@index([owner_id])
+  // Trigram GIN indexes — let ILIKE '%term%' hotel search (expiring-rates,
+  // hotel-inventory, package-builder hotel picker) use an index instead of
+  // a full-table scan + regex per row.
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([city(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model hotel_image_categories {
@@ -1261,6 +1266,7 @@ model hotel_rooms {
 
   @@unique([hotel_id, slug])
   @@index([hotel_id])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model hotel_room_images {
@@ -1277,36 +1283,36 @@ model hotel_room_images {
 }
 
 model hotel_room_pricing {
-  id                   Int                           @id @default(autoincrement())
-  hotel_id             Int
-  room_id              Int
-  plan_name            String?
-  meal_type_id         Int?
-  diet_type_id         Int?
-  price_per_night      Decimal                       @db.Decimal(10, 2)
-  original_price       Decimal?                      @db.Decimal(10, 2)
-  extra_bed_rate       Decimal?                      @db.Decimal(10, 2)
-  weekend_price_per_night Decimal?                   @db.Decimal(10, 2)
-  weekend_extra_bed_rate  Decimal?                   @db.Decimal(10, 2)
-  margin_percentage    Decimal                       @default(10) @db.Decimal(5, 2)
-  is_active            Boolean                       @default(true)
-  sort_order           Int                           @default(0)
-  created_at           DateTime                      @default(now())
-  updated_at           DateTime                      @updatedAt
-  valid_from           DateTime?
-  valid_to             DateTime?
-  gst_percentage       Decimal                       @default(18) @db.Decimal(5, 2)
-  extra_child_rate     Decimal?                      @db.Decimal(10, 2)
-  notes                String?                       @db.Text
-  cancellation_policy  HotelCancellationPolicy?
-  hotelImageCategories hotel_image_categories[]
-  occupancy_prices     hotel_room_occupancy_prices[]
-  diet_type            diet_types?                   @relation(fields: [diet_type_id], references: [id])
-  hotel                hotels                        @relation(fields: [hotel_id], references: [id])
-  meal_type            meal_types?                   @relation(fields: [meal_type_id], references: [id])
-  room                 hotel_rooms                   @relation(fields: [room_id], references: [id])
-  seasons              hotel_room_pricing_season[]
-  itineraryStays       itinerary_stays[]
+  id                      Int                           @id @default(autoincrement())
+  hotel_id                Int
+  room_id                 Int
+  plan_name               String?
+  meal_type_id            Int?
+  diet_type_id            Int?
+  price_per_night         Decimal                       @db.Decimal(10, 2)
+  original_price          Decimal?                      @db.Decimal(10, 2)
+  extra_bed_rate          Decimal?                      @db.Decimal(10, 2)
+  weekend_price_per_night Decimal?                      @db.Decimal(10, 2)
+  weekend_extra_bed_rate  Decimal?                      @db.Decimal(10, 2)
+  margin_percentage       Decimal                       @default(10) @db.Decimal(5, 2)
+  is_active               Boolean                       @default(true)
+  sort_order              Int                           @default(0)
+  created_at              DateTime                      @default(now())
+  updated_at              DateTime                      @updatedAt
+  valid_from              DateTime?
+  valid_to                DateTime?
+  gst_percentage          Decimal                       @default(18) @db.Decimal(5, 2)
+  extra_child_rate        Decimal?                      @db.Decimal(10, 2)
+  notes                   String?                       @db.Text
+  cancellation_policy     HotelCancellationPolicy?
+  hotelImageCategories    hotel_image_categories[]
+  occupancy_prices        hotel_room_occupancy_prices[]
+  diet_type               diet_types?                   @relation(fields: [diet_type_id], references: [id])
+  hotel                   hotels                        @relation(fields: [hotel_id], references: [id])
+  meal_type               meal_types?                   @relation(fields: [meal_type_id], references: [id])
+  room                    hotel_rooms                   @relation(fields: [room_id], references: [id])
+  seasons                 hotel_room_pricing_season[]
+  itineraryStays          itinerary_stays[]
 
   @@index([hotel_id])
   @@index([room_id])
@@ -1339,6 +1345,7 @@ model hotel_room_pricing_season {
   // is_active=true and a valid_to range (and sorts by valid_to) — without
   // this, that page falls back to a full table scan as seasons grow.
   @@index([is_active, valid_to])
+  @@index([season_name(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("hotel_room_pricing_seasons")
 }
 
@@ -2377,35 +2384,35 @@ model QueryFollowUp {
 }
 
 model package_queries {
-  id                String           @id @default(cuid())
+  id                String            @id @default(cuid())
   name              String
   email             String?
   phone             String
-  countryCode       String           @default("IN")
+  countryCode       String            @default("IN")
   message           String?
   packageName       String?
   destination       String?
   travelDate        DateTime?
   groupSize         Int?
-  source            QuerySource      @default(WEBSITE_FORM)
+  source            QuerySource       @default(WEBSITE_FORM)
   gclid             String?
   utmSource         String?
   utmMedium         String?
   utmCampaign       String?
   pageUrl           String?
-  status            QueryStatus      @default(SUBMITTED)
-  verified          Boolean          @default(false)
+  status            QueryStatus       @default(SUBMITTED)
+  verified          Boolean           @default(false)
   verifiedAt        DateTime?
   verifiedBy        String?
   rejectionReasonId String?
   rejectionNote     String?
-  callAttempts      Int              @default(0)
+  callAttempts      Int               @default(0)
   lastAttemptAt     DateTime?
   nextFollowUpAt    DateTime?
   assignedTo        String?
   assignedAt        DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   leadProfileId     String?
   assignedToName    String?
   closeReasonId     String?
@@ -2417,8 +2424,8 @@ model package_queries {
   queryFollowUps    QueryFollowUp[]
   booking           Booking?
   custom_packages   custom_packages[]
-  lead_profiles     LeadProfile?     @relation(fields: [leadProfileId], references: [id])
-  rejection_reasons RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
+  lead_profiles     LeadProfile?      @relation(fields: [leadProfileId], references: [id])
+  rejection_reasons RejectionReason?  @relation(fields: [rejectionReasonId], references: [id])
   notes             QueryNote[]
   timeline          QueryTimeline[]
 
@@ -2430,132 +2437,155 @@ model package_queries {
 }
 
 model custom_packages {
-  id                 String                   @id @default(cuid())
-  /** Nullable + non-unique — a query can have multiple packages built for it
+  id                   String                   @id @default(cuid())
+  /**
+   * Nullable + non-unique — a query can have multiple packages built for it
    * (e.g. two different budget options sent to the same client), and a
    * package can exist with no linked query at all ("blank" packages, built
-   * ahead of a lead so an exec can reuse/adapt one on the fly). */
-  queryId            String?
-  title              String
-  description        String?
-  coverImage         String?
+   * ahead of a lead so an exec can reuse/adapt one on the fly).
+   */
+  queryId              String?
+  title                String
+  description          String?
+  coverImage           String?
   /**
    * Vertical focal point for the cover image's object-position (0 = top,
    * 50 = center, 100 = bottom) — lets the exec re-center an image that
-   * object-cover crops awkwardly, without re-uploading/re-cropping it. */
-  coverImagePosition Float @default(50)
-  destination    String
-  startingPoint  String?
-  totalDays      Int
-  totalNights    Int
-  travelDate     DateTime?
-  adults         Int                  @default(1)
-  children       Int                  @default(0)
-  infants        Int                  @default(0)
-  pricePerPerson Float?
-  totalPrice     Float?
-  currency       String               @default("INR")
-  marginPercentage Float              @default(25)
-  gstPercentage    Float              @default(5)
-  inclusions     String[]
-  exclusions     String[]
-  termsNotes     String?
-  /** Short, removable bullet points — seeded with company-wide defaults the
+   * object-cover crops awkwardly, without re-uploading/re-cropping it.
+   */
+  coverImagePosition   Float                    @default(50)
+  destination          String
+  startingPoint        String?
+  totalDays            Int
+  totalNights          Int
+  travelDate           DateTime?
+  adults               Int                      @default(1)
+  children             Int                      @default(0)
+  infants              Int                      @default(0)
+  pricePerPerson       Float?
+  totalPrice           Float?
+  currency             String                   @default("INR")
+  marginPercentage     Float                    @default(25)
+  gstPercentage        Float                    @default(5)
+  inclusions           String[]
+  exclusions           String[]
+  termsNotes           String?
+  /**
+   * Short, removable bullet points — seeded with company-wide defaults the
    * exec can trim/extend per package, distinct from the free-text termsNotes
-   * above (kept as a separate general-notes field). */
-  termsConditions String[]
-  paymentPolicy   String[]
-  amendmentPolicy String[]
-  /** "Benefits of Travelling With Us" — marketing bullets shown on the
-   * client-facing document/page, same removable-default pattern as above. */
-  travelBenefits  String[]
-  /** Mirrors itinerary_settings.customPolicySections at save time — admin-
+   * above (kept as a separate general-notes field).
+   */
+  termsConditions      String[]
+  paymentPolicy        String[]
+  amendmentPolicy      String[]
+  /**
+   * "Benefits of Travelling With Us" — marketing bullets shown on the
+   * client-facing document/page, same removable-default pattern as above.
+   */
+  travelBenefits       String[]
+  /**
+   * Mirrors itinerary_settings.customPolicySections at save time — admin-
    * defined extra policy blocks (`{ id, title, items }[]`) beyond the six
-   * fixed lists above. */
+   * fixed lists above.
+   */
   customPolicySections Json?
-  /** Per-package additions to the six standard lists above (inclusions,
+  /**
+   * Per-package additions to the six standard lists above (inclusions,
    * exclusions, termsConditions, paymentPolicy, amendmentPolicy,
    * travelBenefits) — lets a sales exec add something specific to this
    * client's package (e.g. "Complimentary airport pickup") without being
    * able to edit or remove the standard items, which stay admin-managed
    * only via itinerary_settings. Shape: `{ inclusions: string[], ... }`,
-   * one key per standard list, each defaulting to an empty array. */
-  extraPolicyItems Json @default("{}")
-  status          CustomPackageStatus  @default(DRAFT)
-  builtBy         String
-  builtByName     String?
-  sentAt          DateTime?
-  pdfUrl          String?
-  viewedAt        DateTime?
-  viewCount       Int                  @default(0)
-  previousSnapshot Json?
-  /** Internal pricing double-check, independent of the client-facing status
+   * one key per standard list, each defaulting to an empty array.
+   */
+  extraPolicyItems     Json                     @default("{}")
+  status               CustomPackageStatus      @default(DRAFT)
+  builtBy              String
+  builtByName          String?
+  sentAt               DateTime?
+  pdfUrl               String?
+  viewedAt             DateTime?
+  viewCount            Int                      @default(0)
+  previousSnapshot     Json?
+  /**
+   * Internal pricing double-check, independent of the client-facing status
    * (accepted/declined) — a reviewer confirms the locked pricingSnapshot
-   * math and the sent total actually agree before/after it's out the door. */
-  verified        Boolean              @default(false)
-  verifiedAt      DateTime?
-  verifiedBy      String?
-  verifiedByName  String?
-  /** Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
+   * math and the sent total actually agree before/after it's out the door.
+   */
+  verified             Boolean                  @default(false)
+  verifiedAt           DateTime?
+  verifiedBy           String?
+  verifiedByName       String?
+  /**
+   * Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
    * exact locked total) — the client-facing "Pay Now" button opens this.
-   * No gateway/webhook integration; purely a manual URL field. */
-  paymentLink     String?
-  /** Frozen hotel/cab/ticket/margin/GST breakdown, computed server-side and
+   * No gateway/webhook integration; purely a manual URL field.
+   */
+  paymentLink          String?
+  /**
+   * Frozen hotel/cab/ticket/margin/GST breakdown, computed server-side and
    * written once when the package is sent — lets the exec recheck later how
    * the delivered total was built, independent of any later catalog rate
-   * changes. Never shown on the client-facing page. */
-  pricingSnapshot Json?
-  flightsIncluded Boolean              @default(false)
-  flightNotes     String?
-  flightFrom      String?
-  flightTo        String?
-  trainIncluded   Boolean              @default(false)
-  trainNotes      String?
-  trainFrom       String?
-  trainTo         String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  itineraries     custom_itineraries[]
-  stops           custom_package_stops[]
-  tickets         custom_package_tickets[]
-  query           package_queries?     @relation(fields: [queryId], references: [id])
+   * changes. Never shown on the client-facing page.
+   */
+  pricingSnapshot      Json?
+  flightsIncluded      Boolean                  @default(false)
+  flightNotes          String?
+  flightFrom           String?
+  flightTo             String?
+  trainIncluded        Boolean                  @default(false)
+  trainNotes           String?
+  trainFrom            String?
+  trainTo              String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  itineraries          custom_itineraries[]
+  stops                custom_package_stops[]
+  tickets              custom_package_tickets[]
+  query                package_queries?         @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
   @@index([status])
 }
 
-/** Single global row (fixed id "singleton") holding the company-wide
+/**
+ * Single global row (fixed id "singleton") holding the company-wide
  * itinerary document header/footer/contact details and the standard
  * Inclusions/Exclusions/T&C/Payment/Amendment/Benefits content — edited only
  * from /dashboard/itinerary-settings and never per-package, so every sent
- * itinerary stays consistent and Sales Executives can't drift it. */
+ * itinerary stays consistent and Sales Executives can't drift it.
+ */
 model itinerary_settings {
-  id                 String   @id @default("singleton")
-  companyPhone       String   @default("+91 7807727100")
-  companyEmail       String   @default("hello@dreamyatri.com")
-  companyAddress     String   @default("Shimla, Himachal Pradesh - 171001")
-  companyDescription String   @default("At Dreams Yatri, we turn journeys into stories. From Himalayan escapes to luxury international holidays, our experts design custom, budget-smart, worry-free trips — so you focus on memories, not logistics.")
-  documentDisclaimer String   @default("This is a custom itinerary, subject to availability at the time of booking.")
-  inclusions         String[]
-  exclusions         String[]
-  termsConditions    String[]
-  paymentPolicy      String[]
-  amendmentPolicy    String[]
-  travelBenefits     String[]
-  /** Admin-defined extra policy blocks beyond the six fixed ones above —
+  id                      String   @id @default("singleton")
+  companyPhone            String   @default("+91 7807727100")
+  companyEmail            String   @default("hello@dreamyatri.com")
+  companyAddress          String   @default("Shimla, Himachal Pradesh - 171001")
+  companyDescription      String   @default("At Dreams Yatri, we turn journeys into stories. From Himalayan escapes to luxury international holidays, our experts design custom, budget-smart, worry-free trips — so you focus on memories, not logistics.")
+  documentDisclaimer      String   @default("This is a custom itinerary, subject to availability at the time of booking.")
+  inclusions              String[]
+  exclusions              String[]
+  termsConditions         String[]
+  paymentPolicy           String[]
+  amendmentPolicy         String[]
+  travelBenefits          String[]
+  /**
+   * Admin-defined extra policy blocks beyond the six fixed ones above —
    * each `{ id, title, items }`, rendered on the document as its own titled
-   * bullet list in the order stored here. */
-  customPolicySections Json     @default("[]")
-  /** Default margin/GST % seeded into a brand-new package in the builder —
+   * bullet list in the order stored here.
+   */
+  customPolicySections    Json     @default("[]")
+  /**
+   * Default margin/GST % seeded into a brand-new package in the builder —
    * still per-package editable afterward on the Pricing tab, this is only
    * the starting value so execs aren't hand-typing the same house rate
-   * into every draft. */
-  defaultMarginPercentage Float @default(25)
-  defaultGstPercentage    Float @default(5)
-  updatedAt          DateTime @updatedAt
-  updatedBy          String?
-  updatedByName      String?
+   * into every draft.
+   */
+  defaultMarginPercentage Float    @default(25)
+  defaultGstPercentage    Float    @default(5)
+  updatedAt               DateTime @updatedAt
+  updatedBy               String?
+  updatedByName           String?
 }
 
 // A route stop within a custom package — e.g. "Manali, 2 nights" — used to
@@ -2627,44 +2657,54 @@ model custom_itineraries {
   accommodationLocation     String?
   accommodationRoomSpecs    String?
   accommodationRoomCapacity Int?
-  roomPricingId   Int?
-  /** Overrides the auto-computed (adults+children ÷ room capacity) room
+  roomPricingId             Int?
+  /**
+   * Overrides the auto-computed (adults+children ÷ room capacity) room
    * count for the primary `roomPricingId` above — set when the exec
    * explicitly says how many of that room type are needed instead of
-   * letting occupancy drive it. Null keeps the auto-computed behavior. */
-  roomsCount      Int?
-  /** Additional, DIFFERENT room types booked for the same night (e.g. one
+   * letting occupancy drive it. Null keeps the auto-computed behavior.
+   */
+  roomsCount                Int?
+  /**
+   * Additional, DIFFERENT room types booked for the same night (e.g. one
    * couple in a Deluxe Room, another in a Suite) — each a
    * {roomPricingId, label, quantity} entry; priced by summing quantity ×
    * that room's own resolved per-night rate, no auto occupancy/mattress
-   * logic (that only applies to the primary roomPricingId above). */
-  extraRooms      Json?
-  cabPricingId    Int?
-  /** Same override pattern as roomsCount, for the primary cabPricingId. */
-  cabQuantity     Int?
-  /** Additional, DIFFERENT cabs for the same day (e.g. one Sedan + one
-   * SUV) — each a {cabPricingId, label, quantity} entry. */
-  extraCabs       Json?
-  hotelCheckIn    String?
-  hotelCheckOut   String?
-  hotelMealPlan   String?
-  transport       String?
-  transportPhoto  String?
-  transportVehicleType String?
-  transportSeats  Int?
-  transportPickup String?
-  transportPickupLat Float?
-  transportPickupLng Float?
-  transportDrop   String?
-  transportDistanceKm Float?
-  /** Free-text estimate like "3h 15m" — typed by the exec or filled in by the
-   * AI Itinerary Builder, shown in the Transport/Cab section of the day. */
-  transportTravelTime String?
-  notes           String?
-  createdAt       DateTime                      @default(now())
-  updatedAt       DateTime                      @updatedAt
-  package         custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
-  activities      custom_itinerary_activities[]
+   * logic (that only applies to the primary roomPricingId above).
+   */
+  extraRooms                Json?
+  cabPricingId              Int?
+  /**
+   * Same override pattern as roomsCount, for the primary cabPricingId.
+   */
+  cabQuantity               Int?
+  /**
+   * Additional, DIFFERENT cabs for the same day (e.g. one Sedan + one
+   * SUV) — each a {cabPricingId, label, quantity} entry.
+   */
+  extraCabs                 Json?
+  hotelCheckIn              String?
+  hotelCheckOut             String?
+  hotelMealPlan             String?
+  transport                 String?
+  transportPhoto            String?
+  transportVehicleType      String?
+  transportSeats            Int?
+  transportPickup           String?
+  transportPickupLat        Float?
+  transportPickupLng        Float?
+  transportDrop             String?
+  transportDistanceKm       Float?
+  /**
+   * Free-text estimate like "3h 15m" — typed by the exec or filled in by the
+   * AI Itinerary Builder, shown in the Transport/Cab section of the day.
+   */
+  transportTravelTime       String?
+  notes                     String?
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
+  package                   custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  activities                custom_itinerary_activities[]
 
   @@index([customPackageId])
   @@index([day])
