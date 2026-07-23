@@ -1,10 +1,17 @@
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useRef, useState, useTransition } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
+import {
+  DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
   Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
@@ -12,7 +19,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift,
+  ExternalLink, Gift, GripVertical,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -431,6 +438,31 @@ function HotelPhotoGallery({ hotelPhoto, roomPhotos, alt, onClear }: {
   );
 }
 
+// A drag handle (not the whole row) grabs the pointer listeners — the row
+// itself holds a title Input and a description Textarea, and text selection
+// inside those needs normal pointer-drag behavior, which a whole-row
+// listener would fight with.
+function SortableActivityRow({ dndId, children }: { dndId: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dndId });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className="flex gap-2 rounded-lg border border-violet-100 bg-violet-50/30 p-2.5"
+    >
+      <button
+        type="button"
+        className="flex items-center justify-center shrink-0 mt-0.5 size-5 text-violet-400/70 hover:text-violet-600 cursor-grab active:cursor-grabbing touch-none"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={14} />
+      </button>
+      {children}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ActivityListEditor — per-activity title + description + photo, add/remove
 // ─────────────────────────────────────────────────────────────────────────────
@@ -439,14 +471,48 @@ function ActivityListEditor({ activities, location, onChange }: {
   location?: string;
   onChange: (v: ActivityInput[]) => void;
 }) {
+  // dnd-kit needs a stable id per row to track it across a drag. ActivityInput
+  // only gets a real `id` once the whole package has been saved and reloaded
+  // — a freshly-added (unsaved) activity has none, and several could exist at
+  // once, so `id` alone can't be used as-is. Kept as explicit state (not
+  // derived during render via a ref/counter — React's purity rules flag both
+  // reading a ref and calling Math.random/Date.now while rendering) and
+  // updated in lockstep by the exact three places below that actually change
+  // the array's length or order: add, remove, drag-reorder. A plain edit
+  // (updateActivity) never touches this, since it changes neither.
+  const [dndIds, setDndIds] = useState<string[]>(() => activities.map((_, i) => `row-${i}`));
+  const nextDndId = useRef(activities.length);
+  // React-blessed "adjust state during render" pattern (same one already
+  // used for searchCity/prevLocation above) — catches an external, wholesale
+  // replacement of `activities` that didn't go through add/remove/reorder
+  // here (e.g. the initial package-load effect populating real day data).
+  const [prevActivitiesForIds, setPrevActivitiesForIds] = useState(activities);
+  if (activities !== prevActivitiesForIds && activities.length !== dndIds.length) {
+    setPrevActivitiesForIds(activities);
+    setDndIds(activities.map((_, i) => `row-${i}`));
+  }
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = dndIds.indexOf(String(active.id));
+    const newIndex = dndIds.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+    onChange(arrayMove(activities, oldIndex, newIndex));
+    setDndIds((ids) => arrayMove(ids, oldIndex, newIndex));
+  }
+
   function addActivity() {
     onChange([...activities, { title: "", description: "", photo: "", photos: [], photoLabels: [] }]);
+    setDndIds((ids) => [...ids, `row-new-${nextDndId.current++}`]);
   }
   function updateActivity(idx: number, patch: Partial<ActivityInput>) {
     onChange(activities.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
   }
   function removeActivity(idx: number) {
     onChange(activities.filter((_, i) => i !== idx));
+    setDndIds((ids) => ids.filter((_, i) => i !== idx));
   }
 
   async function fetchActivityOptions(query: string): Promise<Option[]> {
@@ -476,6 +542,7 @@ function ActivityListEditor({ activities, location, onChange }: {
       photos: raw.photos,
       photoLabels: raw.photoLabels,
     }]);
+    setDndIds((ids) => [...ids, `row-new-${nextDndId.current++}`]);
   }
 
   return (
@@ -513,57 +580,63 @@ function ActivityListEditor({ activities, location, onChange }: {
         </p>
       )}
       <div className="space-y-2">
-        {activities.map((a, idx) => (
-          <div key={idx} className="flex gap-2 rounded-lg border border-violet-100 bg-violet-50/30 p-2.5">
-            <span className="flex items-center justify-center size-5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-bold shrink-0 mt-0.5">
-              {idx + 1}
-            </span>
-            <div className="flex-1 min-w-0 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Input
-                  value={a.title}
-                  onChange={(e) => updateActivity(idx, { title: e.target.value })}
-                  placeholder="Activity title, e.g. Paragliding"
-                  className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-violet-300 focus-visible:border-violet-400 rounded-md bg-dashboard-base-100"
-                />
-                <button
-                  onClick={() => removeActivity(idx)}
-                  className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-              <Textarea
-                value={a.description}
-                onChange={(e) => updateActivity(idx, { description: e.target.value })}
-                placeholder="Short description of the experience…"
-                rows={2}
-                className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-violet-300 focus-visible:border-violet-400 rounded-md bg-dashboard-base-100"
-              />
-              {a.photos.length > 0 && (
-                <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2">
-                  <button
-                    type="button"
-                    onClick={() => updateActivity(idx, { photo: "", photos: [], photoLabels: [] })}
-                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
-                  >
-                    ×
-                  </button>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {a.photos.slice(0, 3).map((src, i) => (
-                      <SafeImg
-                        key={i}
-                        src={src}
-                        alt={a.photoLabels[i] || a.title || "Activity"}
-                        className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
-                      />
-                    ))}
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <SortableContext items={dndIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+            {activities.map((a, idx) => (
+              <SortableActivityRow key={dndIds[idx]} dndId={dndIds[idx]}>
+                <span className="flex items-center justify-center size-5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-bold shrink-0 mt-0.5">
+                  {idx + 1}
+                </span>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={a.title}
+                      onChange={(e) => updateActivity(idx, { title: e.target.value })}
+                      placeholder="Activity title, e.g. Paragliding"
+                      className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-violet-300 focus-visible:border-violet-400 rounded-md bg-dashboard-base-100"
+                    />
+                    <button
+                      onClick={() => removeActivity(idx)}
+                      className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
+                  <Textarea
+                    value={a.description}
+                    onChange={(e) => updateActivity(idx, { description: e.target.value })}
+                    placeholder="Short description of the experience…"
+                    rows={2}
+                    className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-violet-300 focus-visible:border-violet-400 rounded-md bg-dashboard-base-100"
+                  />
+                  {a.photos.length > 0 && (
+                    <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2">
+                      <button
+                        type="button"
+                        onClick={() => updateActivity(idx, { photo: "", photos: [], photoLabels: [] })}
+                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
+                      >
+                        ×
+                      </button>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {a.photos.slice(0, 3).map((src, i) => (
+                          <SafeImg
+                            key={i}
+                            src={src}
+                            alt={a.photoLabels[i] || a.title || "Activity"}
+                            className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </SortableActivityRow>
+            ))}
             </div>
-          </div>
-        ))}
+          </SortableContext>
+        </DndContext>
         {activities.length === 0 && (
           <p className="text-xs text-dashboard-base-content/40 italic">No activities added for this day.</p>
         )}

@@ -35,7 +35,7 @@ function urgencyLabel(daysRemaining: number) {
 }
 
 export function ExpiringRatesTable({
-    seasons, currentPage, totalPages, totalCount, limit, search, window,
+    seasons, currentPage, totalPages, totalCount, limit, search, window, uploadedBy, uploaders,
 }: {
     seasons: SeasonRow[];
     currentPage: number;
@@ -44,6 +44,8 @@ export function ExpiringRatesTable({
     limit: number;
     search: string;
     window: ExpiryWindow;
+    uploadedBy: string;
+    uploaders: { id: string; name: string; count: number }[];
 }) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -82,11 +84,11 @@ export function ExpiringRatesTable({
                         </div>
                         <div className="min-w-0">
                             <p className="font-medium text-sm truncate">{row.hotelName}</p>
-                            <p className="text-xs text-dashboard-base-content/60 flex items-center gap-1 truncate">
+                            <p className="text-xs text-dashboard-base-content/75 flex items-center gap-1 truncate">
                                 <BedDouble className="h-3 w-3 shrink-0" /> {row.roomName}
                             </p>
-                            <p className="text-[11px] text-dashboard-base-content/45 flex items-center gap-1 truncate">
-                                <UserRound className="h-3 w-3 shrink-0" /> {row.uploadedBy ? `Uploaded by ${row.uploadedBy}` : "Uploader unknown"}
+                            <p className="text-[11px] text-dashboard-base-content/75 flex items-center gap-1 truncate">
+                                <UserRound className="h-3 w-3 shrink-0" /> {row.uploadedBy ? row.uploadedBy : "Uploader unknown"}
                             </p>
                         </div>
                     </div>
@@ -181,6 +183,14 @@ export function ExpiringRatesTable({
                         width: "w-44",
                         allValue: "expired",
                         options: EXPIRY_WINDOWS.filter((w) => w.value !== "expired").map((w) => ({ label: w.label, value: w.value })),
+                    },
+                    {
+                        value: uploadedBy || "all",
+                        onChange: (v) => updateParam("uploadedBy", v === "all" ? "" : v),
+                        placeholder: "All uploaders",
+                        width: "w-48",
+                        allValue: "all",
+                        options: uploaders.map((u) => ({ label: `${u.name} (${u.count})`, value: u.id })),
                     },
                 ]}
             />

@@ -36,11 +36,11 @@ function TableSkeleton() {
 }
 
 async function ExpiringRatesData({
-    page, limit, search, window,
+    page, limit, search, window, uploadedBy,
 }: {
-    page: number; limit: number; search: string; window: ExpiryWindow;
+    page: number; limit: number; search: string; window: ExpiryWindow; uploadedBy: string;
 }) {
-    const { seasons, totalCount, stats } = await getExpiringSeasonalRates({ page, limit, search, window });
+    const { seasons, totalCount, stats, uploaders } = await getExpiringSeasonalRates({ page, limit, search, window, uploadedBy });
 
     return (
         <>
@@ -59,15 +59,17 @@ async function ExpiringRatesData({
                 limit={limit}
                 search={search}
                 window={window}
+                uploadedBy={uploadedBy}
+                uploaders={uploaders}
             />
         </>
     );
 }
 
 export default function ExpiringRatesClient({
-    page, limit, search, window,
+    page, limit, search, window, uploadedBy,
 }: {
-    page: number; limit: number; search: string; window: ExpiryWindow;
+    page: number; limit: number; search: string; window: ExpiryWindow; uploadedBy: string;
 }) {
     return (
         <div className="space-y-6">
@@ -90,7 +92,7 @@ export default function ExpiringRatesClient({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${window}`}
+                key={`${page}-${limit}-${search}-${window}-${uploadedBy}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-4 gap-3">
@@ -105,7 +107,7 @@ export default function ExpiringRatesClient({
                     </div>
                 }
             >
-                <ExpiringRatesData page={page} limit={limit} search={search} window={window} />
+                <ExpiringRatesData page={page} limit={limit} search={search} window={window} uploadedBy={uploadedBy} />
             </Suspense>
         </div>
     );

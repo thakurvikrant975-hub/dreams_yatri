@@ -535,10 +535,15 @@ export function DaySummaryTable({
         <tbody>
           {itineraries.map((d, i) => {
             const date = travelDate ? dayCalendarDate(travelDate, d.day) : null;
-            // The hotel's own location (real once a room is picked) wins —
-            // it's literally where the client is staying that night; the
-            // route stop is just a fallback for a day with no hotel yet.
-            const destination = d.accommodationLocation || dayLocations[i] || "—";
+            // The route stop's own name wins — it's what the exec explicitly
+            // planned in "Route (Destinations & Nights)". The hotel's raw
+            // accommodationLocation is only a fallback for a day whose stop
+            // couldn't be derived (no route stops set at all), since that
+            // field is often the hotel's literal town (e.g. "Vandiperiyar"),
+            // which can differ from — and looks inconsistent with — the
+            // destination name the route itself uses (e.g. "Thekkady").
+            const destination = dayLocations[i] || d.accommodationLocation || "—";
+            const isLastDay = i === itineraries.length - 1;
             return (
             <tr key={d.day} className={`border-t border-neutral-100 ${i % 2 === 1 ? "bg-neutral-50/60" : ""}`} style={{ breakInside: "avoid" }}>
               <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">
@@ -549,7 +554,12 @@ export function DaySummaryTable({
                   </span>
                 )}
               </td>
-              <td className="px-3 py-2 text-neutral-600">{destination ? titleCase(destination) : "—"}</td>
+              <td className="px-3 py-2 text-neutral-600">
+                {destination ? titleCase(destination) : "—"}
+                {isLastDay && d.transportDrop && (
+                  <span className="block text-[10px] text-neutral-400">Drop: {titleCase(d.transportDrop)}</span>
+                )}
+              </td>
               <td className="px-3 py-2 text-neutral-600">{d.accommodation || "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : "—"}</td>
               <td className="px-3 py-2 text-neutral-600">{d.transport || d.transportVehicleType || "—"}</td>

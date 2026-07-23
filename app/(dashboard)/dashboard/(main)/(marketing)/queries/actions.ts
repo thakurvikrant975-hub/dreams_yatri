@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { z } from "zod";
-import { Prisma, QuerySource } from "@/app/generated/prisma";
+import { Prisma, QuerySource as QuerySourceEnum } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 
@@ -28,10 +28,15 @@ export type QueryStatus =
     | "CONVERTED"
     | "CLOSED";
 
-// Re-exported (not hand-duplicated) so this can never drift from the Prisma
-// enum again — a hand-written copy of this list is exactly what caused the
-// "Meta" source option to fail validation (see manualQuerySchema below).
-export type { QuerySource };
+// Derived from the Prisma enum's own keys (not hand-duplicated) so this can
+// never drift again — a hand-written copy of this list is exactly what
+// caused the "Meta" source option to fail validation (see manualQuerySchema
+// below). Declared as its own local type alias rather than `export type {
+// QuerySource }` — that re-export shape broke the build ("Export QuerySource
+// doesn't exist in target module"), since this file has "use server" and the
+// name QuerySourceEnum is also bound to a real runtime value in this module,
+// which stopped Next's build from treating a same-named re-export as erased.
+export type QuerySource = keyof typeof QuerySourceEnum;
 
 export type CallOutcome =
     | "RECEIVED"
@@ -718,7 +723,7 @@ const manualQuerySchema = z.object({
     groupSize: z.coerce.number().int().min(1).max(500).optional(),
     travelDate: z.string().optional(),
     message: z.string().max(2000).optional(),
-    source: z.nativeEnum(QuerySource).default("PHONE_CALL"),
+    source: z.nativeEnum(QuerySourceEnum).default("PHONE_CALL"),
 });
 
 export async function createManualQuery(
@@ -796,7 +801,7 @@ const updateQuerySchema = z.object({
     groupSize: z.coerce.number().int().min(1).max(500).optional(),
     travelDate: z.string().optional(),
     message: z.string().max(2000).optional(),
-    source: z.nativeEnum(QuerySource),
+    source: z.nativeEnum(QuerySourceEnum),
 });
 
 export async function updateQuery(queryId: string, formData: FormData): Promise<ActionResult> {

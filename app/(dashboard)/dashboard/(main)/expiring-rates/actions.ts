@@ -19,10 +19,11 @@ function cutoffFor(window: ExpiryWindow, from: Date): Date {
 }
 
 export interface GetExpiringSeasonalRatesParams {
-  page?:   number;
-  limit?:  number;
-  search?: string;
-  window?: ExpiryWindow;
+  page?:       number;
+  limit?:      number;
+  search?:     string;
+  window?:     ExpiryWindow;
+  uploadedBy?: string;
 }
 
 // A hotel_room_pricing row ("Pricing Plan") can carry several seasons
@@ -89,7 +90,7 @@ interface PlanRow {
 }
 
 export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesParams = {}) {
-  const { page = 1, limit = 20, search = "", window = "expired" } = params;
+  const { page = 1, limit = 20, search = "", window = "expired", uploadedBy = "" } = params;
   const skip = (page - 1) * limit;
   const now = new Date();
 
@@ -98,6 +99,9 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
     : Prisma.sql`plan_expiry >= ${now} AND plan_expiry <= ${cutoffFor(window, now)}`;
   const searchConditionSql = search
     ? Prisma.sql`AND (season_name ILIKE ${`%${search}%`} OR room_name ILIKE ${`%${search}%`} OR hotel_name ILIKE ${`%${search}%`} OR city ILIKE ${`%${search}%`})`
+    : Prisma.empty;
+  const uploadedByConditionSql = uploadedBy
+    ? Prisma.sql`AND created_by = ${uploadedBy}`
     : Prisma.empty;
 
   // Same date/search predicates as the outer window, but joined at the
@@ -110,17 +114,20 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
   const searchConditionRaw = search
     ? Prisma.sql`AND (h.name ILIKE ${`%${search}%`} OR h.city ILIKE ${`%${search}%`} OR r.name ILIKE ${`%${search}%`})`
     : Prisma.empty;
+  const uploadedByConditionRaw = uploadedBy
+    ? Prisma.sql`AND h.created_by = ${uploadedBy}`
+    : Prisma.empty;
 
-  const [rows, totalCountRows, statsTotalRows, statsExpiredRows, statsUrgentRows, hotelsAffectedRows] = await Promise.all([
+  const [rows, totalCountRows, statsTotalRows, statsExpiredRows, statsUrgentRows, hotelsAffectedRows, uploaderStatsRows] = await Promise.all([
     db.$queryRaw<PlanRow[]>`
       SELECT * FROM (${planRowsCte}) plans
-      WHERE ${dateConditionSql} ${searchConditionSql}
+      WHERE ${dateConditionSql} ${searchConditionSql} ${uploadedByConditionSql}
       ORDER BY plan_expiry ASC
       LIMIT ${limit} OFFSET ${skip}
     `,
     db.$queryRaw<{ count: number }[]>`
       SELECT COUNT(*)::int AS count FROM (${planRowsCte}) plans
-      WHERE ${dateConditionSql} ${searchConditionSql}
+      WHERE ${dateConditionSql} ${searchConditionSql} ${uploadedByConditionSql}
     `,
     db.$queryRaw<{ count: number }[]>`${planExpiryCte} SELECT COUNT(*)::int AS count FROM plan_expiry`,
     db.$queryRaw<{ count: number }[]>`
@@ -140,6 +147,25 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
       JOIN hotels h ON h.id = p.hotel_id
       WHERE ${dateConditionRaw}
         ${searchConditionRaw}
+        ${uploadedByConditionRaw}
+    `,
+    // Per-uploader plan counts within the current window/search — powers the
+    // "Uploaded by" filter dropdown so team members with zero expiring/matching
+    // plans don't clutter the list, and so counts stay accurate as the user
+    // narrows the window or search. Deliberately excludes uploadedByConditionRaw
+    // itself (a facet count, not filtered by its own filter).
+    db.$queryRaw<{ id: string; count: number }[]>`
+      ${planExpiryCte}
+      SELECT h.created_by AS id, COUNT(*)::int AS count
+      FROM plan_expiry pe
+      JOIN hotel_room_pricing p ON p.id = pe.pricing_id
+      JOIN hotel_rooms r ON r.id = p.room_id
+      JOIN hotels h ON h.id = p.hotel_id
+      WHERE ${dateConditionRaw}
+        ${searchConditionRaw}
+        AND h.created_by IS NOT NULL
+      GROUP BY h.created_by
+      ORDER BY count DESC
     `,
   ]);
 
@@ -149,11 +175,20 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
   // hotels.created_by is a plain team-member id (no FK relation defined —
   // same pattern as hotels/actions.ts's getHotels), so the uploader's name
   // needs a separate batch lookup rather than a nested select.
-  const creatorIds = [...new Set(rows.map((s) => s.created_by).filter(Boolean) as string[])];
+  const creatorIds = [...new Set([
+    ...rows.map((s) => s.created_by),
+    ...uploaderStatsRows.map((u) => u.id),
+  ].filter(Boolean) as string[])];
   const creators = creatorIds.length > 0
     ? await db.teamMember.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
     : [];
   const creatorNames: Record<string, string> = Object.fromEntries(creators.map((m) => [m.id, m.name]));
+
+  const uploaders = uploaderStatsRows.map((u) => ({
+    id:    u.id,
+    name:  creatorNames[u.id] ?? "Unknown",
+    count: u.count,
+  }));
 
   const seasons = rows.map((s) => {
     const daysRemaining = Math.ceil((s.plan_expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -182,6 +217,7 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
   return {
     seasons,
     totalCount,
+    uploaders,
     stats: {
       total:    statsTotalRows[0]?.count ?? 0,
       expired:  statsExpiredRows[0]?.count ?? 0,
