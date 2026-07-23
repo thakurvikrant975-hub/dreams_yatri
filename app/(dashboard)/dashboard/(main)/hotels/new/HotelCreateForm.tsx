@@ -10,6 +10,7 @@ import { Switch } from "../../components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import {Select, SelectContent, SelectItem,SelectTrigger, SelectValue,} from "../../components/ui/select"; 
 import { ImageUpload, type UploadedImage } from "../../components/dashboard/ImageUpload";
+import { TimePicker12h } from "../../components/dashboard/TimePicker12h";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../components/location/location.types";
 import { SearchSelect } from "../../components/dashboard/SearchSelect";
@@ -293,11 +294,11 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Check-in Time</Label>
-              <Input type="time" value={checkIn} onChange={e => setCheckIn(e.target.value)} />
+              <TimePicker12h value={checkIn} onChange={setCheckIn} />
             </div>
             <div className="space-y-1.5">
               <Label>Check-out Time</Label>
-              <Input type="time" value={checkOut} onChange={e => setCheckOut(e.target.value)} />
+              <TimePicker12h value={checkOut} onChange={setCheckOut} />
             </div>
           </div>
 
