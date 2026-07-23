@@ -78,7 +78,7 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
           select: {
             id: true, plan_name: true,
             room:  { select: { id: true, name: true } },
-            hotel: { select: { id: true, name: true, city: true, state: true, thumbnail: true } },
+            hotel: { select: { id: true, name: true, city: true, state: true, thumbnail: true, created_by: true } },
           },
         },
       },
@@ -101,6 +101,15 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
 
   const hotelsAffected = hotelsAffectedRows[0]?.count ?? 0;
 
+  // hotels.created_by is a plain team-member id (no FK relation defined —
+  // same pattern as hotels/actions.ts's getHotels), so the uploader's name
+  // needs a separate batch lookup rather than a nested select.
+  const creatorIds = [...new Set(rows.map((s) => s.pricing.hotel.created_by).filter(Boolean) as string[])];
+  const creators = creatorIds.length > 0
+    ? await db.teamMember.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
+    : [];
+  const creatorNames: Record<string, string> = Object.fromEntries(creators.map((m) => [m.id, m.name]));
+
   const seasons = rows.map((s) => {
     const daysRemaining = Math.ceil((s.valid_to.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return {
@@ -112,6 +121,7 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
       pricePerNight:     Number(s.price_per_night),
       extraBedRate:      s.extra_bed_rate != null ? Number(s.extra_bed_rate) : null,
       weekendPrice:      s.weekend_price_per_night != null ? Number(s.weekend_price_per_night) : null,
+      pricingId:         s.pricing.id,
       planName:          s.pricing.plan_name,
       roomId:            s.pricing.room.id,
       roomName:          s.pricing.room.name,
@@ -119,6 +129,7 @@ export async function getExpiringSeasonalRates(params: GetExpiringSeasonalRatesP
       hotelName:         s.pricing.hotel.name,
       hotelLocation:     [s.pricing.hotel.city, s.pricing.hotel.state].filter(Boolean).join(", "),
       hotelThumbnail:    s.pricing.hotel.thumbnail,
+      uploadedBy:        s.pricing.hotel.created_by ? (creatorNames[s.pricing.hotel.created_by] ?? null) : null,
     };
   });
 

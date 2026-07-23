@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { Building2, MapPin, BedDouble, ChevronRight, CalendarRange } from "lucide-react";
+import { Building2, MapPin, BedDouble, ChevronRight, CalendarRange, UserRound, Tag } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
@@ -85,6 +85,9 @@ export function ExpiringRatesTable({
                             <p className="text-xs text-dashboard-base-content/60 flex items-center gap-1 truncate">
                                 <BedDouble className="h-3 w-3 shrink-0" /> {row.roomName}
                             </p>
+                            <p className="text-[11px] text-dashboard-base-content/45 flex items-center gap-1 truncate">
+                                <UserRound className="h-3 w-3 shrink-0" /> {row.uploadedBy ? `Uploaded by ${row.uploadedBy}` : "Uploader unknown"}
+                            </p>
                         </div>
                     </div>
                 );
@@ -100,11 +103,17 @@ export function ExpiringRatesTable({
             ),
         },
         {
-            header: "Season",
+            header: "Pricing Plan",
             cell: (row) => (
                 <div className="text-sm">
-                    <p className="font-medium truncate">{row.seasonName || row.planName || "Seasonal rate"}</p>
-                    <p className="text-xs text-dashboard-base-content/60 flex items-center gap-1">
+                    <p className="font-medium truncate flex items-center gap-1">
+                        <Tag className="h-3 w-3 shrink-0 text-dashboard-base-content/40" />
+                        {row.planName || <span className="italic text-dashboard-base-content/40">Unnamed plan</span>}
+                    </p>
+                    <p className="text-xs text-dashboard-base-content/60 truncate">
+                        {row.seasonName || "Season"}
+                    </p>
+                    <p className="text-[11px] text-dashboard-base-content/50 flex items-center gap-1">
                         <CalendarRange className="h-3 w-3 shrink-0" />
                         {format(row.validFrom, "d MMM yyyy")} – {format(row.validTo, "d MMM yyyy")}
                     </p>
@@ -142,7 +151,7 @@ export function ExpiringRatesTable({
             width: "w-[80px]",
             cell: (row) => (
                 <Link
-                    href={`/dashboard/hotels/${row.hotelId}?tab=pricing`}
+                    href={`/dashboard/hotels/${row.hotelId}?tab=pricing&planId=${row.pricingId}&seasonId=${row.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-primary hover:underline"
