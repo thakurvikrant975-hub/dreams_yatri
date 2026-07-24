@@ -601,7 +601,6 @@ export interface QueryDetail {
     amendmentPolicy: string[];
     travelBenefits:  string[];
     extraPolicyItems: ExtraPolicyItems;
-    paymentLink:     string | null;
     /** Frozen hotel/cab/ticket/margin/GST breakdown, written once when the
      * package is sent — see PricingSnapshot in sendPackageToClient. */
     pricingSnapshot: unknown;
@@ -753,7 +752,6 @@ export interface PackageInput {
   amendmentPolicy: string[];
   travelBenefits:  string[];
   extraPolicyItems: ExtraPolicyItems;
-  paymentLink:     string;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
   itineraries:     DayItinerary[];
@@ -1246,7 +1244,6 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       amendmentPolicy: true,
       travelBenefits:  true,
       extraPolicyItems: true,
-      paymentLink:     true,
       pricingSnapshot: true,
       stops: {
         orderBy: { sortOrder: "asc" },
@@ -1377,7 +1374,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
-      termsNotes, paymentLink, extraPolicyItems,
+      termsNotes, extraPolicyItems,
       status, stops, itineraries, tickets, addOns,
     } = input;
 
@@ -1485,7 +1482,6 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         travelBenefits:  effectiveTravelBenefits,
         customPolicySections: effectiveCustomPolicySections,
         extraPolicyItems: effectiveExtraPolicyItems,
-        paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
         flightFrom:      flightFrom || null,
@@ -1525,7 +1521,6 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         travelBenefits:  effectiveTravelBenefits,
         customPolicySections: effectiveCustomPolicySections,
         extraPolicyItems: effectiveExtraPolicyItems,
-        paymentLink:     paymentLink || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
         flightFrom:      flightFrom || null,

@@ -367,6 +367,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                     <PaymentPill status={booking.paymentStatus} />
                     <Link href={`/bookings/${booking.id}/invoice`} target="_blank" className="rounded-md border border-dashboard-base-300 px-3 py-1.5 text-sm text-dashboard-base-content hover:bg-dashboard-base-200">Invoice</Link>
                     <Link href={`/bookings/${booking.id}/voucher`} target="_blank" className="rounded-md border border-dashboard-base-300 px-3 py-1.5 text-sm text-dashboard-base-content hover:bg-dashboard-base-200">Voucher</Link>
+                    <Link href={`/dashboard/package-bookings/${booking.id}/voucher`} target="_blank" className="rounded-md border border-dashboard-primary/40 bg-dashboard-primary/5 px-3 py-1.5 text-sm font-medium text-dashboard-primary hover:bg-dashboard-primary/10">Hotel + Cab Voucher</Link>
                 </div>
             </div>
 

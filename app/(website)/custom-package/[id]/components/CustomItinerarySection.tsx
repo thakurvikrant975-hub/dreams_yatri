@@ -117,11 +117,11 @@ function TransferBlock({ day }: { day: DayItinerary }) {
                 {extraCabs.map((c, i) => (
                   <div key={i} className="flex items-center gap-2">
                     {c.thumbnail ? (
-                      <div className="relative size-9 rounded-md overflow-hidden shrink-0 bg-neutral-100">
-                        <Image src={c.thumbnail} alt="" fill sizes="36px" className="object-cover" />
+                      <div className="relative w-14 aspect-64/39 rounded-md overflow-hidden shrink-0 bg-neutral-100">
+                        <Image src={c.thumbnail} alt="" fill sizes="56px" className="object-cover" />
                       </div>
                     ) : (
-                      <div className="size-9 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                      <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
                         <CarIcon weight="duotone" className="size-4 text-neutral-300" />
                       </div>
                     )}
@@ -216,11 +216,11 @@ function StayBlock({ day, adults, childCount }: { day: DayItinerary; adults: num
                   {extraRooms.map((r, i) => (
                     <div key={i} className="flex items-center gap-2">
                       {r.thumbnail ? (
-                        <div className="relative size-9 rounded-md overflow-hidden shrink-0 bg-neutral-100">
-                          <Image src={r.thumbnail} alt="" fill sizes="36px" className="object-cover" />
+                        <div className="relative w-14 aspect-64/39 rounded-md overflow-hidden shrink-0 bg-neutral-100">
+                          <Image src={r.thumbnail} alt="" fill sizes="56px" className="object-cover" />
                         </div>
                       ) : (
-                        <div className="size-9 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                        <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
                           <BedIcon weight="duotone" className="size-4 text-neutral-300" />
                         </div>
                       )}

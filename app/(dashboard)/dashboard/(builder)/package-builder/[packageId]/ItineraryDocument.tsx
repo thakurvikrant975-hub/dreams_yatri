@@ -226,10 +226,6 @@ export interface PreviewData {
   pricePerPerson: string;
   totalPrice: string;
   currency: string;
-  /** Exec-pasted payment link (e.g. a Razorpay Payment Link) for this exact
-   * locked total — the "Pay Now" button opens this. Omitted/empty hides the
-   * button rather than linking nowhere. */
-  paymentLink?: string;
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
@@ -961,9 +957,9 @@ function DayCardPreview({
                       <div key={i} className="flex items-center gap-2">
                         {r.thumbnail ? (
                           /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                          <img src={r.thumbnail} alt="" className="w-10 h-8 rounded-md object-cover shrink-0" />
+                          <img src={r.thumbnail} alt="" className="w-14 aspect-64/39 rounded-md object-cover shrink-0" />
                         ) : (
-                          <div className="w-10 h-8 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                          <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
                             <Hotel size={10} className="text-neutral-300" />
                           </div>
                         )}
@@ -1091,9 +1087,9 @@ function DayCardPreview({
                       <div key={i} className="flex items-center gap-2">
                         {c.thumbnail ? (
                           /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                          <img src={c.thumbnail} alt="" className="w-10 h-8 rounded-md object-cover shrink-0" />
+                          <img src={c.thumbnail} alt="" className="w-14 aspect-64/39 rounded-md object-cover shrink-0" />
                         ) : (
-                          <div className="w-10 h-8 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                          <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
                             <Car size={10} className="text-neutral-300" />
                           </div>
                         )}
@@ -1731,20 +1727,6 @@ export function ItineraryDocument({
                   <p className="text-[17px] font-extrabold text-white leading-none">{priceStr}</p>
                 </div>
               </div>
-
-              {form.paymentLink && (
-                <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10">
-                  <p className="text-[10px] text-white/60">Secure your booking online, anytime.</p>
-                  <a
-                    href={form.paymentLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-400 text-white font-bold text-xs px-4 py-2 rounded-full transition-colors shrink-0"
-                  >
-                    Pay Now <ArrowRight size={13} />
-                  </a>
-                </div>
-              )}
             </div>
           </div>
 
