@@ -20,6 +20,7 @@ import {
   Star,
   Lock,
   CalendarClock,
+  Megaphone,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ export type QuerySource =
   | "PACKAGE_FORM"
   | "CONTACT_FORM"
   | "REFERRAL"
+  | "META"
   | "OTHER";
 
 // ── Status Config ─────────────────────────────────────────────────────────────
@@ -172,6 +174,12 @@ const SOURCE_CONFIG: Record<
     icon: MessageCircle,
     className:
       "bg-green-50 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700",
+  },
+  META: {
+    label: "Meta",
+    icon: Megaphone,
+    className:
+      "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700",
   },
   PHONE_CALL: {
     label: "Phone Call",

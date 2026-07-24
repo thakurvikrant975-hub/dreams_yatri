@@ -210,9 +210,12 @@ export async function searchHotelRoomsForBuilder(
   categoryFilter?: string | null,
   /** Lowercase meal keys ("breakfast"/"lunch"/"dinner") the room's plan must
    * cover — a room needs ALL selected meals to match, not just one. Empty/
-   * omitted means no meal filtering. */
+   * omitted means no meal filtering. Ignored when `noMealsOnly` is set. */
   mealFilter?: string[] | null,
   sortBy?: HotelSortOption | null,
+  /** Room-only / EP filter — true shows only rooms with no meal plan at all
+   * (no meal_type row, or a meal_type whose covered_meals is empty). */
+  noMealsOnly?: boolean | null,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
@@ -245,9 +248,11 @@ export async function searchHotelRoomsForBuilder(
         ...(starFilter ? { stay_type: starFilter } : {}),
         ...(categoryFilter ? { category: categoryFilter } : {}),
       },
-      ...(mealFilter && mealFilter.length > 0
-        ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
-        : {}),
+      ...(noMealsOnly
+        ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
+        : mealFilter && mealFilter.length > 0
+          ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
+          : {}),
     },
     select: HOTEL_ROOM_SELECT,
     take: HOTEL_SEARCH_PAGE_SIZE,
@@ -603,6 +608,7 @@ export interface QueryDetail {
     stops:           StopInput[];
     itineraries:     DayItinerary[];
     tickets:         TicketInput[];
+    addOns:          AddonInput[];
   } | null;
 }
 
@@ -752,6 +758,22 @@ export interface PackageInput {
   stops:           StopInput[];
   itineraries:     DayItinerary[];
   tickets:         TicketInput[];
+  addOns:          AddonInput[];
+}
+
+export interface AddonInput {
+  id?:      string;
+  /** e.g. "Honeymoon Kit", "Inner Line Permit". */
+  name:     string;
+  /** Per-unit price — subtotal (price × quantity) feeds into
+   * computeFinalPricing in page.tsx, same as hotel/cab costs. */
+  price:    number | null;
+  quantity: number;
+  notes:    string;
+  /** Which itinerary day this was added under (added while working on that
+   * day's hotel) — renders under that day's Hotel section in the document.
+   * Null when added generically from the Package Details tab. */
+  day:      number | null;
 }
 
 export interface TicketInput {
@@ -1138,6 +1160,19 @@ function normalizeTicket(t: {
   };
 }
 
+function normalizeAddon(a: {
+  id: string; name: string; price: number | null; quantity: number; notes: string | null; day: number | null;
+}): AddonInput {
+  return {
+    id:       a.id,
+    name:     a.name,
+    price:    a.price ?? null,
+    quantity: a.quantity,
+    notes:    a.notes ?? "",
+    day:      a.day ?? null,
+  };
+}
+
 const QUERY_LEAD_SELECT = {
   id:             true,
   name:           true,
@@ -1227,6 +1262,10 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           ticketCount: true, fare: true, notes: true,
         },
       },
+      addOns: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, price: true, quantity: true, notes: true, day: true },
+      },
       itineraries: {
         orderBy: { day: "asc" },
         select: {
@@ -1273,7 +1312,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
 
   if (!pkg) return null;
 
-  const { query, itineraries, tickets, ...pkgRest } = pkg;
+  const { query, itineraries, tickets, addOns, ...pkgRest } = pkg;
   const { execEmail, execDesignation } = await resolveExecInfo(query?.assignedTo ?? null);
 
   return {
@@ -1300,6 +1339,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       stops: pkgRest.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
       itineraries: itineraries.map(normalizeItinerary),
       tickets: tickets.map(normalizeTicket),
+      addOns: addOns.map(normalizeAddon),
       extraPolicyItems: normalizeExtraPolicyItems(pkgRest.extraPolicyItems),
     },
   };
@@ -1338,7 +1378,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
       termsNotes, paymentLink, extraPolicyItems,
-      status, stops, itineraries, tickets,
+      status, stops, itineraries, tickets, addOns,
     } = input;
 
     // flightsIncluded/flightFrom/... aren't edited directly anymore — they're
@@ -1607,6 +1647,26 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
           ticketCount:     t.ticketCount,
           fare:            t.fare ?? null,
           notes:           t.notes || null,
+          sortOrder:       idx,
+        })),
+      });
+    }
+
+    // Replace add-ons — flat rows, no nested children, same pattern as
+    // tickets/stops above.
+    await db.custom_package_addons.deleteMany({
+      where: { customPackageId: pkg.id },
+    });
+    const namedAddons = addOns.filter((a) => a.name.trim());
+    if (namedAddons.length > 0) {
+      await db.custom_package_addons.createMany({
+        data: namedAddons.map((a, idx) => ({
+          customPackageId: pkg.id,
+          name:            a.name,
+          price:           a.price ?? 0,
+          quantity:        a.quantity || 1,
+          notes:           a.notes || null,
+          day:             a.day ?? null,
           sortOrder:       idx,
         })),
       });

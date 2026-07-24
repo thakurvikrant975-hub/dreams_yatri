@@ -14,6 +14,7 @@ import {
 import { Loader2, MessageCircle } from "lucide-react";
 
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
+import { TimePicker12h } from "../../../components/dashboard/TimePicker12h";
 import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../../components/location/location.types";
 import { SearchSelect } from "../../../components/dashboard/SearchSelect";
@@ -74,6 +75,8 @@ export function DetailsTab({
   );
   const [description, setDescription] = useState(hotel.description ?? "");
   const [hotelName,   setHotelName]   = useState(hotel.name);
+  const [checkInTime,  setCheckInTime]  = useState(hotel.check_in_time ?? "14:00");
+  const [checkOutTime, setCheckOutTime] = useState(hotel.check_out_time ?? "11:00");
 
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
@@ -185,13 +188,13 @@ export function DetailsTab({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Check-in Time</Label>
-              <Input type="time" name="check_in_time" defaultValue={hotel.check_in_time ?? "14:00"}
-                className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+              <TimePicker12h value={checkInTime} onChange={setCheckInTime} />
+              <input type="hidden" name="check_in_time" value={checkInTime} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Check-out Time</Label>
-              <Input type="time" name="check_out_time" defaultValue={hotel.check_out_time ?? "11:00"}
-                className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+              <TimePicker12h value={checkOutTime} onChange={setCheckOutTime} />
+              <input type="hidden" name="check_out_time" value={checkOutTime} />
             </div>
           </div>
 

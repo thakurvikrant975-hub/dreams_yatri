@@ -20,7 +20,7 @@ import { Badge } from "../../components/ui/badge";
 import {
   QueryStatusBadge, QuerySourceBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
-import { CloseQueryDialog } from "./Closequerydialog";
+import { CloseQueryDialog } from "./Closequerydialog"; 
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";

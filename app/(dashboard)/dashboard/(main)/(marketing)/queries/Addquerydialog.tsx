@@ -71,6 +71,16 @@ export function AddQueryDialog() {
     const [packages,           setPackages]           = useState<PackageOption[]>([]);
     const [loadingDests,       setLoadingDests]       = useState(false);
     const [loadingPkgs,        setLoadingPkgs]        = useState(false);
+    // Controlled (not left as plain uncontrolled <input>s) specifically so a
+    // failed submission never wipes what the exec already typed — React
+    // form actions reset uncontrolled fields once the action call finishes,
+    // success or failure, which previously made a validation error look
+    // like the whole form had been silently cleared.
+    const [name,               setName]               = useState("");
+    const [email,              setEmail]              = useState("");
+    const [groupSize,          setGroupSize]          = useState("");
+    const [travelDate,         setTravelDate]         = useState("");
+    const [message,            setMessage]            = useState("");
     const formRef                                     = useRef<HTMLFormElement>(null);
     const [state, action, isPending]                  = useActionState(createManualQuery, initial);
 
@@ -100,8 +110,18 @@ export function AddQueryDialog() {
             setSelectedDestName("");
             setSelectedPkgTitle("");
             setPackages([]);
+            setName("");
+            setEmail("");
+            setGroupSize("");
+            setTravelDate("");
+            setMessage("");
             formRef.current?.reset();
-        } else if (state.message && !state.errors) {
+        } else if (state.message) {
+            // Always surface a toast on failure — not just when there's no
+            // per-field error — since not every validated field (e.g. source)
+            // has an inline error shown next to it. Deliberately does NOT
+            // touch any of the form state above, so whatever the exec already
+            // typed (name, phone, destination, source, notes...) stays put.
             toast.error(state.message);
         }
     }, [state]);
@@ -161,6 +181,8 @@ export function AddQueryDialog() {
                             </Label>
                             <Input
                                 id="name" name="name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
                                 placeholder="Rahul Sharma"
                                 autoComplete="off"
                                 className="h-9 text-sm rounded-lg bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content placeholder:text-dashboard-base-content/30 focus-visible:ring-dashboard-primary/30 focus-visible:border-dashboard-primary"
@@ -182,6 +204,8 @@ export function AddQueryDialog() {
                             </Label>
                             <Input
                                 id="email" name="email" type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 placeholder="rahul@gmail.com"
                                 className="h-9 text-sm rounded-lg bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content placeholder:text-dashboard-base-content/30 focus-visible:ring-dashboard-primary/30 focus-visible:border-dashboard-primary"
                             />
@@ -275,6 +299,8 @@ export function AddQueryDialog() {
                             <Input
                                 id="groupSize" name="groupSize"
                                 type="number" min="1" max="100" placeholder="4"
+                                value={groupSize}
+                                onChange={(e) => setGroupSize(e.target.value)}
                                 className="h-9 text-sm rounded-lg bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content placeholder:text-dashboard-base-content/30 focus-visible:ring-dashboard-primary/30 focus-visible:border-dashboard-primary"
                             />
                         </div>
@@ -286,6 +312,8 @@ export function AddQueryDialog() {
                             </Label>
                             <Input
                                 id="travelDate" name="travelDate" type="date"
+                                value={travelDate}
+                                onChange={(e) => setTravelDate(e.target.value)}
                                 className="h-9 text-sm rounded-lg bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content focus-visible:ring-dashboard-primary/30 focus-visible:border-dashboard-primary"
                             />
                         </div>
@@ -315,6 +343,7 @@ export function AddQueryDialog() {
                                 </button>
                             ))}
                         </div>
+                        <FieldError errors={state.errors} field="source" />
                     </div>
 
                     {/* ── Notes ── */}
@@ -326,6 +355,8 @@ export function AddQueryDialog() {
                         </Label>
                         <Textarea
                             id="message" name="message"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
                             placeholder="e.g. Looking for a 7-day Kashmir honeymoon package in June..."
                             rows={3}
                             className="resize-none text-sm rounded-lg bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content placeholder:text-dashboard-base-content/30 focus-visible:ring-dashboard-primary/30 focus-visible:border-dashboard-primary"
