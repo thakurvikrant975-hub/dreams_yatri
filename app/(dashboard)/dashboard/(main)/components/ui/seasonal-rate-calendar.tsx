@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
-  CalendarDays, ChevronLeft, ChevronRight, ChevronDown, X, Plus, Pencil, Trash2, AlertCircle,
+  CalendarDays, ChevronLeft, ChevronRight, ChevronDown, X, Plus, Pencil, Trash2, AlertCircle, Clock,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import {
@@ -16,6 +16,10 @@ import {
   formatDateLabel,
   defaultRangeLabel,
   darkenColor,
+  planExpiryDate,
+  daysUntil,
+  expiryLabel,
+  expiryClass,
 } from "./seasonal-rate-calendar-logic";
 
 const MONTH_NAMES = [
@@ -145,6 +149,13 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
     [seasonsForItem, getGroupKey],
   );
   const totalRanges = seasonsForItem.length;
+
+  // The item's pricing doesn't lapse until its LAST season ends — never at
+  // any single season's own end date while a later one still covers the
+  // calendar — so this is computed across every season for the active item,
+  // not any one row.
+  const planExpiry = useMemo(() => planExpiryDate(seasonsForItem), [seasonsForItem]);
+  const daysRemaining = planExpiry != null ? daysUntil(planExpiry) : null;
 
   function closeForm() {
     setFormOpen(false);
@@ -381,6 +392,20 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
                 <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
               </div>
             </div>
+
+            {planExpiry != null && daysRemaining != null && (
+              <div className={cn("rounded-xl border px-3.5 py-2.5 flex items-center gap-2.5", expiryClass(daysRemaining))}>
+                <Clock size={16} className="shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold leading-tight">
+                    Pricing expires {formatDateLabel(planExpiry)}
+                  </p>
+                  <p className="text-[11px] leading-tight opacity-80">
+                    {expiryLabel(daysRemaining)}{totalRanges > 1 ? ` · last of ${totalRanges} seasons` : ""}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {formOpen ? (
               <SeasonForm

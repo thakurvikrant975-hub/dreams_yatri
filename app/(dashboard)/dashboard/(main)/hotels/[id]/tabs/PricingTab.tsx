@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -1101,7 +1102,7 @@ function OccupancyPricesPanel({
 
 // ── Read-only Seasons Summary (in expanded panel) ─────────────────────────
 
-function SeasonsSummaryPanel({ seasons }: { seasons: HotelSeason[] }) {
+function SeasonsSummaryPanel({ seasons, highlightSeasonId = null }: { seasons: HotelSeason[]; highlightSeasonId?: number | null }) {
   if (!seasons.length) return (
     <div className="px-4 pb-3 pt-2">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-dashboard-base-content/50 flex items-center gap-1 mb-1">
@@ -1117,7 +1118,15 @@ function SeasonsSummaryPanel({ seasons }: { seasons: HotelSeason[] }) {
         <Calendar className="h-3 w-3" /> Seasonal Pricing
       </p>
       {seasons.map(s => (
-        <div key={s.id} className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs bg-dashboard-base-200">
+        <div
+          key={s.id}
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs",
+            s.id === highlightSeasonId
+              ? "bg-dashboard-warning/15 ring-2 ring-dashboard-warning/50"
+              : "bg-dashboard-base-200",
+          )}
+        >
           <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: s.color ?? "#f97316" }} />
           <span className="text-dashboard-base-content/60 shrink-0">
             {fmtMonthDay(toISODate(s.valid_from))} → {fmtMonthDay(toISODate(s.valid_to))}
@@ -1167,6 +1176,8 @@ function PlanRow({
   onDelete,
   onOccupancyUpdated,
   onSeasonsUpdated,
+  highlight = false,
+  highlightSeasonId = null,
 }: {
   plan: PricingPlan;
   hotelId: number;
@@ -1182,8 +1193,20 @@ function PlanRow({
   onDelete: (id: number) => void;
   onOccupancyUpdated: (planId: number, prices: OccupancyPrice[]) => void;
   onSeasonsUpdated: (planId: number, seasons: HotelSeason[]) => void;
+  /** Deep-linked from Expiring Rates' "Fix" button — this plan is the one
+   * with the expiring/expired season, so start expanded and scroll into view
+   * instead of making the exec hunt for it. */
+  highlight?: boolean;
+  highlightSeasonId?: number | null;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(highlight);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (highlight) rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Only ever scroll once, on mount — not on every re-render this plan happens to take part in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (editId === plan.id) {
     return (
@@ -1211,7 +1234,14 @@ function PlanRow({
     .join(" · ");
 
   return (
-    <div className={cn("border border-dashboard-base-content/20 rounded-xl overflow-hidden bg-dashboard-base-100", !plan.is_active && "opacity-60")}>
+    <div
+      ref={rowRef}
+      className={cn(
+        "border rounded-xl overflow-hidden bg-dashboard-base-100",
+        highlight ? "border-dashboard-warning ring-2 ring-dashboard-warning/40" : "border-dashboard-base-content/20",
+        !plan.is_active && "opacity-60",
+      )}
+    >
       {/* Header row */}
       <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-dashboard-base-200 transition-colors">
         <button type="button"
@@ -1291,7 +1321,7 @@ function PlanRow({
 
       {expanded && (
         <div className="border-t border-dashboard-base-content/10 bg-dashboard-base-200/30 divide-y divide-dashboard-base-content/10">
-          <SeasonsSummaryPanel seasons={plan.seasons ?? []} />
+          <SeasonsSummaryPanel seasons={plan.seasons ?? []} highlightSeasonId={highlightSeasonId} />
           {plan.notes && <PlanNotesPanel notes={plan.notes} />}
           <OccupancyPricesPanel plan={plan} hotelId={hotelId} onUpdated={prices => onOccupancyUpdated(plan.id, prices)} />
         </div>
@@ -1317,6 +1347,13 @@ export function PricingTab({
 }) {
   const [pricing, setPricing] = useState<PricingPlan[]>(initialPricing);
   const [adding, setAdding] = useState(false);
+  // Deep-link from the Expiring Rates page's "Fix" button — ?planId/&seasonId
+  // point at exactly the plan/season that's expiring, so it can be
+  // auto-expanded, scrolled to, and highlighted instead of making the exec
+  // hunt for it among every room's pricing plans.
+  const searchParams = useSearchParams();
+  const highlightPlanId = searchParams.get("planId") ? Number(searchParams.get("planId")) : null;
+  const highlightSeasonId = searchParams.get("seasonId") ? Number(searchParams.get("seasonId")) : null;
   const [editId, setEditId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -1620,7 +1657,8 @@ export function PricingTab({
                   <PlanRow key={plan.id} plan={plan} hotelId={hotel_id} editId={editId}
                     rooms={rooms} mealTypes={mealTypes} dietTypes={dietTypes} allPlans={pricing} isPending={isPending}
                     onEdit={setEditId} onSaveEdit={handleEdit} onCancelEdit={() => setEditId(null)}
-                    onDelete={handleDelete} onOccupancyUpdated={handleOccupancyUpdated} onSeasonsUpdated={handleSeasonsUpdated} />
+                    onDelete={handleDelete} onOccupancyUpdated={handleOccupancyUpdated} onSeasonsUpdated={handleSeasonsUpdated}
+                    highlight={plan.id === highlightPlanId} highlightSeasonId={highlightSeasonId} />
                 ))}
               </div>
             </div>

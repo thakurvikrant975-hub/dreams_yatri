@@ -36,16 +36,16 @@ function TableSkeleton() {
 }
 
 async function ExpiringRatesData({
-    page, limit, search, window,
+    page, limit, search, window, uploadedBy,
 }: {
-    page: number; limit: number; search: string; window: ExpiryWindow;
+    page: number; limit: number; search: string; window: ExpiryWindow; uploadedBy: string;
 }) {
-    const { seasons, totalCount, stats } = await getExpiringSeasonalRates({ page, limit, search, window });
+    const { seasons, totalCount, stats, uploaders } = await getExpiringSeasonalRates({ page, limit, search, window, uploadedBy });
 
     return (
         <>
             <StatGrid cols={4}>
-                <StatCard label="Total Seasonal Rates" value={stats.total} icon={CalendarClock} />
+                <StatCard label="Total Pricing Plans" value={stats.total} icon={CalendarClock} />
                 <StatCard label="Expiring in 7 Days" value={stats.urgent7d} icon={AlertTriangle} />
                 <StatCard label="Already Expired" value={stats.expired} icon={TimerOff} />
                 <StatCard label="Hotels Affected" value={stats.hotelsAffected} icon={Building2} sub="In current filter" />
@@ -59,15 +59,17 @@ async function ExpiringRatesData({
                 limit={limit}
                 search={search}
                 window={window}
+                uploadedBy={uploadedBy}
+                uploaders={uploaders}
             />
         </>
     );
 }
 
 export default function ExpiringRatesClient({
-    page, limit, search, window,
+    page, limit, search, window, uploadedBy,
 }: {
-    page: number; limit: number; search: string; window: ExpiryWindow;
+    page: number; limit: number; search: string; window: ExpiryWindow; uploadedBy: string;
 }) {
     return (
         <div className="space-y-6">
@@ -90,7 +92,7 @@ export default function ExpiringRatesClient({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${window}`}
+                key={`${page}-${limit}-${search}-${window}-${uploadedBy}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-4 gap-3">
@@ -105,7 +107,7 @@ export default function ExpiringRatesClient({
                     </div>
                 }
             >
-                <ExpiringRatesData page={page} limit={limit} search={search} window={window} />
+                <ExpiringRatesData page={page} limit={limit} search={search} window={window} uploadedBy={uploadedBy} />
             </Suspense>
         </div>
     );

@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { Building2, MapPin, BedDouble, ChevronRight, CalendarRange } from "lucide-react";
+import { Building2, MapPin, BedDouble, ChevronRight, CalendarRange, UserRound, Tag } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
@@ -35,7 +35,7 @@ function urgencyLabel(daysRemaining: number) {
 }
 
 export function ExpiringRatesTable({
-    seasons, currentPage, totalPages, totalCount, limit, search, window,
+    seasons, currentPage, totalPages, totalCount, limit, search, window, uploadedBy, uploaders,
 }: {
     seasons: SeasonRow[];
     currentPage: number;
@@ -44,6 +44,8 @@ export function ExpiringRatesTable({
     limit: number;
     search: string;
     window: ExpiryWindow;
+    uploadedBy: string;
+    uploaders: { id: string; name: string; count: number }[];
 }) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -82,8 +84,11 @@ export function ExpiringRatesTable({
                         </div>
                         <div className="min-w-0">
                             <p className="font-medium text-sm truncate">{row.hotelName}</p>
-                            <p className="text-xs text-dashboard-base-content/60 flex items-center gap-1 truncate">
+                            <p className="text-xs text-dashboard-base-content/75 flex items-center gap-1 truncate">
                                 <BedDouble className="h-3 w-3 shrink-0" /> {row.roomName}
+                            </p>
+                            <p className="text-[11px] text-dashboard-base-content/75 flex items-center gap-1 truncate">
+                                <UserRound className="h-3 w-3 shrink-0" /> {row.uploadedBy ? row.uploadedBy : "Uploader unknown"}
                             </p>
                         </div>
                     </div>
@@ -100,11 +105,22 @@ export function ExpiringRatesTable({
             ),
         },
         {
-            header: "Season",
+            header: "Pricing Plan",
             cell: (row) => (
                 <div className="text-sm">
-                    <p className="font-medium truncate">{row.seasonName || row.planName || "Seasonal rate"}</p>
-                    <p className="text-xs text-dashboard-base-content/60 flex items-center gap-1">
+                    <p className="font-medium truncate flex items-center gap-1">
+                        <Tag className="h-3 w-3 shrink-0 text-dashboard-base-content/40" />
+                        {row.planName || <span className="italic text-dashboard-base-content/40">Unnamed plan</span>}
+                        {row.seasonCount > 1 && (
+                            <span className="ml-1 shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-dashboard-base-200 text-dashboard-base-content/60">
+                                {row.seasonCount} seasons
+                            </span>
+                        )}
+                    </p>
+                    <p className="text-xs text-dashboard-base-content/60 truncate">
+                        Last season: {row.seasonName || "—"}
+                    </p>
+                    <p className="text-[11px] text-dashboard-base-content/50 flex items-center gap-1">
                         <CalendarRange className="h-3 w-3 shrink-0" />
                         {format(row.validFrom, "d MMM yyyy")} – {format(row.validTo, "d MMM yyyy")}
                     </p>
@@ -142,7 +158,7 @@ export function ExpiringRatesTable({
             width: "w-[80px]",
             cell: (row) => (
                 <Link
-                    href={`/dashboard/hotels/${row.hotelId}?tab=pricing`}
+                    href={`/dashboard/hotels/${row.hotelId}?tab=pricing&planId=${row.pricingId}&seasonId=${row.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-primary hover:underline"
@@ -167,6 +183,14 @@ export function ExpiringRatesTable({
                         width: "w-44",
                         allValue: "expired",
                         options: EXPIRY_WINDOWS.filter((w) => w.value !== "expired").map((w) => ({ label: w.label, value: w.value })),
+                    },
+                    {
+                        value: uploadedBy || "all",
+                        onChange: (v) => updateParam("uploadedBy", v === "all" ? "" : v),
+                        placeholder: "All uploaders",
+                        width: "w-48",
+                        allValue: "all",
+                        options: uploaders.map((u) => ({ label: `${u.name} (${u.count})`, value: u.id })),
                     },
                 ]}
             />

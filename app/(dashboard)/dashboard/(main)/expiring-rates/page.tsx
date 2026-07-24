@@ -21,6 +21,7 @@ export default async function ExpiringRatesPage({
     const limit  = (VALID_LIMITS as readonly number[]).includes(rawLim) ? rawLim : 20;
     const search = (sp.search ?? "").trim();
     const window = isExpiryWindow(sp.window ?? "") ? (sp.window as ExpiryWindow) : DEFAULT_WINDOW;
+    const uploadedBy = (sp.uploadedBy ?? "").trim();
 
     return (
         <ExpiringRatesClient
@@ -28,6 +29,7 @@ export default async function ExpiringRatesPage({
             limit={limit}
             search={search}
             window={window}
+            uploadedBy={uploadedBy}
         />
     );
 }
