@@ -3,8 +3,8 @@
 /** Print / Save-as-PDF trigger — hidden when printing (parent uses `.no-print`).
  * Local copy rather than importing the website's PrintButton (app/(website)/bookings/[id]/PrintButton.tsx)
  * since that one pulls in the website's Button component/styling — this dashboard
- * voucher is a standalone printable document, not a themed dashboard panel. */
-export default function PrintVoucherButton() {
+ * invoice is a standalone printable document, not a themed dashboard panel. */
+export default function PrintInvoiceButton() {
     return (
         <div className="no-print mt-6 flex justify-center">
             <button

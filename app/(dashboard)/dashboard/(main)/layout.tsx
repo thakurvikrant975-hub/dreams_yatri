@@ -94,14 +94,20 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider>
-      {/* Sidebar reflects the effective member's page access */}
-      <AppSidebar pageAccess={pageAccess} />
+      {/* Sidebar reflects the effective member's page access.
+          `no-print` only takes effect on pages that define the
+          `@media print { .no-print { display: none } }` rule themselves
+          (currently the invoice/voucher documents) — it's inert elsewhere,
+          so this doesn't change print behavior for ordinary dashboard pages. */}
+      <div className="no-print contents">
+        <AppSidebar pageAccess={pageAccess} />
+      </div>
 
       <main
-        className="flex-1 overflow-y-auto min-h-screen bg-dashboard-base-200"
+        className="flex-1 overflow-y-auto min-h-screen bg-dashboard-base-200 print:overflow-visible print:min-h-0 print:bg-white"
         data-layout="dashboard"
       >
-        <div className="flex justify-between items-center gap-4 px-6 py-3 sticky top-0 z-10 bg-dashboard-base-100 border-b border-dashboard-base-300">
+        <div className="no-print flex justify-between items-center gap-4 px-6 py-3 sticky top-0 z-10 bg-dashboard-base-100 border-b border-dashboard-base-300">
           <SidebarTrigger />
 
           <div className="flex items-center gap-3 ml-auto">
@@ -124,7 +130,7 @@ export default async function DashboardLayout({
           </div>
         </div>
 
-        <div className="relative p-6">
+        <div className="relative p-6 print:p-0">
           {children}
         </div>
       </main>

@@ -778,6 +778,7 @@ body {
     margin-bottom: 0.35rem;
     line-height: 1.4;
 }
+
 .prose-article p:has(> strong:only-child) > strong { font-weight: inherit; }
 .prose-article blockquote {
     border-left: 4px solid var(--color-primary-400, #e05c45);
