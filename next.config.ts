@@ -3,19 +3,17 @@ import type { NextConfig } from "next";
 /** @type {import('next').NextConfig} */
 const nextConfig: NextConfig = {
   // Without this, Turbopack auto-detects the workspace root by walking up
-  // for lockfiles — and finds a stray package-lock.json at /Users/apple,
-  // so it picks the *entire home directory* as the root and file-watches
-  // everything under it (Desktop, Documents, other projects, caches...).
-  // That's what was pinning next-server at 500%+ CPU continuously.
+  // for lockfiles — and can land on a stray lockfile well above this project,
+  // picking an ancestor directory as the root and file-watching everything
+  // under it (other projects, caches...), which pins next-server at very
+  // high CPU continuously.
   //
-  // Hardcoded on purpose, not derived: __dirname resolved one directory too
-  // high in this config file, and process.cwd() also turned out to resolve
-  // to the *parent* of this project (whatever launches `npm run dev` here —
-  // an editor task, an alias, an npm --prefix/workspace invocation — doesn't
-  // necessarily cd into this folder first). An absolute literal path removes
-  // that ambiguity regardless of how/where the process gets launched from.
+  // Derived from this file's own location rather than hardcoded: this config
+  // file lives at the project root, so __dirname is the project root on any
+  // machine — unlike a literal absolute path, which only works on whichever
+  // machine/OS it was written for.
   turbopack: {
-    root: "/Users/apple/Desktop/projects/dreams_yatri",
+    root: __dirname,
   },
   // Keep the dashboard layout's RSC payload (sidebar + header) cached on the
   // client across navigations so it doesn't re-fetch/flicker on every route change.
