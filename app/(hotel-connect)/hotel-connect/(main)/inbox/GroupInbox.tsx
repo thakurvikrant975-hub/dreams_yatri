@@ -11,11 +11,19 @@ import {
   CheckCircleIcon,
   LightningIcon,
   WarningIcon,
+  PaperclipIcon,
+  FileIcon,
+  DotsThreeVerticalIcon,
+  TrashIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/app/lib/utils";
+import { useConversationChannel } from "@/app/lib/ably-client";
 import {
   getConversationMessages,
   sendHostMessage,
+  sendHostAttachment,
+  deleteHostMessage,
+  markConversationRead,
   type ConversationSummary,
   type ConversationMessage,
 } from "./inbox-actions";
@@ -102,7 +110,42 @@ function ConversationItem({
   );
 }
 
-function MessageBubble({ msg }: { msg: ConversationMessage }) {
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function AttachmentCard({ msg }: { msg: ConversationMessage }) {
+  if (!msg.attachmentUrl) return null;
+  const isImage = msg.attachmentType?.startsWith("image/");
+  if (isImage) {
+    return (
+      <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer" className="block mb-1.5 -mx-1 -mt-1">
+        {/* eslint-disable-next-line @next/next/no-img-element -- chat attachment thumbnails are arbitrary-sized uploads */}
+        <img src={msg.attachmentUrl} alt={msg.attachmentName ?? "Attachment"} className="max-h-48 w-auto rounded-lg object-cover" />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={msg.attachmentUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mb-1.5 flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 hover:bg-black/10 transition-colors"
+    >
+      <FileIcon size={18} weight="fill" className="shrink-0 opacity-70" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium">{msg.attachmentName ?? "File"}</span>
+        {msg.attachmentSize != null && <span className="block text-[10px] opacity-70">{formatBytes(msg.attachmentSize)}</span>}
+      </span>
+    </a>
+  );
+}
+
+function MessageBubble({ msg, isMine, onDelete }: { msg: ConversationMessage; isMine: boolean; onDelete: (id: number) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   if (msg.sender === "SYSTEM") {
     return (
       <div className="flex justify-center my-3">
@@ -114,14 +157,26 @@ function MessageBubble({ msg }: { msg: ConversationMessage }) {
   }
 
   const isHost = msg.sender === "HOST";
+
+  if (msg.isDeleted) {
+    return (
+      <div className={cn("flex gap-2 mb-2", isHost ? "flex-row-reverse" : "flex-row")}>
+        <div className="max-w-[70%] px-4 py-2.5 rounded-2xl text-xs italic text-neutral-400 bg-neutral-50 border border-neutral-100">
+          This message was deleted
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("flex gap-2 mb-2", isHost ? "flex-row-reverse" : "flex-row")}>
+    <div className={cn("group flex gap-1.5 mb-2 items-center", isHost ? "flex-row-reverse" : "flex-row")}>
       <div className={cn(
-        "max-w-[70%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words",
+        "relative max-w-[70%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words",
         isHost
           ? "bg-primary-500 text-white rounded-tr-sm"
           : "bg-white border border-neutral-100 text-neutral-800 rounded-tl-sm shadow-xs",
       )}>
+        <AttachmentCard msg={msg} />
         {msg.body}
         <div className={cn("flex items-center gap-1 mt-1", isHost ? "justify-end" : "justify-start")}>
           <span className={cn("text-[10px]", isHost ? "text-primary-200" : "text-neutral-300")}>
@@ -129,6 +184,27 @@ function MessageBubble({ msg }: { msg: ConversationMessage }) {
           </span>
         </div>
       </div>
+      {isMine && (
+        <div className="relative shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Message options"
+            className="flex size-6 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100"
+          >
+            <DotsThreeVerticalIcon size={14} weight="bold" />
+          </button>
+          {menuOpen && (
+            <div className="absolute z-10 top-full mt-1 right-0 rounded-lg border border-neutral-200 bg-white shadow-md py-1 min-w-[110px]">
+              <button
+                onClick={() => { setMenuOpen(false); onDelete(msg.id); }}
+                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+              >
+                <TrashIcon size={13} weight="bold" /> Delete
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -162,7 +238,9 @@ export default function GroupInbox({ initialConversations }: { initialConversati
   const [sendError, setSendError] = useState<string | null>(null);
   const [isSending, startSending] = useTransition();
   const [showList, setShowList] = useState(true); // mobile: toggle between list/thread
+  const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const active = conversations.find((c) => key(c) === activeKey) ?? null;
 
@@ -179,6 +257,29 @@ export default function GroupInbox({ initialConversations }: { initialConversati
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeKey, messages.length]);
+
+  // Upsert by id — a live-delivered update (e.g. a delete) replaces the
+  // matching bubble in place instead of only ever appending new ones.
+  function upsertMessage(prev: ConversationMessage[], incoming: ConversationMessage): ConversationMessage[] {
+    const idx = prev.findIndex((m) => m.id === incoming.id);
+    if (idx === -1) return [...prev, incoming];
+    const next = prev.slice();
+    next[idx] = incoming;
+    return next;
+  }
+
+  // Live delivery for the open thread — a guest's message (or the host's own
+  // send from another tab/device) appears without reopening the conversation.
+  useConversationChannel(active?.bookingId ?? null, active?.hotelId ?? null, (msg) => {
+    if (!active) return;
+    setMessages((prev) => upsertMessage(prev, { ...msg, createdAt: new Date(msg.createdAt) }));
+    setConversations((prev) => prev.map((x) =>
+      key(x) === key(active) ? { ...x, lastMessage: msg.body, lastMessageAt: new Date(msg.createdAt) } : x
+    ));
+    if (msg.sender === "GUEST") {
+      markConversationRead(active.bookingId, active.hotelId).catch(() => {});
+    }
+  });
 
   function selectConversation(c: ConversationSummary) {
     setActiveKey(key(c));
@@ -205,14 +306,54 @@ export default function GroupInbox({ initialConversations }: { initialConversati
         return;
       }
       if (result.message) {
-        setMessages((prev) => [...prev, result.message!]);
+        const sent = result.message;
+        setMessages((prev) => upsertMessage(prev, sent));
         setConversations((prev) => prev.map((x) =>
           key(x) === key(active)
-            ? { ...x, lastMessage: result.message!.body, lastMessageAt: result.message!.createdAt }
+            ? { ...x, lastMessage: sent.body, lastMessageAt: sent.createdAt }
             : x
         ));
       }
       setDraft("");
+    });
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !active) return;
+    setUploading(true);
+    setSendError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await sendHostAttachment(active.bookingId, active.hotelId, fd);
+      if (res.error) {
+        setSendError(res.error);
+      } else if (res.message) {
+        const sent = res.message;
+        setMessages((prev) => upsertMessage(prev, sent));
+        setConversations((prev) => prev.map((x) =>
+          key(x) === key(active) ? { ...x, lastMessage: sent.body, lastMessageAt: sent.createdAt } : x
+        ));
+      }
+    } catch (err) {
+      console.error("[GroupInbox] attachment upload failed", err);
+      setSendError("Could not send the file. Please try again.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  function handleDelete(messageId: number) {
+    if (!active || !window.confirm("Delete this message for everyone?")) return;
+    const prevMessages = messages;
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, isDeleted: true, body: "", attachmentUrl: null } : m)));
+    deleteHostMessage(active.bookingId, active.hotelId, messageId).then((res) => {
+      if (res.error) {
+        setSendError(res.error);
+        setMessages(prevMessages);
+      }
     });
   }
 
@@ -352,7 +493,7 @@ export default function GroupInbox({ initialConversations }: { initialConversati
                   <p className="text-xs text-neutral-400">No messages yet — say hello!</p>
                 </div>
               ) : (
-                messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)
+                messages.map((msg) => <MessageBubble key={msg.id} msg={msg} isMine={msg.sender === "HOST"} onDelete={handleDelete} />)
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -379,6 +520,16 @@ export default function GroupInbox({ initialConversations }: { initialConversati
 
             <div className="shrink-0 bg-white border-t border-neutral-200 px-4 py-3">
               <div className="flex items-end gap-2">
+                <input ref={fileInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileChange} />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  aria-label="Attach file"
+                  className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-neutral-500 hover:bg-neutral-100 disabled:opacity-50 transition-colors mb-0.5"
+                >
+                  <PaperclipIcon size={17} weight="bold" />
+                </button>
+
                 <div className="flex-1 min-w-0">
                   <textarea
                     value={draft}

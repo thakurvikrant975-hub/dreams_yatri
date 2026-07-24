@@ -296,6 +296,13 @@ enum ConversationSender {
   HOST
   GUEST
   SYSTEM
+  AGENT // future support/help conversations — unused by hotel-guest chat today
+}
+
+// The only kind today is a booking↔hotel thread; new kinds (e.g. SUPPORT) can
+// be added later without another migration touching this field.
+enum ConversationKind {
+  HOTEL_BOOKING
 }
 
 // One thread per (booking, hotel) pair — a multi-city package booking can
@@ -303,6 +310,7 @@ enum ConversationSender {
 // would leak one owner's messages to another.
 model conversation {
   id         Int                    @id @default(autoincrement())
+  kind       ConversationKind       @default(HOTEL_BOOKING)
   booking_id String
   hotel_id   Int
   created_at DateTime               @default(now())
@@ -319,12 +327,23 @@ model conversation_message {
   id              Int                @id @default(autoincrement())
   conversation_id Int
   sender          ConversationSender
+  sender_id       String? // flat actor id snapshot (mirrors ActivityLog's userId convention)
+  sender_name     String? // display-name snapshot
   body            String
   read_by_host    Boolean            @default(false)
+  read_by_guest   Boolean            @default(false)
+  attachment_url  String?
+  attachment_name String? // original filename
+  attachment_type String? // mime type
+  attachment_size Int? // bytes
+  deleted_at      DateTime?
+  deleted_by      String?
+  is_deleted      Boolean            @default(false)
   created_at      DateTime           @default(now())
   conversation    conversation       @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 
   @@index([conversation_id])
+  @@index([is_deleted])
 }
 
 // One review per (booking, hotel) pair — same reasoning as conversation:

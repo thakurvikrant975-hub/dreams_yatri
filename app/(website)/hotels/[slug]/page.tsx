@@ -5,6 +5,7 @@ import Footer from "@/app/components/navigation/Footer";
 import HotelDetailClient from "./HotelDetailClient";
 import { getHotelForBooking } from "./booking-data";
 import { isHotelWishlisted } from "./wishlist-actions";
+import { getMyPaidBookingAtHotel } from "./chat-entry-actions";
 
 // Default stay window when the guest hasn't picked dates yet: tomorrow → day after.
 export function resolveDates(sp: { in?: string; out?: string }) {
@@ -34,11 +35,12 @@ export default async function HotelDetailPage({
   if (!hotel) notFound();
 
   const initialSaved = await isHotelWishlisted(hotel.id);
+  const chatBookingId = await getMyPaidBookingAtHotel(hotel.id);
 
   return (
     <>
       <Header />
-      <HotelDetailClient hotel={hotel} checkIn={checkIn} checkOut={checkOut} initialSaved={initialSaved} />
+      <HotelDetailClient hotel={hotel} checkIn={checkIn} checkOut={checkOut} initialSaved={initialSaved} chatBookingId={chatBookingId} />
       <Footer />
     </>
   );

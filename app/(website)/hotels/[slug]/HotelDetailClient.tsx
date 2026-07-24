@@ -23,11 +23,12 @@ import {
 import { StarIcon as StarSolid, UserGroupIcon, } from "@heroicons/react/24/solid";
 import { PencilRulerIcon, BedIcon, EyeIcon, BathtubIcon, ImagesIcon, StarIcon,
   MapPinIcon, PawPrintIcon, WheelchairIcon, BabyIcon,
-  HeartIcon as HeartIconPh, } from "@phosphor-icons/react";
+  HeartIcon as HeartIconPh, ChatCircleDotsIcon, } from "@phosphor-icons/react";
 import type { BedroomLayout } from "./dummy";
 
 import type { Hotel, Room, RatePlan } from "./dummy";
 import { toggleWishlist } from "./wishlist-actions";
+import HotelChatModal from "./HotelChatModal";
 import { useModal } from "@/app/hooks/useModals";
 import Button from "@/app/components/ui/Button";
 import DatePickerField from "@/app/components/ui/DatePickerField";
@@ -579,7 +580,7 @@ function BookingSummary({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSaved = false }: { hotel: Hotel; checkIn: string; checkOut: string; initialSaved?: boolean }) {
+export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSaved = false, chatBookingId = null }: { hotel: Hotel; checkIn: string; checkOut: string; initialSaved?: boolean; chatBookingId?: string | null }) {
   const router = useRouter();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [active, setActive] = useState("overview");
@@ -588,6 +589,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
   const [detailsRoom, setDetailsRoom] = useState<Room | null>(null);
   const [saved, setSaved] = useState(initialSaved);
   const [savePending, setSavePending] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const { openModal } = useModal();
 
   const ruleGroups = [...hotel.policies.sections, ...hotel.policies.importantInfo];
@@ -677,6 +679,11 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {chatBookingId && (
+              <Button variant="outline" size="sm" className="flex items-center gap-1.5" onClick={() => setChatOpen(true)}>
+                <ChatCircleDotsIcon className="w-4 h-4" /> Message Host
+              </Button>
+            )}
             <Button variant="outline" size="sm" className="flex items-center gap-1.5">
               <ShareIcon className="w-4 h-4" /> Share
             </Button>
@@ -888,6 +895,10 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
           title={hotel.name}
           onClose={() => setGalleryOpen(false)}
         />
+      )}
+
+      {chatBookingId && (
+        <HotelChatModal open={chatOpen} onClose={() => setChatOpen(false)} bookingId={chatBookingId} />
       )}
     </div>
   );

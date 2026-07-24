@@ -64,12 +64,17 @@ export default async function DashboardLayout({
 
   // Sidebar and page-access enforcement use the EFFECTIVE member's permissions,
   // so when FSD views as another member they see that member's restricted nav.
-  const pageAccess = parsePageAccess(member.teamRole?.pageAccess);
+  const isFullStackDev = realMember.teamRole?.name?.toLowerCase() === "full stack developer";
+  // FSD has no restrictions on their own nav — only while impersonating do
+  // they see the effective (impersonated) member's restricted sidebar, as a
+  // preview of what that member actually sees.
+  const pageAccess = isFullStackDev && !isImpersonating
+    ? []
+    : parsePageAccess(member.teamRole?.pageAccess);
 
   // Server-side enforcement — sidebar visibility alone doesn't stop direct
   // URL access, so re-check the requested page against the role's pageAccess.
   // Skip enforcement for FSD (they have full access regardless of viewAs).
-  const isFullStackDev = realMember.teamRole?.name?.toLowerCase() === "full stack developer";
   if (pageAccess.length > 0 && !isFullStackDev) {
     const pathname = (await headers()).get("x-pathname") ?? "/dashboard";
     const matched = resolveNavHref(pathname);

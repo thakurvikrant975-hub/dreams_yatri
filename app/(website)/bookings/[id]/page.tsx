@@ -12,10 +12,12 @@ import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
+import { isPaidStatus } from '@/app/lib/messaging';
 import { formatPaise } from '@/app/lib/money';
 import StatusPoller from './StatusPoller';
 import RedirectTimer from './RedirectTimer';
 import DownloadReceiptButton from './DownloadReceiptButton';
+import GuestChatThread from './GuestChatThread';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -163,6 +165,12 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                 <div className="mt-4 flex justify-center gap-4 text-sm">
                                     <Link href={`/bookings/${booking.id}/voucher`} className="text-primary font-medium underline">Trip voucher</Link>
                                 </div>
+
+                                {isPaidStatus(booking.paymentStatus) && (
+                                    <div id="chat" className="mt-4 scroll-mt-20">
+                                        <GuestChatThread bookingId={booking.id} />
+                                    </div>
+                                )}
 
                                 <div className="mt-7 flex flex-col gap-3">
                                     <Link href={`/bookings/${booking.id}/status`} className="block">
