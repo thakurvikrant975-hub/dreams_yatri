@@ -9,6 +9,7 @@ let successCb: ((data: any) => void) | null = null;
 let failureCb: ((err: any)  => void) | null = null;
 
 function setup(onReady: () => void) {
+    if (initialized) { onReady(); return; }
     const w = window as any;
     if (typeof w.initSendOTP !== 'function') return;
     w.initSendOTP({
@@ -20,6 +21,15 @@ function setup(onReady: () => void) {
     });
     initialized = true;
     onReady();
+}
+
+/** Kicks off the (potentially slow, first-load-only) widget script fetch
+ * ahead of time — call this as early as possible (e.g. on login modal mount)
+ * so that by the time the user actually submits their phone number,
+ * `sendOtp` below can call `w.sendOtp(phone)` immediately instead of the
+ * caller racing an in-flight script load. Safe to call multiple times. */
+export function preloadOtpWidget() {
+    ensureReady(() => {});
 }
 
 function ensureReady(onReady: () => void) {
@@ -48,19 +58,27 @@ function ensureReady(onReady: () => void) {
     attempt();
 }
 
-/** Send OTP to `phone` (format: countryCode + digits, no `+`, e.g. `919876543210`). */
+/**
+ * Send OTP to `phone` (format: countryCode + digits, no `+`, e.g. `919876543210`).
+ * The widget's own success/failure hooks (registered once in `setup`) only
+ * ever fire for `verifyOtp` below, not for the send step itself — so `onSent`
+ * here just confirms `w.sendOtp(phone)` was actually invoked (which may
+ * require an async, first-load-only script fetch via `ensureReady`), not
+ * that the SMS was delivered. Callers should wait for `onSent` before
+ * showing an "OTP sent" screen, rather than assuming it fired synchronously.
+ */
 export function sendOtp(
     phone: string,
-    onSuccess: (data: any) => void,
+    onSent: () => void,
     onFailure: (err: any)  => void,
     onServiceError: (msg: string) => void,
 ) {
-    successCb = onSuccess;
     failureCb = onFailure;
     ensureReady(() => {
         const w = window as any;
         if (typeof w.sendOtp !== 'function') { onServiceError('OTP service not ready. Please refresh.'); return; }
         w.sendOtp(phone);
+        onSent();
     });
 }
 

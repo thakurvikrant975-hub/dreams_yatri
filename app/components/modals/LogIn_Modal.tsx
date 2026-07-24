@@ -6,7 +6,7 @@ import { useModal } from '@/app/hooks/useModals';
 import Input from '../forms/Input';
 import { Select, Option } from '../forms/Select';
 import { phoneLoginSchema, emailLoginSchema, PHONE_RULES, type CountryCode } from '@/app/lib/validators/login';
-import { sendOtp as msg91Send, verifyOtp as msg91Verify } from '@/app/lib/msg91';
+import { sendOtp as msg91Send, verifyOtp as msg91Verify, preloadOtpWidget } from '@/app/lib/msg91';
 import { z } from 'zod';
 import { signIn } from 'next-auth/react';
 import axios from 'axios';
@@ -55,6 +55,15 @@ function LoginModal() {
 
   const otp = otpDigits.join('');
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Warms the MSG91 widget script as soon as this component mounts (it's
+  // always mounted globally via ModalRoot, well before a user opens the
+  // modal) — so the first real "Send OTP" click doesn't race an in-flight
+  // script fetch and silently no-op while the UI optimistically shows
+  // "OTP sent" (see msg91Send below, which now waits for onSent anyway).
+  useEffect(() => {
+    preloadOtpWidget();
+  }, []);
 
   useEffect(() => {
     if (!otpSent) return;
@@ -114,11 +123,13 @@ function LoginModal() {
     setErrors({});
     msg91Send(
       `${countryCode.replace('+', '')}${phone}`,
-      () => {}, () => {},
+      () => {
+        setResendTimer(30);
+        setTimeout(() => otpRefs.current[0]?.focus(), 50);
+      },
+      () => {},
       (msg) => setErrors({ otp: msg }),
     );
-    setResendTimer(30);
-    setTimeout(() => otpRefs.current[0]?.focus(), 50);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -175,11 +186,10 @@ function LoginModal() {
 
       msg91Send(
         `${countryCode.replace('+', '')}${phone}`,
-        () => {}, () => {},
+        () => { setOtpSent(true); setLoading(false); },
+        () => { setLoading(false); },
         (msg) => { setErrors({ phone: msg }); setLoading(false); },
       );
-      setOtpSent(true);
-      setLoading(false);
     }
   }
 

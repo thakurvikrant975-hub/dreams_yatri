@@ -1249,7 +1249,14 @@ function DayCard({
                         refCoords={cityCoords}
                         onSelect={(r) => {
                           const next = [...(data.extraRooms ?? [])];
-                          next[i] = { roomPricingId: r.id, label: `${r.hotelName} — ${r.roomName}`, quantity: next[i].quantity };
+                          next[i] = {
+                            roomPricingId: r.id,
+                            label: `${r.hotelName} — ${r.roomName}`,
+                            quantity: next[i].quantity,
+                            thumbnail: r.roomPhotos[0] ?? r.hotelPhoto ?? null,
+                            roomCapacity: r.roomCapacity,
+                            roomSpecs: r.roomSpecs,
+                          };
                           onChange({ ...data, extraRooms: next });
                         }}
                         onClear={() => {
@@ -1627,11 +1634,15 @@ function DayCard({
                           const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
                           if (!raw) return;
                           const isPriced = "vehicleName" in raw;
+                          const vehicleType = isPriced ? raw.vehicleType : raw.type;
                           const next = [...(data.extraCabs ?? [])];
                           next[i] = {
                             cabPricingId: isPriced ? raw.id : null,
                             label: isPriced ? raw.vehicleName : raw.name,
                             quantity: next[i].quantity,
+                            vehicleType: CAB_LABELS[vehicleType] ?? vehicleType,
+                            seats: raw.passengerCapacity,
+                            thumbnail: raw.thumbnail ?? null,
                           };
                           onChange({ ...data, extraCabs: next });
                         }}
@@ -1925,7 +1936,6 @@ interface PackageForm {
    * (including a Sales Executive, who can't touch the standard lists
    * themselves) can add/remove these. See ExtraPolicyItems. */
   extraPolicyItems: ExtraPolicyItems;
-  paymentLink: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
   /** Each row is one flight or train leg (onward, return, connecting…) —
@@ -2249,7 +2259,6 @@ export default function PackageBuilderDetailPage() {
     travelBenefits: DEFAULT_TRAVEL_BENEFITS,
     customPolicySections: [],
     extraPolicyItems: EMPTY_EXTRA_POLICY_ITEMS,
-    paymentLink: "",
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
     tickets: [],
@@ -2385,7 +2394,6 @@ export default function PackageBuilderDetailPage() {
           // the opposite — genuinely per-package, so it DOES load from cp.
           extraPolicyItems: cp.extraPolicyItems,
           termsNotes: cp.termsNotes ?? f.termsNotes,
-          paymentLink: cp.paymentLink ?? "",
           stops: cp.stops,
           // Renumbered 1..N by array position (already the correct order —
           // the query sorts by day asc) rather than trusting the stored
@@ -4017,16 +4025,38 @@ Rules:
                                 </tr>
                               </thead>
                               <tbody>
-                                {hotelPricing.days.map((d, i) => (
-                                  <tr key={`${d.day}-${i}`} className="border-t border-dashboard-base-300">
-                                    <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
-                                    <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
-                                    <td className="px-3 py-2 text-right">₹{d.pricePerRoom.toLocaleString("en-IN")}</td>
-                                    <td className="px-3 py-2 text-right">{d.mattresses > 0 ? `${d.mattresses} × ₹${d.extraBedRate.toLocaleString("en-IN")}` : "—"}</td>
-                                    <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
-                                  </tr>
-                                ))}
+                                {(() => {
+                                  // Groups same-day rows (primary room + any extra room types) so
+                                  // a day with multiple different rooms gets an explicit
+                                  // "₹3,400 + ₹2,500 = ₹5,900" line under it, instead of leaving
+                                  // an exec to manually add up scattered rows sharing a day number.
+                                  const groups = new Map<number, typeof hotelPricing.days>();
+                                  for (const d of hotelPricing.days) {
+                                    groups.set(d.day, [...(groups.get(d.day) ?? []), d]);
+                                  }
+                                  return [...groups.entries()].flatMap(([day, lines]) => [
+                                    ...lines.map((d, i) => (
+                                      <tr key={`${day}-${i}`} className="border-t border-dashboard-base-300">
+                                        <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
+                                        <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
+                                        <td className="px-3 py-2 text-right">₹{d.pricePerRoom.toLocaleString("en-IN")}</td>
+                                        <td className="px-3 py-2 text-right">{d.mattresses > 0 ? `${d.mattresses} × ₹${d.extraBedRate.toLocaleString("en-IN")}` : "—"}</td>
+                                        <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
+                                      </tr>
+                                    )),
+                                    ...(lines.length > 1 ? [
+                                      <tr key={`${day}-sum`} className="border-t border-dashed border-dashboard-base-300 bg-dashboard-base-200/30">
+                                        <td colSpan={5} className="px-3 py-1.5 text-right text-dashboard-base-content/60">
+                                          Day {day} total: {lines.map((d) => `₹${d.total.toLocaleString("en-IN")}`).join(" + ")}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-right font-semibold">
+                                          = ₹{lines.reduce((sum, d) => sum + d.total, 0).toLocaleString("en-IN")}
+                                        </td>
+                                      </tr>,
+                                    ] : []),
+                                  ]);
+                                })()}
                               </tbody>
                               <tfoot>
                                 <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
@@ -4076,18 +4106,38 @@ Rules:
                                 </tr>
                               </thead>
                               <tbody>
-                                {cabPricing.days.map((d, i) => (
-                                  <tr key={`${d.day}-${i}`} className="border-t border-dashboard-base-300">
-                                    <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">{d.vehicleName}</td>
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">
-                                      {d.pricingType === "PER_KM" ? "Per KM" : "Per Day"}{d.isWeekend ? " · weekend" : ""}
-                                    </td>
-                                    <td className="px-3 py-2 text-right">₹{d.rate.toLocaleString("en-IN")}{d.pricingType === "PER_KM" ? "/km" : "/day"}</td>
-                                    <td className="px-3 py-2 text-right">{d.pricingType === "PER_KM" && d.distanceKm != null ? `${d.distanceKm} km` : "—"}</td>
-                                    <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
-                                  </tr>
-                                ))}
+                                {(() => {
+                                  // Same day-grouping as the hotel table above — a day with
+                                  // multiple different cabs gets an explicit sum line.
+                                  const groups = new Map<number, typeof cabPricing.days>();
+                                  for (const d of cabPricing.days) {
+                                    groups.set(d.day, [...(groups.get(d.day) ?? []), d]);
+                                  }
+                                  return [...groups.entries()].flatMap(([day, lines]) => [
+                                    ...lines.map((d, i) => (
+                                      <tr key={`${day}-${i}`} className="border-t border-dashboard-base-300">
+                                        <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">{d.vehicleName}</td>
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">
+                                          {d.pricingType === "PER_KM" ? "Per KM" : "Per Day"}{d.isWeekend ? " · weekend" : ""}
+                                        </td>
+                                        <td className="px-3 py-2 text-right">₹{d.rate.toLocaleString("en-IN")}{d.pricingType === "PER_KM" ? "/km" : "/day"}</td>
+                                        <td className="px-3 py-2 text-right">{d.pricingType === "PER_KM" && d.distanceKm != null ? `${d.distanceKm} km` : "—"}</td>
+                                        <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
+                                      </tr>
+                                    )),
+                                    ...(lines.length > 1 ? [
+                                      <tr key={`${day}-sum`} className="border-t border-dashed border-dashboard-base-300 bg-dashboard-base-200/30">
+                                        <td colSpan={5} className="px-3 py-1.5 text-right text-dashboard-base-content/60">
+                                          Day {day} total: {lines.map((d) => `₹${d.total.toLocaleString("en-IN")}`).join(" + ")}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-right font-semibold">
+                                          = ₹{lines.reduce((sum, d) => sum + d.total, 0).toLocaleString("en-IN")}
+                                        </td>
+                                      </tr>,
+                                    ] : []),
+                                  ]);
+                                })()}
                               </tbody>
                               <tfoot>
                                 <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
@@ -4452,21 +4502,6 @@ Rules:
                     placeholder="Payment terms, cancellation policy, important notes…"
                     className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
-                </div>
-
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <CreditCard size={15} className="text-dashboard-primary" /> Payment Link
-                  </h2>
-                  <Input
-                    value={form.paymentLink}
-                    onChange={field("paymentLink")}
-                    placeholder="https://rzp.io/i/…"
-                    className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                  <p className="text-[11px] text-dashboard-base-content/50">
-                    Paste a payment link for this exact locked price (e.g. a Razorpay Payment Link) — the client&apos;s &quot;Pay Now&quot; button on their itinerary page opens this. Leave blank to hide the button.
-                  </p>
                 </div>
               </TabsContent>
             </Tabs>

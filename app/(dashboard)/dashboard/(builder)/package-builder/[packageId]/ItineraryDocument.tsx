@@ -226,10 +226,6 @@ export interface PreviewData {
   pricePerPerson: string;
   totalPrice: string;
   currency: string;
-  /** Exec-pasted payment link (e.g. a Razorpay Payment Link) for this exact
-   * locked total — the "Pay Now" button opens this. Omitted/empty hides the
-   * button rather than linking nowhere. */
-  paymentLink?: string;
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
@@ -956,11 +952,26 @@ function DayCardPreview({
                 )}
 
                 {extraRooms.length > 0 && (
-                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                  <div className="pt-1.5 border-t border-neutral-100 space-y-1.5">
                     {extraRooms.map((r, i) => (
-                      <p key={i} className="text-[11px] text-neutral-500">
-                        + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
-                      </p>
+                      <div key={i} className="flex items-center gap-2">
+                        {r.thumbnail ? (
+                          /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                          <img src={r.thumbnail} alt="" className="w-14 aspect-64/39 rounded-md object-cover shrink-0" />
+                        ) : (
+                          <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                            <Hotel size={10} className="text-neutral-300" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold text-neutral-700 truncate">
+                            + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
+                          </p>
+                          {r.roomSpecs && (
+                            <p className="text-[10px] text-neutral-400 truncate">{r.roomSpecs}</p>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -1071,11 +1082,23 @@ function DayCardPreview({
                 )}
 
                 {extraCabs.length > 0 && (
-                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                  <div className="pt-1.5 border-t border-neutral-100 space-y-1.5">
                     {extraCabs.map((c, i) => (
-                      <p key={i} className="text-[11px] text-neutral-500">
-                        + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
-                      </p>
+                      <div key={i} className="flex items-center gap-2">
+                        {c.thumbnail ? (
+                          /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                          <img src={c.thumbnail} alt="" className="w-14 aspect-64/39 rounded-md object-cover shrink-0" />
+                        ) : (
+                          <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                            <Car size={10} className="text-neutral-300" />
+                          </div>
+                        )}
+                        <p className="text-[11px] font-semibold text-neutral-700 truncate">
+                          + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
+                          {c.vehicleType && <span className="font-normal text-neutral-400"> · {c.vehicleType}</span>}
+                          {c.seats && <span className="font-normal text-neutral-400"> · {c.seats} Seats</span>}
+                        </p>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -1704,20 +1727,6 @@ export function ItineraryDocument({
                   <p className="text-[17px] font-extrabold text-white leading-none">{priceStr}</p>
                 </div>
               </div>
-
-              {form.paymentLink && (
-                <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10">
-                  <p className="text-[10px] text-white/60">Secure your booking online, anytime.</p>
-                  <a
-                    href={form.paymentLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-400 text-white font-bold text-xs px-4 py-2 rounded-full transition-colors shrink-0"
-                  >
-                    Pay Now <ArrowRight size={13} />
-                  </a>
-                </div>
-              )}
             </div>
           </div>
 

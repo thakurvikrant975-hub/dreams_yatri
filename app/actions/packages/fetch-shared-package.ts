@@ -33,11 +33,15 @@ export async function getSharedPackage(packageId: string) {
       queryId: true,
       title: true, description: true, coverImage: true, coverImagePosition: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
-      pricePerPerson: true, totalPrice: true, currency: true, paymentLink: true,
+      pricePerPerson: true, totalPrice: true, currency: true,
       inclusions: true, exclusions: true, termsNotes: true,
       termsConditions: true, paymentPolicy: true, amendmentPolicy: true, travelBenefits: true,
       extraPolicyItems: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
+      addOns: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, price: true, quantity: true, notes: true, day: true },
+      },
       tickets: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -106,7 +110,6 @@ export async function getSharedPackage(packageId: string) {
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     currency:        pkg.currency,
-    paymentLink:     pkg.paymentLink ?? "",
     inclusions:      [...pkg.inclusions, ...extraItems(pkg.extraPolicyItems, "inclusions")],
     exclusions:      [...pkg.exclusions, ...extraItems(pkg.extraPolicyItems, "exclusions")],
     termsNotes:      pkg.termsNotes ?? "",
@@ -116,6 +119,14 @@ export async function getSharedPackage(packageId: string) {
     travelBenefits:  [...pkg.travelBenefits, ...extraItems(pkg.extraPolicyItems, "travelBenefits")],
     stops:           pkg.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
     stopImages,
+    addOns: pkg.addOns.map((a) => ({
+      id:       a.id,
+      name:     a.name,
+      price:    a.price ?? null,
+      quantity: a.quantity,
+      notes:    a.notes ?? "",
+      day:      a.day ?? null,
+    })),
     tickets: pkg.tickets.map((t) => ({
       id:            t.id,
       type:          t.type,
