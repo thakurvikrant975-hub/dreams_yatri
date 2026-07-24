@@ -1697,6 +1697,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
         query:       true,
         itineraries: { orderBy: { day: "asc" } },
         tickets:     { orderBy: { sortOrder: "asc" } },
+        addOns:      { orderBy: { sortOrder: "asc" } },
       },
     });
 
@@ -1709,56 +1710,16 @@ export async function sendPackageToClient(packageId: string): Promise<{
     const baseUrl  = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
     const shareUrl = `${baseUrl}/custom-package/${packageId}`;
 
-    // ── Build WhatsApp deep-link ─────────────────────────────────────────────
-    const rawPhone  = pkg.query.phone.replace(/\D/g, "");
-    const country   = pkg.query.countryCode ?? "91";
-    const fullPhone = rawPhone.startsWith(country) ? rawPhone : `${country}${rawPhone}`;
-
-    const travelDateStr = pkg.travelDate
-      ? new Date(pkg.travelDate).toLocaleDateString("en-IN", {
-          day: "2-digit", month: "short", year: "numeric",
-        })
-      : "TBD";
-
-    const paxLine =
-      `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}` +
-      (pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : "") +
-      (pkg.infants  ? `, ${pkg.infants} Infant${pkg.infants !== 1 ? "s" : ""}` : "");
-
-    const priceStr = pkg.totalPrice
-      ? `${pkg.currency} ${Number(pkg.totalPrice).toLocaleString("en-IN")}`
-      : "To be confirmed";
-
-    const transportLine = [
-      pkg.flightsIncluded ? "✈️ Flights included" : null,
-      pkg.trainIncluded ? "🚆 Train included" : null,
-    ].filter(Boolean).join(" · ");
-
-    const message = [
-      `Hi ${pkg.query.name} 👋`,
-      ``,
-      `Your customised *${pkg.title}* package is ready! 🎉`,
-      ``,
-      `📍 *Destination:* ${pkg.destination}`,
-      `🚗 *Starting From:* ${pkg.startingPoint ?? pkg.query.destination ?? "—"}`,
-      `📅 *Travel Date:* ${travelDateStr}`,
-      `🌙 *Duration:* ${pkg.totalDays} Days / ${pkg.totalNights} Nights`,
-      `👥 *Travellers:* ${paxLine}`,
-      `💰 *Total Price:* ${priceStr}`,
-      ...(transportLine ? [transportLine] : []),
-      ``,
-      `View your full itinerary here: ${shareUrl}`,
-      `Let us know if you'd like any changes! 🙏`,
-    ].join("\n");
-
-    const whatsappUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
-
-    // ── Freeze the pricing breakdown ─────────────────────────────────────────
-    // Computed fresh from the actual priced hotel/cab/ticket rows (not trusted
-    // from client state) at the exact moment the package is sent, so the exec
-    // can recheck later how the delivered total was built — mirrors the
-    // arithmetic in the builder's own computeFinalPricing (page.tsx): base →
-    // +margin% → taxable → +gst% → final, tickets always at a flat 5% margin.
+    // ── Compute the authoritative price ──────────────────────────────────────
+    // Computed fresh from the actual priced hotel/cab/ticket/add-on rows (not
+    // trusted from client state) at the exact moment the package is sent —
+    // this becomes the number written to totalPrice/pricePerPerson below (and
+    // therefore what the public page shows and "Book Now" charges), so it can
+    // never drift from what's actually in the itinerary even if the exec
+    // never clicked "Apply computed pricing" in the builder after their last
+    // edit. Mirrors the arithmetic in the builder's own computeFinalPricing
+    // (page.tsx): base → +margin% → taxable → +gst% → final, tickets always
+    // at a flat 5% margin.
     const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
     const [hotelPricing, cabPricing] = await Promise.all([
       computeBuilderHotelPricing({
@@ -1786,9 +1747,10 @@ export async function sendPackageToClient(packageId: string): Promise<{
 
     const TICKET_MARGIN_PCT = 5;
     const ticketsSubtotal = pkg.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
+    const addonsSubtotal = pkg.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0);
     const hotelCabBase = hotelPricing.hotelSubtotal + cabPricing.cabSubtotal;
-    const baseCost = hotelCabBase + ticketsSubtotal;
-    const hotelCabMarginAmount = Math.round(hotelCabBase * pkg.marginPercentage / 100);
+    const baseCost = hotelCabBase + addonsSubtotal + ticketsSubtotal;
+    const hotelCabMarginAmount = Math.round((hotelCabBase + addonsSubtotal) * pkg.marginPercentage / 100);
     const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
     const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
     const taxable = baseCost + marginAmount;
@@ -1809,6 +1771,10 @@ export async function sendPackageToClient(packageId: string): Promise<{
           fare: t.fare, ticketCount: t.ticketCount,
         })),
       },
+      addOns: {
+        subtotal: addonsSubtotal,
+        lines: pkg.addOns.map((a) => ({ name: a.name, price: a.price, quantity: a.quantity, day: a.day })),
+      },
       baseCost,
       marginPercentage: pkg.marginPercentage,
       hotelCabMarginAmount,
@@ -1826,11 +1792,65 @@ export async function sendPackageToClient(packageId: string): Promise<{
       displayedPricePerPerson: pkg.pricePerPerson ?? null,
     } as unknown as Prisma.InputJsonValue;
 
+    // ── Build WhatsApp deep-link ─────────────────────────────────────────────
+    const rawPhone  = pkg.query.phone.replace(/\D/g, "");
+    const country   = pkg.query.countryCode ?? "91";
+    const fullPhone = rawPhone.startsWith(country) ? rawPhone : `${country}${rawPhone}`;
+
+    const travelDateStr = pkg.travelDate
+      ? new Date(pkg.travelDate).toLocaleDateString("en-IN", {
+          day: "2-digit", month: "short", year: "numeric",
+        })
+      : "TBD";
+
+    const paxLine =
+      `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}` +
+      (pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : "") +
+      (pkg.infants  ? `, ${pkg.infants} Infant${pkg.infants !== 1 ? "s" : ""}` : "");
+
+    // Uses the just-computed finalPrice (about to be persisted below), not
+    // the pre-send pkg.totalPrice, so the WhatsApp message always quotes the
+    // same number the client will see on the link and be charged via "Book Now".
+    const priceStr = `${pkg.currency} ${finalPrice.toLocaleString("en-IN")}`;
+
+    const transportLine = [
+      pkg.flightsIncluded ? "✈️ Flights included" : null,
+      pkg.trainIncluded ? "🚆 Train included" : null,
+    ].filter(Boolean).join(" · ");
+
+    const message = [
+      `Hi ${pkg.query.name} 👋`,
+      ``,
+      `Your customised *${pkg.title}* package is ready! 🎉`,
+      ``,
+      `📍 *Destination:* ${pkg.destination}`,
+      `🚗 *Starting From:* ${pkg.startingPoint ?? pkg.query.destination ?? "—"}`,
+      `📅 *Travel Date:* ${travelDateStr}`,
+      `🌙 *Duration:* ${pkg.totalDays} Days / ${pkg.totalNights} Nights`,
+      `👥 *Travellers:* ${paxLine}`,
+      `💰 *Total Price:* ${priceStr}`,
+      ...(transportLine ? [transportLine] : []),
+      ``,
+      `View your full itinerary here: ${shareUrl}`,
+      `Let us know if you'd like any changes! 🙏`,
+    ].join("\n");
+
+    const whatsappUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
+
     // ── Update DB ────────────────────────────────────────────────────────────
+    // totalPrice/pricePerPerson are overwritten with the fresh computation
+    // (not just recorded into pricingSnapshot) so the public custom-package
+    // page — and the real "Book Now" charge it drives — always match what's
+    // actually in the itinerary (hotels, extra rooms/cabs, add-ons, tickets)
+    // at the moment of send, even if the exec never clicked "Apply computed
+    // pricing" in the builder after their last edit.
     await db.$transaction([
       db.custom_packages.update({
         where: { id: packageId },
-        data:  { status: "SENT", sentAt: new Date(), pricingSnapshot },
+        data:  {
+          status: "SENT", sentAt: new Date(), pricingSnapshot,
+          totalPrice: finalPrice, pricePerPerson: pricePerPersonComputed,
+        },
       }),
       db.package_queries.update({
         where: { id: pkg.query.id },

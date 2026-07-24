@@ -38,6 +38,10 @@ export async function getSharedPackage(packageId: string) {
       termsConditions: true, paymentPolicy: true, amendmentPolicy: true, travelBenefits: true,
       extraPolicyItems: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
+      addOns: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, price: true, quantity: true, notes: true, day: true },
+      },
       tickets: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -116,6 +120,14 @@ export async function getSharedPackage(packageId: string) {
     travelBenefits:  [...pkg.travelBenefits, ...extraItems(pkg.extraPolicyItems, "travelBenefits")],
     stops:           pkg.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
     stopImages,
+    addOns: pkg.addOns.map((a) => ({
+      id:       a.id,
+      name:     a.name,
+      price:    a.price ?? null,
+      quantity: a.quantity,
+      notes:    a.notes ?? "",
+      day:      a.day ?? null,
+    })),
     tickets: pkg.tickets.map((t) => ({
       id:            t.id,
       type:          t.type,

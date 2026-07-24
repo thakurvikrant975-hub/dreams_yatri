@@ -956,11 +956,26 @@ function DayCardPreview({
                 )}
 
                 {extraRooms.length > 0 && (
-                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                  <div className="pt-1.5 border-t border-neutral-100 space-y-1.5">
                     {extraRooms.map((r, i) => (
-                      <p key={i} className="text-[11px] text-neutral-500">
-                        + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
-                      </p>
+                      <div key={i} className="flex items-center gap-2">
+                        {r.thumbnail ? (
+                          /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                          <img src={r.thumbnail} alt="" className="w-10 h-8 rounded-md object-cover shrink-0" />
+                        ) : (
+                          <div className="w-10 h-8 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                            <Hotel size={10} className="text-neutral-300" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold text-neutral-700 truncate">
+                            + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
+                          </p>
+                          {r.roomSpecs && (
+                            <p className="text-[10px] text-neutral-400 truncate">{r.roomSpecs}</p>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -1071,11 +1086,23 @@ function DayCardPreview({
                 )}
 
                 {extraCabs.length > 0 && (
-                  <div className="pt-1 border-t border-neutral-100 space-y-0.5">
+                  <div className="pt-1.5 border-t border-neutral-100 space-y-1.5">
                     {extraCabs.map((c, i) => (
-                      <p key={i} className="text-[11px] text-neutral-500">
-                        + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
-                      </p>
+                      <div key={i} className="flex items-center gap-2">
+                        {c.thumbnail ? (
+                          /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                          <img src={c.thumbnail} alt="" className="w-10 h-8 rounded-md object-cover shrink-0" />
+                        ) : (
+                          <div className="w-10 h-8 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                            <Car size={10} className="text-neutral-300" />
+                          </div>
+                        )}
+                        <p className="text-[11px] font-semibold text-neutral-700 truncate">
+                          + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
+                          {c.vehicleType && <span className="font-normal text-neutral-400"> · {c.vehicleType}</span>}
+                          {c.seats && <span className="font-normal text-neutral-400"> · {c.seats} Seats</span>}
+                        </p>
+                      </div>
                     ))}
                   </div>
                 )}

@@ -12,6 +12,12 @@ export interface RoomSelection {
   roomPricingId: number;
   label:         string;
   quantity:      number;
+  /** Captured at selection time from the same HotelRoomResult the primary
+   * room's rich fields come from, so this room type renders with the same
+   * fidelity (photo/capacity/specs) instead of a bare label. */
+  thumbnail?:     string | null;
+  roomCapacity?:  number | null;
+  roomSpecs?:     string | null;
 }
 
 /** Same pattern as RoomSelection, for an additional cab on the same day
@@ -22,6 +28,11 @@ export interface CabSelection {
   cabPricingId: number | null;
   label:        string;
   quantity:     number;
+  /** Captured at selection time from the same VehicleResult/CabPricingResult
+   * the primary cab's rich fields come from — see RoomSelection's thumbnail. */
+  vehicleType?:  string | null;
+  seats?:        number | null;
+  thumbnail?:    string | null;
 }
 
 /** Prisma Json columns come back as `unknown`-ish JsonValue — validate into
@@ -35,6 +46,9 @@ export function parseRoomSelections(value: unknown): RoomSelection[] {
       roomPricingId: Number(v.roomPricingId),
       label: typeof v.label === "string" ? v.label : "",
       quantity: Math.max(1, Number(v.quantity) || 1),
+      thumbnail: typeof v.thumbnail === "string" ? v.thumbnail : null,
+      roomCapacity: typeof v.roomCapacity === "number" ? v.roomCapacity : null,
+      roomSpecs: typeof v.roomSpecs === "string" ? v.roomSpecs : null,
     }))
     .filter((v) => Number.isFinite(v.roomPricingId));
 }
@@ -47,5 +61,8 @@ export function parseCabSelections(value: unknown): CabSelection[] {
       cabPricingId: v.cabPricingId == null ? null : Number(v.cabPricingId),
       label: typeof v.label === "string" ? v.label : "",
       quantity: Math.max(1, Number(v.quantity) || 1),
+      vehicleType: typeof v.vehicleType === "string" ? v.vehicleType : null,
+      seats: typeof v.seats === "number" ? v.seats : null,
+      thumbnail: typeof v.thumbnail === "string" ? v.thumbnail : null,
     }));
 }

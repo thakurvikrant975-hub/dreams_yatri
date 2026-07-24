@@ -1249,7 +1249,14 @@ function DayCard({
                         refCoords={cityCoords}
                         onSelect={(r) => {
                           const next = [...(data.extraRooms ?? [])];
-                          next[i] = { roomPricingId: r.id, label: `${r.hotelName} — ${r.roomName}`, quantity: next[i].quantity };
+                          next[i] = {
+                            roomPricingId: r.id,
+                            label: `${r.hotelName} — ${r.roomName}`,
+                            quantity: next[i].quantity,
+                            thumbnail: r.roomPhotos[0] ?? r.hotelPhoto ?? null,
+                            roomCapacity: r.roomCapacity,
+                            roomSpecs: r.roomSpecs,
+                          };
                           onChange({ ...data, extraRooms: next });
                         }}
                         onClear={() => {
@@ -1627,11 +1634,15 @@ function DayCard({
                           const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
                           if (!raw) return;
                           const isPriced = "vehicleName" in raw;
+                          const vehicleType = isPriced ? raw.vehicleType : raw.type;
                           const next = [...(data.extraCabs ?? [])];
                           next[i] = {
                             cabPricingId: isPriced ? raw.id : null,
                             label: isPriced ? raw.vehicleName : raw.name,
                             quantity: next[i].quantity,
+                            vehicleType: CAB_LABELS[vehicleType] ?? vehicleType,
+                            seats: raw.passengerCapacity,
+                            thumbnail: raw.thumbnail ?? null,
                           };
                           onChange({ ...data, extraCabs: next });
                         }}

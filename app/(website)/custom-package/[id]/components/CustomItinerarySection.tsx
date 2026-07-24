@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { CarIcon, BedIcon, ForkKnifeIcon, ParachuteIcon, MapPinIcon, CoffeeIcon, BowlSteamIcon, CheersIcon, RoadHorizonIcon } from "@phosphor-icons/react";
+import { CarIcon, BedIcon, ForkKnifeIcon, ParachuteIcon, MapPinIcon, CoffeeIcon, BowlSteamIcon, CheersIcon, RoadHorizonIcon, GiftIcon } from "@phosphor-icons/react";
 import { CheckCheck, CircleX } from "lucide-react";
 import { Accordion } from "@/app/components/ui/Accordian";
 import { Text } from "@/app/components/ui/Typography";
@@ -14,7 +14,7 @@ import {
   computeShiftedMeals, mealIncludedText, occupancyText, formatTime12h,
   type PreviewData,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
-import type { DayItinerary, ActivityInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import type { DayItinerary, ActivityInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 const STANDARD_MEAL_CHIPS = [
   { key: "breakfast", label: "Breakfast", icon: CoffeeIcon },
@@ -113,11 +113,24 @@ function TransferBlock({ day }: { day: DayItinerary }) {
               )}
             </div>
             {extraCabs.length > 0 && (
-              <div className="mt-1 space-y-0.5">
+              <div className="mt-2 space-y-1.5">
                 {extraCabs.map((c, i) => (
-                  <Text key={i} size="xs" intent="muted" className="block">
-                    + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
-                  </Text>
+                  <div key={i} className="flex items-center gap-2">
+                    {c.thumbnail ? (
+                      <div className="relative size-9 rounded-md overflow-hidden shrink-0 bg-neutral-100">
+                        <Image src={c.thumbnail} alt="" fill sizes="36px" className="object-cover" />
+                      </div>
+                    ) : (
+                      <div className="size-9 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                        <CarIcon weight="duotone" className="size-4 text-neutral-300" />
+                      </div>
+                    )}
+                    <Text size="xs" intent="muted" className="block">
+                      + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
+                      {c.vehicleType && <span> · {c.vehicleType}</span>}
+                      {c.seats && <span> · {c.seats} Seats</span>}
+                    </Text>
+                  </div>
                 ))}
               </div>
             )}
@@ -199,11 +212,27 @@ function StayBlock({ day, adults, childCount }: { day: DayItinerary; adults: num
               )}
 
               {extraRooms.length > 0 && (
-                <div className="space-y-0.5">
+                <div className="space-y-1.5">
                   {extraRooms.map((r, i) => (
-                    <Text key={i} size="xs" intent="muted" className="block">
-                      + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
-                    </Text>
+                    <div key={i} className="flex items-center gap-2">
+                      {r.thumbnail ? (
+                        <div className="relative size-9 rounded-md overflow-hidden shrink-0 bg-neutral-100">
+                          <Image src={r.thumbnail} alt="" fill sizes="36px" className="object-cover" />
+                        </div>
+                      ) : (
+                        <div className="size-9 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+                          <BedIcon weight="duotone" className="size-4 text-neutral-300" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <Text size="xs" intent="muted" className="block truncate">
+                          + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
+                        </Text>
+                        {r.roomSpecs && (
+                          <Text size="xs" intent="muted" className="block truncate opacity-70">{r.roomSpecs}</Text>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -323,6 +352,64 @@ function ActivityBlock({ activity, index }: { activity: ActivityInput; index: nu
   );
 }
 
+/** One add-on tile, shown as what's-included only — never the per-unit
+ * price, same privacy convention ItineraryDocument.tsx's AddonCard uses
+ * (the cost is already folded into the Price Summary card's total). */
+function AddonCard({ addon }: { addon: AddonInput }) {
+  return (
+    <div className="rounded-xl ring-1 ring-(--border-default) bg-white overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 bg-rose-50/70 border-b border-rose-100">
+        <GiftIcon weight="duotone" className="size-4 text-rose-500 shrink-0" />
+        <Text size="xs" weight="semibold" intent="primary" className="truncate">
+          {addon.name}{addon.quantity > 1 ? ` × ${addon.quantity}` : ""}
+        </Text>
+      </div>
+      {addon.notes && (
+        <Text size="xs" intent="muted" className="p-3 block leading-relaxed">{addon.notes}</Text>
+      )}
+    </div>
+  );
+}
+
+/** Add-ons tied to one specific day — rendered inline within that day's
+ * accordion, mirroring ItineraryDocument.tsx's DayAddonsSection placement
+ * right after the Stay block. */
+function DayAddonsBlock({ addOns, day }: { addOns: AddonInput[]; day: number }) {
+  const items = addOns.filter((a) => a.name.trim() && a.day === day);
+  if (items.length === 0) return null;
+
+  return (
+    <SectionBlock id={`day-${day}-addons`} icon={GiftIcon} title="Add-ons Included">
+      <div className="mt-2 flex">
+        <div className="w-10 shrink-0" />
+        <div className="flex-1 grid grid-cols-2 gap-2">
+          {items.map((a, i) => <AddonCard key={i} addon={a} />)}
+        </div>
+      </div>
+    </SectionBlock>
+  );
+}
+
+/** General add-ons (day: null) — added from the Package Details tab rather
+ * than tied to a specific day, so they're shown once above the day-by-day
+ * itinerary instead of inside any one day's accordion. */
+function GeneralAddonsSection({ addOns }: { addOns: AddonInput[] }) {
+  const items = addOns.filter((a) => a.name.trim() && a.day == null);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-2xl ring-1 ring-(--border-default) overflow-hidden px-4 py-3.5 mb-3">
+      <div className="flex items-center gap-2 mb-3">
+        <GiftIcon weight="duotone" className="size-7 text-primary-400 shrink-0" />
+        <Text size="sm" weight="bold" intent="primary" className="font-heading">Add-ons Included</Text>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {items.map((a, i) => <AddonCard key={i} addon={a} />)}
+      </div>
+    </div>
+  );
+}
+
 /** Day-by-day accordion — mirrors the catalog page's Itnary.tsx visual
  * structure (day badge, Transfer/Stay/Meals/Activity sections with the same
  * timeline/photo-grid/chip layouts), simplified to the custom-package data
@@ -330,9 +417,12 @@ function ActivityBlock({ activity, index }: { activity: ActivityInput; index: nu
  * custom packages), no pricing tiers, no optional-activity flag. */
 export function CustomItinerarySection({ form }: { form: PreviewData }) {
   const shiftedMeals = computeShiftedMeals(form.itineraries);
+  const addOns = form.addOns ?? [];
 
   return (
-    <Accordion variant="ghost" multiple defaultOpen={form.itineraries.map((d) => `day-${d.day}`)}>
+    <>
+      <GeneralAddonsSection addOns={addOns} />
+      <Accordion variant="ghost" multiple defaultOpen={form.itineraries.map((d) => `day-${d.day}`)}>
       {form.itineraries.map((day, i) => {
         const activities = day.activities.filter((a) => a.title.trim());
         return (
@@ -362,6 +452,9 @@ export function CustomItinerarySection({ form }: { form: PreviewData }) {
                   {day.accommodation && (
                     <div className="py-4"><StayBlock day={day} adults={form.adults} childCount={form.children} /></div>
                   )}
+                  {addOns.some((a) => a.name.trim() && a.day === day.day) && (
+                    <div className="py-4"><DayAddonsBlock addOns={addOns} day={day.day} /></div>
+                  )}
                   {shiftedMeals[i].length > 0 && (
                     <div className="py-4"><MealsBlock meals={shiftedMeals[i]} /></div>
                   )}
@@ -374,6 +467,7 @@ export function CustomItinerarySection({ form }: { form: PreviewData }) {
           </Accordion.Item>
         );
       })}
-    </Accordion>
+      </Accordion>
+    </>
   );
 }
