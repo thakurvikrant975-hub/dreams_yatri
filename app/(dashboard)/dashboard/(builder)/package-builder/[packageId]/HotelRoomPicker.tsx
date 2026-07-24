@@ -71,6 +71,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
   const [starFilter, setStarFilter] = useState<string | null>(null);
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [mealFilter, setMealFilter] = useState<string[]>([]);
+  const [noMealsOnly, setNoMealsOnly] = useState(false);
   const [sortBy, setSortBy] = useState<HotelSortOption>("name_asc");
   const mealFilterKey = mealFilter.join(",");
   const [currentRoom, setCurrentRoom] = useState<HotelRoomResult | null>(null);
@@ -107,7 +108,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     const delay = query === "" ? 0 : 300;
     const timer = setTimeout(async () => {
       try {
-        const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy);
+        const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly);
         if (!cancelled) {
           setItems(results);
           setPage(1);
@@ -121,14 +122,14 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, sortBy]);
+  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy);
+      const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly);
       setItems((prev) => [...prev, ...results]);
       setPage(nextPage);
       setHasMore(results.length >= PAGE_SIZE);
@@ -244,12 +245,15 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
               <button
                 key={m.value}
                 type="button"
-                onClick={() => setMealFilter((prev) =>
-                  prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value],
-                )}
+                onClick={() => {
+                  setNoMealsOnly(false);
+                  setMealFilter((prev) =>
+                    prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value],
+                  );
+                }}
                 className={cn(
                   "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
-                  mealFilter.includes(m.value)
+                  !noMealsOnly && mealFilter.includes(m.value)
                     ? "bg-emerald-600 text-white border-emerald-600"
                     : "bg-background text-muted-foreground border-border hover:border-emerald-400 hover:text-emerald-700",
                 )}
@@ -257,10 +261,22 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                 {m.label}
               </button>
             ))}
-            {(starFilter || catFilter || mealFilter.length > 0) && (
+            <button
+              type="button"
+              onClick={() => { setNoMealsOnly((v) => !v); setMealFilter([]); }}
+              className={cn(
+                "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                noMealsOnly
+                  ? "bg-slate-600 text-white border-slate-600"
+                  : "bg-background text-muted-foreground border-border hover:border-slate-400 hover:text-slate-700",
+              )}
+            >
+              No meals
+            </button>
+            {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
               <button
                 type="button"
-                onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); }}
+                onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); setNoMealsOnly(false); }}
                 className="text-[10px] text-destructive/70 hover:text-destructive px-1"
               >
                 Clear
@@ -295,7 +311,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
             ) : items.length === 0 ? (
               <div className="py-8 text-center space-y-1">
                 <p className="text-xs text-muted-foreground">No hotels found</p>
-                {(starFilter || catFilter || mealFilter.length > 0) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
+                {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
               </div>
             ) : (
               items.map((room) => {

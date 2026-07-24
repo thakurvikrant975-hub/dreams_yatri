@@ -210,9 +210,12 @@ export async function searchHotelRoomsForBuilder(
   categoryFilter?: string | null,
   /** Lowercase meal keys ("breakfast"/"lunch"/"dinner") the room's plan must
    * cover — a room needs ALL selected meals to match, not just one. Empty/
-   * omitted means no meal filtering. */
+   * omitted means no meal filtering. Ignored when `noMealsOnly` is set. */
   mealFilter?: string[] | null,
   sortBy?: HotelSortOption | null,
+  /** Room-only / EP filter — true shows only rooms with no meal plan at all
+   * (no meal_type row, or a meal_type whose covered_meals is empty). */
+  noMealsOnly?: boolean | null,
 ): Promise<HotelRoomResult[]> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
@@ -245,9 +248,11 @@ export async function searchHotelRoomsForBuilder(
         ...(starFilter ? { stay_type: starFilter } : {}),
         ...(categoryFilter ? { category: categoryFilter } : {}),
       },
-      ...(mealFilter && mealFilter.length > 0
-        ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
-        : {}),
+      ...(noMealsOnly
+        ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
+        : mealFilter && mealFilter.length > 0
+          ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
+          : {}),
     },
     select: HOTEL_ROOM_SELECT,
     take: HOTEL_SEARCH_PAGE_SIZE,

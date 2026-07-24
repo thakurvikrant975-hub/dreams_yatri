@@ -1215,6 +1215,8 @@ function HotelPickerPanel({
   const [loading, setLoading] = useState(true);
   const [starFilter, setStarFilter] = useState<string | null>(null);
   const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [mealFilter, setMealFilter] = useState<string[]>([]);
+  const [noMealsOnly, setNoMealsOnly] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
@@ -1240,6 +1242,12 @@ function HotelPickerPanel({
   const filtered = items.filter((item) => {
     if (starFilter && item.hotel.stay_type !== starFilter) return false;
     if (catFilter && item.hotel.category !== catFilter) return false;
+    const coveredMeals = item.meal_type?.covered_meals ?? [];
+    if (noMealsOnly && coveredMeals.length > 0) return false;
+    // A room's plan must cover ALL selected meals to match, not just one —
+    // e.g. selecting Breakfast + Dinner still matches an AP plan that also
+    // covers lunch, since AP is a superset of what was asked for.
+    if (!noMealsOnly && mealFilter.length > 0 && !mealFilter.every((m) => coveredMeals.includes(m))) return false;
     return true;
   });
 
@@ -1251,6 +1259,11 @@ function HotelPickerPanel({
     { value: "homestay", label: "Homestay" },
     { value: "houseboat", label: "Houseboat" },
     { value: "camp", label: "Camp" },
+  ];
+  const MEAL_CHIPS = [
+    { value: "breakfast", label: "Breakfast" },
+    { value: "lunch", label: "Lunch" },
+    { value: "dinner", label: "Dinner" },
   ];
 
   return (
@@ -1301,9 +1314,36 @@ function HotelPickerPanel({
             {c.label}
           </button>
         ))}
-        {(starFilter || catFilter) && (
+        {MEAL_CHIPS.map((m) => (
+          <button key={m.value} type="button"
+            onClick={() => {
+              setNoMealsOnly(false);
+              setMealFilter((prev) => prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value]);
+            }}
+            className={cn(
+              "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+              !noMealsOnly && mealFilter.includes(m.value)
+                ? "bg-emerald-600 text-white border-emerald-600"
+                : "bg-muted/50 text-muted-foreground border-border hover:border-emerald-400 hover:text-emerald-700",
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
+        <button type="button"
+          onClick={() => { setNoMealsOnly((v) => !v); setMealFilter([]); }}
+          className={cn(
+            "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+            noMealsOnly
+              ? "bg-slate-600 text-white border-slate-600"
+              : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400 hover:text-slate-700",
+          )}
+        >
+          No meals
+        </button>
+        {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
           <button type="button"
-            onClick={() => { setStarFilter(null); setCatFilter(null); }}
+            onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); setNoMealsOnly(false); }}
             className="text-[10px] text-destructive/70 hover:text-destructive px-1"
           >
             Clear
@@ -1320,7 +1360,7 @@ function HotelPickerPanel({
         ) : filtered.length === 0 ? (
           <div className="py-8 text-center space-y-1">
             <p className="text-xs text-muted-foreground">No hotels found</p>
-            {(starFilter || catFilter) && (
+            {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
               <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>
             )}
           </div>
@@ -1442,7 +1482,7 @@ function HotelPickerPanel({
                 </button>
               );
             })}
-            {hasMore && !starFilter && !catFilter && (
+            {hasMore && !starFilter && !catFilter && mealFilter.length === 0 && !noMealsOnly && (
               <p className="px-3 py-2 text-[10px] text-muted-foreground/60 text-center bg-muted/30">
                 Showing top 50 — search to refine
               </p>
