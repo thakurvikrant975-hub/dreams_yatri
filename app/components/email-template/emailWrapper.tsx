@@ -1,9 +1,14 @@
 // app/lib/email/components/emailWrapper.ts
 
-const BRAND_RED    = "#dc2626";
 const BORDER_COLOR = "#e5e7eb";
 const TEXT_MUTED   = "#6b7280";
 const BG_LIGHT     = "#f9fafb";
+
+// Emails need an absolute, publicly reachable image URL — falls back to the
+// real production domain (not localhost) for the same reason the itinerary
+// share link does; see package-builder/action.ts's baseUrl comment.
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://dreamsyatri.org";
+const LOGO_URL = `${SITE_URL}/dy_logo_email.png`;
 
 export function EmailHeader(): string {
   return `
@@ -20,10 +25,8 @@ export function EmailHeader(): string {
 
             <!-- Brand Header -->
             <tr>
-              <td style="background:${BRAND_RED};border-radius:8px 8px 0 0;padding:28px 40px;text-align:center;">
-                <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">
-                  Dreams Yatri
-                </span>
+              <td style="background:#ffffff;border:1px solid ${BORDER_COLOR};border-bottom:none;border-radius:8px 8px 0 0;padding:24px 40px;text-align:center;">
+                <img src="${LOGO_URL}" alt="Dreams Yatri" width="180" style="width:180px;height:auto;display:inline-block;" />
               </td>
             </tr>
 

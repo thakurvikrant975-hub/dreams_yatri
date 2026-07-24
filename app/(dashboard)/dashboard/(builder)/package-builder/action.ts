@@ -1701,7 +1701,11 @@ export async function sendPackageToClient(packageId: string): Promise<{
     // go out over WhatsApp/email.
     if (!pkg.query) return { success: false, error: "This package isn't linked to a client query yet, so it can't be sent." };
 
-    const baseUrl  = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+    // Falls back to the real production domain, not localhost — this URL
+    // goes straight into a client-facing WhatsApp message/email. NEXT_PUBLIC_
+    // BASE_URL not being set (e.g. missing from the host's env config) should
+    // never silently produce a link the client can't open.
+    const baseUrl  = process.env.NEXT_PUBLIC_BASE_URL ?? "https://dreamsyatri.org";
     const shareUrl = `${baseUrl}/custom-package/${packageId}`;
 
     // ── Compute the authoritative price ──────────────────────────────────────
