@@ -111,6 +111,7 @@ export const PAGE_GROUPS = [
         label: "Booking Management",
         pages: [
             { title: "Package Bookings",  href: "/dashboard/package-bookings" },
+            { title: "Hotel Bookings",    href: "/dashboard/hotel-bookings" },
             { title: "Verify Hotels",     href: "/dashboard/verify-hotels" },
         ],
     },

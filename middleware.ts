@@ -42,7 +42,13 @@ export default async function middleware(req: NextRequest) {
     const isTokenPage =
       pathname === "/hotel-connect/forgot-password" ||
       pathname === "/hotel-connect/reset-password" ||
-      pathname === "/hotel-connect/verify-email";
+      pathname === "/hotel-connect/verify-email" ||
+      // Ably token endpoint lives under /hotel-connect so the owner's
+      // Path-scoped session cookie reaches it, but a GUEST calling it (from
+      // a normal site page, no hotel-connect session at all) must not be
+      // bounced to the hotel-connect login screen — it does its own
+      // authorization (authorizeConversationAccess) for both sides.
+      pathname === "/hotel-connect/api/ably/token";
 
     const token = await getToken({
       req,
