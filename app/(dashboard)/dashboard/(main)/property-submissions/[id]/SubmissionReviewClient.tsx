@@ -24,6 +24,9 @@ import type { BedroomDetail } from "@/app/(hotel-connect)/hotel-connect/(main)/p
 import type {
   BathroomDetail, KitchenDetail, SpaceItem,
 } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/homestay-rooms-types";
+import {
+  computeEffectiveWizardStep, totalTabsFor, wizardCompletenessPct,
+} from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/wizard-progress";
 
 const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 const MIN_TOTAL_PHOTOS = 6;
@@ -80,6 +83,7 @@ type Detail = Omit<
 };
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; className: string }> = {
+  DRAFT: { label: "Draft", icon: Clock, className: "bg-slate-500/10 text-slate-500 border-slate-200" },
   SUBMITTED: { label: "Submitted", icon: Clock, className: "bg-slate-500/10 text-slate-600 border-slate-200" },
   UNDER_REVIEW: { label: "Under Review", icon: Clock, className: "bg-amber-500/10 text-amber-600 border-amber-200" },
   APPROVED: { label: "Approved", icon: CheckCircle2, className: "bg-emerald-500/10 text-emerald-600 border-emerald-200" },
@@ -260,6 +264,15 @@ export function SubmissionReviewClient({ detail }: { detail: Detail }) {
   const canDecide = detail.listing_status === "SUBMITTED" || detail.listing_status === "UNDER_REVIEW";
   const isHomestay = detail.property_category === "HOMESTAY_VILLA";
 
+  const totalTabs = totalTabsFor(detail.property_category);
+  const reachedStep = computeEffectiveWizardStep({
+    property_category: detail.property_category,
+    address: detail.address, city: detail.city, state: detail.state, country: detail.country,
+    pincode: detail.pincode, latitude: detail.latitude, wizard_step: detail.wizard_step,
+    roomCount: detail.hotelRooms.length, imageCount: detail.images.length,
+  });
+  const completenessPct = wizardCompletenessPct(reachedStep, totalTabs);
+
   function handleApprove() {
     setError(null);
     startTransition(async () => {
@@ -350,6 +363,13 @@ export function SubmissionReviewClient({ detail }: { detail: Detail }) {
       <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="space-y-1 text-sm text-dashboard-base-content/70">
+            {detail.listing_status === "DRAFT" && (
+              <div className="flex items-center gap-2">
+                <Clock className="size-3.5 text-slate-500 shrink-0" />
+                <span>Not yet submitted for review — the owner is still filling this out.</span>
+                <span className="font-semibold text-dashboard-base-content">{completenessPct}% complete</span>
+              </div>
+            )}
             {detail.submitted_at && <p>Submitted {new Date(detail.submitted_at).toLocaleString()}</p>}
             {detail.listing_status === "REJECTED" && detail.rejection_reason && (
               <div className="mt-1 flex items-start gap-2 rounded-lg bg-red-500/5 border border-red-200 px-3 py-2 max-w-xl">

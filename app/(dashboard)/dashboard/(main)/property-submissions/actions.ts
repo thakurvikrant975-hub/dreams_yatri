@@ -9,7 +9,7 @@ import { createLog } from "../lib/logger";
 
 // ── List ──────────────────────────────────────────────────────────────────────
 
-export type SubmissionStatusFilter = "pending" | "approved" | "rejected" | "all";
+export type SubmissionStatusFilter = "pending" | "approved" | "rejected" | "draft" | "all";
 
 export type GetSubmissionsParams = {
   page: number;
@@ -30,13 +30,19 @@ export type SubmissionListItem = {
   listing_status: string;
   submitted_at: Date | null;
   owner: { name: string; email: string } | null;
-  _count: { images: number };
+  _count: { images: number; hotelRooms: number };
+  // Draft-only fields, used to compute a completeness % (see wizard-progress.ts)
+  address: string | null;
+  country: string | null;
+  pincode: string | null;
+  latitude: number | null;
+  wizard_step: number;
 };
 
 export async function getSubmissions(params: GetSubmissionsParams): Promise<{
   hotels: SubmissionListItem[];
   totalCount: number;
-  stats: { pending: number; approved: number; rejected: number; total: number };
+  stats: { pending: number; approved: number; rejected: number; draft: number; total: number };
 }> {
   const session = await dashboardAuth();
   if (!session) redirect("/dashboard/login");
@@ -45,6 +51,7 @@ export async function getSubmissions(params: GetSubmissionsParams): Promise<{
     params.status === "pending" ? { listing_status: { in: ["SUBMITTED", "UNDER_REVIEW"] } }
     : params.status === "approved" ? { listing_status: { in: ["APPROVED", "LIVE"] } }
     : params.status === "rejected" ? { listing_status: "REJECTED" }
+    : params.status === "draft" ? { listing_status: "DRAFT" }
     : { listing_status: { not: "DRAFT" } };
 
   const searchWhere: Prisma.hotelsWhereInput = params.search
@@ -60,7 +67,7 @@ export async function getSubmissions(params: GetSubmissionsParams): Promise<{
 
   const where: Prisma.hotelsWhereInput = { ...statusWhere, ...searchWhere, owner_id: { not: null } };
 
-  const [hotels, totalCount, pending, approved, rejected, total] = await Promise.all([
+  const [hotels, totalCount, pending, approved, rejected, draft, total] = await Promise.all([
     db.hotels.findMany({
       where,
       orderBy: [{ submitted_at: "desc" }, { id: "desc" }],
@@ -70,17 +77,23 @@ export async function getSubmissions(params: GetSubmissionsParams): Promise<{
         id: true, name: true, slug: true, city: true, state: true, thumbnail: true,
         property_category: true, property_sub_type: true, listing_status: true, submitted_at: true,
         owner: { select: { name: true, email: true } },
-        _count: { select: { images: true } },
+        _count: { select: { images: true, hotelRooms: true } },
+        address: true, country: true, pincode: true, latitude: true, wizard_step: true,
       },
     }),
     db.hotels.count({ where }),
     db.hotels.count({ where: { listing_status: { in: ["SUBMITTED", "UNDER_REVIEW"] }, owner_id: { not: null } } }),
     db.hotels.count({ where: { listing_status: { in: ["APPROVED", "LIVE"] }, owner_id: { not: null } } }),
     db.hotels.count({ where: { listing_status: "REJECTED", owner_id: { not: null } } }),
+    db.hotels.count({ where: { listing_status: "DRAFT", owner_id: { not: null } } }),
     db.hotels.count({ where: { listing_status: { not: "DRAFT" }, owner_id: { not: null } } }),
   ]);
 
-  return { hotels, totalCount, stats: { pending, approved, rejected, total } };
+  // Prisma.Decimal isn't plain-serializable across the RSC boundary — convert
+  // before handing off to the client table (same fix as the detail page).
+  const serializableHotels = hotels.map((h) => ({ ...h, latitude: h.latitude != null ? Number(h.latitude) : null }));
+
+  return { hotels: serializableHotels, totalCount, stats: { pending, approved, rejected, draft, total } };
 }
 
 // ── Detail ────────────────────────────────────────────────────────────────────

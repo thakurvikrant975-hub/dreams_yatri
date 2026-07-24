@@ -42,6 +42,7 @@ export const PAGE_GROUPS = [
         label: "Hotels",
         pages: [
             { title: "Hotels",       href: "/dashboard/hotels" },
+            { title: "Hotel Owners", href: "/dashboard/hotel-owners" },
             { title: "Meal Types",   href: "/dashboard/hotels/meal-types" },
             { title: "Diet Types",   href: "/dashboard/hotels/diet-types" },
         ],

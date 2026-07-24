@@ -12,10 +12,14 @@ import { TableFilters } from "../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import type { SubmissionListItem, SubmissionStatusFilter } from "./actions";
+import {
+  computeEffectiveWizardStep, totalTabsFor, wizardCompletenessPct,
+} from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/wizard-progress";
 
 const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; className: string }> = {
+  DRAFT: { label: "Draft", icon: Inbox, className: "bg-slate-500/10 text-slate-500 border-slate-200" },
   SUBMITTED: { label: "Submitted", icon: Inbox, className: "bg-slate-500/10 text-slate-600 border-slate-200" },
   UNDER_REVIEW: { label: "Under Review", icon: Clock, className: "bg-amber-500/10 text-amber-600 border-amber-200" },
   APPROVED: { label: "Approved", icon: CheckCircle2, className: "bg-emerald-500/10 text-emerald-600 border-emerald-200" },
@@ -129,14 +133,36 @@ export function SubmissionsTableClient({
       header: "Status",
       cell: (h) => <StatusBadge status={h.listing_status} />,
     },
-    {
-      header: "Submitted",
-      cell: (h) => (
-        <span className="text-xs text-muted-foreground">
-          {h.submitted_at ? formatDistanceToNow(new Date(h.submitted_at), { addSuffix: true }) : "—"}
-        </span>
-      ),
-    },
+    status === "draft"
+      ? {
+          header: "Completeness",
+          cell: (h) => {
+            const totalTabs = totalTabsFor(h.property_category);
+            const reachedStep = computeEffectiveWizardStep({
+              property_category: h.property_category,
+              address: h.address, city: h.city, state: h.state, country: h.country,
+              pincode: h.pincode, latitude: h.latitude, wizard_step: h.wizard_step,
+              roomCount: h._count.hotelRooms, imageCount: h._count.images,
+            });
+            const pct = wizardCompletenessPct(reachedStep, totalTabs);
+            return (
+              <div className="flex items-center gap-2 w-28">
+                <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="text-xs font-medium tabular-nums">{pct}%</span>
+              </div>
+            );
+          },
+        }
+      : {
+          header: "Submitted",
+          cell: (h) => (
+            <span className="text-xs text-muted-foreground">
+              {h.submitted_at ? formatDistanceToNow(new Date(h.submitted_at), { addSuffix: true }) : "—"}
+            </span>
+          ),
+        },
     {
       header: "Actions",
       align: "right",
@@ -170,6 +196,7 @@ export function SubmissionsTableClient({
               options: [
                 { label: "Approved / Live", value: "approved" },
                 { label: "Rejected", value: "rejected" },
+                { label: "Drafts (not submitted)", value: "draft" },
                 { label: "All submitted", value: "all" },
               ],
             },

@@ -25,6 +25,7 @@ export const ALL_HREFS = [
   "/dashboard/hotels/overview",
   "/dashboard/hotel-inventory",
   "/dashboard/property-submissions",
+  "/dashboard/hotel-owners",
   "/dashboard/hotels/meal-types",
   "/dashboard/hotels/diet-types",
   "/dashboard/verify-hotels",
