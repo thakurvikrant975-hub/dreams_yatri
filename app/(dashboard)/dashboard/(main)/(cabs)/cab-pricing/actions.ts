@@ -443,6 +443,71 @@ export async function upsertCabPricingForLocation(
   }
 }
 
+// ── Change the city for an existing location group ────────────────────────
+// Moves ALL cab_pricing rows for oldLocationId to newLocationId (rather than
+// touching a single vehicle's row) since a "city" in the Edit sheet is the
+// whole grouped card — every vehicle priced under it travels together.
+// Blocks the move (rather than silently merging/overwriting) if the
+// destination city already has pricing for any of the same vehicles, since
+// there's no unique constraint on (location_id, vehicle_id) to catch that
+// for us — a silent merge could otherwise orphan one side's rates.
+export async function moveCabPricingLocation(
+  oldLocationId:   string,
+  newLocationId:   string,
+  newLocationName: string,
+): Promise<CabPricingFormState> {
+  const { authorized, actorName } = await requireSession();
+  if (!authorized) return { success: false, message: "Unauthorized" };
+
+  try {
+    const oldLocId = BigInt(oldLocationId);
+    const newLocId = await _getOrCreateCityLocation(newLocationId, newLocationName, actorName);
+    if (oldLocId === newLocId) return { success: true, message: "City unchanged" };
+
+    const oldRows = await db.cab_pricing.findMany({
+      where:  { location_id: oldLocId },
+      select: { vehicle_id: true },
+    });
+    if (oldRows.length === 0) return { success: false, message: "No pricing found for this city" };
+
+    const conflicting = await db.cab_pricing.findMany({
+      where:  { location_id: newLocId, vehicle_id: { in: oldRows.map((r) => r.vehicle_id) } },
+      select: { vehicle: { select: { name: true } } },
+    });
+    const [newLoc, oldLoc] = await Promise.all([
+      db.location.findUnique({ where: { id: newLocId }, select: { name: true, slug: true } }),
+      db.location.findUnique({ where: { id: oldLocId }, select: { name: true, slug: true } }),
+    ]);
+    if (conflicting.length > 0) {
+      return {
+        success: false,
+        message: `"${newLoc?.name ?? newLocationName}" already has pricing for: ${conflicting.map((c) => c.vehicle.name).join(", ")}. Remove those there first, or choose a different city.`,
+      };
+    }
+
+    await db.cab_pricing.updateMany({
+      where: { location_id: oldLocId },
+      data:  { location_id: newLocId, updated_by: actorName },
+    });
+
+    await createLog({
+      action:       "UPDATE",
+      entity:       "CabPricing",
+      entityId:     newLocId.toString(),
+      entitySlug:   newLoc?.slug,
+      description:  `Moved cab pricing from ${oldLoc?.name ?? oldLocationId} to ${newLoc?.name ?? newLocationName}`,
+      previousData: { location: oldLoc?.name ?? oldLocationId },
+      newData:      { location: newLoc?.name ?? newLocationName },
+    });
+
+    revalidatePath(PATH);
+    return { success: true, message: "City updated successfully" };
+  } catch (e) {
+    console.error("[moveCabPricingLocation]", e);
+    return { success: false, message: classifyActionError(e).message };
+  }
+}
+
 // ── Toggle active ──────────────────────────────────────────────────────────
 
 export async function toggleCabPricingActive(
