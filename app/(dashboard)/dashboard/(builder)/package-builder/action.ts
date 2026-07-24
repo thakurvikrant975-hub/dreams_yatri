@@ -5,7 +5,6 @@ import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
-import { sendEmail } from "@/app/lib/functions/sendEmail";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
@@ -1853,33 +1852,6 @@ export async function sendPackageToClient(packageId: string): Promise<{
       }),
     ]);
 
-    // ── Email the client a link to the live itinerary ─────────────────────────
-    // Best-effort — a failed/missing email should never block the WhatsApp
-    // send, since that's already been handed back to the exec by this point.
-    if (pkg.query.email) {
-      const emailHtml = [
-        `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;">`,
-        `<h2 style="color:#1a1a1a;">Hi ${pkg.query.name} 👋</h2>`,
-        `<p style="color:#444;font-size:15px;">Your customised <strong>${pkg.title}</strong> package is ready!</p>`,
-        `<p style="color:#444;font-size:15px;">`,
-        `📍 <strong>Destination:</strong> ${pkg.destination}<br/>`,
-        `📅 <strong>Travel Date:</strong> ${travelDateStr}<br/>`,
-        `🌙 <strong>Duration:</strong> ${pkg.totalDays} Days / ${pkg.totalNights} Nights<br/>`,
-        `👥 <strong>Travellers:</strong> ${paxLine}<br/>`,
-        `💰 <strong>Total Price:</strong> ${priceStr}`,
-        `</p>`,
-        `<a href="${shareUrl}" style="display:inline-block;margin-top:12px;padding:12px 24px;background:#e11d48;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">View Your Itinerary</a>`,
-        `<p style="color:#888;font-size:12px;margin-top:24px;">Let us know if you'd like any changes!</p>`,
-        `</div>`,
-      ].join("");
-
-      await sendEmail({
-        to:      pkg.query.email,
-        subject: `Your ${pkg.title} itinerary is ready!`,
-        html:    emailHtml,
-      }).catch((err) => console.error("[sendPackageToClient] email failed:", err));
-    }
-
     revalidatePath("/dashboard/package-builder");
 
     return { success: true, whatsappUrl, shareUrl };
@@ -1888,3 +1860,11 @@ export async function sendPackageToClient(packageId: string): Promise<{
     return { success: false, error: "Failed to send package" };
   }
 }
+
+// emailPackageToClient lives in ./email-package.ts (a plain, non-"use server"
+// module) rather than here — it's called from a Route Handler
+// (app/api/package-builder/send-email/route.ts), not a Server Action, because
+// its PDF attachment is a multi-MB base64 payload and Next's Server Action
+// wire format (React Flight) hits "Maximum array nesting exceeded" trying to
+// serialize a string that large. A plain fetch()+FormData POST has no such
+// limit — see that route file for the full explanation.

@@ -62,6 +62,7 @@ import {
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { SendToClientDialog } from "./SendToClientDialog";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -2242,6 +2243,8 @@ export default function PackageBuilderDetailPage() {
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendLinks, setSendLinks] = useState<{ whatsappUrl: string; shareUrl: string } | null>(null);
 
   const [form, setForm] = useState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
@@ -2658,18 +2661,9 @@ export default function PackageBuilderDetailPage() {
       if (!result.success) return;
 
       const result2 = await sendPackageToClient(packageId);
-      if (result2.success && result2.whatsappUrl) {
-        window.open(result2.whatsappUrl, "_blank");
-        if (result2.shareUrl) {
-          const link = result2.shareUrl;
-          toast.success("Sent! Client link ready.", {
-            description: link,
-            action: {
-              label: "Copy link",
-              onClick: () => navigator.clipboard.writeText(link),
-            },
-          });
-        }
+      if (result2.success && result2.whatsappUrl && result2.shareUrl) {
+        setSendLinks({ whatsappUrl: result2.whatsappUrl, shareUrl: result2.shareUrl });
+        setSendDialogOpen(true);
       } else if (!result2.success) {
         toast.error(result2.error ?? "Failed to send package");
       }
@@ -4538,6 +4532,18 @@ Rules:
           </div>
         </main>
       </div>
+
+      {sendLinks && (
+        <SendToClientDialog
+          open={sendDialogOpen}
+          onOpenChange={setSendDialogOpen}
+          packageId={packageId}
+          whatsappUrl={sendLinks.whatsappUrl}
+          shareUrl={sendLinks.shareUrl}
+          clientEmail={query.email ?? ""}
+          previewForm={previewForm}
+        />
+      )}
     </div>
   );
 }
@@ -4828,7 +4834,14 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
 
       {b && (
         <SectionCard title="Budget" icon={<IndianRupee size={14} />}>
-          <InfoRow label="Range" value={`₹${b.min?.toLocaleString("en-IN")} – ₹${b.max?.toLocaleString("en-IN")}`} />
+          <InfoRow
+            label="Range"
+            value={
+              b.min == null && b.max == null
+                ? "Not specified"
+                : `₹${b.min != null ? b.min.toLocaleString("en-IN") : "0"} – ₹${b.max != null ? b.max.toLocaleString("en-IN") : "no max"}`
+            }
+          />
           <InfoRow label="Type" value={b.type} />
           <InfoRow label="Currency" value={b.currency} />
           <SpecialNote text={b.specialDemands} />
