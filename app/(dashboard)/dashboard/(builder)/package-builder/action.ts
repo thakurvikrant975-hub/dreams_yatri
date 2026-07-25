@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
+import { getCurrentActor, logTimeline } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
@@ -573,6 +573,19 @@ export interface QueryDetail {
     queryId:         string | null;
     status:          string;
     sentAt:          Date | null;
+    /** Set when the exec marks the package ready for costing review — see
+     * markPackageReady. Combined with the query's assignedAt and this
+     * package's sentAt, gives the "assigned → ready" and "ready → sent"
+     * turnaround times shown in the Package Status card. */
+    readyAt:         Date | null;
+    readyByName:     string | null;
+    verified:        boolean;
+    verifiedAt:      Date | null;
+    verifiedByName:  string | null;
+    rejectedAt:      Date | null;
+    rejectedByName:  string | null;
+    rejectionNote:   string | null;
+    rejectionReason: { label: string } | null;
     viewedAt:        Date | null;
     viewCount:       number;
     /** Snapshot of the last-SENT version, captured right before an edit
@@ -1218,6 +1231,15 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       queryId:         true,
       status:          true,
       sentAt:          true,
+      readyAt:         true,
+      readyByName:     true,
+      verified:        true,
+      verifiedAt:      true,
+      verifiedByName:  true,
+      rejectedAt:      true,
+      rejectedByName:  true,
+      rejectionNote:   true,
+      rejectionReason: { select: { label: true } },
       viewedAt:        true,
       viewCount:       true,
       previousSnapshot: true,
@@ -1412,6 +1434,16 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         },
       },
     });
+    // Once a package is out for costing review, only a reject (which flips
+    // it back to DRAFT — see verify-packages' rejectCustomPackage) reopens
+    // it for editing. The builder UI already hides/disables everything
+    // while READY, but that's client-side only — this is the actual gate
+    // against a stale tab (or anything else calling this action directly)
+    // still being able to write over a package costing is reviewing.
+    if (existing?.status === "READY") {
+      return { id, success: false, error: "This package is awaiting costing review and can't be edited until it's verified or rejected back to you." };
+    }
+
     if (existing?.status === "SENT") {
       previousSnapshot = {
         savedAt:        new Date().toISOString(),
@@ -1744,9 +1776,15 @@ export async function sendPackageToClient(packageId: string): Promise<{
     ]);
 
     const TICKET_MARGIN_PCT = 5;
+    // A costing-team correction from pre-send review (verify-packages'
+    // updatePackagePricing) wins over the live-computed subtotal — without
+    // this, a fix made during review would be silently discarded the moment
+    // this recomputes fresh from the (unchanged) catalog/itinerary rows.
+    const hotelSubtotal = pkg.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal;
+    const cabSubtotal = pkg.cabSubtotalOverride ?? cabPricing.cabSubtotal;
     const ticketsSubtotal = pkg.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
     const addonsSubtotal = pkg.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0);
-    const hotelCabBase = hotelPricing.hotelSubtotal + cabPricing.cabSubtotal;
+    const hotelCabBase = hotelSubtotal + cabSubtotal;
     const baseCost = hotelCabBase + addonsSubtotal + ticketsSubtotal;
     const hotelCabMarginAmount = Math.round((hotelCabBase + addonsSubtotal) * pkg.marginPercentage / 100);
     const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
@@ -1760,8 +1798,14 @@ export async function sendPackageToClient(packageId: string): Promise<{
     const pricingSnapshot = {
       lockedAt: new Date().toISOString(),
       currency: pkg.currency,
-      hotel: { subtotal: hotelPricing.hotelSubtotal, nightsCounted: hotelPricing.nightsCounted, lines: hotelPricing.days },
-      cab:   { subtotal: cabPricing.cabSubtotal, daysCounted: cabPricing.daysCounted, lines: cabPricing.days },
+      hotel: {
+        subtotal: hotelSubtotal, nightsCounted: hotelPricing.nightsCounted, lines: hotelPricing.days,
+        overridden: pkg.hotelSubtotalOverride != null,
+      },
+      cab: {
+        subtotal: cabSubtotal, daysCounted: cabPricing.daysCounted, lines: cabPricing.days,
+        overridden: pkg.cabSubtotalOverride != null,
+      },
       tickets: {
         subtotal: ticketsSubtotal,
         lines: pkg.tickets.map((t) => ({
@@ -1848,6 +1892,9 @@ export async function sendPackageToClient(packageId: string): Promise<{
         data:  {
           status: "SENT", sentAt: new Date(), pricingSnapshot,
           totalPrice: finalPrice, pricePerPerson: pricePerPersonComputed,
+          // Baked into the snapshot above — cleared so a hypothetical future
+          // recompute never silently reapplies a stale correction.
+          hotelSubtotalOverride: null, cabSubtotalOverride: null,
         },
       }),
       db.package_queries.update({
@@ -1865,10 +1912,107 @@ export async function sendPackageToClient(packageId: string): Promise<{
   }
 }
 
+/**
+ * Submits a package for costing review — the ONLY way a sales exec can move
+ * a package forward now. No pricing is locked and the client is never
+ * notified here (that's verifyAndSendPackage, in
+ * verify-packages/actions.ts, triggered by the costing team). This just
+ * flips status to READY, timestamps it (readyAt, for the "assigned → ready"
+ * and "ready → sent" duration metrics), and clears any prior verify/reject
+ * state so a fresh review cycle starts clean.
+ */
+export async function markPackageReady(packageId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { actor } = await getCurrentActor();
+
+    const pkg = await db.custom_packages.findUnique({
+      where: { id: packageId },
+      select: { id: true, status: true, queryId: true },
+    });
+    if (!pkg) return { success: false, error: "Package not found" };
+    if (!pkg.queryId) return { success: false, error: "This package isn't linked to a client query yet — attach one before submitting for review." };
+    if (pkg.status === "SENT") return { success: false, error: "This package has already been sent to the client." };
+
+    await db.custom_packages.update({
+      where: { id: packageId },
+      data: {
+        status: "READY",
+        readyAt: new Date(),
+        readyBy: actor?.id ?? null,
+        readyByName: actor?.name ?? null,
+        verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
+        rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
+        execNotifiedAt: null,
+        // A prior review cycle's correction may no longer apply to whatever
+        // the exec just changed — start the new cycle with a clean slate.
+        hotelSubtotalOverride: null, cabSubtotalOverride: null,
+      },
+    });
+
+    await logTimeline(pkg.queryId, `Package marked ready for costing review by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
+
+    revalidatePath("/dashboard/package-builder");
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath("/dashboard/verify-packages");
+    revalidatePath("/dashboard/sales-query");
+    return { success: true };
+  } catch (err) {
+    console.error("[markPackageReady]", err);
+    return { success: false, error: "Failed to mark package ready" };
+  }
+}
+
+export type PackageStatusEvent = {
+  id: string;
+  title: string;
+  kind: "verified" | "rejected";
+  reasonLabel: string | null;
+  note: string | null;
+};
+
+/**
+ * Polled every ~20s by PackageStatusNotifier (mounted for sales execs in the
+ * dashboard layout) so an exec sees "your package was verified & sent" or
+ * "…was rejected — <reason>" as a toast without refreshing. No generic
+ * notification bus exists in this dashboard yet — this is deliberately
+ * narrow (just these two package events) rather than building one.
+ *
+ * Marks every returned row execNotifiedAt=now in the same call, so a event
+ * surfaces exactly once — re-marking ready (which clears execNotifiedAt)
+ * or a fresh verify/reject decision is what makes an event eligible again.
+ */
+export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> {
+  const { teamMemberId } = await getCurrentActor();
+  if (!teamMemberId) return [];
+
+  const rows = await db.custom_packages.findMany({
+    where: {
+      builtBy: teamMemberId,
+      execNotifiedAt: null,
+      OR: [{ verified: true }, { rejectedAt: { not: null } }],
+    },
+    select: {
+      id: true, title: true, verified: true, rejectedAt: true,
+      rejectionNote: true, rejectionReason: { select: { label: true } },
+    },
+    take: 20,
+  });
+  if (rows.length === 0) return [];
+
+  await db.custom_packages.updateMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+    data: { execNotifiedAt: new Date() },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    kind: r.verified ? "verified" as const : "rejected" as const,
+    reasonLabel: r.rejectionReason?.label ?? null,
+    note: r.rejectionNote,
+  }));
+}
+
 // emailPackageToClient lives in ./email-package.ts (a plain, non-"use server"
-// module) rather than here — it's called from a Route Handler
-// (app/api/package-builder/send-email/route.ts), not a Server Action, because
-// its PDF attachment is a multi-MB base64 payload and Next's Server Action
-// wire format (React Flight) hits "Maximum array nesting exceeded" trying to
-// serialize a string that large. A plain fetch()+FormData POST has no such
-// limit — see that route file for the full explanation.
+// module) rather than here — imported directly by verify-packages/actions.ts'
+// verifyAndSendPackage, the only place that ever calls it now.

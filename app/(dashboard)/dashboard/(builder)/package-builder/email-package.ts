@@ -5,12 +5,12 @@ import { packageItineraryTemplate, packageItineraryTextTemplate } from "@/app/co
 /**
  * Emails the client a full, branded copy of their itinerary — a richer
  * follow-up to sendPackageToClient (which only locks pricing and hands back
- * a WhatsApp link). Called explicitly from the "Send to Client" popup's
- * Email option, never automatically, since a WhatsApp-only send shouldn't
- * silently also fire an email the exec never chose to send.
+ * a WhatsApp link). Called automatically by verifyAndSendPackage the moment
+ * costing verifies & sends a package — there's no separate "choose to email"
+ * step anymore now that sending only ever happens from that one action.
  *
- * Plain module (no "use server") invoked from a Route Handler, not a Server
- * Action — see app/api/package-builder/send-email/route.ts for why.
+ * Plain module (no "use server"), imported directly by the calling Server
+ * Action rather than being one itself.
  *
  * Reads pricing/details straight from the DB row sendPackageToClient just
  * locked (never recomputes) — this is purely a notification step, not

@@ -363,7 +363,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                 </>
                             )}
                         </div>
-                        {latest?.sentAt && <PackageVerificationBadge pkg={latest} />}
+                        {latest?.readyAt && <PackageVerificationBadge pkg={latest} />}
                     </div>
                 );
             },

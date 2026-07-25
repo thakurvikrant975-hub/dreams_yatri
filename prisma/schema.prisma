@@ -2487,6 +2487,18 @@ model custom_packages {
   currency             String                   @default("INR")
   marginPercentage     Float                    @default(25)
   gstPercentage        Float                    @default(5)
+  /**
+   * Costing-team correction, set during pre-send review (verify-packages'
+   * updatePackagePricing) when the live-computed hotel/cab subtotal is
+   * wrong — e.g. the exec picked the wrong room rate. Null means "use the
+   * live computed subtotal as-is". Checked by sendPackageToClient at
+   * verify-and-send time so a correction actually reaches the locked price
+   * instead of being silently recomputed away. Reset to null every time the
+   * exec marks the package ready again, since a re-submitted itinerary may
+   * have genuinely different rooms/cabs the old override no longer applies to.
+   */
+  hotelSubtotalOverride Float?
+  cabSubtotalOverride   Float?
   inclusions           String[]
   exclusions           String[]
   termsNotes           String?
@@ -2528,9 +2540,26 @@ model custom_packages {
   viewCount            Int                      @default(0)
   previousSnapshot     Json?
   /**
+   * Set when a sales exec clicks "Mark Ready" — the moment pricing edits
+   * stop and the package enters the costing team's verify-packages queue
+   * (see verify-packages' baseWhere, gated on readyAt rather than sentAt).
+   * Combined with the linked query's assignedAt, gives "time from
+   * assignment to ready"; combined with sentAt, gives "time from ready to
+   * sent". Cleared back to null only implicitly by never being reset —
+   * re-marking ready after a rejection overwrites it with the new
+   * timestamp, which is intentional: the queue/metrics reflect the latest
+   * review cycle, not history (QueryTimeline carries the audit trail).
+   */
+  readyAt              DateTime?
+  readyBy              String?
+  readyByName          String?
+  /**
    * Internal pricing double-check, independent of the client-facing status
    * (accepted/declined) — a reviewer confirms the locked pricingSnapshot
    * math and the sent total actually agree before/after it's out the door.
+   * Under the mandatory pre-send review flow, "verified" and "sent" happen
+   * together in one verify-and-send action (see verify-packages/actions.ts),
+   * not as a post-hoc audit of an already-sent package.
    */
   verified             Boolean                  @default(false)
   verifiedAt           DateTime?
@@ -2540,8 +2569,9 @@ model custom_packages {
    * Set when the verification team sends a package's pricing back for
    * rework instead of verifying it — mirrors package_queries' structured
    * rejectionReasonId + free-text rejectionNote pattern. Cleared again
-   * (by verifyCustomPackage / updatePackagePricing) once the package is
-   * re-reviewed, so a package is never both verified and rejected.
+   * once the exec successfully re-submits (marks ready) after fixing it, so
+   * a package is never both verified and rejected, and the rejection
+   * reason stays visible to the exec until they've actually acted on it.
    */
   rejectedAt           DateTime?
   rejectedBy           String?
@@ -2549,6 +2579,20 @@ model custom_packages {
   rejectionReasonId    String?
   rejectionNote        String?
   rejectionReason      RejectionReason?         @relation(fields: [rejectionReasonId], references: [id])
+  /**
+   * Set the moment the exec has been shown (via the in-app toast poller)
+   * that this package was verified-and-sent or rejected — prevents
+   * re-notifying on every poll. Cleared whenever a fresh verify/reject
+   * event happens (re-marking ready, or a new verify/reject decision), so
+   * exactly one toast fires per event.
+   */
+  execNotifiedAt       DateTime?
+  /**
+   * Guards the +1h "check in with the client" auto follow-up (see
+   * app/api/cron/package-followups) from being created twice for the same
+   * send — set true the moment that follow-up is created, never reset.
+   */
+  followUpAutoCreated  Boolean                  @default(false)
   /**
    * Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
    * exact locked total) — the client-facing "Pay Now" button opens this.
