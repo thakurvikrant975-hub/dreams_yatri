@@ -8,7 +8,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { ItineraryDocument, type PreviewData } from "./ItineraryDocument";
-import { captureToPdfPages, buildPdf } from "./pdfExport";
+import { captureToPdfPages, buildPdf, validateItineraryRequiredFields } from "./pdfExport";
 
 export function SendToClientDialog({
   open, onOpenChange, packageId, whatsappUrl, shareUrl, clientEmail, previewForm,
@@ -25,6 +25,7 @@ export function SendToClientDialog({
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [whatsappOpened, setWhatsappOpened] = useState(false);
+  const validationError = validateItineraryRequiredFields(previewForm);
 
   function handleWhatsapp() {
     window.open(whatsappUrl, "_blank");
@@ -32,6 +33,10 @@ export function SendToClientDialog({
   }
 
   async function handleEmail() {
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setEmailSending(true);
     try {
       // Generate the same A4 PDF the "Download PDF" button produces, from an
@@ -133,6 +138,7 @@ export function SendToClientDialog({
                 className="shrink-0 gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90"
                 onClick={handleEmail}
                 disabled={!clientEmail || emailSending || emailSent}
+                title={validationError ?? undefined}
               >
                 {emailSending
                   ? <Loader2 size={13} className="animate-spin" />

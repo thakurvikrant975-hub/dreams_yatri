@@ -63,6 +63,7 @@ import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuil
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { SendToClientDialog } from "./SendToClientDialog";
+import { validateItineraryRequiredFields } from "./pdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -2643,6 +2644,11 @@ export default function PackageBuilderDetailPage() {
 
   // ── Send ───────────────────────────────────────────────────────────────────
   function handleSend() {
+    const validationError = validateItineraryRequiredFields(form);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     startSend(async () => {
       // Always save first — sendPackageToClient reads straight from the DB
       // row, so any edit made since the last save (a freshly-pasted payment
@@ -3378,6 +3384,7 @@ Rules:
               className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
               onClick={handleSend}
               disabled={isSending || isSaving}
+              title={validateItineraryRequiredFields(form) ?? undefined}
             >
               {isSending
                 ? <Loader2 size={13} className="animate-spin" />
@@ -4524,6 +4531,7 @@ Rules:
                 className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                 onClick={handleSend}
                 disabled={isSending || isSaving}
+                title={validateItineraryRequiredFields(form) ?? undefined}
               >
                 {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 Send to Client

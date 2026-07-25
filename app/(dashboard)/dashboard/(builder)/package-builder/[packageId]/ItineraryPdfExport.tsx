@@ -8,7 +8,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { ItineraryDocument, type PreviewData } from "./ItineraryDocument";
-import { captureToPdfPages, buildPdf, type PdfPage } from "./pdfExport";
+import { captureToPdfPages, buildPdf, validateItineraryRequiredFields, type PdfPage } from "./pdfExport";
 
 /** "Romantic Kerala Honeymoon Package" → "romantic-kerala-honeymoon-package-itinerary.pdf" */
 function pdfFilename(title: string): string {
@@ -21,8 +21,13 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pages, setPages] = useState<PdfPage[] | null>(null);
   const [generating, setGenerating] = useState(false);
+  const validationError = validateItineraryRequiredFields(form);
 
   async function generatePages(): Promise<PdfPage[] | null> {
+    if (validationError) {
+      toast.error(validationError);
+      return null;
+    }
     const root = captureRef.current?.querySelector<HTMLElement>(".itinerary-print-area");
     if (!root) {
       toast.error("Couldn't find the itinerary content to export");
@@ -49,6 +54,10 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
   // the PDF. The cost is a fresh html2canvas pass every click; correctness
   // here matters more than saving that.
   async function handlePreview() {
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setPreviewOpen(true);
     await generatePages();
   }
@@ -81,6 +90,7 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
         className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
         onClick={handlePreview}
         disabled={generating}
+        title={validationError ?? undefined}
       >
         <Eye size={13} />
         <span className="hidden sm:inline text-xs">Preview PDF</span>
@@ -92,6 +102,7 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
         className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
         onClick={handleDownload}
         disabled={generating}
+        title={validationError ?? undefined}
       >
         {generating ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
         <span className="hidden sm:inline text-xs">Download PDF (A4)</span>
