@@ -6,7 +6,6 @@ import {
   EmailTitle,
   EmailText,
   EmailButton,
-  EmailDivider,
   EmailMuted,
   EmailCoverImage,
   EmailDetailsTable,
@@ -27,12 +26,23 @@ type PackageItineraryParams = {
   shareUrl:         string;
   hasPdfAttachment: boolean;
   execName?:        string | null;
-  execEmail?:       string | null;
 };
+
+/**
+ * Place/destination names come straight from DB fields an exec typed freehand
+ * ("mysore, Kodagu") — title-cased for display so the email always reads as
+ * proper nouns regardless of how it was entered, without touching the
+ * underlying data.
+ */
+function titleCase(s: string): string {
+  return s.replace(/\p{L}[\p{L}'’]*/gu, (word) =>
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+  );
+}
 
 export function packageItineraryTemplate(params: PackageItineraryParams): string {
   const detailRows = [
-    { label: "Destination", value: params.destination },
+    { label: "Destination", value: titleCase(params.destination) },
     { label: "Travel Date", value: params.travelDateStr },
     { label: "Duration",    value: params.durationStr },
     { label: "Travellers",  value: params.paxLine },
@@ -41,22 +51,17 @@ export function packageItineraryTemplate(params: PackageItineraryParams): string
     detailRows.push({ label: "Travel Manager", value: params.execName });
   }
 
-  const closingText = params.execName
-    ? `For any questions or changes to this plan, please contact your travel manager, ${params.execName}${params.execEmail ? ` (${params.execEmail})` : ""}.`
-    : "For any questions or changes to this plan, please get in touch with our team.";
-
   const body = `
     ${params.coverImage ? EmailCoverImage(params.coverImage, params.packageTitle) : ""}
     ${EmailLabel("Your Itinerary Is Ready")}
     ${EmailTitle(params.packageTitle)}
-    ${EmailMuted(params.routeLine)}
+    ${EmailMuted(titleCase(params.routeLine))}
     <div style="height:20px;"></div>
     ${EmailText(`Dear ${params.clientName}, thank you for choosing DreamsYatri. Your customised travel itinerary has been finalised — please find the trip summary and pricing below.`)}
     ${EmailDetailsTable(detailRows)}
+    ${EmailPricePanel(params.priceStr, params.perPersonStr)}
     ${EmailButton("View Full Itinerary and Book", params.shareUrl)}
     ${params.hasPdfAttachment ? EmailMuted("A detailed PDF copy of this itinerary is attached to this email.") : ""}
-    ${EmailDivider()}
-    ${EmailMuted(closingText)}
   `;
 
   return buildEmail(body);
@@ -74,13 +79,13 @@ export function packageItineraryTextTemplate(params: PackageItineraryParams): st
   // paragraph spacing — filtered separately so the two aren't conflated.
   const lines: (string | null)[] = [
     `Your itinerary is ready — ${params.packageTitle}`,
-    params.routeLine,
+    titleCase(params.routeLine),
     "",
     `Dear ${params.clientName},`,
     "",
     "Thank you for choosing DreamsYatri. Your customised travel itinerary has been finalised — here is the trip summary and pricing.",
     "",
-    `Destination: ${params.destination}`,
+    `Destination: ${titleCase(params.destination)}`,
     `Travel Date: ${params.travelDateStr}`,
     `Duration: ${params.durationStr}`,
     `Travellers: ${params.paxLine}`,
@@ -92,10 +97,6 @@ export function packageItineraryTextTemplate(params: PackageItineraryParams): st
     `View your full itinerary and book: ${params.shareUrl}`,
     "",
     params.hasPdfAttachment ? "A detailed PDF copy of this itinerary is attached to this email." : null,
-    "",
-    params.execName
-      ? `For any questions or changes to this plan, please contact your travel manager, ${params.execName}${params.execEmail ? ` (${params.execEmail})` : ""}.`
-      : "For any questions or changes to this plan, please get in touch with our team.",
     "",
     "Dreams Yatri (OPC) Private Limited, Shimla, Himachal Pradesh",
     "This is an automated message. Please do not reply to this email.",

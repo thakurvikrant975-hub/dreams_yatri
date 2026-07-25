@@ -36,13 +36,11 @@ export async function emailPackageToClient(
     const baseUrl  = process.env.NEXT_PUBLIC_BASE_URL ?? "https://dreamsyatri.org";
     const shareUrl = `${baseUrl}/custom-package/${packageId}`;
 
-    // Same "Your Travel Manager" contact the public custom-package page shows —
-    // gives the client a real point of contact, since the shared email footer
-    // is a fixed no-reply notice with no contact details of its own.
+    // Same "Your Travel Manager" name the public custom-package page shows.
     const exec = pkg.query.assignedTo
       ? await db.teamMember.findUnique({
           where:  { id: pkg.query.assignedTo },
-          select: { name: true, email: true },
+          select: { name: true },
         })
       : null;
 
@@ -72,8 +70,7 @@ export async function emailPackageToClient(
       perPersonStr,
       shareUrl,
       hasPdfAttachment: !!pdfAttachment,
-      execName:  exec?.name ?? null,
-      execEmail: exec?.email ?? null,
+      execName: exec?.name ?? null,
     };
     const emailHtml = packageItineraryTemplate(templateParams);
     const emailText = packageItineraryTextTemplate(templateParams);
