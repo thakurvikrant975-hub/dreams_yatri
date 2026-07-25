@@ -190,12 +190,18 @@ export function VerifyPackageDetailClient({
         startTransition(async () => {
             const result = await verifyAndSendPackage(pkg.id);
             if (result.success) {
-                toast.success(result.message);
+                const whatsappUrl = result.data?.whatsappUrl;
                 // The email (if the client has one on file) already went out
-                // server-side — WhatsApp needs an explicit user gesture to
-                // open, so pop it here rather than making the reviewer hunt
-                // for a second button.
-                if (result.data?.whatsappUrl) window.open(result.data.whatsappUrl, "_blank");
+                // server-side. WhatsApp needs an explicit user gesture to
+                // open — calling window.open() here directly would fire after
+                // the `await` above, outside the click's call stack, and get
+                // silently blocked as a popup by most browsers. Routing it
+                // through the toast's action button keeps it tied to a real
+                // click, and doesn't just vanish if a blocker eats it.
+                toast.success(result.message, whatsappUrl ? {
+                    action: { label: "Open WhatsApp", onClick: () => window.open(whatsappUrl, "_blank") },
+                    duration: 15000,
+                } : undefined);
             } else {
                 toast.error(result.message);
             }
