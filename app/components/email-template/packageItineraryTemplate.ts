@@ -9,7 +9,6 @@ import {
   EmailMuted,
   EmailCoverImage,
   EmailDetailsTable,
-  EmailPricePanel,
 } from "./emailBlocks";
 
 type PackageItineraryParams = {
@@ -21,8 +20,6 @@ type PackageItineraryParams = {
   travelDateStr:    string;
   durationStr:      string;
   paxLine:          string;
-  priceStr:         string;
-  perPersonStr?:    string | null;
   shareUrl:         string;
   hasPdfAttachment: boolean;
   execName?:        string | null;
@@ -57,9 +54,8 @@ export function packageItineraryTemplate(params: PackageItineraryParams): string
     ${EmailTitle(params.packageTitle)}
     ${EmailMuted(titleCase(params.routeLine))}
     <div style="height:20px;"></div>
-    ${EmailText(`Dear ${params.clientName}, thank you for choosing DreamsYatri. Your customised travel itinerary has been finalised — please find the trip summary and pricing below.`)}
+    ${EmailText(`Dear ${params.clientName}, thank you for choosing DreamsYatri. Your customised travel itinerary has been finalised — please find the trip summary below.`)}
     ${EmailDetailsTable(detailRows)}
-    ${EmailPricePanel(params.priceStr, params.perPersonStr)}
     ${EmailButton("View Full Itinerary and Book", params.shareUrl)}
     ${params.hasPdfAttachment ? EmailMuted("A detailed PDF copy of this itinerary is attached to this email.") : ""}
   `;
@@ -83,16 +79,13 @@ export function packageItineraryTextTemplate(params: PackageItineraryParams): st
     "",
     `Dear ${params.clientName},`,
     "",
-    "Thank you for choosing DreamsYatri. Your customised travel itinerary has been finalised — here is the trip summary and pricing.",
+    "Thank you for choosing DreamsYatri. Your customised travel itinerary has been finalised — here is the trip summary.",
     "",
     `Destination: ${titleCase(params.destination)}`,
     `Travel Date: ${params.travelDateStr}`,
     `Duration: ${params.durationStr}`,
     `Travellers: ${params.paxLine}`,
     params.execName ? `Travel Manager: ${params.execName}` : null,
-    "",
-    `Total Package Price: ${params.priceStr}`,
-    params.perPersonStr ? params.perPersonStr : null,
     "",
     `View your full itinerary and book: ${params.shareUrl}`,
     "",

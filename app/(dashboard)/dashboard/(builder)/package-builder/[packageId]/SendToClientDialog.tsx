@@ -72,78 +72,87 @@ export function SendToClientDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        {/* Off-screen capture source for the emailed PDF attachment — same
-           pattern as ItineraryPdfExport, kept local here so this dialog can
-           generate its own attachment on demand without depending on that
-           button having been clicked first. */}
-        <div
-          ref={captureRef}
-          aria-hidden
-          style={{ position: "fixed", top: 0, left: "-10000px", width: "210mm" }}
-        >
-          <ItineraryDocument form={previewForm} variant="flat" />
-        </div>
+    <>
+      {/* Off-screen capture source for the emailed PDF attachment — same
+         pattern as ItineraryPdfExport. Rendered as a sibling of <Dialog>,
+         NOT inside <DialogContent>: Radix's dialog panel carries a CSS
+         transform (for its center/zoom animation), and any transformed
+         ancestor becomes the containing block for descendant
+         position:fixed elements — so a copy nested inside DialogContent
+         gets clipped/positioned against the small dialog panel instead of
+         the viewport, which is what was producing the trimmed
+         sections/images in the emailed PDF. Kept mounted unconditionally
+         (not gated by `open`) so images/maps are already warm by the time
+         "Send Email" is clicked, same as ItineraryPdfExport's copy. */}
+      <div
+        ref={captureRef}
+        aria-hidden
+        style={{ position: "fixed", top: 0, left: "-10000px", width: "210mm" }}
+      >
+        <ItineraryDocument form={previewForm} variant="flat" />
+      </div>
 
-        <DialogHeader>
-          <DialogTitle>Send to Client</DialogTitle>
-          <DialogDescription>
-            Pricing is locked and the itinerary link is live. Choose how to notify the client.
-          </DialogDescription>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send to Client</DialogTitle>
+            <DialogDescription>
+              Pricing is locked and the itinerary link is live. Choose how to notify the client.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-3">
-          {/* WhatsApp option */}
-          <div className="flex items-center gap-3 rounded-xl border border-dashboard-base-300 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
-              <MessageCircle size={18} className="text-green-600" />
+          <div className="space-y-3">
+            {/* WhatsApp option */}
+            <div className="flex items-center gap-3 rounded-xl border border-dashboard-base-300 p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
+                <MessageCircle size={18} className="text-green-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-dashboard-base-content">WhatsApp</p>
+                <p className="truncate text-xs text-dashboard-base-content/60">Opens a pre-filled message to send manually</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleWhatsapp} className="shrink-0 gap-1.5">
+                {whatsappOpened ? <CheckCircle2 size={13} className="text-dashboard-success" /> : <MessageCircle size={13} />}
+                {whatsappOpened ? "Opened" : "Open"}
+              </Button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-dashboard-base-content">WhatsApp</p>
-              <p className="truncate text-xs text-dashboard-base-content/60">Opens a pre-filled message to send manually</p>
+
+            {/* Email option */}
+            <div className="flex items-center gap-3 rounded-xl border border-dashboard-base-300 p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                <Mail size={18} className="text-blue-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-dashboard-base-content">Email</p>
+                <p className="truncate text-xs text-dashboard-base-content/60">
+                  {clientEmail || "No email on file for this client"}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="shrink-0 gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90"
+                onClick={handleEmail}
+                disabled={!clientEmail || emailSending || emailSent}
+              >
+                {emailSending
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : emailSent
+                    ? <CheckCircle2 size={13} />
+                    : <Mail size={13} />}
+                {emailSending ? "Sending…" : emailSent ? "Sent" : "Send Email"}
+              </Button>
             </div>
-            <Button size="sm" variant="outline" onClick={handleWhatsapp} className="shrink-0 gap-1.5">
-              {whatsappOpened ? <CheckCircle2 size={13} className="text-dashboard-success" /> : <MessageCircle size={13} />}
-              {whatsappOpened ? "Opened" : "Open"}
-            </Button>
           </div>
 
-          {/* Email option */}
-          <div className="flex items-center gap-3 rounded-xl border border-dashboard-base-300 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100">
-              <Mail size={18} className="text-blue-600" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-dashboard-base-content">Email</p>
-              <p className="truncate text-xs text-dashboard-base-content/60">
-                {clientEmail || "No email on file for this client"}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              className="shrink-0 gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90"
-              onClick={handleEmail}
-              disabled={!clientEmail || emailSending || emailSent}
-            >
-              {emailSending
-                ? <Loader2 size={13} className="animate-spin" />
-                : emailSent
-                  ? <CheckCircle2 size={13} />
-                  : <Mail size={13} />}
-              {emailSending ? "Sending…" : emailSent ? "Sent" : "Send Email"}
-            </Button>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => navigator.clipboard.writeText(shareUrl)}
-          className="flex items-center gap-1.5 text-xs text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors"
-        >
-          <Copy size={12} /> Copy client link
-        </button>
-      </DialogContent>
-    </Dialog>
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(shareUrl)}
+            className="flex items-center gap-1.5 text-xs text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors"
+          >
+            <Copy size={12} /> Copy client link
+          </button>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

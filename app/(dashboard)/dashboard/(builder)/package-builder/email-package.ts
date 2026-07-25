@@ -52,10 +52,6 @@ export async function emailPackageToClient(
       (pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : "") +
       (pkg.infants  ? `, ${pkg.infants} Infant${pkg.infants !== 1 ? "s" : ""}` : "");
     const routeLine = pkg.stops.map((s) => s.name).join(" → ") || pkg.destination;
-    const priceStr = `${pkg.currency} ${pkg.totalPrice.toLocaleString("en-IN")}`;
-    const perPersonStr = pkg.pricePerPerson != null
-      ? `${pkg.currency} ${pkg.pricePerPerson.toLocaleString("en-IN")} / person`
-      : null;
 
     const templateParams = {
       clientName:       pkg.query.name,
@@ -66,8 +62,6 @@ export async function emailPackageToClient(
       travelDateStr,
       durationStr:      `${pkg.totalDays} Days / ${pkg.totalNights} Nights`,
       paxLine,
-      priceStr,
-      perPersonStr,
       shareUrl,
       hasPdfAttachment: !!pdfAttachment,
       execName: exec?.name ?? null,
