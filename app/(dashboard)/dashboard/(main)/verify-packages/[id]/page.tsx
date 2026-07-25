@@ -42,6 +42,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                         message: true, groupSize: true,
                     },
                 },
+                itineraries: { select: { day: true, roomPricingId: true } },
             },
         }),
         getRejectionReasons(),
@@ -51,6 +52,24 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
     // package can't be sent — see sendPackageToClient), so this also
     // guarantees pkg.query below.
     if (!pkg || !pkg.sentAt || !pkg.query) notFound();
+
+    // Resolve day → hotel id so the frozen pricingSnapshot's hotel lines
+    // (which only ever stored a plain hotelName string) can link out to the
+    // hotel's dashboard page. Looked up fresh from the live itinerary rather
+    // than baked into the snapshot itself, so this works for packages sent
+    // before this feature existed too — falls back to plain text if a day's
+    // itinerary row was since edited/removed and no longer resolves.
+    const roomPricingIds = [...new Set(pkg.itineraries.map((it) => it.roomPricingId).filter((id): id is number => id != null))];
+    const roomPricings = roomPricingIds.length > 0
+        ? await db.hotel_room_pricing.findMany({ where: { id: { in: roomPricingIds } }, select: { id: true, hotel_id: true } })
+        : [];
+    const hotelIdByRoomPricingId = new Map(roomPricings.map((rp) => [rp.id, rp.hotel_id]));
+    const hotelIdByDay: Record<number, number> = {};
+    for (const it of pkg.itineraries) {
+        if (it.roomPricingId == null) continue;
+        const hotelId = hotelIdByRoomPricingId.get(it.roomPricingId);
+        if (hotelId != null) hotelIdByDay[it.day] = hotelId;
+    }
 
     return (
         <VerifyPackageDetailClient
@@ -73,6 +92,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
             addOns={pkg.addOns}
             query={pkg.query}
             rejectionReasons={rejectionReasons}
+            hotelIdByDay={hotelIdByDay}
         />
     );
 }

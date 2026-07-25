@@ -134,7 +134,7 @@ function BreakdownCard({ icon: Icon, title, meta, subtotal, editing, subtotalInp
 }
 
 export function VerifyPackageDetailClient({
-    pkg, snapshot: s, tickets, addOns, query, rejectionReasons,
+    pkg, snapshot: s, tickets, addOns, query, rejectionReasons, hotelIdByDay,
 }: {
     pkg: PkgInfo;
     snapshot: PricingSnapshot | null;
@@ -142,6 +142,7 @@ export function VerifyPackageDetailClient({
     addOns: AddonRow[];
     query: QueryInfo;
     rejectionReasons: RejectionReason[];
+    hotelIdByDay: Record<number, number>;
 }) {
     const [isPending, startTransition] = useTransition();
     const [editMode, setEditMode] = useState(false);
@@ -321,18 +322,34 @@ export function VerifyPackageDetailClient({
                                         onChange={(e) => setHotelSubtotal(Number(e.target.value))} className="w-32 text-right font-semibold" />
                                 }
                             >
-                                {s.hotel.lines.map((l, i) => (
-                                    <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                                        <div>
-                                            <p className="text-dashboard-base-content">Day {l.day}: {l.hotelName} — {l.roomName}</p>
-                                            <p className="text-xs text-dashboard-neutral mt-0.5">
-                                                {l.roomsNeeded} room{l.roomsNeeded !== 1 ? "s" : ""} × {inr(l.pricePerRoom)}
-                                                {l.mattresses > 0 && ` + ${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} × ${inr(l.extraBedRate)}`}
-                                            </p>
+                                {s.hotel.lines.map((l, i) => {
+                                    const hotelId = hotelIdByDay[l.day];
+                                    return (
+                                        <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                                            <div>
+                                                <p className="text-dashboard-base-content">
+                                                    Day {l.day}:{" "}
+                                                    {hotelId != null ? (
+                                                        <a
+                                                            href={`/dashboard/hotels/${hotelId}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-dashboard-primary hover:underline"
+                                                        >
+                                                            {l.hotelName}
+                                                        </a>
+                                                    ) : l.hotelName}
+                                                    {" "}— {l.roomName}
+                                                </p>
+                                                <p className="text-xs text-dashboard-neutral mt-0.5">
+                                                    {l.roomsNeeded} room{l.roomsNeeded !== 1 ? "s" : ""} × {inr(l.pricePerRoom)}
+                                                    {l.mattresses > 0 && ` + ${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} × ${inr(l.extraBedRate)}`}
+                                                </p>
+                                            </div>
+                                            <span className="font-semibold text-dashboard-base-content shrink-0 ml-3">{inr(l.total)}</span>
                                         </div>
-                                        <span className="font-semibold text-dashboard-base-content shrink-0 ml-3">{inr(l.total)}</span>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {s.hotel.lines.length === 0 && (
                                     <p className="px-4 py-3 text-xs text-dashboard-neutral">No per-day breakdown recorded — subtotal only.</p>
                                 )}
