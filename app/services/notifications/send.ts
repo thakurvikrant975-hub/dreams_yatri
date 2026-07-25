@@ -12,7 +12,7 @@ export async function sendBookingEmail(to: string | null | undefined, mail: Emai
     if (process.env.NOTIFICATIONS_ENABLED !== "1") return false;
     if (!to) return false;
     try {
-        return await sendEmail({ to, subject: mail.subject, html: mail.html });
+        return await sendEmail({ to, subject: mail.subject, html: mail.html, text: mail.text });
     } catch (e) {
         console.error("[sendBookingEmail] failed", e);
         return false;

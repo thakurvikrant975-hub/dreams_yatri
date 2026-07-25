@@ -8,6 +8,7 @@ import { formatPaise } from "../../lib/money";
 export interface EmailContent {
     subject: string;
     html: string;
+    text?: string;
 }
 
 const BRAND = "Dreams Yatri";

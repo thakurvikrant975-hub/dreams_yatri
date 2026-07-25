@@ -4,7 +4,7 @@ import { getProvider } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
 import { finalizeCapturedPayment } from "./finalize.service";
 import { confirmHotelReservationForBooking } from "./hotel-confirmation";
-import { notifyBookingConfirmed, notifyRefund } from "@/app/services/notifications/booking-notify";
+import { notifyBookingConfirmed, notifyRefund, notifyPaymentReceived } from "@/app/services/notifications/booking-notify";
 
 /**
  * Gateway-agnostic webhook processing (the source of payment truth).
@@ -91,7 +91,16 @@ export async function processGatewayWebhook(
                 });
                 if (fin.result === "finalized" || fin.result === "already") {
                     await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "PROCESSED", processedAt: new Date(), paymentId: payment.id, bookingId: fin.bookingId } });
-                    return { status: "ok" as const, confirmInitial: fin.result === "finalized" && fin.purpose === "INITIAL", bookingId: fin.result === "finalized" ? fin.bookingId : undefined };
+                    // Only a genuinely NEW capture (never a duplicate/"already" redelivery)
+                    // should trigger notifications — confirmInitial gates the booking-
+                    // confirmed email, isNewCapture gates the payment invoice, which
+                    // fires on every purpose (INITIAL/TOPUP/BALANCE), not just the first.
+                    return {
+                        status: "ok" as const,
+                        confirmInitial: fin.result === "finalized" && fin.purpose === "INITIAL",
+                        isNewCapture: fin.result === "finalized",
+                        bookingId: fin.result === "finalized" ? fin.bookingId : undefined,
+                    };
                 }
                 await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "FAILED", error: fin.result } });
                 return { status: "fail" as const };
@@ -100,6 +109,9 @@ export async function processGatewayWebhook(
             if (outcome.confirmInitial && outcome.bookingId) {
                 try { await notifyBookingConfirmed(outcome.bookingId); } catch (e) { console.error("[webhook] confirm-email failed", e); }
                 try { await confirmHotelReservationForBooking(outcome.bookingId); } catch (e) { console.error("[webhook] hotel confirm failed", e); }
+            }
+            if (outcome.isNewCapture) {
+                try { await notifyPaymentReceived(payment.id); } catch (e) { console.error("[webhook] invoice-email failed", e); }
             }
             return { httpStatus: 200, result: "processed" };
         }

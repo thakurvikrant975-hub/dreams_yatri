@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Prisma, QuerySource as QuerySourceEnum } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
+import { autoAssignLead } from "@/app/lib/queries/auto-assign";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type ActionResult<T = void> =
@@ -782,6 +783,8 @@ export async function createManualQuery(
         });
 
         await logTimeline(query.id, `Query manually created by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined, { source: parsed.data.source });
+
+        await autoAssignLead(query.id);
 
         revalidatePath("/dashboard/queries");
         return { success: true, message: `Query for ${parsed.data.name} saved successfully` };
