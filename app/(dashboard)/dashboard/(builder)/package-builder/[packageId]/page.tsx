@@ -30,6 +30,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/alert-dialog";
+import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
 import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
@@ -2243,6 +2247,7 @@ export default function PackageBuilderDetailPage() {
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
+  const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
 
   const [form, setForm] = useState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
@@ -2647,12 +2652,20 @@ export default function PackageBuilderDetailPage() {
   // package to /dashboard/verify-packages, where costing either verifies AND
   // sends it (one action, see verify-packages/actions.ts) or rejects it back
   // to DRAFT with a reason for the exec to fix and resubmit.
-  function handleMarkReady() {
+  // Validates first, then opens the confirm dialog (see confirmReadyOpen) —
+  // the actual submit only runs once the exec confirms they understand this
+  // locks out further edits until costing verifies or rejects it.
+  function handleMarkReadyClick() {
     const validationError = validateItineraryRequiredFields(form);
     if (validationError) {
       toast.error(validationError);
       return;
     }
+    setConfirmReadyOpen(true);
+  }
+
+  function handleMarkReady() {
+    setConfirmReadyOpen(false);
     startSend(async () => {
       // Always save first — markPackageReady reads nothing from the client,
       // but the review page does, straight from the DB row, so any edit made
@@ -2667,7 +2680,10 @@ export default function PackageBuilderDetailPage() {
         gstPercentage: parseFloat(form.gstPercentage) || 0,
         status: "READY",
       });
-      if (!result.success) return;
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to save");
+        return;
+      }
 
       const result2 = await markPackageReady(packageId);
       if (result2.success) {
@@ -3404,7 +3420,7 @@ Rules:
               <Button
                 size="sm"
                 className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
-                onClick={handleMarkReady}
+                onClick={handleMarkReadyClick}
                 disabled={isSending || isSaving}
                 title={validateItineraryRequiredFields(form) ?? undefined}
               >
@@ -4589,7 +4605,7 @@ Rules:
                 </Button>
                 <Button
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
-                  onClick={handleMarkReady}
+                  onClick={handleMarkReadyClick}
                   disabled={isSending || isSaving}
                   title={validateItineraryRequiredFields(form) ?? undefined}
                 >
@@ -4601,6 +4617,23 @@ Rules:
           </div>
         </main>
       </div>
+
+      <AlertDialog open={confirmReadyOpen} onOpenChange={setConfirmReadyOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit for costing review?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Once this package goes under costing review, you won&apos;t be able to change anything —
+              editing stays locked until the costing team either verifies &amp; sends it, or rejects it
+              back to you with a reason.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMarkReady}>Mark Ready</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
