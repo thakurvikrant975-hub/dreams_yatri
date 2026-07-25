@@ -20,13 +20,25 @@ export type PackageFollowUpSummary = { created: number; skipped: number };
  * configured in this repo) to catch packages within a reasonable window of
  * crossing the 1h mark.
  */
+// How far back this ever looks for a still-unflagged send. Without an upper
+// bound, any gap in the cron running (or a bulk data change that flips
+// followUpAutoCreated back to false) would make this treat sends from
+// months ago as newly eligible and fire a batch of "sent 1 hour ago"
+// reminders that are nowhere near true. The cron runs every ~15–30 min, so
+// anything past this window that's still unflagged was either already
+// handled by a normal run or predates this feature (see the
+// 20260725160000_backfill_package_ready_status migration) — either way it's
+// not this cron's job to catch up on it now.
+const MAX_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+
 export async function runPackageFollowUps(opts?: { now?: Date }): Promise<PackageFollowUpSummary> {
     const now = opts?.now ?? new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const lookbackCutoff = new Date(now.getTime() - MAX_LOOKBACK_MS);
 
     const packages = await db.custom_packages.findMany({
         where: {
-            sentAt: { not: null, lte: oneHourAgo },
+            sentAt: { not: null, lte: oneHourAgo, gte: lookbackCutoff },
             followUpAutoCreated: false,
             queryId: { not: null },
         },
