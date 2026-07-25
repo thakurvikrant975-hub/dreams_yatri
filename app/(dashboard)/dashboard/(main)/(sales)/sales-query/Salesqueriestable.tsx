@@ -17,7 +17,7 @@ import {
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
-import { SalesQueryStatusBadge } from "./Salesquerybadges";
+import { SalesQueryStatusBadge, PackageVerificationBadge } from "./Salesquerybadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
@@ -324,43 +324,46 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                 // e.g. a second budget option for the same client.
                 const latest = q.customPackages[0] ?? null;
                 return (
-                    <div onClick={(e) => e.stopPropagation()} className="flex items-center justify-center gap-1.5">
-                        {!latest ? (
-                            <CreatePackageDialog {...dialogProps}>
-                                <button
-                                    type="button"
-                                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
-                                >
-                                    <Package className="h-3 w-3" /> Create Package
-                                </button>
-                            </CreatePackageDialog>
-                        ) : (
-                            <>
-                                <a
-                                    href={`/dashboard/package-builder/${latest.id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={cn(
-                                        "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
-                                        latest.status === "SENT"
-                                            ? "text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-900 dark:bg-green-950/30"
-                                            : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/20"
-                                    )}
-                                >
-                                    <Eye className="h-3 w-3" />
-                                    View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
-                                </a>
+                    <div onClick={(e) => e.stopPropagation()} className="flex flex-col items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-1.5">
+                            {!latest ? (
                                 <CreatePackageDialog {...dialogProps}>
                                     <button
                                         type="button"
-                                        title="Create another package for this query"
-                                        className="inline-flex items-center justify-center h-6.5 w-6.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
                                     >
-                                        <Plus className="h-3 w-3" />
+                                        <Package className="h-3 w-3" /> Create Package
                                     </button>
                                 </CreatePackageDialog>
-                            </>
-                        )}
+                            ) : (
+                                <>
+                                    <a
+                                        href={`/dashboard/package-builder/${latest.id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={cn(
+                                            "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
+                                            latest.status === "SENT"
+                                                ? "text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-900 dark:bg-green-950/30"
+                                                : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/20"
+                                        )}
+                                    >
+                                        <Eye className="h-3 w-3" />
+                                        View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
+                                    </a>
+                                    <CreatePackageDialog {...dialogProps}>
+                                        <button
+                                            type="button"
+                                            title="Create another package for this query"
+                                            className="inline-flex items-center justify-center h-6.5 w-6.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                        </button>
+                                    </CreatePackageDialog>
+                                </>
+                            )}
+                        </div>
+                        {latest?.sentAt && <PackageVerificationBadge pkg={latest} />}
                     </div>
                 );
             },

@@ -11,7 +11,7 @@ import {
 import { Skeleton } from "../components/ui/skeleton";
 import { PageHeader } from "../components/dashboard/PageHeader";
 
-type Filter = "all" | "pending" | "verified";
+type Filter = "all" | "pending" | "verified" | "rejected";
 
 function TableSkeleton() {
     return (
@@ -63,13 +63,14 @@ async function PackagesData({
     };
 
     const filterWhere: Prisma.custom_packagesWhereInput =
-        filter === "pending"  ? { verified: false } :
+        filter === "pending"  ? { verified: false, rejectedAt: null } :
         filter === "verified" ? { verified: true } :
+        filter === "rejected" ? { verified: false, rejectedAt: { not: null } } :
         {};
 
     const where: Prisma.custom_packagesWhereInput = { ...baseWhere, ...filterWhere };
 
-    const [rows, totalCount, pending, verified, verifiedToday, total] = await Promise.all([
+    const [rows, totalCount, pending, verified, rejected, verifiedToday, total] = await Promise.all([
         db.custom_packages.findMany({
             where,
             orderBy: { sentAt: "desc" },
@@ -83,17 +84,20 @@ async function PackagesData({
                 status: true, builtByName: true, sentAt: true,
                 viewedAt: true, viewCount: true,
                 verified: true, verifiedAt: true, verifiedByName: true,
+                rejectedAt: true, rejectedByName: true,
+                rejectionReason: { select: { label: true } },
                 query: { select: { id: true, name: true, phone: true, email: true } },
             },
         }),
         db.custom_packages.count({ where }),
-        db.custom_packages.count({ where: { ...baseWhere, verified: false } }),
+        db.custom_packages.count({ where: { ...baseWhere, verified: false, rejectedAt: null } }),
         db.custom_packages.count({ where: { ...baseWhere, verified: true } }),
+        db.custom_packages.count({ where: { ...baseWhere, verified: false, rejectedAt: { not: null } } }),
         db.custom_packages.count({ where: { ...baseWhere, verifiedAt: { gte: todayStart } } }),
         db.custom_packages.count({ where: baseWhere }),
     ]);
 
-    const stats: PackageStats = { total, pending, verified, verifiedToday };
+    const stats: PackageStats = { total, pending, verified, rejected, verifiedToday };
 
     const packages: PackageRow[] = rows.map((r) => ({
         id: r.id,
@@ -116,6 +120,9 @@ async function PackagesData({
         verified: r.verified,
         verifiedAt: r.verifiedAt,
         verifiedByName: r.verifiedByName,
+        rejectedAt: r.rejectedAt,
+        rejectedByName: r.rejectedByName,
+        rejectionReasonLabel: r.rejectionReason?.label ?? null,
         client: r.query,
     }));
 

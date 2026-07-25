@@ -4,9 +4,10 @@ import { Badge } from "../../components/ui/badge";
 import {
     Inbox, PhoneCall, XCircle, UserCheck,
     ClipboardList, Send, ThumbsUp, ThumbsDown,
-    CreditCard, CheckCircle2, Lock, CalendarClock,
+    CreditCard, CheckCircle2, Lock, CalendarClock, Clock, ShieldCheck,
 } from "lucide-react";
 import type { QueryStatus } from "./query-status";
+import type { SentPackageInfo } from "./actions";
 
 type StatusConfig = {
     label: string;
@@ -97,6 +98,44 @@ export function SalesQueryStatusBadge({ status }: { status: QueryStatus | string
         >
             <Icon className="h-3 w-3" />
             {cfg.label}
+        </Badge>
+    );
+}
+
+/**
+ * Verification-team pricing sign-off on a sent package — independent of the
+ * client-facing SalesQueryStatusBadge above. Shown next to "View Package" so
+ * an exec sees at a glance whether ops has cleared the price, or sent it
+ * back for rework (with the reason, so it's clear what to fix).
+ */
+export function PackageVerificationBadge({ pkg }: { pkg: SentPackageInfo }) {
+    if (pkg.verified) {
+        return (
+            <Badge
+                variant="outline"
+                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-green-500/10 text-green-600 border-green-200 dark:border-green-800"
+            >
+                <ShieldCheck className="h-3 w-3" /> Verified
+            </Badge>
+        );
+    }
+    if (pkg.rejectedAt) {
+        return (
+            <Badge
+                variant="outline"
+                title={pkg.rejectionNote ?? undefined}
+                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-red-500/10 text-red-600 border-red-200 dark:border-red-800"
+            >
+                <XCircle className="h-3 w-3" /> Rejected: {pkg.rejectionReasonLabel ?? "See details"}
+            </Badge>
+        );
+    }
+    return (
+        <Badge
+            variant="outline"
+            className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
+        >
+            <Clock className="h-3 w-3" /> Pricing Pending
         </Badge>
     );
 }

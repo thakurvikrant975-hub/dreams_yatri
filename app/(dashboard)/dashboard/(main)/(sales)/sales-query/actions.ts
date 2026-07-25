@@ -93,6 +93,13 @@ export type SentPackageInfo = {
     totalPrice:     number | null;
     pricePerPerson: number | null;
     pdfUrl:         string | null;
+    verified:            boolean;
+    verifiedAt:          Date | null;
+    verifiedByName:      string | null;
+    rejectedAt:          Date | null;
+    rejectedByName:      string | null;
+    rejectionNote:       string | null;
+    rejectionReasonLabel: string | null;
 };
 
 // A query can now have more than one package built for it (e.g. two
@@ -102,6 +109,9 @@ export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[] }
 const CUSTOM_PACKAGE_SELECT = {
     id: true, title: true, status: true, sentAt: true,
     totalPrice: true, pricePerPerson: true, pdfUrl: true,
+    verified: true, verifiedAt: true, verifiedByName: true,
+    rejectedAt: true, rejectedByName: true, rejectionNote: true,
+    rejectionReason: { select: { label: true } },
 } as const;
 
 /** Returns only queries assigned to the currently logged-in sales exec */
@@ -122,7 +132,10 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
         ...q,
         rejectionReason:  q.rejection_reasons ?? null,
         totalLeadQueries: 1,
-        customPackages:   q.custom_packages ?? [],
+        customPackages:   (q.custom_packages ?? []).map((cp: any) => ({
+            ...cp,
+            rejectionReasonLabel: cp.rejectionReason?.label ?? null,
+        })),
     })) as SalesQueryRow[];
 }
 

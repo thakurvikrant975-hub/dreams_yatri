@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 const VALID_LIMITS = [10, 20, 50] as const;
-const VALID_FILTERS = ["all", "pending", "verified"] as const;
+const VALID_FILTERS = ["all", "pending", "verified", "rejected"] as const;
 
 export default async function VerifyPackagesPage({
     searchParams,
