@@ -15,10 +15,14 @@ import { packageItineraryTemplate, packageItineraryTextTemplate } from "@/app/co
  * Reads pricing/details straight from the DB row sendPackageToClient just
  * locked (never recomputes) — this is purely a notification step, not
  * another pricing pass.
+ *
+ * No PDF attachment: that used to be generated client-side (html2canvas, in
+ * the browser) and passed in from the old exec-triggered "Send to Client"
+ * dialog, which no longer exists — sending now only ever happens from
+ * verifyAndSendPackage on the server, which has no way to render one.
  */
 export async function emailPackageToClient(
   packageId: string,
-  pdfAttachment?: { filename: string; content: string } | null,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const pkg = await db.custom_packages.findUnique({
@@ -63,7 +67,6 @@ export async function emailPackageToClient(
       durationStr:      `${pkg.totalDays} Days / ${pkg.totalNights} Nights`,
       paxLine,
       shareUrl,
-      hasPdfAttachment: !!pdfAttachment,
       execName: exec?.name ?? null,
     };
     const emailHtml = packageItineraryTemplate(templateParams);
@@ -74,7 +77,6 @@ export async function emailPackageToClient(
       subject: `Your ${pkg.title} itinerary is ready`,
       html:    emailHtml,
       text:    emailText,
-      attachments: pdfAttachment ? [pdfAttachment] : undefined,
     });
 
     if (!sent) return { success: false, error: "Email failed to send. Please try again." };
