@@ -1728,6 +1728,13 @@ export async function sendPackageToClient(packageId: string): Promise<{
     });
 
     if (!pkg) return { success: false, error: "Package not found" };
+    // The only current caller (verifyAndSendPackage) already checks this
+    // itself, but that invariant belongs on the function that actually locks
+    // pricing and flips status to SENT — not solely on whoever happens to
+    // call it. Without this, a future direct call (e.g. a reintroduced
+    // exec-triggered "send" button) would silently skip costing review
+    // entirely, which is the exact thing this whole workflow exists to stop.
+    if (pkg.status !== "READY") return { success: false, error: "This package must be marked ready and reviewed by costing before it can be sent." };
     // A blank package (no linked query) has no client contact to send to —
     // it needs to be attached to a lead first via a real query before it can
     // go out over WhatsApp/email.
