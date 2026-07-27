@@ -26,7 +26,10 @@
     "e2e:phase6": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase6.ts",
     "e2e:phase7": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase7.ts",
     "e2e:phase8": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase8.ts",
-    "e2e:phase9": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase9.ts"
+    "e2e:phase9": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase9.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"

@@ -164,7 +164,8 @@ export default async function BookingVoucherPage({ params }: { params: Promise<{
 
                 {/* ── Hotel table ── */}
                 <div className="px-10">
-                    <table className="w-full text-sm border-collapse rounded-lg ring-[0.1em] p-[0.1em] ring-inset ring-neutral-300/80 overflow-hidden">
+                    <div className="rounded-lg ring-[0.1em] ring-inset ring-neutral-300/80 overflow-hidden p-[0.1em] bg-white">
+                    <table className="w-full text-sm border-collapse rounded-md overflow-hidden">
                         <thead>
                             <tr className="bg-primary-500 text-white">
                                 <th className="text-left font-semibold px-3 py-2.5">Hotel</th>
@@ -196,12 +197,14 @@ export default async function BookingVoucherPage({ params }: { params: Promise<{
                             })}
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 {/* ── Cab table ── */}
                 <div className="px-10 mt-8">
                     <div className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-700">Transportation</div>
-                    <table className="w-full text-sm border-collapse rounded-lg ring-[0.1em] p-[0.1em] ring-inset ring-neutral-300/80 overflow-hidden">
+                    <div className="rounded-lg ring-[0.1em] ring-inset ring-neutral-300/80 overflow-hidden p-[0.1em] bg-white">
+                    <table className="w-full text-sm border-collapse rounded-md overflow-hidden">
                         <thead>
                             <tr className="bg-primary-500 text-white">
                                 <th className="text-left font-semibold px-3 py-2.5">Vehicle</th>
@@ -240,6 +243,7 @@ export default async function BookingVoucherPage({ params }: { params: Promise<{
                             })}
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 {/* ── Signature / footer ── */}
