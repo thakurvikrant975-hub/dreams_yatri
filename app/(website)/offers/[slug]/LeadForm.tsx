@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { submitPackageEnquiry } from "@/app/actions/enquiry/submit";
 import { fireConversion } from "./gtag";
+import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/app/lib/assets/country-codes";
 
 export function LeadForm({
   destination, packageName, pageUrl, googleAdsSendToForm, onSuccess, className,
@@ -14,7 +16,8 @@ export function LeadForm({
   onSuccess?: () => void;
   className?: string;
 }) {
-  const [values, setValues] = useState({ name: "", phone: "", email: "" });
+  const [values, setValues] = useState({ name: "", phone: "" });
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY.code);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<"idle" | "submitting" | "done">("idle");
   const [formError, setFormError] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export function LeadForm({
     const result = await submitPackageEnquiry({
       name: values.name,
       phone: values.phone,
-      email: values.email || undefined,
+      countryCode,
       packageName,
       destination: destination || undefined,
       packageUrl: pageUrl,
@@ -71,21 +74,29 @@ export function LeadForm({
           {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
         </div>
         <div>
-          <input
-            type="tel" placeholder="Phone / WhatsApp Number" value={values.phone}
-            onChange={(e) => setValues((v) => ({ ...v, phone: e.target.value }))}
-            className="w-full rounded-lg border border-neutral-300 px-3.5 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
-            required
-          />
+          <div className="flex items-stretch overflow-hidden rounded-lg border border-neutral-300 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500">
+            <div className="relative flex shrink-0 items-center">
+              <select
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                aria-label="Country code"
+                className="h-full appearance-none bg-transparent py-2.5 pr-7 pl-3 text-sm outline-none"
+              >
+                {COUNTRY_CODES.map((c) => (
+                  <option key={c.code} value={c.code}>{c.flag} {c.dial}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 text-neutral-400" />
+            </div>
+            <span className="my-2 w-px shrink-0 bg-neutral-300" aria-hidden="true" />
+            <input
+              type="tel" placeholder="98765 43210" value={values.phone}
+              onChange={(e) => setValues((v) => ({ ...v, phone: e.target.value.replace(/[^\d\s-]/g, "") }))}
+              className="w-full min-w-0 px-3.5 py-2.5 text-sm outline-none"
+              required
+            />
+          </div>
           {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
-        </div>
-        <div>
-          <input
-            type="email" placeholder="Email Address" value={values.email}
-            onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
-            className="w-full rounded-lg border border-neutral-300 px-3.5 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
-          />
-          {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
         </div>
       </div>
 
@@ -98,7 +109,7 @@ export function LeadForm({
       >
         {status === "submitting" ? "Sending…" : "Get My Free Quote"}
       </button>
-      <p className="mt-2 text-center text-xs text-neutral-500">🔒 Your details are secure and never shared.</p>
+      <p className="mt-2 text-center text-xs text-neutral-500">Your details are secure and never shared.</p>
     </form>
   );
 }

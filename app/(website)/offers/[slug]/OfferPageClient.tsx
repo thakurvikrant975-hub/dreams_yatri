@@ -66,11 +66,6 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
     [page],
   );
 
-  const heroItems = useMemo(() => {
-    const marked = page.items.filter((i) => i.showInHero);
-    return (marked.length > 0 ? marked : page.items).slice(0, 4);
-  }, [page.items]);
-
   function openEnquiry(packageName?: string) {
     setModalPackage(packageName);
     setModalOpen(true);
@@ -98,13 +93,13 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
         </>
       )}
 
-      <Hero page={page} heroItems={heroItems} onEnquire={() => openEnquiry(undefined)} />
+      <Hero page={page} onEnquire={() => openEnquiry(undefined)} />
 
       <PackageGrid items={page.items} onEnquire={openEnquiry} />
 
       <BenefitsSection />
-      <JourneySection />
-      <TestimonialsSection testimonials={page.testimonials} />
+      <JourneySection destination={page.destination} />
+      <TestimonialsSection testimonials={page.testimonials} destination={page.destination} />
       <FaqSection faqs={page.faqs} />
 
       <LeadFormSection page={page} pageUrl={pageUrl} onSuccess={() => {}} />
@@ -119,56 +114,33 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
           packageName={modalPackage}
           pageUrl={pageUrl}
           googleAdsSendToForm={page.googleAdsSendToForm}
+          contactPhone={page.contactPhone}
+          onCallClick={handleCallClick}
         />
       )}
     </div>
   );
 }
 
-function Hero({ page, heroItems, onEnquire }: { page: OfferPageData; heroItems: Item[]; onEnquire: () => void }) {
-  const slides = heroItems.length > 0 ? heroItems : [{ id: "default", title: page.title, imageUrl: page.heroImageUrl, description: null, rating: null, routeLabel: null, priceLabel: null, badgeLabel: null, showInHero: false }];
-  const [active, setActive] = useState(0);
-
-  useEffect(() => {
-    if (slides.length <= 1) return;
-    const t = setInterval(() => setActive((i) => (i + 1) % slides.length), 4500);
-    return () => clearInterval(t);
-  }, [slides.length]);
-
-  const current = slides[active];
-  // The rail (desktop only) always shows the active card first, then the
-  // next up to 2 upcoming ones peeking beside it — same "current + preview"
-  // arrangement as the reference design's hero-cards rail.
-  const rail = [0, 1, 2].map((offset) => slides[(active + offset) % slides.length]);
-
+function Hero({ page, onEnquire }: { page: OfferPageData; onEnquire: () => void }) {
   return (
     <section className="relative -mt-header-height flex min-h-[90vh] items-center overflow-hidden bg-neutral-900 pb-14 pt-28 sm:min-h-[85vh] sm:pb-20">
-      {slides.map((s, i) => (
-        <Image
-          key={s.id}
-          src={getHeroImage(s.imageUrl || page.heroImageUrl)}
-          alt=""
-          fill
-          priority={i === 0}
-          className={`object-cover transition-opacity duration-700 ${i === active ? "opacity-100" : "opacity-0"}`}
-        />
-      ))}
+      <Image src={getHeroImage(page.heroImageUrl)} alt="" fill priority className="object-cover" />
       <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/40 to-black/20" />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 px-4 lg:grid-cols-[1.1fr_1fr]">
-        {/* Copy */}
-        <div>
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4">
+        <div className="max-w-2xl">
           <span className="text-sm font-semibold uppercase tracking-wide text-red-300">
             {page.heroEyebrow || page.title}
           </span>
-          <h1 className="mt-2 max-w-xl text-5xl font-extrabold uppercase leading-none text-white sm:text-7xl">
-            {page.heroHeadline || current.title || page.title}
+          <h1 className="mt-2 text-5xl font-extrabold uppercase leading-none text-white sm:text-7xl">
+            {page.heroHeadline || page.title}
           </h1>
           <p className="mt-4 max-w-lg text-sm text-white/85 sm:text-base">{page.description}</p>
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <button
               onClick={onEnquire}
-              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+              className="inline-flex items-center gap-2 rounded-full bg-red-600 px-8 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-red-700"
             >
               Explore <ArrowRight size={16} />
             </button>
@@ -180,42 +152,6 @@ function Hero({ page, heroItems, onEnquire }: { page: OfferPageData; heroItems: 
             </div>
           </div>
         </div>
-
-        {/* Desktop card rail — current (large) + up to 2 peeking previews */}
-        {slides.length > 1 && (
-          <div className="hidden items-center justify-end gap-3 lg:flex">
-            {rail.map((s, i) => (
-              <button
-                key={`${s.id}-${i}`}
-                onClick={() => setActive((active + i) % slides.length)}
-                aria-label={`Show ${s.title}`}
-                className={`relative shrink-0 overflow-hidden rounded-2xl shadow-xl transition-all ${
-                  i === 0 ? "h-72 w-56 ring-2 ring-white" : "h-56 w-32 opacity-80 hover:opacity-100"
-                }`}
-              >
-                <Image src={getCardImage(s.imageUrl || page.heroImageUrl)} alt="" fill className="object-cover" />
-                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-transparent" />
-                <span className="absolute inset-x-2 bottom-2 truncate rounded-md bg-black/40 px-2 py-1 text-left text-xs font-semibold text-white backdrop-blur-sm">
-                  {s.title}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Mobile position dots — the rail above is desktop-only */}
-        {slides.length > 1 && (
-          <div className="flex gap-1.5 lg:hidden">
-            {slides.map((s, i) => (
-              <button
-                key={s.id}
-                onClick={() => setActive(i)}
-                aria-label={`Show ${s.title}`}
-                className={`h-1.5 rounded-full transition-all ${i === active ? "w-8 bg-red-500" : "w-4 bg-white/40"}`}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </section>
   );
@@ -341,27 +277,54 @@ function FloatingButtons({
 }
 
 function EnquiryModal({
-  onClose, destination, packageName, pageUrl, googleAdsSendToForm,
+  onClose, destination, packageName, pageUrl, googleAdsSendToForm, contactPhone, onCallClick,
 }: {
   onClose: () => void; destination: string | null; packageName?: string; pageUrl: string; googleAdsSendToForm: string | null;
+  contactPhone: string; onCallClick: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-        <button onClick={onClose} aria-label="Close" className="absolute right-4 top-4 text-neutral-400 hover:text-neutral-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <style>{`
+        @keyframes eqm-fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes eqm-pop { from { opacity: 0; transform: translateY(20px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .eqm-overlay { animation: eqm-fade 0.25s ease both; }
+        .eqm-dialog { animation: eqm-pop 0.3s cubic-bezier(.22,.8,.28,1) both; }
+      `}</style>
+      <div className="eqm-overlay absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={onClose} />
+      <div className="eqm-dialog relative max-h-[92vh] w-full max-w-115 overflow-y-auto rounded-[22px] bg-white p-7 shadow-2xl">
+        <div className="absolute inset-x-0 top-0 h-1.5 rounded-t-[22px] bg-linear-to-r from-red-600 to-orange-400" />
+        <button
+          onClick={onClose} aria-label="Close"
+          className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition hover:bg-red-50 hover:text-red-600"
+        >
           <X size={18} />
         </button>
-        <h3 className="text-lg font-extrabold text-neutral-900">Get Your Free Custom Quote</h3>
-        {packageName && <p className="mt-0.5 text-sm font-semibold text-red-600">{packageName}</p>}
-        <p className="mt-1.5 text-xs text-neutral-500">Share your details and our travel expert will send a personalised itinerary &amp; price — usually within a few hours.</p>
+        <h3 className="pr-9 text-xl font-extrabold text-neutral-900">Get Your Free Custom Quote</h3>
+        {packageName && (
+          <span className="mt-2 inline-block max-w-full truncate rounded-full bg-red-50 px-4 py-1.5 text-sm font-bold text-red-600">
+            {packageName}
+          </span>
+        )}
+        <p className="mt-2.5 text-sm text-neutral-500">
+          Share your details and our travel expert will send a personalised itinerary &amp; price — usually within a few hours. No obligation.
+        </p>
         <LeadForm
           destination={destination}
           packageName={packageName}
           pageUrl={pageUrl}
           googleAdsSendToForm={googleAdsSendToForm}
-          className="mt-4"
+          className="mt-5"
         />
+        <div className="mt-4 flex items-center gap-3 text-xs font-bold uppercase tracking-wide text-neutral-400">
+          <span className="h-px flex-1 bg-neutral-200" /> or <span className="h-px flex-1 bg-neutral-200" />
+        </div>
+        <a
+          href={telHref(contactPhone)}
+          onClick={onCallClick}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border py-3 text-sm font-bold text-green-600 border-green-600 transition hover:border-green-500 hover:text-green-600"
+        >
+          <Phone size={16} /> Call {contactPhone}
+        </a>
       </div>
     </div>
   );
