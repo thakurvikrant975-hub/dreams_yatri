@@ -27,7 +27,7 @@ export async function submitPackageEnquiry(raw: EnquiryInput): Promise<SubmitRes
     const {
         name, email, phone, countryCode,
         travelDate, travellers, message,
-        packageName, destination, packageUrl, pageUrl,
+        packageName, destination, packageUrl, pageUrl, source,
     } = result.data
 
     // ── Rate limiting: same phone within 15 minutes ──────────────────────────
@@ -91,7 +91,7 @@ export async function submitPackageEnquiry(raw: EnquiryInput): Promise<SubmitRes
                 travelDate:    travelDate   ? new Date(travelDate) : null,
                 groupSize:     travellers   ?? null,
                 message:       message      || null,
-                source:        'PACKAGE_FORM',
+                source:        source ?? 'PACKAGE_FORM',
                 status:        'SUBMITTED',
                 leadProfileId: profile.id,
             },
