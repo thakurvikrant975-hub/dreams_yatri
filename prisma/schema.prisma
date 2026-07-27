@@ -2457,36 +2457,36 @@ model package_queries {
 }
 
 model custom_packages {
-  id                   String                   @id @default(cuid())
+  id                    String                   @id @default(cuid())
   /**
    * Nullable + non-unique — a query can have multiple packages built for it
    * (e.g. two different budget options sent to the same client), and a
    * package can exist with no linked query at all ("blank" packages, built
    * ahead of a lead so an exec can reuse/adapt one on the fly).
    */
-  queryId              String?
-  title                String
-  description          String?
-  coverImage           String?
+  queryId               String?
+  title                 String
+  description           String?
+  coverImage            String?
   /**
    * Vertical focal point for the cover image's object-position (0 = top,
    * 50 = center, 100 = bottom) — lets the exec re-center an image that
    * object-cover crops awkwardly, without re-uploading/re-cropping it.
    */
-  coverImagePosition   Float                    @default(50)
-  destination          String
-  startingPoint        String?
-  totalDays            Int
-  totalNights          Int
-  travelDate           DateTime?
-  adults               Int                      @default(1)
-  children             Int                      @default(0)
-  infants              Int                      @default(0)
-  pricePerPerson       Float?
-  totalPrice           Float?
-  currency             String                   @default("INR")
-  marginPercentage     Float                    @default(25)
-  gstPercentage        Float                    @default(5)
+  coverImagePosition    Float                    @default(50)
+  destination           String
+  startingPoint         String?
+  totalDays             Int
+  totalNights           Int
+  travelDate            DateTime?
+  adults                Int                      @default(1)
+  children              Int                      @default(0)
+  infants               Int                      @default(0)
+  pricePerPerson        Float?
+  totalPrice            Float?
+  currency              String                   @default("INR")
+  marginPercentage      Float                    @default(25)
+  gstPercentage         Float                    @default(5)
   /**
    * Costing-team correction, set during pre-send review (verify-packages'
    * updatePackagePricing) when the live-computed hotel/cab subtotal is
@@ -2499,28 +2499,28 @@ model custom_packages {
    */
   hotelSubtotalOverride Float?
   cabSubtotalOverride   Float?
-  inclusions           String[]
-  exclusions           String[]
-  termsNotes           String?
+  inclusions            String[]
+  exclusions            String[]
+  termsNotes            String?
   /**
    * Short, removable bullet points — seeded with company-wide defaults the
    * exec can trim/extend per package, distinct from the free-text termsNotes
    * above (kept as a separate general-notes field).
    */
-  termsConditions      String[]
-  paymentPolicy        String[]
-  amendmentPolicy      String[]
+  termsConditions       String[]
+  paymentPolicy         String[]
+  amendmentPolicy       String[]
   /**
    * "Benefits of Travelling With Us" — marketing bullets shown on the
    * client-facing document/page, same removable-default pattern as above.
    */
-  travelBenefits       String[]
+  travelBenefits        String[]
   /**
    * Mirrors itinerary_settings.customPolicySections at save time — admin-
    * defined extra policy blocks (`{ id, title, items }[]`) beyond the six
    * fixed lists above.
    */
-  customPolicySections Json?
+  customPolicySections  Json?
   /**
    * Per-package additions to the six standard lists above (inclusions,
    * exclusions, termsConditions, paymentPolicy, amendmentPolicy,
@@ -2530,15 +2530,15 @@ model custom_packages {
    * only via itinerary_settings. Shape: `{ inclusions: string[], ... }`,
    * one key per standard list, each defaulting to an empty array.
    */
-  extraPolicyItems     Json                     @default("{}")
-  status               CustomPackageStatus      @default(DRAFT)
-  builtBy              String
-  builtByName          String?
-  sentAt               DateTime?
-  pdfUrl               String?
-  viewedAt             DateTime?
-  viewCount            Int                      @default(0)
-  previousSnapshot     Json?
+  extraPolicyItems      Json                     @default("{}")
+  status                CustomPackageStatus      @default(DRAFT)
+  builtBy               String
+  builtByName           String?
+  sentAt                DateTime?
+  pdfUrl                String?
+  viewedAt              DateTime?
+  viewCount             Int                      @default(0)
+  previousSnapshot      Json?
   /**
    * Set when a sales exec clicks "Mark Ready" — the moment pricing edits
    * stop and the package enters the costing team's verify-packages queue
@@ -2550,9 +2550,9 @@ model custom_packages {
    * timestamp, which is intentional: the queue/metrics reflect the latest
    * review cycle, not history (QueryTimeline carries the audit trail).
    */
-  readyAt              DateTime?
-  readyBy              String?
-  readyByName          String?
+  readyAt               DateTime?
+  readyBy               String?
+  readyByName           String?
   /**
    * Internal pricing double-check, independent of the client-facing status
    * (accepted/declined) — a reviewer confirms the locked pricingSnapshot
@@ -2561,10 +2561,10 @@ model custom_packages {
    * together in one verify-and-send action (see verify-packages/actions.ts),
    * not as a post-hoc audit of an already-sent package.
    */
-  verified             Boolean                  @default(false)
-  verifiedAt           DateTime?
-  verifiedBy           String?
-  verifiedByName       String?
+  verified              Boolean                  @default(false)
+  verifiedAt            DateTime?
+  verifiedBy            String?
+  verifiedByName        String?
   /**
    * Set when the verification team sends a package's pricing back for
    * rework instead of verifying it — mirrors package_queries' structured
@@ -2573,12 +2573,12 @@ model custom_packages {
    * a package is never both verified and rejected, and the rejection
    * reason stays visible to the exec until they've actually acted on it.
    */
-  rejectedAt           DateTime?
-  rejectedBy           String?
-  rejectedByName       String?
-  rejectionReasonId    String?
-  rejectionNote        String?
-  rejectionReason      RejectionReason?         @relation(fields: [rejectionReasonId], references: [id])
+  rejectedAt            DateTime?
+  rejectedBy            String?
+  rejectedByName        String?
+  rejectionReasonId     String?
+  rejectionNote         String?
+  rejectionReason       RejectionReason?         @relation(fields: [rejectionReasonId], references: [id])
   /**
    * Set the moment the exec has been shown (via the in-app toast poller)
    * that this package was verified-and-sent or rejected — prevents
@@ -2586,41 +2586,41 @@ model custom_packages {
    * event happens (re-marking ready, or a new verify/reject decision), so
    * exactly one toast fires per event.
    */
-  execNotifiedAt       DateTime?
+  execNotifiedAt        DateTime?
   /**
    * Guards the +1h "check in with the client" auto follow-up (see
    * app/api/cron/package-followups) from being created twice for the same
    * send — set true the moment that follow-up is created, never reset.
    */
-  followUpAutoCreated  Boolean                  @default(false)
+  followUpAutoCreated   Boolean                  @default(false)
   /**
    * Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
    * exact locked total) — the client-facing "Pay Now" button opens this.
    * No gateway/webhook integration; purely a manual URL field.
    */
-  paymentLink          String?
+  paymentLink           String?
   /**
    * Frozen hotel/cab/ticket/margin/GST breakdown, computed server-side and
    * written once when the package is sent — lets the exec recheck later how
    * the delivered total was built, independent of any later catalog rate
    * changes. Never shown on the client-facing page.
    */
-  pricingSnapshot      Json?
-  flightsIncluded      Boolean                  @default(false)
-  flightNotes          String?
-  flightFrom           String?
-  flightTo             String?
-  trainIncluded        Boolean                  @default(false)
-  trainNotes           String?
-  trainFrom            String?
-  trainTo              String?
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
-  itineraries          custom_itineraries[]
-  stops                custom_package_stops[]
-  tickets              custom_package_tickets[]
-  addOns               custom_package_addons[]
-  query                package_queries?         @relation(fields: [queryId], references: [id])
+  pricingSnapshot       Json?
+  flightsIncluded       Boolean                  @default(false)
+  flightNotes           String?
+  flightFrom            String?
+  flightTo              String?
+  trainIncluded         Boolean                  @default(false)
+  trainNotes            String?
+  trainFrom             String?
+  trainTo               String?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  itineraries           custom_itineraries[]
+  stops                 custom_package_stops[]
+  tickets               custom_package_tickets[]
+  addOns                custom_package_addons[]
+  query                 package_queries?         @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
@@ -2744,6 +2744,124 @@ model custom_package_addons {
   package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
 
   @@index([customPackageId])
+}
+
+/**
+ * A team-built Google-Ads-style landing page, published at /offers/[slug].
+ * Distinct from the `packages` catalog (browsable site pages) and
+ * `custom_packages` (per-client CRM quotes) — this is marketing collateral
+ * for a single ad campaign/destination, built by picking from the catalog
+ * and/or adding one-off cards (see LandingPageItem), with its own lead form
+ * that writes into package_queries via source LANDING_PAGE (see
+ * app/actions/enquiry/submit.ts).
+ */
+model LandingPage {
+  id                      String            @id @default(cuid())
+  /**
+   * The path segment after /offers/ — e.g. "andaman-family-holiday".
+   */
+  slug                    String            @unique
+  title                   String
+  seoTitle                String
+  description             String
+  seoDescription          String
+  heroImageUrl            String
+  /**
+   * Small label above the hero title, e.g. "Andaman · Family Holiday" — falls back to title if unset.
+   */
+  heroEyebrow             String?
+  /**
+   * Big hero title override, e.g. "FAMILY HOLIDAY" — falls back to title if unset.
+   */
+  heroHeadline            String?
+  /**
+   * Free-text destination, prefilled into the lead form's `destination` field.
+   */
+  destination             String?
+  status                  LandingPageStatus @default(DRAFT)
+  /**
+   * Seconds after page load before the enquiry modal auto-opens.
+   */
+  popupDelaySeconds       Int               @default(15)
+  /**
+   * Used for both the floating Call and WhatsApp buttons.
+   */
+  contactPhone            String
+  /**
+   * gtag `send_to` values (e.g. "AW-123456789/AbCdEfGh") for this page's
+   * three trackable actions — each optional and independent, since a page
+   * may only care about tracking some of them. No conversion fires for an
+   * action whose field is left blank.
+   */
+  googleAdsSendToForm     String?
+  googleAdsSendToCall     String?
+  googleAdsSendToWhatsapp String?
+  /**
+   * `{ question: string, answer: string }[]` — same flexible-JSON pattern as custom_packages.extraPolicyItems.
+   */
+  faqs                    Json              @default("[]")
+  /**
+   * `{ authorName: string, authorRole?: string, quote: string, rating?: number }[]`.
+   */
+  testimonials            Json              @default("[]")
+  createdBy               String
+  createdByName           String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  items                   LandingPageItem[]
+
+  @@index([slug])
+  @@index([status])
+}
+
+enum LandingPageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/**
+ * One package card on a landing page — either linked back to a real catalog
+ * `packages` row (packageId set, for traceability) or fully custom
+ * (packageId null). Fields are always a denormalized snapshot filled in at
+ * add-time rather than a live join, so a landing page never breaks or
+ * silently changes if the source catalog package is edited/deactivated
+ * later.
+ */
+model LandingPageItem {
+  id            String      @id @default(cuid())
+  landingPageId String
+  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  sortOrder     Int         @default(0)
+  packageId     Int?
+  title         String
+  imageUrl      String
+  /**
+   * Short editorial blurb shown on the card face, e.g. "Port Blair's Cellular Jail, Havelock's Radhanagar Beach…" — prefilled from the catalog package's own description when added from the catalog.
+   */
+  description   String?
+  /**
+   * e.g. 4.7 — shown as a star-rating pill on the card. Null hides the pill rather than showing a fabricated number.
+   */
+  rating        Float?
+  /**
+   * e.g. "5D / 4N" or a short route string.
+   */
+  routeLabel    String?
+  /**
+   * Free text so it can carry a suffix, e.g. "₹16,999/person".
+   */
+  priceLabel    String?
+  /**
+   * Ribbon shown on the card, e.g. "Best Seller", "Most Popular".
+   */
+  badgeLabel    String?
+  /**
+   * Up to 4 items marked true appear in the rotating hero rail.
+   */
+  showInHero    Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+
+  @@index([landingPageId])
 }
 
 enum TicketType {

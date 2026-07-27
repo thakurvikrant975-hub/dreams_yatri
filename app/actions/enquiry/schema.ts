@@ -16,6 +16,10 @@ export const enquirySchema = z.object({
     destination: z.string().optional(),
     packageUrl:  z.string().optional(),
     pageUrl:     z.string().url().optional().or(z.literal('')),
+    /** Defaults to PACKAGE_FORM (existing callers) — landing pages pass LANDING_PAGE.
+     *  Deliberately a closed enum, not the full QuerySource union, so a public-facing
+     *  form can never claim an internal-only source like REFERRAL/PHONE_CALL. */
+    source:      z.enum(['PACKAGE_FORM', 'LANDING_PAGE']).optional(),
 })
 
 export type EnquiryInput  = z.input<typeof enquirySchema>
