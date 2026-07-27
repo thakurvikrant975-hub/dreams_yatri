@@ -201,7 +201,13 @@ export function PackageBookingProvider({
     const [hotelAlternatesByStay, setHotelAlternatesByStay] = useState<Map<number, RoomOption[]>>(new Map());
     const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
 
-    // Auto-upgrade cabs whenever passenger count changes
+    // Auto-upgrade cabs whenever passenger count changes.
+    // `cabGroups` is recomputed (new reference) whenever `cabTypes` arrives
+    // as a fresh array across the RSC boundary, which can happen without the
+    // resolved cab selections actually changing. Bail out to `prev` itself
+    // when nothing differs so `cabSelections`'s identity stays stable —
+    // otherwise every such re-run resets the debounced pricing-fetch effect
+    // below (which depends on `cabSelections`) before its timer can fire.
     useEffect(() => {
         const passengers = adults + childCount;
         setCabSelections(prev => {
@@ -209,6 +215,9 @@ export function PackageBookingProvider({
             for (const g of cabGroups) {
                 const id = optimalCabId(g.cabs, passengers);
                 if (id != null) next.set(g.groupKey, id);
+            }
+            if (next.size === prev.size && [...next].every(([k, v]) => prev.get(k) === v)) {
+                return prev;
             }
             return next;
         });
