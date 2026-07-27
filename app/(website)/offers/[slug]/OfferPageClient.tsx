@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Script from "next/script";
 import {
-  Phone, MessageCircle, X, Star, Bookmark, ArrowRight, Check, MapPin,
+  Phone, X, Star, Bookmark, ArrowRight, Check, MapPin,
 } from "lucide-react";
 import { getHeroImage, getCardImage } from "@/app/lib/imageUrl";
 import { LeadForm } from "./LeadForm";
@@ -41,6 +41,17 @@ function telHref(phone: string) {
 }
 function whatsappHref(phone: string, text: string) {
   return `https://wa.me/${phone.replace(/[^\d]/g, "")}?text=${encodeURIComponent(text)}`;
+}
+
+// The real WhatsApp glyph (same path data as ShareModal's), not lucide's
+// generic MessageCircle — recognizable at a glance as WhatsApp specifically.
+function WhatsAppIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size}>
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.558 4.121 1.532 5.855L.057 23.25l5.532-1.451A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.733 9.733 0 01-4.965-1.361l-.357-.212-3.683.966.982-3.588-.232-.37A9.749 9.749 0 012.25 12C2.25 6.589 6.589 2.25 12 2.25S21.75 6.589 21.75 12 17.411 21.75 12 21.75z" />
+    </svg>
+  );
 }
 
 export function OfferPageClient({ page }: { page: OfferPageData }) {
@@ -97,7 +108,13 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
 
       <Hero page={page} onEnquire={() => openEnquiry(undefined)} />
 
-      <PackageGrid items={page.items} onEnquire={openEnquiry} />
+      <PackageGrid
+        items={page.items}
+        onEnquire={openEnquiry}
+        contactPhone={page.contactPhone}
+        onCallClick={handleCallClick}
+        onWhatsappClick={handleWhatsappClick}
+      />
 
       <BenefitsSection />
       <JourneySection destination={page.destination} />
@@ -216,7 +233,64 @@ function enquiryPackageName(item: Item): string {
   return suffix ? `${item.title} (${suffix})` : item.title;
 }
 
-function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageName?: string) => void }) {
+// Matches labels like "3D/2N", "4 D / 3 N", "5D-4N" — the free-text duration
+// shorthand admins type into a package's route field. Anything else (an
+// actual route/circuit description) is left out of the quick filter row.
+const DURATION_PATTERN = /^\d+\s*D\s*[/-]\s*\d+\s*N$/i;
+
+function extractDurations(items: Item[]): string[] {
+  const seen = new Set<string>();
+  for (const item of items) {
+    const label = item.routeLabel?.trim();
+    if (label && DURATION_PATTERN.test(label)) seen.add(label);
+  }
+  return Array.from(seen).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+}
+
+// Measures against the actual rendered clamp (rather than guessing from
+// character count, which varies with card width/font) — only offers "Read
+// more" when the text is genuinely being cut off by line-clamp-3.
+function PackageDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [truncated, setTruncated] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el && !expanded) setTruncated(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  return (
+    <div className="mt-2">
+      <p ref={ref} className={`text-sm leading-relaxed text-white/65 ${expanded ? "" : "line-clamp-3"}`}>
+        {text}
+      </p>
+      {(truncated || expanded) && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+          className="mt-1 text-xs font-bold text-red-400 hover:text-red-300"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PackageGrid({
+  items, onEnquire, contactPhone, onCallClick, onWhatsappClick,
+}: {
+  items: Item[];
+  onEnquire: (packageName?: string) => void;
+  contactPhone: string;
+  onCallClick: () => void;
+  onWhatsappClick: () => void;
+}) {
+  const [durationFilter, setDurationFilter] = useState<string | null>(null);
+  const durations = useMemo(() => extractDurations(items), [items]);
+  const visibleItems = durationFilter ? items.filter((i) => i.routeLabel?.trim() === durationFilter) : items;
+
   if (items.length === 0) return null;
   return (
     <section id="packages" className="py-14 sm:py-20">
@@ -228,11 +302,39 @@ function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageN
             Handpicked resorts, transfers &amp; sightseeing on every trip. Tap a package and our travel expert will send you a free custom quote — no obligation.
           </p>
         </div>
+
+        {durations.length > 1 && (
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <button
+              onClick={() => setDurationFilter(null)}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                durationFilter === null ? "border-red-600 bg-red-600 text-white" : "border-neutral-300 bg-white text-neutral-700 hover:border-red-300 hover:text-red-600"
+              }`}
+            >
+              All Durations
+            </button>
+            {durations.map((d) => (
+              <button
+                key={d}
+                onClick={() => setDurationFilter(d)}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  durationFilter === d ? "border-red-600 bg-red-600 text-white" : "border-neutral-300 bg-white text-neutral-700 hover:border-red-300 hover:text-red-600"
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => (
-            <article key={item.id} className="flex h-full flex-col overflow-hidden rounded-2xl bg-neutral-950 shadow-lg shadow-black/10">
-              <div className="relative h-56 shrink-0">
-                <Image src={getCardImage(item.imageUrl)} alt={item.title} fill className="object-cover" />
+          {visibleItems.map((item) => (
+            <article key={item.id} className="group flex h-full flex-col overflow-hidden rounded-2xl bg-neutral-950 shadow-lg shadow-black/10">
+              <div className="relative h-56 shrink-0 overflow-hidden">
+                <Image
+                  src={getCardImage(item.imageUrl)} alt={item.title} fill
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                />
                 {item.badgeLabel && (
                   <span className="absolute left-3 top-3 rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm">
                     {item.badgeLabel}
@@ -245,10 +347,16 @@ function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageN
 
               <div className="flex flex-1 flex-col p-5">
                 <div className="flex-1">
-                  <h3 className="text-xl font-extrabold text-white">{item.title}</h3>
-                  {item.description && (
-                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-white/65">{item.description}</p>
-                  )}
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-xl font-extrabold text-white">{item.title}</h3>
+                    {item.priceLabel && (
+                      <span className="shrink-0 whitespace-nowrap text-right text-sm font-extrabold text-red-400">
+                        <span className="block text-[10px] font-semibold uppercase tracking-wide text-white/50">Starting from</span>
+                        {item.priceLabel}
+                      </span>
+                    )}
+                  </div>
+                  {item.description && <PackageDescription text={item.description} />}
                   {(item.rating != null || item.routeLabel) && (
                     <div className="mt-3.5 flex flex-wrap items-center gap-2">
                       {item.rating != null && (
@@ -262,16 +370,35 @@ function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageN
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => onEnquire(enquiryPackageName(item))}
-                  className="mt-4 w-full rounded-full bg-white py-3 text-sm font-bold text-neutral-900 transition hover:bg-red-600 hover:text-white"
-                >
-                  Enquire Now
-                </button>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    onClick={() => onEnquire(enquiryPackageName(item))}
+                    className="flex-1 rounded-full bg-white py-3 text-sm font-bold text-neutral-900 transition hover:bg-red-600 hover:text-white"
+                  >
+                    Get a callback
+                  </button>
+                  <a
+                    href={telHref(contactPhone)} onClick={onCallClick} aria-label={`Call about ${item.title}`}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                  >
+                    <Phone size={16} />
+                  </a>
+                  <a
+                    href={whatsappHref(contactPhone, `Hi! I'd like a quote for ${item.title}.`)} target="_blank" rel="noopener noreferrer"
+                    onClick={onWhatsappClick} aria-label={`WhatsApp about ${item.title}`}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-full bg-green-500 text-white transition hover:bg-green-600"
+                  >
+                    <WhatsAppIcon size={16} />
+                  </a>
+                </div>
               </div>
             </article>
           ))}
         </div>
+
+        {visibleItems.length === 0 && (
+          <p className="mt-10 text-center text-sm text-neutral-500">No packages match that duration — try a different filter.</p>
+        )}
       </div>
     </section>
   );
@@ -325,7 +452,7 @@ function FloatingButtons({
         onClick={onWhatsappClick} aria-label="Chat on WhatsApp"
         className="flex size-12 items-center justify-center rounded-full bg-green-500 text-white shadow-lg"
       >
-        <MessageCircle size={22} />
+        <WhatsAppIcon size={22} />
       </a>
     </div>
   );

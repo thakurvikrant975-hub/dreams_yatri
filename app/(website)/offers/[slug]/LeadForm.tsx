@@ -107,7 +107,7 @@ export function LeadForm({
         disabled={status === "submitting"}
         className="mt-4 w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
       >
-        {status === "submitting" ? "Sending…" : "Get My Free Quote"}
+        {status === "submitting" ? "Sending…" : "Get a callback"}
       </button>
       <p className="mt-2 text-center text-xs text-neutral-500">Your details are secure and never shared.</p>
     </form>

@@ -13,6 +13,7 @@ import { z } from "zod";
 import { db } from "@/app/lib/db";
 import { getCurrentActor, type ActionResult } from "../(marketing)/queries/actions";
 import { actionError } from "@/app/lib/action-error";
+import { getCardImage } from "@/app/lib/imageUrl";
 
 function revalidateAll(id?: string) {
   revalidatePath("/dashboard/landing-pages");
@@ -145,7 +146,7 @@ export async function searchCatalogPackages(query: string): Promise<CatalogPacka
     orderBy: { title: "asc" },
     take: 10,
   });
-  return rows.map((r) => ({ id: r.id, title: r.title, thumbnail: r.thumbnail, description: r.description, destinationName: r.destination?.name ?? null }));
+  return rows.map((r) => ({ id: r.id, title: r.title, thumbnail: r.thumbnail ? getCardImage(r.thumbnail) : null, description: r.description, destinationName: r.destination?.name ?? null }));
 }
 
 // ── Landing page items (package cards) ────────────────────────────────────────
@@ -169,7 +170,7 @@ export async function addItemFromCatalog(landingPageId: string, packageId: numbe
         landingPageId,
         packageId,
         title: pkg.title,
-        imageUrl: pkg.thumbnail ?? "",
+        imageUrl: pkg.thumbnail ? getCardImage(pkg.thumbnail) : "",
         description: pkg.description,
         sortOrder: await nextSortOrder(landingPageId),
       },

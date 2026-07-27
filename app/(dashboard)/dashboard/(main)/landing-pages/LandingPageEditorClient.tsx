@@ -4,15 +4,16 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Save, Loader2, ExternalLink, Copy, Plus, Trash2, Star,
+  Save, Loader2, ExternalLink, Copy, Plus, Trash2, Star, Wand2, ClipboardPaste,
 } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/switch";
 import { ImageDropField } from "../../(builder)/package-builder/[packageId]/ImageDropField";
-import { saveLandingPage, type LandingPageInput } from "./actions";
+import { saveLandingPage, addCustomItem, type LandingPageInput } from "./actions";
 import { slugify } from "./slug";
+import { buildAiPrompt } from "./ai-prompt";
 import { PackageItemsEditor, type LandingPageItemRow } from "./PackageItemsEditor";
 
 type Faq = { question: string; answer: string };
@@ -68,6 +69,11 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
   } : emptyForm()));
   const [slugTouched, setSlugTouched] = useState(!!initial);
 
+  const [aiTopic, setAiTopic] = useState(initial?.title ?? "");
+  const [aiJsonDraft, setAiJsonDraft] = useState("");
+  const [isApplyingItems, startApplyItems] = useTransition();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
   function field<K extends keyof typeof form>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -102,13 +108,128 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
     startSave(async () => {
       const result = await saveLandingPage(payload);
       if (result.success) {
+        setFieldErrors({});
         toast.success(result.message);
         if (!initial) router.push(`/dashboard/landing-pages/${result.data.id}`);
         else router.refresh();
       } else {
-        toast.error(result.message);
+        setFieldErrors(result.errors ?? {});
+        // Show the actual per-field messages, not just the generic
+        // "Validation failed" summary — e.g. "Slug can only contain
+        // lowercase letters, numbers and hyphens." / "Hero image is
+        // required." — so it's clear what to fix without hunting for it.
+        const messages = Object.values(result.errors ?? {}).flat();
+        toast.error(messages.length > 0 ? messages.join(" ") : result.message);
       }
     });
+  }
+
+  function handleCopyPrompt() {
+    if (!aiTopic.trim()) {
+      toast.error('Type what this page is about first, e.g. "Spiti Honeymoon Package".');
+      return;
+    }
+    navigator.clipboard.writeText(buildAiPrompt(aiTopic.trim()))
+      .then(() => toast.success("Prompt copied — paste it into ChatGPT, then paste its JSON reply back here."))
+      .catch(() => toast.error("Couldn't copy — check your browser's clipboard permissions."));
+  }
+
+  // Best-effort, defensive parse: the AI can ignore instructions, so every
+  // field is type-checked and clamped to the SAME hard max lengths
+  // `landingPageSchema` (actions.ts) enforces server-side, not just the
+  // tighter SEO-friendly lengths the prompt itself asks for.
+  function handleApplyAiJson() {
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(aiJsonDraft);
+    } catch {
+      toast.error("That doesn't look like valid JSON — paste the raw JSON ChatGPT gave you.");
+      return;
+    }
+    if (!data || typeof data !== "object") {
+      toast.error("Invalid JSON structure.");
+      return;
+    }
+
+    const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+
+    setForm((f) => {
+      // Same auto-slug behavior as typing into the Title field by hand — only
+      // kicks in if the admin hasn't already edited the slug themselves.
+      const title = str(data.title, 160) || f.title;
+      return {
+        ...f,
+        title,
+        slug: slugTouched ? f.slug : (slugify(title) || f.slug),
+        seoTitle: str(data.seoTitle, 160) || f.seoTitle,
+        description: str(data.description, 2000) || f.description,
+        seoDescription: str(data.seoDescription, 320) || f.seoDescription,
+        heroEyebrow: str(data.heroEyebrow, 160) || f.heroEyebrow,
+        heroHeadline: str(data.heroHeadline, 80) || f.heroHeadline,
+        destination: str(data.destination, 160) || f.destination,
+        faqs: Array.isArray(data.faqs)
+          ? data.faqs
+            .map((x): Faq => ({ question: str((x as Record<string, unknown>)?.question, 300), answer: str((x as Record<string, unknown>)?.answer, 2000) }))
+            .filter((x) => x.question && x.answer)
+            .slice(0, 30)
+          : f.faqs,
+        testimonials: Array.isArray(data.testimonials)
+          ? data.testimonials
+            .map((raw): Testimonial => {
+              const x = raw as Record<string, unknown>;
+              const ratingNum = Number(x?.rating);
+              return {
+                authorName: str(x?.authorName, 120),
+                authorRole: str(x?.authorRole, 160),
+                quote: str(x?.quote, 1000),
+                rating: Number.isFinite(ratingNum) ? Math.min(5, Math.max(1, Math.round(ratingNum))) : 5,
+              };
+            })
+            .filter((x) => x.authorName && x.quote)
+            .slice(0, 30)
+          : f.testimonials,
+      };
+    });
+
+    const pendingItems = Array.isArray(data.items) ? data.items : [];
+    if (pendingItems.length === 0) {
+      toast.success("AI content applied — review everything, then Save.");
+      setAiJsonDraft("");
+      return;
+    }
+
+    if (!initial) {
+      toast.success("Text content applied. Save the page once, then re-paste the same JSON to also add the suggested package cards.");
+      setAiJsonDraft("");
+      return;
+    }
+
+    startApplyItems(async () => {
+      let created = 0;
+      for (const raw of pendingItems.slice(0, 12)) {
+        const x = raw as Record<string, unknown>;
+        const itemRatingNum = Number(x?.rating);
+        const result = await addCustomItem(initial.id, {
+          title: str(x?.title, 160) || "Untitled Package",
+          imageUrl: "/placeholder-package.svg",
+          description: str(x?.description, 400) || null,
+          rating: Number.isFinite(itemRatingNum) ? Math.min(5, Math.max(1, itemRatingNum)) : null,
+          routeLabel: str(x?.routeLabel, 120) || null,
+          priceLabel: str(x?.priceLabel, 60) || null,
+          badgeLabel: str(x?.badgeLabel, 40) || null,
+        });
+        if (result.success) created++;
+      }
+      if (created > 0) {
+        toast.success(`Added ${created} package card${created > 1 ? "s" : ""} with a placeholder image — replace it via each card's image box.`);
+        router.refresh();
+      } else {
+        toast.error("Couldn't add the suggested package cards.");
+      }
+    });
+
+    toast.success("AI content applied — review everything, then Save.");
+    setAiJsonDraft("");
   }
 
   function addFaq() {
@@ -155,12 +276,50 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
         </div>
       </div>
 
+      {/* Generate with AI */}
+      <Section title="Generate with AI">
+        <Field
+          label="What's this page about?"
+          hint="Copy the prompt, paste it into ChatGPT (or similar), then paste its JSON reply below to fill in the title, SEO fields, hero copy, FAQs, testimonials and package-card ideas in one go. Images are always uploaded separately."
+        >
+          <div className="flex gap-2">
+            <Input value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder='e.g. "Spiti Honeymoon Package"' />
+            <Button type="button" variant="outline" className="shrink-0 gap-1.5" onClick={handleCopyPrompt}>
+              <Wand2 size={14} /> Copy Prompt
+            </Button>
+          </div>
+        </Field>
+        <Field label="Paste ChatGPT's JSON reply here">
+          <Textarea
+            value={aiJsonDraft}
+            onChange={(e) => setAiJsonDraft(e.target.value)}
+            rows={4}
+            placeholder='{ "title": "...", "seoTitle": "...", ... }'
+            className="font-mono text-xs"
+          />
+        </Field>
+        <Button
+          type="button"
+          size="sm"
+          className="gap-1.5 bg-dashboard-primary text-dashboard-base-100 hover:bg-dashboard-primary"
+          disabled={!aiJsonDraft.trim() || isApplyingItems}
+          onClick={handleApplyAiJson}
+        >
+          {isApplyingItems ? <Loader2 size={14} className="animate-spin" /> : <ClipboardPaste size={14} />} Apply to Form
+        </Button>
+        {!initial && (
+          <p className="text-[11px] text-dashboard-base-content/50">
+            Suggested package cards can only be added after the page is saved once — the text fields apply immediately either way.
+          </p>
+        )}
+      </Section>
+
       {/* Basic info */}
       <Section title="Basic Info">
-        <Field label="Title">
+        <Field label="Title" error={fieldErrors.title?.[0]}>
           <Input value={form.title} onChange={handleTitleChange} placeholder="e.g. Andaman Family Holiday" />
         </Field>
-        <Field label="Slug">
+        <Field label="Slug" error={fieldErrors.slug?.[0]}>
           <div className="flex items-center gap-1.5">
             <span className="text-sm text-dashboard-base-content/50 whitespace-nowrap">/offers/</span>
             <Input
@@ -170,7 +329,7 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
             />
           </div>
         </Field>
-        <Field label="Destination (shown on the lead)">
+        <Field label="Destination (shown on the lead)" error={fieldErrors.destination?.[0]}>
           <Input value={form.destination} onChange={field("destination")} placeholder="e.g. Andaman" />
         </Field>
         <Field label="Status">
@@ -183,17 +342,19 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
 
       {/* SEO & content */}
       <Section title="Content & SEO">
-        <Field label="Description" hint="Shown in the hero / intro copy on the page.">
+        <Field label="Description" hint="Shown in the hero / intro copy on the page." error={fieldErrors.description?.[0]}>
           <Textarea value={form.description} onChange={field("description")} rows={3} />
         </Field>
         <Field
           label="SEO Title"
+          error={fieldErrors.seoTitle?.[0]}
           action={<CopyButton onClick={() => setForm((f) => ({ ...f, seoTitle: f.title }))} label="Same as title" />}
         >
           <Input value={form.seoTitle} onChange={field("seoTitle")} placeholder="Shown in Google search results and browser tab" />
         </Field>
         <Field
           label="SEO Description"
+          error={fieldErrors.seoDescription?.[0]}
           action={<CopyButton onClick={() => setForm((f) => ({ ...f, seoDescription: f.description }))} label="Same as description" />}
         >
           <Textarea value={form.seoDescription} onChange={field("seoDescription")} rows={2} placeholder="Shown under the title in Google search results" />
@@ -203,10 +364,11 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
       {/* Hero image */}
       <Section title="Hero Image">
         <ImageDropField value={form.heroImageUrl} onChange={(url) => setForm((f) => ({ ...f, heroImageUrl: url }))} folder="landing-pages" />
-        <Field label="Hero eyebrow (optional)" hint="Small label above the big title — falls back to the title if left blank.">
+        {fieldErrors.heroImageUrl?.[0] && <p className="text-[11px] font-medium text-red-600">{fieldErrors.heroImageUrl[0]}</p>}
+        <Field label="Hero eyebrow (optional)" hint="Small label above the big title — falls back to the title if left blank." error={fieldErrors.heroEyebrow?.[0]}>
           <Input value={form.heroEyebrow} onChange={field("heroEyebrow")} placeholder="e.g. Andaman · Family Holiday" />
         </Field>
-        <Field label="Hero headline (optional)" hint="Big bold title — falls back to the title if left blank.">
+        <Field label="Hero headline (optional)" hint="Big bold title — falls back to the title if left blank." error={fieldErrors.heroHeadline?.[0]}>
           <Input value={form.heroHeadline} onChange={field("heroHeadline")} placeholder="e.g. FAMILY HOLIDAY" />
         </Field>
       </Section>
@@ -221,10 +383,11 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
       )}
 
       {/* Contact & tracking */}
-      <ContactAndTracking form={form} setForm={setForm} />
+      <ContactAndTracking form={form} setForm={setForm} fieldErrors={fieldErrors} />
 
       {/* FAQs */}
       <Section title="FAQs">
+        {fieldErrors.faqs?.[0] && <p className="text-[11px] font-medium text-red-600">{fieldErrors.faqs[0]}</p>}
         {form.faqs.map((faq, i) => (
           <div key={i} className="rounded-xl border border-dashboard-base-300 p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -240,6 +403,7 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
 
       {/* Testimonials */}
       <Section title="Testimonials">
+        {fieldErrors.testimonials?.[0] && <p className="text-[11px] font-medium text-red-600">{fieldErrors.testimonials[0]}</p>}
         {form.testimonials.map((t, i) => (
           <div key={i} className="rounded-xl border border-dashboard-base-300 p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -272,26 +436,32 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
   );
 }
 
-function ContactAndTracking({ form, setForm }: { form: ReturnType<typeof emptyForm>; setForm: React.Dispatch<React.SetStateAction<ReturnType<typeof emptyForm>>> }) {
+function ContactAndTracking({
+  form, setForm, fieldErrors,
+}: {
+  form: ReturnType<typeof emptyForm>;
+  setForm: React.Dispatch<React.SetStateAction<ReturnType<typeof emptyForm>>>;
+  fieldErrors: Record<string, string[]>;
+}) {
   return (
     <Section title="Contact & Tracking">
-      <Field label="Contact phone" hint="Used for the Call and WhatsApp buttons.">
+      <Field label="Contact phone" hint="Used for the Call and WhatsApp buttons." error={fieldErrors.contactPhone?.[0]}>
         <PhonePicker value={form.contactPhone} onChange={(phone) => setForm((f) => ({ ...f, contactPhone: phone }))} />
       </Field>
-      <Field label="Enquiry popup delay (seconds)" hint="The enquiry form auto-opens once, this many seconds after page load.">
+      <Field label="Enquiry popup delay (seconds)" hint="The enquiry form auto-opens once, this many seconds after page load." error={fieldErrors.popupDelaySeconds?.[0]}>
         <Input
           type="number" min={0} max={120} value={form.popupDelaySeconds}
           onChange={(e) => setForm((f) => ({ ...f, popupDelaySeconds: Number(e.target.value) || 0 }))}
           className="w-32"
         />
       </Field>
-      <Field label="Google Ads conversion — form submit (optional)" hint={'gtag send_to value, e.g. "AW-123456789/AbCdEfGh"'}>
+      <Field label="Google Ads conversion — form submit (optional)" hint={'gtag send_to value, e.g. "AW-123456789/AbCdEfGh"'} error={fieldErrors.googleAdsSendToForm?.[0]}>
         <Input value={form.googleAdsSendToForm} onChange={(e) => setForm((f) => ({ ...f, googleAdsSendToForm: e.target.value }))} placeholder="AW-XXXXXXXXX/XXXXXXXXXXXXXXXX" />
       </Field>
-      <Field label="Google Ads conversion — call click (optional)">
+      <Field label="Google Ads conversion — call click (optional)" error={fieldErrors.googleAdsSendToCall?.[0]}>
         <Input value={form.googleAdsSendToCall} onChange={(e) => setForm((f) => ({ ...f, googleAdsSendToCall: e.target.value }))} placeholder="AW-XXXXXXXXX/XXXXXXXXXXXXXXXX" />
       </Field>
-      <Field label="Google Ads conversion — WhatsApp click (optional)">
+      <Field label="Google Ads conversion — WhatsApp click (optional)" error={fieldErrors.googleAdsSendToWhatsapp?.[0]}>
         <Input value={form.googleAdsSendToWhatsapp} onChange={(e) => setForm((f) => ({ ...f, googleAdsSendToWhatsapp: e.target.value }))} placeholder="AW-XXXXXXXXX/XXXXXXXXXXXXXXXX" />
       </Field>
     </Section>
@@ -352,7 +522,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, hint, action, children }: { label: string; hint?: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Field({
+  label, hint, error, action, children,
+}: { label: string; hint?: string; error?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
@@ -360,7 +532,11 @@ function Field({ label, hint, action, children }: { label: string; hint?: string
         {action}
       </div>
       {children}
-      {hint && <p className="text-[11px] text-dashboard-base-content/50">{hint}</p>}
+      {error ? (
+        <p className="text-[11px] font-medium text-red-600">{error}</p>
+      ) : (
+        hint && <p className="text-[11px] text-dashboard-base-content/50">{hint}</p>
+      )}
     </div>
   );
 }
