@@ -90,6 +90,7 @@ export type SentPackageInfo = {
     title:          string;
     status:         string;
     sentAt:         Date | null;
+    readyAt:        Date | null;
     totalPrice:     number | null;
     pricePerPerson: number | null;
     pdfUrl:         string | null;
@@ -107,7 +108,7 @@ export type SentPackageInfo = {
 export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[] };
 
 const CUSTOM_PACKAGE_SELECT = {
-    id: true, title: true, status: true, sentAt: true,
+    id: true, title: true, status: true, sentAt: true, readyAt: true,
     totalPrice: true, pricePerPerson: true, pdfUrl: true,
     verified: true, verifiedAt: true, verifiedByName: true,
     rejectedAt: true, rejectedByName: true, rejectionNote: true,

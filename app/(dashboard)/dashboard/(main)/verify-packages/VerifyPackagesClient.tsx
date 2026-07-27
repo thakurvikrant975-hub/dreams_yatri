@@ -57,15 +57,19 @@ async function PackagesData({
         }
         : {};
 
+    // A package enters this queue the moment it's first marked ready — readyAt
+    // stays set across its whole review history (rejections/resubmissions
+    // just overwrite it), so this is "everything that's ever reached costing",
+    // the same role sentAt played before pricing review moved before send.
     const baseWhere: Prisma.custom_packagesWhereInput = {
-        sentAt: { not: null },
+        readyAt: { not: null },
         ...searchWhere,
     };
 
     const filterWhere: Prisma.custom_packagesWhereInput =
-        filter === "pending"  ? { verified: false, rejectedAt: null } :
+        filter === "pending"  ? { status: "READY" } :
         filter === "verified" ? { verified: true } :
-        filter === "rejected" ? { verified: false, rejectedAt: { not: null } } :
+        filter === "rejected" ? { rejectedAt: { not: null } } :
         {};
 
     const where: Prisma.custom_packagesWhereInput = { ...baseWhere, ...filterWhere };
@@ -73,7 +77,7 @@ async function PackagesData({
     const [rows, totalCount, pending, verified, rejected, verifiedToday, total] = await Promise.all([
         db.custom_packages.findMany({
             where,
-            orderBy: { sentAt: "desc" },
+            orderBy: { readyAt: "desc" },
             skip: (page - 1) * limit,
             take: limit,
             select: {
@@ -82,6 +86,7 @@ async function PackagesData({
                 adults: true, children: true, infants: true,
                 pricePerPerson: true, totalPrice: true, currency: true,
                 status: true, builtByName: true, sentAt: true,
+                readyAt: true, readyByName: true,
                 viewedAt: true, viewCount: true,
                 verified: true, verifiedAt: true, verifiedByName: true,
                 rejectedAt: true, rejectedByName: true,
@@ -90,9 +95,9 @@ async function PackagesData({
             },
         }),
         db.custom_packages.count({ where }),
-        db.custom_packages.count({ where: { ...baseWhere, verified: false, rejectedAt: null } }),
+        db.custom_packages.count({ where: { ...baseWhere, status: "READY" } }),
         db.custom_packages.count({ where: { ...baseWhere, verified: true } }),
-        db.custom_packages.count({ where: { ...baseWhere, verified: false, rejectedAt: { not: null } } }),
+        db.custom_packages.count({ where: { ...baseWhere, rejectedAt: { not: null } } }),
         db.custom_packages.count({ where: { ...baseWhere, verifiedAt: { gte: todayStart } } }),
         db.custom_packages.count({ where: baseWhere }),
     ]);
@@ -115,6 +120,8 @@ async function PackagesData({
         status: r.status,
         builtByName: r.builtByName,
         sentAt: r.sentAt,
+        readyAt: r.readyAt,
+        readyByName: r.readyByName,
         viewedAt: r.viewedAt,
         viewCount: r.viewCount,
         verified: r.verified,
@@ -164,7 +171,7 @@ export default function VerifyPackagesClient({
 
             <PageHeader
                 title="Verify Packages"
-                description="Double-check the pricing behind custom packages sent to clients"
+                description="Review and approve pricing before a package is sent to the client"
                 icon={ShieldCheck}
             />
 

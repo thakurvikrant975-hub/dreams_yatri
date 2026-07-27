@@ -2,12 +2,16 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { getRejectionReasons } from "../../(marketing)/queries/actions";
+import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
+import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
 
 export const metadata: Metadata = {
     title: "Package Verification - Dashboard",
     robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
+
+const TICKET_MARGIN_PCT = 5;
 
 export default async function VerifyPackageDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -21,7 +25,9 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 adults: true, children: true, infants: true,
                 pricePerPerson: true, totalPrice: true, currency: true,
                 marginPercentage: true, gstPercentage: true,
+                hotelSubtotalOverride: true, cabSubtotalOverride: true,
                 status: true, builtByName: true, sentAt: true,
+                readyAt: true, readyByName: true,
                 viewedAt: true, viewCount: true, pricingSnapshot: true,
                 verified: true, verifiedAt: true, verifiedByName: true,
                 rejectedAt: true, rejectedByName: true, rejectionNote: true,
@@ -39,27 +45,105 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 query: {
                     select: {
                         id: true, name: true, phone: true, countryCode: true, email: true,
-                        message: true, groupSize: true,
+                        message: true, groupSize: true, assignedAt: true,
                     },
                 },
-                itineraries: { select: { day: true, roomPricingId: true } },
+                itineraries: {
+                    select: {
+                        day: true, roomPricingId: true, roomsCount: true, extraRooms: true,
+                        cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
+                    },
+                },
             },
         }),
         getRejectionReasons(),
     ]);
 
-    // sentAt is only ever set once a package has a linked query (a "blank"
-    // package can't be sent — see sendPackageToClient), so this also
-    // guarantees pkg.query below.
-    if (!pkg || !pkg.sentAt || !pkg.query) notFound();
+    // readyAt is only ever set once a package has been marked ready for
+    // review at least once (and, transitively, is only ever set once it has
+    // a linked query — see markPackageReady), so this also guarantees
+    // pkg.query below. A package still sitting in DRAFT that was never
+    // submitted has nothing to review yet.
+    if (!pkg || !pkg.readyAt || !pkg.query) notFound();
 
-    // Resolve day → hotel id so the frozen pricingSnapshot's hotel lines
-    // (which only ever stored a plain hotelName string) can link out to the
-    // hotel's dashboard page. Looked up fresh from the live itinerary rather
-    // than baked into the snapshot itself, so this works for packages sent
-    // before this feature existed too — falls back to plain text if a day's
-    // itinerary row was since edited/removed and no longer resolves.
-    const roomPricingIds = [...new Set(pkg.itineraries.map((it) => it.roomPricingId).filter((id): id is number => id != null))];
+    // sentAt+pricingSnapshot present → this package has already been through
+    // verify-and-send at least once; show the frozen numbers actually locked
+    // in and delivered to the client. Otherwise (awaiting review, or sent
+    // back and not yet resubmitted) there's nothing frozen yet — compute a
+    // LIVE preview the same way sendPackageToClient itself will, so costing
+    // reviews the exact numbers that'll be locked in the moment they approve
+    // it, including any hotel/cab correction already saved via
+    // updatePackagePricing.
+    let snapshot: PricingSnapshot | null;
+    if (pkg.sentAt && pkg.pricingSnapshot) {
+        snapshot = pkg.pricingSnapshot as unknown as PricingSnapshot;
+    } else {
+        const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
+        const [hotelPricing, cabPricing] = await Promise.all([
+            computeBuilderHotelPricing({
+                travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
+                days: pkg.itineraries.map((it) => ({
+                    day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount,
+                    extraRooms: parseRoomSelections(it.extraRooms),
+                })),
+            }),
+            computeBuilderCabPricing({
+                travelDate: travelDateIso,
+                days: pkg.itineraries.map((it) => ({
+                    day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
+                    cabQuantity: it.cabQuantity, extraCabs: parseCabSelections(it.extraCabs),
+                })),
+            }),
+        ]);
+
+        const hotelSubtotal = pkg.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal;
+        const cabSubtotal = pkg.cabSubtotalOverride ?? cabPricing.cabSubtotal;
+        const ticketsSubtotal = pkg.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
+        const addonsSubtotal = pkg.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0);
+        const hotelCabBase = hotelSubtotal + cabSubtotal;
+        const baseCost = hotelCabBase + addonsSubtotal + ticketsSubtotal;
+        const hotelCabMarginAmount = Math.round((hotelCabBase + addonsSubtotal) * pkg.marginPercentage / 100);
+        const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
+        const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
+        const taxable = baseCost + marginAmount;
+        const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
+        const finalPrice = taxable + gstAmount;
+        const totalPax = pkg.adults + pkg.children;
+        const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
+
+        snapshot = {
+            lockedAt: new Date().toISOString(),
+            currency: pkg.currency,
+            hotel: { subtotal: hotelSubtotal, nightsCounted: hotelPricing.nightsCounted, lines: hotelPricing.days, overridden: pkg.hotelSubtotalOverride != null },
+            cab: { subtotal: cabSubtotal, daysCounted: cabPricing.daysCounted, lines: cabPricing.days, overridden: pkg.cabSubtotalOverride != null },
+            tickets: {
+                subtotal: ticketsSubtotal,
+                lines: pkg.tickets.map((t) => ({ type: t.type, provider: t.provider ?? "", fromPlace: t.fromPlace ?? "", toPlace: t.toPlace ?? "", fare: t.fare, ticketCount: t.ticketCount })),
+            },
+            addOns: {
+                subtotal: addonsSubtotal,
+                lines: pkg.addOns.map((a) => ({ name: a.name, price: a.price, quantity: a.quantity, day: a.day })),
+            },
+            baseCost,
+            marginPercentage: pkg.marginPercentage,
+            hotelCabMarginAmount,
+            ticketsMarginAmount,
+            marginAmount,
+            taxable,
+            gstPercentage: pkg.gstPercentage,
+            gstAmount,
+            finalPrice,
+            pricePerPerson,
+            displayedTotalPrice: pkg.totalPrice ?? null,
+            displayedPricePerPerson: pkg.pricePerPerson ?? null,
+        };
+    }
+
+    // Resolve day → hotel id so the hotel lines (live-computed or frozen
+    // snapshot alike) can link out to the hotel's dashboard page — see
+    // VerifyPackageDetailClient. Looked up fresh from the live itinerary so
+    // it works regardless of which pricing branch above ran.
+    const roomPricingIds = [...new Set(pkg.itineraries.map((it) => it.roomPricingId).filter((v): v is number => v != null))];
     const roomPricings = roomPricingIds.length > 0
         ? await db.hotel_room_pricing.findMany({ where: { id: { in: roomPricingIds } }, select: { id: true, hotel_id: true } })
         : [];
@@ -80,6 +164,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 pricePerPerson: pkg.pricePerPerson, totalPrice: pkg.totalPrice, currency: pkg.currency,
                 marginPercentage: pkg.marginPercentage, gstPercentage: pkg.gstPercentage,
                 status: pkg.status, builtByName: pkg.builtByName, sentAt: pkg.sentAt,
+                readyAt: pkg.readyAt, readyByName: pkg.readyByName,
                 viewedAt: pkg.viewedAt, viewCount: pkg.viewCount,
                 verified: pkg.verified, verifiedAt: pkg.verifiedAt, verifiedByName: pkg.verifiedByName,
                 rejectedAt: pkg.rejectedAt, rejectedByName: pkg.rejectedByName, rejectionNote: pkg.rejectionNote,
@@ -87,7 +172,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 flightsIncluded: pkg.flightsIncluded, flightNotes: pkg.flightNotes, flightFrom: pkg.flightFrom, flightTo: pkg.flightTo,
                 trainIncluded: pkg.trainIncluded, trainNotes: pkg.trainNotes, trainFrom: pkg.trainFrom, trainTo: pkg.trainTo,
             }}
-            snapshot={pkg.pricingSnapshot as unknown as PricingSnapshot | null}
+            snapshot={snapshot}
             tickets={pkg.tickets}
             addOns={pkg.addOns}
             query={pkg.query}

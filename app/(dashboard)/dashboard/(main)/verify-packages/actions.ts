@@ -2,62 +2,52 @@
 
 // (main)/verify-packages/actions.ts
 //
-// Internal pricing double-check for custom packages a sales exec has sent to
-// a client — independent of the client-facing status (SENT/ACCEPTED/DECLINED).
-// Verification can end one of two ways: verified as-is, or rejected with a
-// reason so the exec knows what to rework. The verification team can also
-// correct pricing errors directly here (margin/GST/hotel/cab subtotals,
-// ticket fares, add-on price+qty) before verifying — any correction resets
-// the package to "pending" so the fix itself gets reviewed too.
+// Mandatory pre-send pricing review for custom packages a sales exec has
+// marked ready — nothing reaches the client until the costing team either
+// verifies-and-sends it (locks pricing + notifies the client, all in one
+// action) or rejects it with a reason, which kicks it back to the exec as a
+// DRAFT they can edit and resubmit. Costing can also correct pricing errors
+// directly here (margin/GST, hotel/cab subtotal, ticket fares, add-on
+// price+qty) before verifying.
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
 import { getCurrentActor, logTimeline, type ActionResult } from "../(marketing)/queries/actions";
 import { actionError } from "@/app/lib/action-error";
+import { sendPackageToClient } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { emailPackageToClient } from "@/app/(dashboard)/dashboard/(builder)/package-builder/email-package";
 
-// ── Shared final-pricing formula ────────────────────────────────────────────
-// Mirrors computeFinalPricing in package-builder/[packageId]/page.tsx and the
-// inline copy in package-builder/[packageId]/action.ts's sendPackageToClient —
-// neither is exported for reuse, so this is a deliberate, small (10-line)
-// duplication rather than reaching into the builder's client-component closure.
-const TICKET_MARGIN_PCT = 5;
-
-function computeFinalPricing(input: {
-    hotelSubtotal: number;
-    cabSubtotal: number;
-    addonsSubtotal: number;
-    ticketsSubtotal: number;
-    marginPercentage: number;
-    gstPercentage: number;
-    totalPax: number;
-}) {
-    const hotelCabBase = input.hotelSubtotal + input.cabSubtotal;
-    const baseCost = hotelCabBase + input.addonsSubtotal + input.ticketsSubtotal;
-    const hotelCabMarginAmount = Math.round((hotelCabBase + input.addonsSubtotal) * input.marginPercentage / 100);
-    const ticketsMarginAmount = Math.round(input.ticketsSubtotal * TICKET_MARGIN_PCT / 100);
-    const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
-    const taxable = baseCost + marginAmount;
-    const gstAmount = Math.round(taxable * input.gstPercentage / 100);
-    const finalPrice = taxable + gstAmount;
-    const pricePerPerson = input.totalPax > 0 ? Math.round(finalPrice / input.totalPax) : finalPrice;
-    return { baseCost, hotelCabMarginAmount, ticketsMarginAmount, marginAmount, taxable, gstAmount, finalPrice, pricePerPerson };
+function revalidateAll(packageId: string) {
+    revalidatePath("/dashboard/verify-packages");
+    revalidatePath(`/dashboard/verify-packages/${packageId}`);
+    revalidatePath("/dashboard/sales-query");
+    revalidatePath("/dashboard/package-builder");
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
 }
 
-// ── Verify ───────────────────────────────────────────────────────────────────
+// ── Verify and send ──────────────────────────────────────────────────────────
 
-export async function verifyCustomPackage(packageId: string): Promise<ActionResult> {
+export async function verifyAndSendPackage(packageId: string): Promise<ActionResult<{ whatsappUrl?: string; shareUrl?: string }>> {
     try {
         const { actor } = await getCurrentActor();
 
         const pkg = await db.custom_packages.findUnique({
             where: { id: packageId },
-            select: { id: true, sentAt: true, verified: true, queryId: true },
+            select: { id: true, status: true, queryId: true },
         });
         if (!pkg) return { success: false, message: "Package not found" };
-        if (!pkg.sentAt) return { success: false, message: "This package hasn't been sent to the client yet" };
-        if (pkg.verified) return { success: false, message: "Already verified" };
+        if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review — the exec needs to mark it ready first." };
+
+        // Does the real work: recomputes pricing fresh (respecting any
+        // hotel/cab override set below via updatePackagePricing), locks the
+        // snapshot, sets status SENT, builds the WhatsApp link. Identical to
+        // what the old sales-exec-triggered "Send to Client" used to call —
+        // the only thing that changed is WHO can trigger it and WHEN.
+        const sendResult = await sendPackageToClient(packageId);
+        if (!sendResult.success) {
+            return { success: false, message: sendResult.error ?? "Failed to send package" };
+        }
 
         await db.custom_packages.update({
             where: { id: packageId },
@@ -66,26 +56,37 @@ export async function verifyCustomPackage(packageId: string): Promise<ActionResu
                 verifiedAt: new Date(),
                 verifiedBy: actor?.id ?? null,
                 verifiedByName: actor?.name ?? null,
-                rejectedAt: null, rejectedBy: null, rejectedByName: null,
-                rejectionReasonId: null, rejectionNote: null,
+                rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
+                execNotifiedAt: null, // fresh event — the exec's notification poller should surface it
             },
         });
 
-        if (pkg.queryId) {
-            await logTimeline(pkg.queryId, `Package pricing verified by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
+        // Best-effort — an email failure shouldn't undo the verify-and-send;
+        // the WhatsApp link is still handed back either way, and the client
+        // link itself is now live regardless of whether the email lands.
+        try {
+            await emailPackageToClient(packageId);
+        } catch (e) {
+            console.error("[verifyAndSendPackage] email failed", e);
         }
 
-        revalidatePath("/dashboard/verify-packages");
-        revalidatePath(`/dashboard/verify-packages/${packageId}`);
-        revalidatePath("/dashboard/sales-query");
-        return { success: true, data: undefined, message: "Package marked as verified" };
+        if (pkg.queryId) {
+            await logTimeline(pkg.queryId, `Package verified and sent to client by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
+        }
+
+        revalidateAll(packageId);
+        return {
+            success: true,
+            data: { whatsappUrl: sendResult.whatsappUrl, shareUrl: sendResult.shareUrl },
+            message: "Verified and sent to client",
+        };
     } catch (e) {
-        console.error("[verifyCustomPackage] FAILED:", e);
+        console.error("[verifyAndSendPackage] FAILED:", e);
         return actionError(e);
     }
 }
 
-// ── Reject (send pricing back for rework) ───────────────────────────────────
+// ── Reject (send back to the exec for rework) ───────────────────────────────
 
 const rejectPackageSchema = z.object({
     rejectionReasonId: z.string().min(1, "Select a rejection reason"),
@@ -105,37 +106,40 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
         const { actor } = await getCurrentActor();
         const pkg = await db.custom_packages.findUnique({
             where: { id: packageId },
-            select: { id: true, sentAt: true, queryId: true },
+            select: { id: true, status: true, queryId: true },
         });
         if (!pkg) return { success: false, message: "Package not found" };
-        if (!pkg.sentAt) return { success: false, message: "This package hasn't been sent to the client yet" };
+        if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review." };
 
         const reason = await db.rejectionReason.findUnique({ where: { id: parsed.data.rejectionReasonId } });
 
         await db.custom_packages.update({
             where: { id: packageId },
             data: {
+                // Back to DRAFT — this is what unlocks editing again in the
+                // builder (locked whenever status is READY) and drops it out
+                // of the verify-packages "pending" queue.
+                status: "DRAFT",
                 verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
                 rejectedAt: new Date(),
                 rejectedBy: actor?.id ?? null,
                 rejectedByName: actor?.name ?? null,
                 rejectionReasonId: parsed.data.rejectionReasonId,
                 rejectionNote: parsed.data.rejectionNote ?? null,
+                execNotifiedAt: null,
             },
         });
 
         if (pkg.queryId) {
             await logTimeline(
                 pkg.queryId,
-                `Package pricing sent back for rework by ${actor?.name ?? "team member"} — ${reason?.label ?? "Unknown reason"}${parsed.data.rejectionNote ? ` · Note: ${parsed.data.rejectionNote}` : ""}`,
+                `Package sent back for rework by ${actor?.name ?? "team member"} — ${reason?.label ?? "Unknown reason"}${parsed.data.rejectionNote ? ` · Note: ${parsed.data.rejectionNote}` : ""}`,
                 actor?.id, actor?.name ?? undefined,
                 { reason: reason?.label, note: parsed.data.rejectionNote },
             );
         }
 
-        revalidatePath("/dashboard/verify-packages");
-        revalidatePath(`/dashboard/verify-packages/${packageId}`);
-        revalidatePath("/dashboard/sales-query");
+        revalidateAll(packageId);
         return { success: true, data: undefined, message: "Package sent back for rework" };
     } catch (e) {
         console.error("[rejectCustomPackage] FAILED:", e);
@@ -143,7 +147,7 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
     }
 }
 
-// ── Pricing correction (verification team fixing sales-exec entry errors) ───
+// ── Pricing correction (costing team fixing sales-exec entry errors, pre-send) ──
 
 const pricingEditSchema = z.object({
     marginPercentage: z.coerce.number().min(0).max(100),
@@ -168,14 +172,13 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
         const pkg = await db.custom_packages.findUnique({
             where: { id: packageId },
             select: {
-                id: true, sentAt: true, adults: true, children: true, queryId: true,
-                pricingSnapshot: true,
+                id: true, status: true, queryId: true,
                 tickets: { select: { id: true } },
                 addOns: { select: { id: true } },
             },
         });
         if (!pkg) return { success: false, message: "Package not found" };
-        if (!pkg.sentAt || !pkg.pricingSnapshot) return { success: false, message: "This package has no locked pricing to correct yet" };
+        if (pkg.status !== "READY") return { success: false, message: "Pricing can only be corrected while a package is awaiting review." };
 
         const validTicketIds = new Set(pkg.tickets.map((t) => t.id));
         const validAddonIds = new Set(pkg.addOns.map((a) => a.id));
@@ -183,88 +186,34 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
             return { success: false, message: "Stale form data — please refresh and try again" };
         }
 
-        // Write through to the real rows so a future re-open/re-send in
-        // package-builder sees the correction too, not just this snapshot.
+        // Ticket fares / add-on price+qty are real fields — write straight
+        // through. Hotel/cab are computed live from the itinerary (catalog
+        // rates × occupancy), so a correction there is stored as an override
+        // that sendPackageToClient applies at verify-and-send time (see
+        // hotelSubtotalOverride/cabSubtotalOverride on the schema).
         await Promise.all([
             ...data.tickets.map((t) => db.custom_package_tickets.update({ where: { id: t.id }, data: { fare: t.fare } })),
             ...data.addOns.map((a) => db.custom_package_addons.update({ where: { id: a.id }, data: { price: a.price, quantity: a.quantity } })),
+            db.custom_packages.update({
+                where: { id: packageId },
+                data: {
+                    marginPercentage: data.marginPercentage,
+                    gstPercentage: data.gstPercentage,
+                    hotelSubtotalOverride: data.hotelSubtotal,
+                    cabSubtotalOverride: data.cabSubtotal,
+                },
+            }),
         ]);
-
-        const [freshTickets, freshAddons] = await Promise.all([
-            db.custom_package_tickets.findMany({ where: { customPackageId: packageId }, orderBy: { sortOrder: "asc" } }),
-            db.custom_package_addons.findMany({ where: { customPackageId: packageId }, orderBy: { sortOrder: "asc" } }),
-        ]);
-
-        const ticketsSubtotal = freshTickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
-        const addonsSubtotal = freshAddons.reduce((sum, a) => sum + a.price * (a.quantity || 1), 0);
-        const totalPax = pkg.adults + pkg.children;
-
-        const computed = computeFinalPricing({
-            hotelSubtotal: data.hotelSubtotal,
-            cabSubtotal: data.cabSubtotal,
-            addonsSubtotal, ticketsSubtotal,
-            marginPercentage: data.marginPercentage,
-            gstPercentage: data.gstPercentage,
-            totalPax,
-        });
-
-        const prev = pkg.pricingSnapshot as Record<string, any>;
-        const nextSnapshot = {
-            lockedAt: prev.lockedAt,
-            currency: prev.currency,
-            hotel: { subtotal: data.hotelSubtotal, nightsCounted: prev.hotel?.nightsCounted ?? 0, lines: prev.hotel?.lines ?? [] },
-            cab: { subtotal: data.cabSubtotal, daysCounted: prev.cab?.daysCounted ?? 0, lines: prev.cab?.lines ?? [] },
-            tickets: {
-                subtotal: ticketsSubtotal,
-                lines: freshTickets.map((t) => ({ type: t.type, provider: t.provider ?? "", fromPlace: t.fromPlace ?? "", toPlace: t.toPlace ?? "", fare: t.fare, ticketCount: t.ticketCount })),
-            },
-            addOns: {
-                subtotal: addonsSubtotal,
-                lines: freshAddons.map((a) => ({ name: a.name, price: a.price, quantity: a.quantity, day: a.day })),
-            },
-            baseCost: computed.baseCost,
-            marginPercentage: data.marginPercentage,
-            hotelCabMarginAmount: computed.hotelCabMarginAmount,
-            ticketsMarginAmount: computed.ticketsMarginAmount,
-            marginAmount: computed.marginAmount,
-            taxable: computed.taxable,
-            gstPercentage: data.gstPercentage,
-            gstAmount: computed.gstAmount,
-            finalPrice: computed.finalPrice,
-            pricePerPerson: computed.pricePerPerson,
-            displayedTotalPrice: prev.displayedTotalPrice ?? null,
-            displayedPricePerPerson: prev.displayedPricePerPerson ?? null,
-            hotelOverridden: data.hotelSubtotal !== Math.round((prev.hotel?.subtotal ?? 0)),
-            cabOverridden: data.cabSubtotal !== Math.round((prev.cab?.subtotal ?? 0)),
-            correctedAt: new Date().toISOString(),
-            correctedByName: actor?.name ?? null,
-        } as unknown as Prisma.InputJsonValue;
-
-        await db.custom_packages.update({
-            where: { id: packageId },
-            data: {
-                marginPercentage: data.marginPercentage,
-                gstPercentage: data.gstPercentage,
-                totalPrice: computed.finalPrice,
-                pricePerPerson: computed.pricePerPerson,
-                pricingSnapshot: nextSnapshot,
-                // Numbers changed — needs a fresh look before it counts as verified again.
-                verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
-                rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
-            },
-        });
 
         if (pkg.queryId) {
             await logTimeline(
                 pkg.queryId,
-                `Package pricing corrected during verification by ${actor?.name ?? "team member"} — new total ₹${Math.round(computed.finalPrice).toLocaleString("en-IN")}`,
+                `Package pricing corrected during review by ${actor?.name ?? "team member"}`,
                 actor?.id, actor?.name ?? undefined,
             );
         }
 
-        revalidatePath("/dashboard/verify-packages");
-        revalidatePath(`/dashboard/verify-packages/${packageId}`);
-        revalidatePath("/dashboard/sales-query");
+        revalidateAll(packageId);
         return { success: true, data: undefined, message: "Pricing updated" };
     } catch (e) {
         console.error("[updatePackagePricing] FAILED:", e);

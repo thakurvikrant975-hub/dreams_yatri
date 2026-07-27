@@ -12,7 +12,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { verifyCustomPackage, updatePackagePricing, type PricingEditInput } from "../actions";
+import { verifyAndSendPackage, updatePackagePricing, type PricingEditInput } from "../actions";
 import { RejectPricingDialog } from "./RejectPricingDialog";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
 
@@ -21,8 +21,8 @@ import type { RejectionReason } from "../../(marketing)/queries/actions";
 export type PricingSnapshot = {
     lockedAt: string;
     currency: string;
-    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number }[] };
-    cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number }[] };
+    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number }[]; overridden?: boolean };
+    cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number }[]; overridden?: boolean };
     tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
     addOns?: { subtotal: number; lines: { name: string; price: number; quantity: number; day: number | null }[] };
     baseCost: number;
@@ -37,10 +37,6 @@ export type PricingSnapshot = {
     pricePerPerson: number;
     displayedTotalPrice: number | null;
     displayedPricePerPerson: number | null;
-    hotelOverridden?: boolean;
-    cabOverridden?: boolean;
-    correctedAt?: string | null;
-    correctedByName?: string | null;
 };
 
 type TicketRow = { id: string; type: string; provider: string | null; fromPlace: string | null; toPlace: string | null; fare: number | null; ticketCount: number };
@@ -53,6 +49,7 @@ type PkgInfo = {
     pricePerPerson: number | null; totalPrice: number | null; currency: string;
     marginPercentage: number; gstPercentage: number;
     status: string; builtByName: string | null; sentAt: Date | null;
+    readyAt: Date | null; readyByName: string | null;
     viewedAt: Date | null; viewCount: number;
     verified: boolean; verifiedAt: Date | null; verifiedByName: string | null;
     rejectedAt: Date | null; rejectedByName: string | null; rejectionNote: string | null; rejectionReasonLabel: string | null;
@@ -60,7 +57,19 @@ type PkgInfo = {
     trainIncluded: boolean; trainNotes: string | null; trainFrom: string | null; trainTo: string | null;
 };
 
-type QueryInfo = { id: string; name: string; phone: string; countryCode: string; email: string | null; message: string | null; groupSize: number | null };
+type QueryInfo = { id: string; name: string; phone: string; countryCode: string; email: string | null; message: string | null; groupSize: number | null; assignedAt: Date | null };
+
+// "2h 15m", "1d 4h", "45m" — always the two most significant units, never
+// more (a 3-day-old package doesn't need its minutes counted).
+function fmtDuration(fromMs: number, toMs: number): string {
+    const totalMin = Math.max(0, Math.round((toMs - fromMs) / 60000));
+    const days = Math.floor(totalMin / 1440);
+    const hours = Math.floor((totalMin % 1440) / 60);
+    const mins = totalMin % 60;
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
+}
 
 function fmtDate(d: Date | null): string {
     if (!d) return "—";
@@ -177,11 +186,25 @@ export function VerifyPackageDetailClient({
         marginPercentage: margin, gstPercentage: gst, totalPax,
     }), [hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal, margin, gst, totalPax]);
 
-    function handleVerify() {
+    function handleVerifyAndSend() {
         startTransition(async () => {
-            const result = await verifyCustomPackage(pkg.id);
-            if (result.success) toast.success(result.message);
-            else toast.error(result.message);
+            const result = await verifyAndSendPackage(pkg.id);
+            if (result.success) {
+                const whatsappUrl = result.data?.whatsappUrl;
+                // The email (if the client has one on file) already went out
+                // server-side. WhatsApp needs an explicit user gesture to
+                // open — calling window.open() here directly would fire after
+                // the `await` above, outside the click's call stack, and get
+                // silently blocked as a popup by most browsers. Routing it
+                // through the toast's action button keeps it tied to a real
+                // click, and doesn't just vanish if a blocker eats it.
+                toast.success(result.message, whatsappUrl ? {
+                    action: { label: "Open WhatsApp", onClick: () => window.open(whatsappUrl, "_blank") },
+                    duration: 15000,
+                } : undefined);
+            } else {
+                toast.error(result.message);
+            }
         });
     }
 
@@ -223,35 +246,35 @@ export function VerifyPackageDetailClient({
                 <div>
                     <h1 className="text-xl font-semibold text-dashboard-base-content">{pkg.title}</h1>
                     <p className="text-sm text-dashboard-neutral mt-0.5">
-                        Sent {fmtDateTime(pkg.sentAt)} by {pkg.builtByName ?? "—"}
+                        {pkg.sentAt
+                            ? <>Sent {fmtDateTime(pkg.sentAt)} by {pkg.builtByName ?? "—"}</>
+                            : <>Marked ready {fmtDateTime(pkg.readyAt)} by {pkg.readyByName ?? pkg.builtByName ?? "—"}</>}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     {state === "verified" && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700">
-                            <CheckCircle2 className="size-3.5" /> Verified by {pkg.verifiedByName ?? "—"} · {fmtDateTime(pkg.verifiedAt)}
+                            <CheckCircle2 className="size-3.5" /> Verified &amp; sent by {pkg.verifiedByName ?? "—"} · {fmtDateTime(pkg.verifiedAt)}
                         </span>
                     )}
                     {state === "rejected" && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700">
-                            <XCircle className="size-3.5" /> Rejected by {pkg.rejectedByName ?? "—"} · {fmtDateTime(pkg.rejectedAt)}
+                            <XCircle className="size-3.5" /> Rejected by {pkg.rejectedByName ?? "—"} · {fmtDateTime(pkg.rejectedAt)} — awaiting rework
                         </span>
                     )}
-                    {!editMode && (
-                        <Button type="button" variant="outline" size="sm" onClick={enterEditMode} className="gap-1.5">
-                            <Pencil className="size-3.5" /> Edit Pricing
-                        </Button>
-                    )}
-                    {state !== "verified" && !editMode && (
+                    {pkg.status === "READY" && !editMode && (
                         <>
+                            <Button type="button" variant="outline" size="sm" onClick={enterEditMode} className="gap-1.5">
+                                <Pencil className="size-3.5" /> Edit Pricing
+                            </Button>
                             <RejectPricingDialog packageId={pkg.id} packageTitle={pkg.title} reasons={rejectionReasons}>
                                 <Button type="button" variant="destructive" size="sm" className="gap-1.5">
                                     <XCircle className="size-3.5" /> Reject
                                 </Button>
                             </RejectPricingDialog>
-                            <Button type="button" size="sm" onClick={handleVerify} disabled={isPending} className="gap-1.5 bg-dashboard-primary text-white hover:opacity-90">
+                            <Button type="button" size="sm" onClick={handleVerifyAndSend} disabled={isPending} className="gap-1.5 bg-dashboard-primary text-white hover:opacity-90">
                                 {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-                                {isPending ? "Verifying…" : "Verify Pricing"}
+                                {isPending ? "Sending…" : "Verify and Send"}
                             </Button>
                         </>
                     )}
@@ -278,8 +301,10 @@ export function VerifyPackageDetailClient({
                     <div className="lg:col-span-2 flex flex-col gap-4">
                         <p className="text-xs text-dashboard-neutral">
                             {editMode
-                                ? "Correcting the pricing sent to the client — saving resets this package to pending review."
-                                : `Frozen ${fmtDateTime(new Date(s.lockedAt))} — the exact hotel/cab/ticket costs behind the price sent to the client.`}
+                                ? "Correcting pricing before it's locked in — saving keeps this package awaiting review."
+                                : pkg.sentAt
+                                    ? `Frozen ${fmtDateTime(new Date(s.lockedAt))} — the exact hotel/cab/ticket costs behind the price sent to the client.`
+                                    : "Live preview — these are the exact numbers that will be locked in the moment this is verified and sent."}
                         </p>
 
                         {hotelDrift && s.displayedTotalPrice != null && (
@@ -435,9 +460,9 @@ export function VerifyPackageDetailClient({
                                 <span className="text-dashboard-base-content">{inr(editMode ? preview.finalPrice : s.finalPrice)}</span>
                             </div>
                             <p className="text-xs text-dashboard-neutral">{inr(editMode ? preview.pricePerPerson : s.pricePerPerson)} per person</p>
-                            {s.correctedAt && !editMode && (
+                            {!editMode && (s.hotel.overridden || s.cab.overridden) && (
                                 <p className="text-[11px] text-dashboard-neutral pt-1 border-t border-dashboard-base-300/60 mt-1.5">
-                                    Pricing last corrected {fmtDateTime(new Date(s.correctedAt))} by {s.correctedByName ?? "—"}
+                                    {s.hotel.overridden && s.cab.overridden ? "Hotel and cab pricing" : s.hotel.overridden ? "Hotel pricing" : "Cab pricing"} manually corrected during review
                                 </p>
                             )}
                         </div>
@@ -502,7 +527,7 @@ export function VerifyPackageDetailClient({
 
                         <SideCard title="Package Status">
                             <div className="flex flex-col gap-3">
-                                <InfoItem icon={Send} label="Sent" value={fmtDateTime(pkg.sentAt)} />
+                                <InfoItem icon={Send} label={pkg.sentAt ? "Sent" : "Ready For Review"} value={fmtDateTime(pkg.sentAt ?? pkg.readyAt)} />
                                 <InfoItem
                                     icon={Eye} label="Client Viewed"
                                     value={pkg.viewedAt ? `Yes — ${fmtDate(pkg.viewedAt)} (${pkg.viewCount}×)` : "Not yet"}
@@ -513,9 +538,26 @@ export function VerifyPackageDetailClient({
                                     value={state === "verified" ? "Verified" : state === "rejected" ? "Rejected — awaiting rework" : "Pending review"}
                                 />
                                 <div className="mt-1 flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
-                                    <span className="text-xs font-medium text-dashboard-neutral flex items-center gap-1"><IndianRupee className="size-3" /> Sent Price</span>
+                                    <span className="text-xs font-medium text-dashboard-neutral flex items-center gap-1"><IndianRupee className="size-3" /> {pkg.sentAt ? "Sent Price" : "Preview Price"}</span>
                                     <span className="text-sm font-bold text-dashboard-base-content">{inr(pkg.totalPrice ?? s.finalPrice)}</span>
                                 </div>
+                            </div>
+                        </SideCard>
+
+                        <SideCard title="Turnaround Time">
+                            <div className="flex flex-col gap-3">
+                                <InfoItem
+                                    icon={Clock} label="Assigned → Ready"
+                                    value={query.assignedAt && pkg.readyAt ? fmtDuration(new Date(query.assignedAt).getTime(), new Date(pkg.readyAt).getTime()) : "—"}
+                                />
+                                <InfoItem
+                                    icon={Clock} label="Ready → Sent"
+                                    value={
+                                        pkg.readyAt && pkg.sentAt
+                                            ? fmtDuration(new Date(pkg.readyAt).getTime(), new Date(pkg.sentAt).getTime())
+                                            : pkg.readyAt ? "Awaiting send" : "—"
+                                    }
+                                />
                             </div>
                         </SideCard>
                     </div>

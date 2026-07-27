@@ -44,6 +44,7 @@ export const ALL_HREFS = [
   "/dashboard/assign-driver",
   // Marketing
   "/dashboard/queries",
+  "/dashboard/landing-pages",
   "/dashboard/email-marketing",
   "/dashboard/follow-ups",
   "/dashboard/references",

@@ -73,6 +73,7 @@ export const PAGE_GROUPS = [
         label: "Marketing",
         pages: [
             { title: "Queries",           href: "/dashboard/queries" },
+            { title: "Landing pages",           href: "/dashboard/landing-pages" },
             { title: "Email Marketing",   href: "/dashboard/email-marketing" },
             { title: "Follow Ups",        href: "/dashboard/follow-ups" },
             { title: "References",        href: "/dashboard/references" },

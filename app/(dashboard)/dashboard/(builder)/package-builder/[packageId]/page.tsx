@@ -19,7 +19,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift, GripVertical,
+  ExternalLink, Gift, GripVertical, Clock, XCircle,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -29,6 +29,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dash
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/alert-dialog";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
@@ -40,7 +44,7 @@ import {
   getPackageDetail,
   getQueryLeadInfo,
   saveCustomPackage,
-  sendPackageToClient,
+  markPackageReady,
   getDestinationCoverImage,
   searchActivitiesForBuilder,
   searchVehiclesForBuilder,
@@ -62,7 +66,6 @@ import {
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
-import { SendToClientDialog } from "./SendToClientDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
@@ -2244,8 +2247,7 @@ export default function PackageBuilderDetailPage() {
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
-  const [sendDialogOpen, setSendDialogOpen] = useState(false);
-  const [sendLinks, setSendLinks] = useState<{ whatsappUrl: string; shareUrl: string } | null>(null);
+  const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
 
   const [form, setForm] = useState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
@@ -2638,22 +2640,36 @@ export default function PackageBuilderDetailPage() {
       if (result.success) {
         setSavedOk(true);
         setTimeout(() => setSavedOk(false), 3000);
+      } else {
+        toast.error(result.error ?? "Failed to save");
       }
     });
   }
 
-  // ── Send ───────────────────────────────────────────────────────────────────
-  function handleSend() {
+  // ── Mark ready for costing review ───────────────────────────────────────────
+  // The ONLY way a package moves forward now — no direct "send to client"
+  // from here. This locks nothing and notifies no one; it just hands the
+  // package to /dashboard/verify-packages, where costing either verifies AND
+  // sends it (one action, see verify-packages/actions.ts) or rejects it back
+  // to DRAFT with a reason for the exec to fix and resubmit.
+  // Validates first, then opens the confirm dialog (see confirmReadyOpen) —
+  // the actual submit only runs once the exec confirms they understand this
+  // locks out further edits until costing verifies or rejects it.
+  function handleMarkReadyClick() {
     const validationError = validateItineraryRequiredFields(form);
     if (validationError) {
       toast.error(validationError);
       return;
     }
+    setConfirmReadyOpen(true);
+  }
+
+  function handleMarkReady() {
+    setConfirmReadyOpen(false);
     startSend(async () => {
-      // Always save first — sendPackageToClient reads straight from the DB
-      // row, so any edit made since the last save (a freshly-pasted payment
-      // link, a price tweak, a room swap) would otherwise silently never
-      // reach the client if the package already existed.
+      // Always save first — markPackageReady reads nothing from the client,
+      // but the review page does, straight from the DB row, so any edit made
+      // since the last save would otherwise silently never reach costing.
       const result = await saveCustomPackage({
         id: packageId,
         queryId: query?.id ?? null,
@@ -2664,14 +2680,23 @@ export default function PackageBuilderDetailPage() {
         gstPercentage: parseFloat(form.gstPercentage) || 0,
         status: "READY",
       });
-      if (!result.success) return;
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to save");
+        return;
+      }
 
-      const result2 = await sendPackageToClient(packageId);
-      if (result2.success && result2.whatsappUrl && result2.shareUrl) {
-        setSendLinks({ whatsappUrl: result2.whatsappUrl, shareUrl: result2.shareUrl });
-        setSendDialogOpen(true);
-      } else if (!result2.success) {
-        toast.error(result2.error ?? "Failed to send package");
+      const result2 = await markPackageReady(packageId);
+      if (result2.success) {
+        toast.success("Submitted for costing review");
+        // Without this, `query.customPackage.status` stays whatever it was
+        // at page load, so `isLocked` never flips true — the fieldset stays
+        // enabled and Mark Ready stays visible/clickable until a manual
+        // reload, letting the exec keep editing a package that's already
+        // out for costing review.
+        const fresh = await getPackageDetail(packageId);
+        if (fresh) setQuery(fresh);
+      } else {
+        toast.error(result2.error ?? "Failed to mark package ready");
       }
     });
   }
@@ -3237,6 +3262,12 @@ Rules:
   const tr = r?.transport;
   const ac = r?.activities;
 
+  // Awaiting costing review — no further edits allowed until it's either
+  // verified & sent, or rejected back to DRAFT with a reason. The read-only
+  // preview pane stays fully visible either way; only the editor surface and
+  // save/submit actions are gated.
+  const isLocked = query.customPackage?.status === "READY";
+
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const shiftedMeals = computeShiftedMeals(form.itineraries);
   // Per-section completion, for the focus-mode filter's "3/6" badges.
@@ -3359,39 +3390,47 @@ Rules:
               </Button>
             </CreatePackageDialog>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
-              onClick={() => handleSave("DRAFT")}
-              disabled={isSaving || isSending}
-            >
-              {isSaving
-                ? <Loader2 size={13} className="animate-spin" />
-                : savedOk
-                  ? <CheckCircle size={13} className="text-dashboard-success" />
-                  : <Save size={13} />
-              }
-              <span className="hidden sm:inline text-xs">
-                {savedOk ? "Saved!" : "Save Draft"}
+            {isLocked ? (
+              <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">
+                <Clock size={13} /> Awaiting Costing Review
               </span>
-            </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                onClick={() => handleSave("DRAFT")}
+                disabled={isSaving || isSending}
+              >
+                {isSaving
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : savedOk
+                    ? <CheckCircle size={13} className="text-dashboard-success" />
+                    : <Save size={13} />
+                }
+                <span className="hidden sm:inline text-xs">
+                  {savedOk ? "Saved!" : "Save Draft"}
+                </span>
+              </Button>
+            )}
 
             <ItineraryPdfExport form={previewForm} />
 
-            <Button
-              size="sm"
-              className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
-              onClick={handleSend}
-              disabled={isSending || isSaving}
-              title={validateItineraryRequiredFields(form) ?? undefined}
-            >
-              {isSending
-                ? <Loader2 size={13} className="animate-spin" />
-                : <Send size={13} />
-              }
-              <span className="hidden sm:inline text-xs">Send to Client</span>
-            </Button>
+            {!isLocked && (
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                onClick={handleMarkReadyClick}
+                disabled={isSending || isSaving}
+                title={validateItineraryRequiredFields(form) ?? undefined}
+              >
+                {isSending
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <Send size={13} />
+                }
+                <span className="hidden sm:inline text-xs">Mark Ready</span>
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -3412,10 +3451,10 @@ Rules:
           <div className="print-reset px-6 py-8">
             <ItineraryDocument
               form={previewForm}
-              onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
-              onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
-              onImageChange={handleItineraryImageChange}
-              onActivityCaptionChange={handleActivityCaptionChange}
+              onCoverImageChange={isLocked ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
+              onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+              onImageChange={isLocked ? undefined : handleItineraryImageChange}
+              onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
               variant="flat"
             />
           </div>
@@ -3433,10 +3472,10 @@ Rules:
             <div className="px-4 py-6">
               <ItineraryDocument
                 form={previewForm}
-                onCoverImageChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
-              onCoverImagePositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
-              onImageChange={handleItineraryImageChange}
-              onActivityCaptionChange={handleActivityCaptionChange}
+                onCoverImageChange={isLocked ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
+              onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+              onImageChange={isLocked ? undefined : handleItineraryImageChange}
+              onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
               variant="flat"
               />
             </div>
@@ -3479,6 +3518,45 @@ Rules:
                   <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-linear-to-l from-dashboard-base-200 to-transparent" />
                 </div>
               </div>
+
+              {/* Awaiting-review / rejected banners — shown above the tab
+                 panels so they're visible no matter which tab is open. */}
+              {isLocked && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+                  <Clock className="size-4 mt-0.5 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Awaiting costing review</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      This package is with the costing team for pricing verification — editing is disabled until they verify &amp; send it, or reject it back to you.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {!isLocked && query.customPackage?.rejectedAt && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+                  <XCircle className="size-4 mt-0.5 shrink-0 text-red-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-800">
+                      Sent back for rework — {query.customPackage.rejectionReason?.label ?? "Unknown reason"}
+                    </p>
+                    {query.customPackage.rejectionNote && (
+                      <p className="text-xs text-red-700 mt-0.5">&quot;{query.customPackage.rejectionNote}&quot;</p>
+                    )}
+                    <p className="text-xs text-red-700 mt-1">Fix the issue above and click Mark Ready to resubmit.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Every tab's actual form fields live inside this fieldset —
+                 disabling it (native <fieldset disabled>) blocks every
+                 descendant input/select/textarea/button at once, including
+                 dialog TRIGGER buttons (HotelRoomPicker, image uploads,
+                 etc.) — their dialog content is portaled outside this DOM
+                 subtree, but since the trigger itself never becomes
+                 clickable, the dialog can never open. TabsList above stays
+                 outside this fieldset so switching tabs to LOOK at the
+                 (still fully visible) itinerary always works. */}
+              <fieldset disabled={isLocked} className="contents">
 
               {/* ── Tab: Client Info ─────────────────────────────────────────────── */}
               <TabsContent value="client" className="space-y-3">
@@ -4505,53 +4583,57 @@ Rules:
                   />
                 </div>
               </TabsContent>
+
+              </fieldset>
             </Tabs>
 
             {/* Bottom action bar */}
-            <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
-              <Button
-                variant="outline"
-                onClick={() => handleSave("DRAFT")}
-                disabled={isSaving || isSending}
-                className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
-              >
-                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Save Draft
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleSave("READY")}
-                disabled={isSaving || isSending}
-                className="gap-2 border-dashboard-primary text-dashboard-primary hover:bg-dashboard-primary/10"
-              >
-                <CheckCircle size={14} />
-                Mark Ready
-              </Button>
-              <Button
-                className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
-                onClick={handleSend}
-                disabled={isSending || isSaving}
-                title={validateItineraryRequiredFields(form) ?? undefined}
-              >
-                {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                Send to Client
-              </Button>
-            </div>
+            {isLocked ? (
+              <div className="flex items-center justify-end gap-2 pt-6 pb-10 text-sm text-amber-700">
+                <Clock size={14} /> Awaiting costing review — editing is disabled until it's verified &amp; sent, or rejected back to you.
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
+                <Button
+                  variant="outline"
+                  onClick={() => handleSave("DRAFT")}
+                  disabled={isSaving || isSending}
+                  className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
+                >
+                  {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Save Draft
+                </Button>
+                <Button
+                  className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
+                  onClick={handleMarkReadyClick}
+                  disabled={isSending || isSaving}
+                  title={validateItineraryRequiredFields(form) ?? undefined}
+                >
+                  {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  Mark Ready
+                </Button>
+              </div>
+            )}
           </div>
         </main>
       </div>
 
-      {sendLinks && (
-        <SendToClientDialog
-          open={sendDialogOpen}
-          onOpenChange={setSendDialogOpen}
-          packageId={packageId}
-          whatsappUrl={sendLinks.whatsappUrl}
-          shareUrl={sendLinks.shareUrl}
-          clientEmail={query.email ?? ""}
-          previewForm={previewForm}
-        />
-      )}
+      <AlertDialog open={confirmReadyOpen} onOpenChange={setConfirmReadyOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit for costing review?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Once this package goes under costing review, you won&apos;t be able to change anything —
+              editing stays locked until the costing team either verifies &amp; sends it, or rejects it
+              back to you with a reason.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMarkReady}>Mark Ready</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -4772,19 +4854,46 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
         )}
       </SectionCard>
 
-      {query.customPackage?.sentAt && (
+      {query.customPackage?.readyAt && (
         <SectionCard title="Package Status" icon={<Send size={14} />}>
           <InfoRow
-            label="Sent"
-            value={new Date(query.customPackage.sentAt).toLocaleString("en-IN", {
+            label="Verification"
+            value={
+              query.customPackage.verified
+                ? "Verified & sent"
+                : query.customPackage.rejectedAt
+                  ? `Rejected — ${query.customPackage.rejectionReason?.label ?? "see note"}`
+                  : "Awaiting costing review"
+            }
+          />
+          {query.customPackage.rejectedAt && query.customPackage.rejectionNote && (
+            <p className="text-xs text-dashboard-error/80 -mt-1 pb-1">&quot;{query.customPackage.rejectionNote}&quot;</p>
+          )}
+          <InfoRow
+            label="Ready for review"
+            value={new Date(query.customPackage.readyAt).toLocaleString("en-IN", {
               day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
             })}
           />
           {query.assignedAt && (
             <InfoRow
-              label="Time to send"
-              value={formatDuration(new Date(query.customPackage.sentAt).getTime() - new Date(query.assignedAt).getTime())}
+              label="Assigned → Ready"
+              value={formatDuration(new Date(query.customPackage.readyAt).getTime() - new Date(query.assignedAt).getTime())}
             />
+          )}
+          {query.customPackage.sentAt && (
+            <>
+              <InfoRow
+                label="Sent"
+                value={new Date(query.customPackage.sentAt).toLocaleString("en-IN", {
+                  day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                })}
+              />
+              <InfoRow
+                label="Ready → Sent"
+                value={formatDuration(new Date(query.customPackage.sentAt).getTime() - new Date(query.customPackage.readyAt).getTime())}
+              />
+            </>
           )}
           <InfoRow
             label="Client viewed"
