@@ -207,13 +207,17 @@ export async function getAllHotelsForOverview() {
     orderBy: { name: "asc" },
   });
 
-  return rows.map((h) => ({
+  // Drop the raw `destination`/`location` relations rather than spreading
+  // them through — their latitude/longitude are Prisma Decimal instances,
+  // which React rejects when passed from a Server to a Client Component.
+  // `lat`/`lng` below are the only coordinates the client actually reads.
+  return rows.map(({ destination, location, ...h }) => ({
     ...h,
-    lat: h.location?.latitude   ? Number(h.location.latitude)
-       : h.destination?.latitude ? Number(h.destination.latitude)
+    lat: location?.latitude   ? Number(location.latitude)
+       : destination?.latitude ? Number(destination.latitude)
        : null,
-    lng: h.location?.longitude   ? Number(h.location.longitude)
-       : h.destination?.longitude ? Number(h.destination.longitude)
+    lng: location?.longitude   ? Number(location.longitude)
+       : destination?.longitude ? Number(destination.longitude)
        : null,
   }));
 }

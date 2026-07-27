@@ -25,7 +25,6 @@ type Hotel = {
   state: string | null;
   country: string | null;
   is_active: boolean;
-  destination: { name: string; latitude?: unknown; longitude?: unknown } | null;
   lat: number | null;
   lng: number | null;
   _count: { hotelRooms: number; images: number };
