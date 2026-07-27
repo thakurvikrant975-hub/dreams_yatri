@@ -17,7 +17,7 @@ export interface BookingStatusSummary {
   bookingNumber: string;
   rawStatus:     keyof typeof BOOKING_STATUS_INFO;
   cancelReason:  string | null;
-  destination:   { name: string };
+  destination:   { name: string } | null;
   package:       { title: string } | null;
 }
 
@@ -32,7 +32,7 @@ export function BookingStatusModal({
   open: boolean;
   onClose: (open: boolean) => void;
 }) {
-  const title      = booking.package?.title ?? booking.destination.name;
+  const title      = booking.package?.title ?? booking.destination?.name ?? "Trip";
   const info       = BOOKING_STATUS_INFO[booking.rawStatus];
   const stepIndex  = bookingProgressStepIndex(booking.rawStatus);
   const isTerminal = stepIndex === -1; // CANCELLED, REJECTED, MODIFICATION_REQUESTED

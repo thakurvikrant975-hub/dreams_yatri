@@ -323,9 +323,9 @@ export function QueriesTable({ queries, reasons }: Props) {
                 {formatDistanceToNow(new Date(q.createdAt), { addSuffix: true })}
             </span>
             <span className="text-xs text-dashboard-base-content/75">
-                {new Date(q.createdAt).toLocaleDateString()}
+                {new Date(q.createdAt).toLocaleDateString("en-IN")}
                 {" "}
-                {new Date(q.createdAt).toLocaleTimeString([], {
+                {new Date(q.createdAt).toLocaleTimeString("en-IN", {
                     hour: "2-digit",
                     minute: "2-digit",
                     hour12: true,

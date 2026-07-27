@@ -2,6 +2,7 @@ import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { computePackagePrice } from "@/app/services/package-pricing.service";
 import { parseRoomAmenities } from "@/app/lib/hotel-inventory/room-amenities";
+import { getCardImage } from "@/app/lib/imageUrl";
 
 // ── Output types ───────────────────────────────────────────────────────────
 
@@ -975,9 +976,8 @@ export async function fetchRelatedPackages(
   destinationId: number,
   limit = 3,
 ): Promise<RelatedPackageItem[]> {
-  const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
   const imgUrl = (key: string | null | undefined) =>
-    !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;
+    !key ? "" : key.startsWith("http") ? key : getCardImage(key);
 
   // Lookup region for the current destination (needed for tier-2 fallback)
   const currentDestination = await db.destinations.findUnique({
@@ -1154,9 +1154,8 @@ export async function fetchRelatedPackages(
 // ── Recent packages for home page ─────────────────────────────────────────
 
 export async function fetchRecentPackages(limit = 6): Promise<RelatedPackageItem[]> {
-  const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
   const imgUrl = (key: string | null | undefined) =>
-    !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;
+    !key ? "" : key.startsWith("http") ? key : getCardImage(key);
 
   const packages = await db.packages.findMany({
     where: { is_active: true },

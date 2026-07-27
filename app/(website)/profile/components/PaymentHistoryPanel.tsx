@@ -33,7 +33,7 @@ interface Payment {
     cancelReason: string | null;
     destination: {
       name: string;
-    };
+    } | null;
     package: {
       title: string;
     } | null;
@@ -80,8 +80,8 @@ function formatAmount(amount: string, currency: string) {
 
 function PaymentCard({ payment }: { payment: Payment }) {
   const status   = STATUS_CONFIG[payment.status];
-  const title    = payment.booking.package?.title ?? payment.booking.destination.name;
-  const subtitle = payment.booking.package ? payment.booking.destination.name : null;
+  const title    = payment.booking.package?.title ?? payment.booking.destination?.name ?? "Trip";
+  const subtitle = payment.booking.package ? payment.booking.destination?.name ?? null : null;
 
   const [statusOpen, setStatusOpen] = useState(false);
 

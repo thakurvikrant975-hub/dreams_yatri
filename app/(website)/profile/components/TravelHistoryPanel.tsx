@@ -53,7 +53,7 @@ interface Booking {
     name:      string;
     country:   string;
     thumbnail: string | null;
-  };
+  } | null;
   package: {
     title:     string;
     thumbnail: string | null;
@@ -104,11 +104,13 @@ function BookingCard({ booking }: { booking: Booking }) {
   const total      = Number(booking.totalAmount);
   const remaining  = Math.max(total - paid, 0);
   const paidPct    = total > 0 ? Math.round((paid / total) * 100) : 0;
-  const thumbnail  = imgUrl(booking.package?.thumbnail ?? booking.destination.thumbnail);
-  const title      = booking.package?.title ?? booking.destination.name;
+  const destName   = booking.destination?.name ?? null;
+  const destCountry = booking.destination?.country ?? null;
+  const thumbnail  = imgUrl(booking.package?.thumbnail ?? booking.destination?.thumbnail ?? null);
+  const title      = booking.package?.title ?? destName ?? "Trip";
   const subtitle   = booking.package
-    ? `${booking.destination.name}, ${booking.destination.country}`
-    : booking.destination.country;
+    ? [destName, destCountry].filter(Boolean).join(", ")
+    : destCountry ?? "";
 
   return (
     <Link

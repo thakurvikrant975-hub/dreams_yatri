@@ -1,10 +1,17 @@
 import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { getCardImage } from "@/app/lib/imageUrl";
 
 const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
 
 export const imgUrl = (key: string | null | undefined) =>
   !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;
+
+// Card-sized (400x250, Cloudflare-transformed) variant — use this for
+// PackageCardItem.images, not the raw imgUrl() above, so listing/homepage
+// cards don't ship full-resolution originals.
+const cardImgUrl = (key: string | null | undefined) =>
+  !key ? "" : key.startsWith("http") ? key : getCardImage(key);
 
 // ── Card item shape (matches what PackageCard expects) ───────────────────────
 
@@ -126,8 +133,8 @@ export async function shapePackageCards(rows: PackageCardRow[]): Promise<Package
       if (!duration || !route || !stay) return null;
 
       const images = [
-        imgUrl(pkg.thumbnail),
-        ...pkg.images.map((i) => imgUrl(i.url)),
+        cardImgUrl(pkg.thumbnail),
+        ...pkg.images.map((i) => cardImgUrl(i.url)),
       ].filter(Boolean) as string[];
 
       if (images.length === 0) return null;
