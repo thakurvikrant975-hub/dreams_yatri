@@ -97,8 +97,12 @@ export default function ProfileSettingsForm({
       </div>
 
       <div>
-        <Label className="mb-1.5">Name</Label>
+        <Label className="mb-1.5 flex items-center gap-1.5">
+          <LockSimpleIcon size={12} className="text-neutral-400" />
+          Name
+        </Label>
         <Input value={name} disabled className="bg-neutral-50 text-neutral-500" />
+        <p className="text-[11px] text-neutral-400 mt-1">Name can't be changed. Contact support if this is incorrect.</p>
       </div>
 
       <div>
