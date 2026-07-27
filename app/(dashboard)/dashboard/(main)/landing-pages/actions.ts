@@ -134,18 +134,18 @@ export async function deleteLandingPage(id: string): Promise<ActionResult> {
 
 // ── Package picker (search the real catalog) ─────────────────────────────────
 
-export type CatalogPackageResult = { id: number; title: string; thumbnail: string | null; destinationName: string | null };
+export type CatalogPackageResult = { id: number; title: string; thumbnail: string | null; description: string | null; destinationName: string | null };
 
 export async function searchCatalogPackages(query: string): Promise<CatalogPackageResult[]> {
   const q = query.trim();
   if (!q) return [];
   const rows = await db.packages.findMany({
     where: { title: { contains: q, mode: "insensitive" } },
-    select: { id: true, title: true, thumbnail: true, destination: { select: { name: true } } },
+    select: { id: true, title: true, thumbnail: true, description: true, destination: { select: { name: true } } },
     orderBy: { title: "asc" },
     take: 10,
   });
-  return rows.map((r) => ({ id: r.id, title: r.title, thumbnail: r.thumbnail, destinationName: r.destination?.name ?? null }));
+  return rows.map((r) => ({ id: r.id, title: r.title, thumbnail: r.thumbnail, description: r.description, destinationName: r.destination?.name ?? null }));
 }
 
 // ── Landing page items (package cards) ────────────────────────────────────────
@@ -161,7 +161,7 @@ async function nextSortOrder(landingPageId: string): Promise<number> {
 
 export async function addItemFromCatalog(landingPageId: string, packageId: number): Promise<ActionResult<{ id: string }>> {
   try {
-    const pkg = await db.packages.findUnique({ where: { id: packageId }, select: { title: true, thumbnail: true } });
+    const pkg = await db.packages.findUnique({ where: { id: packageId }, select: { title: true, thumbnail: true, description: true } });
     if (!pkg) return { success: false, message: "Package not found" };
 
     const item = await db.landingPageItem.create({
@@ -170,6 +170,7 @@ export async function addItemFromCatalog(landingPageId: string, packageId: numbe
         packageId,
         title: pkg.title,
         imageUrl: pkg.thumbnail ?? "",
+        description: pkg.description,
         sortOrder: await nextSortOrder(landingPageId),
       },
     });
@@ -184,6 +185,8 @@ export async function addItemFromCatalog(landingPageId: string, packageId: numbe
 const customItemSchema = z.object({
   title: z.string().min(1, "Title is required.").max(160),
   imageUrl: z.string().min(1, "Image is required."),
+  description: z.string().max(400).optional().nullable(),
+  rating: z.coerce.number().min(1).max(5).optional().nullable(),
   routeLabel: z.string().max(120).optional().nullable(),
   priceLabel: z.string().max(60).optional().nullable(),
   badgeLabel: z.string().max(40).optional().nullable(),
@@ -201,6 +204,8 @@ export async function addCustomItem(landingPageId: string, input: z.infer<typeof
         packageId: null,
         title: parsed.data.title,
         imageUrl: parsed.data.imageUrl,
+        description: parsed.data.description || null,
+        rating: parsed.data.rating ?? null,
         routeLabel: parsed.data.routeLabel || null,
         priceLabel: parsed.data.priceLabel || null,
         badgeLabel: parsed.data.badgeLabel || null,
@@ -218,6 +223,8 @@ export async function addCustomItem(landingPageId: string, input: z.infer<typeof
 const updateItemSchema = z.object({
   title: z.string().min(1).max(160).optional(),
   imageUrl: z.string().min(1).optional(),
+  description: z.string().max(400).optional().nullable(),
+  rating: z.coerce.number().min(1).max(5).optional().nullable(),
   routeLabel: z.string().max(120).optional().nullable(),
   priceLabel: z.string().max(60).optional().nullable(),
   badgeLabel: z.string().max(40).optional().nullable(),

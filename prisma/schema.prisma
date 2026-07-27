@@ -2836,6 +2836,14 @@ model LandingPageItem {
   title         String
   imageUrl      String
   /**
+   * Short editorial blurb shown on the card face, e.g. "Port Blair's Cellular Jail, Havelock's Radhanagar Beach…" — prefilled from the catalog package's own description when added from the catalog.
+   */
+  description   String?
+  /**
+   * e.g. 4.7 — shown as a star-rating pill on the card. Null hides the pill rather than showing a fabricated number.
+   */
+  rating        Float?
+  /**
    * e.g. "5D / 4N" or a short route string.
    */
   routeLabel    String?

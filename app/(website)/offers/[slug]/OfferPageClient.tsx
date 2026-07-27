@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Script from "next/script";
-import { Phone, MessageCircle, X } from "lucide-react";
+import { Phone, MessageCircle, X, Star, Bookmark, ArrowRight } from "lucide-react";
 import { getHeroImage, getCardImage } from "@/app/lib/imageUrl";
 import { LeadForm } from "./LeadForm";
 import { getAdsAccountId, fireConversion } from "./gtag";
@@ -11,6 +11,7 @@ import { BenefitsSection, JourneySection, TestimonialsSection, FaqSection } from
 
 type Item = {
   id: string; title: string; imageUrl: string;
+  description: string | null; rating: number | null;
   routeLabel: string | null; priceLabel: string | null; badgeLabel: string | null;
   showInHero: boolean;
 };
@@ -125,7 +126,7 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
 }
 
 function Hero({ page, heroItems, onEnquire }: { page: OfferPageData; heroItems: Item[]; onEnquire: () => void }) {
-  const slides = heroItems.length > 0 ? heroItems : [{ id: "default", title: page.title, imageUrl: page.heroImageUrl, routeLabel: null, priceLabel: null, badgeLabel: null, showInHero: false }];
+  const slides = heroItems.length > 0 ? heroItems : [{ id: "default", title: page.title, imageUrl: page.heroImageUrl, description: null, rating: null, routeLabel: null, priceLabel: null, badgeLabel: null, showInHero: false }];
   const [active, setActive] = useState(0);
 
   useEffect(() => {
@@ -135,9 +136,13 @@ function Hero({ page, heroItems, onEnquire }: { page: OfferPageData; heroItems: 
   }, [slides.length]);
 
   const current = slides[active];
+  // The rail (desktop only) always shows the active card first, then the
+  // next up to 2 upcoming ones peeking beside it — same "current + preview"
+  // arrangement as the reference design's hero-cards rail.
+  const rail = [0, 1, 2].map((offset) => slides[(active + offset) % slides.length]);
 
   return (
-    <section className="relative -mt-header-height flex min-h-[90vh] items-end overflow-hidden bg-neutral-900 sm:min-h-[85vh]">
+    <section className="relative -mt-header-height flex min-h-[90vh] items-center overflow-hidden bg-neutral-900 pb-14 pt-28 sm:min-h-[85vh] sm:pb-20">
       {slides.map((s, i) => (
         <Image
           key={s.id}
@@ -148,25 +153,59 @@ function Hero({ page, heroItems, onEnquire }: { page: OfferPageData; heroItems: 
           className={`object-cover transition-opacity duration-700 ${i === active ? "opacity-100" : "opacity-0"}`}
         />
       ))}
-      <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-black/10" />
+      <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/40 to-black/20" />
 
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-14 pt-32 sm:pb-20">
-        <span className="text-sm font-semibold uppercase tracking-wide text-red-300">
-          {page.heroEyebrow || page.title}
-        </span>
-        <h1 className="mt-2 max-w-xl text-4xl font-extrabold uppercase leading-none text-white sm:text-6xl">
-          {page.heroHeadline || current.title || page.title}
-        </h1>
-        <p className="mt-4 max-w-lg text-sm text-white/85 sm:text-base">{page.description}</p>
-        <button
-          onClick={onEnquire}
-          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700"
-        >
-          Get a Free Quote
-        </button>
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 px-4 lg:grid-cols-[1.1fr_1fr]">
+        {/* Copy */}
+        <div>
+          <span className="text-sm font-semibold uppercase tracking-wide text-red-300">
+            {page.heroEyebrow || page.title}
+          </span>
+          <h1 className="mt-2 max-w-xl text-5xl font-extrabold uppercase leading-none text-white sm:text-7xl">
+            {page.heroHeadline || current.title || page.title}
+          </h1>
+          <p className="mt-4 max-w-lg text-sm text-white/85 sm:text-base">{page.description}</p>
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <button
+              onClick={onEnquire}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+            >
+              Explore <ArrowRight size={16} />
+            </button>
+            <div className="flex items-center gap-1.5 text-sm text-white/90">
+              <span className="flex text-amber-400">
+                {Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className="fill-amber-400" />)}
+              </span>
+              <span>Rated 4.8/5 by 2,300+ happy travellers</span>
+            </div>
+          </div>
+        </div>
 
+        {/* Desktop card rail — current (large) + up to 2 peeking previews */}
         {slides.length > 1 && (
-          <div className="mt-8 flex gap-1.5">
+          <div className="hidden items-center justify-end gap-3 lg:flex">
+            {rail.map((s, i) => (
+              <button
+                key={`${s.id}-${i}`}
+                onClick={() => setActive((active + i) % slides.length)}
+                aria-label={`Show ${s.title}`}
+                className={`relative shrink-0 overflow-hidden rounded-2xl shadow-xl transition-all ${
+                  i === 0 ? "h-72 w-56 ring-2 ring-white" : "h-56 w-32 opacity-80 hover:opacity-100"
+                }`}
+              >
+                <Image src={getCardImage(s.imageUrl || page.heroImageUrl)} alt="" fill className="object-cover" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-transparent" />
+                <span className="absolute inset-x-2 bottom-2 truncate rounded-md bg-black/40 px-2 py-1 text-left text-xs font-semibold text-white backdrop-blur-sm">
+                  {s.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Mobile position dots — the rail above is desktop-only */}
+        {slides.length > 1 && (
+          <div className="flex gap-1.5 lg:hidden">
             {slides.map((s, i) => (
               <button
                 key={s.id}
@@ -190,27 +229,46 @@ function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageN
         <div className="text-center">
           <span className="text-xs font-bold uppercase tracking-wide text-red-600">Packages</span>
           <h2 className="mt-1.5 text-2xl font-extrabold text-neutral-900 sm:text-3xl">Tour Packages for Every Traveller</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-neutral-500">
+            Handpicked resorts, transfers &amp; sightseeing on every trip. Tap a package and our travel expert will send you a free custom quote — no obligation.
+          </p>
         </div>
         <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
-            <article key={item.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-              <div className="relative h-44 w-full">
-                <Image src={getCardImage(item.imageUrl)} alt={item.title} fill className="object-cover" />
-                {item.badgeLabel && (
-                  <span className="absolute left-3 top-3 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white">
-                    {item.badgeLabel}
-                  </span>
+            <article key={item.id} className="group relative aspect-4/5 overflow-hidden rounded-2xl shadow-lg">
+              <Image src={getCardImage(item.imageUrl)} alt={item.title} fill className="object-cover" />
+              <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/45 to-transparent" />
+
+              {item.badgeLabel && (
+                <span className="absolute left-3 top-3 rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                  {item.badgeLabel}
+                </span>
+              )}
+              <span className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm">
+                <Bookmark size={14} />
+              </span>
+
+              <div className="absolute inset-x-0 bottom-0 p-4">
+                <h3 className="text-lg font-bold text-white">{item.title}</h3>
+                {item.description && (
+                  <p className="mt-1 line-clamp-2 text-xs text-white/80">{item.description}</p>
                 )}
-              </div>
-              <div className="p-4">
-                <h3 className="font-bold text-neutral-900">{item.title}</h3>
-                <div className="mt-1.5 flex items-center gap-2 text-xs text-neutral-500">
-                  {item.routeLabel && <span>{item.routeLabel}</span>}
-                  {item.priceLabel && <span className="font-semibold text-neutral-700">{item.priceLabel}</span>}
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  {item.rating != null && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+                      <Star size={11} className="fill-amber-400 text-amber-400" /> {item.rating.toFixed(1)}
+                    </span>
+                  )}
+                  {item.routeLabel && (
+                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">{item.routeLabel}</span>
+                  )}
+                  {item.priceLabel && (
+                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">{item.priceLabel}</span>
+                  )}
                 </div>
                 <button
                   onClick={() => onEnquire(item.title)}
-                  className="mt-3 w-full rounded-lg bg-neutral-900 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-red-600"
+                  className="mt-3 w-full rounded-lg bg-white px-3 py-2.5 text-sm font-bold text-neutral-900 transition hover:bg-red-600 hover:text-white"
                 >
                   Enquire Now
                 </button>

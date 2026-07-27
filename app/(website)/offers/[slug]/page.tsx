@@ -69,6 +69,7 @@ export default async function OfferPage({ params }: { params: Promise<{ slug: st
         testimonials: page.testimonials as { authorName: string; authorRole: string; quote: string; rating: number }[],
         items: page.items.map((it) => ({
           id: it.id, title: it.title, imageUrl: it.imageUrl,
+          description: it.description, rating: it.rating,
           routeLabel: it.routeLabel, priceLabel: it.priceLabel, badgeLabel: it.badgeLabel,
           showInHero: it.showInHero,
         })),

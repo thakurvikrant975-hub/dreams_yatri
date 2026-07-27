@@ -4,6 +4,7 @@ import { useState, useTransition, useRef } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, ChevronUp, ChevronDown, Search, Loader2 } from "lucide-react";
 import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
 import { ImageDropField } from "../../(builder)/package-builder/[packageId]/ImageDropField";
@@ -17,6 +18,8 @@ export type LandingPageItemRow = {
   packageId: number | null;
   title: string;
   imageUrl: string;
+  description: string | null;
+  rating: number | null;
   routeLabel: string | null;
   priceLabel: string | null;
   badgeLabel: string | null;
@@ -36,7 +39,7 @@ export function PackageItemsEditor({ landingPageId, initialItems }: { landingPag
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [customOpen, setCustomOpen] = useState(false);
-  const [custom, setCustom] = useState({ title: "", imageUrl: "", routeLabel: "", priceLabel: "", badgeLabel: "" });
+  const [custom, setCustom] = useState({ title: "", imageUrl: "", description: "", rating: "", routeLabel: "", priceLabel: "", badgeLabel: "" });
 
   function onSearchChange(v: string) {
     setQuery(v);
@@ -58,9 +61,9 @@ export function PackageItemsEditor({ landingPageId, initialItems }: { landingPag
       if (!result.success) { toast.error(result.message); return; }
       setItems((prev) => [
         ...prev,
-        { id: result.data.id, packageId: pkg.id, title: pkg.title, imageUrl: pkg.thumbnail ?? "", routeLabel: null, priceLabel: null, badgeLabel: null, showInHero: false, sortOrder: prev.length },
+        { id: result.data.id, packageId: pkg.id, title: pkg.title, imageUrl: pkg.thumbnail ?? "", description: pkg.description, rating: null, routeLabel: null, priceLabel: null, badgeLabel: null, showInHero: false, sortOrder: prev.length },
       ]);
-      toast.success("Package added — fill in route/price below if needed");
+      toast.success("Package added — fill in the details below if needed");
     });
   }
 
@@ -69,14 +72,15 @@ export function PackageItemsEditor({ landingPageId, initialItems }: { landingPag
       toast.error("Title and image are required.");
       return;
     }
+    const rating = custom.rating ? Number(custom.rating) : null;
     startTransition(async () => {
-      const result = await addCustomItem(landingPageId, custom);
+      const result = await addCustomItem(landingPageId, { ...custom, rating });
       if (!result.success) { toast.error(result.message); return; }
       setItems((prev) => [
         ...prev,
-        { id: result.data.id, packageId: null, title: custom.title, imageUrl: custom.imageUrl, routeLabel: custom.routeLabel || null, priceLabel: custom.priceLabel || null, badgeLabel: custom.badgeLabel || null, showInHero: false, sortOrder: prev.length },
+        { id: result.data.id, packageId: null, title: custom.title, imageUrl: custom.imageUrl, description: custom.description || null, rating, routeLabel: custom.routeLabel || null, priceLabel: custom.priceLabel || null, badgeLabel: custom.badgeLabel || null, showInHero: false, sortOrder: prev.length },
       ]);
-      setCustom({ title: "", imageUrl: "", routeLabel: "", priceLabel: "", badgeLabel: "" });
+      setCustom({ title: "", imageUrl: "", description: "", rating: "", routeLabel: "", priceLabel: "", badgeLabel: "" });
       setCustomOpen(false);
       toast.success("Package card added");
     });
@@ -161,11 +165,15 @@ export function PackageItemsEditor({ landingPageId, initialItems }: { landingPag
           <p className="text-xs font-semibold text-dashboard-base-content/70">Custom package card</p>
           <ImageDropField value={custom.imageUrl} onChange={(url) => setCustom((c) => ({ ...c, imageUrl: url }))} folder="landing-pages" />
           <Input value={custom.title} onChange={(e) => setCustom((c) => ({ ...c, title: e.target.value }))} placeholder="Title, e.g. Andaman Scuba Diving Adventure" />
+          <Textarea value={custom.description} onChange={(e) => setCustom((c) => ({ ...c, description: e.target.value }))} rows={2} placeholder="Short description shown on the card face" />
           <div className="grid grid-cols-2 gap-2">
             <Input value={custom.routeLabel} onChange={(e) => setCustom((c) => ({ ...c, routeLabel: e.target.value }))} placeholder="Route, e.g. 5D / 4N" />
             <Input value={custom.priceLabel} onChange={(e) => setCustom((c) => ({ ...c, priceLabel: e.target.value }))} placeholder="Price, e.g. ₹16,999/person" />
           </div>
-          <Input value={custom.badgeLabel} onChange={(e) => setCustom((c) => ({ ...c, badgeLabel: e.target.value }))} placeholder="Badge (optional), e.g. Best Seller" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={custom.badgeLabel} onChange={(e) => setCustom((c) => ({ ...c, badgeLabel: e.target.value }))} placeholder="Badge (optional), e.g. Best Seller" />
+            <Input type="number" min={1} max={5} step={0.1} value={custom.rating} onChange={(e) => setCustom((c) => ({ ...c, rating: e.target.value }))} placeholder="Rating (optional), e.g. 4.7" />
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setCustomOpen(false)}>Cancel</Button>
             <Button size="sm" disabled={isPending} onClick={handleAddCustom}>
@@ -188,10 +196,21 @@ export function PackageItemsEditor({ landingPageId, initialItems }: { landingPag
             <img src={item.imageUrl || "/placeholder.svg"} alt="" className="size-14 rounded-md object-cover bg-dashboard-base-200 shrink-0" />
             <div className="flex-1 min-w-0 space-y-1.5">
               <Input value={item.title} onChange={(e) => patchLocal(item.id, { title: e.target.value })} onBlur={() => handleFieldSave(item.id, { title: item.title })} className="h-8 text-sm font-medium" />
-              <div className="grid grid-cols-3 gap-1.5">
+              <Textarea
+                value={item.description ?? ""} onChange={(e) => patchLocal(item.id, { description: e.target.value })}
+                onBlur={() => handleFieldSave(item.id, { description: item.description })}
+                rows={2} placeholder="Card description" className="text-xs"
+              />
+              <div className="grid grid-cols-4 gap-1.5">
                 <Input value={item.routeLabel ?? ""} onChange={(e) => patchLocal(item.id, { routeLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { routeLabel: item.routeLabel })} placeholder="Route" className="h-8 text-xs" />
                 <Input value={item.priceLabel ?? ""} onChange={(e) => patchLocal(item.id, { priceLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { priceLabel: item.priceLabel })} placeholder="Price" className="h-8 text-xs" />
                 <Input value={item.badgeLabel ?? ""} onChange={(e) => patchLocal(item.id, { badgeLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { badgeLabel: item.badgeLabel })} placeholder="Badge" className="h-8 text-xs" />
+                <Input
+                  type="number" min={1} max={5} step={0.1} value={item.rating ?? ""}
+                  onChange={(e) => patchLocal(item.id, { rating: e.target.value ? Number(e.target.value) : null })}
+                  onBlur={() => handleFieldSave(item.id, { rating: item.rating })}
+                  placeholder="Rating" className="h-8 text-xs"
+                />
               </div>
               <Checkbox checked={item.showInHero} onChange={() => handleToggleHero(item)} label={<span className="text-xs">Show in hero rail</span>} />
             </div>
