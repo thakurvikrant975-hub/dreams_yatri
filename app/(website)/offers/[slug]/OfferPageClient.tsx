@@ -97,8 +97,6 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
         </>
       )}
 
-      <Header contactPhone={page.contactPhone} onCallClick={handleCallClick} />
-
       <Hero page={page} heroItems={heroItems} onEnquire={() => openEnquiry(undefined)} />
 
       <PackageGrid items={page.items} onEnquire={openEnquiry} />
@@ -109,8 +107,6 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
       <FaqSection faqs={page.faqs} />
 
       <LeadFormSection page={page} pageUrl={pageUrl} onSuccess={() => {}} />
-
-      <Footer contactPhone={page.contactPhone} />
 
       <StickyCta onEnquire={() => openEnquiry(undefined)} />
       <FloatingButtons contactPhone={page.contactPhone} onCallClick={handleCallClick} onWhatsappClick={handleWhatsappClick} title={page.title} />
@@ -128,23 +124,6 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
   );
 }
 
-function Header({ contactPhone, onCallClick }: { contactPhone: string; onCallClick: () => void }) {
-  return (
-    <header className="absolute inset-x-0 top-0 z-20">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <span className="text-lg font-extrabold tracking-tight text-white drop-shadow-sm">DreamsYatri</span>
-        <a
-          href={telHref(contactPhone)}
-          onClick={onCallClick}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-2 text-sm font-semibold text-white backdrop-blur-sm ring-1 ring-white/30"
-        >
-          <Phone size={14} /> Call Now
-        </a>
-      </div>
-    </header>
-  );
-}
-
 function Hero({ page, heroItems, onEnquire }: { page: OfferPageData; heroItems: Item[]; onEnquire: () => void }) {
   const slides = heroItems.length > 0 ? heroItems : [{ id: "default", title: page.title, imageUrl: page.heroImageUrl, routeLabel: null, priceLabel: null, badgeLabel: null, showInHero: false }];
   const [active, setActive] = useState(0);
@@ -158,7 +137,7 @@ function Hero({ page, heroItems, onEnquire }: { page: OfferPageData; heroItems: 
   const current = slides[active];
 
   return (
-    <section className="relative flex min-h-[90vh] items-end overflow-hidden bg-neutral-900 sm:min-h-[85vh]">
+    <section className="relative -mt-header-height flex min-h-[90vh] items-end overflow-hidden bg-neutral-900 sm:min-h-[85vh]">
       {slides.map((s, i) => (
         <Image
           key={s.id}
@@ -261,18 +240,6 @@ function LeadFormSection({ page, pageUrl, onSuccess }: { page: OfferPageData; pa
         </div>
       </div>
     </section>
-  );
-}
-
-function Footer({ contactPhone }: { contactPhone: string }) {
-  return (
-    <footer className="border-t border-neutral-800 bg-neutral-950 py-8 text-center">
-      <p className="text-sm font-bold text-white">DreamsYatri</p>
-      <p className="mt-1 text-xs text-neutral-400">
-        <a href={telHref(contactPhone)} className="hover:text-white">{contactPhone}</a>
-      </p>
-      <p className="mt-3 text-[11px] text-neutral-500">© {new Date().getFullYear()} Dreams Yatri (OPC) Private Limited. All rights reserved.</p>
-    </footer>
   );
 }
 
