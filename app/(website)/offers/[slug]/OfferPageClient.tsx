@@ -221,6 +221,14 @@ function Hero({ page, heroItems, onEnquire }: { page: OfferPageData; heroItems: 
   );
 }
 
+// Matches the reference's data-package convention — price/route travel with
+// the enquiry (so nothing is lost), they just aren't printed on the card
+// face itself, matching the reference design's card layout.
+function enquiryPackageName(item: Item): string {
+  const suffix = [item.routeLabel, item.priceLabel].filter(Boolean).join(" — ");
+  return suffix ? `${item.title} (${suffix})` : item.title;
+}
+
 function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageName?: string) => void }) {
   if (items.length === 0) return null;
   return (
@@ -233,42 +241,39 @@ function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageN
             Handpicked resorts, transfers &amp; sightseeing on every trip. Tap a package and our travel expert will send you a free custom quote — no obligation.
           </p>
         </div>
-        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
-            <article key={item.id} className="group relative aspect-4/5 overflow-hidden rounded-2xl shadow-lg">
-              <Image src={getCardImage(item.imageUrl)} alt={item.title} fill className="object-cover" />
-              <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/45 to-transparent" />
-
-              {item.badgeLabel && (
-                <span className="absolute left-3 top-3 rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
-                  {item.badgeLabel}
-                </span>
-              )}
-              <span className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm">
-                <Bookmark size={14} />
-              </span>
-
-              <div className="absolute inset-x-0 bottom-0 p-4">
-                <h3 className="text-lg font-bold text-white">{item.title}</h3>
-                {item.description && (
-                  <p className="mt-1 line-clamp-2 text-xs text-white/80">{item.description}</p>
+            <article key={item.id} className="overflow-hidden rounded-2xl bg-neutral-950 shadow-lg shadow-black/10">
+              <div className="relative h-56">
+                <Image src={getCardImage(item.imageUrl)} alt={item.title} fill className="object-cover" />
+                {item.badgeLabel && (
+                  <span className="absolute left-3 top-3 rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm">
+                    {item.badgeLabel}
+                  </span>
                 )}
-                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                <span className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm">
+                  <Bookmark size={14} />
+                </span>
+              </div>
+
+              <div className="p-5">
+                <h3 className="text-xl font-extrabold text-white">{item.title}</h3>
+                {item.description && (
+                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-white/65">{item.description}</p>
+                )}
+                <div className="mt-3.5 flex flex-wrap items-center gap-2">
                   {item.rating != null && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-white/20 px-2.5 py-1 text-xs font-semibold text-white">
                       <Star size={11} className="fill-amber-400 text-amber-400" /> {item.rating.toFixed(1)}
                     </span>
                   )}
                   {item.routeLabel && (
-                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">{item.routeLabel}</span>
-                  )}
-                  {item.priceLabel && (
-                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">{item.priceLabel}</span>
+                    <span className="rounded-full border border-white/20 px-2.5 py-1 text-xs font-semibold text-white">{item.routeLabel}</span>
                   )}
                 </div>
                 <button
-                  onClick={() => onEnquire(item.title)}
-                  className="mt-3 w-full rounded-lg bg-white px-3 py-2.5 text-sm font-bold text-neutral-900 transition hover:bg-red-600 hover:text-white"
+                  onClick={() => onEnquire(enquiryPackageName(item))}
+                  className="mt-4 w-full rounded-full bg-white py-3 text-sm font-bold text-neutral-900 transition hover:bg-red-600 hover:text-white"
                 >
                   Enquire Now
                 </button>
