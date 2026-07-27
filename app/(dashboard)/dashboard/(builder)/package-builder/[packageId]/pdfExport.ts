@@ -17,6 +17,27 @@ export const A4_HEIGHT_MM = 297;
  * the cover photo can bleed to the true top edge. */
 export const PAGE_MARGIN_MM = 10;
 
+/**
+ * The travel date and traveller count feed the document's own header/cover
+ * fields directly (see ItineraryDocument.tsx) — a package missing either
+ * still "generates" a PDF, just one with a blank or zero-traveller cover,
+ * which is never actually meant to go out. Checked once here so Download,
+ * Preview, and the emailed attachment all enforce the same rule instead of
+ * each silently producing a half-finished document.
+ */
+export function validateItineraryRequiredFields(form: {
+  travelDate: string;
+  adults: number;
+  children: number;
+  infants: number;
+}): string | null {
+  if (!form.travelDate) return "Add a travel date before generating the PDF or sending to the client.";
+  if ((form.adults || 0) + (form.children || 0) + (form.infants || 0) < 1) {
+    return "Add at least one traveller before generating the PDF or sending to the client.";
+  }
+  return null;
+}
+
 export type PdfPage = {
   dataUrl: string;
   /** Rendered image height in mm at A4 (210mm) width — the last page (or any
@@ -432,17 +453,35 @@ export function buildPdf(pages: PdfPage[]): jsPDF {
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   pages.forEach((page, i) => {
     if (i > 0) pdf.addPage();
-    // First page always bleeds to the true top edge — a margin there would
-    // just be a blank band above the cover photo.
-    //
-    // Every other page gets as much of the top margin as it can actually
-    // afford: the full 10mm when there's slack to spare (this page ended
-    // early because a card got pushed whole to the next one, so the margin
-    // is free), scaled down to whatever's left when there's only a little,
-    // and 0 only for the rare page that fills the full height exactly —
-    // never enough clipped off to cut into real content.
     const slackMm = A4_HEIGHT_MM - page.heightMm;
-    const y = i === 0 ? 0 : Math.max(0, Math.min(PAGE_MARGIN_MM, slackMm));
+    const isFirst = i === 0;
+    const isLast = i === pages.length - 1;
+
+    let y: number;
+    if (isFirst) {
+      // First page always bleeds to the true top edge — a margin there
+      // would just be a blank band above the cover photo.
+      y = 0;
+    } else if (isLast) {
+      // Bottom-anchor the last page: DocumentFooter is always the final
+      // element in the document, so whatever slack this page has (it's
+      // almost never a full 297mm — the footer is usually alone or nearly
+      // alone on it) collects ABOVE the content instead of being left below
+      // the footer. That pins the footer to the true bottom edge, the same
+      // way the header bleeds to the true top edge on page one, instead of
+      // it floating wherever the fixed-height slicing cursor happened to
+      // land.
+      y = Math.max(0, slackMm);
+    } else {
+      // Every interior page gets as much of the top margin as it can
+      // actually afford: the full 10mm when there's slack to spare (this
+      // page ended early because a card got pushed whole to the next one,
+      // so the margin is free), scaled down to whatever's left when
+      // there's only a little, and 0 only for the rare page that fills the
+      // full height exactly — never enough clipped off to cut into real
+      // content.
+      y = Math.max(0, Math.min(PAGE_MARGIN_MM, slackMm));
+    }
     pdf.addImage(page.dataUrl, "JPEG", 0, y, A4_WIDTH_MM, page.heightMm);
   });
   return pdf;

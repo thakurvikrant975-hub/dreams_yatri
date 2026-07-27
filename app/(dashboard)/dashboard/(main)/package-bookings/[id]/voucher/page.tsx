@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Phone, Mail } from "lucide-react";
 import { db } from "@/app/lib/db";
 import DyLogo from "@/app/components/ui/DyLogo";
 import PrintVoucherButton from "./PrintVoucherButton";
@@ -43,6 +44,15 @@ function StatusBadge({ isConfirmed, status }: { isConfirmed: boolean; status: st
         return <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">Confirmed</span>;
     }
     return <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">{titleCase(status)}</span>;
+}
+
+function ContactRow({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) {
+    return (
+        <div className="flex items-center justify-end gap-2 text-neutral-600/90">
+            <span>{children}</span>
+            <Icon className="size-3.5 shrink-0 text-primary-400" />
+        </div>
+    );
 }
 
 export default async function BookingVoucherPage({ params }: { params: Promise<{ id: string }> }) {
@@ -107,6 +117,10 @@ export default async function BookingVoucherPage({ params }: { params: Promise<{
         b.legNumber === a.legNumber + 1
     );
 
+    const confirmedCount = hotels.filter((h) => h.isConfirmed).length + cabs.filter((c) => c.isConfirmed).length;
+    const totalCount = hotels.length + cabs.length;
+    const allConfirmed = totalCount > 0 && confirmedCount === totalCount;
+
     return (
         <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
             <style>{`@media print { .no-print { display: none !important; } @page { margin: 12mm; } }`}</style>
@@ -120,11 +134,12 @@ export default async function BookingVoucherPage({ params }: { params: Promise<{
                     </div>
                     <div className="text-right">
                         <div className="text-sm font-bold tracking-[0.15em] text-neutral-700">VOUCHER</div>
+                        <div className="mt-0.5 text-[11px] text-neutral-400">Hotel &amp; Transport Confirmation</div>
                     </div>
                 </div>
                 <div className="h-0.75 bg-linear-to-r from-primary-600 to-primary-400" />
 
-                {/* ── Meta row ── */}
+                {/* ── Meta row (voucher no. / date / voucher to) ── */}
                 <div className="flex flex-wrap items-start justify-between gap-4 px-10 py-6 text-sm">
                     <div className="flex gap-10">
                         <div>
@@ -156,9 +171,9 @@ export default async function BookingVoucherPage({ params }: { params: Promise<{
                             {fmtDate(booking.startDate)} – {fmtDate(booking.endDate)} · {booking.duration} day{booking.duration !== 1 ? "s" : ""} · {booking.travellers} traveller{booking.travellers !== 1 ? "s" : ""}
                         </div>
                     </div>
-                    <div className="text-right text-xs text-neutral-800 leading-relaxed">
-                        <div>support@dreamsyatri.com</div>
-                        <div>+91 82199 79481</div>
+                    <div className="space-y-1.5 text-xs">
+                        <ContactRow icon={Phone}>+91 82199 79481</ContactRow>
+                        <ContactRow icon={Mail}>support@dreamsyatri.com</ContactRow>
                     </div>
                 </div>
 
@@ -175,7 +190,7 @@ export default async function BookingVoucherPage({ params }: { params: Promise<{
                                 <th className="text-right font-semibold px-3 py-2.5">Nights</th>
                             </tr>
                         </thead>
-                        <tbody >
+                        <tbody>
                             {hotelGroups.length === 0 ? (
                                 <tr><td colSpan={5} className="px-3 py-4 text-center text-neutral-600/90 text-xs">No hotel confirmed yet</td></tr>
                             ) : hotelGroups.map((group, i) => {
@@ -246,8 +261,35 @@ export default async function BookingVoucherPage({ params }: { params: Promise<{
                     </div>
                 </div>
 
+                {/* ── Need-assistance box + confirmed-count summary ── */}
+                <div className="mt-8 flex flex-wrap items-start justify-between gap-6 px-10">
+                    <div className="max-w-65">
+                        <div className="text-xs font-bold uppercase tracking-wide text-neutral-700">Need Assistance?</div>
+                        <div className="mt-2 space-y-1 text-xs text-neutral-600/90">
+                            <div className="font-semibold text-neutral-700">Dreams Yatri Operations</div>
+                            <div>support@dreamsyatri.com</div>
+                            <div>+91 82199 79481</div>
+                        </div>
+                    </div>
+
+                    <div className="w-full max-w-xs">
+                        <div className="flex items-center justify-between px-3 py-1.5 text-xs text-neutral-600/90">
+                            <span>Hotels confirmed</span>
+                            <span className="font-medium text-neutral-700">{hotels.filter((h) => h.isConfirmed).length}/{hotels.length}</span>
+                        </div>
+                        <div className="flex items-center justify-between px-3 py-1.5 text-xs text-neutral-600/90">
+                            <span>Cabs confirmed</span>
+                            <span className="font-medium text-neutral-700">{cabs.filter((c) => c.isConfirmed).length}/{cabs.length}</span>
+                        </div>
+                        <div className={`mt-2 flex items-center justify-between rounded-md px-3 py-2.5 ${allConfirmed ? "bg-primary-500" : "bg-neutral-700"}`}>
+                            <span className="text-sm font-bold text-white">Overall Status</span>
+                            <span className="text-sm font-bold text-white">{allConfirmed ? "Fully Confirmed" : "In Progress"}</span>
+                        </div>
+                    </div>
+                </div>
+
                 {/* ── Signature / footer ── */}
-                <div className="px-10 mt-12 flex items-end justify-between">
+                <div className="px-10 mt-10 flex items-end justify-between">
                     <p className="max-w-xs text-[11px] text-neutral-600/90 leading-relaxed">
                         Please present this voucher (printed or digital) at check-in / pickup. For any changes, contact our support team.
                     </p>

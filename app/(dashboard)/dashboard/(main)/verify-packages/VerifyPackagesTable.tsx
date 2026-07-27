@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, Clock, CheckCircle2, Send, Eye } from "lucide-react";
+import { ShieldCheck, Clock, CheckCircle2, XCircle, Send, Eye } from "lucide-react";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
@@ -31,6 +31,9 @@ export type PackageRow = {
     verified: boolean;
     verifiedAt: Date | null;
     verifiedByName: string | null;
+    rejectedAt: Date | null;
+    rejectedByName: string | null;
+    rejectionReasonLabel: string | null;
     client: { id: string; name: string; phone: string; email: string | null } | null;
 };
 
@@ -38,6 +41,7 @@ export type PackageStats = {
     total: number;
     pending: number;
     verified: number;
+    rejected: number;
     verifiedToday: number;
 };
 
@@ -63,6 +67,16 @@ function VerificationBadge({ row }: { row: PackageRow }) {
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
                 <CheckCircle2 className="size-3" /> Verified
+            </span>
+        );
+    }
+    if (row.rejectedAt) {
+        return (
+            <span
+                className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+                title={row.rejectionReasonLabel ?? undefined}
+            >
+                <XCircle className="size-3" /> Rejected
             </span>
         );
     }
@@ -190,10 +204,12 @@ export function VerifyPackagesTable({
                     className={`inline-flex items-center gap-1 justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                         p.verified
                             ? "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                            : p.rejectedAt
+                            ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                             : "bg-dashboard-primary text-white hover:opacity-90"
                     }`}
                 >
-                    {p.verified ? <><Eye className="size-3" /> View</> : "Verify →"}
+                    {p.verified ? <><Eye className="size-3" /> View</> : p.rejectedAt ? <><Eye className="size-3" /> Review</> : "Verify →"}
                 </Link>
             ),
         },
@@ -202,10 +218,11 @@ export function VerifyPackagesTable({
     return (
         <div className="space-y-6">
             {/* Stats */}
-            <StatGrid cols={4}>
+            <StatGrid cols={5}>
                 <StatCard label="Total Sent"      value={stats.total}         icon={Send} />
                 <StatCard label="Pending Review"  value={stats.pending}       icon={Clock} />
                 <StatCard label="Verified"        value={stats.verified}      icon={ShieldCheck} />
+                <StatCard label="Rejected"        value={stats.rejected}      icon={XCircle} />
                 <StatCard label="Verified Today"  value={stats.verifiedToday} icon={CheckCircle2} />
             </StatGrid>
 
@@ -225,6 +242,7 @@ export function VerifyPackagesTable({
                             options: [
                                 { label: "Pending review", value: "pending" },
                                 { label: "Verified",       value: "verified" },
+                                { label: "Rejected",       value: "rejected" },
                             ],
                         },
                     ]}
@@ -256,7 +274,7 @@ export function VerifyPackagesTable({
                 data={packages}
                 columns={columns}
                 rowKey={(p) => p.id}
-                rowClassName={(p) => (p.verified ? "bg-green-50/40 hover:bg-green-50" : "hover:bg-dashboard-base-200")}
+                rowClassName={(p) => (p.verified ? "bg-green-50/40 hover:bg-green-50" : p.rejectedAt ? "bg-red-50/40 hover:bg-red-50" : "hover:bg-dashboard-base-200")}
                 emptyState={
                     <TableEmptyState
                         title="No sent packages found"

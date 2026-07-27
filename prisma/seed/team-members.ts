@@ -10,7 +10,7 @@ async function main() {
   // Fetch role IDs via raw SQL to avoid adapter deserialization bug
  const { rows: roles } = await pool.query(
   `SELECT id, name FROM team_roles WHERE name = ANY($1)`,
-  [["Super Admin", "Operations Manager", "Sales Executive", "Marketing Manager", "sales"]]
+  [["Super Admin", "Operations Manager", "Sales Executive", "Marketing Manager", "sales", "Full Stack Developer"]]
 );
 
   const roleMap: Record<string, string> = {};
@@ -57,6 +57,13 @@ async function main() {
       password:   await hash("Mkt@1234", 12),
       roleId:     roleMap["sales"] ?? null,
       joiningDate: "2023-03-01",
+    },
+    {
+      name:       "Devs",
+      email:      "dev@dreamsyatri.com",
+      password:   await hash("Devs@#123", 12),
+      roleId:     roleMap["Full Stack Developer"] ?? null,
+      joiningDate: "2022-01-01",
     },
   ];
 

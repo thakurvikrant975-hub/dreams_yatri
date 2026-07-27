@@ -784,6 +784,7 @@ model RejectionReason {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   package_queries package_queries[]
+  custom_packages custom_packages[]
 
   @@map("rejection_reasons")
 }
@@ -2536,6 +2537,19 @@ model custom_packages {
   verifiedBy           String?
   verifiedByName       String?
   /**
+   * Set when the verification team sends a package's pricing back for
+   * rework instead of verifying it — mirrors package_queries' structured
+   * rejectionReasonId + free-text rejectionNote pattern. Cleared again
+   * (by verifyCustomPackage / updatePackagePricing) once the package is
+   * re-reviewed, so a package is never both verified and rejected.
+   */
+  rejectedAt           DateTime?
+  rejectedBy           String?
+  rejectedByName       String?
+  rejectionReasonId    String?
+  rejectionNote        String?
+  rejectionReason      RejectionReason?         @relation(fields: [rejectionReasonId], references: [id])
+  /**
    * Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
    * exact locked total) — the client-facing "Pay Now" button opens this.
    * No gateway/webhook integration; purely a manual URL field.
@@ -2567,6 +2581,7 @@ model custom_packages {
   @@index([queryId])
   @@index([builtBy])
   @@index([status])
+  @@index([rejectionReasonId])
 }
 
 /**

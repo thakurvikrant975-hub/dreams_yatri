@@ -3,6 +3,8 @@ import { db } from "@/app/lib/db";
 import { bookingConfirmationEmail, cancellationEmail, hotelBookingConfirmedEmail, refundConfirmedEmail, opsNewBookingEmail, tripStatusEmail } from "./booking-emails";
 import { sendBookingEmail, opsEmail } from "./send";
 import { getSystemActorId } from "./system-actor";
+import { formatPaise } from "@/app/lib/money";
+import { paymentInvoiceTemplate, paymentInvoiceTextTemplate } from "@/app/components/email-template/paymentInvoiceTemplate";
 
 /**
  * Post-commit, best-effort booking notifications. Each loads the needed data and
@@ -10,7 +12,12 @@ import { getSystemActorId } from "./system-actor";
  */
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
-const voucherUrl = (id: string) => `${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/bookings/${id}/voucher`;
+// Falls back to the real production domain, not an empty string — an unset
+// NEXT_PUBLIC_BASE_URL previously produced a bare "/bookings/id/voucher" with
+// no host at all, which is not a valid link outside the app itself.
+const SITE_URL = () => process.env.NEXT_PUBLIC_BASE_URL ?? "https://dreamsyatri.org";
+const voucherUrl = (id: string) => `${SITE_URL()}/bookings/${id}/voucher`;
+const bookingStatusUrl = (id: string) => `${SITE_URL()}/bookings/${id}/status`;
 
 /** Package title, or the hotel's name for a direct hotel-only booking (no package). */
 function tripTitle(b: { package: { title: string } | null; hotelBookings: { hotel: { name: string } }[] }): string {
@@ -93,6 +100,42 @@ export async function notifyRefund(bookingId: string, refundAmountPaise: number)
 export async function notifyFulfillmentChange(bookingId: string, kind: "READY" | "ATTENTION", itemLabel?: string): Promise<void> {
     const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, user: { select: { email: true } }, package: { select: { title: true } } } });
     if (!b) return;
-    const statusUrl = `${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/bookings/${bookingId}/status`;
-    await sendBookingEmail(b.user?.email, tripStatusEmail({ kind, bookingNumber: b.bookingNumber, packageTitle: b.package?.title ?? "Your package", itemLabel, statusUrl }));
+    await sendBookingEmail(b.user?.email, tripStatusEmail({ kind, bookingNumber: b.bookingNumber, packageTitle: b.package?.title ?? "Your package", itemLabel, statusUrl: bookingStatusUrl(bookingId) }));
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    UPI: "UPI", CARD: "Card", NET_BANKING: "Net Banking", WALLET: "Wallet", EMI: "EMI", CASH: "Cash",
+};
+
+/** Payment receipt — fires on every successful capture (INITIAL, TOPUP, and BALANCE alike), not just the first. */
+export async function notifyPaymentReceived(paymentId: string): Promise<void> {
+    const p = await db.payment.findUnique({
+        where: { id: paymentId },
+        select: {
+            amount_paise: true, method: true, paidAt: true, gatewayPaymentId: true,
+            booking: { select: { id: true, bookingNumber: true } },
+            user: { select: { name: true, email: true } },
+        },
+    });
+    if (!p || !p.booking) return;
+
+    const paidAtStr = (p.paidAt ?? new Date()).toLocaleString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+
+    const params = {
+        clientName:    p.user?.name ?? "Traveller",
+        bookingNumber: p.booking.bookingNumber,
+        amountStr:     formatPaise(p.amount_paise),
+        paidAtStr,
+        paymentMethod: p.method ? PAYMENT_METHOD_LABELS[p.method] ?? p.method : "—",
+        transactionId: p.gatewayPaymentId ?? "—",
+        bookingUrl:    bookingStatusUrl(p.booking.id),
+    };
+
+    await sendBookingEmail(p.user?.email, {
+        subject: `Payment Received — Booking ${p.booking.bookingNumber}`,
+        html:    paymentInvoiceTemplate(params),
+        text:    paymentInvoiceTextTemplate(params),
+    });
 }

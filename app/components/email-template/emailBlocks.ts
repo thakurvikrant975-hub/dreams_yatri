@@ -104,3 +104,123 @@ export function EmailDivider(): string {
     <div style="border-top:1px solid #e5e7eb;margin:24px 0;"></div>
   `;
 }
+
+// ── Inset cover photo — e.g. package/destination hero image ────────────────
+export function EmailCoverImage(url: string, alt: string): string {
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+      <tr>
+        <td>
+          <img src="${url}" alt="${alt}" width="440"
+            style="width:100%;max-width:440px;height:200px;object-fit:cover;display:block;border-radius:8px;" />
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+// ── Label/value detail rows — e.g. destination, dates, travellers ──────────
+export function EmailDetailsTable(rows: { label: string; value: string }[]): string {
+  const trs = rows
+    .map(
+      (r, i) => `
+    <tr>
+      <td style="padding:${i === 0 ? "0 0 14px" : "14px 0 0"};border-top:${i === 0 ? "none" : "1px solid #e5e7eb"};font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:${TEXT_MUTED};vertical-align:top;width:40%;">
+        ${r.label}
+      </td>
+      <td style="padding:${i === 0 ? "0 0 14px" : "14px 0 0"};border-top:${i === 0 ? "none" : "1px solid #e5e7eb"};font-size:14px;font-weight:600;color:#111111;text-align:right;vertical-align:top;">
+        ${r.value}
+      </td>
+    </tr>`,
+    )
+    .join("");
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;border-collapse:collapse;">
+      ${trs}
+    </table>
+  `;
+}
+
+// ── Highlighted total-price panel ───────────────────────────────────────────
+export function EmailPricePanel(priceStr: string, perPersonStr?: string | null): string {
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+      <tr>
+        <td style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:18px 22px;">
+          <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:${TEXT_MUTED};">
+            Total Package Price
+          </p>
+          <p style="margin:4px 0 0;font-size:28px;font-weight:700;color:#111111;">
+            ${priceStr}
+          </p>
+          ${perPersonStr ? `<p style="margin:2px 0 0;font-size:13px;color:${TEXT_MUTED};">${perPersonStr}</p>` : ""}
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+// ── Dashed divider — ticket-style perforation line ──────────────────────────
+export function EmailDashedDivider(): string {
+  return `
+    <div style="border-top:1px dashed #d1d5db;margin:24px 0;"></div>
+  `;
+}
+
+// ── Two label/value pairs side by side — e.g. "Booking ID" + "Amount" ──────
+export function EmailTwoColumnRow(
+  left: { label: string; value: string },
+  right: { label: string; value: string },
+): string {
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+      <tr>
+        <td style="width:50%;vertical-align:top;">
+          <p style="margin:0 0 4px;font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:${TEXT_MUTED};">${left.label}</p>
+          <p style="margin:0;font-size:15px;font-weight:700;color:#111111;">${left.value}</p>
+        </td>
+        <td style="width:50%;vertical-align:top;text-align:right;">
+          <p style="margin:0 0 4px;font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:${TEXT_MUTED};">${right.label}</p>
+          <p style="margin:0;font-size:15px;font-weight:700;color:#111111;">${right.value}</p>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+// ── Light info panel — e.g. payment method + transaction reference ─────────
+export function EmailInfoPanel(rows: { label: string; value: string }[]): string {
+  const items = rows
+    .map(
+      (r) => `
+    <p style="margin:0 0 10px;font-size:13px;color:${TEXT_MUTED};">
+      ${r.label}: <span style="color:#111111;font-weight:600;">${r.value}</span>
+    </p>`,
+    )
+    .join("");
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+      <tr>
+        <td style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;">
+          ${items}
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+// ── Full-width strip image — e.g. a decorative barcode ──────────────────────
+export function EmailImageStrip(url: string, alt: string, caption?: string): string {
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
+      <tr>
+        <td align="center">
+          <img src="${url}" alt="${alt}" width="280" style="width:280px;max-width:100%;height:auto;display:inline-block;" />
+        </td>
+      </tr>
+    </table>
+    ${caption ? `<p style="margin:0 0 24px;text-align:center;font-size:12px;letter-spacing:2px;color:${TEXT_MUTED};font-family:'Courier New',monospace;">${caption}</p>` : ""}
+  `;
+}

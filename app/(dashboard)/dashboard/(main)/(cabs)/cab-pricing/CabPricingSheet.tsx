@@ -23,6 +23,7 @@ import type { RateSeasonBase } from "../../components/ui/seasonal-rate-calendar-
 import {
   upsertCabPricingForCity,
   upsertCabPricingForLocation,
+  moveCabPricingLocation,
   type CabPricingGroup,
   type CabPricingType,
   type SeasonInput,
@@ -648,6 +649,17 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
 
   const [formError, setFormError] = useState<string | null>(null);
 
+  function buildInitialCity(): LocationValue {
+    return {
+      id:         row.location_id,
+      name:       row.location_name,
+      type:       row.location_type as LocationValue["type"],
+      breadcrumb: row.location_name,
+      slug:       row.location_slug,
+    };
+  }
+  const [cityValue, setCityValue] = useState<LocationValue | null>(() => buildInitialCity());
+
   function buildInitialEntries(): PriceEntry[] {
     // Only include vehicles that actually have existing pricing data
     return row.pricings
@@ -701,20 +713,35 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
   }
 
   function handleSubmit() {
-    const error = validateForm(row.location_name, entries, vehicleSeasons);
+    const error = validateForm(cityValue, entries, vehicleSeasons);
     if (error) { setFormError(error); return; }
     setFormError(null);
 
     const payload = buildPayload(entries, vehicleSeasons);
     startTransition(async () => {
-      const result = await upsertCabPricingForLocation(row.location_id, payload);
-      if (result.success) {
-        toast.success(result.message);
-        setOpen(false);
-      } else {
-        setFormError(result.message);
-        toast.error(result.message);
+      // Save price/season edits under the current city first (rows still
+      // live at row.location_id at this point), then relocate the whole
+      // group if the city was changed — that way a failed move (e.g. the
+      // destination already has one of these vehicles priced) still leaves
+      // the price edits saved rather than silently discarding them.
+      const priceResult = await upsertCabPricingForLocation(row.location_id, payload);
+      if (!priceResult.success) {
+        setFormError(priceResult.message);
+        toast.error(priceResult.message);
+        return;
       }
+
+      if (cityValue!.id !== row.location_id) {
+        const moveResult = await moveCabPricingLocation(row.location_id, cityValue!.id, cityValue!.name);
+        if (!moveResult.success) {
+          setFormError(`Pricing was saved, but the city couldn't be changed: ${moveResult.message}`);
+          toast.error(moveResult.message);
+          return;
+        }
+      }
+
+      toast.success("Pricing saved successfully");
+      setOpen(false);
     });
   }
 
@@ -724,6 +751,7 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
         variant="ghost" size="icon" className="h-8 w-8"
         onClick={() => {
           setSheetKey((k) => k + 1);
+          setCityValue(buildInitialCity());
           setEntries(buildInitialEntries());
           setVehicleSeasons(buildInitialSeasons());
           setFormError(null);
@@ -743,19 +771,28 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
 
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
-            {/* Locked city */}
+            {/* City */}
             <div>
               <SectionHeader
                 icon={<Car className="h-4 w-4" />}
                 title="City"
-                description="City for which pricing is configured"
+                description="Change the city this pricing is configured for"
               />
               <div className="space-y-1.5">
-                <Label>City</Label>
-                <div className="h-10 rounded-md border bg-muted px-3 flex items-center text-sm text-muted-foreground cursor-not-allowed">
-                  {row.location_name}
-                </div>
-                <p className="text-xs text-muted-foreground">Delete and recreate to change the city.</p>
+                <Label>City <span className="text-destructive">*</span></Label>
+                <LocationSearchSelect
+                  value={cityValue}
+                  onChange={(v) => { setCityValue(v); setFormError(null); }}
+                  types={["CITY", "STATE"]}
+                  placeholder="Search city or state…"
+                  disableExternalSearch
+                  hideRecent
+                />
+                {cityValue && cityValue.id !== row.location_id && (
+                  <p className="text-xs text-amber-600">
+                    Moving from <strong>{row.location_name}</strong> to <strong>{cityValue.name}</strong> — all vehicle rates and seasons here move together.
+                  </p>
+                )}
               </div>
             </div>
 
