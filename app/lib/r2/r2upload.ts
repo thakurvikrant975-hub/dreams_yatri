@@ -13,7 +13,8 @@ export type ImageFolder =
   | "team-members"
   | "blogs"
   | "avatars"
-  | "chat-attachments";
+  | "chat-attachments"
+  | "landing-pages";
 
 export type UploadResult = {
   key: string;
