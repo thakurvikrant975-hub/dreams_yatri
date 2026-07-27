@@ -44,12 +44,7 @@ export const ALL_HREFS = [
   "/dashboard/assign-driver",
   // Marketing
   "/dashboard/queries",
-  "/dashboard/email-marketing",
   "/dashboard/follow-ups",
-  "/dashboard/references",
-  "/dashboard/coupons",
-  "/dashboard/reviews",
-  "/dashboard/not-found",
   // Sales
   "/sales-dashboard",
   "/dashboard/sales-query",
@@ -58,15 +53,11 @@ export const ALL_HREFS = [
   "/dashboard/verify-packages",
   // Transactions
   "/dashboard/transactions",
-  "/dashboard/failed-transactions",
-  "/dashboard/refunds",
   // Our Team
   "/dashboard/team-members",
   "/dashboard/activity-logs",
-  "/dashboard/departments",
   "/dashboard/roles-and-permissions",
   // Settings
-  "/dashboard/settings",
   "/dashboard/itinerary-settings",
 ];
 
