@@ -11,7 +11,8 @@ import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/switch";
 import { ImageDropField } from "../../(builder)/package-builder/[packageId]/ImageDropField";
-import { saveLandingPage, slugify, type LandingPageInput } from "./actions";
+import { saveLandingPage, type LandingPageInput } from "./actions";
+import { slugify } from "./slug";
 import { PackageItemsEditor, type LandingPageItemRow } from "./PackageItemsEditor";
 
 type Faq = { question: string; answer: string };

@@ -19,19 +19,6 @@ function revalidateAll(id?: string) {
   if (id) revalidatePath(`/dashboard/landing-pages/${id}`);
 }
 
-// ── Slug ─────────────────────────────────────────────────────────────────────
-
-/** Lowercase, hyphenated, alnum-only — matches the /offers/[slug] path segment. */
-export function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 // ── List / detail ────────────────────────────────────────────────────────────
 
 export async function listLandingPages() {
