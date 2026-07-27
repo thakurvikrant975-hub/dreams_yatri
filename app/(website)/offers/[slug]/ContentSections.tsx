@@ -186,16 +186,19 @@ export function TestimonialsSection({
 }) {
   if (testimonials.length === 0) return null;
   return (
-    <section className="py-14 sm:py-20">
+    <section className="bg-neutral-50 py-14 sm:py-20">
       <div className="mx-auto max-w-6xl px-4">
         <SectionHead
           eyebrow="Reviews"
           title="Loved by 2,300+ Travellers"
           subtitle={`Real experiences from travellers who explored ${destination || "with us"}.`}
         />
-        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {/* flex-wrap + per-card max-width (not a fixed grid) so 1-2 testimonials
+            center as compact cards instead of stretching into mostly-empty grid
+            columns — only 3+ actually fills a full row. */}
+        <div className="mt-10 flex flex-wrap justify-center gap-5">
           {testimonials.map((t, i) => (
-            <figure key={i} className="rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm">
+            <figure key={i} className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.834rem)]">
               <div className="flex gap-0.5 text-amber-400">
                 {Array.from({ length: 5 }).map((_, s) => (
                   <Star key={s} size={16} className={s < t.rating ? "fill-amber-400" : "fill-none text-neutral-300"} />
@@ -234,7 +237,7 @@ function FaqToggleIcon() {
 export function FaqSection({ faqs }: { faqs: { question: string; answer: string }[] }) {
   if (faqs.length === 0) return null;
   return (
-    <section className="bg-neutral-50 py-14 sm:py-20">
+    <section className="py-14 sm:py-20">
       <div className="mx-auto max-w-3xl px-4">
         <SectionHead eyebrow="FAQ" title="Your Questions, Answered" />
         <div className="mt-10">

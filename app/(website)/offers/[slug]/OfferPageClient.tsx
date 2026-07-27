@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Script from "next/script";
-import { Phone, MessageCircle, X, Star, Bookmark, ArrowRight } from "lucide-react";
+import {
+  Phone, MessageCircle, X, Star, Bookmark, ArrowRight, Check, MapPin,
+} from "lucide-react";
 import { getHeroImage, getCardImage } from "@/app/lib/imageUrl";
 import { LeadForm } from "./LeadForm";
 import { getAdsAccountId, fireConversion } from "./gtag";
@@ -122,7 +124,25 @@ export function OfferPageClient({ page }: { page: OfferPageData }) {
   );
 }
 
+// Pulls the lowest priceLabel across the page's items (e.g. "₹16,999/person")
+// by comparing the digits inside each label — the labels are free-text set by
+// admins, so this is a best-effort "starting from" figure, not exact math.
+function cheapestPrice(items: Item[]): string | null {
+  let best: { label: string; value: number } | null = null;
+  for (const item of items) {
+    if (!item.priceLabel) continue;
+    const digits = item.priceLabel.replace(/[^\d]/g, "");
+    if (!digits) continue;
+    const value = Number(digits);
+    if (!best || value < best.value) best = { label: item.priceLabel, value };
+  }
+  return best?.label ?? null;
+}
+
 function Hero({ page, onEnquire }: { page: OfferPageData; onEnquire: () => void }) {
+  const packageCount = page.items.length;
+  const startingFrom = useMemo(() => cheapestPrice(page.items), [page.items]);
+
   return (
     <section className="relative -mt-header-height flex min-h-[90vh] items-center overflow-hidden bg-neutral-900 pb-14 pt-28 sm:min-h-[85vh] sm:pb-20">
       <Image src={getHeroImage(page.heroImageUrl)} alt="" fill priority className="object-cover" />
@@ -130,26 +150,57 @@ function Hero({ page, onEnquire }: { page: OfferPageData; onEnquire: () => void 
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4">
         <div className="max-w-2xl">
-          <span className="text-sm font-semibold uppercase tracking-wide text-red-300">
+          {page.destination && (
+            <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+              <MapPin size={12} /> {page.destination}
+            </div>
+          )}
+          <span className="block text-sm font-semibold uppercase tracking-wide text-red-300">
             {page.heroEyebrow || page.title}
           </span>
-          <h1 className="mt-2 text-5xl font-extrabold uppercase leading-none text-white sm:text-7xl">
+          <h1 className="mt-3 text-5xl font-extrabold uppercase leading-[1.05] text-white sm:text-7xl">
             {page.heroHeadline || page.title}
           </h1>
-          <p className="mt-4 max-w-lg text-sm text-white/85 sm:text-base">{page.description}</p>
-          <div className="mt-6 flex flex-wrap items-center gap-4">
+          <p className="mt-5 max-w-lg text-sm text-white/85 sm:text-base">{page.description}</p>
+
+          <div className="mt-8 flex flex-wrap items-center gap-4">
             <button
               onClick={onEnquire}
               className="inline-flex items-center gap-2 rounded-full bg-red-600 px-8 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-red-700"
             >
               Explore <ArrowRight size={16} />
             </button>
-            <div className="flex items-center gap-1.5 text-sm text-white/90">
+            {packageCount > 0 && (
+              <a
+                href="#packages"
+                className="inline-flex items-center gap-2 rounded-full border border-white/30 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+              >
+                View Packages
+              </a>
+            )}
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-white/90">
+            <div className="flex items-center gap-1.5">
               <span className="flex text-amber-400">
                 {Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className="fill-amber-400" />)}
               </span>
               <span>Rated 4.8/5 by 2,300+ happy travellers</span>
             </div>
+            {startingFrom && (
+              <>
+                <span className="text-white/30">•</span>
+                <span className="font-semibold text-white">Starting from {startingFrom}</span>
+              </>
+            )}
+            {packageCount > 0 && (
+              <>
+                <span className="text-white/30">•</span>
+                <span className="font-semibold text-white">
+                  {packageCount} curated package{packageCount > 1 ? "s" : ""}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -179,8 +230,8 @@ function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageN
         </div>
         <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
-            <article key={item.id} className="overflow-hidden rounded-2xl bg-neutral-950 shadow-lg shadow-black/10">
-              <div className="relative h-56">
+            <article key={item.id} className="flex h-full flex-col overflow-hidden rounded-2xl bg-neutral-950 shadow-lg shadow-black/10">
+              <div className="relative h-56 shrink-0">
                 <Image src={getCardImage(item.imageUrl)} alt={item.title} fill className="object-cover" />
                 {item.badgeLabel && (
                   <span className="absolute left-3 top-3 rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm">
@@ -192,19 +243,23 @@ function PackageGrid({ items, onEnquire }: { items: Item[]; onEnquire: (packageN
                 </span>
               </div>
 
-              <div className="p-5">
-                <h3 className="text-xl font-extrabold text-white">{item.title}</h3>
-                {item.description && (
-                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-white/65">{item.description}</p>
-                )}
-                <div className="mt-3.5 flex flex-wrap items-center gap-2">
-                  {item.rating != null && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-white/20 px-2.5 py-1 text-xs font-semibold text-white">
-                      <Star size={11} className="fill-amber-400 text-amber-400" /> {item.rating.toFixed(1)}
-                    </span>
+              <div className="flex flex-1 flex-col p-5">
+                <div className="flex-1">
+                  <h3 className="text-xl font-extrabold text-white">{item.title}</h3>
+                  {item.description && (
+                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-white/65">{item.description}</p>
                   )}
-                  {item.routeLabel && (
-                    <span className="rounded-full border border-white/20 px-2.5 py-1 text-xs font-semibold text-white">{item.routeLabel}</span>
+                  {(item.rating != null || item.routeLabel) && (
+                    <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                      {item.rating != null && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-white/20 px-2.5 py-1 text-xs font-semibold text-white">
+                          <Star size={11} className="fill-amber-400 text-amber-400" /> {item.rating.toFixed(1)}
+                        </span>
+                      )}
+                      {item.routeLabel && (
+                        <span className="rounded-full border border-white/20 px-2.5 py-1 text-xs font-semibold text-white">{item.routeLabel}</span>
+                      )}
+                    </div>
                   )}
                 </div>
                 <button
@@ -282,6 +337,8 @@ function EnquiryModal({
   onClose: () => void; destination: string | null; packageName?: string; pageUrl: string; googleAdsSendToForm: string | null;
   contactPhone: string; onCallClick: () => void;
 }) {
+  const [submitted, setSubmitted] = useState(false);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <style>{`
@@ -299,32 +356,48 @@ function EnquiryModal({
         >
           <X size={18} />
         </button>
-        <h3 className="pr-9 text-xl font-extrabold text-neutral-900">Get Your Free Custom Quote</h3>
-        {packageName && (
-          <span className="mt-2 inline-block max-w-full truncate rounded-full bg-red-50 px-4 py-1.5 text-sm font-bold text-red-600">
-            {packageName}
-          </span>
+
+        {submitted ? (
+          <div className="pt-1 text-center">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-green-100 text-green-600">
+              <Check size={28} strokeWidth={2.5} />
+            </div>
+            <h3 className="mt-4 text-xl font-extrabold text-neutral-900">Thank you! 🎉</h3>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-neutral-500">
+              We&apos;ve received your enquiry{packageName ? ` for ${packageName}` : ""}. Our travel expert will call or WhatsApp you shortly with a custom quote — completely free, no obligation.
+            </p>
+          </div>
+        ) : (
+          <>
+            <h3 className="pr-9 text-xl font-extrabold text-neutral-900">Get Your Free Custom Quote</h3>
+            {packageName && (
+              <span className="mt-2 inline-block max-w-full truncate rounded-full bg-red-50 px-4 py-1.5 text-sm font-bold text-red-600">
+                {packageName}
+              </span>
+            )}
+            <p className="mt-2.5 text-sm text-neutral-500">
+              Share your details and our travel expert will send a personalised itinerary &amp; price — usually within a few hours. No obligation.
+            </p>
+            <LeadForm
+              destination={destination}
+              packageName={packageName}
+              pageUrl={pageUrl}
+              googleAdsSendToForm={googleAdsSendToForm}
+              onSuccess={() => setSubmitted(true)}
+              className="mt-5"
+            />
+            <div className="mt-4 flex items-center gap-3 text-xs font-bold uppercase tracking-wide text-neutral-400">
+              <span className="h-px flex-1 bg-neutral-200" /> or <span className="h-px flex-1 bg-neutral-200" />
+            </div>
+            <a
+              href={telHref(contactPhone)}
+              onClick={onCallClick}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-green-600 py-3 text-sm font-bold text-green-600 transition hover:border-green-500"
+            >
+              <Phone size={16} /> Call {contactPhone}
+            </a>
+          </>
         )}
-        <p className="mt-2.5 text-sm text-neutral-500">
-          Share your details and our travel expert will send a personalised itinerary &amp; price — usually within a few hours. No obligation.
-        </p>
-        <LeadForm
-          destination={destination}
-          packageName={packageName}
-          pageUrl={pageUrl}
-          googleAdsSendToForm={googleAdsSendToForm}
-          className="mt-5"
-        />
-        <div className="mt-4 flex items-center gap-3 text-xs font-bold uppercase tracking-wide text-neutral-400">
-          <span className="h-px flex-1 bg-neutral-200" /> or <span className="h-px flex-1 bg-neutral-200" />
-        </div>
-        <a
-          href={telHref(contactPhone)}
-          onClick={onCallClick}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border py-3 text-sm font-bold text-green-600 border-green-600 transition hover:border-green-500 hover:text-green-600"
-        >
-          <Phone size={16} /> Call {contactPhone}
-        </a>
       </div>
     </div>
   );

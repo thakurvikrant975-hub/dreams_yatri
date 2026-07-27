@@ -191,34 +191,41 @@ export function PackageItemsEditor({ landingPageId, initialItems }: { landingPag
       <div className="space-y-2">
         {items.length === 0 && <p className="text-sm text-dashboard-base-content/50">No packages added yet.</p>}
         {items.map((item, i) => (
-          <div key={item.id} className="flex items-start gap-3 rounded-xl border border-dashboard-base-300 p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={item.imageUrl || "/placeholder.svg"} alt="" className="size-14 rounded-md object-cover bg-dashboard-base-200 shrink-0" />
-            <div className="flex-1 min-w-0 space-y-1.5">
-              <Input value={item.title} onChange={(e) => patchLocal(item.id, { title: e.target.value })} onBlur={() => handleFieldSave(item.id, { title: item.title })} className="h-8 text-sm font-medium" />
-              <Textarea
-                value={item.description ?? ""} onChange={(e) => patchLocal(item.id, { description: e.target.value })}
-                onBlur={() => handleFieldSave(item.id, { description: item.description })}
-                rows={2} placeholder="Card description" className="text-xs"
-              />
-              <div className="grid grid-cols-4 gap-1.5">
-                <Input value={item.routeLabel ?? ""} onChange={(e) => patchLocal(item.id, { routeLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { routeLabel: item.routeLabel })} placeholder="Route" className="h-8 text-xs" />
-                <Input value={item.priceLabel ?? ""} onChange={(e) => patchLocal(item.id, { priceLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { priceLabel: item.priceLabel })} placeholder="Price" className="h-8 text-xs" />
-                <Input value={item.badgeLabel ?? ""} onChange={(e) => patchLocal(item.id, { badgeLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { badgeLabel: item.badgeLabel })} placeholder="Badge" className="h-8 text-xs" />
-                <Input
-                  type="number" min={1} max={5} step={0.1} value={item.rating ?? ""}
-                  onChange={(e) => patchLocal(item.id, { rating: e.target.value ? Number(e.target.value) : null })}
-                  onBlur={() => handleFieldSave(item.id, { rating: item.rating })}
-                  placeholder="Rating" className="h-8 text-xs"
+          <div key={item.id} className="rounded-xl border border-dashboard-base-300 p-3 space-y-2.5">
+            <div className="flex items-start gap-3">
+              <div className="w-40 shrink-0">
+                <ImageDropField
+                  value={item.imageUrl}
+                  onChange={(url) => handleFieldSave(item.id, { imageUrl: url })}
+                  folder="landing-pages"
                 />
               </div>
-              <Checkbox checked={item.showInHero} onChange={() => handleToggleHero(item)} label={<span className="text-xs">Show in hero rail</span>} />
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <Input value={item.title} onChange={(e) => patchLocal(item.id, { title: e.target.value })} onBlur={() => handleFieldSave(item.id, { title: item.title })} className="h-8 text-sm font-medium" />
+                <Textarea
+                  value={item.description ?? ""} onChange={(e) => patchLocal(item.id, { description: e.target.value })}
+                  onBlur={() => handleFieldSave(item.id, { description: item.description })}
+                  rows={2} placeholder="Card description" className="text-xs"
+                />
+                <div className="grid grid-cols-4 gap-1.5">
+                  <Input value={item.routeLabel ?? ""} onChange={(e) => patchLocal(item.id, { routeLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { routeLabel: item.routeLabel })} placeholder="Route" className="h-8 text-xs" />
+                  <Input value={item.priceLabel ?? ""} onChange={(e) => patchLocal(item.id, { priceLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { priceLabel: item.priceLabel })} placeholder="Price" className="h-8 text-xs" />
+                  <Input value={item.badgeLabel ?? ""} onChange={(e) => patchLocal(item.id, { badgeLabel: e.target.value })} onBlur={() => handleFieldSave(item.id, { badgeLabel: item.badgeLabel })} placeholder="Badge" className="h-8 text-xs" />
+                  <Input
+                    type="number" min={1} max={5} step={0.1} value={item.rating ?? ""}
+                    onChange={(e) => patchLocal(item.id, { rating: e.target.value ? Number(e.target.value) : null })}
+                    onBlur={() => handleFieldSave(item.id, { rating: item.rating })}
+                    placeholder="Rating" className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="disabled:opacity-30 text-dashboard-base-content/60 hover:text-dashboard-base-content"><ChevronUp size={16} /></button>
+                <button type="button" onClick={() => move(i, 1)} disabled={i === items.length - 1} className="disabled:opacity-30 text-dashboard-base-content/60 hover:text-dashboard-base-content"><ChevronDown size={16} /></button>
+                <button type="button" onClick={() => handleRemove(item.id)} className="text-red-600 hover:text-red-700 mt-1"><Trash2 size={16} /></button>
+              </div>
             </div>
-            <div className="flex flex-col items-center gap-1 shrink-0">
-              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="disabled:opacity-30 text-dashboard-base-content/60 hover:text-dashboard-base-content"><ChevronUp size={16} /></button>
-              <button type="button" onClick={() => move(i, 1)} disabled={i === items.length - 1} className="disabled:opacity-30 text-dashboard-base-content/60 hover:text-dashboard-base-content"><ChevronDown size={16} /></button>
-              <button type="button" onClick={() => handleRemove(item.id)} className="text-red-600 hover:text-red-700 mt-1"><Trash2 size={16} /></button>
-            </div>
+            <Checkbox checked={item.showInHero} onChange={() => handleToggleHero(item)} label={<span className="text-xs">Show in hero rail</span>} />
           </div>
         ))}
       </div>
