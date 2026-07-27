@@ -523,11 +523,13 @@ function BookingSummary({
   hotel,
   selected,
   current,
+  hasRates,
   onBook,
 }: {
   hotel: Hotel;
   selected: boolean;
   current: RatePlan;
+  hasRates: boolean;
   onBook: () => void;
 }) {
   return (
@@ -540,17 +542,23 @@ function BookingSummary({
         </div>
       </div>
       <div className="border-t border-neutral-100 pt-3">
-        <p className="text-xs text-neutral-400">{selected ? "Selected room from" : "Starting from"}</p>
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm text-neutral-400 line-through">{money(current.originalPrice)}</span>
-          {current.originalPrice > current.price && (
-            <span className="text-[11px] font-semibold text-emerald-600">
-              {Math.round(((current.originalPrice - current.price) / current.originalPrice) * 100)}% off
-            </span>
-          )}
-        </div>
-        <span className="text-2xl font-bold text-neutral-900">{money(current.price)}</span>
-        <p className="text-[11px] text-neutral-400">+ {money(current.taxes)} taxes & fees · per night</p>
+        {hasRates ? (
+          <>
+            <p className="text-xs text-neutral-400">{selected ? "Selected room from" : "Starting from"}</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm text-neutral-400 line-through">{money(current.originalPrice)}</span>
+              {current.originalPrice > current.price && (
+                <span className="text-[11px] font-semibold text-emerald-600">
+                  {Math.round(((current.originalPrice - current.price) / current.originalPrice) * 100)}% off
+                </span>
+              )}
+            </div>
+            <span className="text-2xl font-bold text-neutral-900">{money(current.price)}</span>
+            <p className="text-[11px] text-neutral-400">+ {money(current.taxes)} taxes & fees · per night</p>
+          </>
+        ) : (
+          <p className="text-sm text-neutral-400 py-1">Price on request</p>
+        )}
       </div>
       <div className="mt-3 space-y-2">
         <div className="flex items-center gap-2 text-xs text-neutral-600">
@@ -610,7 +618,8 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
   }
 
   const allRates = hotel.rooms.flatMap((r) => r.ratePlans);
-  const cheapest: RatePlan = allRates.length
+  const hasRates = allRates.length > 0;
+  const cheapest: RatePlan = hasRates
     ? allRates.reduce((min, p) => (p.price < min.price ? p : min))
     : { id: "", mealPlan: "", inclusions: [], cancellation: "", refundable: false, price: 0, originalPrice: 0, taxes: 0 };
   const current = selected?.plan ?? cheapest;
@@ -740,7 +749,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
               </div>
             </div>
             <div className="hidden lg:block">
-              <BookingSummary hotel={hotel} selected={!!selected} current={current} onBook={() => jump("rooms")} />
+              <BookingSummary hotel={hotel} selected={!!selected} current={current} hasRates={hasRates} onBook={() => jump("rooms")} />
             </div>
 
           </section>
@@ -878,8 +887,14 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
       {/* Mobile sticky book bar */}
       <div className="lg:hidden sticky bottom-0 z-30 bg-white border-t border-neutral-200 px-4 py-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] text-neutral-400">{selected ? "Selected from" : "Starting from"}</p>
-          <p className="text-lg font-bold text-neutral-900 leading-none">{money(current.price)}<span className="text-[11px] font-normal text-neutral-400"> +taxes</span></p>
+          {hasRates ? (
+            <>
+              <p className="text-[11px] text-neutral-400">{selected ? "Selected from" : "Starting from"}</p>
+              <p className="text-lg font-bold text-neutral-900 leading-none">{money(current.price)}<span className="text-[11px] font-normal text-neutral-400"> +taxes</span></p>
+            </>
+          ) : (
+            <p className="text-sm font-semibold text-neutral-400">Price on request</p>
+          )}
         </div>
         <button
           onClick={() => jump("rooms")}
