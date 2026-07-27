@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Save, Loader2, ExternalLink, Copy, Plus, Trash2, ChevronUp, ChevronDown, Star,
+  Save, Loader2, ExternalLink, Copy, Plus, Trash2, Star,
 } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
@@ -320,7 +320,7 @@ function PhonePicker({ value, onChange }: { value: string; onChange: (v: string)
             onChange(e.target.value);
           }}
         >
-          <option value="">Select a team member's number…</option>
+          <option value="">Select a team member&apos;s number…</option>
           {members?.map((m) => (
             <option key={m.id} value={m.phone}>{m.name} — {m.phone}</option>
           ))}

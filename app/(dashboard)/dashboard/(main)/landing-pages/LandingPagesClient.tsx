@@ -59,7 +59,7 @@ export function LandingPagesClient({ pages }: { pages: LandingPageRow[] }) {
       <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
         {pages.length === 0 ? (
           <div className="p-10 text-center text-sm text-dashboard-base-content/60">
-            No landing pages yet — click "New Landing Page" to create your first one.
+            No landing pages yet — click &quot;New Landing Page&quot; to create your first one.
           </div>
         ) : (
           <table className="w-full text-sm">
