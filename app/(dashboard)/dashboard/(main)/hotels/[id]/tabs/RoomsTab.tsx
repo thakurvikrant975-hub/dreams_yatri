@@ -54,6 +54,7 @@ type DBRoom = {
   bed_type: string | null;
   view_type: string | null;
   bed_count: number;
+  num_rooms: number;
   max_occupancy: number;
   max_adults: number;
   max_children: number;
@@ -232,6 +233,7 @@ type RoomFormState = {
   bed_count: number;
   view_type: string;
   area_sqft: string;
+  num_rooms: number;
   max_occupancy: number;
   max_adults: number;
   max_children: number;
@@ -250,6 +252,7 @@ const EMPTY_FORM: RoomFormState = {
   bed_count: 1,
   view_type: "",
   area_sqft: "",
+  num_rooms: 1,
   max_occupancy: 2,
   max_adults: 2,
   max_children: 1,
@@ -271,6 +274,7 @@ function toFormState(room: DBRoom): RoomFormState {
     bed_count:           room.bed_count ?? 1,
     view_type:           room.view_type ?? "",
     area_sqft:           room.area_sqft ? String(room.area_sqft) : "",
+    num_rooms:           room.num_rooms ?? 1,
     max_occupancy:       room.max_occupancy      ?? 2,
     max_adults:          room.max_adults         ?? room.max_occupancy ?? 2,
     max_children:        room.max_children       ?? 1,
@@ -294,6 +298,7 @@ function buildFormData(form: RoomFormState): FormData {
   fd.append("bed_count",           String(form.bed_count));
   fd.append("view_type",           form.view_type);
   fd.append("area_sqft",           form.area_sqft);
+  fd.append("num_rooms",           String(form.num_rooms));
   fd.append("max_occupancy",       String(form.max_occupancy));
   fd.append("max_adults",          String(form.max_adults));
   fd.append("max_children",        String(form.max_children));
@@ -821,7 +826,14 @@ function RoomForm({
             onChange={(e) => update("area_sqft", e.target.value)}
             className="bg-dashboard-base-100 border-dashboard-base-content/20" />
         </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-dashboard-base-content">Room Count</Label>
+          <Stepper value={form.num_rooms} onChange={(v) => update("num_rooms", v)} min={1} max={100} />
+        </div>
       </div>
+      <p className="text-[11px] text-dashboard-base-content/40 -mt-2">
+        Total inventory of this room type at the property — how many physical rooms are available to sell.
+      </p>
 
       {/* ── Guest Occupancy ─────────────────────────────── */}
       <div className="border border-dashboard-base-content/15 rounded-xl overflow-hidden">
@@ -1156,6 +1168,9 @@ function RoomRow({
             {room.bed_type && <span className="text-xs text-dashboard-base-content/50">{room.bed_type}</span>}
             {room.view_type && <span className="text-xs text-dashboard-base-content/50">· {room.view_type}</span>}
             {room.area_sqft && <span className="text-xs text-dashboard-base-content/50">· {room.area_sqft} sq ft</span>}
+            <Badge className="text-[10px] px-1.5 py-0 bg-dashboard-base-200 text-dashboard-base-content/60 border border-dashboard-base-content/15">
+              {room.num_rooms ?? 1} room{(room.num_rooms ?? 1) !== 1 ? "s" : ""}
+            </Badge>
             <span className="text-xs text-dashboard-base-content/50">
               · {room.max_occupancy ?? 2} base{(room.extra_bed_capacity ?? 0) > 0 ? ` +${room.extra_bed_capacity} extra` : ""} · max {room.max_adults ?? "—"}A/{room.max_children ?? "—"}C
             </span>
@@ -1257,6 +1272,7 @@ export function RoomsTab({
             bed_count:           form.bed_count,
             view_type:           form.view_type || null,
             area_sqft:           form.area_sqft ? Number(form.area_sqft) : null,
+            num_rooms:           form.num_rooms,
             max_occupancy:       form.max_occupancy,
             max_adults:          form.max_adults,
             max_children:        form.max_children,
@@ -1302,6 +1318,7 @@ export function RoomsTab({
                   bed_count:           form.bed_count,
                   view_type:           form.view_type || null,
                   area_sqft:           form.area_sqft ? Number(form.area_sqft) : null,
+                  num_rooms:           form.num_rooms,
                   max_occupancy:       form.max_occupancy,
                   max_adults:          form.max_adults,
                   max_children:        form.max_children,
@@ -1331,7 +1348,10 @@ export function RoomsTab({
         <div>
           <p className="text-sm font-semibold text-dashboard-base-content">Rooms</p>
           <p className="text-xs text-dashboard-base-content/50 mt-0.5">
-            {rooms.length} room{rooms.length !== 1 ? "s" : ""} · Manage room types, specs and photos
+            {rooms.length} room type{rooms.length !== 1 ? "s" : ""}
+            {" · "}
+            {rooms.reduce((sum, r) => sum + (r.num_rooms ?? 1), 0)} room{rooms.reduce((sum, r) => sum + (r.num_rooms ?? 1), 0) !== 1 ? "s" : ""} total
+            {" · "}Manage room types, specs and photos
           </p>
         </div>
         {!adding && editId === null && (
