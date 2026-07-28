@@ -24,7 +24,7 @@ import {
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import {
   Plus, Pencil, Trash2, Star, Loader2, ChevronDown, ChevronUp, ChevronRight, Images,
-  Check, ChevronsUpDown, Search, X as XIcon,
+  Check, ChevronsUpDown, Search, X as XIcon, IndianRupee,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
@@ -32,6 +32,8 @@ import {
   createRoom, updateRoom, deleteRoom,
   createRoomImages, deleteRoomImage, setPrimaryRoomImage,
 } from "../../actions";
+import { RoomPricingPlans } from "./RoomPricingPlans";
+import type { PricingPlan, MealType, DietType } from "./PricingTab";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -1121,16 +1123,24 @@ function RoomImagesSection({
 function RoomRow({
   room,
   hotel_id,
+  plans: initialPlans,
+  mealTypes,
+  dietTypes,
   onEdit,
   onDelete,
 }: {
   room: DBRoom;
   hotel_id: number;
+  plans: PricingPlan[];
+  mealTypes: MealType[];
+  dietTypes: DietType[];
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [pricingExpanded, setPricingExpanded] = useState(false);
   const [images, setImages] = useState<RoomImage[]>(room.images);
+  const [plans, setPlans] = useState<PricingPlan[]>(initialPlans);
   const [isPending, startTransition] = useTransition();
   const amenities = Array.isArray(room.amenities) ? (room.amenities as string[]) : [];
 
@@ -1185,6 +1195,16 @@ function RoomRow({
 
         <div className="flex items-center gap-1 shrink-0">
           <Button type="button" variant="ghost" size="sm"
+            className={cn(
+              "h-7 text-xs gap-1 hover:bg-dashboard-base-200 cursor-pointer",
+              plans.length > 0 ? "text-dashboard-base-content/60 hover:text-dashboard-base-content" : "text-dashboard-warning",
+            )}
+            onClick={() => setPricingExpanded((p) => !p)}>
+            {pricingExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            <IndianRupee className="h-3 w-3" />
+            {plans.length > 0 ? `${plans.length} plan${plans.length !== 1 ? "s" : ""}` : "No pricing"}
+          </Button>
+          <Button type="button" variant="ghost" size="sm"
             className="h-7 text-xs gap-1 text-dashboard-base-content/60 hover:text-dashboard-base-content hover:bg-dashboard-base-200 cursor-pointer"
             onClick={() => setExpanded((p) => !p)}>
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -1222,6 +1242,12 @@ function RoomRow({
         </div>
       </div>
 
+      {pricingExpanded && (
+        <div className="px-4 py-4 bg-dashboard-base-200/30 border-t border-dashboard-base-content/10">
+          <RoomPricingPlans hotelId={hotel_id} room={{ id: room.id, name: room.name }} plans={plans} mealTypes={mealTypes} dietTypes={dietTypes} onPlansChanged={setPlans} />
+        </div>
+      )}
+
       {expanded && (
         <div className="px-4 pb-4 bg-dashboard-base-200/30 border-t border-dashboard-base-content/10">
           <RoomImagesSection room={room} hotel_id={hotel_id} images={images} onImagesChanged={setImages} />
@@ -1236,9 +1262,15 @@ function RoomRow({
 export function RoomsTab({
   hotel_id,
   rooms: initialRooms,
+  pricing,
+  mealTypes,
+  dietTypes,
 }: {
   hotel_id: number;
   rooms: DBRoom[];
+  pricing: PricingPlan[];
+  mealTypes: MealType[];
+  dietTypes: DietType[];
 }) {
   const [rooms, setRooms] = useState<DBRoom[]>(initialRooms);
   const [adding, setAdding] = useState(false);
@@ -1374,6 +1406,8 @@ export function RoomsTab({
               onSave={(form) => handleEdit(room.id, form)} onCancel={() => setEditId(null)} isSaving={isPending} />
           ) : (
             <RoomRow key={room.id} room={room} hotel_id={hotel_id}
+              plans={pricing.filter((p) => p.room_id === room.id)}
+              mealTypes={mealTypes} dietTypes={dietTypes}
               onEdit={() => setEditId(room.id)} onDelete={() => handleDelete(room.id)} />
           )
         )}
