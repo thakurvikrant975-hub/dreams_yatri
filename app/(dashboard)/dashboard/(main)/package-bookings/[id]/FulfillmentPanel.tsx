@@ -190,11 +190,40 @@ function ProposeBox({ bookingId, item }: { bookingId: string; item: FulfillmentI
 }
 
 export default function FulfillmentPanel({ bookingId, fulfillment }: { bookingId: string; fulfillment: BookingFulfillment }) {
+    const router = useRouter();
+    const [activitiesOnly, setActivitiesOnly] = useState(false);
+    const [verifyingAll, setVerifyingAll] = useState(false);
+
     const anyItems = fulfillment.days.some((d) => d.items.length > 0);
     if (!anyItems) return <p className="text-sm text-dashboard-neutral">No fulfilment items (no itinerary snapshot on this booking).</p>;
 
     const { confirmed, total, attention } = fulfillment.summary;
     const pct = total > 0 ? Math.round((confirmed / total) * 100) : 0;
+
+    const allActivities = fulfillment.days.flatMap((d) => d.items.filter((i) => i.kind === "ACTIVITY"));
+    const unverifiedActivities = allActivities.filter((i) => i.status !== "CONFIRMED" && i.status !== "REPLACED");
+    const hasActivities = allActivities.length > 0;
+
+    async function handleVerifyAllActivities() {
+        setVerifyingAll(true);
+        try {
+            const results = await Promise.all(
+                unverifiedActivities.map((it) =>
+                    setItemFulfillment({
+                        bookingId, kind: it.kind, day: it.day,
+                        activityId: it.activityId ?? null,
+                        status: "CONFIRMED", voucherUrl: null,
+                    }),
+                ),
+            );
+            const failed = results.filter((r) => !r.success).length;
+            if (failed > 0) toast.error(`${failed} activit${failed > 1 ? "ies" : "y"} could not be verified.`);
+            if (failed < results.length) toast.success(`Verified ${results.length - failed} activit${results.length - failed > 1 ? "ies" : "y"}.`);
+            router.refresh();
+        } finally {
+            setVerifyingAll(false);
+        }
+    }
 
     return (
         <div className="flex flex-col gap-4">
@@ -219,23 +248,58 @@ export default function FulfillmentPanel({ bookingId, fulfillment }: { bookingId
                 </div>
             </div>
 
+            {/* Activity controls — filter to activities only, and bulk-verify them */}
+            {hasActivities && (
+                <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-dashboard-base-300/70 bg-dashboard-base-100 px-4 py-2.5">
+                    <button
+                        type="button"
+                        onClick={() => setActivitiesOnly((v) => !v)}
+                        aria-pressed={activitiesOnly}
+                        className={`h-8 rounded-md border px-3 text-xs font-medium transition-colors ${
+                            activitiesOnly
+                                ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
+                                : "border-dashboard-base-300 text-dashboard-neutral hover:bg-dashboard-base-200"
+                        }`}
+                    >
+                        {activitiesOnly ? "Showing activities only" : "Show activities only"}
+                    </button>
+                    <span className="text-xs text-dashboard-neutral">
+                        {allActivities.length - unverifiedActivities.length}/{allActivities.length} activities confirmed
+                    </span>
+                    <button
+                        type="button"
+                        onClick={handleVerifyAllActivities}
+                        disabled={verifyingAll || unverifiedActivities.length === 0}
+                        className="ml-auto h-8 rounded-md bg-dashboard-primary px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                        {verifyingAll
+                            ? "Verifying…"
+                            : unverifiedActivities.length === 0
+                                ? "All activities verified"
+                                : `Verify all activities (${unverifiedActivities.length})`}
+                    </button>
+                </div>
+            )}
+
             {/* Per-day item rows */}
-            {fulfillment.days.map((d) =>
-                d.items.length === 0 ? null : (
+            {fulfillment.days.map((d) => {
+                const items = activitiesOnly ? d.items.filter((i) => i.kind === "ACTIVITY") : d.items;
+                if (items.length === 0) return null;
+                return (
                     <div key={d.day} className="rounded-lg border border-dashboard-base-300/70 overflow-hidden">
                         <div className="flex items-center gap-2 border-b border-dashboard-base-300/60 bg-dashboard-base-200/50 px-4 py-2">
                             <span className="rounded bg-dashboard-primary/10 px-2 py-0.5 text-[11px] font-bold text-dashboard-primary">Day {d.day}</span>
                             <span className="text-xs font-medium text-dashboard-base-content">{d.title}</span>
                             <span className="ml-auto text-[11px] text-dashboard-neutral">
-                                {d.items.filter(i => i.status === "CONFIRMED" || i.status === "REPLACED").length}/{d.items.length} done
+                                {items.filter(i => i.status === "CONFIRMED" || i.status === "REPLACED").length}/{items.length} done
                             </span>
                         </div>
                         <div className="divide-y divide-dashboard-base-300/40 px-4">
-                            {d.items.map((it) => <ItemRow key={it.key} bookingId={bookingId} item={it} />)}
+                            {items.map((it) => <ItemRow key={it.key} bookingId={bookingId} item={it} />)}
                         </div>
                     </div>
-                )
-            )}
+                );
+            })}
         </div>
     );
 }

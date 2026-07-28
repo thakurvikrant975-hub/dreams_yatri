@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInCalendarDays } from "date-fns";
+import { Building2, Package, Users } from "lucide-react";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
@@ -33,6 +34,21 @@ function fmtDate(d: Date | null): string {
     }).format(d);
 }
 
+function initials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+// The lead traveller — not the account holder — is who actually travelled,
+// so that's the name shown as "Traveller" here. Falls back to the account
+// name (and then the contact email) only if no traveller was ever recorded.
+function travellerName(b: Booking): string {
+    const t = b.travellersList[0];
+    if (t) return t.fullName || [t.firstName, t.lastName].filter(Boolean).join(" ") || "—";
+    return b.user?.name ?? b.contactEmail ?? "—";
+}
+
 type Booking = {
     id: string;
     bookingNumber: string;
@@ -45,8 +61,10 @@ type Booking = {
     paymentPlan: string | null;
     createdAt: Date;
     contactEmail: string | null;
+    contactPhone: string | null;
     packageId: number | null;
     user: { name: string | null; email: string | null } | null;
+    travellersList: { fullName: string; firstName: string | null; lastName: string | null }[];
     package: { title: string } | null;
     destination: { name: string } | null;
     packageUrl: string | null;
@@ -121,18 +139,32 @@ export function PackageBookingsTable({
             ),
         },
         {
-            header: "Customer",
-            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
-            cell: (b) => (
-                <div>
-                    <p className="text-sm font-medium text-dashboard-base-content">
-                        {b.user?.name ?? "—"}
-                    </p>
-                    <p className="text-xs text-dashboard-base-content/55">
-                        {b.contactEmail ?? b.user?.email ?? ""}
-                    </p>
-                </div>
-            ),
+            header: "Traveller",
+            sortKey: (b) => travellerName(b).toLowerCase(),
+            cell: (b) => {
+                const name = travellerName(b);
+                const bookedByAccount = b.user?.name && b.user.name !== name;
+                return (
+                    <div className="flex items-start gap-2.5">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[11px] font-semibold text-dashboard-primary">
+                            {initials(name)}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-medium text-dashboard-base-content truncate max-w-40">
+                                {name}
+                            </p>
+                            <p className="text-xs text-dashboard-base-content/55 truncate max-w-40">
+                                {b.contactEmail ?? b.user?.email ?? b.contactPhone ?? ""}
+                            </p>
+                            {bookedByAccount && (
+                                <p className="text-[11px] text-dashboard-base-content/40 truncate max-w-40">
+                                    Booked by {b.user!.name}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             header: "Package / Hotel",
@@ -140,13 +172,16 @@ export function PackageBookingsTable({
                 if (b.packageId == null) {
                     const stay = b.hotelBookings[0];
                     return (
-                        <div>
-                            <p className="text-sm font-medium text-dashboard-base-content line-clamp-1 max-w-48">
-                                {stay?.hotel.name ?? "—"}
-                            </p>
-                            <p className="text-xs text-dashboard-base-content/55">
-                                Direct hotel booking{stay?.hotel.city ? ` · ${stay.hotel.city}` : ""}
-                            </p>
+                        <div className="flex items-start gap-2">
+                            <Building2 size={14} className="mt-0.5 shrink-0 text-dashboard-base-content/40" />
+                            <div>
+                                <p className="text-sm font-medium text-dashboard-base-content line-clamp-1 max-w-44">
+                                    {stay?.hotel.name ?? "—"}
+                                </p>
+                                <p className="text-xs text-dashboard-base-content/55">
+                                    Direct hotel booking{stay?.hotel.city ? ` · ${stay.hotel.city}` : ""}
+                                </p>
+                            </div>
                         </div>
                     );
                 }
@@ -159,44 +194,54 @@ export function PackageBookingsTable({
                     })()
                     : null;
                 return (
-                    <div>
-                        {href ? (
-                            <a
-                                href={href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-medium text-dashboard-primary hover:underline line-clamp-1 max-w-48 block"
-                            >
-                                {b.package?.title ?? "—"}
-                            </a>
-                        ) : (
-                            <p className="text-sm text-dashboard-base-content line-clamp-1 max-w-48">
-                                {b.package?.title ?? "—"}
+                    <div className="flex items-start gap-2">
+                        <Package size={14} className="mt-0.5 shrink-0 text-dashboard-base-content/40" />
+                        <div>
+                            {href ? (
+                                <a
+                                    href={href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-sm font-medium text-dashboard-primary hover:underline line-clamp-1 max-w-44 block"
+                                >
+                                    {b.package?.title ?? "—"}
+                                </a>
+                            ) : (
+                                <p className="text-sm text-dashboard-base-content line-clamp-1 max-w-44">
+                                    {b.package?.title ?? "—"}
+                                </p>
+                            )}
+                            <p className="text-xs text-dashboard-base-content/55">
+                                {b.destination?.name ?? ""}
                             </p>
-                        )}
-                        <p className="text-xs text-dashboard-base-content/55">
-                            {b.destination?.name ?? ""}
-                        </p>
+                        </div>
                     </div>
                 );
             },
         },
         {
             header: "Travel Dates",
-            width: "w-[130px]",
+            width: "w-[140px]",
             sortKey: (b) => b.startDate ? new Date(b.startDate).getTime() : 0,
-            cell: (b) => (
-                <div className="space-y-1.5">
-                    <div>
-                        <p className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wide leading-none mb-0.5">Arrival</p>
-                        <p className="text-xs text-dashboard-base-content whitespace-nowrap">{fmtDate(b.startDate)}</p>
+            cell: (b) => {
+                const nights = b.startDate && b.endDate ? differenceInCalendarDays(new Date(b.endDate), new Date(b.startDate)) : null;
+                return (
+                    <div className="space-y-1.5">
+                        <div>
+                            <p className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wide leading-none mb-0.5">Arrival</p>
+                            <p className="text-xs text-dashboard-base-content whitespace-nowrap">{fmtDate(b.startDate)}</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wide leading-none mb-0.5">Departure</p>
+                            <p className="text-xs text-dashboard-base-content whitespace-nowrap">{fmtDate(b.endDate)}</p>
+                        </div>
+                        {nights !== null && nights > 0 && (
+                            <p className="text-[11px] text-dashboard-base-content/40">{nights} night{nights > 1 ? "s" : ""}</p>
+                        )}
                     </div>
-                    <div>
-                        <p className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wide leading-none mb-0.5">Departure</p>
-                        <p className="text-xs text-dashboard-base-content whitespace-nowrap">{fmtDate(b.endDate)}</p>
-                    </div>
-                </div>
-            ),
+                );
+            },
         },
         {
             header: "Pax",
@@ -204,7 +249,10 @@ export function PackageBookingsTable({
             width: "w-[70px]",
             sortKey: (b) => b.travellers ?? 0,
             cell: (b) => (
-                <span className="text-sm font-medium text-dashboard-base-content">{b.travellers}</span>
+                <span className="inline-flex items-center gap-1 text-sm font-medium text-dashboard-base-content">
+                    <Users size={13} className="text-dashboard-base-content/40" />
+                    {b.travellers}
+                </span>
             ),
         },
         {

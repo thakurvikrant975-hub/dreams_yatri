@@ -1,7 +1,8 @@
 import { Suspense } from "react";
-import { BookCheck, CalendarClock, CircleCheck, CircleX } from "lucide-react";
+import { BookCheck, CalendarClock, CircleCheck, CircleX, ClipboardList, IndianRupee } from "lucide-react";
 import type { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
+import { formatPaise } from "@/app/lib/money";
 import { PackageBookingsTable } from "./PackageBookingsTable";
 import {
     Breadcrumb, BreadcrumbItem,
@@ -69,16 +70,22 @@ async function BookingsData({
                     { contactEmail: { contains: search, mode: "insensitive" } },
                     { contactPhone: { contains: search, mode: "insensitive" } },
                     { user: { name: { contains: search, mode: "insensitive" } } },
+                    { travellersList: { some: { fullName: { contains: search, mode: "insensitive" } } } },
                 ],
             }
             : {}),
     };
 
-    const [total, upcoming, confirmed, cancelled, bookings] = await Promise.all([
+    const [total, upcoming, pendingReview, confirmed, cancelled, revenue, bookings] = await Promise.all([
         db.booking.count(),
         db.booking.count({ where: { status: "UPCOMING" } }),
+        db.booking.count({ where: { status: "PENDING_REVIEW" } }),
         db.booking.count({ where: { status: "CONFIRMED" } }),
         db.booking.count({ where: { status: "CANCELLED" } }),
+        db.booking.aggregate({
+            where: { status: { not: "CANCELLED" } },
+            _sum: { totalAmount_paise: true },
+        }),
         db.booking.findMany({
             where,
             orderBy: { createdAt: "desc" },
@@ -96,8 +103,14 @@ async function BookingsData({
                 paymentPlan: true,
                 createdAt: true,
                 contactEmail: true,
+                contactPhone: true,
                 packageId: true,
                 user: { select: { name: true, email: true } },
+                travellersList: {
+                    where: { isLead: true },
+                    take: 1,
+                    select: { fullName: true, firstName: true, lastName: true },
+                },
                 package: { select: { title: true } },
                 destination: { select: { name: true } },
                 packageUrl: true,
@@ -111,11 +124,18 @@ async function BookingsData({
 
     return (
         <>
-            <StatGrid cols={4}>
-                <StatCard label="Total Bookings" value={total}     icon={BookCheck}     />
-                <StatCard label="Upcoming"        value={upcoming}  icon={CalendarClock} />
-                <StatCard label="Confirmed"       value={confirmed} icon={CircleCheck}   />
-                <StatCard label="Cancelled"       value={cancelled} icon={CircleX}       />
+            <StatGrid cols={6}>
+                <StatCard label="Total Bookings" value={total}         icon={BookCheck}     />
+                <StatCard label="Upcoming"        value={upcoming}      icon={CalendarClock} />
+                <StatCard label="Pending Review"  value={pendingReview} icon={ClipboardList} />
+                <StatCard label="Confirmed"       value={confirmed}     icon={CircleCheck}   />
+                <StatCard label="Cancelled"       value={cancelled}     icon={CircleX}       />
+                <StatCard
+                    label="Total Revenue"
+                    value={formatPaise(revenue._sum.totalAmount_paise ?? 0)}
+                    icon={IndianRupee}
+                    sub="Excludes cancelled bookings"
+                />
             </StatGrid>
 
             <PackageBookingsTable
