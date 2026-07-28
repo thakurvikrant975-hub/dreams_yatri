@@ -73,7 +73,13 @@ export const PAGE_GROUPS = [
         label: "Marketing",
         pages: [
             { title: "Queries",           href: "/dashboard/queries" },
+            { title: "Landing pages",           href: "/dashboard/landing-pages" },
+            { title: "Email Marketing",   href: "/dashboard/email-marketing" },
             { title: "Follow Ups",        href: "/dashboard/follow-ups" },
+            { title: "References",        href: "/dashboard/references" },
+            { title: "Coupons & Offers",  href: "/dashboard/coupons" },
+            { title: "Reviews",           href: "/dashboard/reviews" },
+            { title: "Not Found",         href: "/dashboard/not-found" },
         ],
     },
     {
@@ -84,6 +90,7 @@ export const PAGE_GROUPS = [
             { title: "Queries Management",   href: "/dashboard/sales-query" },
             { title: "Package Library",      href: "/dashboard/package-library" },
             { title: "Package Builder",      href: "/dashboard/package-builder" },
+            { title: "My Bookings",      href: "/dashboard/my-bookings" },
         ],
     },
     {
@@ -91,6 +98,8 @@ export const PAGE_GROUPS = [
         label: "Transactions",
         pages: [
             { title: "Transactions",         href: "/dashboard/transactions" },
+            { title: "Failed Transactions",  href: "/dashboard/failed-transactions" },
+            { title: "Refunds",              href: "/dashboard/refunds" },
         ],
     },
     {
@@ -109,6 +118,13 @@ export const PAGE_GROUPS = [
             { title: "Package Bookings",  href: "/dashboard/package-bookings" },
             { title: "Hotel Bookings",    href: "/dashboard/hotel-bookings" },
             { title: "Verify Hotels",     href: "/dashboard/verify-hotels" },
+        ],
+    },
+    {
+        id: "settings",
+        label: "Settings",
+        pages: [
+            { title: "General", href: "/dashboard/settings" },
         ],
     },
 ];

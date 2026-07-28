@@ -26,6 +26,8 @@ export type PackageRow = {
     status: string;
     builtByName: string | null;
     sentAt: Date | null;
+    readyAt: Date | null;
+    readyByName: string | null;
     viewedAt: Date | null;
     viewCount: number;
     verified: boolean;
@@ -52,6 +54,8 @@ const inr = (n: number | null) => n != null ? `₹${Math.round(n).toLocaleString
 function StatusPill({ status }: { status: string }) {
     const styles: Record<string, string> = {
         SENT:     "bg-blue-100 text-blue-700",
+        READY:    "bg-amber-100 text-amber-700",
+        DRAFT:    "bg-dashboard-base-300 text-dashboard-base-content",
         ACCEPTED: "bg-green-100 text-green-700",
         DECLINED: "bg-red-100 text-red-700",
     };
@@ -161,12 +165,13 @@ export function VerifyPackagesTable({
             ),
         },
         {
-            header: "Sent",
-            sortKey: (p) => p.sentAt ? new Date(p.sentAt).getTime() : 0,
+            header: "Sent / Ready",
+            sortKey: (p) => (p.sentAt ?? p.readyAt) ? new Date((p.sentAt ?? p.readyAt)!).getTime() : 0,
             cell: (p) => (
                 <div>
                     <div className="flex items-center gap-1 text-sm text-dashboard-base-content whitespace-nowrap">
-                        <Send className="size-3 text-dashboard-neutral shrink-0" /> {fmtDate(p.sentAt)}
+                        <Send className="size-3 text-dashboard-neutral shrink-0" /> {fmtDate(p.sentAt ?? p.readyAt)}
+                        {!p.sentAt && <span className="text-[10px] font-medium text-amber-600">(ready)</span>}
                     </div>
                     <div className="text-xs text-dashboard-neutral mt-0.5">by {p.builtByName ?? "—"}</div>
                 </div>
@@ -209,7 +214,7 @@ export function VerifyPackagesTable({
                             : "bg-dashboard-primary text-white hover:opacity-90"
                     }`}
                 >
-                    {p.verified ? <><Eye className="size-3" /> View</> : p.rejectedAt ? <><Eye className="size-3" /> Review</> : "Verify →"}
+                    {p.verified ? <><Eye className="size-3" /> View</> : p.rejectedAt ? <><Eye className="size-3" /> Review</> : "Verify & Send →"}
                 </Link>
             ),
         },

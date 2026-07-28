@@ -21,7 +21,6 @@ type PackageItineraryParams = {
   durationStr:      string;
   paxLine:          string;
   shareUrl:         string;
-  hasPdfAttachment: boolean;
   execName?:        string | null;
 };
 
@@ -57,7 +56,6 @@ export function packageItineraryTemplate(params: PackageItineraryParams): string
     ${EmailText(`Dear ${params.clientName}, thank you for choosing DreamsYatri. Your customised travel itinerary has been finalised — please find the trip summary below.`)}
     ${EmailDetailsTable(detailRows)}
     ${EmailButton("View Full Itinerary and Book", params.shareUrl)}
-    ${params.hasPdfAttachment ? EmailMuted("A detailed PDF copy of this itinerary is attached to this email.") : ""}
   `;
 
   return buildEmail(body);
@@ -88,8 +86,6 @@ export function packageItineraryTextTemplate(params: PackageItineraryParams): st
     params.execName ? `Travel Manager: ${params.execName}` : null,
     "",
     `View your full itinerary and book: ${params.shareUrl}`,
-    "",
-    params.hasPdfAttachment ? "A detailed PDF copy of this itinerary is attached to this email." : null,
     "",
     "Dreams Yatri (OPC) Private Limited, Shimla, Himachal Pradesh",
     "This is an automated message. Please do not reply to this email.",

@@ -1,10 +1,11 @@
 import {
-  LayoutDashboard, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
-  MessageCircleQuestion, Banknote,
-  Car, Bed, BedDouble,
-  BellRing, PackagePlus, ChartNoAxesGantt, IndianRupee,
-  Map, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
+  LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
+  MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
+  ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, BedDouble, ChartNoAxesCombined,
+  BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
+  X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
   ShieldCheck, NotebookPen, Eye, Users, CalendarClock,
+  PlaneLanding,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -75,6 +76,12 @@ export const NAV_GROUPS = [
     id: "marketing", label: "Marketing",
     items: [
       { title: "Queries", href: "/dashboard/queries", icon: MessageCircleQuestion },
+      { title: "Landing pages", href: "/dashboard/landing-pages", icon: PlaneLanding },
+      { title: "Email Marketing", href: "/dashboard/email-marketing", icon: Mails },
+      { title: "References", href: "/dashboard/references", icon: Forward },
+      { title: "Coupons and offers", href: "/dashboard/coupons", icon: BadgePercent },
+      { title: "Reviews", href: "/dashboard/reviews", icon: Star },
+      { title: "Not Found", href: "/dashboard/not-found", icon: X },
       { title: "Blog Reviews", href: "/dashboard/blogs", icon: BookOpen },
     ],
   },
@@ -86,12 +93,15 @@ export const NAV_GROUPS = [
       { title: "Package Library", href: "/dashboard/package-library", icon: BookOpen },
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },
       { title: "Verify Packages", href: "/dashboard/verify-packages", icon: ShieldCheck },
+      { title: "My Bookings", href: "/dashboard/my-bookings", icon: PackagePlus },
     ],
   },
   {
     id: "Transactions", label: "Transactions",
     items: [
       { title: "Transactions", href: "/dashboard/transactions", icon: Banknote },
+      { title: "Failed Transactions", href: "/dashboard/failed-transactions", icon: BanknoteX },
+      { title: "Refunds", href: "/dashboard/refunds", icon: BanknoteArrowDown },
     ],
   },
   {
@@ -100,11 +110,18 @@ export const NAV_GROUPS = [
       { title: "Team Members", href: "/dashboard/team-members", icon: IdCardLanyard },
       { title: "Activity Logs", href: "/dashboard/activity-logs", icon: Activity },
       { title: "Team Roles", href: "/dashboard/roles-and-permissions", icon: KeyRound },
+      { title: "Departments", href: "/dashboard/departments", icon: CirclePile },
+    ],
+  },
+  {
+    id: "bookings", label: "Booking Management",
+    items: [
     ],
   },
   {
     id: "settings", label: "Settings",
     items: [
+      { title: "General", href: "/dashboard/settings", icon: Settings },
       { title: "Itinerary Settings", href: "/dashboard/itinerary-settings", icon: NotebookPen },
     ],
   },
