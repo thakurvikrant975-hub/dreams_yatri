@@ -3,7 +3,7 @@
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { db } from "@/app/lib/db";
 import { verifyCheckoutSignature } from "@/app/lib/razorpay";
-import { createBooking, createOrderForBooking, createBookingAndOrder, updateBookingPaymentPlan as updatePaymentPlan, type UpdateBookingPaymentPlanResult } from "./create-booking.service";
+import { createBooking, createOrderForBooking, createBookingAndOrder } from "./create-booking.service";
 import { createHotelBooking } from "./create-hotel-booking.service";
 import { createBookingFromCustomPackage } from "./create-booking-from-custom-package.service";
 import { createBalanceOrderForBooking } from "./balance-payment.service";
@@ -93,26 +93,6 @@ export async function startBookingPayment(
     } catch (err) {
         console.error("[startBookingPayment] failed", err);
         return { success: false, reason: "error", message: "Could not start payment. Please try again." };
-    }
-}
-
-/**
- * Lets the customer switch between paying the full amount and paying just the
- * booking amount (deposit) right on the payment page. Owner-scoped; only
- * takes effect while the booking is still unpaid.
- */
-export async function updateBookingPaymentPlan(
-    bookingId: string,
-    plan: "FULL" | "DEPOSIT",
-): Promise<UpdateBookingPaymentPlanResult> {
-    const user = await getAuthenticatedUser();
-    if (!user?.id) return { success: false, reason: "invalid", message: "Please log in to continue." };
-
-    try {
-        return await updatePaymentPlan({ bookingId, userId: user.id, plan });
-    } catch (err) {
-        console.error("[updateBookingPaymentPlan] failed", err);
-        return { success: false, reason: "error", message: "Could not update the payment plan. Please try again." };
     }
 }
 

@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { ArrowLeftIcon, ShieldCheckIcon, LockSimpleIcon } from '@phosphor-icons/react';
 import { loadRazorpay, openRazorpay } from '../../../book/[quoteId]/razorpayCheckout';
 import { submitPayuForm } from '../../../book/[quoteId]/payuCheckout';
-import { startBookingPayment, startBalancePayment, verifyCheckoutPayment, updateBookingPaymentPlan } from '@/app/actions/payment/booking.actions';
+import { startBookingPayment, startBalancePayment, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { formatPaiseRoundedUp } from '@/app/lib/money';
@@ -46,7 +46,6 @@ export default function PaymentStep({
     gateways,
     retry = false,
     mode = 'INITIAL',
-    planOptions = null,
 }: {
     bookingId: string;
     bookingNumber: string;
@@ -64,49 +63,19 @@ export default function PaymentStep({
     gateways: GatewayId[];
     retry?: boolean;
     mode?: 'INITIAL' | 'BALANCE';
-    /** Lets the customer switch FULL ↔ DEPOSIT here. Only relevant in INITIAL mode. */
-    planOptions?: {
-        depositAllowed: boolean;
-        depositPaise: number;
-        balancePaise: number;
-        balanceDueDate: string | null;
-    } | null;
 }) {
     const router = useRouter();
     const [gateway, setGateway] = useState<GatewayId>(gateways[0] ?? 'RAZORPAY');
-    const [selectedPlan, setSelectedPlan] = useState<'FULL' | 'DEPOSIT'>(plan);
     const [paying, setPaying] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const contact = [contactEmail, contactPhone].filter(Boolean).join(' · ');
-    const canChoosePlan = mode === 'INITIAL' && !!planOptions?.depositAllowed;
-
-    // What's actually due right now, reflecting the customer's plan choice —
-    // falls back to the server-computed values whenever a switch isn't offered.
-    const effectivePayNowPaise = canChoosePlan
-        ? (selectedPlan === 'FULL' ? totalPaise : planOptions!.depositPaise)
-        : payNowPaise;
-    const effectiveBalancePaise = canChoosePlan
-        ? (selectedPlan === 'FULL' ? 0 : planOptions!.balancePaise)
-        : balancePaise;
-    const effectiveBalanceDueDate = canChoosePlan
-        ? (selectedPlan === 'FULL' ? null : planOptions!.balanceDueDate)
-        : balanceDueDate;
 
     async function handlePay() {
         setError(null);
         setPaying(true);
         try {
-            if (mode === 'INITIAL' && selectedPlan !== plan) {
-                const planRes = await updateBookingPaymentPlan(bookingId, selectedPlan);
-                if (!planRes.success) {
-                    setPaying(false);
-                    setError(planRes.message ?? 'Could not update the payment plan. Please try again.');
-                    return;
-                }
-            }
-
             const res = mode === 'BALANCE'
                 ? await startBalancePayment(bookingId, gateway)
                 : await startBookingPayment(bookingId, gateway);
@@ -139,7 +108,7 @@ export default function PaymentStep({
                 amount: co.amountPaise,
                 currency: co.currency,
                 name: 'Dreams Yatri',
-                description: `${packageTitle} — ${mode === 'BALANCE' ? 'Balance payment' : selectedPlan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
+                description: `${packageTitle} — ${mode === 'BALANCE' ? 'Balance payment' : plan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
                 prefill: { email: contactEmail ?? undefined, contact: contactPhone ?? undefined },
                 notes: { bookingId },
                 theme: { color: '#0f766e' },
@@ -214,31 +183,6 @@ export default function PaymentStep({
                             </div>
                         </Card>
 
-                        {/* Payment plan — full amount vs. booking amount (deposit) */}
-                        {canChoosePlan && (
-                            <Card className=" p-5">
-                                <Heading level={4} weight="semibold" className="mb-1">Choose your payment plan</Heading>
-                                <Text size="sm" intent="secondary" className="block mb-4">Pay the full amount now, or reserve with the booking amount and settle the rest later.</Text>
-
-                                <div className="flex flex-col gap-3">
-                                    <PlanOption
-                                        selected={selectedPlan === 'DEPOSIT'}
-                                        onSelect={() => setSelectedPlan('DEPOSIT')}
-                                        title="Pay booking amount"
-                                        amount={formatPaiseRoundedUp(planOptions!.depositPaise)}
-                                        sub={`Balance ${formatPaiseRoundedUp(planOptions!.balancePaise)}${planOptions!.balanceDueDate ? ` due by ${planOptions!.balanceDueDate}` : ''}`}
-                                    />
-                                    <PlanOption
-                                        selected={selectedPlan === 'FULL'}
-                                        onSelect={() => setSelectedPlan('FULL')}
-                                        title="Pay full amount"
-                                        amount={formatPaiseRoundedUp(totalPaise)}
-                                        sub="Nothing left to pay later."
-                                    />
-                                </div>
-                            </Card>
-                        )}
-
                         {/* Payment options */}
                         <Card className=" p-5">
                             <Heading level={4} weight="semibold" className="mb-1">Choose how to pay</Heading>
@@ -289,7 +233,7 @@ export default function PaymentStep({
                         <Card className=" overflow-hidden">
                             <div className="px-5 py-4 border-b border-(--border-muted) flex items-center justify-between">
                                 <Text size="xs" intent="muted" weight="semibold" className="uppercase tracking-wide">Total due</Text>
-                                <Text size="xl" weight="bold" intent="primary" className="font-heading">{formatPaiseRoundedUp(effectivePayNowPaise)}</Text>
+                                <Text size="xl" weight="bold" intent="primary" className="font-heading">{formatPaiseRoundedUp(payNowPaise)}</Text>
                             </div>
                             <div className="px-5 py-5">
                                 <div className="flex items-center justify-between">
@@ -297,13 +241,13 @@ export default function PaymentStep({
                                     <Text size="sm" weight="medium" intent="primary">{formatPaiseRoundedUp(totalPaise)}</Text>
                                 </div>
                                 <div className="flex items-center justify-between mt-2">
-                                    <Text size="sm" intent="secondary">{mode === 'BALANCE' ? 'Paying balance' : selectedPlan === 'FULL' ? 'Paying now (full)' : 'Paying now (deposit)'}</Text>
-                                    <Text size="sm" weight="semibold" intent="primary">{formatPaiseRoundedUp(effectivePayNowPaise)}</Text>
+                                    <Text size="sm" intent="secondary">{mode === 'BALANCE' ? 'Paying balance' : plan === 'FULL' ? 'Paying now (full)' : 'Paying now (deposit)'}</Text>
+                                    <Text size="sm" weight="semibold" intent="primary">{formatPaiseRoundedUp(payNowPaise)}</Text>
                                 </div>
-                                {selectedPlan === 'DEPOSIT' && effectiveBalancePaise > 0 && (
+                                {plan === 'DEPOSIT' && balancePaise > 0 && (
                                     <div className="flex items-center justify-between mt-2">
-                                        <Text size="sm" intent="secondary">Balance later{effectiveBalanceDueDate ? ` (by ${effectiveBalanceDueDate})` : ''}</Text>
-                                        <Text size="sm" weight="medium" intent="secondary">{formatPaiseRoundedUp(effectiveBalancePaise)}</Text>
+                                        <Text size="sm" intent="secondary">Balance later{balanceDueDate ? ` (by ${balanceDueDate})` : ''}</Text>
+                                        <Text size="sm" weight="medium" intent="secondary">{formatPaiseRoundedUp(balancePaise)}</Text>
                                     </div>
                                 )}
 
@@ -314,7 +258,7 @@ export default function PaymentStep({
                                     </div>
                                 ) : (
                                     <Button variant="premium" size="lg" className="w-full mt-5" onClick={handlePay} loading={paying}>
-                                        Pay {formatPaiseRoundedUp(effectivePayNowPaise)}
+                                        Pay {formatPaiseRoundedUp(payNowPaise)}
                                     </Button>
                                 )}
 
@@ -336,25 +280,5 @@ export default function PaymentStep({
                 </div>
             </div>
         </div>
-    );
-}
-
-function PlanOption({ selected, onSelect, title, amount, sub }: { selected: boolean; onSelect: () => void; title: string; amount: string; sub: string }) {
-    return (
-        <button type="button" onClick={onSelect}
-            className={`w-full text-left cursor-pointer rounded-xl border p-4 transition ${selected ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50/40' : 'border-(--border-muted) hover:border-primary-300'}`}>
-            <div className="flex items-center gap-3">
-                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected ? 'border-primary-500' : 'border-neutral-300'}`}>
-                    {selected && <span className="h-2 w-2 rounded-full bg-primary-500" />}
-                </span>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                        <Text size="sm" weight="semibold" intent="primary">{title}</Text>
-                        <Text size="sm" weight="bold" intent="primary">{amount}</Text>
-                    </div>
-                    <Text size="xs" intent="muted" className="block mt-0.5">{sub}</Text>
-                </div>
-            </div>
-        </button>
     );
 }

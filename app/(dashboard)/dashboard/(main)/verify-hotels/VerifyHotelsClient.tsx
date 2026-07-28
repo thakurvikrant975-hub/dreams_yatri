@@ -65,12 +65,6 @@ async function HotelsData({
     const baseWhere: Prisma.BookingWhereInput = {
         paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
         status: { notIn: ["CANCELLED", "COMPLETED", "REJECTED"] },
-        // A booking with no hotel line items has nothing to verify here —
-        // without this, a paid booking that never got BookingHotel rows
-        // created (e.g. a direct-hotel booking whose hotel selection never
-        // completed) sits in this queue forever with a "Verify →" action
-        // that has nothing behind it.
-        hotelBookings: { some: {} },
         ...searchWhere,
     };
 
