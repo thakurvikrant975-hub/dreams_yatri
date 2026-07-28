@@ -34,6 +34,23 @@ export function formatPaise(paise: number): string {
     }).format(paise / 100);
 }
 
+/**
+ * Format paise as a whole-rupee display string, always rounded UP — e.g.
+ * 1616016 → "₹16,161". Display only (never use for the actual charge amount,
+ * which must stay exact integer paise) — for customer-facing "amount due"
+ * figures where paise look noisy and under-stating the total isn't OK.
+ */
+export function formatPaiseRoundedUp(paise: number): string {
+    assertIntPaise(paise);
+    const rupees = Math.ceil(paise / 100);
+    return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(rupees);
+}
+
 /** Sum a list of paise amounts (all must be integers). */
 export function sumPaise(amounts: number[]): number {
     let total = 0;

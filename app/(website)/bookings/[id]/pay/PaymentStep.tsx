@@ -11,7 +11,7 @@ import { submitPayuForm } from '../../../book/[quoteId]/payuCheckout';
 import { startBookingPayment, startBalancePayment, verifyCheckoutPayment, updateBookingPaymentPlan } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
-import { formatPaise } from '@/app/lib/money';
+import { formatPaiseRoundedUp } from '@/app/lib/money';
 import type { GatewayId } from '@/app/lib/payments/types';
 import Card from '@/app/components/ui/Card';
 
@@ -225,14 +225,14 @@ export default function PaymentStep({
                                         selected={selectedPlan === 'DEPOSIT'}
                                         onSelect={() => setSelectedPlan('DEPOSIT')}
                                         title="Pay booking amount"
-                                        amount={formatPaise(planOptions!.depositPaise)}
-                                        sub={`Balance ${formatPaise(planOptions!.balancePaise)}${planOptions!.balanceDueDate ? ` due by ${planOptions!.balanceDueDate}` : ''}`}
+                                        amount={formatPaiseRoundedUp(planOptions!.depositPaise)}
+                                        sub={`Balance ${formatPaiseRoundedUp(planOptions!.balancePaise)}${planOptions!.balanceDueDate ? ` due by ${planOptions!.balanceDueDate}` : ''}`}
                                     />
                                     <PlanOption
                                         selected={selectedPlan === 'FULL'}
                                         onSelect={() => setSelectedPlan('FULL')}
                                         title="Pay full amount"
-                                        amount={formatPaise(totalPaise)}
+                                        amount={formatPaiseRoundedUp(totalPaise)}
                                         sub="Nothing left to pay later."
                                     />
                                 </div>
@@ -289,21 +289,21 @@ export default function PaymentStep({
                         <Card className=" overflow-hidden">
                             <div className="px-5 py-4 border-b border-(--border-muted) flex items-center justify-between">
                                 <Text size="xs" intent="muted" weight="semibold" className="uppercase tracking-wide">Total due</Text>
-                                <Text size="xl" weight="bold" intent="primary" className="font-heading">{formatPaise(effectivePayNowPaise)}</Text>
+                                <Text size="xl" weight="bold" intent="primary" className="font-heading">{formatPaiseRoundedUp(effectivePayNowPaise)}</Text>
                             </div>
                             <div className="px-5 py-5">
                                 <div className="flex items-center justify-between">
                                     <Text size="sm" intent="secondary">Trip total</Text>
-                                    <Text size="sm" weight="medium" intent="primary">{formatPaise(totalPaise)}</Text>
+                                    <Text size="sm" weight="medium" intent="primary">{formatPaiseRoundedUp(totalPaise)}</Text>
                                 </div>
                                 <div className="flex items-center justify-between mt-2">
                                     <Text size="sm" intent="secondary">{mode === 'BALANCE' ? 'Paying balance' : selectedPlan === 'FULL' ? 'Paying now (full)' : 'Paying now (deposit)'}</Text>
-                                    <Text size="sm" weight="semibold" intent="primary">{formatPaise(effectivePayNowPaise)}</Text>
+                                    <Text size="sm" weight="semibold" intent="primary">{formatPaiseRoundedUp(effectivePayNowPaise)}</Text>
                                 </div>
                                 {selectedPlan === 'DEPOSIT' && effectiveBalancePaise > 0 && (
                                     <div className="flex items-center justify-between mt-2">
                                         <Text size="sm" intent="secondary">Balance later{effectiveBalanceDueDate ? ` (by ${effectiveBalanceDueDate})` : ''}</Text>
-                                        <Text size="sm" weight="medium" intent="secondary">{formatPaise(effectiveBalancePaise)}</Text>
+                                        <Text size="sm" weight="medium" intent="secondary">{formatPaiseRoundedUp(effectiveBalancePaise)}</Text>
                                     </div>
                                 )}
 
@@ -314,7 +314,7 @@ export default function PaymentStep({
                                     </div>
                                 ) : (
                                     <Button variant="premium" size="lg" className="w-full mt-5" onClick={handlePay} loading={paying}>
-                                        Pay {formatPaise(effectivePayNowPaise)}
+                                        Pay {formatPaiseRoundedUp(effectivePayNowPaise)}
                                     </Button>
                                 )}
 

@@ -19,11 +19,13 @@ import { createBookingDraft } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
-import { formatPaise } from '@/app/lib/money';
+import { formatPaiseRoundedUp } from '@/app/lib/money';
 import type { SafeQuote } from '@/app/actions/quote/create-quote.service';
 import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 
-const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+// Always round UP — a customer-facing display figure should never understate
+// what's due, and paise-level precision just looks noisy here.
+const fmt = (n: number) => `₹${Math.ceil(n).toLocaleString('en-IN')}`;
 
 function addDaysISO(iso: string, n: number): string {
     const d = new Date(`${iso}T00:00:00`);
@@ -294,7 +296,7 @@ export default function BookReview({
                                     <span className="text-xs text-secondary">(incl. GST)</span>
                                 </div>
                                 <Text size="sm" weight="semibold" className="text-gray-700 block mt-1">
-                                    {effectiveChoice === 'FULL' ? 'Pay Full Amount Now' : `Pay ${formatPaise(payAmountPaise)} now to reserve`}
+                                    {effectiveChoice === 'FULL' ? 'Pay Full Amount Now' : `Pay ${formatPaiseRoundedUp(payAmountPaise)} now to reserve`}
                                 </Text>
                             </div>
 
@@ -331,12 +333,12 @@ export default function BookReview({
                                 <div className="px-5 py-4 border-b border-(--border-muted) flex flex-col gap-2.5">
                                     <PayOption
                                         selected={payChoice === 'DEPOSIT'} onSelect={() => setPayChoice('DEPOSIT')}
-                                        title="Pay Advance to Book" amount={formatPaise(schedule.depositPaise)}
-                                        sub={`Balance ${formatPaise(schedule.balancePaise)}${schedule.balanceDueDate ? ` by ${formatDate(schedule.balanceDueDate)}` : ''}`}
+                                        title="Pay Advance to Book" amount={formatPaiseRoundedUp(schedule.depositPaise)}
+                                        sub={`Balance ${formatPaiseRoundedUp(schedule.balancePaise)}${schedule.balanceDueDate ? ` by ${formatDate(schedule.balanceDueDate)}` : ''}`}
                                     />
                                     <PayOption
                                         selected={payChoice === 'FULL'} onSelect={() => setPayChoice('FULL')}
-                                        title="Pay Full Amount Now" amount={formatPaise(schedule.totalPaise)}
+                                        title="Pay Full Amount Now" amount={formatPaiseRoundedUp(schedule.totalPaise)}
                                         sub="Nothing left to pay later."
                                     />
                                 </div>
