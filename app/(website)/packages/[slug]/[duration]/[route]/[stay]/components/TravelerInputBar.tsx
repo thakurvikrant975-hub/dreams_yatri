@@ -37,7 +37,7 @@ export default function TravelerInputBar() {
         travelDate, setTravelDate,
         leavingFrom, setLeavingFrom,
         adults, childAges, setTravellers,
-        rooms, setRooms,
+        rooms, setRooms, maxRooms,
         dateHighlight,
     } = useBooking();
 
@@ -90,6 +90,7 @@ export default function TravelerInputBar() {
                         onChange={(v) => { setTravellers(v.adults, v.childrenAges); setRooms(v.rooms ?? 1); }}
                         menuZClass={MENU_Z}
                         showRooms
+                        maxRooms={maxRooms}
                     />
                 </Field>
 

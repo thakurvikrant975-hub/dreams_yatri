@@ -13,6 +13,29 @@ import { handleComputePackagePrice } from '@/app/actions/packages/pricing.action
 import type { LocationValue } from '@/app/components/ui/LocationSearchSelect';
 import type { CabTypeOption, RoomOption } from '@/app/actions/packages/fetch-page-data';
 import { fetchRoomAlternatives, fetchHotelAlternatives } from '@/app/actions/packages/hotel-alternatives.actions';
+import { MAX_ROOMS } from '@/app/components/ui/TravellersField';
+
+// ── Room-count cap ────────────────────────────────────────────────────────
+//
+// hotel_rooms.num_rooms is total inventory for a room type at its hotel.
+// Most existing hotels have never had it set by an owner/admin, which left
+// it at the schema default of 1 — indistinguishable, from this field alone,
+// from a hotel that genuinely only has one room of that type. Treating a
+// bare "1" as an authoritative cap would wrongly lock nearly every existing
+// package down to a single room. So: only numbers greater than 1 are trusted
+// as a real, deliberately-set inventory limit; "1" is treated as
+// "not configured yet" and falls back to the app-wide MAX_ROOMS ceiling.
+export function effectiveRoomCap(numRooms: number): number {
+    return numRooms > 1 ? numRooms : MAX_ROOMS;
+}
+
+/** One package stay's default room + its total inventory, as shipped from
+ *  the server (see fetch-page-data.ts's HotelDay/RoomOption). */
+export type StayRoomCount = {
+    itineraryStayId: number;
+    roomPricingId:   number;
+    numRooms:        number;
+};
 
 // ── Safe pricing — only these fields reach the browser ──────────────────────
 
@@ -62,6 +85,9 @@ export interface BookingContextValue {
     infants:    number;
     childAges:  number[];   // length === childCount, each 2-11
     rooms:      number;
+    /** Highest room count currently selectable, given the active room type
+     *  at every stay in this itinerary (see effectiveRoomCap). */
+    maxRooms:   number;
     travelDate: string;     // 'YYYY-MM-DD' or ''
     leavingFrom: LocationValue | null;  // user's origin city (carried from search)
 
@@ -159,6 +185,8 @@ interface ProviderProps {
     packageName:        string;
     recentEnquiryCount: number;
     cabTypes:           CabTypeOption[];
+    /** Default room + inventory per itinerary stay — the basis for maxRooms. */
+    stayRoomCounts:     StayRoomCount[];
     children:       ReactNode;
     // Initial values carried from the search page (all optional)
     initialAdults?:      number;
@@ -170,7 +198,7 @@ interface ProviderProps {
 
 export function PackageBookingProvider({
     packageId, durationId, routeId, stayCategoryId, packageName, recentEnquiryCount,
-    cabTypes,
+    cabTypes, stayRoomCounts,
     children,
     initialAdults, initialChildAges, initialRooms, initialTravelDate, initialLeavingFrom,
 }: ProviderProps) {
@@ -200,6 +228,35 @@ export function PackageBookingProvider({
     const [roomAlternatesByStay, setRoomAlternatesByStay] = useState<Map<number, RoomOption[]>>(new Map());
     const [hotelAlternatesByStay, setHotelAlternatesByStay] = useState<Map<number, RoomOption[]>>(new Map());
     const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
+
+    // A package covers multiple stays, but the traveller picks one room count
+    // for the whole trip — so the ceiling is the smallest inventory among the
+    // room types actually in play right now (each stay's override if one was
+    // picked via "Change Room"/"Change Hotel", else its default room).
+    const maxRooms = useMemo(() => {
+        if (stayRoomCounts.length === 0) return MAX_ROOMS;
+        const caps = stayRoomCounts.map((stay) => {
+            const overrideId = roomSelections.get(stay.itineraryStayId);
+            if (overrideId == null || overrideId === stay.roomPricingId) {
+                return effectiveRoomCap(stay.numRooms);
+            }
+            const alternates = [
+                ...(roomAlternatesByStay.get(stay.itineraryStayId) ?? []),
+                ...(hotelAlternatesByStay.get(stay.itineraryStayId) ?? []),
+            ];
+            const picked = alternates.find((o) => o.room_pricing_id === overrideId);
+            // Alternates load on demand — until they arrive, fall back to the
+            // default room's cap rather than under- or over-restricting blind.
+            return effectiveRoomCap(picked?.room_num_rooms ?? stay.numRooms);
+        });
+        return Math.min(...caps);
+    }, [stayRoomCounts, roomSelections, roomAlternatesByStay, hotelAlternatesByStay]);
+
+    // Pull the committed room count down if a room-type change just lowered
+    // the cap below it; never push it up on its own.
+    useEffect(() => {
+        setRoomsRaw((prev) => Math.min(prev, maxRooms));
+    }, [maxRooms]);
 
     // Auto-upgrade cabs whenever passenger count changes.
     // `cabGroups` is recomputed (new reference) whenever `cabTypes` arrives
@@ -241,7 +298,7 @@ export function PackageBookingProvider({
 
     function setInfants(n: number) { setInfantsRaw(Math.max(0, n)); }
 
-    function setRooms(n: number) { setRoomsRaw(Math.max(1, n)); }
+    function setRooms(n: number) { setRoomsRaw(Math.max(1, Math.min(n, maxRooms))); }
 
     function setChildAge(idx: number, age: number) {
         setChildAges(prev => {
@@ -358,7 +415,7 @@ export function PackageBookingProvider({
 
     return (
         <BookingContext.Provider value={{
-            adults, childCount, infants, childAges, rooms, travelDate, leavingFrom,
+            adults, childCount, infants, childAges, rooms, maxRooms, travelDate, leavingFrom,
             setAdults, setChildCount, setInfants, setChildAge, setRooms, setTravelDate, setLeavingFrom, setTravellers,
             cabGroups, cabSelections, setCabForGroup,
             roomSelections, setRoomForStay, roomAlternatesByStay, hotelAlternatesByStay,
