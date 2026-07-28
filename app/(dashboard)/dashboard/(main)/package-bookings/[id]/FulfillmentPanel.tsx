@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { setItemFulfillment, getReplacementCandidates, proposeReplacement, type ReplacementCandidate } from "../fulfillment.actions";
-import type { BookingFulfillment, FulfillmentItem, FulfillmentState } from "@/app/services/fulfillment/status.service";
+import type { FulfillmentItem, FulfillmentState } from "@/app/services/fulfillment/status.service";
 
 const SETTABLE = [
     { v: "IN_PROCESS", l: "In process" },
@@ -31,7 +31,7 @@ const SELECT_COLOR: Record<string, string> = {
 
 const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
-function ItemRow({ bookingId, item }: { bookingId: string; item: FulfillmentItem }) {
+function ItemRow({ bookingId, item, dayLabel }: { bookingId: string; item: FulfillmentItem; dayLabel: string }) {
     const router = useRouter();
     const initStatus = (["IN_PROCESS", "CONFIRMED", "UNAVAILABLE"] as string[]).includes(item.status)
         ? (item.status as SettableStatus)
@@ -66,10 +66,11 @@ function ItemRow({ bookingId, item }: { bookingId: string; item: FulfillmentItem
     return (
         <div className="py-3">
             <div className="flex flex-wrap items-center gap-3">
-                {/* Title + subtitle */}
+                {/* Day badge + title/subtitle */}
+                <span className="shrink-0 rounded bg-dashboard-primary/10 px-2 py-0.5 text-[11px] font-bold text-dashboard-primary">{dayLabel}</span>
                 <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-dashboard-base-content leading-snug">{item.title}</div>
-                    <div className="text-xs text-dashboard-neutral mt-0.5">{titleCase(item.kind)}{item.subtitle ? ` · ${item.subtitle}` : ""}</div>
+                    {item.subtitle && <div className="text-xs text-dashboard-neutral mt-0.5">{item.subtitle}</div>}
                 </div>
 
                 {/* Saved-state chip (reflects last server state) */}
@@ -189,26 +190,23 @@ function ProposeBox({ bookingId, item }: { bookingId: string; item: FulfillmentI
     );
 }
 
-export default function FulfillmentPanel({ bookingId, fulfillment }: { bookingId: string; fulfillment: BookingFulfillment }) {
+// Flat, activities-only fulfilment checklist — hotel and cab confirmation
+// happen exclusively on their own dedicated pages (Verify Hotels / Verify
+// Cabs), so this panel never touches those. `items` must already be filtered
+// to kind === "ACTIVITY" by the caller.
+export default function FulfillmentPanel({ bookingId, items }: { bookingId: string; items: FulfillmentItem[] }) {
     const router = useRouter();
-    const [activitiesOnly, setActivitiesOnly] = useState(false);
     const [verifyingAll, setVerifyingAll] = useState(false);
 
-    const anyItems = fulfillment.days.some((d) => d.items.length > 0);
-    if (!anyItems) return <p className="text-sm text-dashboard-neutral">No fulfilment items (no itinerary snapshot on this booking).</p>;
+    if (items.length === 0) return <p className="text-sm text-dashboard-neutral">No trackable activities on this booking.</p>;
 
-    const { confirmed, total, attention } = fulfillment.summary;
-    const pct = total > 0 ? Math.round((confirmed / total) * 100) : 0;
+    const unverified = items.filter((i) => i.status !== "CONFIRMED" && i.status !== "REPLACED");
 
-    const allActivities = fulfillment.days.flatMap((d) => d.items.filter((i) => i.kind === "ACTIVITY"));
-    const unverifiedActivities = allActivities.filter((i) => i.status !== "CONFIRMED" && i.status !== "REPLACED");
-    const hasActivities = allActivities.length > 0;
-
-    async function handleVerifyAllActivities() {
+    async function handleVerifyAll() {
         setVerifyingAll(true);
         try {
             const results = await Promise.all(
-                unverifiedActivities.map((it) =>
+                unverified.map((it) =>
                     setItemFulfillment({
                         bookingId, kind: it.kind, day: it.day,
                         activityId: it.activityId ?? null,
@@ -226,80 +224,30 @@ export default function FulfillmentPanel({ bookingId, fulfillment }: { bookingId
     }
 
     return (
-        <div className="flex flex-col gap-4">
-            {/* Summary bar */}
-            <div className="rounded-lg border border-dashboard-base-300/70 bg-dashboard-base-200/40 px-4 py-3">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-dashboard-base-content">
-                        {confirmed}/{total} confirmed
-                    </span>
-                    <span className="text-xs text-dashboard-neutral">{pct}%</span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-dashboard-base-300/60">
-                    <div
-                        className={`h-full rounded-full transition-all ${pct === 100 ? "bg-green-500" : pct >= 50 ? "bg-dashboard-primary" : "bg-amber-400"}`}
-                        style={{ width: `${pct}%` }}
-                    />
-                </div>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-dashboard-neutral">
-                    {attention > 0 && <span className="text-red-600">{attention} need attention</span>}
-                    {!fulfillment.paid && <span className="text-amber-600">booking not yet paid</span>}
-                    <span className="ml-auto italic opacity-60">changes save automatically</span>
-                </div>
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-dashboard-base-300/70 bg-dashboard-base-200/40 px-4 py-2.5">
+                <span className="text-xs font-semibold text-dashboard-base-content">
+                    {items.length - unverified.length}/{items.length} confirmed
+                </span>
+                <button
+                    type="button"
+                    onClick={handleVerifyAll}
+                    disabled={verifyingAll || unverified.length === 0}
+                    className="ml-auto h-8 rounded-md bg-dashboard-primary px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                    {verifyingAll
+                        ? "Verifying…"
+                        : unverified.length === 0
+                            ? "All activities verified"
+                            : `Verify all activities (${unverified.length})`}
+                </button>
             </div>
 
-            {/* Activity controls — filter to activities only, and bulk-verify them */}
-            {hasActivities && (
-                <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-dashboard-base-300/70 bg-dashboard-base-100 px-4 py-2.5">
-                    <button
-                        type="button"
-                        onClick={() => setActivitiesOnly((v) => !v)}
-                        aria-pressed={activitiesOnly}
-                        className={`h-8 rounded-md border px-3 text-xs font-medium transition-colors ${
-                            activitiesOnly
-                                ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
-                                : "border-dashboard-base-300 text-dashboard-neutral hover:bg-dashboard-base-200"
-                        }`}
-                    >
-                        {activitiesOnly ? "Showing activities only" : "Show activities only"}
-                    </button>
-                    <span className="text-xs text-dashboard-neutral">
-                        {allActivities.length - unverifiedActivities.length}/{allActivities.length} activities confirmed
-                    </span>
-                    <button
-                        type="button"
-                        onClick={handleVerifyAllActivities}
-                        disabled={verifyingAll || unverifiedActivities.length === 0}
-                        className="ml-auto h-8 rounded-md bg-dashboard-primary px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                    >
-                        {verifyingAll
-                            ? "Verifying…"
-                            : unverifiedActivities.length === 0
-                                ? "All activities verified"
-                                : `Verify all activities (${unverifiedActivities.length})`}
-                    </button>
+            <div className="rounded-lg border border-dashboard-base-300/70 overflow-hidden px-4">
+                <div className="divide-y divide-dashboard-base-300/40">
+                    {items.map((it) => <ItemRow key={it.key} bookingId={bookingId} item={it} dayLabel={`Day ${it.day}`} />)}
                 </div>
-            )}
-
-            {/* Per-day item rows */}
-            {fulfillment.days.map((d) => {
-                const items = activitiesOnly ? d.items.filter((i) => i.kind === "ACTIVITY") : d.items;
-                if (items.length === 0) return null;
-                return (
-                    <div key={d.day} className="rounded-lg border border-dashboard-base-300/70 overflow-hidden">
-                        <div className="flex items-center gap-2 border-b border-dashboard-base-300/60 bg-dashboard-base-200/50 px-4 py-2">
-                            <span className="rounded bg-dashboard-primary/10 px-2 py-0.5 text-[11px] font-bold text-dashboard-primary">Day {d.day}</span>
-                            <span className="text-xs font-medium text-dashboard-base-content">{d.title}</span>
-                            <span className="ml-auto text-[11px] text-dashboard-neutral">
-                                {items.filter(i => i.status === "CONFIRMED" || i.status === "REPLACED").length}/{items.length} done
-                            </span>
-                        </div>
-                        <div className="divide-y divide-dashboard-base-300/40 px-4">
-                            {items.map((it) => <ItemRow key={it.key} bookingId={bookingId} item={it} />)}
-                        </div>
-                    </div>
-                );
-            })}
+            </div>
         </div>
     );
 }

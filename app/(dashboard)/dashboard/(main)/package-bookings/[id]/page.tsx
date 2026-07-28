@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ExternalLink, Hotel, Ticket, ArrowRight, Car, UtensilsCrossed, CalendarDays } from "lucide-react";
+import { ExternalLink, Hotel, Ticket, ArrowRight, Car, UtensilsCrossed, CalendarDays, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../pills";
@@ -33,12 +33,29 @@ function addNightsISO(iso: string, n: number): string {
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
     return (
         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100">
-            <div className="flex items-center justify-between border-b border-dashboard-base-300 px-5 py-3">
+            <div className="flex items-center justify-between border-b border-dashboard-base-300 px-4 py-2.5">
                 <h2 className="text-sm font-semibold text-dashboard-base-content">{title}</h2>
                 {action}
             </div>
-            <div className="p-5">{children}</div>
+            <div className="p-4">{children}</div>
         </div>
+    );
+}
+
+// Collapsed by default — for sections that are rarely needed (e.g. Timeline)
+// so they don't push more important data below the fold.
+function CollapsibleSection({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+    return (
+        <details className="group rounded-xl border border-dashboard-base-300 bg-dashboard-base-100">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 select-none">
+                <span className="text-sm font-semibold text-dashboard-base-content">
+                    {title} <span className="font-normal text-dashboard-neutral">({count})</span>
+                </span>
+                <span className="text-xs text-dashboard-primary group-open:hidden">Show</span>
+                <span className="hidden text-xs text-dashboard-neutral group-open:inline">Hide</span>
+            </summary>
+            <div className="border-t border-dashboard-base-300 p-4">{children}</div>
+        </details>
     );
 }
 
@@ -90,19 +107,19 @@ function PricingBreakdown({ snapshot, total_paise }: { snapshot: Snapshot; total
                 <div className="mb-3 rounded-lg border border-dashboard-base-300/70 divide-y divide-dashboard-base-300/50 overflow-hidden">
                     {hotelsTotal > 0 && (
                         <div className="flex items-center justify-between px-3 py-2.5 text-sm">
-                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><span>🏨</span> Hotels</span>
+                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><Hotel className="size-3.5" /> Hotels</span>
                             <span className="font-medium tabular-nums text-dashboard-base-content">{inr(hotelsTotal)}</span>
                         </div>
                     )}
                     {activitiesTotal > 0 && (
                         <div className="flex items-center justify-between px-3 py-2.5 text-sm">
-                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><span>🎟</span> Activities</span>
+                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><Ticket className="size-3.5" /> Activities</span>
                             <span className="font-medium tabular-nums text-dashboard-base-content">{inr(activitiesTotal)}</span>
                         </div>
                     )}
                     {cabsTotal > 0 && (
                         <div className="flex items-center justify-between px-3 py-2.5 text-sm">
-                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><span>🚗</span> Transportation</span>
+                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><Car className="size-3.5" /> Transportation</span>
                             <span className="font-medium tabular-nums text-dashboard-base-content">{inr(cabsTotal)}</span>
                         </div>
                     )}
@@ -353,7 +370,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     const fulfillment = isHotelOnly ? null : await getBookingFulfillment(id);
 
     return (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
             <Link href="/dashboard/package-bookings" className="text-sm text-dashboard-neutral hover:text-dashboard-primary">← Back to bookings</Link>
 
             {/* Header */}
@@ -376,8 +393,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 </div>
             )}
 
-            <div className="grid gap-5 lg:grid-cols-3 items-start">
-                <div className="lg:col-span-2 flex flex-col gap-5">
+            <div className="grid gap-4 lg:grid-cols-3 items-start">
+                <div className="lg:col-span-2 flex flex-col gap-4">
                     <Section title="Trip">
                         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                             {isHotelOnly ? (
@@ -464,7 +481,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                     href={`/dashboard/verify-hotels/${booking.id}`}
                                     className="inline-flex items-center gap-1 rounded-md border border-dashboard-base-300 px-2.5 py-1 text-xs text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
                                 >
-                                    🏨 Manage Hotels →
+                                    <Hotel className="size-3.5" /> Manage Hotels <ArrowRight className="size-3.5" />
                                 </Link>
                             }
                         >
@@ -474,7 +491,10 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
                     {fulfillment && (
                         <Section title="Fulfilment status">
-                            <FulfillmentPanel bookingId={booking.id} fulfillment={fulfillment} />
+                            <FulfillmentPanel
+                                bookingId={booking.id}
+                                items={fulfillment.days.flatMap((d) => d.items.filter((i) => i.kind === "ACTIVITY"))}
+                            />
                         </Section>
                     )}
 
@@ -519,8 +539,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                                             : isDecrease ? "border-green-100 bg-green-50/40"
                                                             : "border-amber-100 bg-amber-50/40"
                                                         }`}>
-                                                            <span className="mt-0.5 shrink-0 text-base select-none">
-                                                                {isIncrease ? "📈" : isDecrease ? "📉" : "🔄"}
+                                                            <span className={`mt-0.5 shrink-0 ${isIncrease ? "text-red-600" : isDecrease ? "text-green-600" : "text-amber-600"}`}>
+                                                                {isIncrease ? <TrendingUp className="size-4" /> : isDecrease ? <TrendingDown className="size-4" /> : <RefreshCw className="size-4" />}
                                                             </span>
                                                             <div>
                                                                 <div className="text-sm text-dashboard-base-content">{note}</div>
@@ -574,7 +594,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         )}
                     </Section>
 
-                    <Section title="Timeline">
+                    <CollapsibleSection title="Timeline" count={booking.timeline.length}>
                         {booking.timeline.length === 0 ? (
                             <p className="text-sm text-dashboard-neutral">No timeline events.</p>
                         ) : (
@@ -594,10 +614,10 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                 ))}
                             </ul>
                         )}
-                    </Section>
+                    </CollapsibleSection>
                 </div>
 
-                <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-4">
                     {/* Pricing — cost breakdown + payment plan at a glance */}
                     <Section title="Pricing">
                         <PricingBreakdown snapshot={snapshot} total_paise={booking.totalAmount_paise} />
