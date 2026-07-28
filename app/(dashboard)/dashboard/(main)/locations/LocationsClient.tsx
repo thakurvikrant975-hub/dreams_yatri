@@ -8,6 +8,7 @@ import {
 import { getLocations, type GetLocationsParams } from "./actions";
 import { LocationsTable } from "./LocationsTable";
 import { CreateLocationDialog } from "./LocationDialog";
+import { MergeLocationsDialog } from "./MergeLocationsDialog";
 import { PageHeader } from "../components/dashboard/PageHeader";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -104,7 +105,12 @@ export async function LocationsClient({
                 title="Locations"
                 description="Every geographic point used across hotels, activities and routes — view on a map and fix wrong ones"
                 icon={MapPinned}
-                actions={<CreateLocationDialog />}
+                actions={
+                    <div className="flex items-center gap-2">
+                        <MergeLocationsDialog />
+                        <CreateLocationDialog />
+                    </div>
+                }
             />
 
             <Suspense key={`${page}-${limit}-${search}-${type}-${scope}-${status}`} fallback={<TableSkeleton />}>

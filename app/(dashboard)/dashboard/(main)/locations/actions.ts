@@ -259,6 +259,62 @@ export async function checkLocationDuplicate(
   };
 }
 
+// ── Merge search ──────────────────────────────────────────────────────────────
+// Like checkLocationDuplicate, but for the "Merge Duplicates" picker rather
+// than the create-form's "heads up" warning: no excludeId, a higher result
+// cap, and a linked-item count per row (across every kind that references a
+// Location — including cab_pricing/permits and the self-referential
+// parent/city/state/country fields, which aren't part of the day-to-day
+// Linked Items sheet but matter for an accurate merge preview).
+
+export type LocationMergeCandidate = {
+  id: string;
+  name: string;
+  slug: string;
+  type: string;
+  latitude: number | null;
+  longitude: number | null;
+  linkedCount: number;
+};
+
+export async function searchLocationsForMerge(
+  name: string,
+  type: LocationTypeValue,
+): Promise<{ candidates: LocationMergeCandidate[] }> {
+  if (!name || name.trim().length < 2) return { candidates: [] };
+
+  const rows = await db.location.findMany({
+    where: { type, name: { contains: name.trim(), mode: "insensitive" } },
+    select: {
+      id: true, name: true, slug: true, type: true, latitude: true, longitude: true,
+      _count: {
+        select: {
+          hotels: true, activities: true, route_stops: true,
+          pickup_routes: true, drop_routes: true, cabPricings: true, permits: true,
+          children: true, city_children: true, state_children: true, country_children: true,
+        },
+      },
+    },
+    take: 20,
+    orderBy: { created_at: "desc" },
+  });
+
+  return {
+    candidates: rows.map((r) => ({
+      id: r.id.toString(),
+      name: r.name,
+      slug: r.slug,
+      type: r.type,
+      latitude: r.latitude != null ? Number(r.latitude) : null,
+      longitude: r.longitude != null ? Number(r.longitude) : null,
+      linkedCount:
+        r._count.hotels + r._count.activities + r._count.route_stops +
+        r._count.pickup_routes + r._count.drop_routes + r._count.cabPricings + r._count.permits +
+        r._count.children + r._count.city_children + r._count.state_children + r._count.country_children,
+    })),
+  };
+}
+
 // ── Slug availability check ───────────────────────────────────────────────────
 
 export async function checkLocationSlug(
@@ -746,6 +802,104 @@ export async function relinkLocationReference(
 
     revalidatePath("/dashboard/locations");
     return { success: true, message: `Relinked to ${target.name}` };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+// ── Merge ─────────────────────────────────────────────────────────────────────
+// Bulk version of relinkLocationReference — repoints every reference held by
+// each source location onto the target, then deletes the sources. Covers two
+// categories the Linked Items sheet doesn't surface (cab_pricing/permits, and
+// Location's own self-referential parent/city/state/country fields) because
+// skipping them would either silently null out real data (cab_pricing/permits
+// both use onDelete: SetNull) or block the delete outright (the self-ref
+// fields default to onDelete: Restrict).
+
+export type MergeLocationsResult = LocationFormState & {
+  movedCounts?: Record<string, number>;
+};
+
+export async function mergeLocations(
+  targetId: string,
+  sourceIds: string[],
+): Promise<MergeLocationsResult> {
+  const actor = await requireActor();
+  if (!actor) return { success: false, message: "Unauthorized" };
+
+  const cleanSourceIds = [...new Set(sourceIds)].filter((id) => id !== targetId);
+  if (cleanSourceIds.length === 0) {
+    return { success: false, message: "Select at least one other location to merge in." };
+  }
+
+  let targetBigId: bigint;
+  let sourceBigIds: bigint[];
+  try {
+    targetBigId = BigInt(targetId);
+    sourceBigIds = cleanSourceIds.map((id) => BigInt(id));
+  } catch {
+    return { success: false, message: "Invalid location id" };
+  }
+
+  try {
+    const [target, sources] = await Promise.all([
+      db.location.findUnique({ where: { id: targetBigId }, select: { id: true, name: true, type: true, slug: true } }),
+      db.location.findMany({ where: { id: { in: sourceBigIds } }, select: { id: true, name: true, type: true } }),
+    ]);
+
+    if (!target) return { success: false, message: "Target location not found" };
+    if (sources.length !== sourceBigIds.length) return { success: false, message: "One or more source locations no longer exist" };
+    if (sources.some((s) => s.type !== target.type)) {
+      return { success: false, message: "All locations being merged must be the same type" };
+    }
+
+    const idsIn = { in: sourceBigIds };
+
+    const [
+      hotels, activities, routeStops, pickups, drops, cabPricings, permits,
+      parents, cities, states, countries,
+    ] = await db.$transaction([
+      db.hotels.updateMany({ where: { location_id: idsIn }, data: { location_id: targetBigId } }),
+      db.activities.updateMany({ where: { location_id: idsIn }, data: { location_id: targetBigId } }),
+      db.route_stops.updateMany({ where: { location_id: idsIn }, data: { location_id: targetBigId } }),
+      db.transfer_routes.updateMany({ where: { pickup_location_id: idsIn }, data: { pickup_location_id: targetBigId } }),
+      db.transfer_routes.updateMany({ where: { drop_location_id: idsIn }, data: { drop_location_id: targetBigId } }),
+      db.cab_pricing.updateMany({ where: { location_id: idsIn }, data: { location_id: targetBigId } }),
+      db.permits.updateMany({ where: { location_id: idsIn }, data: { location_id: targetBigId } }),
+      db.location.updateMany({ where: { parent_id: idsIn }, data: { parent_id: targetBigId } }),
+      db.location.updateMany({ where: { city_id: idsIn }, data: { city_id: targetBigId } }),
+      db.location.updateMany({ where: { state_id: idsIn }, data: { state_id: targetBigId } }),
+      db.location.updateMany({ where: { country_id: idsIn }, data: { country_id: targetBigId } }),
+      db.location.deleteMany({ where: { id: idsIn } }),
+    ]);
+
+    const movedCounts = {
+      hotels: hotels.count, activities: activities.count, route_stops: routeStops.count,
+      transfer_pickups: pickups.count, transfer_drops: drops.count,
+      cab_pricing: cabPricings.count, permits: permits.count,
+      child_locations: parents.count + cities.count + states.count + countries.count,
+    };
+    const totalMoved = Object.values(movedCounts).reduce((a, b) => a + b, 0);
+
+    await createLog({
+      action: "UPDATE",
+      entity: "Location",
+      entityId: target.id.toString(),
+      entitySlug: target.slug,
+      newData: { mergedFrom: sources.map((s) => ({ id: s.id.toString(), name: s.name })), movedCounts },
+      metadata: { operation: "merge", sourceCount: sources.length, totalMoved },
+    });
+
+    revalidatePath("/dashboard/locations");
+    revalidatePath("/dashboard/hotels");
+    revalidatePath("/dashboard/activities");
+
+    return {
+      success: true,
+      message: `Merged ${sources.length} location${sources.length === 1 ? "" : "s"} into "${target.name}" — ${totalMoved} link${totalMoved === 1 ? "" : "s"} moved.`,
+      movedCounts,
+    };
   } catch (e) {
     console.error(e);
     return actionError(e);
