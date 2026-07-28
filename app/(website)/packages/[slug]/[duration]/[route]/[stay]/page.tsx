@@ -15,7 +15,7 @@ import EnquiryForm from "./components/SidebarCards/EnquiryForm";
 import EnquiryAutoPopup from "./components/SidebarCards/EnquiryAutoPopup";
 import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary";
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
-import { PackageBookingProvider } from "./components/PackageBookingProvider";
+import { PackageBookingProvider, type StayRoomCount } from "./components/PackageBookingProvider";
 import TravelerInputBar from "./components/TravelerInputBar";
 import { CheckIcon, XMarkIcon, StarIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
@@ -576,6 +576,22 @@ export default async function PackagePage({
         ]),
     ];
 
+    // One entry per itinerary stay (deduped — a multi-night stay produces one
+    // day-row per night, all sharing the same itinerary_stay_id) — the basis
+    // for capping how many rooms a traveller can select for the whole trip.
+    const stayRoomCounts: StayRoomCount[] = [];
+    const seenStayIds = new Set<number>();
+    for (const day of pageData.itinerary) {
+        const h = day.hotel;
+        if (!h || seenStayIds.has(h.itinerary_stay_id)) continue;
+        seenStayIds.add(h.itinerary_stay_id);
+        stayRoomCounts.push({
+            itineraryStayId: h.itinerary_stay_id,
+            roomPricingId:   h.room_pricing_id,
+            numRooms:        h.room_num_rooms,
+        });
+    }
+
     return (
         <>
             <SchemaScript data={jsonLd} />
@@ -592,6 +608,7 @@ export default async function PackagePage({
                 initialTravelDate={initialTravelDate}
                 initialLeavingFrom={initialLeavingFrom}
                 cabTypes={pageData.cabTypes}
+                stayRoomCounts={stayRoomCounts}
             >
                 <PackageScrollReset slug={slug} />
                 <TravelerInputBar />

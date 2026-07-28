@@ -70,6 +70,7 @@ export type HotelDay = {
   room_area_sqft: number | null;
   room_view: string | null;
   room_extra_beds: number;
+  room_num_rooms: number;
   price_per_night: number;
   original_price: number | null;
   images: { url: string | null; thumbnail: string | null; alt: string | null }[];
@@ -122,6 +123,7 @@ export const ROOM_PRICING_DISPLAY_SELECT = {
       bed_type: true,
       view_type: true,
       extra_bed_capacity: true,
+      num_rooms: true,
       amenities: true,
       images: {
         orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
@@ -153,6 +155,10 @@ export type RoomOption = {
   room_area_sqft: number | null;
   room_view: string | null;
   room_extra_beds: number;
+  /** Total inventory of this room type at its hotel (hotel_rooms.num_rooms).
+   *  Many hotels have never set this — see effectiveRoomCap() in
+   *  PackageBookingProvider.tsx for how the un-configured case (<=1) is handled. */
+  room_num_rooms: number;
   price_per_night: number;
   original_price: number | null;
   images: { url: string | null; thumbnail: string | null; alt: string | null }[];
@@ -191,6 +197,7 @@ export function mapRoomPricingRowToOption(rp: RoomPricingRow): RoomOption {
     room_area_sqft: rp.room?.area_sqft ?? null,
     room_view: rp.room?.view_type ?? null,
     room_extra_beds: rp.room?.extra_bed_capacity ?? 0,
+    room_num_rooms: rp.room?.num_rooms ?? 1,
     price_per_night: Number(rp.price_per_night),
     original_price: rp.original_price ? Number(rp.original_price) : null,
     images: rp.hotel.images,

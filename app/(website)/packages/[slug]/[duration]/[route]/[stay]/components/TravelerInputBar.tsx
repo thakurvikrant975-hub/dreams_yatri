@@ -4,6 +4,19 @@ import { useBooking } from './PackageBookingProvider';
 import LocationSearchSelect from '@/app/components/ui/LocationSearchSelect';
 import DatePickerField from '@/app/components/ui/DatePickerField';
 import TravellersField from '@/app/components/ui/TravellersField';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
+
+// Departures this close out are too soon for a guaranteed room hold —
+// stays get allocated on a best-availability basis instead.
+const SHORT_NOTICE_DAYS = 4;
+
+function daysUntil(dateStr: string): number | null {
+    if (!dateStr) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(`${dateStr}T00:00:00`);
+    return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
 
 // Dropdowns must sit above the package page's sticky info band / tab bar (z-210).
 const MENU_Z = 'z-250';
@@ -24,11 +37,13 @@ export default function TravelerInputBar() {
         travelDate, setTravelDate,
         leavingFrom, setLeavingFrom,
         adults, childAges, setTravellers,
-        rooms, setRooms,
+        rooms, setRooms, maxRooms,
         dateHighlight,
     } = useBooking();
 
     const dateValue = travelDate ? new Date(`${travelDate}T00:00:00`) : null;
+    const daysToTravel = daysUntil(travelDate);
+    const isShortNotice = daysToTravel != null && daysToTravel >= 0 && daysToTravel <= SHORT_NOTICE_DAYS;
 
     const onDateChange = (d: Date | null) => {
         if (!d) { setTravelDate(''); return; }
@@ -75,10 +90,22 @@ export default function TravelerInputBar() {
                         onChange={(v) => { setTravellers(v.adults, v.childrenAges); setRooms(v.rooms ?? 1); }}
                         menuZClass={MENU_Z}
                         showRooms
+                        maxRooms={maxRooms}
                     />
                 </Field>
 
             </div>
+
+            {isShortNotice && (
+                <div className="screen-space pb-3">
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                        <ExclamationTriangleIcon className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+                        <p className="text-xs text-amber-200/90 leading-relaxed">
+                            Your travel date is only {daysToTravel === 0 ? "today" : `${daysToTravel} day${daysToTravel === 1 ? "" : "s"} away`} — stays will be allocated based on availability.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -12,7 +12,7 @@ export type TravellersValue = { adults: number; childrenAges: number[]; rooms?: 
 
 const MAX_ADULTS = 20
 const MAX_CHILDREN = 10
-const MAX_ROOMS = 8
+export const MAX_ROOMS = 8
 const CHILD_AGE_MAX = 11 // children = below 12 years
 
 export function summarizeTravellers(v: TravellersValue): string {
@@ -62,10 +62,14 @@ interface TravellersFieldProps {
     menuZClass?: string
     /** Show a Rooms stepper above Adults — opt in for hotel/package search filters */
     showRooms?: boolean
+    /** Upper bound for the Rooms stepper — defaults to MAX_ROOMS. Callers with
+     *  a real inventory ceiling (e.g. a package's hotel availability) can pass
+     *  a tighter value; the stepper clamps down to it on open. */
+    maxRooms?: number
 }
 
 export default function TravellersField({
-    value, onChange, id, disabled, className, menuZClass = 'z-100', showRooms = false,
+    value, onChange, id, disabled, className, menuZClass = 'z-100', showRooms = false, maxRooms = MAX_ROOMS,
 }: TravellersFieldProps) {
     const [open, setOpen] = useState(false)
 
@@ -79,9 +83,9 @@ export default function TravellersField({
         if (open) {
             setAdults(value.adults)
             setChildrenAges(value.childrenAges)
-            setRooms(value.rooms ?? 1)
+            setRooms(Math.min(value.rooms ?? 1, maxRooms))
         }
-    }, [open, value.adults, value.childrenAges, value.rooms])
+    }, [open, value.adults, value.childrenAges, value.rooms, maxRooms])
 
     function setChildrenCount(next: number) {
         setChildrenAges((prev) => {
@@ -137,8 +141,11 @@ export default function TravellersField({
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-semibold text-neutral-800">Rooms</p>
+                                    {maxRooms < MAX_ROOMS && (
+                                        <p className="text-[11px] text-neutral-400">Limited by availability at this trip&apos;s hotels</p>
+                                    )}
                                 </div>
-                                <Stepper value={rooms} min={1} max={MAX_ROOMS} onChange={setRooms} />
+                                <Stepper value={rooms} min={1} max={maxRooms} onChange={setRooms} />
                             </div>
                             <div className="my-3 h-px bg-neutral-100" />
                         </>
