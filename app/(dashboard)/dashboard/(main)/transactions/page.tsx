@@ -70,6 +70,9 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                         id: true, bookingNumber: true, contactEmail: true,
                         user: { select: { name: true } },
                         package: { select: { title: true } },
+                        // The login account often has no name (phone/OTP sign-up) —
+                        // fall back to the lead traveller entered at checkout.
+                        travellersList: { where: { isLead: true }, take: 1, select: { fullName: true } },
                     },
                 },
             },

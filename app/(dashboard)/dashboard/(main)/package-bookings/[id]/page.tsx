@@ -368,6 +368,9 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     const isHotelOnly = booking.packageId == null;
     const stay = booking.hotelBookings[0];
     const fulfillment = isHotelOnly ? null : await getBookingFulfillment(id);
+    // The login account often has no name (phone/OTP sign-up) — the lead
+    // traveller entered at checkout is who actually booked the trip.
+    const leadTraveller = booking.travellersList.find((t) => t.isLead) ?? booking.travellersList[0] ?? null;
 
     return (
         <div className="flex flex-col gap-4">
@@ -679,7 +682,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
                     <Section title="Customer">
                         <dl className="flex flex-col gap-3">
-                            <Field label="Name" value={booking.user?.name} />
+                            <Field label="Lead traveller" value={leadTraveller?.fullName ?? booking.user?.name} />
                             <Field label="Account email" value={booking.user?.email} />
                             <Field label="Contact email" value={booking.contactEmail} />
                             <Field label="Contact phone" value={booking.contactPhone} />

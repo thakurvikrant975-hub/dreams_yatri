@@ -45,6 +45,7 @@ export type TransactionRow = {
         bookingNumber: string;
         contactEmail: string | null;
         user: { name: string | null } | null;
+        travellersList: { fullName: string }[];
         package: { title: string } | null;
     };
 };
@@ -127,7 +128,7 @@ export function TransactionsTableClient({
             header: "Customer",
             cell: (t) => (
                 <div className="min-w-0">
-                    <p className="text-sm text-dashboard-base-content truncate max-w-44">{t.booking.user?.name ?? "—"}</p>
+                    <p className="text-sm text-dashboard-base-content truncate max-w-44">{t.booking.travellersList[0]?.fullName ?? t.booking.user?.name ?? "—"}</p>
                     <p className="text-xs text-dashboard-base-content/50 truncate max-w-44">{t.booking.contactEmail ?? ""}</p>
                 </div>
             ),
