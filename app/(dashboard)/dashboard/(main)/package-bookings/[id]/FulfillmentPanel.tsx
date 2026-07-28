@@ -225,23 +225,24 @@ export default function FulfillmentPanel({ bookingId, items }: { bookingId: stri
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-dashboard-base-300/70 bg-dashboard-base-200/40 px-4 py-2.5">
+            <button
+                type="button"
+                onClick={handleVerifyAll}
+                disabled={verifyingAll || unverified.length === 0}
+                title={unverified.length === 0 ? undefined : "Confirm all listed activities"}
+                className="group flex w-full flex-wrap items-center gap-2.5 rounded-lg border border-dashboard-base-300/70 bg-dashboard-base-200/40 px-4 py-2.5 text-left transition-colors hover:bg-dashboard-primary/5 hover:border-dashboard-primary/40 disabled:cursor-default disabled:hover:bg-dashboard-base-200/40 disabled:hover:border-dashboard-base-300/70"
+            >
                 <span className="text-xs font-semibold text-dashboard-base-content">
                     {items.length - unverified.length}/{items.length} confirmed
                 </span>
-                <button
-                    type="button"
-                    onClick={handleVerifyAll}
-                    disabled={verifyingAll || unverified.length === 0}
-                    className="ml-auto h-8 rounded-md bg-dashboard-primary px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
+                <span className="ml-auto flex h-8 items-center rounded-md bg-dashboard-primary px-3 text-xs font-semibold text-white transition-opacity group-disabled:opacity-50">
                     {verifyingAll
                         ? "Verifying…"
                         : unverified.length === 0
                             ? "All activities verified"
                             : `Verify all activities (${unverified.length})`}
-                </button>
-            </div>
+                </span>
+            </button>
 
             <div className="rounded-lg border border-dashboard-base-300/70 overflow-hidden px-4">
                 <div className="divide-y divide-dashboard-base-300/40">

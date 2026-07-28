@@ -296,6 +296,104 @@ export async function createOrderForBooking(params: {
     };
 }
 
+// ── Switch FULL ↔ DEPOSIT on the payment page (before any charge succeeds) ──────
+export interface UpdateBookingPaymentPlanResult {
+    success: boolean;
+    reason?: "not_found" | "invalid" | "already_paid" | "not_available" | "error";
+    message?: string;
+    plan?: "FULL" | "DEPOSIT";
+    payNowPaise?: number;
+    balancePaise?: number;
+    balanceDueDate?: string | null;
+}
+
+/**
+ * Lets the customer change their payment plan on the pay step (e.g. they
+ * picked DEPOSIT at checkout but now want to pay in full, or vice versa).
+ * Only valid before any money has moved — re-derives the schedule from
+ * scratch (never trusts the stale one on the booking) and rewrites the
+ * installment legs + advance/balance amounts to match. Any not-yet-charged
+ * PENDING leg has its amount corrected and gateway order cleared so the next
+ * checkout attempt builds a fresh charge at the right amount.
+ */
+export async function updateBookingPaymentPlan(params: {
+    bookingId: string;
+    userId: string;
+    plan: "FULL" | "DEPOSIT";
+}): Promise<UpdateBookingPaymentPlanResult> {
+    const booking = await db.booking.findUnique({
+        where: { id: params.bookingId },
+        select: { id: true, userId: true, status: true, paymentStatus: true, totalAmount_paise: true, startDate: true },
+    });
+    if (!booking) return { success: false, reason: "not_found" };
+    if (booking.userId !== params.userId) return { success: false, reason: "invalid", message: "Booking belongs to another user." };
+    if (booking.status === "CANCELLED") return { success: false, reason: "invalid", message: "This booking has been cancelled." };
+    if (booking.paymentStatus !== "PENDING") return { success: false, reason: "already_paid", message: "This booking has already been paid." };
+
+    // Guard against a race with a payment that succeeded between page load and this call.
+    const paidLeg = await db.payment.findFirst({
+        where: { bookingId: booking.id, purpose: "INITIAL", status: { in: ["ADVANCE_PAID", "FULLY_PAID"] } },
+        select: { id: true },
+    });
+    if (paidLeg) return { success: false, reason: "already_paid", message: "This booking has already been paid." };
+
+    const schedule = computePaymentSchedule({ totalPaise: booking.totalAmount_paise, travelDate: isoDate(booking.startDate), now: new Date() });
+    if (params.plan === "DEPOSIT" && schedule.plan === "FULL") {
+        return { success: false, reason: "not_available", message: "This booking is too close to the travel date for a partial payment — full payment only." };
+    }
+
+    const useFull = params.plan === "FULL" || schedule.plan === "FULL";
+    const effPlan: "FULL" | "DEPOSIT" = useFull ? "FULL" : "DEPOSIT";
+    const effDepositPaise = useFull ? booking.totalAmount_paise : schedule.depositPaise;
+    const effBalancePaise = useFull ? 0 : schedule.balancePaise;
+    const effBalanceDue = useFull ? null : schedule.balanceDueDate;
+    const effInstallments = useFull
+        ? [{ type: "DEPOSIT" as const, sequence: 0, amountPaise: booking.totalAmount_paise, dueDate: schedule.installments[0].dueDate }]
+        : schedule.installments;
+    const balanceRupees = (effBalancePaise / 100).toFixed(2);
+
+    await db.$transaction(async (tx) => {
+        await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+                paymentPlan: effPlan,
+                advanceAmount_paise: effDepositPaise,
+                balanceAmount_paise: effBalancePaise,
+                balanceDueAmount: balanceRupees,
+                balanceDueDate: effBalanceDue ? new Date(`${effBalanceDue}T00:00:00.000Z`) : null,
+            },
+        });
+
+        await tx.paymentInstallment.deleteMany({ where: { bookingId: booking.id } });
+        await tx.paymentInstallment.createMany({
+            data: effInstallments.map((l) => ({
+                bookingId: booking.id,
+                type: l.type,
+                sequence: l.sequence,
+                amount_paise: l.amountPaise,
+                dueDate: new Date(`${l.dueDate}T00:00:00.000Z`),
+                status: "PENDING" as const,
+            })),
+        });
+
+        // A not-yet-charged INITIAL leg needs its amount corrected; drop any gateway
+        // order so the next checkout attempt builds a fresh one at the right amount
+        // (an existing gateway order's amount can't be changed after creation).
+        await tx.payment.updateMany({
+            where: { bookingId: booking.id, purpose: "INITIAL", status: "PENDING" },
+            data: { amount: (effDepositPaise / 100).toFixed(2), amount_paise: effDepositPaise, gatewayOrderId: null },
+        });
+    });
+
+    return {
+        success: true,
+        plan: effPlan,
+        payNowPaise: effDepositPaise,
+        balancePaise: effBalancePaise,
+        balanceDueDate: effBalanceDue,
+    };
+}
+
 // ── Single-shot — create booking + order together (tests / back-compat) ─────────
 export async function createBookingAndOrder(params: {
     quoteId: string;

@@ -29,12 +29,23 @@ function getDaysInMonth(year: number, month: number) {
 function getFirstDayOfMonth(year: number, month: number) {
   return new Date(year, month, 1).getDay();
 }
+// Calendar dates are local-only — never round-trip through toISOString()/`new
+// Date("YYYY-MM-DD")`, both of which reinterpret via UTC and silently shift
+// the date by a day for any non-zero timezone offset (e.g. IST).
 function toDateString(date: Date) {
-  return date.toISOString().split("T")[0];
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 function parseDate(val: string): Date | null {
   if (!val) return null;
-  const d = new Date(val);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val);
+  if (!m) {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   return isNaN(d.getTime()) ? null : d;
 }
 function formatDisplay(val: string): string {

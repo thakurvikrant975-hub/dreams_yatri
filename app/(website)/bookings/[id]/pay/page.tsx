@@ -9,6 +9,7 @@ import { Heading, Text } from '@/app/components/ui/Typography';
 import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { enabledGateways } from '@/app/lib/payments/registry';
+import { computePaymentSchedule } from '@/app/services/payment-policy/engine';
 import PaymentStep from './PaymentStep';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,12 @@ export const metadata: Metadata = {
 function formatDate(d: Date | null): string {
     if (!d) return '';
     return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+}
+
+// `startDate` is stored UTC-midnight-anchored (see create-booking.service.ts),
+// so slicing its ISO string back out never shifts the calendar day.
+function isoDate(d: Date): string {
+    return d.toISOString().slice(0, 10);
 }
 
 function StatusScreen({ heading, body }: { heading: string; body: string }) {
@@ -107,6 +114,15 @@ export default async function BookingPaymentPage({ params }: { params: Promise<{
                 const retry = lastInit?.status === 'FAILED';
                 const isFull = booking.paymentPlan === 'FULL';
 
+                // Re-derive today's schedule (not the one frozen on the booking) so the
+                // customer can switch FULL ↔ DEPOSIT here — near-travel bookings may no
+                // longer qualify for a deposit even if they did when first booked.
+                const schedule = computePaymentSchedule({
+                    totalPaise: booking.totalAmount_paise,
+                    travelDate: isoDate(booking.startDate),
+                    now: new Date(),
+                });
+
                 content = (
                     <PaymentStep
                         bookingId={booking.id}
@@ -124,6 +140,12 @@ export default async function BookingPaymentPage({ params }: { params: Promise<{
                         balanceDueDate={isFull ? null : formatDate(booking.balanceDueDate)}
                         gateways={enabledGateways()}
                         retry={retry}
+                        planOptions={{
+                            depositAllowed: schedule.plan === 'DEPOSIT',
+                            depositPaise: schedule.depositPaise,
+                            balancePaise: schedule.balancePaise,
+                            balanceDueDate: schedule.balanceDueDate ? formatDate(new Date(`${schedule.balanceDueDate}T00:00:00.000Z`)) : null,
+                        }}
                     />
                 );
             }
