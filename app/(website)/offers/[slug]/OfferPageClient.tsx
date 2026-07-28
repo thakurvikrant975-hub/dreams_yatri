@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Script from "next/script";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, X, Star, Bookmark, ArrowRight, Check, MapPin,
 } from "lucide-react";
@@ -22,7 +23,7 @@ export type OfferPageData = {
   slug: string;
   title: string;
   description: string;
-  heroImageUrl: string;
+  heroImageUrl: string | null;
   heroEyebrow: string | null;
   heroHeadline: string | null;
   destination: string | null;
@@ -156,13 +157,31 @@ function cheapestPrice(items: Item[]): string | null {
   return best?.label ?? null;
 }
 
+const HERO_SLIDE_MS = 6000;
+
+// Small label above the big hero title. Reuses the destination + whatever
+// short distinguishing label the package card has (badge or route/duration),
+// e.g. "Andaman · Best Seller" — falls back to just the destination or title.
+function heroSlideEyebrow(page: OfferPageData, item: Item): string {
+  const label = item.badgeLabel || item.routeLabel;
+  const parts = [page.destination, label].filter(Boolean);
+  return parts.length ? parts.join(" · ") : item.title;
+}
+
 function Hero({ page, onEnquire }: { page: OfferPageData; onEnquire: () => void }) {
   const packageCount = page.items.length;
   const startingFrom = useMemo(() => cheapestPrice(page.items), [page.items]);
+  const slides = useMemo(() => page.items.filter((it) => it.showInHero).slice(0, 4), [page.items]);
+
+  if (slides.length > 0) {
+    return <HeroSlider page={page} slides={slides} onEnquire={onEnquire} startingFrom={startingFrom} />;
+  }
 
   return (
     <section className="relative -mt-header-height flex min-h-[90vh] items-center overflow-hidden bg-neutral-900 pb-14 pt-28 sm:min-h-[85vh] sm:pb-20">
-      <Image src={getHeroImage(page.heroImageUrl)} alt="" fill priority className="object-cover" />
+      {page.heroImageUrl && (
+        <Image src={getHeroImage(page.heroImageUrl)} alt="" fill priority className="object-cover" />
+      )}
       <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/40 to-black/20" />
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4">
@@ -220,6 +239,171 @@ function Hero({ page, onEnquire }: { page: OfferPageData; onEnquire: () => void 
             )}
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// Auto-rotating hero built entirely from the package cards marked "show in
+// hero rail" (up to 4) — image, title and description all come from there,
+// so no separate hero image needs to be uploaded. Background crossfades with
+// a slow Ken Burns zoom, the copy replays its entrance animation on every
+// change, and the rail cards on the right (desktop only) are clickable and
+// track the active slide.
+function HeroSlider({
+  page, slides, onEnquire, startingFrom,
+}: { page: OfferPageData; slides: Item[]; onEnquire: () => void; startingFrom: string | null }) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const packageCount = page.items.length;
+  const active = slides[index];
+
+  useEffect(() => {
+    if (paused || slides.length < 2) return;
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setIndex((i) => (i + 1) % slides.length), HERO_SLIDE_MS);
+    return () => clearInterval(t);
+  }, [paused, slides.length]);
+
+  return (
+    <section
+      className="relative -mt-header-height flex min-h-[90vh] items-center overflow-hidden bg-neutral-900 pb-14 pt-28 sm:min-h-[85vh] sm:pb-20"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      {/* Crossfading backgrounds — all slides stacked, only the active one visible. */}
+      <div className="absolute inset-0 overflow-hidden">
+        {slides.map((slide, i) => (
+          <motion.div
+            key={slide.id}
+            className="absolute inset-0"
+            initial={false}
+            animate={{ opacity: i === index ? 1 : 0 }}
+            transition={{ duration: 1, ease: "easeInOut" }}
+          >
+            <Image
+              src={getHeroImage(slide.imageUrl)}
+              alt=""
+              fill
+              priority={i === 0}
+              className="object-cover"
+              style={{
+                transform: i === index ? "scale(1.06)" : "scale(1)",
+                transition: `transform ${HERO_SLIDE_MS}ms ease-out`,
+              }}
+            />
+          </motion.div>
+        ))}
+      </div>
+      <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/40 to-black/20" />
+
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4">
+        <div className="flex items-end justify-between gap-8">
+          <div className="max-w-2xl">
+            {page.destination && (
+              <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                <MapPin size={12} /> {page.destination}
+              </div>
+            )}
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active.id}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              >
+                <span className="block text-sm font-semibold uppercase tracking-wide text-red-300">
+                  {heroSlideEyebrow(page, active)}
+                </span>
+                <h1 className="mt-3 text-5xl font-extrabold uppercase leading-[1.05] text-white sm:text-7xl">
+                  {active.title}
+                </h1>
+                <p className="mt-5 max-w-lg text-sm text-white/85 sm:text-base">
+                  {active.description || page.description}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <button
+                onClick={onEnquire}
+                className="inline-flex items-center gap-2 rounded-full bg-red-600 px-8 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-red-700"
+              >
+                Explore <ArrowRight size={16} />
+              </button>
+              <a
+                href="#packages"
+                className="inline-flex items-center gap-2 rounded-full border border-white/30 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+              >
+                View Packages
+              </a>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-white/90">
+              <div className="flex items-center gap-1.5">
+                <span className="flex text-amber-400">
+                  {Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className="fill-amber-400" />)}
+                </span>
+                <span>Rated 4.8/5 by 2,300+ happy travellers</span>
+              </div>
+              {startingFrom && (
+                <>
+                  <span className="text-white/30">•</span>
+                  <span className="font-semibold text-white">Starting from {startingFrom}</span>
+                </>
+              )}
+              {packageCount > 0 && (
+                <>
+                  <span className="text-white/30">•</span>
+                  <span className="font-semibold text-white">
+                    {packageCount} curated package{packageCount > 1 ? "s" : ""}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Rail cards — desktop only, mirrors the active slide and jumps on click. */}
+          {slides.length > 1 && (
+            <div className="hidden shrink-0 gap-3 lg:flex">
+              {slides.map((slide, i) => (
+                <button
+                  key={slide.id}
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  aria-label={`Show ${slide.title}`}
+                  aria-current={i === index}
+                  className={`group relative shrink-0 overflow-hidden rounded-2xl border-2 transition-all duration-500 ${
+                    i === index ? "h-64 w-32 border-white" : "h-52 w-24 border-white/30 opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  <Image src={getCardImage(slide.imageUrl)} alt="" fill className="object-cover" />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/10 to-transparent" />
+                  <span className="absolute inset-x-2 bottom-2 text-left text-xs font-bold leading-tight text-white">
+                    {slide.title}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {slides.length > 1 && (
+          <div className="mt-8 flex items-center gap-2">
+            {slides.map((slide, i) => (
+              <button
+                key={slide.id}
+                type="button"
+                onClick={() => setIndex(i)}
+                aria-label={`Go to slide ${i + 1}`}
+                className="h-1.5 rounded-full bg-white transition-all duration-300"
+                style={{ width: i === index ? 28 : 8, opacity: i === index ? 1 : 0.45 }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

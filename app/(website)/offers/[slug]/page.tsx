@@ -18,7 +18,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!page || page.status !== "PUBLISHED") return { title: "Page not found | DreamsYatri" };
 
   const canonical = `${SITE_URL}/offers/${slug}`;
-  const ogImage = getOGImage(page.heroImageUrl);
+  const ogImageKey = page.heroImageUrl
+    || page.items.find((it) => it.showInHero)?.imageUrl
+    || page.items[0]?.imageUrl
+    || null;
+  const ogImage = ogImageKey ? getOGImage(ogImageKey) : SITE_CONFIG.defaultOgImage;
 
   return {
     title: page.seoTitle,

@@ -2765,7 +2765,12 @@ model LandingPage {
   seoTitle                String
   description             String
   seoDescription          String
-  heroImageUrl            String
+  /**
+   * Optional now — the public hero auto-builds an animated slider from the
+   * package items marked `showInHero` (see LandingPageItem). Only used as a
+   * static fallback background when no items are marked for the hero rail.
+   */
+  heroImageUrl            String?
   /**
    * Small label above the hero title, e.g. "Andaman · Family Holiday" — falls back to title if unset.
    */

@@ -26,7 +26,7 @@ export type LandingPageInitial = {
   seoTitle: string;
   description: string;
   seoDescription: string;
-  heroImageUrl: string;
+  heroImageUrl: string | null;
   heroEyebrow: string | null;
   heroHeadline: string | null;
   destination: string | null;
@@ -58,7 +58,7 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
   const [form, setForm] = useState(() => (initial ? {
     slug: initial.slug, title: initial.title, seoTitle: initial.seoTitle,
     description: initial.description, seoDescription: initial.seoDescription,
-    heroImageUrl: initial.heroImageUrl, heroEyebrow: initial.heroEyebrow ?? "",
+    heroImageUrl: initial.heroImageUrl ?? "", heroEyebrow: initial.heroEyebrow ?? "",
     heroHeadline: initial.heroHeadline ?? "", destination: initial.destination ?? "",
     status: initial.status, popupDelaySeconds: initial.popupDelaySeconds,
     contactPhone: initial.contactPhone,
@@ -92,7 +92,7 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
       seoTitle: form.seoTitle,
       description: form.description,
       seoDescription: form.seoDescription,
-      heroImageUrl: form.heroImageUrl,
+      heroImageUrl: form.heroImageUrl || null,
       heroEyebrow: form.heroEyebrow || null,
       heroHeadline: form.heroHeadline || null,
       destination: form.destination || null,
@@ -362,7 +362,10 @@ export function LandingPageEditorClient({ initial }: { initial: LandingPageIniti
       </Section>
 
       {/* Hero image */}
-      <Section title="Hero Image">
+      <Section title="Hero Image (fallback only)">
+        <p className="-mt-2 text-xs text-dashboard-base-content/60">
+          The hero automatically rotates through the package cards marked “Show in hero rail” below (image, title &amp; description) — up to 4. This image and the eyebrow/headline below are only used as a static fallback when no cards are marked for the hero rail.
+        </p>
         <ImageDropField value={form.heroImageUrl} onChange={(url) => setForm((f) => ({ ...f, heroImageUrl: url }))} folder="landing-pages" />
         {fieldErrors.heroImageUrl?.[0] && <p className="text-[11px] font-medium text-red-600">{fieldErrors.heroImageUrl[0]}</p>}
         <Field label="Hero eyebrow (optional)" hint="Small label above the big title — falls back to the title if left blank." error={fieldErrors.heroEyebrow?.[0]}>
