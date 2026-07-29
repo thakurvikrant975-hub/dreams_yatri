@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
-  CalendarDays, ChevronLeft, ChevronRight, ChevronDown, X, Plus, Pencil, Trash2, AlertCircle, Clock,
+  CalendarDays, ChevronLeft, ChevronRight, X, Plus, Pencil, Trash2, AlertCircle, Clock,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import {
@@ -127,19 +127,33 @@ function useMounted(): boolean {
 
 export function SeasonalRateCalendar<T extends RateSeasonBase>({
   open, onOpenChange, title = "Seasonal Rate Calendar", subtitle,
-  items, activeItemId, onActiveItemChange, seasons, onSave,
+  items, activeItemId, seasons, onSave,
   currencySymbol = "₹", unitLabel, renderExtraFields, renderRateExtra, getDefaultDraft,
   getGroupKey = (s: T) => String(s.rate),
   getSeasonWeekendRate,
   renderGroupExtra,
 }: SeasonalRateCalendarProps<T>) {
   const [year, setYear] = useState(() => new Date().getFullYear());
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft>({});
   const mounted = useMounted();
 
+  // The shared date range currently being defined/edited — once both dates
+  // are set, every item (not just one "active" one) gets its own pricing
+  // section for that same range, instead of switching a "Viewing Rates For"
+  // dropdown one item at a time.
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string } | null>(null);
+  const [itemDrafts, setItemDrafts] = useState<Record<string, Draft>>({});
+  const [itemEditingId, setItemEditingId] = useState<Record<string, string | null>>({});
+
   const activeItem = items.find((i) => i.id === activeItemId);
+  const orderedItems = useMemo(() => {
+    const top = items.find((i) => i.id === activeItemId);
+    const rest = items.filter((i) => i.id !== activeItemId);
+    return top ? [top, ...rest] : items;
+  }, [items, activeItemId]);
+
+  // Top item's own seasons — still drives the calendar's coloring and the
+  // "browse existing ranges" list, exactly as the single active item did
+  // before; only the editing surface below now covers every item at once.
   const seasonsForItem = useMemo(
     () => seasons.filter((s) => s.itemId === activeItemId),
     [seasons, activeItemId],
@@ -152,117 +166,107 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
 
   // The item's pricing doesn't lapse until its LAST season ends — never at
   // any single season's own end date while a later one still covers the
-  // calendar — so this is computed across every season for the active item,
-  // not any one row.
+  // calendar — so this is computed across every season for the top item.
   const planExpiry = useMemo(() => planExpiryDate(seasonsForItem), [seasonsForItem]);
   const daysRemaining = planExpiry != null ? daysUntil(planExpiry) : null;
 
-  function closeForm() {
-    setFormOpen(false);
-    setEditingId(null);
-    setDraft({});
-  }
-
-  function openAddForm(startDate?: string) {
-    setEditingId(null);
-    const seed: Draft = activeItem ? { rate: activeItem.baseRate } : {};
-    const extra = activeItem && getDefaultDraft ? getDefaultDraft(activeItem) : {};
-    setDraft({ ...seed, ...extra, ...(startDate ? { startDate } : {}) } as Draft);
-    setFormOpen(true);
-  }
-
-  function openEditForm(season: T) {
-    setEditingId(season.id);
-    setDraft({ ...season } as Draft);
-    setFormOpen(true);
-  }
-
-  function updateDraft(patch: Partial<Draft>) {
-    setDraft((prev) => ({ ...prev, ...patch }));
-  }
-
-  // Color ↔ rate locking — recomputed against every OTHER season for this
-  // item (excluding whichever one is currently being edited).
-  const otherSeasonsForItem = useMemo(
-    () => seasonsForItem.filter((s) => s.id !== editingId),
-    [seasonsForItem, editingId],
-  );
-  const draftGroupKey = draft.rate != null ? getGroupKey(draft as T) : null;
-  const colorAssignment = resolveColorOptions(draftGroupKey, otherSeasonsForItem, getGroupKey);
-
-  // Keeps draft.color valid automatically — locked to the shared color for a
-  // known rate, or defaulted to the first still-available color for a new one.
-  useEffect(() => {
-    if (!formOpen) return;
-    if (colorAssignment.locked) {
-      if (draft.color !== colorAssignment.lockedColor) updateDraft({ color: colorAssignment.lockedColor });
-    } else if (!draft.color || !colorAssignment.availableColors.includes(draft.color)) {
-      updateDraft({ color: colorAssignment.availableColors[0] });
+  // Seeds itemDrafts/itemEditingId for every item once a full date range is
+  // picked (or an existing season's own range is chosen to edit) — an
+  // item that already has a season exactly matching this range starts
+  // pre-filled for editing; every other item starts fresh, seeded from its
+  // own base rate, ready to add a season at the same dates.
+  function primeItemDrafts(rangeSel: { startDate: string; endDate: string }) {
+    const nextDrafts: Record<string, Draft> = {};
+    const nextEditingId: Record<string, string | null> = {};
+    for (const item of items) {
+      const existing = seasons.find(
+        (s) => s.itemId === item.id && s.startDate === rangeSel.startDate && s.endDate === rangeSel.endDate,
+      );
+      if (existing) {
+        nextDrafts[item.id] = { ...existing } as Draft;
+        nextEditingId[item.id] = existing.id;
+      } else {
+        const seed: Draft = { rate: item.baseRate };
+        const extra = getDefaultDraft ? getDefaultDraft(item) : {};
+        nextDrafts[item.id] = { ...seed, ...extra };
+        nextEditingId[item.id] = null;
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formOpen, colorAssignment.locked, colorAssignment.lockedColor, colorAssignment.availableColors.join("|")]);
+    setItemDrafts(nextDrafts);
+    setItemEditingId(nextEditingId);
+  }
 
-  const overlapWarning = useMemo(() => {
-    if (!draft.startDate || !draft.endDate) return null;
-    const range = { startDate: draft.startDate, endDate: draft.endDate };
-    const overlapping = otherSeasonsForItem.filter((s) => rangesOverlap(s, range));
-    if (overlapping.length === 0) return null;
-    const names = overlapping.map((s) => s.label || defaultRangeLabel(s.startDate, s.endDate));
-    return `Overlaps ${names.join(", ")} — they will be trimmed automatically so dates never overlap.`;
-  }, [draft.startDate, draft.endDate, otherSeasonsForItem]);
+  function updateItemDraft(itemId: string, patch: Partial<Draft>) {
+    setItemDrafts((prev) => ({ ...prev, [itemId]: { ...prev[itemId], ...patch } }));
+  }
 
-  // In-progress picked range, for highlighting on the calendar before it's saved.
-  const pickingRange = formOpen && draft.startDate
-    ? { start: draft.startDate, end: draft.endDate ?? draft.startDate }
-    : null;
+  function closeRangeEditor() {
+    setRange(null);
+    setItemDrafts({});
+    setItemEditingId({});
+  }
 
   function handleDayClick(iso: string) {
-    if (!formOpen) {
-      openAddForm(iso);
+    if (!range || (range.startDate && range.endDate)) {
+      setRange({ startDate: iso });
+      setItemDrafts({});
+      setItemEditingId({});
       return;
     }
-    setDraft((prev) => {
-      if (!prev.startDate || (prev.startDate && prev.endDate)) {
-        return { ...prev, startDate: iso, endDate: undefined };
-      }
-      if (iso < prev.startDate) {
-        return { ...prev, startDate: iso, endDate: prev.startDate };
-      }
-      return { ...prev, endDate: iso };
-    });
+    if (!range.startDate) {
+      setRange({ startDate: iso });
+      return;
+    }
+    const startDate = iso < range.startDate ? iso : range.startDate;
+    const endDate = iso < range.startDate ? range.startDate : iso;
+    setRange({ startDate, endDate });
+    primeItemDrafts({ startDate, endDate });
   }
 
-  function handleSaveSeason() {
-    if (!draft.startDate || !draft.endDate || draft.rate == null) return;
-    const range = { startDate: draft.startDate, endDate: draft.endDate };
-    const trimmed = trimOverlaps(seasonsForItem, range, editingId ?? undefined, newId);
-    const finalSeason = {
-      ...draft,
-      id: editingId ?? newId(),
-      itemId: activeItemId,
-    } as T;
-    const seasonsForOtherItems = seasons.filter((s) => s.itemId !== activeItemId);
-    onSave([...seasonsForOtherItems, ...trimmed, finalSeason], activeItemId);
-    closeForm();
+  function handleEditExistingSeason(season: T) {
+    const rangeSel = { startDate: season.startDate, endDate: season.endDate };
+    setRange(rangeSel);
+    primeItemDrafts(rangeSel);
   }
 
+  function handleSaveItem(itemId: string) {
+    const draft = itemDrafts[itemId];
+    if (!draft || draft.rate == null || !range?.startDate || !range?.endDate) return;
+    const rangeSel = { startDate: range.startDate, endDate: range.endDate };
+    const editingId = itemEditingId[itemId] ?? undefined;
+    const seasonsForThisItem = seasons.filter((s) => s.itemId === itemId);
+    const trimmed = trimOverlaps(seasonsForThisItem, rangeSel, editingId, newId);
+    const finalSeason = { ...draft, ...rangeSel, id: editingId ?? newId(), itemId } as T;
+    const seasonsForOtherItems = seasons.filter((s) => s.itemId !== itemId);
+    onSave([...seasonsForOtherItems, ...trimmed, finalSeason], itemId);
+    setItemEditingId((prev) => ({ ...prev, [itemId]: finalSeason.id }));
+  }
+
+  function handleDeleteItemSeason(itemId: string) {
+    const editingId = itemEditingId[itemId];
+    if (!editingId) return;
+    if (!window.confirm("Remove this date range?")) return;
+    onSave(seasons.filter((s) => s.id !== editingId), itemId);
+    const item = items.find((i) => i.id === itemId);
+    setItemDrafts((prev) => ({ ...prev, [itemId]: { rate: item?.baseRate } }));
+    setItemEditingId((prev) => ({ ...prev, [itemId]: null }));
+  }
+
+  // Browse-mode delete, for the top item's own existing-ranges list.
   function handleDeleteSeason(season: T) {
     if (!window.confirm("Remove this date range?")) return;
     onSave(seasons.filter((s) => s.id !== season.id), season.itemId);
-    if (editingId === season.id) closeForm();
-  }
-
-  function handleActiveItemChange(id: string) {
-    closeForm();
-    onActiveItemChange(id);
   }
 
   function handleOpenChange(next: boolean) {
-    if (!next) closeForm();
+    if (!next) closeRangeEditor();
     onOpenChange(next);
   }
 
-  const canSave = !!draft.startDate && !!draft.endDate && draft.rate != null;
+  // In-progress picked range, for highlighting on the calendar before it's saved.
+  const pickingRange = range?.startDate
+    ? { start: range.startDate, end: range.endDate ?? range.startDate }
+    : null;
 
   // Escape-to-close + lock page scroll while the modal is up.
   useEffect(() => {
@@ -371,28 +375,10 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
             ))}
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar — scrollable, every plan gets its own pricing section
+              for the currently selected season/date range instead of a
+              "Viewing Rates For" dropdown that only edited one at a time. */}
           <div className="w-95 shrink-0 flex flex-col gap-4">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 mb-1.5 block">
-                Viewing Rates For
-              </label>
-              <div className="relative">
-                <select
-                  value={activeItemId}
-                  onChange={(e) => handleActiveItemChange(e.target.value)}
-                  className="w-full h-11 pl-3.5 pr-9 rounded-xl border border-neutral-200 bg-white text-sm font-semibold text-neutral-900 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
-                >
-                  {items.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.label} — {currencySymbol}{it.baseRate.toLocaleString("en-IN")}{unitLabel ? ` ${unitLabel}` : ""}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-              </div>
-            </div>
-
             {planExpiry != null && daysRemaining != null && (
               <div className={cn("rounded-xl border px-3.5 py-2.5 flex items-center gap-2.5", expiryClass(daysRemaining))}>
                 <Clock size={16} className="shrink-0" />
@@ -407,57 +393,119 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
               </div>
             )}
 
-            {formOpen ? (
-              <SeasonForm
-                draft={draft}
-                isEditing={!!editingId}
-                onChange={updateDraft}
-                onSave={handleSaveSeason}
-                onCancel={closeForm}
-                canSave={canSave}
-                colorAssignment={colorAssignment}
-                overlapWarning={overlapWarning}
-                currencySymbol={currencySymbol}
-                renderExtraFields={renderExtraFields}
-                renderRateExtra={renderRateExtra}
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => openAddForm()}
-                className="w-full h-12 rounded-xl font-semibold gap-2 bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <Plus size={16} /> Add Season
-              </button>
-            )}
+            {!range ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setRange({})}
+                  className="w-full h-12 rounded-xl font-semibold gap-2 bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <Plus size={16} /> Add Season
+                </button>
 
-            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide">
-              {groups.length} Rate{groups.length !== 1 ? "s" : ""} · {totalRanges} Range{totalRanges !== 1 ? "s" : ""}
-              {activeItem ? ` · ${activeItem.label}` : ""} · {year}
-            </p>
-
-            <div className="flex-1 overflow-y-auto space-y-3 -mr-2 pr-2">
-              {activeItem && activeItem.baseRate > 0 && (
-                <BaseRateCard item={activeItem} currencySymbol={currencySymbol} unitLabel={unitLabel} year={year} />
-              )}
-              {groups.length === 0 ? (
-                <p className="text-xs text-neutral-400 italic px-1">
-                  No custom seasons yet — click a day on the calendar or use Add Season to override specific dates.
+                <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wide">
+                  {groups.length} Rate{groups.length !== 1 ? "s" : ""} · {totalRanges} Range{totalRanges !== 1 ? "s" : ""}
+                  {activeItem ? ` · ${activeItem.label}` : ""} · {year}
                 </p>
-              ) : (
-                groups.map((g) => (
-                  <RateGroupCard
-                    key={g.key}
-                    group={g}
-                    currencySymbol={currencySymbol}
-                    unitLabel={unitLabel}
-                    onEdit={openEditForm}
-                    onDelete={handleDeleteSeason}
-                    renderGroupExtra={renderGroupExtra}
-                  />
-                ))
-              )}
-            </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 -mr-2 pr-2">
+                  {activeItem && activeItem.baseRate > 0 && (
+                    <BaseRateCard item={activeItem} currencySymbol={currencySymbol} unitLabel={unitLabel} year={year} />
+                  )}
+                  {groups.length === 0 ? (
+                    <p className="text-xs text-neutral-400 italic px-1">
+                      No custom seasons yet — click a day on the calendar or use Add Season to override specific dates.
+                    </p>
+                  ) : (
+                    groups.map((g) => (
+                      <RateGroupCard
+                        key={g.key}
+                        group={g}
+                        currencySymbol={currencySymbol}
+                        unitLabel={unitLabel}
+                        onEdit={handleEditExistingSeason}
+                        onDelete={handleDeleteSeason}
+                        renderGroupExtra={renderGroupExtra}
+                      />
+                    ))
+                  )}
+
+                  {orderedItems.length > 1 && (
+                    <>
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide pt-2">
+                        Other Plans
+                      </p>
+                      {orderedItems.slice(1).map((item) => {
+                        const count = seasons.filter((s) => s.itemId === item.id).length;
+                        return (
+                          <div key={item.id} className="rounded-xl border border-neutral-200 px-3.5 py-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-bold text-neutral-800 truncate">{item.label}</p>
+                              <span className="text-[10px] text-neutral-400 shrink-0">
+                                {currencySymbol}{item.baseRate.toLocaleString("en-IN")}{unitLabel ? ` ${unitLabel}` : ""}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-neutral-400 mt-0.5">
+                              {count > 0 ? `${count} season${count !== 1 ? "s" : ""} configured` : "No seasonal rates yet"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-neutral-800">
+                    {range.startDate && range.endDate
+                      ? `${formatDateLabel(range.startDate)} → ${formatDateLabel(range.endDate)}`
+                      : !range.startDate
+                        ? "Pick a start date"
+                        : `Start: ${formatDateLabel(range.startDate)} — pick an end date`}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={closeRangeEditor}
+                    className="text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer"
+                    aria-label="Cancel"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {range.startDate && range.endDate ? (
+                  <div className="flex-1 overflow-y-auto space-y-3 -mr-2 pr-2">
+                    {orderedItems.map((item, i) => (
+                      <ItemPriceSection<T>
+                        key={item.id}
+                        item={item}
+                        isPrimary={i === 0}
+                        draft={itemDrafts[item.id] ?? {}}
+                        editingSeasonId={itemEditingId[item.id] ?? null}
+                        range={{ startDate: range.startDate!, endDate: range.endDate! }}
+                        otherSeasonsForItem={seasons.filter(
+                          (s) => s.itemId === item.id && s.id !== itemEditingId[item.id],
+                        )}
+                        currencySymbol={currencySymbol}
+                        onChange={(patch) => updateItemDraft(item.id, patch)}
+                        onSave={() => handleSaveItem(item.id)}
+                        onDelete={() => handleDeleteItemSeason(item.id)}
+                        renderExtraFields={renderExtraFields}
+                        renderRateExtra={renderRateExtra}
+                        getGroupKey={getGroupKey}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-orange-600 font-medium flex items-center gap-1.5 px-1">
+                    <CalendarDays size={11} className="shrink-0" />
+                    Click a day on the calendar to {!range.startDate ? "start" : "finish"} picking the date range.
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -634,43 +682,71 @@ function RateGroupCard<T extends RateSeasonBase>({
   );
 }
 
-// ── Add/edit form ─────────────────────────────────────────────────────────
+// ── Per-plan price section (shown for every item once a shared date range
+// is selected) ───────────────────────────────────────────────────────────
 
 const fieldClass =
   "h-8 w-full rounded-lg border border-neutral-200 bg-white px-2.5 text-xs text-neutral-900 " +
   "placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 " +
   "disabled:opacity-50 disabled:cursor-not-allowed";
 
-function SeasonForm<T extends RateSeasonBase>({
-  draft, isEditing, onChange, onSave, onCancel, canSave, colorAssignment, overlapWarning, currencySymbol, renderExtraFields, renderRateExtra,
+function ItemPriceSection<T extends RateSeasonBase>({
+  item, isPrimary, draft, editingSeasonId, range, otherSeasonsForItem,
+  currencySymbol, onChange, onSave, onDelete, renderExtraFields, renderRateExtra, getGroupKey,
 }: {
+  item: SeasonalRateCalendarItem;
+  /** The top/calling plan — pinned first, visually distinguished. */
+  isPrimary: boolean;
   draft: Draft;
-  isEditing: boolean;
+  editingSeasonId: string | null;
+  range: { startDate: string; endDate: string };
+  otherSeasonsForItem: T[];
+  currencySymbol: string;
   onChange: (patch: Partial<Draft>) => void;
   onSave: () => void;
-  onCancel: () => void;
-  canSave: boolean;
-  colorAssignment: ReturnType<typeof resolveColorOptions>;
-  overlapWarning: string | null;
-  currencySymbol: string;
+  onDelete: () => void;
   renderExtraFields?: (ctx: { draft: Partial<T>; onChange: (patch: Partial<T>) => void }) => React.ReactNode;
-  /** Rendered beside the Rate field in the same row (e.g. a domain's weekend
-   * price) — when omitted, Rate takes the full row on its own. */
   renderRateExtra?: (ctx: { draft: Partial<T>; onChange: (patch: Partial<T>) => void }) => React.ReactNode;
+  getGroupKey: (s: T) => string;
 }) {
-  const hint = !draft.startDate
-    ? "Click a start date on the calendar"
-    : !draft.endDate
-      ? `Start: ${formatDateLabel(draft.startDate)} — now click an end date`
-      : null;
+  const draftGroupKey = draft.rate != null ? getGroupKey(draft as T) : null;
+  const colorAssignment = resolveColorOptions(draftGroupKey, otherSeasonsForItem, getGroupKey);
+
+  // Keeps draft.color valid automatically — locked to the shared color for a
+  // known rate, or defaulted to the first still-available color for a new one.
+  useEffect(() => {
+    if (colorAssignment.locked) {
+      if (draft.color !== colorAssignment.lockedColor) onChange({ color: colorAssignment.lockedColor });
+    } else if (!draft.color || !colorAssignment.availableColors.includes(draft.color)) {
+      onChange({ color: colorAssignment.availableColors[0] });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colorAssignment.locked, colorAssignment.lockedColor, colorAssignment.availableColors.join("|")]);
+
+  const overlapping = otherSeasonsForItem.filter((s) => rangesOverlap(s, range));
+  const overlapWarning = overlapping.length > 0
+    ? `Overlaps ${overlapping.map((s) => s.label || defaultRangeLabel(s.startDate, s.endDate)).join(", ")} — will be trimmed automatically so dates never overlap.`
+    : null;
+
+  const canSave = draft.rate != null;
 
   return (
-    <div className="rounded-xl border-2 border-orange-200 bg-orange-50/40 p-3.5 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-neutral-800">{isEditing ? "Edit Season" : "New Season"}</p>
-        <button type="button" onClick={onCancel} className="text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer" aria-label="Cancel">
-          <X size={14} />
-        </button>
+    <div className={cn(
+      "rounded-xl border-2 p-3.5 space-y-3",
+      isPrimary ? "border-orange-200 bg-orange-50/40" : "border-neutral-200 bg-white",
+    )}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-neutral-800 truncate">{item.label}</p>
+          <p className="text-[10px] text-neutral-400">
+            Base {currencySymbol}{item.baseRate.toLocaleString("en-IN")} · {editingSeasonId ? "editing existing season" : "new season"}
+          </p>
+        </div>
+        {isPrimary && (
+          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
+            Selected plan
+          </span>
+        )}
       </div>
 
       <input
@@ -679,35 +755,6 @@ function SeasonForm<T extends RateSeasonBase>({
         onChange={(e) => onChange({ label: e.target.value })}
         className={fieldClass}
       />
-
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-neutral-500 mb-0.5 block">Start date</label>
-          <input
-            type="date"
-            value={draft.startDate ?? ""}
-            onChange={(e) => onChange({ startDate: e.target.value, endDate: undefined })}
-            className={fieldClass}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-neutral-500 mb-0.5 block">End date</label>
-          <input
-            type="date"
-            value={draft.endDate ?? ""}
-            onChange={(e) => onChange({ endDate: e.target.value })}
-            disabled={!draft.startDate}
-            min={draft.startDate}
-            className={fieldClass}
-          />
-        </div>
-      </div>
-
-      {hint && (
-        <p className="text-[11px] text-orange-600 font-medium flex items-center gap-1.5">
-          <CalendarDays size={11} className="shrink-0" /> {hint}
-        </p>
-      )}
 
       <div className={renderRateExtra ? "grid grid-cols-2 gap-2" : undefined}>
         <div>
@@ -729,7 +776,7 @@ function SeasonForm<T extends RateSeasonBase>({
         <label className="text-[10px] text-neutral-500 mb-1 block">Color</label>
         {colorAssignment.locked ? (
           <div className="flex items-center gap-2">
-            <span className="size-6 rounded-full border-2 border-white shadow shrink-0" style={{ backgroundColor: colorAssignment.lockedColor }} />
+            <span className="size-5 rounded-full border-2 border-white shadow shrink-0" style={{ backgroundColor: colorAssignment.lockedColor }} />
             <p className="text-[10px] text-neutral-500 leading-snug">
               Locked — every season priced at {currencySymbol}{(draft.rate ?? 0).toLocaleString("en-IN")} shares this color.
             </p>
@@ -743,7 +790,7 @@ function SeasonForm<T extends RateSeasonBase>({
                   type="button"
                   onClick={() => onChange({ color: c })}
                   className={cn(
-                    "size-6 rounded-full border-2 transition-transform cursor-pointer",
+                    "size-5 rounded-full border-2 transition-transform cursor-pointer",
                     draft.color === c ? "border-neutral-800 scale-110" : "border-white shadow",
                   )}
                   style={{ backgroundColor: c }}
@@ -773,15 +820,18 @@ function SeasonForm<T extends RateSeasonBase>({
           onClick={onSave}
           className="flex-1 h-8 rounded-lg text-xs font-semibold bg-orange-600 text-white hover:bg-orange-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {isEditing ? "Save Changes" : "Add Season"}
+          {editingSeasonId ? "Save Changes" : "Save"}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-8 px-3 rounded-lg text-xs font-medium text-neutral-500 hover:bg-neutral-100 transition-colors cursor-pointer"
-        >
-          Cancel
-        </button>
+        {editingSeasonId && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="h-8 px-2.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+            aria-label="Delete this season for this plan"
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
       </div>
     </div>
   );
