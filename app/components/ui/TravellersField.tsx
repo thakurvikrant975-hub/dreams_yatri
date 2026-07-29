@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
 import { MinusIcon, PlusIcon, UsersFourIcon, CaretDownIcon } from '@phosphor-icons/react'
+import { toast } from 'sonner'
 import Button from './Button'
 import { cn } from '@/app/lib/utils'
 
@@ -114,6 +115,35 @@ export default function TravellersField({
         setAdults((a) => Math.max(a, rooms))
     }, [rooms, showRooms])
 
+    // Toast whenever a restriction/limit actually moves the numbers — either
+    // a direct click hitting a stepper's boundary, or one of the coupling
+    // effects above silently adjusting the *other* field. `*ClickRef` marks a
+    // change as user-initiated on that field so the "silent" toast doesn't
+    // also fire right after the click's own boundary toast.
+    const interactedRef = useRef(false)
+    const roomsClickRef  = useRef(false)
+    const adultsClickRef = useRef(false)
+    const prevRoomsRef  = useRef(rooms)
+    const prevAdultsRef = useRef(adults)
+
+    useEffect(() => {
+        if (interactedRef.current && !roomsClickRef.current && rooms > prevRoomsRef.current) {
+            toast(`Room count increased to ${rooms} for ${adults + childrenAges.length} travellers`)
+        }
+        prevRoomsRef.current = rooms
+        roomsClickRef.current = false
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rooms])
+
+    useEffect(() => {
+        if (interactedRef.current && !adultsClickRef.current && adults > prevAdultsRef.current) {
+            toast(`Adult count increased to ${adults} — each room needs at least one adult`)
+        }
+        prevAdultsRef.current = adults
+        adultsClickRef.current = false
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [adults])
+
     function setChildrenCount(next: number) {
         setChildrenAges((prev) => {
             if (next > prev.length) return [...prev, ...Array(next - prev.length).fill(-1)]
@@ -174,7 +204,19 @@ export default function TravellersField({
                                         <p className="text-[11px] text-neutral-400">Limited by availability at this trip&apos;s hotels</p>
                                     )}
                                 </div>
-                                <Stepper value={rooms} min={liveMinRooms} max={maxRooms} onChange={setRooms} />
+                                <Stepper value={rooms} min={liveMinRooms} max={maxRooms} onChange={(n) => {
+                                    const wasIncrease = n > rooms
+                                    interactedRef.current = true
+                                    roomsClickRef.current = true
+                                    setRooms(n)
+                                    if (wasIncrease && n >= maxRooms) {
+                                        toast(maxRooms < MAX_ROOMS
+                                            ? `Only ${maxRooms} room${maxRooms > 1 ? 's' : ''} available across this trip's hotels`
+                                            : `Maximum ${MAX_ROOMS} rooms per booking`)
+                                    } else if (!wasIncrease && liveMinRooms > 1 && n <= liveMinRooms) {
+                                        toast(`Minimum ${liveMinRooms} rooms needed for ${adults + childrenAges.length} travellers`)
+                                    }
+                                }} />
                             </div>
                             <div className="my-3 h-px bg-neutral-100" />
                         </>
@@ -186,7 +228,17 @@ export default function TravellersField({
                             <p className="text-sm font-semibold text-neutral-800">Adults</p>
                             <p className="text-xs text-neutral-400">Above 12 years</p>
                         </div>
-                        <Stepper value={adults} min={showRooms ? Math.max(1, rooms) : 1} max={MAX_ADULTS} onChange={setAdults} />
+                        <Stepper value={adults} min={showRooms ? Math.max(1, rooms) : 1} max={MAX_ADULTS} onChange={(n) => {
+                            const wasIncrease = n > adults
+                            interactedRef.current = true
+                            adultsClickRef.current = true
+                            setAdults(n)
+                            if (wasIncrease && n >= MAX_ADULTS) {
+                                toast(`Maximum ${MAX_ADULTS} adults per booking`)
+                            } else if (!wasIncrease && showRooms && rooms > 1 && n <= rooms) {
+                                toast(`Minimum ${rooms} adults needed — each room needs at least one adult`)
+                            }
+                        }} />
                     </div>
 
                     <div className="my-3 h-px bg-neutral-100" />
@@ -197,7 +249,14 @@ export default function TravellersField({
                             <p className="text-sm font-semibold text-neutral-800">Children</p>
                             <p className="text-xs text-neutral-400">Below 12 years</p>
                         </div>
-                        <Stepper value={childrenAges.length} min={0} max={MAX_CHILDREN} onChange={setChildrenCount} />
+                        <Stepper value={childrenAges.length} min={0} max={MAX_CHILDREN} onChange={(n) => {
+                            const wasIncrease = n > childrenAges.length
+                            interactedRef.current = true
+                            setChildrenCount(n)
+                            if (wasIncrease && n >= MAX_CHILDREN) {
+                                toast(`Maximum ${MAX_CHILDREN} children per booking`)
+                            }
+                        }} />
                     </div>
 
                     {/* Per-child age — requiprimary */}
