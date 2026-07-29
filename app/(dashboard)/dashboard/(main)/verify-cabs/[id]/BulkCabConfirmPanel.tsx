@@ -4,24 +4,28 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
-import { confirmAllCabLegs } from "../actions";
+import { confirmAllCabLegs, confirmCabLeg, type CabVehicleOption } from "../actions";
+import VehiclePickerModal from "./VehiclePickerModal";
 
 const inputCls =
     "h-9 w-full rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-3 text-sm text-dashboard-base-content outline-none focus:border-dashboard-primary placeholder:text-dashboard-neutral/60";
 
-type PendingLeg = { day: number; from: string; to: string };
+type PendingLeg = { day: number; from: string; to: string; dateISO: string; km: number; baselineTotal: number };
 
 export default function BulkCabConfirmPanel({
     bookingId,
     pendingLegs,
+    destinationId,
 }: {
     bookingId: string;
     pendingLegs: PendingLeg[];
+    destinationId: number | null;
 }) {
     const router = useRouter();
     const [open, setOpen] = useState(true);
     const [notes, setNotes] = useState("");
     const [confirming, setConfirming] = useState(false);
+    const [modalOpen, setModalOpen] = useState(false);
 
     if (pendingLegs.length === 0) return null;
 
@@ -33,6 +37,38 @@ export default function BulkCabConfirmPanel({
             toast.success(`${res.count} cab transfer${res.count !== 1 ? "s" : ""} verified.`);
             router.refresh();
         } finally { setConfirming(false); }
+    }
+
+    const baselineTotalSum = pendingLegs.reduce((s, l) => s + l.baselineTotal, 0);
+
+    function estimateCost(opt: CabVehicleOption): number {
+        return opt.pricingType === "PER_KM"
+            ? pendingLegs.reduce((s, l) => s + opt.rate * l.km, 0)
+            : opt.rate * pendingLegs.length;
+    }
+
+    async function handleChangeAll(opt: CabVehicleOption): Promise<{ success: boolean; error?: string }> {
+        let failed = 0;
+        let lastAllConfirmed = false;
+        for (const leg of pendingLegs) {
+            const totalCost = opt.pricingType === "PER_KM" ? opt.rate * leg.km : opt.rate;
+            const res = await confirmCabLeg(bookingId, leg.day, {
+                fromLocation: leg.from, toLocation: leg.to,
+                notes: notes.trim() || undefined,
+                newVehicleName: opt.name,
+                ratePerCab: opt.rate,
+                totalCost,
+            });
+            if (!res.success) { failed++; continue; }
+            lastAllConfirmed = res.allConfirmed;
+        }
+        if (failed === pendingLegs.length) return { success: false, error: "Could not change any of the pending legs." };
+        toast.success(
+            lastAllConfirmed
+                ? "All cabs verified! Booking status updated."
+                : `${opt.name} applied to ${pendingLegs.length - failed} of ${pendingLegs.length} leg${pendingLegs.length !== 1 ? "s" : ""}.`,
+        );
+        return { success: true };
     }
 
     return (
@@ -87,6 +123,15 @@ export default function BulkCabConfirmPanel({
                             placeholder="Verification notes (optional)"
                             className={`${inputCls} flex-1`}
                         />
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setModalOpen(true)}
+                            className="cursor-pointer shrink-0 rounded-lg border border-dashboard-base-300 px-4 py-2 text-sm font-medium text-dashboard-base-100 bg-dashboard-error transition-colors"
+                        >
+                            Change all cabs
+                        </button>
                         <button
                             type="button"
                             onClick={handleConfirmAll}
@@ -98,6 +143,20 @@ export default function BulkCabConfirmPanel({
                         </button>
                     </div>
                 </div>
+            )}
+
+            {modalOpen && (
+                <VehiclePickerModal
+                    headerTitle={`Change All Cabs — ${pendingLegs.length} leg${pendingLegs.length !== 1 ? "s" : ""}`}
+                    destinationId={destinationId}
+                    dateISO={pendingLegs[0].dateISO}
+                    baselineTotal={baselineTotalSum}
+                    estimateCost={estimateCost}
+                    confirmLabel={`Apply to all ${pendingLegs.length} →`}
+                    onConfirm={handleChangeAll}
+                    onClose={() => setModalOpen(false)}
+                    onConfirmed={() => { setModalOpen(false); router.refresh(); }}
+                />
             )}
         </div>
     );
