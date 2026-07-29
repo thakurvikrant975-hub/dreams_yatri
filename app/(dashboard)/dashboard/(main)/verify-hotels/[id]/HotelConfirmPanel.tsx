@@ -19,6 +19,11 @@ type Hotel = {
 type RoomWithHotelId = RoomOption & { hotel_id: number };
 type SelectedOption = { hotel: Hotel; room: RoomOption; pricing: RoomOption["pricing"][0] };
 
+// One underlying itinerary day within a (possibly merged, multi-night) stay —
+// each still needs its own confirmHotelStay call since BookingHotel rows are
+// keyed one-per-day, but the UI shows/confirms them as a single unit.
+export type PerDayEntry = { day: number; checkInDate: string; checkOutDate: string; ratePerRoom: number; totalCost: number };
+
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
 function fmtDist(km: number): string {
@@ -40,14 +45,14 @@ function RoomImage({ url, thumbnail, alt }: { url: string | null; thumbnail: str
 
 // ── Change Hotel Modal ────────────────────────────────────────────────────────
 function ChangeHotelModal({
-    bookingId, dayNumber, defaultHotelId, defaultPricingId, cityName,
-    checkInDate, checkOutDate, roomsCount, numNights,
+    bookingId, perDay, defaultHotelId, defaultPricingId, cityName,
+    checkInDate, roomsCount, numNights,
     travellers, oldRatePerRoom, snapshotTotal, snapshotMealTotal, snapshotMealTypes,
     destinationHotels, allHotels, initialNotes,
     onClose, onConfirmed,
 }: {
-    bookingId: string; dayNumber: number; defaultHotelId: number; defaultPricingId: number; cityName: string;
-    checkInDate: string; checkOutDate: string;
+    bookingId: string; perDay: PerDayEntry[]; defaultHotelId: number; defaultPricingId: number; cityName: string;
+    checkInDate: string;
     roomsCount: number; numNights: number;
     travellers: number;
     oldRatePerRoom: number;
@@ -144,15 +149,22 @@ function ChangeHotelModal({
         setConfirming(true);
         try {
             const roomLabel = [selected.room.name, selected.pricing.plan_name].filter(Boolean).join(" · ");
-            const newTotal = selected.pricing.price_per_night * roomsCount * numNights;
-            const res = await confirmHotelStay(bookingId, dayNumber, selected.hotel.id, {
-                cityName, checkInDate, checkOutDate,
-                roomType: roomLabel, roomsCount,
-                ratePerRoom: selected.pricing.price_per_night,
-                totalCost: newTotal,
-                notes,
-            });
-            if (!res.success) { toast.error(res.error); return; }
+            // Same rate applies every night of the (possibly merged) stay — one
+            // confirmHotelStay call per underlying day, since BookingHotel rows
+            // are still keyed one-per-day.
+            const perNightTotal = selected.pricing.price_per_night * roomsCount;
+            let lastRes: Awaited<ReturnType<typeof confirmHotelStay>> | null = null;
+            for (const pd of perDay) {
+                lastRes = await confirmHotelStay(bookingId, pd.day, selected.hotel.id, {
+                    cityName, checkInDate: pd.checkInDate, checkOutDate: pd.checkOutDate,
+                    roomType: roomLabel, roomsCount,
+                    ratePerRoom: selected.pricing.price_per_night,
+                    totalCost: perNightTotal,
+                    notes,
+                });
+                if (!lastRes.success) { toast.error(lastRes.error); return; }
+            }
+            const res = lastRes!;
             toast.success(res.allConfirmed ? "All hotels confirmed! Booking moved to Hotel Confirmed." : "Hotel changed & confirmed.");
             onConfirmed();
         } finally { setConfirming(false); }
@@ -419,7 +431,7 @@ function ChangeHotelModal({
                     <div>
                         <h3 className="flex items-center gap-2 text-sm font-semibold text-dashboard-base-content">
                             <HotelIcon className="size-4 text-dashboard-neutral" />
-                            Change Room — Day {dayNumber} · {cityName}
+                            Change Room — {perDay.length > 1 ? `Day ${perDay[0].day}–${perDay[perDay.length - 1].day}` : `Day ${perDay[0].day}`} · {cityName}
                         </h3>
                         {!loading && (
                             <p className="text-[11px] text-dashboard-neutral mt-0.5">
@@ -516,18 +528,18 @@ function labelToMealType(label: string): string {
 }
 
 export default function HotelConfirmPanel({
-    bookingId, dayNumber, defaultHotelId, defaultPricingId, cityName,
-    checkInDate, checkOutDate, roomType, roomsCount, ratePerRoom, totalCost,
+    bookingId, perDay, defaultHotelId, defaultPricingId, cityName,
+    checkInDate, nights, roomType, roomsCount, ratePerRoom, totalCost,
     travellers, snapshotMealLabels, snapshotMealTotal,
     destinationHotels, allHotels,
 }: {
     bookingId: string;
-    dayNumber: number;
+    perDay: PerDayEntry[];
     defaultHotelId: number;
     defaultPricingId: number;
     cityName: string;
     checkInDate: string;
-    checkOutDate: string;
+    nights: number;
     roomType: string;
     roomsCount: number;
     ratePerRoom: number;
@@ -539,9 +551,7 @@ export default function HotelConfirmPanel({
     allHotels: Hotel[];
 }) {
     const router = useRouter();
-    const numNights = Math.max(1, Math.round(
-        (new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86_400_000,
-    ));
+    const numNights = nights;
     const snapshotMealTypes = snapshotMealLabels.map(labelToMealType);
 
     const [showNotes, setShowNotes] = useState(false);
@@ -552,15 +562,19 @@ export default function HotelConfirmPanel({
     async function handleDirectConfirm() {
         setConfirming(true);
         try {
-            const res = await confirmHotelStay(bookingId, dayNumber, defaultHotelId, {
-                cityName, checkInDate, checkOutDate,
-                roomType, roomsCount, ratePerRoom, totalCost, notes,
-            });
-            if (!res.success) { toast.error(res.error); return; }
+            let lastRes: Awaited<ReturnType<typeof confirmHotelStay>> | null = null;
+            for (const pd of perDay) {
+                lastRes = await confirmHotelStay(bookingId, pd.day, defaultHotelId, {
+                    cityName, checkInDate: pd.checkInDate, checkOutDate: pd.checkOutDate,
+                    roomType, roomsCount, ratePerRoom: pd.ratePerRoom, totalCost: pd.totalCost, notes,
+                });
+                if (!lastRes.success) { toast.error(lastRes.error); return; }
+            }
+            const res = lastRes!;
             toast.success(
                 res.allConfirmed
                     ? "All hotels confirmed! Booking moved to Hotel Confirmed."
-                    : "Hotel confirmed.",
+                    : perDay.length > 1 ? `${perDay.length} nights confirmed.` : "Hotel confirmed.",
             );
             router.refresh();
         } finally { setConfirming(false); }
@@ -600,7 +614,7 @@ export default function HotelConfirmPanel({
                             disabled={confirming}
                             className="cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-700/90 transition-colors disabled:opacity-50 flex items-center gap-1 disabled:cursor-not-allowed"
                         >
-                            {confirming ? "Confirming…" : <>Confirm Hotel</>}
+                            {confirming ? "Confirming…" : perDay.length > 1 ? `Confirm Hotel (${perDay.length} nights)` : "Confirm Hotel"}
                         </button>
                     </div>
                 </div>
@@ -609,12 +623,11 @@ export default function HotelConfirmPanel({
             {modalOpen && (
                 <ChangeHotelModal
                     bookingId={bookingId}
-                    dayNumber={dayNumber}
+                    perDay={perDay}
                     defaultHotelId={defaultHotelId}
                     defaultPricingId={defaultPricingId}
                     cityName={cityName}
                     checkInDate={checkInDate}
-                    checkOutDate={checkOutDate}
                     roomsCount={roomsCount}
                     numNights={numNights}
                     travellers={travellers}
