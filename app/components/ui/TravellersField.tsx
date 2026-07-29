@@ -106,6 +106,14 @@ export default function TravellersField({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [liveMinRooms, maxRooms, showRooms])
 
+    // A room needs at least one adult in it — 2 rooms can't be booked for a
+    // single adult, so raising Rooms (manually or via the floor above) pulls
+    // Adults up to match if it's now short.
+    useEffect(() => {
+        if (!showRooms) return
+        setAdults((a) => Math.max(a, rooms))
+    }, [rooms, showRooms])
+
     function setChildrenCount(next: number) {
         setChildrenAges((prev) => {
             if (next > prev.length) return [...prev, ...Array(next - prev.length).fill(-1)]
@@ -178,7 +186,7 @@ export default function TravellersField({
                             <p className="text-sm font-semibold text-neutral-800">Adults</p>
                             <p className="text-xs text-neutral-400">Above 12 years</p>
                         </div>
-                        <Stepper value={adults} min={1} max={MAX_ADULTS} onChange={setAdults} />
+                        <Stepper value={adults} min={showRooms ? Math.max(1, rooms) : 1} max={MAX_ADULTS} onChange={setAdults} />
                     </div>
 
                     <div className="my-3 h-px bg-neutral-100" />

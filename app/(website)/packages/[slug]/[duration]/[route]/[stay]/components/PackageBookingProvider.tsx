@@ -300,6 +300,13 @@ export function PackageBookingProvider({
         setRoomsRaw((prev) => Math.min(Math.max(prev, minRooms), maxRooms));
     }, [minRooms, maxRooms]);
 
+    // A room needs at least one adult in it — 2 rooms can't be booked for a
+    // single adult. Whenever the room count grows (manual "+" or the floor
+    // above), pull the adult count up to match if it's now short.
+    useEffect(() => {
+        setAdultsRaw((prev) => Math.max(prev, rooms));
+    }, [rooms]);
+
     // Auto-upgrade cabs whenever passenger count changes.
     // `cabGroups` is recomputed (new reference) whenever `cabTypes` arrives
     // as a fresh array across the RSC boundary, which can happen without the
@@ -326,7 +333,7 @@ export function PackageBookingProvider({
 
     // ── Traveller setters ────────────────────────────────────────────────────
 
-    function setAdults(n: number) { setAdultsRaw(Math.max(1, n)); }
+    function setAdults(n: number) { setAdultsRaw(Math.max(1, n, rooms)); }
 
     function setChildCount(n: number) {
         const count = Math.max(0, n);
@@ -351,7 +358,7 @@ export function PackageBookingProvider({
     }
 
     function setTravellers(nextAdults: number, ages: number[]) {
-        setAdultsRaw(Math.max(1, nextAdults));
+        setAdultsRaw(Math.max(1, nextAdults, rooms));
         setChildRaw(ages.length);
         setChildAges(ages);
     }
