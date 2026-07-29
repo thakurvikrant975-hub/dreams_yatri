@@ -2,18 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
-import { MinusIcon, PlusIcon, UsersFourIcon, CaretDownIcon, WarningCircleIcon } from '@phosphor-icons/react'
-import { toast } from 'react-toastify'
+import { UsersFourIcon, CaretDownIcon } from '@phosphor-icons/react'
 import Button from './Button'
+import { Stepper, notifyLimit } from './Stepper'
 import { cn } from '@/app/lib/utils'
-
-// A restriction/limit was just hit on a stepper — one consistent, branded
-// look for all of them (room/adult/child caps and floors).
-function notifyLimit(message: string) {
-    toast(message, {
-        icon: <WarningCircleIcon weight="fill" className="size-5 text-amber-500" />,
-    })
-}
 
 // childrenAges holds one entry per child; -1 means "age not yet selected".
 // rooms is optional — only meaningful where the caller opts in via showRooms.
@@ -33,31 +25,6 @@ export function summarizeTravellers(v: TravellersValue): string {
         parts.push(`${v.rooms} Room${v.rooms > 1 ? 's' : ''}`)
     }
     return parts.join(', ')
-}
-
-// ── Stepper ──────────────────────────────────────────────────────────────────
-function Stepper({
-    value, min, max, onChange,
-}: {
-    value: number
-    min: number
-    max: number
-    onChange: (n: number) => void
-}) {
-    const btn = 'flex size-9 items-center justify-center rounded-lg border border-neutral-200 text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
-    return (
-        <div className="flex items-center gap-2.5">
-            <button type="button" aria-label="Decrease" disabled={value <= min} onClick={() => onChange(value - 1)} className={btn}>
-                <MinusIcon weight="bold" className="size-3.5" />
-            </button>
-            <span className="w-8 text-center text-sm font-semibold tabular-nums text-neutral-800">
-                {String(value).padStart(2, '0')}
-            </span>
-            <button type="button" aria-label="Increase" disabled={value >= max} onClick={() => onChange(value + 1)} className={btn}>
-                <PlusIcon weight="bold" className="size-3.5" />
-            </button>
-        </div>
-    )
 }
 
 // ── Component ────────────────────────────────────────────────────────────────

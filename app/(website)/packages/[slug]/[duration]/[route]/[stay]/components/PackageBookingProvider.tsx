@@ -14,6 +14,7 @@ import type { LocationValue } from '@/app/components/ui/LocationSearchSelect';
 import type { CabTypeOption, RoomOption } from '@/app/actions/packages/fetch-page-data';
 import { fetchRoomAlternatives, fetchHotelAlternatives } from '@/app/actions/packages/hotel-alternatives.actions';
 import { MAX_ROOMS } from '@/app/components/ui/TravellersField';
+import { notifyLimit } from '@/app/components/ui/Stepper';
 
 // ── Room-count cap ────────────────────────────────────────────────────────
 //
@@ -42,6 +43,29 @@ export type StayRoomCount = {
     roomCapacity:    number | null;
     roomExtraBeds:   number;
 };
+
+/** One MMT-style room card: its own adults + child ages, independent of
+ *  every other room in the booking. `childAges` entries of -1 mean "age not
+ *  yet selected" (mirrors TravellersField's convention). */
+export type RoomGuests = { adults: number; childAges: number[] };
+
+/** Seeds the initial room breakdown from the flat adults/children/rooms
+ *  carried over from the search page — which never captured a real per-room
+ *  split, so this is a best-effort default the guest can freely re-shape in
+ *  the new picker. Room count is capped at `adults` (each room needs >=1
+ *  adult) so the even split always sums back to exactly `adults`. */
+function seedRoomGuests(initialAdults?: number, initialChildAges?: number[], initialRooms?: number): RoomGuests[] {
+    const adults = initialAdults && initialAdults > 0 ? initialAdults : 2;
+    const childAges = initialChildAges ?? [];
+    const roomCount = Math.max(1, Math.min(initialRooms ?? 1, adults));
+    if (roomCount <= 1) return [{ adults, childAges }];
+    const base = Math.floor(adults / roomCount);
+    const remainder = adults % roomCount;
+    return Array.from({ length: roomCount }, (_, i) => ({
+        adults: base + (i < remainder ? 1 : 0),
+        childAges: i === 0 ? childAges : [],
+    }));
+}
 
 // ── Safe pricing — only these fields reach the browser ──────────────────────
 
@@ -90,28 +114,23 @@ export interface BookingContextValue {
     childCount: number;
     infants:    number;
     childAges:  number[];   // length === childCount, each 2-11
-    rooms:      number;
+    rooms:      number;     // roomGuests.length
+    /** The MMT-style per-room breakdown — the source of truth `adults`/
+     *  `childCount`/`childAges`/`rooms` above are all derived from. */
+    roomGuests: RoomGuests[];
     /** Highest room count currently selectable, given the active room type
      *  at every stay in this itinerary (see effectiveRoomCap). */
     maxRooms:   number;
-    /** Lowest room count the current party size requires, given the smallest
-     *  per-room occupancy among the active rooms across the itinerary. */
-    minRooms:   number;
     /** Smallest (max_occupancy + extra_bed_capacity) among the active rooms —
-     *  how many people one room can currently hold, at the tightest stay. */
+     *  how many guests one room can currently hold, at the tightest stay. */
     personsPerRoom: number;
     travelDate: string;     // 'YYYY-MM-DD' or ''
     leavingFrom: LocationValue | null;  // user's origin city (carried from search)
 
-    setAdults:     (n: number) => void;
-    setChildCount: (n: number) => void;
+    setRoomGuests: (rooms: RoomGuests[]) => void;
     setInfants:    (n: number) => void;
-    setChildAge:   (idx: number, age: number) => void;
-    setRooms:      (n: number) => void;
     setTravelDate: (d: string) => void;
     setLeavingFrom: (l: LocationValue | null) => void;
-    /** Set adults + children (with ages) in one go — for the TravellersField component */
-    setTravellers: (adults: number, childAges: number[]) => void;
 
     // Date validation highlight — set true when user tries to book without picking a date
     dateHighlight:    boolean;
@@ -214,11 +233,10 @@ export function PackageBookingProvider({
     children,
     initialAdults, initialChildAges, initialRooms, initialTravelDate, initialLeavingFrom,
 }: ProviderProps) {
-    const [adults,     setAdultsRaw]    = useState(initialAdults && initialAdults > 0 ? initialAdults : 2);
-    const [childCount, setChildRaw]     = useState(initialChildAges?.length ?? 0);
+    const [roomGuests, setRoomGuestsRaw] = useState<RoomGuests[]>(
+        () => seedRoomGuests(initialAdults, initialChildAges, initialRooms),
+    );
     const [infants,    setInfantsRaw]   = useState(0);
-    const [childAges,  setChildAges]    = useState<number[]>(initialChildAges ?? []);
-    const [rooms,      setRoomsRaw]     = useState(initialRooms && initialRooms > 0 ? initialRooms : 1);
     const [travelDate, setTravelDateRaw] = useState(initialTravelDate ?? '');
     const [leavingFrom, setLeavingFrom]  = useState<LocationValue | null>(initialLeavingFrom ?? null);
     const [dateHighlight, setDateHighlight] = useState(false);
@@ -229,6 +247,14 @@ export function PackageBookingProvider({
     }
     const [pricing,    setPricing]      = useState<SafePricing | null>(null);
     const [isPricingLoading, setLoading] = useState(false);
+
+    // Flat trip-wide totals, derived from the per-room breakdown — every
+    // other part of the page (pricing, cab auto-upgrade, the quote/enquiry
+    // payloads) only ever needs the aggregate, not which room a guest is in.
+    const adults     = useMemo(() => roomGuests.reduce((sum, r) => sum + r.adults, 0), [roomGuests]);
+    const childAges  = useMemo(() => roomGuests.flatMap((r) => r.childAges), [roomGuests]);
+    const childCount = childAges.length;
+    const rooms      = roomGuests.length;
 
     const cabGroups = useMemo(() => buildCabGroups(cabTypes), [cabTypes]);
 
@@ -285,27 +311,19 @@ export function PackageBookingProvider({
         return Math.max(1, Math.min(...capacities));
     }, [stayRoomCounts, roomSelections, roomAlternatesByStay, hotelAlternatesByStay]);
 
-    // Minimum rooms the current party needs at that tightest occupancy —
-    // e.g. capacity 3 and 4 people means 1 room isn't enough, so 2 are required.
-    const minRooms = useMemo(() => {
-        const persons = Math.max(adults + childCount, 1);
-        return Math.min(Math.max(1, Math.ceil(persons / personsPerRoom)), maxRooms);
-    }, [adults, childCount, personsPerRoom, maxRooms]);
-
-    // Keep the committed room count inside [minRooms, maxRooms]: auto-add a
-    // room the moment the party outgrows the current count, and pull it back
-    // down if a room-type change just lowered the cap below it. A manually
-    // picked extra room (above the computed minimum) is left alone.
+    // Safety net for a *later* inventory shrink (e.g. "Change Room"/"Change
+    // Hotel" after the guest already committed a room breakdown): the MMT
+    // picker itself blocks Apply when it exceeds maxRooms (see
+    // RoomsGuestsField), but if maxRooms drops below an already-committed
+    // roomGuests.length some other way, truncate rather than silently
+    // letting an over-inventory count reach pricing.
     useEffect(() => {
-        setRoomsRaw((prev) => Math.min(Math.max(prev, minRooms), maxRooms));
-    }, [minRooms, maxRooms]);
-
-    // A room needs at least one adult in it — 2 rooms can't be booked for a
-    // single adult. Whenever the room count grows (manual "+" or the floor
-    // above), pull the adult count up to match if it's now short.
-    useEffect(() => {
-        setAdultsRaw((prev) => Math.max(prev, rooms));
-    }, [rooms]);
+        setRoomGuestsRaw((prev) => {
+            if (prev.length <= maxRooms) return prev;
+            notifyLimit(`Only up to ${maxRooms} room${maxRooms > 1 ? 's' : ''} are available for this trip's hotels now — the last ${prev.length - maxRooms} room(s) were removed.`);
+            return prev.slice(0, maxRooms);
+        });
+    }, [maxRooms]);
 
     // Auto-upgrade cabs whenever passenger count changes.
     // `cabGroups` is recomputed (new reference) whenever `cabTypes` arrives
@@ -333,35 +351,12 @@ export function PackageBookingProvider({
 
     // ── Traveller setters ────────────────────────────────────────────────────
 
-    function setAdults(n: number) { setAdultsRaw(Math.max(1, n, rooms)); }
-
-    function setChildCount(n: number) {
-        const count = Math.max(0, n);
-        setChildRaw(count);
-        setChildAges(prev =>
-            count > prev.length
-                ? [...prev, ...Array(count - prev.length).fill(8)]
-                : prev.slice(0, count),
-        );
-    }
-
     function setInfants(n: number) { setInfantsRaw(Math.max(0, n)); }
 
-    function setRooms(n: number) { setRoomsRaw(Math.max(minRooms, Math.min(n, maxRooms))); }
-
-    function setChildAge(idx: number, age: number) {
-        setChildAges(prev => {
-            const next = [...prev];
-            next[idx] = Math.max(2, Math.min(17, age));
-            return next;
-        });
-    }
-
-    function setTravellers(nextAdults: number, ages: number[]) {
-        setAdultsRaw(Math.max(1, nextAdults, rooms));
-        setChildRaw(ages.length);
-        setChildAges(ages);
-    }
+    // Committed by RoomsGuestsField's Apply — already validated there
+    // (per-room capacity, unset child ages, and the maxRooms availability
+    // check), so this is a plain commit, no re-clamping needed here.
+    function setRoomGuests(next: RoomGuests[]) { setRoomGuestsRaw(next); }
 
     function setCabForGroup(groupKey: string, cabTypeId: number) {
         setCabSelections(prev => {
@@ -464,8 +459,8 @@ export function PackageBookingProvider({
 
     return (
         <BookingContext.Provider value={{
-            adults, childCount, infants, childAges, rooms, maxRooms, minRooms, personsPerRoom, travelDate, leavingFrom,
-            setAdults, setChildCount, setInfants, setChildAge, setRooms, setTravelDate, setLeavingFrom, setTravellers,
+            adults, childCount, infants, childAges, rooms, roomGuests, maxRooms, personsPerRoom, travelDate, leavingFrom,
+            setRoomGuests, setInfants, setTravelDate, setLeavingFrom,
             cabGroups, cabSelections, setCabForGroup,
             roomSelections, setRoomForStay, roomAlternatesByStay, hotelAlternatesByStay,
             loadRoomAlternatives, loadHotelAlternatives, isLoadingAlternatives,
