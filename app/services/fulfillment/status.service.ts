@@ -54,6 +54,9 @@ export interface FulfillmentItem {
     roomChanged?: boolean;            // same hotel, but room/plan differs from snapshot (upgrade/downgrade)
     originalRoomType?: string | null; // snapshot room/plan label (before the change)
     newRoomType?: string | null;      // confirmed room/plan label (after the change)
+    cabChanged?: boolean;             // confirmed vehicle differs from the snapshot's planned vehicle
+    cabPriceDiff?: number | null;     // rupees: confirmed day cost − snapshot day cost
+    originalVehicleName?: string | null; // snapshot vehicle name (before the change)
 }
 
 export interface ReplacementOfferView {
@@ -88,7 +91,8 @@ type SnapMeal = { label?: string; meal_type?: string; price_per_person?: number;
 type SnapActivity = { id?: number; name?: string; variant_label?: string | null; is_optional?: boolean; total?: number };
 type SnapTransfer = { pickup_name?: string | null; drop_name?: string | null; vehicle_name?: string | null };
 type SnapDay = { day: number; day_title?: string; day_date?: string | null; hotel?: SnapHotel | null; meals?: SnapMeal[]; activities?: SnapActivity[]; transfers?: SnapTransfer[] };
-type Snapshot = { days?: SnapDay[] };
+type SnapCabSegment = { day_from: number; day_to: number; vehicle_name?: string | null; total?: number };
+type Snapshot = { days?: SnapDay[]; cab_segments?: SnapCabSegment[] };
 
 const PAID_STATUSES = new Set(["ADVANCE_PAID", "FULLY_PAID"]);
 
@@ -131,7 +135,7 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
                 meals: { select: { mealType: true, ratePerPerson: true, travellers: true, totalCost: true } },
             },
         }),
-        db.bookingCab.findMany({ where: { bookingId }, select: { transferDate: true, status: true, isConfirmed: true, voucherUrl: true, driverName: true, driverPhone: true, vehicleNumber: true } }),
+        db.bookingCab.findMany({ where: { bookingId }, select: { transferDate: true, status: true, isConfirmed: true, voucherUrl: true, driverName: true, driverPhone: true, vehicleNumber: true, vehicleName: true, totalCost: true } }),
         db.bookingActivity.findMany({ where: { bookingId }, select: { dayNumber: true, activityId: true, name: true, status: true, voucherUrl: true } }),
         db.replacementOffer.findMany({ where: { bookingId, status: "PROPOSED" }, select: { id: true, kind: true, day: true, activityId: true, options: true } }),
     ]);
@@ -247,16 +251,29 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
         }
 
         // Transfers (served by the day's cab)
+        const cabSeg = (snapshot.cab_segments ?? []).find((s) => d.day >= s.day_from && d.day <= s.day_to);
+        // `cabSeg.total` is the WHOLE segment's cost (can span several
+        // consecutive days behind one vehicle) — prorate to this day's slice
+        // before comparing against the confirmed row's (per-day) totalCost.
+        const snapDayCost = cabSeg?.total ? cabSeg.total / Math.max(1, cabSeg.day_to - cabSeg.day_from + 1) : null;
+        const originalVehicleName = cabSeg?.vehicle_name ?? d.transfers?.[0]?.vehicle_name ?? null;
+
         for (const [i, t] of (d.transfers ?? []).entries()) {
             const row = cabByDate.get(dayISO);
             const status = resolve(row?.status, row?.isConfirmed ?? false, paid, cancelled);
+            const confirmedVehicleName = row?.vehicleName ?? null;
+            const cabChanged = confirmedVehicleName != null && originalVehicleName != null && confirmedVehicleName !== originalVehicleName;
+            const cabPriceDiff = row != null && snapDayCost != null ? Number(row.totalCost) - snapDayCost : null;
             items.push({
                 kind: "TRANSFER", day: d.day, key: `transfer:${d.day}:${i}`,
                 title: `${t.pickup_name ?? "—"} → ${t.drop_name ?? "—"}`,
-                subtitle: t.vehicle_name ?? null,
+                subtitle: confirmedVehicleName ?? t.vehicle_name ?? null,
                 status, voucherUrl: row?.voucherUrl ?? null, paid: true,
                 driver: row ? { name: row.driverName, phone: row.driverPhone, vehicleNumber: row.vehicleNumber } : undefined,
                 offer: status === "UNAVAILABLE" ? offerFor(`TRANSFER:${d.day}`) : null,
+                cabChanged,
+                cabPriceDiff: cabChanged ? cabPriceDiff : null,
+                originalVehicleName: cabChanged ? originalVehicleName : null,
             });
             total++; count(status);
         }

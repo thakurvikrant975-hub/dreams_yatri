@@ -11,9 +11,10 @@ export const metadata: Metadata = {
 const VALID_LIMITS  = [10, 20, 50] as const;
 const VALID_URGENCY = ["all", "urgent", "overdue", "confirmed", "pending"] as const;
 
-// Snapshot type — only what we need for counting transfer days
+// Snapshot type — only what we need for counting transfer days / cab pricing
 type SnapDay = { day: number; transfers?: { pickup_name?: string | null }[] };
-type Snapshot = { days?: SnapDay[] };
+type SnapCab = { day_from: number; day_to: number; total?: number };
+type Snapshot = { days?: SnapDay[]; cab_segments?: SnapCab[] };
 
 export default async function VerifyCabsPage({
     searchParams,
@@ -42,6 +43,7 @@ export default async function VerifyCabsPage({
                 { contactEmail:  { contains: search, mode: "insensitive" } },
                 { contactPhone:  { contains: search, mode: "insensitive" } },
                 { user: { name:  { contains: search, mode: "insensitive" } } },
+                { travellersList: { some: { fullName: { contains: search, mode: "insensitive" } } } },
             ],
         }
         : {};
@@ -71,9 +73,15 @@ export default async function VerifyCabsPage({
                 take:  limit,
                 select: {
                     id: true, bookingNumber: true, startDate: true, endDate: true,
-                    travellers: true, totalAmount_paise: true, paymentStatus: true,
+                    travellers: true, paymentStatus: true,
                     createdAt: true, cabConfirmedAt: true, cabType: true,
+                    contactEmail: true,
                     user:        { select: { name: true, email: true } },
+                    travellersList: {
+                        where: { isLead: true },
+                        take: 1,
+                        select: { fullName: true, firstName: true, lastName: true },
+                    },
                     package:     { select: { title: true } },
                     destination: { select: { name: true } },
                     priceSnapshot: true,
@@ -103,18 +111,27 @@ export default async function VerifyCabsPage({
         const isUrgent         = !isFullyConfirmed && daysToTravel <= 15 && daysToTravel >= 0;
         const isOverdue        = !isFullyConfirmed && hoursOld >= 48;
 
+        // Cab-only pricing for the "Amount" column — NOT the booking's whole
+        // package total (which also includes hotels/meals/activities).
+        const cabPricingPaise = (snap.cab_segments ?? []).reduce(
+            (sum, seg) => (seg.total != null ? sum + Math.ceil(Number(seg.total)) * 100 : sum),
+            0,
+        );
+
         return {
             id:                b.id,
             bookingNumber:     b.bookingNumber,
             startDate:         b.startDate,
             endDate:           b.endDate,
             travellers:        b.travellers,
-            totalAmount_paise: b.totalAmount_paise,
+            cabPricingPaise,
             paymentStatus:     b.paymentStatus,
             createdAt:         b.createdAt,
             cabConfirmedAt:    b.cabConfirmedAt,
             cabType:           b.cabType,
             user:              b.user,
+            contactEmail:      b.contactEmail,
+            travellersList:    b.travellersList,
             package:           b.package,
             destination:       b.destination,
             pendingCabCount,

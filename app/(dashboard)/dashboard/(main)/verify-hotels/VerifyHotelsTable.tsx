@@ -19,7 +19,7 @@ export type BookingRow = {
     startDate: Date;
     endDate: Date;
     travellers: number;
-    totalAmount_paise: number;
+    hotelPricingPaise: number;
     paymentStatus: string;
     createdAt: Date;
     hotelConfirmedAt: Date | null;
@@ -197,12 +197,12 @@ export function VerifyHotelsTable({
             ),
         },
         {
-            header: "Amount",
+            header: "Hotel Pricing",
             align: "right",
-            sortKey: (b) => b.totalAmount_paise ?? 0,
+            sortKey: (b) => b.hotelPricingPaise ?? 0,
             cell: (b) => (
                 <div className="text-right">
-                    <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{fmt(b.totalAmount_paise)}</div>
+                    <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{fmt(b.hotelPricingPaise)}</div>
                     <div className="mt-0.5"><PaymentPill status={b.paymentStatus} /></div>
                 </div>
             ),

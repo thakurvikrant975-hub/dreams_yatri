@@ -5,6 +5,7 @@ import { db } from "@/app/lib/db";
 import { getCurrentMember } from "../lib/get-current-member";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { resolveCabPrice } from "@/app/services/cab-pricing-utils";
+import { notifyHotelsAndCabsConfirmed } from "@/app/services/notifications/booking-notify";
 
 type Member = NonNullable<Awaited<ReturnType<typeof getCurrentMember>>>;
 async function requireMember(): Promise<{ ok: true; member: Member } | { ok: false; error: string }> {
@@ -15,7 +16,7 @@ async function requireMember(): Promise<{ ok: true; member: Member } | { ok: fal
 }
 
 type SnapTransfer = { pickup_name?: string | null; drop_name?: string | null };
-type SnapCab = { day_from: number; day_to: number; vehicle_capacity?: number; total?: number; price_used?: number };
+type SnapCab = { day_from: number; day_to: number; vehicle_name?: string; vehicle_capacity?: number; total?: number; price_used?: number };
 type SnapDay = { day: number; transfers?: SnapTransfer[] };
 type Snapshot = { days?: SnapDay[]; cab_segments?: SnapCab[] };
 
@@ -171,7 +172,7 @@ export async function confirmCabLeg(
     // never land on a fractional rupee (same discipline as hotel repricing).
     const existingRow = await db.bookingCab.findUnique({
         where: { bookingId_legNumber: { bookingId, legNumber } },
-        select: { totalCost: true, ratePerCab: true },
+        select: { totalCost: true, ratePerCab: true, vehicleName: true },
     });
     const baselineCost = existingRow != null ? Number(existingRow.totalCost) : segDayCost;
     const newCost = totalCost ?? (existingRow != null ? Number(existingRow.totalCost) : segDayCost);
@@ -179,6 +180,11 @@ export async function confirmCabLeg(
     const totalCostRounded = Math.ceil(newCost);
     const baselineCostRounded = Math.ceil(baselineCost);
     const deltaPaise = (totalCostRounded - baselineCostRounded) * 100;
+
+    // Recorded on every confirm (not just on a change) so the customer status
+    // page always has something to compare the snapshot's planned vehicle
+    // against — otherwise a re-confirm with no change would erase the record.
+    const finalVehicleName = newVehicleName ?? existingRow?.vehicleName ?? seg?.vehicle_name ?? null;
 
     const vehicleChangeNote = newVehicleName ? `Cab changed to ${newVehicleName}.` : null;
     const combinedNotes = [vehicleChangeNote, notes?.trim() || null].filter(Boolean).join(" ") || null;
@@ -202,6 +208,7 @@ export async function confirmCabLeg(
             driverName:    driverName?.trim()    || null,
             driverPhone:   driverPhone?.trim()   || null,
             vehicleNumber: vehicleNumber?.trim() || null,
+            vehicleName:   finalVehicleName,
             notes:         combinedNotes,
         },
         update: {
@@ -214,6 +221,7 @@ export async function confirmCabLeg(
             driverName:    driverName?.trim()    || null,
             driverPhone:   driverPhone?.trim()   || null,
             vehicleNumber: vehicleNumber?.trim() || null,
+            vehicleName:   finalVehicleName,
             notes:         combinedNotes,
         },
     });
@@ -275,6 +283,11 @@ export async function confirmCabLeg(
             }),
         ]);
         await broadcastVerificationCounts();
+        try {
+            await notifyHotelsAndCabsConfirmed(bookingId);
+        } catch (e) {
+            console.error("[verify-cabs] notifyHotelsAndCabsConfirmed failed", e);
+        }
     } else {
         await db.bookingTimeline.create({
             data: {
@@ -400,6 +413,11 @@ export async function confirmAllCabLegs(
             }),
         ]);
         await broadcastVerificationCounts();
+        try {
+            await notifyHotelsAndCabsConfirmed(bookingId);
+        } catch (e) {
+            console.error("[verify-cabs] notifyHotelsAndCabsConfirmed failed", e);
+        }
     } else {
         await db.bookingTimeline.create({
             data: {

@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/app/lib/db";
-import { bookingConfirmationEmail, cancellationEmail, hotelBookingConfirmedEmail, refundConfirmedEmail, opsNewBookingEmail, tripStatusEmail } from "./booking-emails";
+import { bookingConfirmationEmail, cancellationEmail, hotelBookingConfirmedEmail, refundConfirmedEmail, opsNewBookingEmail, tripStatusEmail, hotelsAndCabsConfirmedEmail } from "./booking-emails";
 import { sendBookingEmail, opsEmail } from "./send";
 import { getSystemActorId } from "./system-actor";
 import { formatPaiseRoundedUp } from "@/app/lib/money";
@@ -94,6 +94,33 @@ export async function notifyRefund(bookingId: string, refundAmountPaise: number)
     const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, user: { select: { email: true } }, package: { select: { title: true } }, hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } } } });
     if (!b) return;
     await sendBookingEmail(b.user?.email, refundConfirmedEmail({ bookingNumber: b.bookingNumber, packageTitle: tripTitle(b), refundAmountPaise }));
+}
+
+/** Customer-facing: every hotel and cab for the booking has just been verified
+ *  by ops (the verify-hotels / verify-cabs dashboard pipeline reaching
+ *  CAB_CONFIRMED — the last stage that pipeline currently advances a booking
+ *  to). Distinct from `notifyFulfillmentChange`'s READY email, which also
+ *  waits on activities. */
+export async function notifyHotelsAndCabsConfirmed(bookingId: string): Promise<void> {
+    const b = await db.booking.findUnique({
+        where: { id: bookingId },
+        select: {
+            bookingNumber: true, startDate: true, endDate: true, travellers: true,
+            contactEmail: true, user: { select: { name: true, email: true } },
+            package: { select: { title: true } },
+        },
+    });
+    if (!b) return;
+
+    await sendBookingEmail(b.user?.email ?? b.contactEmail, hotelsAndCabsConfirmedEmail({
+        bookingNumber: b.bookingNumber,
+        packageTitle: b.package?.title ?? "Your package",
+        customerName: b.user?.name ?? "Traveller",
+        travelStartDate: isoDate(b.startDate),
+        travelEndDate: isoDate(b.endDate),
+        travellers: b.travellers,
+        statusUrl: bookingStatusUrl(bookingId),
+    }));
 }
 
 /** Fulfilment status update — trip fully confirmed (READY) or an item needs an alternative (ATTENTION). */

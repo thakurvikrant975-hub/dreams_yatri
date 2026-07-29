@@ -19,12 +19,14 @@ export type CabRow = {
     startDate: Date;
     endDate: Date;
     travellers: number;
-    totalAmount_paise: number;
+    cabPricingPaise: number;
     paymentStatus: string;
     createdAt: Date;
     cabConfirmedAt: Date | null;
     cabType: string;
     user: { name: string | null; email: string | null } | null;
+    contactEmail: string | null;
+    travellersList: { fullName: string; firstName: string | null; lastName: string | null }[];
     package: { title: string | null } | null;
     destination: { name: string | null } | null;
     pendingCabCount: number;
@@ -48,6 +50,15 @@ const fmt = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-
 const fmtDate = (d: Date) =>
     new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(d);
 const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+// The lead traveller — not the account holder — is who actually travelled,
+// so that's the name shown as "Customer" here. Falls back to the account
+// name (and then the contact email) only if no traveller was ever recorded.
+function travellerName(b: CabRow): string {
+    const t = b.travellersList[0];
+    if (t) return t.fullName || [t.firstName, t.lastName].filter(Boolean).join(" ") || "—";
+    return b.user?.name ?? b.contactEmail ?? "—";
+}
 
 function UrgencyBadge({ row }: { row: CabRow }) {
     if (row.isFullyConfirmed)
@@ -143,11 +154,11 @@ export function VerifyCabsTable({
         },
         {
             header: "Customer",
-            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
+            sortKey: (b) => travellerName(b).toLowerCase(),
             cell: (b) => (
                 <div>
-                    <div className="text-sm font-medium text-dashboard-base-content">{b.user?.name ?? "—"}</div>
-                    <div className="text-xs text-dashboard-neutral truncate max-w-[160px]">{b.user?.email ?? ""}</div>
+                    <div className="text-sm font-medium text-dashboard-base-content">{travellerName(b)}</div>
+                    <div className="text-xs text-dashboard-neutral truncate max-w-[160px]">{b.user?.email ?? b.contactEmail ?? ""}</div>
                 </div>
             ),
         },
@@ -187,12 +198,12 @@ export function VerifyCabsTable({
             ),
         },
         {
-            header: "Amount",
+            header: "Cab Pricing",
             align: "right",
-            sortKey: (b) => b.totalAmount_paise ?? 0,
+            sortKey: (b) => b.cabPricingPaise ?? 0,
             cell: (b) => (
                 <div className="text-right">
-                    <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{fmt(b.totalAmount_paise)}</div>
+                    <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{fmt(b.cabPricingPaise)}</div>
                     <div className="mt-0.5"><PaymentPill status={b.paymentStatus} /></div>
                 </div>
             ),

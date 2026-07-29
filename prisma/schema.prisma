@@ -411,6 +411,7 @@ model BookingCab {
   driverName    String?
   driverPhone   String?
   vehicleNumber String?
+  vehicleName   String?
   notes         String?
   status        FulfillmentStatus @default(PENDING)
   voucherUrl    String?

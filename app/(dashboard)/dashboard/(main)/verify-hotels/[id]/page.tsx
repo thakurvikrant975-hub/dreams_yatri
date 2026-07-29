@@ -126,14 +126,14 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
         select: {
             id: true, bookingNumber: true, status: true, paymentStatus: true,
             startDate: true, endDate: true, duration: true, travellers: true, createdAt: true,
-            totalAmount_paise: true, contactEmail: true, contactPhone: true,
+            contactEmail: true, contactPhone: true,
             destinationId: true, priceSnapshot: true,
             user:        { select: { name: true, email: true } },
             package:     { select: { title: true } },
             destination: { select: { name: true } },
             hotelBookings: {
                 select: {
-                    dayNumber: true, isConfirmed: true, confirmedAt: true, notes: true, hotelId: true,
+                    dayNumber: true, isConfirmed: true, confirmedAt: true, notes: true, hotelId: true, totalCost: true,
                     confirmedBy: { select: { name: true } },
                 },
             },
@@ -187,6 +187,15 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
     const confirmedCount = hotelStays.filter((s) => s.days.every((day) => confirmedMap.get(day)?.isConfirmed)).length;
     const pct            = totalCount > 0 ? Math.round((confirmedCount / totalCount) * 100) : 0;
     const allDone        = pct === 100;
+
+    // Hotel-only pricing for the sidebar — NOT the booking's whole package
+    // total. Confirmed days use the actual confirmed cost (may have changed
+    // via "Change Hotel"); unconfirmed days fall back to the snapshot's cost.
+    const hotelTotalPaise = hotelDays.reduce((sum, d) => {
+        const cb = confirmedMap.get(d.day);
+        const cost = cb?.isConfirmed ? Number(cb.totalCost) : Number(d.hotel.total);
+        return sum + Math.ceil(cost) * 100;
+    }, 0);
 
     return (
         <div className="flex flex-col gap-5">
@@ -457,8 +466,8 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             <InfoItem icon={CalendarDays} label="Travel Dates"  value={`${fmtDate(booking.startDate)} – ${fmtDate(booking.endDate)}`} />
                             <InfoItem icon={Users}        label="Travellers"    value={`${booking.travellers} pax · ${booking.duration}D`} />
                             <div className="mt-1 flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
-                                <span className="text-xs font-medium text-dashboard-neutral">Total Amount</span>
-                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaiseRoundedUp(booking.totalAmount_paise)}</span>
+                                <span className="text-xs font-medium text-dashboard-neutral">Hotel Pricing</span>
+                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaiseRoundedUp(hotelTotalPaise)}</span>
                             </div>
                         </div>
                     </SideCard>

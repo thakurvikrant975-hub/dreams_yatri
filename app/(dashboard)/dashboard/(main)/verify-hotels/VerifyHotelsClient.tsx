@@ -86,7 +86,7 @@ async function HotelsData({
                 take:  limit,
                 select: {
                     id: true, bookingNumber: true, startDate: true, endDate: true,
-                    travellers: true, totalAmount_paise: true, paymentStatus: true,
+                    travellers: true, paymentStatus: true,
                     createdAt: true, hotelConfirmedAt: true, priceSnapshot: true,
                     user:        { select: { name: true, email: true } },
                     package:     { select: { title: true } },
@@ -111,9 +111,15 @@ async function HotelsData({
         // that's never been confirmed yet. The itinerary snapshot has the
         // real total (same source confirmHotelStay itself checks against),
         // so a booking with untouched days can never falsely read as done.
-        const snapshotDays    = ((b.priceSnapshot as { days?: { hotel: unknown }[] } | null)?.days ?? []);
+        const snapshotDays    = ((b.priceSnapshot as { days?: { hotel: { total?: number } | null }[] } | null)?.days ?? []);
         const trueHotelDays   = snapshotDays.filter((d) => d.hotel != null).length;
         const totalHotelCount = trueHotelDays > 0 ? trueHotelDays : b._count.hotelBookings;
+        // Hotel-only pricing for the "Amount" column — NOT the booking's
+        // whole package total (which also includes cabs/meals/activities).
+        const hotelPricingPaise = snapshotDays.reduce((sum, d) => {
+            const total = d.hotel?.total;
+            return total != null ? sum + Math.ceil(Number(total)) * 100 : sum;
+        }, 0);
         const confirmedExisting = b._count.hotelBookings - b.hotelBookings.length;
         const pendingCount     = totalHotelCount - confirmedExisting;
         const isFullyConfirmed = b.hotelConfirmedAt != null || (totalHotelCount > 0 && pendingCount === 0);
@@ -125,7 +131,7 @@ async function HotelsData({
         return {
             id: b.id, bookingNumber: b.bookingNumber,
             startDate: b.startDate, endDate: b.endDate,
-            travellers: b.travellers, totalAmount_paise: b.totalAmount_paise,
+            travellers: b.travellers, hotelPricingPaise,
             paymentStatus: b.paymentStatus, createdAt: b.createdAt,
             hotelConfirmedAt: b.hotelConfirmedAt,
             user: b.user, package: b.package, destination: b.destination,

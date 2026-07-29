@@ -100,6 +100,31 @@ export function bookingConfirmationEmail(d: {
     };
 }
 
+// ── Hotels & cabs fully confirmed (verify-hotels / verify-cabs pipeline) ───────
+export function hotelsAndCabsConfirmedEmail(d: {
+    bookingNumber: string;
+    packageTitle: string;
+    customerName: string;
+    travelStartDate: string; // YYYY-MM-DD
+    travelEndDate: string;
+    travellers: number;
+    statusUrl: string;
+}): EmailContent {
+    return {
+        subject: `Hotels & cabs confirmed — ${d.packageTitle} (${d.bookingNumber})`,
+        html: layout("Your hotels and cabs are fully confirmed! 🎉", `
+      <p style="margin:0 0 12px">Hi ${d.customerName},</p>
+      <p style="margin:0 0 12px">Great news — every hotel and cab for your package <strong>${d.packageTitle}</strong> has been confirmed by our team.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin:8px 0">
+        ${row("Booking", d.bookingNumber)}
+        ${row("Travel", `${fmtDate(d.travelStartDate)} – ${fmtDate(d.travelEndDate)}`)}
+        ${row("Travellers", String(d.travellers))}
+      </table>
+      <p style="margin:0 0 12px">You can view the full status and vouchers anytime:</p>
+      ${cta(d.statusUrl, "View trip status")}`),
+    };
+}
+
 // ── Cancellation confirmation ─────────────────────────────────────────────────
 export function cancellationEmail(d: {
     bookingNumber: string;

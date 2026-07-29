@@ -80,7 +80,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
         select: {
             id: true, bookingNumber: true, status: true, paymentStatus: true,
             startDate: true, endDate: true, duration: true, travellers: true, createdAt: true,
-            totalAmount_paise: true, contactEmail: true, contactPhone: true, cabType: true,
+            contactEmail: true, contactPhone: true, cabType: true,
             destinationId: true, priceSnapshot: true,
             user:        { select: { name: true, email: true } },
             package:     { select: { title: true } },
@@ -89,7 +89,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                 orderBy: { legNumber: "asc" },
                 select: {
                     legNumber: true, isConfirmed: true, confirmedAt: true,
-                    fromLocation: true, toLocation: true,
+                    fromLocation: true, toLocation: true, totalCost: true,
                     driverName: true, driverPhone: true, vehicleNumber: true, notes: true,
                     confirmedBy: { select: { name: true } },
                 },
@@ -125,6 +125,15 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
         const spanDays = Math.max(1, seg.day_to - seg.day_from + 1);
         return seg.total / spanDays;
     }
+
+    // Cab-only pricing for the sidebar — NOT the booking's whole package
+    // total. Confirmed days use the actual confirmed cost (may have changed
+    // via "Change Cab"); unconfirmed days fall back to the snapshot's slice.
+    const cabTotalPaise = transferDays.reduce((sum, d) => {
+        const cb = confirmedMap.get(d.day);
+        const cost = cb?.isConfirmed ? Number(cb.totalCost) : segDayCost(segForDay(d.day));
+        return sum + Math.ceil(cost) * 100;
+    }, 0);
 
     const startMs = booking.startDate.getTime();
     function dayDate(day: number): Date {
@@ -387,8 +396,8 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                             <InfoItem icon={Users}        label="Travellers"   value={`${booking.travellers} pax · ${booking.duration}D`} />
                             <InfoItem icon={Car}          label="Cab Type"     value={titleCase(booking.cabType)} />
                             <div className="mt-1 flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
-                                <span className="text-xs font-medium text-dashboard-neutral">Total Amount</span>
-                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaiseRoundedUp(booking.totalAmount_paise)}</span>
+                                <span className="text-xs font-medium text-dashboard-neutral">Cab Pricing</span>
+                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaiseRoundedUp(cabTotalPaise)}</span>
                             </div>
                         </div>
                     </SideCard>

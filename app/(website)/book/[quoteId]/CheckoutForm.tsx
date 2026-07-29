@@ -21,6 +21,21 @@ const COUNTRY_OPTIONS = [
 
 type Pax = { adults: number; children: number; infants: number };
 
+// Profile phone is stored with its country code prefix already joined in
+// (e.g. "+919876543210" — see the login flow's `${countryCode}${phone}`
+// upsert), so split it back into the two fields this form edits separately.
+// Falls back to +91 / the raw digits when the prefix doesn't match a known
+// option (older records, or a number saved without one).
+function splitPhone(fullPhone: string | null | undefined): { countryCode: string; phoneInput: string } {
+    if (!fullPhone) return { countryCode: '+91', phoneInput: '' };
+    const match = COUNTRY_OPTIONS
+        .slice()
+        .sort((a, b) => b.code.length - a.code.length)
+        .find(({ code }) => fullPhone.startsWith(code));
+    if (match) return { countryCode: match.code, phoneInput: fullPhone.slice(match.code.length).replace(/\D/g, '') };
+    return { countryCode: '+91', phoneInput: fullPhone.replace(/\D/g, '') };
+}
+
 function initialTravellers({ adults, children, infants }: Pax): TravellerInput[] {
     const mk = (type: TravellerInput['type']): TravellerInput => ({ type, title: 'Mr', firstName: '', lastName: '', dob: '', gender: 'MALE' });
     return [
@@ -41,11 +56,20 @@ function travellerLabels(list: TravellerInput[]): string[] {
 
 
 
-export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v: CheckoutInput | null) => void }) {
+export default function CheckoutForm({
+    pax, onChange, initialEmail = null, initialPhone = null,
+}: {
+    pax: Pax;
+    onChange: (v: CheckoutInput | null) => void;
+    /** Prefilled from the logged-in customer's profile so they don't have to
+     *  retype details already on file — still fully editable before checkout. */
+    initialEmail?: string | null;
+    initialPhone?: string | null;
+}) {
     const [travellers, setTravellers] = useState<TravellerInput[]>(() => initialTravellers(pax));
-    const [email, setEmail]           = useState('');
-    const [countryCode, setCountryCode] = useState('+91');
-    const [phoneInput, setPhoneInput] = useState('');
+    const [email, setEmail]           = useState(() => initialEmail ?? '');
+    const [countryCode, setCountryCode] = useState(() => splitPhone(initialPhone).countryCode);
+    const [phoneInput, setPhoneInput] = useState(() => splitPhone(initialPhone).phoneInput);
     const [gst, setGst]               = useState('');
     const [specialRequests, setSpecialRequests] = useState('');
     const [touched, setTouched]       = useState<Record<string, boolean>>({});

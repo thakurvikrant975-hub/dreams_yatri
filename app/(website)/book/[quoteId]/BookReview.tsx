@@ -76,6 +76,8 @@ export default function BookReview({
     schedule,
     itinerary = [],
     hotelRules = null,
+    contactEmail = null,
+    contactPhone = null,
 }: {
     quote: SafeQuote;
     packageTitle: string;
@@ -85,6 +87,9 @@ export default function BookReview({
     schedule: PaymentScheduleDTO | null;
     itinerary?: PreviewDay[];
     hotelRules?: HotelRules | null;
+    /** Logged-in customer's profile contact details, to prefill the checkout form. */
+    contactEmail?: string | null;
+    contactPhone?: string | null;
 }) {
     const router = useRouter();
     const { status } = useSession();
@@ -218,7 +223,12 @@ export default function BookReview({
 
                         {/* 1 · Traveller Details */}
                         <Section id="sec-travellers" n={1} title="Traveller Details">
-                            <CheckoutForm pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }} onChange={setCheckout} />
+                            <CheckoutForm
+                                pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }}
+                                onChange={setCheckout}
+                                initialEmail={contactEmail}
+                                initialPhone={contactPhone}
+                            />
                         </Section>
 
                         {/* 2 · Package Itinerary & Inclusions */}

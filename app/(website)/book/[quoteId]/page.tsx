@@ -6,6 +6,7 @@ import Card from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { db } from '@/app/lib/db';
+import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { getPackageQuote, checkQuoteFreshness } from '@/app/actions/quote/actions';
 import { getPaymentScheduleForQuote } from '@/app/actions/payment/schedule';
 import BookReview from './BookReview';
@@ -67,8 +68,11 @@ export default async function BookQuotePage({
         const quote = result.quote;
         const packageHref = `/packages/${quote.package_slug}/${quote.duration_slug}/${quote.route_slug}/${quote.stay_slug}`;
 
-        // Display info + freshness + payment schedule + frozen itinerary preview.
-        const [pkg, freshness, scheduleRes, quoteRow] = await Promise.all([
+        const authedUser = await getAuthenticatedUser();
+
+        // Display info + freshness + payment schedule + frozen itinerary preview
+        // + the logged-in customer's saved contact details (to prefill checkout).
+        const [pkg, freshness, scheduleRes, quoteRow, profile] = await Promise.all([
             db.packages.findUnique({
                 where: { slug: quote.package_slug },
                 select: { title: true, thumbnail: true },
@@ -76,6 +80,9 @@ export default async function BookQuotePage({
             quote.status === 'ACTIVE' ? checkQuoteFreshness(quote.id) : Promise.resolve(null),
             getPaymentScheduleForQuote(quote.id),
             db.package_quote.findUnique({ where: { id: quote.id }, select: { breakdown: true } }),
+            authedUser
+                ? db.user.findUnique({ where: { id: authedUser.id }, select: { email: true, phone: true } })
+                : Promise.resolve(null),
         ]);
         // The stored breakdown carries internal costs (room/cab/activity prices,
         // margins). Project ONLY display-safe inclusion fields for the browser —
@@ -205,6 +212,8 @@ export default async function BookQuotePage({
                 schedule={scheduleRes.success ? scheduleRes.schedule : null}
                 itinerary={itinerary}
                 hotelRules={primaryHotelRules}
+                contactEmail={profile?.email ?? null}
+                contactPhone={profile?.phone ?? null}
             />
         );
     }
