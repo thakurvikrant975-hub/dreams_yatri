@@ -93,6 +93,7 @@ export default function BookReview({
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [checkout, setCheckout] = useState<CheckoutInput | null>(null);
+    const [travellersComplete, setTravellersComplete] = useState(false);
     const [policy, setPolicy] = useState(false);
     const [priceSummaryOpen, setPriceSummaryOpen] = useState(false);
 
@@ -177,11 +178,21 @@ export default function BookReview({
                 <div className="screen-space flex flex-wrap items-center justify-between gap-3 py-3.5">
                     <span className="text-base font-medium">Review Package</span>
                     <nav className="flex flex-wrap items-center gap-x-6 gap-y-1">
-                        {sections.map((s, i) => (
-                            <a key={s.id} href={`#${s.id}`} className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-white transition-colors">
-                                {i + 1}. {s.label}
-                            </a>
-                        ))}
+                        {sections.map((s, i) => {
+                            // Flag the traveller step in the nav while it's the
+                            // thing standing between the guest and paying.
+                            const needsAttention = s.id === 'sec-travellers' && !travellersComplete;
+                            return (
+                                <a key={s.id} href={`#${s.id}`} className={`flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                                    needsAttention ? 'text-amber-300 hover:text-amber-200' : 'text-neutral-400 hover:text-white'
+                                }`}>
+                                    {i + 1}. {s.label}
+                                    {needsAttention && (
+                                        <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" aria-hidden="true" />
+                                    )}
+                                </a>
+                            );
+                        })}
                     </nav>
                 </div>
             </div>
@@ -218,7 +229,11 @@ export default function BookReview({
 
                         {/* 1 · Traveller Details */}
                         <Section id="sec-travellers" n={1} title="Traveller Details">
-                            <CheckoutForm pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }} onChange={setCheckout} />
+                            <CheckoutForm
+                                pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }}
+                                onChange={setCheckout}
+                                onTravellersCompleteChange={setTravellersComplete}
+                            />
                         </Section>
 
                         {/* 2 · Package Itinerary & Inclusions */}
