@@ -17,6 +17,7 @@ import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary"
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
 import { PackageBookingProvider, type StayRoomCount } from "./components/PackageBookingProvider";
 import TravelerInputBar from "./components/TravelerInputBar";
+import ShortNoticeBanner from "./components/ShortNoticeBanner";
 import { CheckIcon, XMarkIcon, StarIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
 import RelatedPackages from "./components/RelatedPackages";
@@ -661,6 +662,7 @@ export default async function PackagePage({
                                     routeSlug={route}
                                     staySlug={stay}
                                 />
+                                <ShortNoticeBanner />
                                 <ItinerarySection days={itinerary} />
                             </div>
                         }
