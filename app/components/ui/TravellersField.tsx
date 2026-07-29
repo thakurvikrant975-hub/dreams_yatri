@@ -66,10 +66,15 @@ interface TravellersFieldProps {
      *  a real inventory ceiling (e.g. a package's hotel availability) can pass
      *  a tighter value; the stepper clamps down to it on open. */
     maxRooms?: number
+    /** How many people one room currently sleeps (max_occupancy + extra beds).
+     *  Drives the Rooms stepper's live lower bound: as Adults/Children grow
+     *  past this, a room is auto-added. Defaults to "no constraint". */
+    personsPerRoom?: number
 }
 
 export default function TravellersField({
     value, onChange, id, disabled, className, menuZClass = 'z-100', showRooms = false, maxRooms = MAX_ROOMS,
+    personsPerRoom = Infinity,
 }: TravellersFieldProps) {
     const [open, setOpen] = useState(false)
 
@@ -86,6 +91,20 @@ export default function TravellersField({
             setRooms(Math.min(value.rooms ?? 1, maxRooms))
         }
     }, [open, value.adults, value.childrenAges, value.rooms, maxRooms])
+
+    // Lowest room count the party in the draft actually needs right now —
+    // recomputes live as Adults/Children are stepped, before Apply.
+    const liveMinRooms = showRooms
+        ? Math.min(Math.max(1, Math.ceil((adults + childrenAges.length) / personsPerRoom)), maxRooms)
+        : 1
+
+    // Auto-add a room the moment the party outgrows the current count; never
+    // auto-remove one the traveller picked manually.
+    useEffect(() => {
+        if (!showRooms) return
+        setRooms((r) => Math.min(Math.max(r, liveMinRooms), maxRooms))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [liveMinRooms, maxRooms, showRooms])
 
     function setChildrenCount(next: number) {
         setChildrenAges((prev) => {
@@ -141,11 +160,13 @@ export default function TravellersField({
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-semibold text-neutral-800">Rooms</p>
-                                    {maxRooms < MAX_ROOMS && (
+                                    {liveMinRooms > 1 ? (
+                                        <p className="text-[11px] text-neutral-400">Minimum {liveMinRooms} rooms for {adults + childrenAges.length} travellers</p>
+                                    ) : maxRooms < MAX_ROOMS && (
                                         <p className="text-[11px] text-neutral-400">Limited by availability at this trip&apos;s hotels</p>
                                     )}
                                 </div>
-                                <Stepper value={rooms} min={1} max={maxRooms} onChange={setRooms} />
+                                <Stepper value={rooms} min={liveMinRooms} max={maxRooms} onChange={setRooms} />
                             </div>
                             <div className="my-3 h-px bg-neutral-100" />
                         </>

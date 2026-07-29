@@ -37,7 +37,7 @@ export default function TravelerInputBar() {
         travelDate, setTravelDate,
         leavingFrom, setLeavingFrom,
         adults, childAges, setTravellers,
-        rooms, setRooms, maxRooms,
+        rooms, setRooms, maxRooms, personsPerRoom,
         dateHighlight,
     } = useBooking();
 
@@ -91,6 +91,7 @@ export default function TravelerInputBar() {
                         menuZClass={MENU_Z}
                         showRooms
                         maxRooms={maxRooms}
+                        personsPerRoom={personsPerRoom}
                     />
                 </Field>
 

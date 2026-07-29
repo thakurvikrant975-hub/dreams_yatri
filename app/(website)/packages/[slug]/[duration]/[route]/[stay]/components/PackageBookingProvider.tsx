@@ -29,12 +29,18 @@ export function effectiveRoomCap(numRooms: number): number {
     return numRooms > 1 ? numRooms : MAX_ROOMS;
 }
 
+// A room with no configured capacity is assumed to sleep 2 + 1 extra bed —
+// matches the pricing engine's own fallback (package-pricing.service.ts).
+const DEFAULT_PERSONS_PER_ROOM = 3;
+
 /** One package stay's default room + its total inventory, as shipped from
  *  the server (see fetch-page-data.ts's HotelDay/RoomOption). */
 export type StayRoomCount = {
     itineraryStayId: number;
     roomPricingId:   number;
     numRooms:        number;
+    roomCapacity:    number | null;
+    roomExtraBeds:   number;
 };
 
 // ── Safe pricing — only these fields reach the browser ──────────────────────
@@ -88,6 +94,12 @@ export interface BookingContextValue {
     /** Highest room count currently selectable, given the active room type
      *  at every stay in this itinerary (see effectiveRoomCap). */
     maxRooms:   number;
+    /** Lowest room count the current party size requires, given the smallest
+     *  per-room occupancy among the active rooms across the itinerary. */
+    minRooms:   number;
+    /** Smallest (max_occupancy + extra_bed_capacity) among the active rooms —
+     *  how many people one room can currently hold, at the tightest stay. */
+    personsPerRoom: number;
     travelDate: string;     // 'YYYY-MM-DD' or ''
     leavingFrom: LocationValue | null;  // user's origin city (carried from search)
 
@@ -252,11 +264,41 @@ export function PackageBookingProvider({
         return Math.min(...caps);
     }, [stayRoomCounts, roomSelections, roomAlternatesByStay, hotelAlternatesByStay]);
 
-    // Pull the committed room count down if a room-type change just lowered
-    // the cap below it; never push it up on its own.
+    // How many people the tightest active room across the itinerary can hold
+    // (max_occupancy + extra_bed_capacity) — the smallest wins, since every
+    // stay must be able to house the full party with the same room count.
+    const personsPerRoom = useMemo(() => {
+        if (stayRoomCounts.length === 0) return DEFAULT_PERSONS_PER_ROOM;
+        const capacities = stayRoomCounts.map((stay) => {
+            const overrideId = roomSelections.get(stay.itineraryStayId);
+            if (overrideId == null || overrideId === stay.roomPricingId) {
+                return (stay.roomCapacity ?? 2) + stay.roomExtraBeds;
+            }
+            const alternates = [
+                ...(roomAlternatesByStay.get(stay.itineraryStayId) ?? []),
+                ...(hotelAlternatesByStay.get(stay.itineraryStayId) ?? []),
+            ];
+            const picked = alternates.find((o) => o.room_pricing_id === overrideId);
+            if (!picked) return (stay.roomCapacity ?? 2) + stay.roomExtraBeds;
+            return (picked.room_capacity ?? 2) + picked.room_extra_beds;
+        });
+        return Math.max(1, Math.min(...capacities));
+    }, [stayRoomCounts, roomSelections, roomAlternatesByStay, hotelAlternatesByStay]);
+
+    // Minimum rooms the current party needs at that tightest occupancy —
+    // e.g. capacity 3 and 4 people means 1 room isn't enough, so 2 are required.
+    const minRooms = useMemo(() => {
+        const persons = Math.max(adults + childCount, 1);
+        return Math.min(Math.max(1, Math.ceil(persons / personsPerRoom)), maxRooms);
+    }, [adults, childCount, personsPerRoom, maxRooms]);
+
+    // Keep the committed room count inside [minRooms, maxRooms]: auto-add a
+    // room the moment the party outgrows the current count, and pull it back
+    // down if a room-type change just lowered the cap below it. A manually
+    // picked extra room (above the computed minimum) is left alone.
     useEffect(() => {
-        setRoomsRaw((prev) => Math.min(prev, maxRooms));
-    }, [maxRooms]);
+        setRoomsRaw((prev) => Math.min(Math.max(prev, minRooms), maxRooms));
+    }, [minRooms, maxRooms]);
 
     // Auto-upgrade cabs whenever passenger count changes.
     // `cabGroups` is recomputed (new reference) whenever `cabTypes` arrives
@@ -298,7 +340,7 @@ export function PackageBookingProvider({
 
     function setInfants(n: number) { setInfantsRaw(Math.max(0, n)); }
 
-    function setRooms(n: number) { setRoomsRaw(Math.max(1, Math.min(n, maxRooms))); }
+    function setRooms(n: number) { setRoomsRaw(Math.max(minRooms, Math.min(n, maxRooms))); }
 
     function setChildAge(idx: number, age: number) {
         setChildAges(prev => {
@@ -415,7 +457,7 @@ export function PackageBookingProvider({
 
     return (
         <BookingContext.Provider value={{
-            adults, childCount, infants, childAges, rooms, maxRooms, travelDate, leavingFrom,
+            adults, childCount, infants, childAges, rooms, maxRooms, minRooms, personsPerRoom, travelDate, leavingFrom,
             setAdults, setChildCount, setInfants, setChildAge, setRooms, setTravelDate, setLeavingFrom, setTravellers,
             cabGroups, cabSelections, setCabForGroup,
             roomSelections, setRoomForStay, roomAlternatesByStay, hotelAlternatesByStay,
