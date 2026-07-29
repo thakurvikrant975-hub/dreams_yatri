@@ -12,7 +12,14 @@ import type {
   ExternalResult, LocalResult, LocationSearchSelectProps,
   LocationType, LocationValue,
 } from "./location.types";
-import { LOCATION_COLORS, LOCATION_LABELS } from "./location.types";
+import { ALL_LOCATION_TYPES, LOCATION_COLORS, LOCATION_LABELS } from "./location.types";
+
+// Page size for local DB search — small enough for a snappy first paint,
+// large enough that most searches never need to scroll for more. Additional
+// pages load on scroll (see loadMoreLocal) instead of being capped outright,
+// which is what previously hid real matches (e.g. an existing "Jaipur" city)
+// whenever 8+ higher-ranked results existed ahead of it.
+const PAGE_SIZE = 20;
 
 const LocationManualSheet = dynamic(
   () => import("./LocationManualSheet").then((m) => ({ default: m.LocationManualSheet })),
@@ -170,6 +177,21 @@ export function LocationSearchSelect({
   const [extLoading, setExtLoading] = useState(false);
   const [extSearched, setExtSearched] = useState(false);
 
+  // Infinite-scroll pagination for local results — offset is how many rows
+  // have been loaded so far; hasMore tracks whether the last page was full
+  // (a partial page means we've reached the end).
+  const [localOffset, setLocalOffset] = useState(0);
+  const [localHasMore, setLocalHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Narrows search to one type at a time — options are always a subset of
+  // (or equal to) the caller's own `types` restriction, never wider, so a
+  // caller that intentionally locks to e.g. HOTEL never exposes other types.
+  const [typeFilter, setTypeFilter] = useState<LocationType | null>(null);
+  const filterOptions = types?.length ? types : ALL_LOCATION_TYPES;
+  const showTypeFilter = !isCountriesOnly && filterOptions.length > 1;
+  const effectiveTypes = typeFilter ? [typeFilter] : types;
+
   // Countries-only state
   const [allCountries, setAllCountries] = useState<LocalResult[]>([]);
   const [countriesLoading, setCountriesLoading] = useState(false);
@@ -205,26 +227,59 @@ export function LocationSearchSelect({
   useEffect(() => { setActiveIdx(-1); }, [localResults, externalResults, allCountries, query]);
 
   // ── Debounced local search (skipped in countries-only mode) ───────────────
+  // Fresh search — always starts a new first page (offset 0), replacing
+  // whatever was previously loaded via loadMoreLocal.
   useEffect(() => {
     if (!open || isCountriesOnly) return;
     if (localTimerRef.current) clearTimeout(localTimerRef.current);
-    if (!query.trim()) { setLocalResults([]); return; }
+    if (!query.trim()) { setLocalResults([]); setLocalOffset(0); setLocalHasMore(false); return; }
 
     localTimerRef.current = setTimeout(async () => {
       try {
         setLocalLoading(true);
-        const qs = new URLSearchParams({ q: query.trim(), limit: "8" });
-        if (types?.length) qs.set("types", types.join(","));
+        const qs = new URLSearchParams({ q: query.trim(), limit: String(PAGE_SIZE), offset: "0" });
+        if (effectiveTypes?.length) qs.set("types", effectiveTypes.join(","));
         if (extraParams) Object.entries(extraParams).forEach(([k, v]) => qs.set(k, v));
         const res = await fetch(`/api/locations/search?${qs}`);
-        if (res.ok) setLocalResults((await res.json()) as LocalResult[]);
+        if (res.ok) {
+          const data = (await res.json()) as LocalResult[];
+          setLocalResults(data);
+          setLocalOffset(data.length);
+          setLocalHasMore(data.length === PAGE_SIZE);
+        }
       } finally {
         setLocalLoading(false);
       }
     }, 300);
 
     return () => { if (localTimerRef.current) clearTimeout(localTimerRef.current); };
-  }, [query, open, types, isCountriesOnly]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, open, types, isCountriesOnly, typeFilter]);
+
+  // ── Load the next page of local results — appends, doesn't replace ────────
+  async function loadMoreLocal() {
+    if (isCountriesOnly || !localHasMore || loadingMore || !query.trim()) return;
+    try {
+      setLoadingMore(true);
+      const qs = new URLSearchParams({ q: query.trim(), limit: String(PAGE_SIZE), offset: String(localOffset) });
+      if (effectiveTypes?.length) qs.set("types", effectiveTypes.join(","));
+      if (extraParams) Object.entries(extraParams).forEach(([k, v]) => qs.set(k, v));
+      const res = await fetch(`/api/locations/search?${qs}`);
+      if (res.ok) {
+        const data = (await res.json()) as LocalResult[];
+        setLocalResults((prev) => [...prev, ...data]);
+        setLocalOffset((prev) => prev + data.length);
+        setLocalHasMore(data.length === PAGE_SIZE);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function handleResultsScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) loadMoreLocal();
+  }
 
   // ── External (Mapbox) search ──────────────────────────────────────────────
   const searchExternal = useCallback(async () => {
@@ -233,7 +288,7 @@ export function LocationSearchSelect({
       setExtLoading(true);
       setExtSearched(true);
       const qs = new URLSearchParams({ q: query.trim() });
-      if (types?.length) qs.set("types", types.join(","));
+      if (effectiveTypes?.length) qs.set("types", effectiveTypes.join(","));
       const res = await fetch(`/api/locations/external?${qs}`);
       if (res.ok) {
         const data = await res.json();
@@ -242,7 +297,7 @@ export function LocationSearchSelect({
     } finally {
       setExtLoading(false);
     }
-  }, [query, extLoading, types]);
+  }, [query, extLoading, types, typeFilter]);
 
   // ── Save external result to local DB ─────────────────────────────────────
   async function selectExternal(ext: ExternalResult) {
@@ -438,9 +493,45 @@ export function LocationSearchSelect({
                 )}
               </div>
 
+              {/* Type filter — options are always a subset of the caller's
+                  own `types` restriction, never wider */}
+              {showTypeFilter && (
+                <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-1.5">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setTypeFilter(null)}
+                    className={cn(
+                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer",
+                      typeFilter === null
+                        ? "bg-dashboard-primary text-dashboard-primary-content"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
+                    )}
+                  >
+                    All
+                  </button>
+                  {filterOptions.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setTypeFilter(t)}
+                      className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer",
+                        typeFilter === t
+                          ? "bg-dashboard-primary text-dashboard-primary-content"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80",
+                      )}
+                    >
+                      {LOCATION_LABELS[t]}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Results list */}
               <div>
-                <div role="listbox" className="max-h-68 overflow-y-auto py-1">
+                <div role="listbox" className="max-h-68 overflow-y-auto py-1" onScroll={handleResultsScroll}>
 
                   {/* Recent — filtered by types */}
                   {showRecent && (
@@ -493,6 +584,11 @@ export function LocationSearchSelect({
                           {isCountriesOnly
                             ? "No countries found"
                             : "No local results — search worldwide below"}
+                        </p>
+                      )}
+                      {!isCountriesOnly && loadingMore && (
+                        <p className="flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] text-muted-foreground">
+                          <Loader2Icon className="size-3 animate-spin" /> Loading more…
                         </p>
                       )}
                     </>

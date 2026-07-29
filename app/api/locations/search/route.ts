@@ -13,6 +13,9 @@ export async function GET(req: NextRequest) {
       : undefined;
     // Higher cap for preload requests (e.g. countries list)
     const limit = Math.min(Number(searchParams.get("limit") ?? "8"), 500);
+    // Pagination for infinite-scroll callers — additive, so callers that never
+    // send it (existing behavior) are unaffected.
+    const offset = Math.max(Number(searchParams.get("offset") ?? "0"), 0);
 
     const destinationsOnly         = searchParams.get("destinationsOnly")         === "true";
     const excludePricedCabs        = searchParams.get("excludePricedCabs")        === "true";
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
           if (types?.length) {
             filters.push(`(${types.map((t) => `type = "${t}"`).join(" OR ")})`);
           }
-          const r = await idx.search(q, { limit, filter: filters.join(" AND ") });
+          const r = await idx.search(q, { limit, offset, filter: filters.join(" AND ") });
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return NextResponse.json((r.hits as any[]).map((h) => ({
             source:       "local",
@@ -83,6 +86,7 @@ export async function GET(req: NextRequest) {
           country: { select: { name: true } },
         },
         orderBy: [{ is_featured: "desc" }, { is_popular: "desc" }, { name: "asc" }],
+        skip: offset,
         take: limit,
       });
       return NextResponse.json(rows.map((r) => {
@@ -163,6 +167,7 @@ export async function GET(req: NextRequest) {
         { is_popular:  "desc" },
         { name:        "asc"  },
       ],
+      skip: offset,
       take: limit,
     });
 
