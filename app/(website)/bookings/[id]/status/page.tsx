@@ -8,6 +8,7 @@ import { Heading, Text } from '@/app/components/ui/Typography';
 import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { getBookingFulfillment } from '@/app/services/fulfillment/status.service';
+import { rupeesToPaise } from '@/app/lib/money';
 import StatusView from './StatusView';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,7 @@ export default async function BookingStatusPage({ params }: { params: Promise<{ 
                 paymentStatus: true, paymentPlan: true, travellers: true,
                 totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
                 priceSnapshot: true,
+                payments: { where: { status: 'FULLY_PAID' }, select: { amount_paise: true } },
                 package: { select: { title: true, thumbnail: true } },
             },
         });
@@ -69,11 +71,23 @@ export default async function BookingStatusPage({ params }: { params: Promise<{ 
                     hotel_subtotal?: number; meal_subtotal?: number; cab_subtotal?: number;
                     gst_amount?: number; gst_percentage?: number; final_price?: number;
                 };
-                const paidPaise = booking.paymentStatus === 'FULLY_PAID'
-                    ? booking.totalAmount_paise
-                    : booking.paymentStatus === 'ADVANCE_PAID'
-                    ? booking.advanceAmount_paise
-                    : BigInt(0);
+
+                // Ground truth for "how much have I actually paid" — the sum of
+                // captured payments, never assumed from the (possibly
+                // since-adjusted, e.g. after a hotel/room swap) current total.
+                // This is what makes the payment progress bar correct even when
+                // ops changes the price after the customer already paid.
+                const totalPaise = Number(booking.totalAmount_paise);
+                const paidPaise = booking.payments.reduce((s, p) => s + p.amount_paise, 0);
+
+                // The itinerary snapshot freezes the ORIGINAL quoted total —
+                // comparing it to the current total surfaces any post-booking
+                // price adjustment (hotel/room changes) directly to the customer.
+                const originalTotalPaise = snap.final_price != null ? rupeesToPaise(snap.final_price) : totalPaise;
+                const priceDeltaPaise = totalPaise - originalTotalPaise;
+
+                // Positive = still owed; negative = overpaid (refund due); zero = settled.
+                const amountDuePaise = totalPaise - paidPaise;
 
                 content = (
                     <StatusView
@@ -85,9 +99,11 @@ export default async function BookingStatusPage({ params }: { params: Promise<{ 
                         fulfillment={fulfillment}
                         payment={{
                             status: booking.paymentStatus,
-                            totalPaise: Number(booking.totalAmount_paise),
-                            paidPaise: Number(paidPaise),
-                            balancePaise: Number(booking.balanceAmount_paise ?? BigInt(0)),
+                            totalPaise,
+                            originalTotalPaise,
+                            priceDeltaPaise,
+                            paidPaise,
+                            amountDuePaise,
                             balanceDueDate: booking.balanceDueDate ? formatDate(booking.balanceDueDate) : null,
                             travellers: booking.travellers,
                             hotelCost: snap.hotel_subtotal ?? null,
