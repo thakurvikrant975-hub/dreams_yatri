@@ -27,7 +27,16 @@ export interface PackageCardProps {
     reviewCount?: number
     itinerary: Itinerary[]
     originalPrice: number
+    /** Per-adult price at `pricedForAdults` occupancy — the highlighted figure. */
     discountedPrice: number
+    /** Full trip total at `pricedForAdults` occupancy, shown beneath the per-adult
+     *  figure. Omit to show only the per-adult line. */
+    totalPrice?: number
+    /** How many adults the prices are quoted for (default 2). */
+    pricedForAdults?: number
+    /** Show the "Starting from" caption — the price is the package's cheapest
+     *  duration rather than a fixed one. */
+    startingFrom?: boolean
     inclusions?: Array<'hotel' | 'meals' | 'cab' | 'activities'>
     /** Category badge shown top-left on image e.g. "Honeymoon", "Friends" */
     badge?: string
@@ -189,6 +198,9 @@ export default function PackageCard({
     itinerary,
     originalPrice,
     discountedPrice,
+    totalPrice,
+    pricedForAdults = 2,
+    startingFrom = true,
     inclusions = [],
     isPriority = false,
     badge,
@@ -345,10 +357,22 @@ export default function PackageCard({
                                 </div>
                             )}
 
+                            {startingFrom && (
+                                <Text as='span' size='xs' intent='muted' className='px-1'>
+                                    Starting from
+                                </Text>
+                            )}
+
                             <Text as='span' weight='bold' size='xl' className='font-heading px-1 relative z-10 after:absolute after:bottom-0 after:left-0 after:h-1.5  after:w-full after:bg-success-200/80 after:-z-10 w-max'>
-                                {formatINR(discountedPrice)} 
+                                {formatINR(discountedPrice)}
                                 <Text as='span' intent='secondary' className='font-body'>/Adult</Text>
                             </Text>
+
+                            {totalPrice != null && totalPrice > 0 && (
+                                <Text as='span' size='xs' intent='secondary' className='px-1'>
+                                    {formatINR(totalPrice)} total for {pricedForAdults} adult{pricedForAdults !== 1 ? 's' : ''}
+                                </Text>
+                            )}
 
                         </div>
 

@@ -2,8 +2,8 @@
 
 import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
-import { computePackagePrice } from "@/app/services/package-pricing.service";
 import { imgUrl, PACKAGE_CARD_SELECT, type PackageCardRow } from "@/app/lib/packages/cardShaper";
+import { computeCardPricingBatch } from "@/app/lib/packages/cardPricing";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,10 +19,13 @@ export type SearchPackageItem = {
   itinerary: { days: number; place: string }[];
   /** Per-adult price for the selected traveller mix */
   perPerson: number;
-  /** Strikethrough "before" price (deterministic markup, matches PricingCard) */
+  /** Strikethrough "before" price — always 0; no honest list price exists for
+   *  a computed package total, so the card hides the savings row. */
   originalPerPerson: number;
   /** Grand total for all travellers */
   total: number;
+  /** Adults the two figures above are quoted for (search pax, or the 2-adult default). */
+  pricedForAdults: number;
   missingPricing: boolean;
 };
 
@@ -111,57 +114,41 @@ export async function searchPackages(params: SearchParams): Promise<SearchResult
   if (rows.length === 0) return { items: [], total: 0 };
 
   const children = childAges.length;
+  const pricedForAdults = Math.max(1, adults);
 
-  const items = await Promise.all(
-    rows.map(async (pkg): Promise<SearchPackageItem | null> => {
-      const duration = pkg.durations[0];
-      const route = duration?.routes[0];
-      const stay = pkg.stay_categories[0];
-      if (!duration || !route || !stay) return null;
-
-      const images = [imgUrl(pkg.thumbnail), ...pkg.images.map((i) => imgUrl(i.url))]
-        .filter(Boolean) as string[];
-      if (images.length === 0) return null;
-
-      let perPerson = 0;
-      let total = 0;
-      let missingPricing = false;
-      try {
-        const breakdown = await computePackagePrice({
-          package_id: pkg.id,
-          duration_id: duration.id,
-          route_id: route.id,
-          stay_category_id: stay.id,
-          adults,
-          children,
-          infants: 0,
-          child_ages: childAges,
-          travel_date: travelDate ?? null,
-        });
-        perPerson = Math.ceil(breakdown.price_per_adult);
-        total = Math.ceil(breakdown.final_price);
-        missingPricing = breakdown.missing_pricing_config;
-      } catch {
-        missingPricing = true;
-      }
-
-      return {
-        id: pkg.id,
-        title: pkg.title,
-        slug: pkg.slug,
-        images,
-        duration: `${duration.days}D/${duration.nights}N`,
-        durationSlug: duration.slug,
-        routeSlug: route.slug,
-        staySlug: stay.slug,
-        itinerary: route.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
-        perPerson,
-        originalPerPerson: 0,
-        total,
-        missingPricing,
-      };
-    }),
+  // Prices the CHEAPEST duration of each package (the "starting from" figure)
+  // at the searcher's own traveller mix — and reports which combo that was, so
+  // the card links to exactly what it just quoted.
+  const pricingMap = await computeCardPricingBatch(
+    rows.map((r) => r.id),
+    { adults: pricedForAdults, children, childAges, travelDate: travelDate ?? null },
   );
+
+  const items = rows.map((pkg): SearchPackageItem | null => {
+    const pricing = pricingMap.get(pkg.id);
+    if (!pricing) return null;
+
+    const images = [imgUrl(pkg.thumbnail), ...pkg.images.map((i) => imgUrl(i.url))]
+      .filter(Boolean) as string[];
+    if (images.length === 0) return null;
+
+    return {
+      id: pkg.id,
+      title: pkg.title,
+      slug: pkg.slug,
+      images,
+      duration: `${pricing.days}D/${pricing.nights}N`,
+      durationSlug: pricing.durationSlug,
+      routeSlug: pricing.routeSlug,
+      staySlug: pricing.staySlug,
+      itinerary: pricing.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
+      perPerson: pricing.perAdult,
+      originalPerPerson: 0,
+      total: pricing.total,
+      pricedForAdults,
+      missingPricing: pricing.missingPricing,
+    };
+  });
 
   const filtered = items.filter((p): p is SearchPackageItem => p !== null);
   return { items: filtered, total: filtered.length };

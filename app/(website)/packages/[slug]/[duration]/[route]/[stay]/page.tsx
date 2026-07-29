@@ -143,7 +143,13 @@ export default async function PackagePage({
     // ── Booking pre-fill carried from the search page (all optional) ──────────
     const spStr = (v: string | string[] | undefined) =>
         typeof v === "string" ? v : Array.isArray(v) ? v[0] ?? "" : "";
-    const initialAdults = Math.max(1, parseInt(spStr(sp.adults) || "0", 10) || 0) || undefined;
+    // Only override the 2-adult default when the search page actually carried
+    // an ?adults= value. The old `Math.max(1, …) || undefined` could never
+    // yield undefined, so every visit without the param silently pinned the
+    // page to 1 adult — which then disagreed with the 2-adult basis every
+    // package card advertises.
+    const adultsParam = parseInt(spStr(sp.adults), 10);
+    const initialAdults = Number.isFinite(adultsParam) && adultsParam > 0 ? adultsParam : undefined;
     const initialChildAges = spStr(sp.children)
         ? spStr(sp.children).split(",").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
         : undefined;

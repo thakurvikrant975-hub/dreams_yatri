@@ -2,6 +2,11 @@ import { Metadata } from "next";
 import HomeClient from "./HomeClient";
 import { SITE_CONFIG, SITE_URL } from "@/app/lib/seo/site-config";
 
+// Package cards now carry real computed pricing rather than a flat room-rate
+// sum, so the home page does genuine pricing work per card. Cache it for an
+// hour, matching what the region/destination pages (same cards) already do.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: SITE_CONFIG.seo.defaultTitle,
   description: SITE_CONFIG.seo.defaultDescription,

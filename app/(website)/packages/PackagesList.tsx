@@ -36,6 +36,8 @@ export default function PackagesList({ items }: { items: SearchPackageItem[] }) 
                             itinerary={pkg.itinerary}
                             originalPrice={pkg.originalPerPerson}
                             discountedPrice={pkg.perPerson}
+                            totalPrice={pkg.total}
+                            pricedForAdults={pkg.pricedForAdults}
                             isPriority={index < 3}
                         />
                     </Link>
