@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { computePackagePrice } from "@/app/services/package-pricing.service";
 import { computeInputsHash, verifyQuote, money2dp, type QuoteSignaturePayload } from "./signing";
 import type { QuoteParsed } from "./schema";
+import type { PricingInput } from "@/app/services/package-pricing.service";
 import type { SafeQuote } from "./create-quote.service";
 
 /**
@@ -24,6 +25,18 @@ function travelDateISO(d: Date): string {
     return d.toISOString().slice(0, 10);
 }
 
+/** `rooms` is stored as Json — reconstruct the typed shape defensively rather
+ *  than trusting the column's runtime contents blindly. */
+export function parseRoomsJson(value: unknown): { adults: number; children: number }[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter(
+        (r): r is { adults: number; children: number } =>
+            !!r && typeof r === "object"
+            && Number.isInteger((r as Record<string, unknown>).adults)
+            && Number.isInteger((r as Record<string, unknown>).children),
+    );
+}
+
 /** The subset of fields computeInputsHash reads, rebuilt from a stored row. */
 function rowHashInput(row: QuoteRow): QuoteParsed {
     return {
@@ -40,6 +53,7 @@ function rowHashInput(row: QuoteRow): QuoteParsed {
         infants:          row.infants,
         child_ages:       row.child_ages,
         cab_type_ids:     row.cab_type_ids,
+        rooms:            parseRoomsJson(row.rooms),
         travel_date:      travelDateISO(row.travel_date),
     };
 }
@@ -137,6 +151,7 @@ export async function isQuoteFresh(id: string): Promise<QuoteFreshness | null> {
     if (!row) return null;
 
     const lockedTotal = Number(money2dp(row.total_amount.toString()));
+    const rooms = parseRoomsJson(row.rooms);
 
     let currentTotal: number | null = null;
     try {
@@ -150,6 +165,7 @@ export async function isQuoteFresh(id: string): Promise<QuoteFreshness | null> {
             infants:          row.infants,
             child_ages:       row.child_ages,
             cab_type_ids:     row.cab_type_ids.length ? row.cab_type_ids : null,
+            rooms:            rooms.length ? rooms : null,
             travel_date:      travelDateISO(row.travel_date),
         });
         // A config that became un-priceable counts as drift (not fresh).

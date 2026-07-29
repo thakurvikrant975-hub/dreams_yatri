@@ -487,6 +487,7 @@ export function PackageBookingProvider({
                     travel_date:      travelDate || (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })(),
                     cab_type_ids:     cabTypeIds.length > 0 ? cabTypeIds : null,
                     room_pricing_overrides: roomOverrides.length > 0 ? roomOverrides : null,
+                    rooms:            roomGuests.map((r) => ({ adults: r.adults, children: r.childAges.length })),
                 });
                 if (res.success) {
                     if (res.data.missing_pricing_config) {
@@ -524,7 +525,7 @@ export function PackageBookingProvider({
 
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [adults, childCount, infants, childAges, travelDate, cabSelections, roomSelections, packageId, durationId, routeId, stayCategoryId]);
+    }, [adults, childCount, infants, childAges, roomGuests, travelDate, cabSelections, roomSelections, packageId, durationId, routeId, stayCategoryId]);
 
     return (
         <BookingContext.Provider value={{

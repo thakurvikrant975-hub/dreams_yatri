@@ -86,6 +86,7 @@ export async function createQuote(
             child_ages:       input.child_ages,
             cab_type_ids:     input.cab_type_ids.length ? input.cab_type_ids : null,
             travel_date:      input.travel_date,
+            rooms:            input.rooms.length ? input.rooms : null,
         });
     } catch (err) {
         console.error("[createQuote] pricing failed", err);
@@ -140,6 +141,7 @@ export async function createQuote(
             infants:          input.infants,
             child_ages:       input.child_ages,
             cab_type_ids:     input.cab_type_ids,
+            rooms:            input.rooms,
             travel_date:      new Date(`${input.travel_date}T00:00:00.000Z`),
             currency,
             breakdown:        breakdown as unknown as object,

@@ -73,6 +73,19 @@ export const quoteInputSchema = z
         // Cab selection (one cab type id per cab group). Empty = engine defaults.
         cab_type_ids: z.array(positiveId).max(QUOTE_LIMITS.MAX_CABS).default([]),
 
+        // Real per-room breakdown from the MMT-style rooms picker. Empty =
+        // engine derives room count from adults+children the old way. When
+        // present, computePackagePrice independently re-validates it can't
+        // underprice that same derivation before trusting it — this schema
+        // only bounds shape/range, not the pricing-safety guarantee itself.
+        rooms: z
+            .array(z.object({
+                adults:   z.number().int().min(1).max(QUOTE_LIMITS.MAX_ADULTS),
+                children: z.number().int().min(0).max(QUOTE_LIMITS.MAX_CHILDREN),
+            }))
+            .max(20)
+            .default([]),
+
         // Travel date — REQUIRED for a quote, and must not be in the past.
         travel_date: z
             .string()
@@ -88,6 +101,20 @@ export const quoteInputSchema = z
                 path: ['child_ages'],
                 message: `Provide an age for each child (${val.children} expected, got ${val.child_ages.length}).`,
             });
+        }
+        // A non-empty rooms breakdown must exactly account for every adult
+        // and child — no more, no less. (Whether it's ALSO enough rooms for
+        // the party is re-checked server-side against real hotel capacity in
+        // computePackagePrice, since that depends on data this schema can't see.)
+        if (val.rooms.length > 0) {
+            const roomsTotal = val.rooms.reduce((s, r) => s + r.adults + r.children, 0);
+            if (roomsTotal !== val.adults + val.children) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['rooms'],
+                    message: `Room occupants (${roomsTotal}) must match total travellers (${val.adults + val.children}).`,
+                });
+            }
         }
     });
 

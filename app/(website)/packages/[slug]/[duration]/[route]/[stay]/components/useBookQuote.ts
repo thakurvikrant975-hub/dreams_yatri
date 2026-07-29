@@ -13,7 +13,7 @@ import { createPackageQuote } from '@/app/actions/quote/actions';
 export function useBookQuote() {
     const {
         adults, childCount, infants, childAges, travelDate,
-        cabSelections,
+        cabSelections, roomGuests,
         packageId, durationId, routeId, stayCategoryId,
         setDateHighlight,
     } = useBooking();
@@ -58,6 +58,7 @@ export function useBookQuote() {
                 infants,
                 child_ages:   childAges,
                 cab_type_ids: Array.from(cabSelections.values()),
+                rooms:        roomGuests.map((r) => ({ adults: r.adults, children: r.childAges.length })),
                 travel_date:  travelDate,
             });
 
