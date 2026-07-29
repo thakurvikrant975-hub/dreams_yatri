@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { sendEmail } from "@/app/lib/functions/sendEmail";
 
 /**
@@ -37,7 +37,7 @@ function stageFor(due: Date, now: Date): { stage: Stage; target: number } {
 
 function buildEmail(args: { stage: Exclude<Stage, null>; pkg: string; bookingNumber: string; amount: number; due: Date }) {
     const dueLabel = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(args.due);
-    const amt = formatPaise(args.amount);
+    const amt = formatPaiseRoundedUp(args.amount);
     const subject =
         args.stage === "overdue" ? `Balance overdue for ${args.pkg} (${args.bookingNumber})`
         : `Balance due ${args.stage === "due1" ? "tomorrow" : "soon"} for ${args.pkg}`;

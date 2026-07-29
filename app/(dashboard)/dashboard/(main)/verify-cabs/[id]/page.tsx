@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, Car, CheckCircle2, Clock, Mail, MapPin, Phone, Users } from "lucide-react";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
 import CabConfirmPanel from "./CabConfirmPanel";
 import BulkCabConfirmPanel from "./BulkCabConfirmPanel";
@@ -111,22 +111,40 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
     const pct            = totalCount > 0 ? Math.round((confirmedCount / totalCount) * 100) : 0;
     const allDone        = pct === 100 && totalCount > 0;
 
-    const pendingLegs = transferDays
-        .filter((d) => !(confirmedMap.get(d.day)?.isConfirmed))
-        .map((d) => ({
-            day:  d.day,
-            from: d.transfers?.[0]?.pickup_name ?? "—",
-            to:   d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—",
-        }));
-
     function segForDay(day: number): SnapCab | undefined {
         return cabSegs.find((s) => day >= s.day_from && day <= s.day_to);
+    }
+
+    // `seg.total` is the WHOLE segment's cost (a segment can span several
+    // consecutive days behind one vehicle), not any single day's share — so
+    // it can't be used as-is per day. Split it evenly across the segment's
+    // day span to get this day's own slice (matches `seg.price_used`, the
+    // already-per-day rate, for the common PER_DAY case).
+    function segDayCost(seg: SnapCab | undefined): number {
+        if (!seg?.total) return 0;
+        const spanDays = Math.max(1, seg.day_to - seg.day_from + 1);
+        return seg.total / spanDays;
     }
 
     const startMs = booking.startDate.getTime();
     function dayDate(day: number): Date {
         return new Date(startMs + (day - 1) * 86_400_000);
     }
+
+    const pendingLegs = transferDays
+        .filter((d) => !(confirmedMap.get(d.day)?.isConfirmed))
+        .map((d) => {
+            const seg = segForDay(d.day);
+            const date = d.day_date ? new Date(`${d.day_date}T00:00:00`) : dayDate(d.day);
+            return {
+                day: d.day,
+                from: d.transfers?.[0]?.pickup_name ?? "—",
+                to: d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—",
+                dateISO: date.toISOString().split("T")[0],
+                km: seg?.km ?? 0,
+                baselineTotal: segDayCost(seg),
+            };
+        });
 
     return (
         <div className="flex flex-col gap-5">
@@ -182,6 +200,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                         <BulkCabConfirmPanel
                             bookingId={booking.id}
                             pendingLegs={pendingLegs}
+                            destinationId={booking.destinationId}
                         />
                     )}
 
@@ -281,9 +300,11 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                                                         <span className="text-xs text-dashboard-neutral">
                                                             {seg.pricing_type === "PER_KM"
                                                                 ? `${inr(seg.price_used ?? 0)}/km × ${seg.km ?? "?"}km`
-                                                                : "Fixed price"}
+                                                                : `Fixed price${seg.day_to > seg.day_from ? " (this day)" : ""}`}
                                                         </span>
-                                                        <span className="font-semibold text-dashboard-base-content">{inr(seg.total)}</span>
+                                                        <span className="font-semibold text-dashboard-base-content">
+                                                            {inr(seg.pricing_type === "PER_KM" ? seg.total : segDayCost(seg))}
+                                                        </span>
                                                     </div>
                                                 )}
                                             </div>
@@ -336,6 +357,13 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                                                 legNumber={d.day}
                                                 fromLocation={from}
                                                 toLocation={to}
+                                                destinationId={booking.destinationId}
+                                                legDateISO={date.toISOString().split("T")[0]}
+                                                currentVehicleName={seg?.vehicle_name ?? titleCase(booking.cabType)}
+                                                baselineRate={seg?.price_used ?? 0}
+                                                baselineTotal={segDayCost(seg)}
+                                                pricingType={seg?.pricing_type === "PER_KM" ? "PER_KM" : "PER_DAY"}
+                                                km={seg?.km ?? 0}
                                             />
                                         )}
                                     </div>
@@ -360,7 +388,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                             <InfoItem icon={Car}          label="Cab Type"     value={titleCase(booking.cabType)} />
                             <div className="mt-1 flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
                                 <span className="text-xs font-medium text-dashboard-neutral">Total Amount</span>
-                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaise(booking.totalAmount_paise)}</span>
+                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaiseRoundedUp(booking.totalAmount_paise)}</span>
                             </div>
                         </div>
                     </SideCard>

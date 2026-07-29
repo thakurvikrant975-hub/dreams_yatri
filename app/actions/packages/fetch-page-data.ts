@@ -1112,12 +1112,12 @@ export async function fetchRelatedPackages(
         },
       });
 
-      const discountedPrice = stays.reduce(
+      const discountedPrice = Math.ceil(stays.reduce(
         (sum, s) => sum + Number(s.room_pricing.price_per_night) * s.num_nights, 0,
-      );
-      const originalPrice = stays.reduce(
+      ));
+      const originalPrice = Math.ceil(stays.reduce(
         (sum, s) => sum + Number(s.room_pricing.original_price ?? s.room_pricing.price_per_night) * s.num_nights, 0,
-      );
+      ));
 
       return { id: pkg.id, discountedPrice, originalPrice };
     }),
@@ -1220,12 +1220,12 @@ export async function fetchRecentPackages(limit = 6): Promise<RelatedPackageItem
         },
       });
 
-      const discountedPrice = stays.reduce(
+      const discountedPrice = Math.ceil(stays.reduce(
         (sum, s) => sum + Number(s.room_pricing.price_per_night) * s.num_nights, 0,
-      );
-      const originalPrice = stays.reduce(
+      ));
+      const originalPrice = Math.ceil(stays.reduce(
         (sum, s) => sum + Number(s.room_pricing.original_price ?? s.room_pricing.price_per_night) * s.num_nights, 0,
-      );
+      ));
 
       return { id: pkg.id, discountedPrice, originalPrice };
     }),
@@ -1297,7 +1297,7 @@ export async function getDurationStartingPrices(
           child_ages: occupancy.childAges,
           travel_date: occupancy.travelDate,
         });
-        if (!b.missing_pricing_config) pricePerAdult = Math.round(b.price_per_adult);
+        if (!b.missing_pricing_config) pricePerAdult = Math.ceil(b.price_per_adult);
       } catch {
         // leave pricePerAdult = 0
       }

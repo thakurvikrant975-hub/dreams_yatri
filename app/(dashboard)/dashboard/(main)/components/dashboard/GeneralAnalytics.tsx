@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, IndianRupee, TrendingUp, XCircle, MapPin, PieChart as PieChartIcon } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { DateRangePicker } from "../ui/date-range-picker";
 import { StatCard, StatGrid } from "./Statcard";
 import { TrendAreaChart } from "./charts/TrendAreaChart";
@@ -99,12 +99,12 @@ export function GeneralAnalytics({ data, from, to }: Props) {
           sub={rangeLabel}
         />
         <StatCard
-          label="Revenue" value={formatPaise(data.totalRevenuePaise)} icon={IndianRupee}
+          label="Revenue" value={formatPaiseRoundedUp(data.totalRevenuePaise)} icon={IndianRupee}
           iconColor="bg-dashboard-success/10" iconText="text-dashboard-success"
           sub="confirmed & completed bookings"
         />
         <StatCard
-          label="Avg. booking value" value={formatPaise(data.avgBookingValuePaise)} icon={TrendingUp}
+          label="Avg. booking value" value={formatPaiseRoundedUp(data.avgBookingValuePaise)} icon={TrendingUp}
           iconColor="bg-dashboard-info/10" iconText="text-dashboard-info"
           sub="per booking, this range"
         />

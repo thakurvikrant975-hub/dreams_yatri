@@ -1,8 +1,8 @@
-import { formatPaise } from "../../lib/money";
+import { formatPaiseRoundedUp } from "../../lib/money";
 
 /**
  * Pure transactional-email builders → `{ subject, html }`. No I/O, so trivially
- * unit-testable. Money via `formatPaise`. Sending lives in `send.ts`.
+ * unit-testable. Money via `formatPaiseRoundedUp`. Sending lives in `send.ts`.
  */
 
 export interface EmailContent {
@@ -83,7 +83,7 @@ export function bookingConfirmationEmail(d: {
     voucherUrl: string;
 }): EmailContent {
     const balanceRow = !d.isFull && d.balancePaise > 0
-        ? row(`Balance due${d.balanceDueDate ? ` by ${fmtDate(d.balanceDueDate)}` : ""}`, formatPaise(d.balancePaise))
+        ? row(`Balance due${d.balanceDueDate ? ` by ${fmtDate(d.balanceDueDate)}` : ""}`, formatPaiseRoundedUp(d.balancePaise))
         : "";
     return {
         subject: `Booking confirmed — ${d.packageTitle} (${d.bookingNumber})`,
@@ -93,7 +93,7 @@ export function bookingConfirmationEmail(d: {
         ${row("Booking", d.bookingNumber)}
         ${row("Travel", `${fmtDate(d.travelStartDate)} – ${fmtDate(d.travelEndDate)}`)}
         ${row("Travellers", String(d.travellers))}
-        ${row(d.isFull ? "Paid in full" : "Deposit paid", formatPaise(d.paidPaise))}
+        ${row(d.isFull ? "Paid in full" : "Deposit paid", formatPaiseRoundedUp(d.paidPaise))}
         ${balanceRow}
       </table>
       <p><a href="${d.voucherUrl}" style="color:#0f766e;font-weight:600">View your trip voucher →</a></p>`),
@@ -112,8 +112,8 @@ export function cancellationEmail(d: {
         html: layout("Your booking has been cancelled", `
       <p>Booking <strong>${d.bookingNumber}</strong> for <strong>${d.packageTitle}</strong> has been cancelled.</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin:8px 0">
-        ${row("Refund to original method", formatPaise(d.refundablePaise))}
-        ${row("Cancellation fee", formatPaise(d.feePaise))}
+        ${row("Refund to original method", formatPaiseRoundedUp(d.refundablePaise))}
+        ${row("Cancellation fee", formatPaiseRoundedUp(d.feePaise))}
       </table>
       <p style="color:#6b7280;font-size:13px">Refunds may take a few business days to reflect.</p>`),
     };
@@ -140,9 +140,9 @@ export function refundConfirmedEmail(d: {
     refundAmountPaise: number;
 }): EmailContent {
     return {
-        subject: `Refund processed — ${formatPaise(d.refundAmountPaise)} (${d.bookingNumber})`,
+        subject: `Refund processed — ${formatPaiseRoundedUp(d.refundAmountPaise)} (${d.bookingNumber})`,
         html: layout("Your refund has been processed", `
-      <p>We've processed a refund of <strong>${formatPaise(d.refundAmountPaise)}</strong> for booking
+      <p>We've processed a refund of <strong>${formatPaiseRoundedUp(d.refundAmountPaise)}</strong> for booking
       <strong>${d.bookingNumber}</strong> (${d.packageTitle}) to your original payment method.</p>
       <p style="color:#6b7280;font-size:13px">It may take a few business days to appear on your statement.</p>`),
     };
@@ -164,7 +164,7 @@ export function opsNewBookingEmail(d: {
         ${row("Package", d.packageTitle)}
         ${row("Travel start", fmtDate(d.travelStartDate))}
         ${row("Travellers", String(d.travellers))}
-        ${row("Amount paid", formatPaise(d.paidPaise))}
+        ${row("Amount paid", formatPaiseRoundedUp(d.paidPaise))}
       </table>
       <p style="color:#6b7280;font-size:13px">Please action this booking in the ops queue.</p>`),
     };

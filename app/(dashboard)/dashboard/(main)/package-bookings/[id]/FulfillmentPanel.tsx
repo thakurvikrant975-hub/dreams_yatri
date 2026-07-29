@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { setItemFulfillment, getReplacementCandidates, proposeReplacement, type ReplacementCandidate } from "../fulfillment.actions";
@@ -31,17 +31,26 @@ const SELECT_COLOR: Record<string, string> = {
 
 const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
-function ItemRow({ bookingId, item, dayLabel }: { bookingId: string; item: FulfillmentItem; dayLabel: string }) {
+// Controlled by the parent's `items` state, so a confirm here updates the
+// chip, the select color, and the panel's summary count in the same paint —
+// no waiting on router.refresh()'s server round-trip to see the green state.
+function ItemRow({
+    bookingId, item, dayLabel, onStatusChange,
+}: {
+    bookingId: string;
+    item: FulfillmentItem;
+    dayLabel: string;
+    onStatusChange: (next: FulfillmentState) => void;
+}) {
     const router = useRouter();
-    const initStatus = (["IN_PROCESS", "CONFIRMED", "UNAVAILABLE"] as string[]).includes(item.status)
+    const status: SettableStatus = (["IN_PROCESS", "CONFIRMED", "UNAVAILABLE"] as string[]).includes(item.status)
         ? (item.status as SettableStatus)
         : "IN_PROCESS";
-    const [status, setStatus] = useState<SettableStatus>(initStatus);
     const [saving, setSaving] = useState(false);
 
     async function handleChange(next: SettableStatus) {
-        const prev = status;
-        setStatus(next);
+        const prev = item.status;
+        onStatusChange(next);
         setSaving(true);
         try {
             const res = await setItemFulfillment({
@@ -51,10 +60,12 @@ function ItemRow({ bookingId, item, dayLabel }: { bookingId: string; item: Fulfi
             });
             if (!res.success) {
                 toast.error(res.error);
-                setStatus(prev);
+                onStatusChange(prev);
                 return;
             }
             toast.success(`Saved — ${item.title}`);
+            // Background sync only (e.g. the Timeline section) — the row and
+            // summary count above are already up to date via onStatusChange.
             router.refresh();
         } finally {
             setSaving(false);
@@ -73,12 +84,10 @@ function ItemRow({ bookingId, item, dayLabel }: { bookingId: string; item: Fulfi
                     {item.subtitle && <div className="text-xs text-dashboard-neutral mt-0.5">{item.subtitle}</div>}
                 </div>
 
-                {/* Saved-state chip (reflects last server state) */}
-                {item.status !== initStatus || (item.status !== status) ? null : (
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CHIP[item.status]}`}>
-                        {titleCase(item.status)}
-                    </span>
-                )}
+                {/* Saved-state chip — always mirrors the current status immediately */}
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CHIP[item.status]}`}>
+                    {titleCase(item.status)}
+                </span>
 
                 {/* Auto-save select */}
                 <div className="relative flex items-center gap-1.5 shrink-0">
@@ -194,13 +203,19 @@ function ProposeBox({ bookingId, item }: { bookingId: string; item: FulfillmentI
 // happen exclusively on their own dedicated pages (Verify Hotels / Verify
 // Cabs), so this panel never touches those. `items` must already be filtered
 // to kind === "ACTIVITY" by the caller.
-export default function FulfillmentPanel({ bookingId, items }: { bookingId: string; items: FulfillmentItem[] }) {
+export default function FulfillmentPanel({ bookingId, items: initialItems }: { bookingId: string; items: FulfillmentItem[] }) {
     const router = useRouter();
+    const [items, setItems] = useState(initialItems);
+    useEffect(() => { setItems(initialItems); }, [initialItems]);
     const [verifyingAll, setVerifyingAll] = useState(false);
 
     if (items.length === 0) return <p className="text-sm text-dashboard-neutral">No trackable activities on this booking.</p>;
 
     const unverified = items.filter((i) => i.status !== "CONFIRMED" && i.status !== "REPLACED");
+
+    function updateStatus(key: string, status: FulfillmentState) {
+        setItems((prev) => prev.map((it) => (it.key === key ? { ...it, status } : it)));
+    }
 
     async function handleVerifyAll() {
         setVerifyingAll(true);
@@ -211,10 +226,13 @@ export default function FulfillmentPanel({ bookingId, items }: { bookingId: stri
                         bookingId, kind: it.kind, day: it.day,
                         activityId: it.activityId ?? null,
                         status: "CONFIRMED", voucherUrl: null,
-                    }),
+                    }).then((res) => ({ res, key: it.key })),
                 ),
             );
-            const failed = results.filter((r) => !r.success).length;
+            const failed = results.filter((r) => !r.res.success).length;
+            for (const { res, key } of results) {
+                if (res.success) updateStatus(key, "CONFIRMED");
+            }
             if (failed > 0) toast.error(`${failed} activit${failed > 1 ? "ies" : "y"} could not be verified.`);
             if (failed < results.length) toast.success(`Verified ${results.length - failed} activit${results.length - failed > 1 ? "ies" : "y"}.`);
             router.refresh();
@@ -246,7 +264,15 @@ export default function FulfillmentPanel({ bookingId, items }: { bookingId: stri
 
             <div className="rounded-lg border border-dashboard-base-300/70 overflow-hidden px-4">
                 <div className="divide-y divide-dashboard-base-300/40">
-                    {items.map((it) => <ItemRow key={it.key} bookingId={bookingId} item={it} dayLabel={`Day ${it.day}`} />)}
+                    {items.map((it) => (
+                        <ItemRow
+                            key={it.key}
+                            bookingId={bookingId}
+                            item={it}
+                            dayLabel={`Day ${it.day}`}
+                            onStatusChange={(status) => updateStatus(it.key, status)}
+                        />
+                    ))}
                 </div>
             </div>
         </div>

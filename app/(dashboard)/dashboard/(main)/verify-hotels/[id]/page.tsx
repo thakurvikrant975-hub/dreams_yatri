@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, Mail, MapPin, Phone, Users, Hotel, ExternalLink, CheckCircle2, Clock } from "lucide-react";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
 import HotelConfirmPanel from "./HotelConfirmPanel";
 
@@ -41,6 +41,54 @@ function addDays(dateStr: string, n: number): string {
     const d = new Date(`${dateStr}T00:00:00`);
     d.setDate(d.getDate() + n);
     return d.toISOString().split("T")[0];
+}
+
+// ── Multi-night stay grouping ──────────────────────────────────────────────
+// The itinerary snapshot has one entry per DAY, so a 2-night stay at the same
+// hotel shows up as two consecutive day entries with the same hotel_id/
+// room_pricing_id. Ops shouldn't have to confirm the same stay twice — merge
+// consecutive same-hotel days into one card, one checklist row, and one
+// confirm action that covers every merged day.
+type HotelDay = SnapDay & { hotel: SnapHotel };
+type HotelStay = {
+    days: number[];
+    firstDay: HotelDay;
+    lastDay: HotelDay;
+    nights: number;
+    checkIn: string | null;
+    checkOut: string | null;
+    totalPrice: number;
+};
+
+function groupHotelStays(hotelDays: HotelDay[]): HotelStay[] {
+    const stays: HotelStay[] = [];
+    for (const d of hotelDays) {
+        const last = stays[stays.length - 1];
+        const canMerge = last != null
+            && last.lastDay.day + 1 === d.day
+            && last.lastDay.hotel.hotel_id === d.hotel.hotel_id
+            && last.lastDay.hotel.room_pricing_id === d.hotel.room_pricing_id;
+        if (canMerge && last) {
+            last.days.push(d.day);
+            last.lastDay = d;
+            last.nights += 1;
+            last.totalPrice += Number(d.hotel.total);
+        } else {
+            stays.push({
+                days: [d.day],
+                firstDay: d,
+                lastDay: d,
+                nights: 1,
+                checkIn: d.day_date,
+                checkOut: d.day_date ? addDays(d.day_date, d.hotel.num_nights) : null,
+                totalPrice: Number(d.hotel.total),
+            });
+        }
+    }
+    for (const s of stays) {
+        s.checkOut = s.lastDay.day_date ? addDays(s.lastDay.day_date, s.lastDay.hotel.num_nights) : s.checkOut;
+    }
+    return stays;
 }
 
 // ── Sidebar helpers ───────────────────────────────────────────────────────────
@@ -98,6 +146,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
     const hotelDays = (snapshot.days ?? []).filter(
         (d): d is SnapDay & { hotel: SnapHotel } => d.hotel != null && d.hotel.hotel_id != null,
     );
+    const hotelStays = groupHotelStays(hotelDays);
 
     const uniqueHotelIds = [...new Set(hotelDays.map((d) => d.hotel.hotel_id).filter((x): x is number => x != null))];
     const uniqueRoomIds  = [...new Set(hotelDays.map((d) => d.hotel.room_id).filter((x): x is number => x != null))];
@@ -134,8 +183,8 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
     const confirmedMap    = new Map(booking.hotelBookings.map((bh) => [bh.dayNumber, bh]));
     const destinationHotels = allHotels.filter((h) => h.destination_id === booking.destinationId);
 
-    const totalCount     = hotelDays.length;
-    const confirmedCount = hotelDays.filter((d) => confirmedMap.get(d.day)?.isConfirmed).length;
+    const totalCount     = hotelStays.length;
+    const confirmedCount = hotelStays.filter((s) => s.days.every((day) => confirmedMap.get(day)?.isConfirmed)).length;
     const pct            = totalCount > 0 ? Math.round((confirmedCount / totalCount) * 100) : 0;
     const allDone        = pct === 100;
 
@@ -192,15 +241,31 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             No hotel stays found in the booking itinerary snapshot.
                         </div>
                     ) : (
-                        hotelDays.map((d) => {
+                        hotelStays.map((stay) => {
+                            const d         = stay.firstDay;
                             const snap      = d.hotel;
                             const hotel     = hotelMap.get(snap.hotel_id);
                             const room      = snap.room_id ? roomMap.get(snap.room_id) : null;
-                            const confirmed = confirmedMap.get(d.day);
-                            const isDone    = confirmed?.isConfirmed ?? false;
+                            const isMultiNight = stay.days.length > 1;
+                            const confirmedRecords = stay.days.map((day) => confirmedMap.get(day));
+                            const isDone    = confirmedRecords.every((c) => c?.isConfirmed);
+                            const confirmed = confirmedRecords[0]; // representative, for the "confirmed by/at" banner
 
-                            const checkIn  = d.day_date ?? null;
-                            const checkOut = checkIn ? addDays(checkIn, snap.num_nights) : null;
+                            const checkIn  = stay.checkIn;
+                            const checkOut = stay.checkOut;
+                            const dayLabel = isMultiNight ? `Day ${stay.days[0]}–${stay.days[stay.days.length - 1]}` : `Day ${d.day}`;
+                            const perDay = stay.days.map((day) => {
+                                const dayEntry = hotelDays.find((hd) => hd.day === day)!;
+                                const dCheckIn  = dayEntry.day_date;
+                                const dCheckOut = dCheckIn ? addDays(dCheckIn, dayEntry.hotel.num_nights) : null;
+                                return {
+                                    day,
+                                    checkInDate: dCheckIn ?? booking.startDate.toISOString().split("T")[0],
+                                    checkOutDate: dCheckOut ?? booking.endDate.toISOString().split("T")[0],
+                                    ratePerRoom: dayEntry.hotel.price_per_room,
+                                    totalCost: dayEntry.hotel.total,
+                                };
+                            });
 
                             const chips = [
                                 snap.room_name,
@@ -213,7 +278,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
 
                             return (
                                 <div
-                                    key={d.day}
+                                    key={stay.days.join("-")}
                                     className={`rounded-xl overflow-hidden shadow-lg border ${isDone ? "border-green-200" : "border-amber-200"}`}
                                 >
                                     {/* Top bar */}
@@ -226,10 +291,16 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                             <span className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-bold ${
                                                 isDone ? "bg-green-600 text-white" : "bg-amber-500 text-white"
                                             }`}>
-                                                Day {d.day}
+                                                {dayLabel}
                                             </span>
                                             <span className="text-sm font-semibold text-dashboard-base-content truncate">{d.day_title}</span>
-                                            <span className={`shrink-0 text-xs font-medium ${isDone ? "text-green-700" : "text-amber-700"}`}>· {snap.num_nights}N</span>
+                                            {isMultiNight ? (
+                                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                                                    <CalendarDays className="size-3" /> {stay.nights} nights
+                                                </span>
+                                            ) : (
+                                                <span className={`shrink-0 text-xs font-medium ${isDone ? "text-green-700" : "text-amber-700"}`}>· {snap.num_nights}N</span>
+                                            )}
                                         </div>
                                         {isDone ? (
                                             <span className="shrink-0 ml-2 inline-flex items-center gap-1 rounded-full bg-green-100 border border-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
@@ -324,11 +395,12 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                 {snap.check_out_time && <span className="text-[11px] text-dashboard-neutral">({snap.check_out_time})</span>}
                                             </div>
                                             <div className="ml-auto flex items-center gap-1.5 text-[11px] text-dashboard-neutral">
-                                                ₹{Number(snap.price_per_room).toLocaleString("en-IN")}/room
+                                                ₹{Number(snap.price_per_room).toLocaleString("en-IN")}/room{isMultiNight ? "/night" : ""}
                                                 <span className="text-dashboard-base-300">·</span>
                                                 <span className="text-sm font-semibold text-dashboard-base-content">
-                                                    ₹{Number(snap.total).toLocaleString("en-IN")}
+                                                    ₹{Number(stay.totalPrice).toLocaleString("en-IN")}
                                                 </span>
+                                                {isMultiNight && <span className="text-dashboard-neutral">total ({stay.nights}N)</span>}
                                             </div>
                                         </div>
 
@@ -347,19 +419,19 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                         {!isDone && (
                                             <HotelConfirmPanel
                                                 bookingId={booking.id}
-                                                dayNumber={d.day}
+                                                perDay={perDay}
                                                 defaultHotelId={snap.hotel_id}
                                                 defaultPricingId={snap.room_pricing_id}
                                                 cityName={snap.hotel_city ?? d.day_title}
                                                 checkInDate={checkIn ?? booking.startDate.toISOString().split("T")[0]}
-                                                checkOutDate={checkOut ?? booking.endDate.toISOString().split("T")[0]}
+                                                nights={stay.nights}
                                                 roomType={snap.room_name ?? snap.plan_name ?? "Standard"}
                                                 roomsCount={snap.rooms_count}
                                                 ratePerRoom={snap.price_per_room}
-                                                totalCost={snap.total}
+                                                totalCost={stay.totalPrice}
                                                 travellers={booking.travellers}
-                                                snapshotMealLabels={d.meals.map((m) => m.label)}
-                                                snapshotMealTotal={d.meals.reduce((s, m) => s + Number(m.total ?? 0), 0)}
+                                                snapshotMealLabels={[...new Set(stay.days.flatMap((day) => hotelDays.find((hd) => hd.day === day)!.meals.map((m) => m.label)))]}
+                                                snapshotMealTotal={stay.days.reduce((s, day) => s + hotelDays.find((hd) => hd.day === day)!.meals.reduce((ms, m) => ms + Number(m.total ?? 0), 0), 0)}
                                                 destinationHotels={destinationHotels}
                                                 allHotels={allHotels}
                                             />
@@ -386,7 +458,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             <InfoItem icon={Users}        label="Travellers"    value={`${booking.travellers} pax · ${booking.duration}D`} />
                             <div className="mt-1 flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
                                 <span className="text-xs font-medium text-dashboard-neutral">Total Amount</span>
-                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaise(booking.totalAmount_paise)}</span>
+                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaiseRoundedUp(booking.totalAmount_paise)}</span>
                             </div>
                         </div>
                     </SideCard>
@@ -395,12 +467,13 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                     {totalCount > 0 && (
                         <SideCard title="Hotel Checklist">
                             <div className="flex flex-col gap-1">
-                                {hotelDays.map((d) => {
-                                    const c    = confirmedMap.get(d.day);
-                                    const done = c?.isConfirmed ?? false;
+                                {hotelStays.map((stay) => {
+                                    const done = stay.days.every((day) => confirmedMap.get(day)?.isConfirmed);
+                                    const isMultiNight = stay.days.length > 1;
+                                    const dayLabel = isMultiNight ? `Day ${stay.days[0]}–${stay.days[stay.days.length - 1]}` : `Day ${stay.days[0]}`;
                                     return (
                                         <div
-                                            key={d.day}
+                                            key={stay.days.join("-")}
                                             className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 ${
                                                 done
                                                     ? "bg-green-50 border border-green-100"
@@ -412,11 +485,13 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                             }`}>
                                                 {done
                                                     ? <CheckCircle2 className="size-3.5" />
-                                                    : <span className="text-[10px] font-bold">{d.day}</span>}
+                                                    : <span className="text-[10px] font-bold">{stay.days[0]}</span>}
                                             </div>
                                             <div className="min-w-0 flex-1">
-                                                <p className="truncate text-xs font-medium text-dashboard-base-content">{d.hotel.hotel_name}</p>
-                                                <p className="text-[10px] text-dashboard-neutral">{d.hotel.num_nights}N · Day {d.day}</p>
+                                                <p className="truncate text-xs font-medium text-dashboard-base-content">{stay.firstDay.hotel.hotel_name}</p>
+                                                <p className={`text-[10px] ${isMultiNight ? "font-semibold text-indigo-600" : "text-dashboard-neutral"}`}>
+                                                    {stay.nights}N · {dayLabel}
+                                                </p>
                                             </div>
                                             <span className={`shrink-0 text-[10px] font-semibold ${done ? "text-green-700" : "text-amber-600"}`}>
                                                 {done ? "Done" : "Pending"}

@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import {
   Sidebar, SidebarContent, SidebarGroup,
   SidebarMenu, SidebarMenuItem, SidebarMenuButton,
@@ -8,10 +9,59 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import DyLogo from "@/app/components/ui/DyLogo";
 import { cn } from "@/app/lib/utils";
+import { useVerificationCounts } from "@/app/lib/ably-client";
 import { NAV_GROUPS as navGroups } from "../../lib/rbac/nav-items";
 
-export function AppSidebar({ pageAccess }: { pageAccess?: string[] | null }) {
+export function AppSidebar({
+  pageAccess,
+  hotelsPending = 0,
+  cabsPending = 0,
+  bookingsUnconfirmed = 0,
+}: {
+  pageAccess?: string[] | null;
+  hotelsPending?: number;
+  cabsPending?: number;
+  bookingsUnconfirmed?: number;
+}) {
   const pathname = usePathname();
+
+  // Live counts — each starts from its server-rendered value, then updates
+  // over Ably whenever a booking enters/leaves the relevant queue. Re-synced
+  // from props during render (not an effect) on navigation, per React's
+  // "adjusting state when a prop changes" pattern.
+  const [hotelsSyncedFrom, setHotelsSyncedFrom] = useState(hotelsPending);
+  const [liveHotelsPending, setLiveHotelsPending] = useState(hotelsPending);
+  if (hotelsPending !== hotelsSyncedFrom) {
+    setHotelsSyncedFrom(hotelsPending);
+    setLiveHotelsPending(hotelsPending);
+  }
+
+  const [cabsSyncedFrom, setCabsSyncedFrom] = useState(cabsPending);
+  const [liveCabsPending, setLiveCabsPending] = useState(cabsPending);
+  if (cabsPending !== cabsSyncedFrom) {
+    setCabsSyncedFrom(cabsPending);
+    setLiveCabsPending(cabsPending);
+  }
+
+  const [bookingsSyncedFrom, setBookingsSyncedFrom] = useState(bookingsUnconfirmed);
+  const [liveBookingsUnconfirmed, setLiveBookingsUnconfirmed] = useState(bookingsUnconfirmed);
+  if (bookingsUnconfirmed !== bookingsSyncedFrom) {
+    setBookingsSyncedFrom(bookingsUnconfirmed);
+    setLiveBookingsUnconfirmed(bookingsUnconfirmed);
+  }
+
+  useVerificationCounts((counts) => {
+    setLiveHotelsPending(counts.hotelsPending);
+    setLiveCabsPending(counts.cabsPending);
+    setLiveBookingsUnconfirmed(counts.bookingsUnconfirmed);
+  });
+
+  // Nav hrefs that carry a live "still needs doing" count badge.
+  const navBadgeCounts: Record<string, number> = {
+    "/dashboard/verify-hotels": liveHotelsPending,
+    "/dashboard/verify-cabs": liveCabsPending,
+    "/dashboard/package-bookings": liveBookingsUnconfirmed,
+  };
 
   function isPageAllowed(href: string) {
     if (!pageAccess || pageAccess.length === 0) return true;
@@ -72,6 +122,11 @@ export function AppSidebar({ pageAccess }: { pageAccess?: string[] | null }) {
                                 style={{ color: "inherit" }}
                               />
                               <span className="text-[15px] leading-none">{item.title}</span>
+                              {(navBadgeCounts[item.href] ?? 0) > 0 && (
+                                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white tabular-nums">
+                                  {navBadgeCounts[item.href]}
+                                </span>
+                              )}
                             </Link>
                           </SidebarMenuButton>
                         </SidebarMenuItem>

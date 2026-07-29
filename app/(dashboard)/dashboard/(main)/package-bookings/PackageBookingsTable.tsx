@@ -13,7 +13,7 @@ import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import { PaymentPill, StatusPill } from "./pills";
 import BookingRowActions from "./BookingRowActions";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 
 const PAYMENT_STATUSES = [
     "PENDING", "ADVANCE_PAID", "FULLY_PAID", "REFUNDED", "PARTIALLY_REFUNDED", "FAILED",
@@ -262,7 +262,7 @@ export function PackageBookingsTable({
             cell: (b) => (
                 <div className="text-right">
                     <p className="text-sm font-medium text-dashboard-base-content whitespace-nowrap">
-                        {formatPaise(b.totalAmount_paise)}
+                        {formatPaiseRoundedUp(b.totalAmount_paise)}
                     </p>
                     {b.paymentPlan === "DEPOSIT" && (
                         <p className="text-xs text-dashboard-base-content/55">Deposit plan</p>

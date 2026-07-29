@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { Prisma } from "@/app/generated/prisma";
 import { Receipt, Wallet, Undo2 } from "lucide-react";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -70,6 +70,9 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                         id: true, bookingNumber: true, contactEmail: true,
                         user: { select: { name: true } },
                         package: { select: { title: true } },
+                        // The login account often has no name (phone/OTP sign-up) —
+                        // fall back to the lead traveller entered at checkout.
+                        travellersList: { where: { isLead: true }, take: 1, select: { fullName: true } },
                     },
                 },
             },
@@ -100,8 +103,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
 
             <StatGrid cols={3}>
                 <StatCard label="Transactions" value={total} icon={Receipt} />
-                <StatCard label="Captured (in view)" value={formatPaise(capturedPaise)} icon={Wallet} />
-                <StatCard label="Refunded (in view)" value={formatPaise(refundedPaise)} icon={Undo2} />
+                <StatCard label="Captured (in view)" value={formatPaiseRoundedUp(capturedPaise)} icon={Wallet} />
+                <StatCard label="Refunded (in view)" value={formatPaiseRoundedUp(refundedPaise)} icon={Undo2} />
             </StatGrid>
 
             <TransactionsTableClient

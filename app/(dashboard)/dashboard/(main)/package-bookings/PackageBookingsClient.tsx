@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { BookCheck, CalendarClock, CircleCheck, CircleX, ClipboardList, IndianRupee } from "lucide-react";
 import type { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { PackageBookingsTable } from "./PackageBookingsTable";
 import {
     Breadcrumb, BreadcrumbItem,
@@ -132,7 +132,7 @@ async function BookingsData({
                 <StatCard label="Cancelled"       value={cancelled}     icon={CircleX}       />
                 <StatCard
                     label="Total Revenue"
-                    value={formatPaise(revenue._sum.totalAmount_paise ?? 0)}
+                    value={formatPaiseRoundedUp(revenue._sum.totalAmount_paise ?? 0)}
                     icon={IndianRupee}
                     sub="Excludes cancelled bookings"
                 />

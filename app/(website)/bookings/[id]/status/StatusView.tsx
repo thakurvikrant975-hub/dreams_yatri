@@ -7,7 +7,8 @@ import Link from 'next/link';
 import {
     BedIcon, CarProfileIcon, TicketIcon,
     CheckCircleIcon, ClockIcon, WarningCircleIcon, ArrowsClockwiseIcon,
-    DownloadSimpleIcon, ArrowRightIcon, type Icon,
+    DownloadSimpleIcon, ArrowRightIcon, TrendUpIcon, TrendDownIcon,
+    type Icon,
 } from '@phosphor-icons/react';
 import Card from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
@@ -57,7 +58,7 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                 {item.hotelChanged && (
                     <div className="mt-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs">
                         <div className="flex items-center gap-1.5 font-semibold text-warning-700">
-                            <span>🔄</span>
+                            <ArrowsClockwiseIcon weight="bold" className="size-3.5" />
                             <span>Hotel changed</span>
                             {item.hotelPriceDiff != null && item.hotelPriceDiff !== 0 && (
                                 <span className={`ml-1 font-bold ${item.hotelPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
@@ -98,7 +99,9 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                 {!item.hotelChanged && item.roomChanged && (
                     <div className="mt-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs">
                         <div className="flex items-center gap-1.5 font-semibold text-warning-700">
-                            <span>{item.hotelPriceDiff != null && item.hotelPriceDiff > 0 ? '⬆' : item.hotelPriceDiff != null && item.hotelPriceDiff < 0 ? '⬇' : '🔄'}</span>
+                            {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 ? <TrendUpIcon weight="bold" className="size-3.5" />
+                                : item.hotelPriceDiff != null && item.hotelPriceDiff < 0 ? <TrendDownIcon weight="bold" className="size-3.5" />
+                                : <ArrowsClockwiseIcon weight="bold" className="size-3.5" />}
                             <span>
                                 {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 ? 'Room upgraded'
                                     : item.hotelPriceDiff != null && item.hotelPriceDiff < 0 ? 'Room downgraded'
@@ -200,8 +203,18 @@ const fmtRupees = (r: number) => `₹${Math.round(r).toLocaleString('en-IN')}`;
 export interface PaymentSummary {
     status: string;
     totalPaise: number;
+    /** The originally quoted total, frozen at booking time — compared against
+     * `totalPaise` to surface any post-booking hotel/room price change. */
+    originalTotalPaise: number;
+    /** `totalPaise - originalTotalPaise` — positive means the price went up
+     * (e.g. a hotel swap to a pricier room), negative means it went down. */
+    priceDeltaPaise: number;
+    /** Sum of actually-captured payments — never assumed from the total, so
+     * this stays correct even if the price changes after payment. */
     paidPaise: number;
-    balancePaise: number;
+    /** `totalPaise - paidPaise` — positive: still owed; negative: overpaid,
+     * a refund is due; zero: fully settled. */
+    amountDuePaise: number;
     balanceDueDate: string | null;
     travellers: number;
     hotelCost: number | null;
@@ -227,8 +240,15 @@ function paymentLabelColor(pct: number): string {
 
 function PaymentCard({ payment, payHref }: { payment: PaymentSummary; payHref: string }) {
     const hasPaid = payment.paidPaise > 0;
-    const hasBalance = payment.balancePaise > 0;
-    const fullyPaid = payment.status === 'FULLY_PAID' && !hasBalance;
+    const hasBalance = payment.amountDuePaise > 0;
+    const hasRefund = payment.amountDuePaise < 0;
+    const refundPaise = Math.abs(payment.amountDuePaise);
+    const fullyPaid = payment.amountDuePaise === 0 && hasPaid;
+    const priceWentUp = payment.priceDeltaPaise > 0;
+    const priceChanged = payment.priceDeltaPaise !== 0;
+    // Paid-so-far is real (sum of captured payments), so this can legitimately
+    // read below 100% even on a "fully paid" booking if the price went up
+    // afterward (e.g. a hotel/room swap) — it's never assumed from the total.
     const pct = payment.totalPaise > 0 ? Math.min(100, Math.round((payment.paidPaise / payment.totalPaise) * 100)) : 0;
 
     return (
@@ -242,6 +262,20 @@ function PaymentCard({ payment, payHref }: { payment: PaymentSummary; payHref: s
                     <span className="text-2xl font-bold text-(--text-primary) font-heading">{fmt(payment.totalPaise)}</span>
                     <span className="text-xs text-(--text-muted)">(incl. GST)</span>
                 </div>
+
+                {/* Price change notice — shown whenever the current total differs
+                    from what was originally quoted (e.g. a hotel/room swap). */}
+                {priceChanged && (
+                    <div className={`mt-2.5 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs ${
+                        priceWentUp ? 'bg-error-50 text-error-700' : 'bg-success-50 text-success-700'
+                    }`}>
+                        {priceWentUp ? <TrendUpIcon weight="bold" className="size-3.5 shrink-0" /> : <TrendDownIcon weight="bold" className="size-3.5 shrink-0" />}
+                        <span className="font-semibold">
+                            Price {priceWentUp ? 'increased' : 'decreased'} by {fmt(Math.abs(payment.priceDeltaPaise))}
+                        </span>
+                        <span className="text-(--text-muted)">(was {fmt(payment.originalTotalPaise)})</span>
+                    </div>
+                )}
             </div>
 
             {/* Payment status */}
@@ -265,16 +299,18 @@ function PaymentCard({ payment, payHref }: { payment: PaymentSummary; payHref: s
                 </div>
 
                 <div className="flex justify-between items-center">
-                    <Text size="sm" intent="secondary">Paid</Text>
+                    <Text size="sm" intent="secondary">Paid so far</Text>
                     <span className={`text-sm font-semibold ${hasPaid ? 'text-success-600' : 'text-(--text-muted)'}`}>
                         {hasPaid ? fmt(payment.paidPaise) : '₹0'}
                     </span>
                 </div>
 
                 <div className="flex justify-between items-center">
-                    <Text size="sm" intent="secondary">Remaining</Text>
-                    <span className={`text-sm font-semibold ${hasBalance ? 'text-error-600' : 'text-success-600'}`}>
-                        {hasBalance ? fmt(payment.balancePaise) : '₹0 ✓'}
+                    <Text size="sm" intent="secondary">{hasRefund ? 'Refund due' : 'Remaining'}</Text>
+                    <span className={`inline-flex items-center gap-1 text-sm font-semibold ${hasBalance ? 'text-error-600' : 'text-success-600'}`}>
+                        {hasBalance ? fmt(payment.amountDuePaise) : hasRefund ? fmt(refundPaise) : (
+                            <>₹0 <CheckCircleIcon weight="fill" className="size-3.5" /></>
+                        )}
                     </span>
                 </div>
 
@@ -284,13 +320,23 @@ function PaymentCard({ payment, payHref }: { payment: PaymentSummary; payHref: s
                     </Text>
                 )}
 
-                {fullyPaid ? (
+                {hasRefund ? (
                     <div className="mt-1 rounded-lg bg-success-50 border border-success-200 px-3 py-2 text-center">
-                        <Text size="sm" weight="semibold" className="text-success-700">✓ Fully Paid</Text>
+                        <Text size="sm" weight="semibold" className="text-success-700">
+                            You overpaid by {fmt(refundPaise)}
+                        </Text>
+                        <Text size="xs" intent="secondary" className="mt-0.5 block">
+                            Our team will refund this to your original payment method.
+                        </Text>
+                    </div>
+                ) : fullyPaid ? (
+                    <div className="mt-1 flex items-center justify-center gap-1.5 rounded-lg bg-success-50 border border-success-200 px-3 py-2">
+                        <CheckCircleIcon weight="fill" className="size-4 text-success-600" />
+                        <Text size="sm" weight="semibold" className="text-success-700">Fully Paid</Text>
                     </div>
                 ) : hasBalance ? (
                     <Link href={payHref} className="inline-block mt-1">
-                        <Button variant="premium" className="w-full">Pay {fmt(payment.balancePaise)} now</Button>
+                        <Button variant="premium" className="w-full">Pay {fmt(payment.amountDuePaise)} now</Button>
                     </Link>
                 ) : null}
             </div>
@@ -311,11 +357,11 @@ export default function StatusView({
 }) {
     const { overall, summary } = fulfillment;
     const pct = summary.total > 0 ? Math.round((summary.confirmed / summary.total) * 100) : 0;
-    const payExtraHref = payment.status !== 'PENDING' && payment.balancePaise > 0 ? payHref : null;
+    const payExtraHref = payment.status !== 'PENDING' && payment.amountDuePaise > 0 ? payHref : null;
 
     const headline =
         overall === 'AWAITING_PAYMENT' ? 'Complete your payment to start arrangements'
-        : overall === 'READY' ? 'Your trip is fully confirmed 🎉'
+        : overall === 'READY' ? 'Your trip is fully confirmed'
         : overall === 'CANCELLED' ? 'This booking is cancelled'
         : 'We’re arranging your trip';
     const sub =
@@ -349,7 +395,10 @@ export default function StatusView({
 
                     {/* Overall progress */}
                     <Card className="px-6 py-5">
-                        <Heading level={4} weight="semibold">{headline}</Heading>
+                        <div className="flex items-center gap-2">
+                            {overall === 'READY' && <CheckCircleIcon weight="fill" className="size-5 shrink-0 text-success-600" />}
+                            <Heading level={4} weight="semibold">{headline}</Heading>
+                        </div>
                         <Text size="sm" intent="secondary" className="block mt-1">{sub}</Text>
 
                         {overall === 'AWAITING_PAYMENT' ? (

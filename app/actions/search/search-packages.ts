@@ -138,8 +138,8 @@ export async function searchPackages(params: SearchParams): Promise<SearchResult
           child_ages: childAges,
           travel_date: travelDate ?? null,
         });
-        perPerson = Math.round(breakdown.price_per_adult);
-        total = Math.round(breakdown.final_price);
+        perPerson = Math.ceil(breakdown.price_per_adult);
+        total = Math.ceil(breakdown.final_price);
         missingPricing = breakdown.missing_pricing_config;
       } catch {
         missingPricing = true;

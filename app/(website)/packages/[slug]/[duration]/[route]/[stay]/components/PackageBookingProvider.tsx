@@ -380,18 +380,18 @@ export function PackageBookingProvider({
                         setPricing(null);
                     } else {
                         setPricing({
-                            pricePerAdult: Math.round(res.data.price_per_adult),
-                            finalPrice:    Math.round(res.data.final_price),
-                            gstAmount:     Math.round(res.data.gst_amount),
+                            pricePerAdult: Math.ceil(res.data.price_per_adult),
+                            finalPrice:    Math.ceil(res.data.final_price),
+                            gstAmount:     Math.ceil(res.data.gst_amount),
                             gstPercentage: res.data.gst_percentage,
                             breakdown: {
-                                hotelSubtotal:    Math.round(res.data.hotel_subtotal),
-                                mealSubtotal:     Math.round(res.data.meal_subtotal),
-                                activitySubtotal: Math.round(res.data.activity_subtotal),
-                                cabSubtotal:      Math.round(res.data.cab_subtotal),
-                                permitSubtotal:   Math.round(res.data.permit_subtotal),
-                                baseCost:         Math.round(res.data.base_cost),
-                                marginAmount:     Math.round(res.data.margin_amount),
+                                hotelSubtotal:    Math.ceil(res.data.hotel_subtotal),
+                                mealSubtotal:     Math.ceil(res.data.meal_subtotal),
+                                activitySubtotal: Math.ceil(res.data.activity_subtotal),
+                                cabSubtotal:      Math.ceil(res.data.cab_subtotal),
+                                permitSubtotal:   Math.ceil(res.data.permit_subtotal),
+                                baseCost:         Math.ceil(res.data.base_cost),
+                                marginAmount:     Math.ceil(res.data.margin_amount),
                                 marginPercentage: res.data.margin_percentage,
                             },
                             permits: res.data.permits.map((p) => ({
@@ -399,7 +399,7 @@ export function PackageBookingProvider({
                                 unitPrice: p.unit_price,
                                 priceType: p.price_type,
                                 quantity:  p.quantity,
-                                total:     Math.round(p.total),
+                                total:     Math.ceil(p.total),
                             })),
                         });
                     }

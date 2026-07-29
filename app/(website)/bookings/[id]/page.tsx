@@ -13,7 +13,7 @@ import { Heading, Text } from '@/app/components/ui/Typography';
 import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { isPaidStatus } from '@/app/lib/messaging';
-import { formatPaise } from '@/app/lib/money';
+import { formatPaiseRoundedUp } from '@/app/lib/money';
 import StatusPoller from './StatusPoller';
 import RedirectTimer from './RedirectTimer';
 import DownloadReceiptButton from './DownloadReceiptButton';
@@ -152,11 +152,11 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                         <Text size="xs" weight="semibold" intent="secondary" className="uppercase tracking-wide">Payment summary</Text>
                                     </div>
                                     <div className="divide-y divide-(--border-muted)">
-                                        <Row label={isFull ? 'Paid in full' : 'Deposit paid'} value={formatPaise(paidPaise)} />
+                                        <Row label={isFull ? 'Paid in full' : 'Deposit paid'} value={formatPaiseRoundedUp(paidPaise)} />
                                         {!isFull && (
                                             <Row
                                                 label="Balance due"
-                                                value={`${formatPaise(booking.balanceAmount_paise)}${booking.balanceDueDate ? ` by ${formatDate(booking.balanceDueDate)}` : ''}`}
+                                                value={`${formatPaiseRoundedUp(booking.balanceAmount_paise)}${booking.balanceDueDate ? ` by ${formatDate(booking.balanceDueDate)}` : ''}`}
                                             />
                                         )}
                                     </div>

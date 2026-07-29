@@ -1,4 +1,4 @@
-import { assertIntPaise, sumPaise } from "../../lib/money";
+import { assertIntPaise, ceilPaiseToRupee, sumPaise } from "../../lib/money";
 import { resolveConfig, type PaymentPolicyConfig } from "./config";
 
 /**
@@ -103,8 +103,10 @@ export function computePaymentSchedule(input: PaymentScheduleInput): PaymentSche
         return fullSchedule(totalPaise, todayISO, daysUntilTravel, "FULL_NEAR_TRAVEL");
     }
 
-    // Deposit: round once, then apply the floor.
-    let deposit = Math.round((totalPaise * config.depositPercent) / 100);
+    // Deposit: round UP to a whole rupee once, then apply the floor — so the
+    // deposit leg (and, since totalPaise is itself a whole rupee, the derived
+    // balance leg) can never end up as a fractional rupee.
+    let deposit = ceilPaiseToRupee(Math.round((totalPaise * config.depositPercent) / 100));
     if (deposit < config.minDepositPaise) deposit = config.minDepositPaise;
 
     // Floor (or pct) covering the whole total ⇒ effectively full.

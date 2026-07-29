@@ -6,7 +6,7 @@ import Link from "next/link";
 import { DropdownMenu, Dialog, VisuallyHidden } from "radix-ui";
 import { MoreVertical, Eye, RefreshCw, Ban } from "lucide-react";
 import { toast } from "sonner";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { adminPreviewCancellation, adminCancelBooking, adminSyncPayments } from "./actions";
 import type { CancellationPreview } from "@/app/actions/payment/types";
 
@@ -66,7 +66,7 @@ export default function BookingRowActions({
             toast.success(
                 res.alreadyCancelled
                     ? "Booking was already cancelled."
-                    : `Booking cancelled. Refund ${res.refundPct}% = ${formatPaise(res.refundablePaise)}.`,
+                    : `Booking cancelled. Refund ${res.refundPct}% = ${formatPaiseRoundedUp(res.refundablePaise)}.`,
             );
             setCancelOpen(false);
             router.refresh();
@@ -136,10 +136,10 @@ export default function BookingRowActions({
                             <p className="mt-3 text-sm text-dashboard-neutral">Calculating refund…</p>
                         ) : preview ? (
                             <div className="mt-3 rounded-lg bg-dashboard-base-200/60 px-3 py-2.5 text-sm">
-                                <div className="text-dashboard-neutral">Paid {formatPaise(preview.paidPaise)} · {preview.daysToTravel} day{preview.daysToTravel !== 1 ? "s" : ""} to travel</div>
+                                <div className="text-dashboard-neutral">Paid {formatPaiseRoundedUp(preview.paidPaise)} · {preview.daysToTravel} day{preview.daysToTravel !== 1 ? "s" : ""} to travel</div>
                                 <div className="mt-1 text-dashboard-base-content">
-                                    Refund <span className="font-semibold">{preview.refundPct}%</span> = <span className="font-semibold">{formatPaise(preview.refundablePaise)}</span>
-                                    <span className="text-dashboard-neutral"> (fee {formatPaise(preview.feePaise)})</span>
+                                    Refund <span className="font-semibold">{preview.refundPct}%</span> = <span className="font-semibold">{formatPaiseRoundedUp(preview.refundablePaise)}</span>
+                                    <span className="text-dashboard-neutral"> (fee {formatPaiseRoundedUp(preview.feePaise)})</span>
                                 </div>
                             </div>
                         ) : null}

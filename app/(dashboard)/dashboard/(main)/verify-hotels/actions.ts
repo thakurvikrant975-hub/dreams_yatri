@@ -5,6 +5,7 @@ import { db } from "@/app/lib/db";
 import { getCurrentMember } from "../lib/get-current-member";
 import { getThumbnailImage } from "@/app/lib/imageUrl";
 import { notifyOwnerBookingConfirmed } from "@/app/services/notifications/owner-notify";
+import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 
 export type MealOption = { meal_type: string; label: string; price_per_person: number };
 
@@ -257,10 +258,14 @@ export async function confirmHotelStay(
     const snapHotelTotal = snapDay?.hotel?.total != null ? Number(snapDay.hotel.total) : null;
     const snapHotelId = snapDay?.hotel?.hotel_id ?? null;
 
-    // Baseline cost: previous confirmed row, or snapshot total if first confirmation
+    // Baseline cost: previous confirmed row, or snapshot total if first confirmation.
+    // Round both sides UP to a whole rupee first so the delta (and therefore the
+    // updated totalAmount_paise/balanceAmount_paise) can never land on a fractional rupee.
     const baselineCost = existingRow != null ? Number(existingRow.totalCost) : (snapHotelTotal ?? totalCost);
-    const priceDeltaRupees = totalCost - baselineCost;
-    const deltaPaise = Math.round(priceDeltaRupees * 100);
+    const totalCostRounded = Math.ceil(totalCost);
+    const baselineCostRounded = Math.ceil(baselineCost);
+    const priceDeltaRupees = totalCostRounded - baselineCostRounded;
+    const deltaPaise = priceDeltaRupees * 100;
     const hotelActuallyChanged = existingRow != null
         ? existingRow.hotelId !== hotelId
         : (snapHotelId != null && snapHotelId !== hotelId);
@@ -278,7 +283,7 @@ export async function confirmHotelStay(
             roomType,
             roomsCount,
             ratePerRoom,
-            totalCost,
+            totalCost: totalCostRounded,
             isConfirmed: true,
             status: "CONFIRMED",
             confirmedAt: new Date(),
@@ -290,7 +295,7 @@ export async function confirmHotelStay(
             roomType,
             roomsCount,
             ratePerRoom,
-            totalCost,
+            totalCost: totalCostRounded,
             isConfirmed: true,
             status: "CONFIRMED",
             confirmedAt: new Date(),
@@ -361,6 +366,9 @@ export async function confirmHotelStay(
                 },
             }),
         ]);
+        // Booking leaves the hotel queue and — since it's no longer excluded
+        // by verify-cabs' status filter — may newly enter the cab queue too.
+        await broadcastVerificationCounts();
     } else {
         await db.bookingTimeline.create({
             data: {

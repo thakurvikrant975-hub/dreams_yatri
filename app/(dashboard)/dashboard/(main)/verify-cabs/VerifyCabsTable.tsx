@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, Car, CheckCircle2, Clock } from "lucide-react";
+import { useVerificationCounts } from "@/app/lib/ably-client";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
@@ -85,6 +86,20 @@ export function VerifyCabsTable({
     const router = useRouter();
     const searchParams = useSearchParams();
     const [, startTransition] = useTransition();
+
+    // Live "Total Pending" — starts from the server-rendered count, then
+    // updates in place over Ably whenever a booking enters/leaves the queue
+    // (hotel confirmed → enters, cab confirmed/cancelled → leaves) — no
+    // polling, no refresh. Re-syncs from props during render (not an effect)
+    // when a navigation brings a new server-computed count, per React's
+    // "adjusting state when a prop changes" pattern.
+    const [syncedFrom, setSyncedFrom] = useState(stats.pending);
+    const [pendingCount, setPendingCount] = useState(stats.pending);
+    if (stats.pending !== syncedFrom) {
+        setSyncedFrom(stats.pending);
+        setPendingCount(stats.pending);
+    }
+    useVerificationCounts((counts) => setPendingCount(counts.cabsPending));
 
     function updateParam(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString());
@@ -234,7 +249,7 @@ export function VerifyCabsTable({
             />
 
             <StatGrid cols={4}>
-                <StatCard label="Total Pending"      value={stats.pending}       icon={Car}          sub="Transfers not confirmed" />
+                <StatCard label="Total Pending"      value={pendingCount}        icon={Car}          sub="Transfers not confirmed" />
                 <StatCard label="Urgent (≤ 15 days)" value={stats.urgent}        icon={AlertTriangle}
                     iconColor="bg-red-100" iconText="text-red-600"
                     sub="Travel date approaching"

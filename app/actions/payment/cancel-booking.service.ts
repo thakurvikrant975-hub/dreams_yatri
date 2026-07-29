@@ -6,6 +6,7 @@ import { cancelReservation } from "@/app/lib/hotel-inventory/reservations";
 import { computeCancellationRefund } from "@/app/services/cancellation-policy/engine";
 import { notifyCancellation } from "@/app/services/notifications/booking-notify";
 import { notifyOwnerBookingCancelled } from "@/app/services/notifications/owner-notify";
+import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import type { CancelBookingResult, CancelRefundLine, CancellationPreview } from "./types";
 
 /**
@@ -88,6 +89,9 @@ export async function cancelBooking(params: {
             data: { status: "CANCELLED" },
         });
     });
+
+    // A previously-pending booking just left the hotel/cab verification queues.
+    await broadcastVerificationCounts();
 
     try { await notifyCancellation(booking.id, policy.refundablePaise, policy.feePaise); } catch (e) { console.error("[cancelBooking] email failed", e); }
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { adminPreviewCancellation, adminCancelBooking, adminSyncPayments } from "../actions";
 import type { CancellationPreview } from "@/app/actions/payment/types";
 
@@ -58,7 +58,7 @@ export default function BookingAdminActions({
             toast.success(
                 res.alreadyCancelled
                     ? "Booking was already cancelled."
-                    : `Booking cancelled. Refund ${res.refundPct}% = ${formatPaise(res.refundablePaise)}.`,
+                    : `Booking cancelled. Refund ${res.refundPct}% = ${formatPaiseRoundedUp(res.refundablePaise)}.`,
             );
             setShowCancel(false);
             router.refresh();
@@ -89,10 +89,10 @@ export default function BookingAdminActions({
                         <p className="mt-2 text-sm text-dashboard-neutral">Calculating refund…</p>
                     ) : preview ? (
                         <div className="mt-2 text-sm text-dashboard-neutral">
-                            Paid {formatPaise(preview.paidPaise)} · {preview.daysToTravel} day{preview.daysToTravel !== 1 ? "s" : ""} to travel.
+                            Paid {formatPaiseRoundedUp(preview.paidPaise)} · {preview.daysToTravel} day{preview.daysToTravel !== 1 ? "s" : ""} to travel.
                             <div className="mt-1 text-dashboard-base-content">
-                                Refund <span className="font-semibold">{preview.refundPct}%</span> = <span className="font-semibold">{formatPaise(preview.refundablePaise)}</span>
-                                <span className="text-dashboard-neutral"> (cancellation fee {formatPaise(preview.feePaise)})</span>
+                                Refund <span className="font-semibold">{preview.refundPct}%</span> = <span className="font-semibold">{formatPaiseRoundedUp(preview.refundablePaise)}</span>
+                                <span className="text-dashboard-neutral"> (cancellation fee {formatPaiseRoundedUp(preview.feePaise)})</span>
                             </div>
                         </div>
                     ) : null}

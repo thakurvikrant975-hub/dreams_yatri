@@ -87,7 +87,7 @@ async function HotelsData({
                 select: {
                     id: true, bookingNumber: true, startDate: true, endDate: true,
                     travellers: true, totalAmount_paise: true, paymentStatus: true,
-                    createdAt: true, hotelConfirmedAt: true,
+                    createdAt: true, hotelConfirmedAt: true, priceSnapshot: true,
                     user:        { select: { name: true, email: true } },
                     package:     { select: { title: true } },
                     destination: { select: { name: true } },
@@ -106,8 +106,16 @@ async function HotelsData({
     const stats: HotelStats = { total, pending, urgent, overdue, confirmedToday };
 
     const bookings: BookingRow[] = rawBookings.map((b) => {
-        const pendingCount     = b.hotelBookings.length;
-        const totalHotelCount  = b._count.hotelBookings;
+        // BookingHotel rows are created lazily — only once ops actually
+        // touches that day — so `_count.hotelBookings` under-counts any day
+        // that's never been confirmed yet. The itinerary snapshot has the
+        // real total (same source confirmHotelStay itself checks against),
+        // so a booking with untouched days can never falsely read as done.
+        const snapshotDays    = ((b.priceSnapshot as { days?: { hotel: unknown }[] } | null)?.days ?? []);
+        const trueHotelDays   = snapshotDays.filter((d) => d.hotel != null).length;
+        const totalHotelCount = trueHotelDays > 0 ? trueHotelDays : b._count.hotelBookings;
+        const confirmedExisting = b._count.hotelBookings - b.hotelBookings.length;
+        const pendingCount     = totalHotelCount - confirmedExisting;
         const isFullyConfirmed = b.hotelConfirmedAt != null || (totalHotelCount > 0 && pendingCount === 0);
         const daysToTravel     = Math.ceil((b.startDate.getTime() - nowMs) / 86_400_000);
         const hoursOld         = (nowMs - b.createdAt.getTime()) / 3_600_000;

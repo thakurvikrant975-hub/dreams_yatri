@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
-import { formatPaise } from '@/app/lib/money';
+import { formatPaiseRoundedUp } from '@/app/lib/money';
 import PrintButton from '../PrintButton';
 import AutoPrint from './AutoPrint';
 
@@ -79,17 +79,17 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
                 <tbody>
                     <tr className="border-b border-neutral-100">
                         <td className="py-2.5">{booking.package?.title ?? 'Holiday package'} — {booking.travellers} traveller{booking.travellers !== 1 ? 's' : ''}</td>
-                        <td className="py-2.5 text-right">{formatPaise(taxable)}</td>
+                        <td className="py-2.5 text-right">{formatPaiseRoundedUp(taxable)}</td>
                     </tr>
                     {gst > 0 && (
                         <tr className="border-b border-neutral-100">
                             <td className="py-2.5">GST ({gstPct}%)</td>
-                            <td className="py-2.5 text-right">{formatPaise(gst)}</td>
+                            <td className="py-2.5 text-right">{formatPaiseRoundedUp(gst)}</td>
                         </tr>
                     )}
                     <tr className="border-b border-neutral-200 font-semibold">
                         <td className="py-2.5">Total</td>
-                        <td className="py-2.5 text-right">{formatPaise(total)}</td>
+                        <td className="py-2.5 text-right">{formatPaiseRoundedUp(total)}</td>
                     </tr>
                 </tbody>
             </table>
@@ -101,7 +101,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
                         {booking.payments.filter((p) => p.status === 'FULLY_PAID').map((p, i) => (
                             <tr key={i} className="border-b border-neutral-100">
                                 <td className="py-2">{fmtDate(p.paidAt ?? p.createdAt)} · {p.method ?? '—'}{p.purpose === 'TOPUP' ? ' (date-change)' : ''}</td>
-                                <td className="py-2 text-right">{formatPaise(p.amount_paise)}</td>
+                                <td className="py-2 text-right">{formatPaiseRoundedUp(p.amount_paise)}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -109,8 +109,8 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
             </div>
 
             <div className="mt-5 ml-auto w-56 text-sm">
-                <div className="flex justify-between py-1"><span className="text-neutral-500">Amount paid</span><span className="font-medium">{formatPaise(paid)}</span></div>
-                <div className="flex justify-between py-1 border-t border-neutral-200"><span className="text-neutral-500">Balance due</span><span className="font-semibold">{formatPaise(balance)}</span></div>
+                <div className="flex justify-between py-1"><span className="text-neutral-500">Amount paid</span><span className="font-medium">{formatPaiseRoundedUp(paid)}</span></div>
+                <div className="flex justify-between py-1 border-t border-neutral-200"><span className="text-neutral-500">Balance due</span><span className="font-semibold">{formatPaiseRoundedUp(balance)}</span></div>
             </div>
 
             <p className="mt-8 text-xs text-neutral-400 text-center">This is a computer-generated invoice and does not require a signature.</p>

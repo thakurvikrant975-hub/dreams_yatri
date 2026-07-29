@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import DyLogo from "@/app/components/ui/DyLogo";
 import PrintInvoiceButton from "./PrintInvoiceButton";
 
@@ -113,17 +113,17 @@ export default async function BookingInvoicePage({ params }: { params: Promise<{
                                 <td className="px-3 py-3 align-top text-neutral-800">
                                     {booking.package?.title ?? booking.destination?.name ?? "Holiday package"} — {booking.travellers} traveller{booking.travellers !== 1 ? "s" : ""}
                                 </td>
-                                <td className="px-3 py-3 align-top text-right text-neutral-800">{formatPaise(taxable)}</td>
+                                <td className="px-3 py-3 align-top text-right text-neutral-800">{formatPaiseRoundedUp(taxable)}</td>
                             </tr>
                             {gst > 0 && (
                                 <tr className="bg-neutral-50">
                                     <td className="px-3 py-3 align-top text-neutral-700">GST ({gstPct}%)</td>
-                                    <td className="px-3 py-3 align-top text-right text-neutral-700">{formatPaise(gst)}</td>
+                                    <td className="px-3 py-3 align-top text-right text-neutral-700">{formatPaiseRoundedUp(gst)}</td>
                                 </tr>
                             )}
                             <tr className="border-t-2 border-neutral-200 font-semibold">
                                 <td className="px-3 py-3 text-neutral-900">Total</td>
-                                <td className="px-3 py-3 text-right text-neutral-900">{formatPaise(total)}</td>
+                                <td className="px-3 py-3 text-right text-neutral-900">{formatPaiseRoundedUp(total)}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -143,7 +143,7 @@ export default async function BookingInvoicePage({ params }: { params: Promise<{
                                     <td className="px-3 py-2.5 text-neutral-600/90">
                                         {fmtDate(p.paidAt ?? p.createdAt)} · {p.method ?? "—"}{p.purpose === "TOPUP" ? " (date-change)" : ""}
                                     </td>
-                                    <td className="px-3 py-2.5 text-right text-neutral-700">{formatPaise(p.amount_paise)}</td>
+                                    <td className="px-3 py-2.5 text-right text-neutral-700">{formatPaiseRoundedUp(p.amount_paise)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -154,8 +154,8 @@ export default async function BookingInvoicePage({ params }: { params: Promise<{
                 {/* ── Totals ── */}
                 <div className="px-10 mt-5 flex justify-end">
                     <div className="w-64 text-sm">
-                        <div className="flex justify-between py-1"><span className="text-neutral-600/90">Amount paid</span><span className="font-medium text-neutral-900">{formatPaise(paid)}</span></div>
-                        <div className="flex justify-between py-1 border-t border-neutral-200"><span className="text-neutral-600/90">Balance due</span><span className="font-semibold text-neutral-900">{formatPaise(balance)}</span></div>
+                        <div className="flex justify-between py-1"><span className="text-neutral-600/90">Amount paid</span><span className="font-medium text-neutral-900">{formatPaiseRoundedUp(paid)}</span></div>
+                        <div className="flex justify-between py-1 border-t border-neutral-200"><span className="text-neutral-600/90">Balance due</span><span className="font-semibold text-neutral-900">{formatPaiseRoundedUp(balance)}</span></div>
                     </div>
                 </div>
 

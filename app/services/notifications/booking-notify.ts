@@ -3,7 +3,7 @@ import { db } from "@/app/lib/db";
 import { bookingConfirmationEmail, cancellationEmail, hotelBookingConfirmedEmail, refundConfirmedEmail, opsNewBookingEmail, tripStatusEmail } from "./booking-emails";
 import { sendBookingEmail, opsEmail } from "./send";
 import { getSystemActorId } from "./system-actor";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { paymentInvoiceTemplate, paymentInvoiceTextTemplate } from "@/app/components/email-template/paymentInvoiceTemplate";
 
 /**
@@ -126,7 +126,7 @@ export async function notifyPaymentReceived(paymentId: string): Promise<void> {
     const params = {
         clientName:    p.user?.name ?? "Traveller",
         bookingNumber: p.booking.bookingNumber,
-        amountStr:     formatPaise(p.amount_paise),
+        amountStr:     formatPaiseRoundedUp(p.amount_paise),
         paidAtStr,
         paymentMethod: p.method ? PAYMENT_METHOD_LABELS[p.method] ?? p.method : "—",
         transactionId: p.gatewayPaymentId ?? "—",
