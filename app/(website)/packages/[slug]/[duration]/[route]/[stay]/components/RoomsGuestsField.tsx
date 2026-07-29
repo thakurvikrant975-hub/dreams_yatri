@@ -102,7 +102,9 @@ export default function RoomsGuestsField() {
                 <Popover.Content
                     align="start"
                     sideOffset={6}
-                    className={cn(MENU_Z, 'w-[min(92vw,380px)] max-h-[min(80vh,640px)] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-4 shadow-xl shadow-black/10')}
+                    avoidCollisions
+                    collisionPadding={12}
+                    className={cn(MENU_Z, 'w-[min(92vw,380px)] max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 bg-white p-4 shadow-xl shadow-black/10')}
                 >
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Rooms & Guests</p>
 
