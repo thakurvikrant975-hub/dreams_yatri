@@ -154,13 +154,7 @@ export default function RoomsGuestsField() {
                                                     value={room.adults}
                                                     min={1}
                                                     max={Math.max(1, personsPerRoom - room.childAges.length)}
-                                                    onChange={(n) => {
-                                                        const wasIncrease = n > room.adults;
-                                                        updateRoom(idx, { adults: n });
-                                                        if (wasIncrease && n + room.childAges.length >= personsPerRoom) {
-                                                            notifyLimit(`Maximum ${personsPerRoom} guests are allowed in this room`);
-                                                        }
-                                                    }}
+                                                    onChange={(n) => updateRoom(idx, { adults: n })}
                                                 />
                                             </div>
 
@@ -174,14 +168,10 @@ export default function RoomsGuestsField() {
                                                     min={0}
                                                     max={Math.min(MAX_CHILDREN_PER_ROOM, Math.max(0, personsPerRoom - room.adults))}
                                                     onChange={(n) => {
-                                                        const wasIncrease = n > room.childAges.length;
                                                         const nextAges = n > room.childAges.length
                                                             ? [...room.childAges, ...Array(n - room.childAges.length).fill(-1)]
                                                             : room.childAges.slice(0, n);
                                                         updateRoom(idx, { childAges: nextAges });
-                                                        if (wasIncrease && n + room.adults >= personsPerRoom) {
-                                                            notifyLimit(`Maximum ${personsPerRoom} guests are allowed in this room`);
-                                                        }
                                                     }}
                                                 />
                                             </div>

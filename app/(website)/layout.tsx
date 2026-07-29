@@ -2,8 +2,7 @@
 import { Providers } from "./providers";
 import ModalRoot from "@/app/components/modals/ModalRoot";
 import { Toaster } from "sonner";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import AppToastContainer from "@/app/components/ui/AppToastContainer";
 
 
 export const metadata = {
@@ -39,17 +38,7 @@ export default function WebsiteLayout({
       </div>
       <ModalRoot />
       <Toaster position="top-center" richColors />
-      <ToastContainer
-        position="top-center"
-        autoClose={3500}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        theme="light"
-        limit={3}
-        toastClassName="!min-h-0 !rounded-xl !border !border-neutral-200 !bg-white !p-3 !text-sm !font-medium !text-neutral-800 !shadow-lg !shadow-black/10"
-        progressClassName="!bg-primary-500"
-      />
+      <AppToastContainer />
     </Providers>
   );
 }

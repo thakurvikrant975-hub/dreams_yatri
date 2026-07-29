@@ -4,10 +4,15 @@ import { MinusIcon, PlusIcon, WarningCircleIcon } from '@phosphor-icons/react'
 import { toast } from 'react-toastify'
 
 // A restriction/limit was just hit on a stepper — one consistent, branded
-// look for all of them (room/adult/child caps and floors).
+// look for all of them (room/adult/child caps and floors). Card styling
+// itself lives on the shared <ToastContainer> in the website layout.
 export function notifyLimit(message: string) {
     toast(message, {
-        icon: <WarningCircleIcon weight="fill" className="size-5 text-amber-500" />,
+        icon: (
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                <WarningCircleIcon weight="fill" className="size-4.5 text-amber-600" />
+            </span>
+        ),
     })
 }
 
