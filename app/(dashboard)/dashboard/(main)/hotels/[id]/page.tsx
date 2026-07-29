@@ -245,9 +245,6 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                     <RoomsTab
                         hotel_id={id}
                         rooms={serializedHotel.hotelRooms}
-                        pricing={serializedHotel.room_pricing}
-                        mealTypes={mealTypes}
-                        dietTypes={dietTypes}
                     />
                 </TabsContent>
 

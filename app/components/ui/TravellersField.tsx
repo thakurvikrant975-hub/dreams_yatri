@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
-import { MinusIcon, PlusIcon, UsersFourIcon, CaretDownIcon } from '@phosphor-icons/react'
+import { UsersFourIcon, CaretDownIcon } from '@phosphor-icons/react'
 import Button from './Button'
+import { Stepper, notifyLimit } from './Stepper'
 import { cn } from '@/app/lib/utils'
 
 // childrenAges holds one entry per child; -1 means "age not yet selected".
@@ -26,31 +27,6 @@ export function summarizeTravellers(v: TravellersValue): string {
     return parts.join(', ')
 }
 
-// ── Stepper ──────────────────────────────────────────────────────────────────
-function Stepper({
-    value, min, max, onChange,
-}: {
-    value: number
-    min: number
-    max: number
-    onChange: (n: number) => void
-}) {
-    const btn = 'flex size-9 items-center justify-center rounded-lg border border-neutral-200 text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
-    return (
-        <div className="flex items-center gap-2.5">
-            <button type="button" aria-label="Decrease" disabled={value <= min} onClick={() => onChange(value - 1)} className={btn}>
-                <MinusIcon weight="bold" className="size-3.5" />
-            </button>
-            <span className="w-8 text-center text-sm font-semibold tabular-nums text-neutral-800">
-                {String(value).padStart(2, '0')}
-            </span>
-            <button type="button" aria-label="Increase" disabled={value >= max} onClick={() => onChange(value + 1)} className={btn}>
-                <PlusIcon weight="bold" className="size-3.5" />
-            </button>
-        </div>
-    )
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 interface TravellersFieldProps {
     value: TravellersValue
@@ -66,10 +42,15 @@ interface TravellersFieldProps {
      *  a real inventory ceiling (e.g. a package's hotel availability) can pass
      *  a tighter value; the stepper clamps down to it on open. */
     maxRooms?: number
+    /** How many people one room currently sleeps (max_occupancy + extra beds).
+     *  Drives the Rooms stepper's live lower bound: as Adults/Children grow
+     *  past this, a room is auto-added. Defaults to "no constraint". */
+    personsPerRoom?: number
 }
 
 export default function TravellersField({
     value, onChange, id, disabled, className, menuZClass = 'z-100', showRooms = false, maxRooms = MAX_ROOMS,
+    personsPerRoom = Infinity,
 }: TravellersFieldProps) {
     const [open, setOpen] = useState(false)
 
@@ -86,6 +67,57 @@ export default function TravellersField({
             setRooms(Math.min(value.rooms ?? 1, maxRooms))
         }
     }, [open, value.adults, value.childrenAges, value.rooms, maxRooms])
+
+    // Lowest room count the party in the draft actually needs right now —
+    // recomputes live as Adults/Children are stepped, before Apply.
+    const liveMinRooms = showRooms
+        ? Math.min(Math.max(1, Math.ceil((adults + childrenAges.length) / personsPerRoom)), maxRooms)
+        : 1
+
+    // Auto-add a room the moment the party outgrows the current count; never
+    // auto-remove one the traveller picked manually.
+    useEffect(() => {
+        if (!showRooms) return
+        setRooms((r) => Math.min(Math.max(r, liveMinRooms), maxRooms))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [liveMinRooms, maxRooms, showRooms])
+
+    // A room needs at least one adult in it — 2 rooms can't be booked for a
+    // single adult, so raising Rooms (manually or via the floor above) pulls
+    // Adults up to match if it's now short.
+    useEffect(() => {
+        if (!showRooms) return
+        setAdults((a) => Math.max(a, rooms))
+    }, [rooms, showRooms])
+
+    // Toast whenever a restriction/limit actually moves the numbers — either
+    // a direct click hitting a stepper's boundary, or one of the coupling
+    // effects above silently adjusting the *other* field. `*ClickRef` marks a
+    // change as user-initiated on that field so the "silent" toast doesn't
+    // also fire right after the click's own boundary toast.
+    const interactedRef = useRef(false)
+    const roomsClickRef  = useRef(false)
+    const adultsClickRef = useRef(false)
+    const prevRoomsRef  = useRef(rooms)
+    const prevAdultsRef = useRef(adults)
+
+    useEffect(() => {
+        if (interactedRef.current && !roomsClickRef.current && rooms > prevRoomsRef.current) {
+            notifyLimit(`Room count increased to ${rooms} for ${adults + childrenAges.length} travellers`)
+        }
+        prevRoomsRef.current = rooms
+        roomsClickRef.current = false
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rooms])
+
+    useEffect(() => {
+        if (interactedRef.current && !adultsClickRef.current && adults > prevAdultsRef.current) {
+            notifyLimit(`Adult count increased to ${adults} — each room needs at least one adult`)
+        }
+        prevAdultsRef.current = adults
+        adultsClickRef.current = false
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [adults])
 
     function setChildrenCount(next: number) {
         setChildrenAges((prev) => {
@@ -141,11 +173,25 @@ export default function TravellersField({
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-semibold text-neutral-800">Rooms</p>
-                                    {maxRooms < MAX_ROOMS && (
+                                    {liveMinRooms > 1 ? (
+                                        <p className="text-[11px] text-neutral-400">Minimum {liveMinRooms} rooms for {adults + childrenAges.length} travellers</p>
+                                    ) : maxRooms < MAX_ROOMS && (
                                         <p className="text-[11px] text-neutral-400">Limited by availability at this trip&apos;s hotels</p>
                                     )}
                                 </div>
-                                <Stepper value={rooms} min={1} max={maxRooms} onChange={setRooms} />
+                                <Stepper value={rooms} min={liveMinRooms} max={maxRooms} onChange={(n) => {
+                                    const wasIncrease = n > rooms
+                                    interactedRef.current = true
+                                    roomsClickRef.current = true
+                                    setRooms(n)
+                                    if (wasIncrease && n >= maxRooms) {
+                                        notifyLimit(maxRooms < MAX_ROOMS
+                                            ? `Only ${maxRooms} room${maxRooms > 1 ? 's' : ''} available across this trip's hotels`
+                                            : `Maximum ${MAX_ROOMS} rooms per booking`)
+                                    } else if (!wasIncrease && liveMinRooms > 1 && n <= liveMinRooms) {
+                                        notifyLimit(`Minimum ${liveMinRooms} rooms needed for ${adults + childrenAges.length} travellers`)
+                                    }
+                                }} />
                             </div>
                             <div className="my-3 h-px bg-neutral-100" />
                         </>
@@ -157,7 +203,17 @@ export default function TravellersField({
                             <p className="text-sm font-semibold text-neutral-800">Adults</p>
                             <p className="text-xs text-neutral-400">Above 12 years</p>
                         </div>
-                        <Stepper value={adults} min={1} max={MAX_ADULTS} onChange={setAdults} />
+                        <Stepper value={adults} min={showRooms ? Math.max(1, rooms) : 1} max={MAX_ADULTS} onChange={(n) => {
+                            const wasIncrease = n > adults
+                            interactedRef.current = true
+                            adultsClickRef.current = true
+                            setAdults(n)
+                            if (wasIncrease && n >= MAX_ADULTS) {
+                                notifyLimit(`Maximum ${MAX_ADULTS} adults per booking`)
+                            } else if (!wasIncrease && showRooms && rooms > 1 && n <= rooms) {
+                                notifyLimit(`Minimum ${rooms} adults needed — each room needs at least one adult`)
+                            }
+                        }} />
                     </div>
 
                     <div className="my-3 h-px bg-neutral-100" />
@@ -168,7 +224,14 @@ export default function TravellersField({
                             <p className="text-sm font-semibold text-neutral-800">Children</p>
                             <p className="text-xs text-neutral-400">Below 12 years</p>
                         </div>
-                        <Stepper value={childrenAges.length} min={0} max={MAX_CHILDREN} onChange={setChildrenCount} />
+                        <Stepper value={childrenAges.length} min={0} max={MAX_CHILDREN} onChange={(n) => {
+                            const wasIncrease = n > childrenAges.length
+                            interactedRef.current = true
+                            setChildrenCount(n)
+                            if (wasIncrease && n >= MAX_CHILDREN) {
+                                notifyLimit(`Maximum ${MAX_CHILDREN} children per booking`)
+                            }
+                        }} />
                     </div>
 
                     {/* Per-child age — requiprimary */}

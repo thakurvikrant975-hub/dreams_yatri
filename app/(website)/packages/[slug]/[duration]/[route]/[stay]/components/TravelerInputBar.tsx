@@ -3,7 +3,7 @@
 import { useBooking } from './PackageBookingProvider';
 import LocationSearchSelect from '@/app/components/ui/LocationSearchSelect';
 import DatePickerField from '@/app/components/ui/DatePickerField';
-import TravellersField from '@/app/components/ui/TravellersField';
+import RoomsGuestsField from './RoomsGuestsField';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 
 // Departures this close out are too soon for a guaranteed room hold —
@@ -36,8 +36,6 @@ export default function TravelerInputBar() {
     const {
         travelDate, setTravelDate,
         leavingFrom, setLeavingFrom,
-        adults, childAges, setTravellers,
-        rooms, setRooms, maxRooms,
         dateHighlight,
     } = useBooking();
 
@@ -82,16 +80,9 @@ export default function TravelerInputBar() {
                     </div>
                 </Field>
 
-                {/* Travellers */}
-                <Field label="Travellers" className="min-w-48">
-                    <TravellersField
-                        value={{ adults, childrenAges: childAges, rooms }}
-                        className='cursor-pointer'
-                        onChange={(v) => { setTravellers(v.adults, v.childrenAges); setRooms(v.rooms ?? 1); }}
-                        menuZClass={MENU_Z}
-                        showRooms
-                        maxRooms={maxRooms}
-                    />
+                {/* Rooms & Guests */}
+                <Field label="Rooms & Guests" className="min-w-48">
+                    <RoomsGuestsField />
                 </Field>
 
             </div>

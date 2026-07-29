@@ -7,6 +7,17 @@ export type LocationType =
   | "BUS_STATION" | "TRAIN_STATION" | "PORT"
   | "HOTEL" | "ACTIVITY" | "ROUTE_STOP";
 
+/** Every LocationType — the default set of type-filter options offered when
+ * a caller doesn't restrict `types` at all. Callers that DO pass `types`
+ * only ever offer a filter among that already-restricted set (never wider). */
+export const ALL_LOCATION_TYPES: LocationType[] = [
+  "REGION", "SUBREGION", "COUNTRY", "STATE", "CITY",
+  "DISTRICT", "AREA", "NEIGHBORHOOD", "VILLAGE", "LANDMARK",
+  "AIRPORT", "BEACH", "MOUNTAIN", "ISLAND", "TOURISM_ZONE",
+  "BUS_STATION", "TRAIN_STATION", "PORT",
+  "HOTEL", "ACTIVITY", "ROUTE_STOP",
+];
+
 export const LOCATION_LABELS: Record<LocationType, string> = {
   REGION: "Region", SUBREGION: "Subregion", COUNTRY: "Country",
   STATE: "State", CITY: "City", DISTRICT: "District",
