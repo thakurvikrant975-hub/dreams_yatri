@@ -94,9 +94,10 @@ export default async function DashboardLayout({
     ? { id: member.id, name: member.name, roleName: member.teamRole?.name ?? undefined }
     : null;
 
-  // Sidebar badge seed — the same "Total Pending" source as the Verify Hotels
-  // page itself, then kept live over Ably (no per-navigation refetch).
-  const { hotelsPending } = await computeVerificationCounts();
+  // Sidebar badge seed — the same "Total Pending" sources as the Verify
+  // Hotels / Verify Cabs / Package Bookings pages themselves, then kept live
+  // over Ably (no per-navigation refetch).
+  const { hotelsPending, cabsPending, bookingsUnconfirmed } = await computeVerificationCounts();
 
   return (
     <SidebarProvider>
@@ -106,7 +107,12 @@ export default async function DashboardLayout({
           (currently the invoice/voucher documents) — it's inert elsewhere,
           so this doesn't change print behavior for ordinary dashboard pages. */}
       <div className="no-print contents">
-        <AppSidebar pageAccess={pageAccess} hotelsPending={hotelsPending} />
+        <AppSidebar
+          pageAccess={pageAccess}
+          hotelsPending={hotelsPending}
+          cabsPending={cabsPending}
+          bookingsUnconfirmed={bookingsUnconfirmed}
+        />
       </div>
 
       <main

@@ -7,7 +7,7 @@ import { publishVerificationCounts, type VerificationCounts } from "@/app/lib/ab
  * place so the live count and the page's own "Total Pending" stat can never
  * drift apart. */
 export async function computeVerificationCounts(): Promise<VerificationCounts> {
-    const [hotelsPending, cabsPending] = await Promise.all([
+    const [hotelsPending, cabsPending, bookingsUnconfirmed] = await Promise.all([
         db.booking.count({
             where: {
                 paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
@@ -22,8 +22,18 @@ export async function computeVerificationCounts(): Promise<VerificationCounts> {
                 cabConfirmedAt: null,
             },
         }),
+        // Package Bookings sidebar badge — paid bookings still mid-pipeline
+        // (before CAB_CONFIRMED, the last stage the app currently advances a
+        // package booking to; OPS_REVIEW/CONFIRMED exist in the schema but
+        // nothing promotes a booking to them yet).
+        db.booking.count({
+            where: {
+                paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
+                status: { in: ["PENDING_REVIEW", "HOTEL_VERIFICATION", "HOTEL_CONFIRMED", "CAB_VERIFICATION"] },
+            },
+        }),
     ]);
-    return { hotelsPending, cabsPending };
+    return { hotelsPending, cabsPending, bookingsUnconfirmed };
 }
 
 /**
