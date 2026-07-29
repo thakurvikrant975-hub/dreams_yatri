@@ -10,6 +10,7 @@ import { loadRazorpay, openRazorpay } from '../../../book/[quoteId]/razorpayChec
 import { submitPayuForm } from '../../../book/[quoteId]/payuCheckout';
 import { startBookingPayment, startBalancePayment, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
+import { useModal } from '@/app/hooks/useModals';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { formatPaiseRoundedUp } from '@/app/lib/money';
 import type { GatewayId } from '@/app/lib/payments/types';
@@ -65,6 +66,7 @@ export default function PaymentStep({
     mode?: 'INITIAL' | 'BALANCE';
 }) {
     const router = useRouter();
+    const { openModal } = useModal();
     const [gateway, setGateway] = useState<GatewayId>(gateways[0] ?? 'RAZORPAY');
     const [paying, setPaying] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -81,10 +83,18 @@ export default function PaymentStep({
                 : await startBookingPayment(bookingId, gateway);
             if (!res.success) {
                 setPaying(false);
-                setError(
-                    res.reason === 'unauthenticated' ? 'Please log in to continue your payment.'
-                    : res.message ?? 'Could not start payment. Please try again.',
-                );
+                if (res.reason === 'unauthenticated') {
+                    // Same inline OTP flow the review page uses — pre-seeded
+                    // with this booking's own contact number so the guest just
+                    // enters the code, rather than hitting a dead-end message.
+                    const m = (contactPhone ?? '').match(/^(\+\d{1,4})(\d+)$/);
+                    openModal('login-modal', {
+                        redirectTo: window.location.pathname + window.location.search,
+                        ...(m ? { countryCode: m[1], phone: m[2] } : {}),
+                    });
+                    return;
+                }
+                setError(res.message ?? 'Could not start payment. Please try again.');
                 return;
             }
 
