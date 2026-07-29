@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { PaymentPill } from "../package-bookings/pills";
 import { Badge } from "../components/ui/badge";
 import {
@@ -147,9 +147,9 @@ export function TransactionsTableClient({
             sortKey: (t) => t.amount_paise,
             cell: (t) => (
                 <div className="whitespace-nowrap">
-                    <span className="font-medium text-dashboard-base-content">{formatPaise(t.amount_paise)}</span>
+                    <span className="font-medium text-dashboard-base-content">{formatPaiseRoundedUp(t.amount_paise)}</span>
                     {t.refundedAt && t.refundAmount != null && (
-                        <p className="text-xs font-normal text-purple-600">−{formatPaise(Math.round(t.refundAmount * 100))} refunded</p>
+                        <p className="text-xs font-normal text-purple-600">−{formatPaiseRoundedUp(Math.round(t.refundAmount * 100))} refunded</p>
                     )}
                 </div>
             ),

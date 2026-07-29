@@ -51,6 +51,18 @@ export function formatPaiseRoundedUp(paise: number): string {
     }).format(rupees);
 }
 
+/**
+ * Ceil a paise amount up to the nearest whole rupee (i.e. nearest multiple of
+ * 100 paise), returning integer paise. Use this at the SOURCE of a price
+ * calculation (not just for display) so the stored/charged amount is never a
+ * fractional rupee — the amount shown to a customer must always equal the
+ * amount a gateway actually charges.
+ */
+export function ceilPaiseToRupee(paise: number): number {
+    assertIntPaise(paise);
+    return Math.ceil(paise / 100) * 100;
+}
+
 /** Sum a list of paise amounts (all must be integers). */
 export function sumPaise(amounts: number[]): number {
     let total = 0;

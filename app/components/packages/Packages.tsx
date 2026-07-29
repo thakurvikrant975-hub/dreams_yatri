@@ -48,7 +48,7 @@ function formatINR(amount: number) {
         style: 'currency',
         currency: 'INR',
         maximumFractionDigits: 0,
-    }).format(amount)
+    }).format(Math.ceil(amount))
 }
 
 const INCLUSION_ICONS: Record<string, React.ElementType> = {

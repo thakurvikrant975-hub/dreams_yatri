@@ -112,12 +112,12 @@ export async function shapePackageCards(rows: PackageCardRow[]): Promise<Package
         },
       });
 
-      const discountedPrice = stays.reduce(
+      const discountedPrice = Math.ceil(stays.reduce(
         (sum, s) => sum + Number(s.room_pricing.price_per_night) * s.num_nights, 0,
-      );
-      const originalPrice = stays.reduce(
+      ));
+      const originalPrice = Math.ceil(stays.reduce(
         (sum, s) => sum + Number(s.room_pricing.original_price ?? s.room_pricing.price_per_night) * s.num_nights, 0,
-      );
+      ));
 
       return { id: pkg.id, discountedPrice, originalPrice };
     }),

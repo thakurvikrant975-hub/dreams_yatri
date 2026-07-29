@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { getCurrentMember } from "../lib/get-current-member";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
@@ -65,7 +65,7 @@ export async function adminCancelBooking(
 
     if (!res.alreadyCancelled) {
         try {
-            const note = `Cancelled by ${gate.member.name}.${reason?.trim() ? ` Reason: ${reason.trim()}.` : ""} Refund ${res.refundPct}% = ${formatPaise(res.refundablePaise)} (fee ${formatPaise(res.feePaise)}).`;
+            const note = `Cancelled by ${gate.member.name}.${reason?.trim() ? ` Reason: ${reason.trim()}.` : ""} Refund ${res.refundPct}% = ${formatPaiseRoundedUp(res.refundablePaise)} (fee ${formatPaiseRoundedUp(res.feePaise)}).`;
             await db.bookingTimeline.create({
                 data: {
                     bookingId,

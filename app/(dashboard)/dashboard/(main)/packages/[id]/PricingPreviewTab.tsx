@@ -95,7 +95,7 @@ function groupCabTypesByRange(cabTypes: CabTypePreview[]): CabGroup[] {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
-  return Math.round(n).toLocaleString("en-IN");
+  return Math.ceil(n).toLocaleString("en-IN");
 }
 
 function todayISODate() {

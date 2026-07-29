@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, Car, CheckCircle2, Clock, Mail, MapPin, Phone, Users } from "lucide-react";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
 import CabConfirmPanel from "./CabConfirmPanel";
 import BulkCabConfirmPanel from "./BulkCabConfirmPanel";
@@ -360,7 +360,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                             <InfoItem icon={Car}          label="Cab Type"     value={titleCase(booking.cabType)} />
                             <div className="mt-1 flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
                                 <span className="text-xs font-medium text-dashboard-neutral">Total Amount</span>
-                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaise(booking.totalAmount_paise)}</span>
+                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaiseRoundedUp(booking.totalAmount_paise)}</span>
                             </div>
                         </div>
                     </SideCard>

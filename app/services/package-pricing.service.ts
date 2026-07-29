@@ -1116,10 +1116,13 @@ export async function computePackagePrice(
   });
   const permit_subtotal = permits.reduce((sum, p) => sum + p.total, 0);
 
-  const base_cost = hotel_subtotal + meal_subtotal + activity_subtotal + cab_subtotal + permit_subtotal;
-  const margin_amount = Math.round((base_cost * margin_percentage) / 100 * 100) / 100;
+  // Round UP to a whole rupee at every additive step (not just at display
+  // time) so the total we quote can never be a fractional rupee — the amount
+  // shown to a customer must always match what the gateway actually charges.
+  const base_cost = Math.ceil(hotel_subtotal + meal_subtotal + activity_subtotal + cab_subtotal + permit_subtotal);
+  const margin_amount = Math.ceil((base_cost * margin_percentage) / 100);
   const taxable = base_cost + margin_amount;
-  const gst_amount = Math.round((taxable * gst_percentage) / 100 * 100) / 100;
+  const gst_amount = Math.ceil((taxable * gst_percentage) / 100);
   const final_price = taxable + gst_amount;
 
   return {
@@ -1143,7 +1146,7 @@ export async function computePackagePrice(
     gst_percentage,
     gst_amount,
     final_price,
-    price_per_adult: adults > 0 ? Math.round(final_price / adults) : final_price,
+    price_per_adult: adults > 0 ? Math.ceil(final_price / adults) : final_price,
     missing_pricing_config: !pricingConfig,
   };
 }

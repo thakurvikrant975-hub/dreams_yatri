@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink, Hotel, Ticket, ArrowRight, Car, UtensilsCrossed, CalendarDays, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { db } from "@/app/lib/db";
-import { formatPaise } from "@/app/lib/money";
+import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../pills";
 import BookingAdminActions from "./BookingAdminActions";
 import FulfillmentPanel from "./FulfillmentPanel";
@@ -23,7 +23,7 @@ function fmtDateTime(d: Date | null): string {
     return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(d);
 }
 const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+const inr = (n: number) => `₹${Math.ceil(n).toLocaleString("en-IN")}`;
 function addNightsISO(iso: string, n: number): string {
     const d = new Date(`${iso}T00:00:00`);
     d.setDate(d.getDate() + n);
@@ -127,7 +127,7 @@ function PricingBreakdown({ snapshot, total_paise }: { snapshot: Snapshot; total
             )}
             <div className="flex items-center justify-between rounded-lg bg-dashboard-primary/10 px-4 py-3">
                 <span className="text-sm font-medium text-dashboard-base-content">Trip Total</span>
-                <span className="text-xl font-bold tabular-nums text-dashboard-primary">{formatPaise(total_paise)}</span>
+                <span className="text-xl font-bold tabular-nums text-dashboard-primary">{formatPaiseRoundedUp(total_paise)}</span>
             </div>
         </div>
     );
@@ -516,15 +516,15 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                         <div className="flex items-center justify-between rounded-lg border border-dashboard-base-300/70 bg-dashboard-base-200/40 px-4 py-3">
                                             <div className="text-xs text-dashboard-neutral">
                                                 <span className="block font-medium text-dashboard-base-content text-sm">
-                                                    Current total: {formatPaise(booking.totalAmount_paise)}
+                                                    Current total: {formatPaiseRoundedUp(booking.totalAmount_paise)}
                                                 </span>
                                                 {originalPaise !== booking.totalAmount_paise && (
-                                                    <span>Original: {formatPaise(originalPaise)}</span>
+                                                    <span>Original: {formatPaiseRoundedUp(originalPaise)}</span>
                                                 )}
                                             </div>
                                             {totalDiff !== 0 && (
                                                 <span className={`text-sm font-bold tabular-nums ${totalDiff > 0 ? "text-red-600" : "text-green-600"}`}>
-                                                    {totalDiff > 0 ? "+" : "−"}{formatPaise(Math.abs(totalDiff))}
+                                                    {totalDiff > 0 ? "+" : "−"}{formatPaiseRoundedUp(Math.abs(totalDiff))}
                                                 </span>
                                             )}
                                         </div>
@@ -583,7 +583,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                                 <td className="py-2.5 pr-4 whitespace-nowrap text-dashboard-base-content">{fmtDateTime(p.paidAt ?? p.createdAt)}</td>
                                                 <td className="py-2.5 pr-4 text-dashboard-base-content">{titleCase(p.gateway)}{p.method ? ` · ${titleCase(p.method)}` : ""}</td>
                                                 <td className="py-2.5 pr-4 text-dashboard-neutral">{titleCase(p.purpose)}</td>
-                                                <td className="py-2.5 pr-4 text-right whitespace-nowrap text-dashboard-base-content">{formatPaise(p.amount_paise)}</td>
+                                                <td className="py-2.5 pr-4 text-right whitespace-nowrap text-dashboard-base-content">{formatPaiseRoundedUp(p.amount_paise)}</td>
                                                 <td className="py-2.5 pr-4"><PaymentPill status={p.status} /></td>
                                                 <td className="py-2.5 text-xs text-dashboard-neutral break-all">
                                                     {p.gatewayPaymentId ?? p.gatewayOrderId ?? "—"}
@@ -639,11 +639,11 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-3">
                                             <div className="text-xs text-dashboard-neutral">Deposit</div>
-                                            <div className="mt-1 text-base font-semibold tabular-nums text-dashboard-base-content">{formatPaise(booking.advanceAmount_paise)}</div>
+                                            <div className="mt-1 text-base font-semibold tabular-nums text-dashboard-base-content">{formatPaiseRoundedUp(booking.advanceAmount_paise)}</div>
                                         </div>
                                         <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-3">
                                             <div className="text-xs text-dashboard-neutral">Balance</div>
-                                            <div className="mt-1 text-base font-semibold tabular-nums text-dashboard-base-content">{formatPaise(booking.balanceAmount_paise)}</div>
+                                            <div className="mt-1 text-base font-semibold tabular-nums text-dashboard-base-content">{formatPaiseRoundedUp(booking.balanceAmount_paise)}</div>
                                             {booking.balanceDueDate && <div className="mt-0.5 text-[11px] text-dashboard-neutral">Due {fmtDate(booking.balanceDueDate)}</div>}
                                         </div>
                                     </div>
@@ -662,7 +662,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                                 {leg.dueDate && <div className="text-xs text-dashboard-neutral mt-0.5">{fmtDate(leg.dueDate)}</div>}
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{formatPaise(leg.amount_paise)}</div>
+                                                <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{formatPaiseRoundedUp(leg.amount_paise)}</div>
                                                 <div className="mt-1"><InstallmentPill status={leg.status} /></div>
                                             </div>
                                         </li>
