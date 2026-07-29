@@ -76,3 +76,40 @@ export function useConversationChannel(
     };
   }, [bookingId, hotelId]);
 }
+
+export type VerificationCounts = { hotelsPending: number; cabsPending: number };
+
+/**
+ * Subscribes to the shared dashboard "pending verification" counts channel
+ * for the component's lifetime — Verify Hotels / Verify Cabs push a fresh
+ * count over Ably after any booking/hotel/cab confirmation changes it, so
+ * every open dashboard tab updates live with zero polling requests. Auth
+ * goes through /dashboard/api/ably/token, gated on an active team member.
+ */
+export function useVerificationCounts(onUpdate: (counts: VerificationCounts) => void) {
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
+
+  useEffect(() => {
+    const client = new Ably.Realtime({
+      authCallback: (_tokenParams, callback) => {
+        fetch("/dashboard/api/ably/token", { method: "POST" })
+          .then((res) => {
+            if (!res.ok) throw new Error(`Token request failed (${res.status})`);
+            return res.json();
+          })
+          .then((tokenRequest) => callback(null, tokenRequest))
+          .catch((err) => callback(err instanceof Error ? err.message : String(err), null));
+      },
+    });
+
+    const channel = client.channels.get("dashboard:verification-counts");
+    const handler = (msg: Ably.Message) => onUpdateRef.current(msg.data as VerificationCounts);
+    channel.subscribe("counts", handler);
+
+    return () => {
+      channel.unsubscribe("counts", handler);
+      client.close();
+    };
+  }, []);
+}

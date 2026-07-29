@@ -47,3 +47,20 @@ export async function publishConversationMessage(
   if (!rest) return;
   await rest.channels.get(conversationChannelName(bookingId, hotelId)).publish("message", message);
 }
+
+/** Single shared channel — dashboard team members watching Verify Hotels /
+ * Verify Cabs subscribe here for live pending-count updates. */
+export function verificationCountsChannelName(): string {
+  return "dashboard:verification-counts";
+}
+
+export type VerificationCounts = { hotelsPending: number; cabsPending: number };
+
+/** Best-effort publish — never throws; the count is a live-refresh nicety on
+ * top of the always-correct server-rendered page, so a missing/misconfigured
+ * ABLY_API_KEY should never break the mutation that triggered it. */
+export async function publishVerificationCounts(counts: VerificationCounts): Promise<void> {
+  const rest = getAblyRest();
+  if (!rest) return;
+  await rest.channels.get(verificationCountsChannelName()).publish("counts", counts);
+}

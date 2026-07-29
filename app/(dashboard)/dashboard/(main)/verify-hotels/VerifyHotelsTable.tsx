@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Hotel, AlertTriangle, Clock, CheckCircle2, CalendarDays } from "lucide-react";
+import { useVerificationCounts } from "@/app/lib/ably-client";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
@@ -93,6 +94,20 @@ export function VerifyHotelsTable({
     const router = useRouter();
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
+
+    // Live "Total Pending" — starts from the server-rendered count, then
+    // updates in place over Ably whenever a booking enters/leaves the queue
+    // (new payment, hotel confirmed, cancellation) — no polling, no refresh.
+    // Re-syncs from props during render (not an effect) when a navigation
+    // brings a new server-computed count, per React's "adjusting state when a
+    // prop changes" pattern.
+    const [syncedFrom, setSyncedFrom] = useState(stats.pending);
+    const [pendingCount, setPendingCount] = useState(stats.pending);
+    if (stats.pending !== syncedFrom) {
+        setSyncedFrom(stats.pending);
+        setPendingCount(stats.pending);
+    }
+    useVerificationCounts((counts) => setPendingCount(counts.hotelsPending));
 
     function updateParam(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString());
@@ -239,7 +254,7 @@ export function VerifyHotelsTable({
         <div className="space-y-6">
             {/* Stats */}
             <StatGrid cols={4}>
-                <StatCard label="Total Pending"    value={stats.pending}        icon={Hotel}        />
+                <StatCard label="Total Pending"    value={pendingCount}         icon={Hotel}        />
                 <StatCard label="Urgent (≤ 15d)"   value={stats.urgent}         icon={AlertTriangle} />
                 <StatCard label="Overdue (> 48h)"  value={stats.overdue}        icon={Clock}        />
                 <StatCard label="Confirmed Today"  value={stats.confirmedToday} icon={CheckCircle2} />

@@ -5,6 +5,7 @@ import { db } from "@/app/lib/db";
 import { getCurrentMember } from "../lib/get-current-member";
 import { getThumbnailImage } from "@/app/lib/imageUrl";
 import { notifyOwnerBookingConfirmed } from "@/app/services/notifications/owner-notify";
+import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 
 export type MealOption = { meal_type: string; label: string; price_per_person: number };
 
@@ -365,6 +366,9 @@ export async function confirmHotelStay(
                 },
             }),
         ]);
+        // Booking leaves the hotel queue and — since it's no longer excluded
+        // by verify-cabs' status filter — may newly enter the cab queue too.
+        await broadcastVerificationCounts();
     } else {
         await db.bookingTimeline.create({
             data: {

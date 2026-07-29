@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { getCurrentMember } from "../lib/get-current-member";
+import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 
 type Member = NonNullable<Awaited<ReturnType<typeof getCurrentMember>>>;
 async function requireMember(): Promise<{ ok: true; member: Member } | { ok: false; error: string }> {
@@ -120,6 +121,7 @@ export async function confirmCabLeg(
                 },
             }),
         ]);
+        await broadcastVerificationCounts();
     } else {
         await db.bookingTimeline.create({
             data: {
@@ -244,6 +246,7 @@ export async function confirmAllCabLegs(
                 },
             }),
         ]);
+        await broadcastVerificationCounts();
     } else {
         await db.bookingTimeline.create({
             data: {

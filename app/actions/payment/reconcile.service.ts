@@ -5,6 +5,7 @@ import type { ChargeStatus, RefundStatus, GatewayId } from "@/app/lib/payments/t
 import { finalizeCapturedPayment } from "./finalize.service";
 import { confirmHotelReservationForBooking } from "./hotel-confirmation";
 import { notifyRefund } from "@/app/services/notifications/booking-notify";
+import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 
 /**
  * Reconciliation — the safety net for missed/late webhooks.
@@ -59,6 +60,7 @@ export async function reconcilePendingPayments(opts?: {
                 );
                 if (fin.result === "finalized" && fin.purpose === "INITIAL") {
                     try { await confirmHotelReservationForBooking(fin.bookingId); } catch (e) { console.error("[recon] hotel confirm failed", e); }
+                    await broadcastVerificationCounts();
                 }
                 finalized++;
             } else if (status.state === "failed") {
