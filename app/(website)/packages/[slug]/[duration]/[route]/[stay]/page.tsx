@@ -588,6 +588,7 @@ export default async function PackagePage({
         stayRoomCounts.push({
             itineraryStayId: h.itinerary_stay_id,
             roomPricingId:   h.room_pricing_id,
+            hotelId:         h.id,
             numRooms:        h.room_num_rooms,
             roomCapacity:    h.room_capacity,
             roomExtraBeds:   h.room_extra_beds,
