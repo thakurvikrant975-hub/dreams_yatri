@@ -2,10 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
-import { MinusIcon, PlusIcon, UsersFourIcon, CaretDownIcon } from '@phosphor-icons/react'
-import { toast } from 'sonner'
+import { MinusIcon, PlusIcon, UsersFourIcon, CaretDownIcon, WarningCircleIcon } from '@phosphor-icons/react'
+import { toast } from 'react-toastify'
 import Button from './Button'
 import { cn } from '@/app/lib/utils'
+
+// A restriction/limit was just hit on a stepper — one consistent, branded
+// look for all of them (room/adult/child caps and floors).
+function notifyLimit(message: string) {
+    toast(message, {
+        icon: <WarningCircleIcon weight="fill" className="size-5 text-amber-500" />,
+    })
+}
 
 // childrenAges holds one entry per child; -1 means "age not yet selected".
 // rooms is optional — only meaningful where the caller opts in via showRooms.
@@ -128,7 +136,7 @@ export default function TravellersField({
 
     useEffect(() => {
         if (interactedRef.current && !roomsClickRef.current && rooms > prevRoomsRef.current) {
-            toast(`Room count increased to ${rooms} for ${adults + childrenAges.length} travellers`)
+            notifyLimit(`Room count increased to ${rooms} for ${adults + childrenAges.length} travellers`)
         }
         prevRoomsRef.current = rooms
         roomsClickRef.current = false
@@ -137,7 +145,7 @@ export default function TravellersField({
 
     useEffect(() => {
         if (interactedRef.current && !adultsClickRef.current && adults > prevAdultsRef.current) {
-            toast(`Adult count increased to ${adults} — each room needs at least one adult`)
+            notifyLimit(`Adult count increased to ${adults} — each room needs at least one adult`)
         }
         prevAdultsRef.current = adults
         adultsClickRef.current = false
@@ -210,11 +218,11 @@ export default function TravellersField({
                                     roomsClickRef.current = true
                                     setRooms(n)
                                     if (wasIncrease && n >= maxRooms) {
-                                        toast(maxRooms < MAX_ROOMS
+                                        notifyLimit(maxRooms < MAX_ROOMS
                                             ? `Only ${maxRooms} room${maxRooms > 1 ? 's' : ''} available across this trip's hotels`
                                             : `Maximum ${MAX_ROOMS} rooms per booking`)
                                     } else if (!wasIncrease && liveMinRooms > 1 && n <= liveMinRooms) {
-                                        toast(`Minimum ${liveMinRooms} rooms needed for ${adults + childrenAges.length} travellers`)
+                                        notifyLimit(`Minimum ${liveMinRooms} rooms needed for ${adults + childrenAges.length} travellers`)
                                     }
                                 }} />
                             </div>
@@ -234,9 +242,9 @@ export default function TravellersField({
                             adultsClickRef.current = true
                             setAdults(n)
                             if (wasIncrease && n >= MAX_ADULTS) {
-                                toast(`Maximum ${MAX_ADULTS} adults per booking`)
+                                notifyLimit(`Maximum ${MAX_ADULTS} adults per booking`)
                             } else if (!wasIncrease && showRooms && rooms > 1 && n <= rooms) {
-                                toast(`Minimum ${rooms} adults needed — each room needs at least one adult`)
+                                notifyLimit(`Minimum ${rooms} adults needed — each room needs at least one adult`)
                             }
                         }} />
                     </div>
@@ -254,7 +262,7 @@ export default function TravellersField({
                             interactedRef.current = true
                             setChildrenCount(n)
                             if (wasIncrease && n >= MAX_CHILDREN) {
-                                toast(`Maximum ${MAX_CHILDREN} children per booking`)
+                                notifyLimit(`Maximum ${MAX_CHILDREN} children per booking`)
                             }
                         }} />
                     </div>
