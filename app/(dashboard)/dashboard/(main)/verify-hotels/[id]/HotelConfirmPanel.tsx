@@ -3,17 +3,29 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { BedDouble, MapPin, Users, CheckCircle2, Check, X, Hotel as HotelIcon } from "lucide-react";
+import { BedDouble, MapPin, Users, CheckCircle2, Check, X, Hotel as HotelIcon, Coffee, Sun, Moon } from "lucide-react";
 import { confirmHotelStay, getRoomsForHotels, getRoadDistances, getMealsForHotels, type RoomOption, type MealOption } from "../actions";
 
 type Hotel = {
-    id: number; name: string; category: string | null;
+    id: number; name: string; category: string | null; star_rating: number | null;
     city: string | null; state: string | null; address: string | null;
     destination_id: number | null;
     business_phone: string | null;
     business_email: string | null;
     latitude: number | null;
     longitude: number | null;
+};
+
+const STAR_CHIPS = [5, 4, 3, 2, 1];
+const MEAL_FILTER_CHIPS = [
+    { value: "BREAKFAST", label: "Breakfast" },
+    { value: "LUNCH", label: "Lunch" },
+    { value: "DINNER", label: "Dinner" },
+];
+const MEAL_BADGE_CFG: Record<string, { Icon: React.ElementType; color: string; bg: string; label: string }> = {
+    BREAKFAST: { Icon: Coffee, color: "text-orange-600", bg: "bg-orange-50 border-orange-200", label: "Brkfst" },
+    LUNCH:     { Icon: Sun,    color: "text-yellow-600", bg: "bg-yellow-50 border-yellow-200", label: "Lunch" },
+    DINNER:    { Icon: Moon,   color: "text-indigo-600", bg: "bg-indigo-50 border-indigo-200", label: "Dinner" },
 };
 
 type RoomWithHotelId = RoomOption & { hotel_id: number };
@@ -66,6 +78,8 @@ function ChangeHotelModal({
 }) {
     const [search, setSearch] = useState("");
     const [showAll, setShowAll] = useState(false);
+    const [starFilter, setStarFilter] = useState<number | null>(null);
+    const [mealFilterSel, setMealFilterSel] = useState<string[]>([]);
     const [rooms, setRooms] = useState<RoomWithHotelId[]>([]);
     const [distances, setDistances] = useState<Map<number, number>>(new Map());
     const [meals, setMeals] = useState<Map<number, MealOption[]>>(new Map());
@@ -110,10 +124,15 @@ function ChangeHotelModal({
             ? getRoadDistances(cLat!, cLon!, hotelsWithCoords)
             : Promise.resolve([] as { id: number; distanceKm: number }[]);
 
+        // Fetch breakfast/lunch/dinner for every hotel regardless of what's in
+        // the snapshot — the snapshot types drive the cost breakdown, but the
+        // filter chips + badges need to know what each hotel actually offers.
+        const mealTypesToFetch = [...new Set([...snapshotMealTypes, "BREAKFAST", "LUNCH", "DINNER"])];
+
         Promise.all([
             getRoomsForHotels(poolIds, checkInDate),
             distFetch,
-            getMealsForHotels(poolIds, snapshotMealTypes, checkInDate),
+            getMealsForHotels(poolIds, mealTypesToFetch, checkInDate),
         ]).then(([roomData, distData, mealData]) => {
             if (!cancelled) {
                 const dMap = new Map(distData.map((d) => [d.id, d.distanceKm]));
@@ -133,16 +152,23 @@ function ChangeHotelModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showAll]);
 
-    // Filter rooms by search query (room name, hotel name, city)
+    // Filter rooms by search query (room name, hotel name, city) + star/meal chips
     const q = search.trim().toLowerCase();
-    const visibleRooms = q
-        ? rooms.filter((r) => {
-            const hotel = hotelMap.get(r.hotel_id);
-            return r.name.toLowerCase().includes(q) ||
+    const visibleRooms = rooms.filter((r) => {
+        const hotel = hotelMap.get(r.hotel_id);
+        if (q) {
+            const matchesSearch = r.name.toLowerCase().includes(q) ||
                 (hotel?.name ?? "").toLowerCase().includes(q) ||
                 (hotel?.city ?? "").toLowerCase().includes(q);
-        })
-        : rooms;
+            if (!matchesSearch) return false;
+        }
+        if (starFilter != null && hotel?.star_rating !== starFilter) return false;
+        if (mealFilterSel.length > 0) {
+            const hotelMealTypes = new Set((meals.get(r.hotel_id) ?? []).map((m) => m.meal_type));
+            if (!mealFilterSel.some((mt) => hotelMealTypes.has(mt))) return false;
+        }
+        return true;
+    });
 
     async function handleConfirmChange() {
         if (!selected) return;
@@ -193,6 +219,11 @@ function ChangeHotelModal({
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-sm font-semibold text-dashboard-base-content">{hotel.name}</span>
+                                {hotel.star_rating != null && (
+                                    <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                                        ★ {hotel.star_rating}
+                                    </span>
+                                )}
                                 {hotel.category && (
                                     <span className="rounded border border-dashboard-base-300 bg-dashboard-base-200 px-1.5 py-0.5 text-[9px] font-medium text-dashboard-neutral uppercase tracking-wide">
                                         {hotel.category}
@@ -221,7 +252,11 @@ function ChangeHotelModal({
             )];
         }
 
+        // Full set of meals this hotel offers (breakfast/lunch/dinner) — used
+        // for the filter chips + badges. Cost math must only count the meal
+        // types actually in the frozen snapshot, so it stays a subset below.
         const hotelMeals = meals.get(hotel.id) ?? [];
+        const snapshotHotelMeals = hotelMeals.filter((m) => snapshotMealTypes.includes(m.meal_type));
 
         return room.pricing.map((p) => {
             const cardKey = `${room.id}-${p.id}`;
@@ -244,7 +279,7 @@ function ChangeHotelModal({
             const roomCost = p.price_per_night * roomsNeeded * numNights;
             const extraBedCost = (p.extra_bed_rate != null && extraBeds > 0)
                 ? p.extra_bed_rate * extraBeds * numNights : 0;
-            const mealCostPerPax = hotelMeals.reduce((s, m) => s + m.price_per_person, 0);
+            const mealCostPerPax = snapshotHotelMeals.reduce((s, m) => s + m.price_per_person, 0);
             const mealTotal = mealCostPerPax * travellers * numNights;
             const grandTotal = roomCost + extraBedCost + mealTotal;
             const totalDiff = isCurrentBooking ? 0 : grandTotal - adjustedSnapshotTotal;
@@ -270,6 +305,11 @@ function ChangeHotelModal({
                                 <span className={`text-sm font-semibold leading-tight ${isSelected || isCurrentBooking ? "text-green-700" : "text-dashboard-base-content"}`}>
                                     {hotel.name}
                                 </span>
+                                {hotel.star_rating != null && (
+                                    <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                                        ★ {hotel.star_rating}
+                                    </span>
+                                )}
                                 {hotel.category && (
                                     <span className="rounded border border-dashboard-base-300 bg-dashboard-base-200 px-1.5 py-0.5 text-[9px] font-medium text-dashboard-neutral uppercase tracking-wide">
                                         {hotel.category}
@@ -336,6 +376,23 @@ function ChangeHotelModal({
                                     </span>
                                 )}
                             </div>
+
+                            {/* Meals offered */}
+                            {hotelMeals.length > 0 && (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {hotelMeals.map((m) => {
+                                        const cfg = MEAL_BADGE_CFG[m.meal_type];
+                                        if (!cfg) return null;
+                                        const Icon = cfg.Icon;
+                                        return (
+                                            <span key={m.meal_type} className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[9px] font-semibold ${cfg.bg}`}>
+                                                <Icon className={`size-2.5 shrink-0 ${cfg.color}`} />
+                                                <span className={cfg.color}>{cfg.label}</span>
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
 
                             {/* Mattress info */}
                             {room.extra_bed_capacity > 0 && (
@@ -465,13 +522,61 @@ function ChangeHotelModal({
                     </button>
                 </div>
 
+                {/* Filter chips */}
+                <div className="shrink-0 flex flex-wrap items-center gap-1.5 border-b border-dashboard-base-300 bg-dashboard-base-200/20 px-5 py-2">
+                    {STAR_CHIPS.map((star) => (
+                        <button
+                            key={star}
+                            type="button"
+                            onClick={() => setStarFilter((f) => (f === star ? null : star))}
+                            className={`cursor-pointer text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                                starFilter === star
+                                    ? "bg-amber-500 text-white border-amber-500"
+                                    : "bg-dashboard-base-100 text-dashboard-neutral border-dashboard-base-300 hover:border-amber-400 hover:text-amber-700"
+                            }`}
+                        >
+                            ★ {star}
+                        </button>
+                    ))}
+                    <span className="w-px self-stretch bg-dashboard-base-300 mx-0.5" />
+                    {MEAL_FILTER_CHIPS.map((m) => (
+                        <button
+                            key={m.value}
+                            type="button"
+                            onClick={() =>
+                                setMealFilterSel((prev) =>
+                                    prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value],
+                                )
+                            }
+                            className={`cursor-pointer text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                                mealFilterSel.includes(m.value)
+                                    ? "bg-emerald-600 text-white border-emerald-600"
+                                    : "bg-dashboard-base-100 text-dashboard-neutral border-dashboard-base-300 hover:border-emerald-400 hover:text-emerald-700"
+                            }`}
+                        >
+                            {m.label}
+                        </button>
+                    ))}
+                    {(starFilter != null || mealFilterSel.length > 0) && (
+                        <button
+                            type="button"
+                            onClick={() => { setStarFilter(null); setMealFilterSel([]); }}
+                            className="cursor-pointer text-[10px] text-red-500/80 hover:text-red-600 px-1"
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
+
                 {/* Room list */}
                 <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-2">
                     {loading ? (
                         <p className="py-10 text-center text-sm text-dashboard-neutral">Loading rooms…</p>
                     ) : cards.length === 0 ? (
                         <p className="py-10 text-center text-sm text-dashboard-neutral">
-                            {q ? "No rooms match your search." : "No rooms available."}
+                            {q || starFilter != null || mealFilterSel.length > 0
+                                ? "No rooms match your search/filters."
+                                : "No rooms available."}
                         </p>
                     ) : cards}
                 </div>

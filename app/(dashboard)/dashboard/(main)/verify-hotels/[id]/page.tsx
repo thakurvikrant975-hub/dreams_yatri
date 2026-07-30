@@ -165,7 +165,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
         db.hotels.findMany({
             where: { is_active: true },
             select: {
-                id: true, name: true, category: true, city: true, state: true,
+                id: true, name: true, category: true, star_rating: true, city: true, state: true,
                 address: true, destination_id: true, business_phone: true, business_email: true,
                 location: { select: { latitude: true, longitude: true } },
             },
