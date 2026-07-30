@@ -58,14 +58,14 @@ function RoomImage({ url, thumbnail, alt }: { url: string | null; thumbnail: str
 // ── Change Hotel Modal ────────────────────────────────────────────────────────
 function ChangeHotelModal({
     bookingId, perDay, defaultHotelId, defaultPricingId, cityName,
-    checkInDate, roomsCount, numNights,
+    checkInDate, numNights,
     travellers, oldRatePerRoom, snapshotTotal, snapshotMealTotal, snapshotMealTypes,
     destinationHotels, allHotels, initialNotes,
     onClose, onConfirmed,
 }: {
     bookingId: string; perDay: PerDayEntry[]; defaultHotelId: number; defaultPricingId: number; cityName: string;
     checkInDate: string;
-    roomsCount: number; numNights: number;
+    numNights: number;
     travellers: number;
     oldRatePerRoom: number;
     snapshotTotal: number;
@@ -175,15 +175,28 @@ function ChangeHotelModal({
         setConfirming(true);
         try {
             const roomLabel = [selected.room.name, selected.pricing.plan_name].filter(Boolean).join(" · ");
+            // Rooms/mattresses needed depend on the SELECTED room's own
+            // capacity, not the currently-booked room's counts — a room with
+            // different occupancy can need a different number of each, and
+            // BookingHotel has no separate mattress column, so the mattress
+            // cost must be folded into totalCost here or it's lost entirely.
+            const totalCapacity = selected.room.max_occupancy + selected.room.extra_bed_capacity;
+            const roomsNeeded = Math.ceil(travellers / totalCapacity);
+            const rawExtraBeds = Math.max(0, travellers - roomsNeeded * selected.room.max_occupancy);
+            const extraBeds = selected.pricing.extra_bed_rate != null
+                ? Math.min(rawExtraBeds, roomsNeeded * selected.room.extra_bed_capacity)
+                : 0;
+            const extraBedCostPerNight = (selected.pricing.extra_bed_rate != null && extraBeds > 0)
+                ? selected.pricing.extra_bed_rate * extraBeds : 0;
             // Same rate applies every night of the (possibly merged) stay — one
             // confirmHotelStay call per underlying day, since BookingHotel rows
             // are still keyed one-per-day.
-            const perNightTotal = selected.pricing.price_per_night * roomsCount;
+            const perNightTotal = selected.pricing.price_per_night * roomsNeeded + extraBedCostPerNight;
             let lastRes: Awaited<ReturnType<typeof confirmHotelStay>> | null = null;
             for (const pd of perDay) {
                 lastRes = await confirmHotelStay(bookingId, pd.day, selected.hotel.id, {
                     cityName, checkInDate: pd.checkInDate, checkOutDate: pd.checkOutDate,
-                    roomType: roomLabel, roomsCount,
+                    roomType: roomLabel, roomsCount: roomsNeeded,
                     ratePerRoom: selected.pricing.price_per_night,
                     totalCost: perNightTotal,
                     notes,
@@ -196,22 +209,35 @@ function ChangeHotelModal({
         } finally { setConfirming(false); }
     }
 
-    const newTotal = selected ? selected.pricing.price_per_night * roomsCount * numNights : 0;
-
     // Baseline = snapshot room+mattress total + snapshot meal total (both from the frozen quote).
     // Using snapshot values avoids NaN from DB queries and ensures the diff is accurate.
     const adjustedSnapshotTotal = Number(snapshotTotal) + Number(snapshotMealTotal);
 
-    // Same meal-cost basis as each card's own breakdown, so the footer's
-    // "vs current" figure matches what's shown per-room in the list above.
-    const selectedMealCostPerPax = selected
-        ? (meals.get(selected.hotel.id) ?? [])
+    // Same math as each card's own breakdown below — recomputed off the
+    // SELECTED room's own capacity (not the currently-booked room's rooms/
+    // mattress counts), otherwise a room needing a different number of
+    // rooms/mattresses than the current one would silently drop that cost
+    // here even though the per-card breakdown includes it correctly.
+    let selectedGrandTotal = 0;
+    let selectedDiff = 0;
+    if (selected) {
+        const totalCapacity = selected.room.max_occupancy + selected.room.extra_bed_capacity;
+        const roomsNeeded = Math.ceil(travellers / totalCapacity);
+        const rawExtraBeds = Math.max(0, travellers - roomsNeeded * selected.room.max_occupancy);
+        const extraBeds = selected.pricing.extra_bed_rate != null
+            ? Math.min(rawExtraBeds, roomsNeeded * selected.room.extra_bed_capacity)
+            : 0;
+        const roomCost = selected.pricing.price_per_night * roomsNeeded * numNights;
+        const extraBedCost = (selected.pricing.extra_bed_rate != null && extraBeds > 0)
+            ? selected.pricing.extra_bed_rate * extraBeds * numNights : 0;
+        const mealCostPerPax = (meals.get(selected.hotel.id) ?? [])
             .filter((m) => snapshotMealTypes.includes(m.meal_type))
-            .reduce((s, m) => s + m.price_per_person, 0)
-        : 0;
-    const selectedGrandTotal = newTotal + selectedMealCostPerPax * travellers * numNights;
-    const selectedIsCurrent = selected != null && selected.hotel.id === defaultHotelId && selected.pricing.id === defaultPricingId;
-    const selectedDiff = selected && !selectedIsCurrent ? selectedGrandTotal - adjustedSnapshotTotal : 0;
+            .reduce((s, m) => s + m.price_per_person, 0);
+        const mealTotal = mealCostPerPax * travellers * numNights;
+        selectedGrandTotal = roomCost + extraBedCost + mealTotal;
+        const isCurrent = selected.hotel.id === defaultHotelId && selected.pricing.id === defaultPricingId;
+        selectedDiff = isCurrent ? 0 : selectedGrandTotal - adjustedSnapshotTotal;
+    }
 
     // Build flat list: one card per room+plan
     const cards = visibleRooms.flatMap((room) => {
@@ -523,7 +549,10 @@ function ChangeHotelModal({
                         <span className="text-dashboard-neutral"> · {inr(oldRatePerRoom)}/room/night</span>
                     </p>
                     <p className="shrink-0 text-xs font-semibold text-dashboard-base-content">
-                        {inr(adjustedSnapshotTotal)} <span className="font-normal text-dashboard-neutral">total ({numNights}N)</span>
+                        {inr(adjustedSnapshotTotal)}{" "}
+                        <span className="font-normal text-dashboard-neutral">
+                            total ({numNights}N{Number(snapshotMealTotal) > 0 ? `, incl. ${inr(Number(snapshotMealTotal))} meals` : ""})
+                        </span>
                     </p>
                 </div>
 
@@ -761,7 +790,6 @@ export default function HotelConfirmPanel({
                     defaultPricingId={defaultPricingId}
                     cityName={cityName}
                     checkInDate={checkInDate}
-                    roomsCount={roomsCount}
                     numNights={numNights}
                     travellers={travellers}
                     oldRatePerRoom={ratePerRoom}
