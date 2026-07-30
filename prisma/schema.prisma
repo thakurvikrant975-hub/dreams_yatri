@@ -278,6 +278,13 @@ model BookingHotel {
   isConfirmed   Boolean           @default(false)
   confirmedAt   DateTime?
   confirmedById String?
+  // Pre-travel double-check with the hotel, separate from the initial
+  // confirmedAt above — a hotel can still cancel/change a stay it confirmed
+  // weeks earlier, so this is set from the Upcoming Guests page's own call-
+  // and-verify pass in the run-up to arrival, not at initial verification.
+  reconfirmedAt     DateTime?
+  reconfirmedById   String?
+  reconfirmedByName String?
   notes         String?
   status        FulfillmentStatus @default(PENDING)
   voucherUrl    String?
@@ -408,6 +415,10 @@ model BookingCab {
   isConfirmed   Boolean           @default(false)
   confirmedAt   DateTime?
   confirmedById String?
+  // Pre-travel double-check with the operator — see BookingHotel.reconfirmedAt.
+  reconfirmedAt     DateTime?
+  reconfirmedById   String?
+  reconfirmedByName String?
   driverName    String?
   driverPhone   String?
   vehicleNumber String?

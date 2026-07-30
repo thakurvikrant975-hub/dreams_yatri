@@ -5,7 +5,7 @@ import {
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
   ShieldCheck, NotebookPen, Eye, Users, CalendarClock,
-  PlaneLanding,
+  PlaneLanding, PlaneTakeoff,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -116,6 +116,7 @@ export const NAV_GROUPS = [
   {
     id: "bookings", label: "Booking Management",
     items: [
+      { title: "Upcoming Guests", href: "/dashboard/upcoming-guests", icon: PlaneTakeoff },
     ],
   },
   {
