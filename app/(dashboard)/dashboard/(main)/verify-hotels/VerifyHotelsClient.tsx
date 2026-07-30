@@ -58,6 +58,7 @@ async function HotelsData({
                 { contactEmail:  { contains: search, mode: "insensitive" } },
                 { contactPhone:  { contains: search, mode: "insensitive" } },
                 { user: { name:  { contains: search, mode: "insensitive" } } },
+                { travellersList: { some: { fullName: { contains: search, mode: "insensitive" } } } },
             ],
         }
         : {};
@@ -88,7 +89,13 @@ async function HotelsData({
                     id: true, bookingNumber: true, startDate: true, endDate: true,
                     travellers: true, paymentStatus: true,
                     createdAt: true, hotelConfirmedAt: true, priceSnapshot: true,
+                    contactEmail: true,
                     user:        { select: { name: true, email: true } },
+                    travellersList: {
+                        where: { isLead: true },
+                        take: 1,
+                        select: { fullName: true, firstName: true, lastName: true },
+                    },
                     package:     { select: { title: true } },
                     destination: { select: { name: true } },
                     _count:      { select: { hotelBookings: true } },
@@ -134,7 +141,8 @@ async function HotelsData({
             travellers: b.travellers, hotelPricingPaise,
             paymentStatus: b.paymentStatus, createdAt: b.createdAt,
             hotelConfirmedAt: b.hotelConfirmedAt,
-            user: b.user, package: b.package, destination: b.destination,
+            user: b.user, contactEmail: b.contactEmail, travellersList: b.travellersList,
+            package: b.package, destination: b.destination,
             pendingCount, totalHotelCount, isFullyConfirmed,
             daysToTravel, hoursOld, isUrgent, isOverdue,
         };

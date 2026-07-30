@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import Header from '@/app/components/navigation/Header';
 import Footer from '@/app/components/navigation/Footer';
 import Card from '@/app/components/ui/Card';
@@ -69,6 +70,23 @@ export default async function BookQuotePage({
         const packageHref = `/packages/${quote.package_slug}/${quote.duration_slug}/${quote.route_slug}/${quote.stay_slug}`;
 
         const authedUser = await getAuthenticatedUser();
+
+        // A quote that already turned into a Booking (status CONSUMED, set by
+        // "Proceed to Payment") isn't actually expired — the customer's
+        // traveller details are already safely saved on that Booking. Resume
+        // the payment step instead of showing "quote expired, start again",
+        // which would otherwise force them to redo everything from scratch
+        // (this is what looks like traveller details "wiping out" after
+        // navigating back from the payment page).
+        if (quote.status !== 'ACTIVE' && authedUser?.id) {
+            const existingBooking = await db.booking.findUnique({
+                where: { quoteId: quote.id },
+                select: { id: true, userId: true },
+            });
+            if (existingBooking && existingBooking.userId === authedUser.id) {
+                redirect(`/bookings/${existingBooking.id}/pay`);
+            }
+        }
 
         // Display info + freshness + payment schedule + frozen itinerary preview
         // + the logged-in customer's saved contact details (to prefill checkout).

@@ -1,10 +1,11 @@
 import "server-only";
 import { db } from "@/app/lib/db";
-import { bookingConfirmationEmail, cancellationEmail, hotelBookingConfirmedEmail, refundConfirmedEmail, opsNewBookingEmail, tripStatusEmail, hotelsAndCabsConfirmedEmail } from "./booking-emails";
+import { bookingConfirmationEmail, cancellationEmail, hotelBookingConfirmedEmail, refundConfirmedEmail, opsNewBookingEmail, tripStatusEmail } from "./booking-emails";
 import { sendBookingEmail, opsEmail } from "./send";
 import { getSystemActorId } from "./system-actor";
 import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { paymentInvoiceTemplate, paymentInvoiceTextTemplate } from "@/app/components/email-template/paymentInvoiceTemplate";
+import { hotelsAndCabsConfirmedTemplate, hotelsAndCabsConfirmedTextTemplate } from "@/app/components/email-template/hotelsAndCabsConfirmedTemplate";
 
 /**
  * Post-commit, best-effort booking notifications. Each loads the needed data and
@@ -112,15 +113,22 @@ export async function notifyHotelsAndCabsConfirmed(bookingId: string): Promise<v
     });
     if (!b) return;
 
-    await sendBookingEmail(b.user?.email ?? b.contactEmail, hotelsAndCabsConfirmedEmail({
+    const fmtDate = (d: Date) => d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const templateParams = {
+        clientName: b.user?.name ?? "Traveller",
         bookingNumber: b.bookingNumber,
         packageTitle: b.package?.title ?? "Your package",
-        customerName: b.user?.name ?? "Traveller",
-        travelStartDate: isoDate(b.startDate),
-        travelEndDate: isoDate(b.endDate),
-        travellers: b.travellers,
+        travelDateStr: `${fmtDate(b.startDate)} – ${fmtDate(b.endDate)}`,
+        paxLine: `${b.travellers} Traveller${b.travellers !== 1 ? "s" : ""}`,
+        voucherUrl: voucherUrl(bookingId),
         statusUrl: bookingStatusUrl(bookingId),
-    }));
+    };
+
+    await sendBookingEmail(b.user?.email ?? b.contactEmail, {
+        subject: `Hotels & cabs confirmed — ${templateParams.packageTitle} (${templateParams.bookingNumber})`,
+        html: hotelsAndCabsConfirmedTemplate(templateParams),
+        text: hotelsAndCabsConfirmedTextTemplate(templateParams),
+    });
 }
 
 /** Fulfilment status update — trip fully confirmed (READY) or an item needs an alternative (ATTENTION). */

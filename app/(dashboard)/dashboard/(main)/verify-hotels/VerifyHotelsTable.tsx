@@ -24,6 +24,8 @@ export type BookingRow = {
     createdAt: Date;
     hotelConfirmedAt: Date | null;
     user: { name: string | null; email: string | null } | null;
+    contactEmail: string | null;
+    travellersList: { fullName: string; firstName: string | null; lastName: string | null }[];
     package: { title: string | null } | null;
     destination: { name: string | null } | null;
     pendingCount: number;
@@ -46,6 +48,15 @@ export type HotelStats = {
 const fmt = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 const fmtDate = (d: Date) =>
     new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(d);
+
+// The lead traveller — not the account holder — is who actually travelled,
+// so that's the name shown as "Customer" here. Falls back to the account
+// name (and then the contact email) only if no traveller was ever recorded.
+function travellerName(b: BookingRow): string {
+    const t = b.travellersList[0];
+    if (t) return t.fullName || [t.firstName, t.lastName].filter(Boolean).join(" ") || "—";
+    return b.user?.name ?? b.contactEmail ?? "—";
+}
 
 function UrgencyBadge({ row }: { row: BookingRow }) {
     if (row.isFullyConfirmed) {
@@ -151,11 +162,11 @@ export function VerifyHotelsTable({
         },
         {
             header: "Customer",
-            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
+            sortKey: (b) => travellerName(b).toLowerCase(),
             cell: (b) => (
                 <div>
-                    <div className="text-sm font-medium text-dashboard-base-content">{b.user?.name ?? "—"}</div>
-                    <div className="text-xs text-dashboard-neutral truncate max-w-[160px]">{b.user?.email ?? ""}</div>
+                    <div className="text-sm font-medium text-dashboard-base-content">{travellerName(b)}</div>
+                    <div className="text-xs text-dashboard-neutral truncate max-w-[160px]">{b.user?.email ?? b.contactEmail ?? ""}</div>
                 </div>
             ),
         },

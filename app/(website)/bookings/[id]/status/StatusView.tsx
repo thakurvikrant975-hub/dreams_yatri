@@ -84,14 +84,6 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                         <div className="mt-1.5 pt-1.5 border-t border-warning-200/70 text-warning-600">
                             Note: Hotel changed due to Unavailability
                         </div>
-                        {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 && payExtraHref && (
-                            <Link
-                                href={payExtraHref}
-                                className="mt-2 inline-flex items-center gap-1 rounded-md bg-error-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-error-700 transition-colors"
-                            >
-                                Pay ₹{Math.round(item.hotelPriceDiff).toLocaleString('en-IN')} extra now
-                            </Link>
-                        )}
                     </div>
                 )}
 
@@ -120,14 +112,6 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                                 <span className="text-warning-400">→</span>
                                 <span className="font-medium text-warning-800">{item.newRoomType}</span>
                             </div>
-                        )}
-                        {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 && payExtraHref && (
-                            <Link
-                                href={payExtraHref}
-                                className="mt-2 inline-flex items-center gap-1 rounded-md bg-error-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-error-700 transition-colors"
-                            >
-                                Pay ₹{Math.round(item.hotelPriceDiff).toLocaleString('en-IN')} extra now
-                            </Link>
                         )}
                     </div>
                 )}
@@ -158,14 +142,6 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                                     ? 'Your package price has been adjusted upward for this change.'
                                     : 'Your package price has been adjusted downward for this change.'}
                             </div>
-                        )}
-                        {item.cabPriceDiff != null && item.cabPriceDiff > 0 && payExtraHref && (
-                            <Link
-                                href={payExtraHref}
-                                className="mt-2 inline-flex items-center gap-1 rounded-md bg-error-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-error-700 transition-colors"
-                            >
-                                Pay ₹{Math.round(item.cabPriceDiff).toLocaleString('en-IN')} extra now
-                            </Link>
                         )}
                     </div>
                 )}
