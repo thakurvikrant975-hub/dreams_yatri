@@ -103,7 +103,12 @@ export type PaginatedMembers = {
 async function generateEmployeeId(): Promise<string> {
   // Use the highest existing ID rather than count() so deletions don't cause
   // collisions (count drops after a delete, making the next ID reuse a taken one).
+  // Scoped to the "DY" prefix — other prefixes (e.g. "E2E-0001" for the test
+  // account) sort after "DY..." lexicographically and would otherwise get
+  // picked as "last", fail the numeric parse, and hand out an already-taken
+  // DY id (silent P2002 on employeeId).
   const last = await db.teamMember.findFirst({
+    where: { employeeId: { startsWith: "DY" } },
     orderBy: { employeeId: "desc" },
     select: { employeeId: true },
   });
@@ -347,7 +352,10 @@ export async function createTeamMember(
       const e = err as { code: string; message: string; meta?: { target?: string[] } };
       switch (e.code) {
         case "P2002": {
-          const fields = Array.isArray(e.meta?.target) ? e.meta.target.join(", ") : String(e.meta?.target ?? "");
+          // The pg driver adapter doesn't always populate meta.target the way
+          // the standard engine does — fall back to the raw constraint/column
+          // name in the error message so this doesn't just say "unknown".
+          const fields = Array.isArray(e.meta?.target) ? e.meta.target.join(", ") : String(e.meta?.target ?? "") || e.message;
           if (fields.includes("email")) return { success: false, error: "Email is already registered" };
           if (fields.includes("employeeId")) return { success: false, error: "Employee ID conflict — please try again" };
           return { success: false, error: `Duplicate value on field: ${fields || "unknown"}` };
