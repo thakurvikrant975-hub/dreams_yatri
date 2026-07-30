@@ -4117,7 +4117,7 @@ Rules:
                                     ...lines.map((d, i) => (
                                       <tr key={`${day}-${i}`} className="border-t border-dashboard-base-300">
                                         <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
-                                        <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}</td>
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}{d.planName ? ` · ${d.planName}` : ""}</td>
                                         <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
                                         <td className="px-3 py-2 text-right">₹{d.pricePerRoom.toLocaleString("en-IN")}</td>
                                         <td className="px-3 py-2 text-right">{d.mattresses > 0 ? `${d.mattresses} × ₹${d.extraBedRate.toLocaleString("en-IN")}` : "—"}</td>

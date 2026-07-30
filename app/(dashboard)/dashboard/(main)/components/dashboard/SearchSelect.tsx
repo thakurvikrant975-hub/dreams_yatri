@@ -169,7 +169,10 @@ export function SearchSelect({
           align="start"
           avoidCollisions
           className={cn(
-            "z-50 w-(--radix-popover-trigger-width) overflow-hidden rounded-xl border border-border/80 bg-background shadow-lg outline-none",
+            // Never narrower than the trigger, but never so narrow (a lot of
+            // these triggers sit in tight sidebar columns) that the price /
+            // seats / distance description line gets truncated mid-word.
+            "z-50 min-w-(--radix-popover-trigger-width) w-95 max-w-[92vw] overflow-hidden rounded-xl border border-border/80 bg-background shadow-lg outline-none",
             // Enter/exit animations matching LocationSearchSelect
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",

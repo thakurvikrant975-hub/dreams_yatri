@@ -11,6 +11,7 @@ import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
 import type { RoomSelection, CabSelection } from "./room-cab-selections";
 import type { Prisma } from "@/app/generated/prisma";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
+import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -1957,6 +1958,7 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
     });
 
     await logTimeline(pkg.queryId, `Package marked ready for costing review by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
+    await broadcastVerificationCounts();
 
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);

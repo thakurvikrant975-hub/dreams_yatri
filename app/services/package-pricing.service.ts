@@ -1165,6 +1165,7 @@ export type BuilderHotelDayLine = {
   day: number;
   hotelName: string;
   roomName: string;
+  planName: string | null;
   pricePerRoom: number;
   roomsNeeded: number;
   mattresses: number;
@@ -1216,6 +1217,7 @@ export async function computeBuilderHotelPricing(input: {
     where: { id: { in: roomPricingIds } },
     select: {
       id: true,
+      plan_name: true,
       price_per_night: true,
       extra_bed_rate: true,
       hotel: { select: { name: true } },
@@ -1272,6 +1274,7 @@ export async function computeBuilderHotelPricing(input: {
           day: d.day,
           hotelName: rp.hotel.name,
           roomName: rp.room?.name ?? "Room",
+          planName: rp.plan_name,
           pricePerRoom,
           roomsNeeded,
           mattresses,
@@ -1293,6 +1296,7 @@ export async function computeBuilderHotelPricing(input: {
         day: d.day,
         hotelName: rp.hotel.name,
         roomName: rp.room?.name ?? "Room",
+        planName: rp.plan_name,
         pricePerRoom: basePrice,
         roomsNeeded: quantity,
         mattresses: 0,

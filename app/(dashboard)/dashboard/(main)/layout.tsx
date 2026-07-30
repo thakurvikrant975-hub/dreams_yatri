@@ -97,7 +97,7 @@ export default async function DashboardLayout({
   // Sidebar badge seed — the same "Total Pending" sources as the Verify
   // Hotels / Verify Cabs / Package Bookings pages themselves, then kept live
   // over Ably (no per-navigation refetch).
-  const { hotelsPending, cabsPending, bookingsUnconfirmed } = await computeVerificationCounts();
+  const { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending } = await computeVerificationCounts();
 
   return (
     <SidebarProvider>
@@ -112,6 +112,7 @@ export default async function DashboardLayout({
           hotelsPending={hotelsPending}
           cabsPending={cabsPending}
           bookingsUnconfirmed={bookingsUnconfirmed}
+          packagesPending={packagesPending}
         />
       </div>
 

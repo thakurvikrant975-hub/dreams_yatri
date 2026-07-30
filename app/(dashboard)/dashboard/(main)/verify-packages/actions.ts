@@ -17,6 +17,7 @@ import { getCurrentActor, logTimeline, type ActionResult } from "../(marketing)/
 import { actionError } from "@/app/lib/action-error";
 import { sendPackageToClient } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { emailPackageToClient } from "@/app/(dashboard)/dashboard/(builder)/package-builder/email-package";
+import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 
 function revalidateAll(packageId: string) {
     revalidatePath("/dashboard/verify-packages");
@@ -73,6 +74,7 @@ export async function verifyAndSendPackage(packageId: string): Promise<ActionRes
         if (pkg.queryId) {
             await logTimeline(pkg.queryId, `Package verified and sent to client by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
         }
+        await broadcastVerificationCounts();
 
         revalidateAll(packageId);
         return {
@@ -138,6 +140,7 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
                 { reason: reason?.label, note: parsed.data.rejectionNote },
             );
         }
+        await broadcastVerificationCounts();
 
         revalidateAll(packageId);
         return { success: true, data: undefined, message: "Package sent back for rework" };

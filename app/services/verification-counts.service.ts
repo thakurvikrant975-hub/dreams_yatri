@@ -2,12 +2,12 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { publishVerificationCounts, type VerificationCounts } from "@/app/lib/ably";
 
-/** Same "still needs verifying" filters as the Verify Hotels / Verify Cabs
- * page queries (VerifyHotelsClient.tsx / verify-cabs/page.tsx) — kept in one
- * place so the live count and the page's own "Total Pending" stat can never
- * drift apart. */
+/** Same "still needs verifying" filters as the Verify Hotels / Verify Cabs /
+ * Verify Packages page queries (VerifyHotelsClient.tsx / verify-cabs/page.tsx /
+ * VerifyPackagesClient.tsx) — kept in one place so the live count and each
+ * page's own "Total Pending" stat can never drift apart. */
 export async function computeVerificationCounts(): Promise<VerificationCounts> {
-    const [hotelsPending, cabsPending, bookingsUnconfirmed] = await Promise.all([
+    const [hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending] = await Promise.all([
         db.booking.count({
             where: {
                 paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
@@ -32,8 +32,13 @@ export async function computeVerificationCounts(): Promise<VerificationCounts> {
                 status: { in: ["PENDING_REVIEW", "HOTEL_VERIFICATION", "HOTEL_CONFIRMED", "CAB_VERIFICATION"] },
             },
         }),
+        // Verify Packages sidebar badge — same "pending" filter as
+        // VerifyPackagesClient.tsx's own query.
+        db.custom_packages.count({
+            where: { readyAt: { not: null }, status: "READY" },
+        }),
     ]);
-    return { hotelsPending, cabsPending, bookingsUnconfirmed };
+    return { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending };
 }
 
 /**

@@ -47,6 +47,12 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
     );
 }
 
+// Capitalizes the first letter of each word as the exec types, without
+// touching anything else (so a deliberately-typed "McDonald" isn't mangled).
+function capitalizeWords(s: string): string {
+    return s.replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
 const SOURCES = [
     { label: "Phone Call",    value: "PHONE_CALL" },
     { label: "WhatsApp",      value: "WHATSAPP" },
@@ -182,7 +188,7 @@ export function AddQueryDialog() {
                             <Input
                                 id="name" name="name"
                                 value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e) => setName(capitalizeWords(e.target.value))}
                                 placeholder="Rahul Sharma"
                                 autoComplete="off"
                                 className="h-9 text-sm rounded-lg bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content placeholder:text-dashboard-base-content/30 focus-visible:ring-dashboard-primary/30 focus-visible:border-dashboard-primary"
