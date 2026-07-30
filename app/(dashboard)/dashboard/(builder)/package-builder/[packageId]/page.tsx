@@ -4072,7 +4072,7 @@ Rules:
                           <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
                             <Hotel size={12} /> Hotels
                           </h3>
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-2 gap-3">
                             <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
                               <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Hotel Subtotal</p>
                               <p className="text-base font-bold text-dashboard-base-content">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</p>
@@ -4080,14 +4080,6 @@ Rules:
                             <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
                               <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Nights Priced</p>
                               <p className="text-base font-bold text-dashboard-base-content">{hotelPricing.nightsCounted}</p>
-                            </div>
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Per Person (auto)</p>
-                              <p className="text-base font-bold text-dashboard-base-content">
-                                ₹{(form.adults + form.children) > 0
-                                  ? Math.round(hotelPricing.hotelSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
-                                  : hotelPricing.hotelSubtotal.toLocaleString("en-IN")}
-                              </p>
                             </div>
                           </div>
 
@@ -4153,7 +4145,7 @@ Rules:
                           <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
                             <Car size={12} /> Cabs
                           </h3>
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-2 gap-3">
                             <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
                               <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Cab Subtotal</p>
                               <p className="text-base font-bold text-dashboard-base-content">₹{cabPricing.cabSubtotal.toLocaleString("en-IN")}</p>
@@ -4161,14 +4153,6 @@ Rules:
                             <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
                               <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Days Priced</p>
                               <p className="text-base font-bold text-dashboard-base-content">{cabPricing.daysCounted}</p>
-                            </div>
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Per Person (auto)</p>
-                              <p className="text-base font-bold text-dashboard-base-content">
-                                ₹{(form.adults + form.children) > 0
-                                  ? Math.round(cabPricing.cabSubtotal / (form.adults + form.children)).toLocaleString("en-IN")
-                                  : cabPricing.cabSubtotal.toLocaleString("en-IN")}
-                              </p>
                             </div>
                           </div>
 
