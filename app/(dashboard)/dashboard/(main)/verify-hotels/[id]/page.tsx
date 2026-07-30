@@ -453,7 +453,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                 cityName={snap.hotel_city ?? d.day_title}
                                                 checkInDate={checkIn ?? booking.startDate.toISOString().split("T")[0]}
                                                 nights={stay.nights}
-                                                roomType={snap.room_name ?? snap.plan_name ?? "Standard"}
+                                                roomType={[snap.room_name, snap.plan_name].filter(Boolean).join(" · ") || "Standard"}
                                                 roomsCount={snap.rooms_count}
                                                 ratePerRoom={snap.price_per_room}
                                                 totalCost={stay.totalPrice}
