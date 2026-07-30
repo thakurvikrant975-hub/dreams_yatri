@@ -66,8 +66,11 @@ async function PackagesData({
         ...searchWhere,
     };
 
+    // "Pending" means still needs costing review — verified: false excludes
+    // packages that are approved but stay status READY until the exec sends
+    // them (approval and sending are separate steps now).
     const filterWhere: Prisma.custom_packagesWhereInput =
-        filter === "pending"  ? { status: "READY" } :
+        filter === "pending"  ? { status: "READY", verified: false } :
         filter === "verified" ? { verified: true } :
         filter === "rejected" ? { rejectedAt: { not: null } } :
         {};
@@ -95,7 +98,7 @@ async function PackagesData({
             },
         }),
         db.custom_packages.count({ where }),
-        db.custom_packages.count({ where: { ...baseWhere, status: "READY" } }),
+        db.custom_packages.count({ where: { ...baseWhere, status: "READY", verified: false } }),
         db.custom_packages.count({ where: { ...baseWhere, verified: true } }),
         db.custom_packages.count({ where: { ...baseWhere, rejectedAt: { not: null } } }),
         db.custom_packages.count({ where: { ...baseWhere, verifiedAt: { gte: todayStart } } }),

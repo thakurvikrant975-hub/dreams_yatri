@@ -5,6 +5,7 @@ import {
     Inbox, PhoneCall, XCircle, UserCheck,
     ClipboardList, Send, ThumbsUp, ThumbsDown,
     CreditCard, CheckCircle2, Lock, CalendarClock, Clock, ShieldCheck,
+    CircleDashed,
 } from "lucide-react";
 import type { QueryStatus } from "./query-status";
 import type { SentPackageInfo } from "./actions";
@@ -136,6 +137,38 @@ export function PackageVerificationBadge({ pkg }: { pkg: SentPackageInfo }) {
             className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
         >
             <Clock className="h-3 w-3" /> Pricing Pending
+        </Badge>
+    );
+}
+
+/**
+ * Whether an approved package has actually gone out to the client yet —
+ * distinct from PackageVerificationBadge above, since approval and sending
+ * are now separate steps (costing approves the pricing, the exec sends it
+ * themselves via Share with Client). Only rendered once a package is
+ * verified; before that, "Pricing Pending"/"Rejected" already say enough.
+ */
+export function PackageSentBadge({ pkg }: { pkg: SentPackageInfo }) {
+    if (!pkg.verified) return null;
+
+    if (pkg.status === "SENT") {
+        return (
+            <Badge
+                variant="outline"
+                title={pkg.sentAt ? `Sent ${new Date(pkg.sentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : undefined}
+                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-green-500/10 text-green-600 border-green-200 dark:border-green-800"
+            >
+                <Send className="h-3 w-3" /> Sent to Client
+            </Badge>
+        );
+    }
+
+    return (
+        <Badge
+            variant="outline"
+            className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
+        >
+            <CircleDashed className="h-3 w-3" /> Not Sent Yet
         </Badge>
     );
 }

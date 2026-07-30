@@ -12,6 +12,7 @@ import type { RoomSelection, CabSelection } from "./room-cab-selections";
 import type { Prisma } from "@/app/generated/prisma";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
+import { emailPackageToClient } from "./email-package";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -1729,12 +1730,12 @@ export async function sendPackageToClient(packageId: string): Promise<{
     });
 
     if (!pkg) return { success: false, error: "Package not found" };
-    // The only current caller (verifyAndSendPackage) already checks this
-    // itself, but that invariant belongs on the function that actually locks
-    // pricing and flips status to SENT — not solely on whoever happens to
-    // call it. Without this, a future direct call (e.g. a reintroduced
-    // exec-triggered "send" button) would silently skip costing review
-    // entirely, which is the exact thing this whole workflow exists to stop.
+    // shareCustomPackageWithClient (the exec-triggered caller) already checks
+    // pkg.verified before calling this, but the READY invariant belongs here
+    // too, on the function that actually locks pricing and flips status to
+    // SENT — not solely on whoever happens to call it. Without this, a future
+    // direct call would silently skip costing review entirely, which is the
+    // exact thing this whole workflow exists to stop.
     if (pkg.status !== "READY") return { success: false, error: "This package must be marked ready and reviewed by costing before it can be sent." };
     // A blank package (no linked query) has no client contact to send to —
     // it needs to be attached to a lead first via a real query before it can
@@ -1922,12 +1923,13 @@ export async function sendPackageToClient(packageId: string): Promise<{
 
 /**
  * Submits a package for costing review — the ONLY way a sales exec can move
- * a package forward now. No pricing is locked and the client is never
- * notified here (that's verifyAndSendPackage, in
- * verify-packages/actions.ts, triggered by the costing team). This just
- * flips status to READY, timestamps it (readyAt, for the "assigned → ready"
- * and "ready → sent" duration metrics), and clears any prior verify/reject
- * state so a fresh review cycle starts clean.
+ * a package forward into review. No pricing is locked and the client is
+ * never notified here — that happens in two later steps: costing approves
+ * (approveCustomPackage, in verify-packages/actions.ts) and then the exec
+ * sends it themselves (shareCustomPackageWithClient, below). This just flips
+ * status to READY, timestamps it (readyAt, for the "assigned → ready" and
+ * "ready → sent" duration metrics), and clears any prior verify/reject state
+ * so a fresh review cycle starts clean.
  */
 export async function markPackageReady(packageId: string): Promise<{ success: boolean; error?: string }> {
   try {
@@ -1971,6 +1973,56 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
   }
 }
 
+/**
+ * The exec's own send step — only reachable once costing has approved the
+ * pricing (verified: true). sendPackageToClient still separately enforces
+ * status === "READY" (its own long-standing guard), so this adds the one
+ * check that's new to this split flow: no approval, no send.
+ */
+export async function shareCustomPackageWithClient(packageId: string): Promise<{
+  success: boolean;
+  whatsappUrl?: string;
+  shareUrl?: string;
+  error?: string;
+}> {
+  try {
+    const { actor } = await getCurrentActor();
+
+    const pkg = await db.custom_packages.findUnique({
+      where: { id: packageId },
+      select: { id: true, status: true, verified: true, queryId: true },
+    });
+    if (!pkg) return { success: false, error: "Package not found" };
+    if (!pkg.verified) return { success: false, error: "This package hasn't been approved by costing yet." };
+
+    const sendResult = await sendPackageToClient(packageId);
+    if (!sendResult.success) {
+      return { success: false, error: sendResult.error ?? "Failed to send package" };
+    }
+
+    // Best-effort — an email failure shouldn't undo the send; the WhatsApp
+    // link/client page are already live either way.
+    try {
+      await emailPackageToClient(packageId);
+    } catch (e) {
+      console.error("[shareCustomPackageWithClient] email failed", e);
+    }
+
+    if (pkg.queryId) {
+      await logTimeline(pkg.queryId, `Package sent to client by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
+    }
+
+    revalidatePath("/dashboard/sales-query");
+    revalidatePath("/dashboard/package-builder");
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
+
+    return { success: true, whatsappUrl: sendResult.whatsappUrl, shareUrl: sendResult.shareUrl };
+  } catch (err) {
+    console.error("[shareCustomPackageWithClient]", err);
+    return { success: false, error: "Failed to send package" };
+  }
+}
+
 export type PackageStatusEvent = {
   id: string;
   title: string;
@@ -1981,8 +2033,8 @@ export type PackageStatusEvent = {
 
 /**
  * Polled every ~20s by PackageStatusNotifier (mounted for sales execs in the
- * dashboard layout) so an exec sees "your package was verified & sent" or
- * "…was rejected — <reason>" as a toast without refreshing. No generic
+ * dashboard layout) so an exec sees "your package was approved" or "…was
+ * rejected — <reason>" as a toast without refreshing. No generic
  * notification bus exists in this dashboard yet — this is deliberately
  * narrow (just these two package events) rather than building one.
  *
@@ -2023,5 +2075,5 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
 }
 
 // emailPackageToClient lives in ./email-package.ts (a plain, non-"use server"
-// module) rather than here — imported directly by verify-packages/actions.ts'
-// verifyAndSendPackage, the only place that ever calls it now.
+// module) rather than here — imported above, called from
+// shareCustomPackageWithClient, the only place that ever calls it now.

@@ -12,7 +12,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { verifyAndSendPackage, updatePackagePricing, type PricingEditInput } from "../actions";
+import { approveCustomPackage, updatePackagePricing, type PricingEditInput } from "../actions";
 import { RejectPricingDialog } from "./RejectPricingDialog";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
 
@@ -186,22 +186,11 @@ export function VerifyPackageDetailClient({
         marginPercentage: margin, gstPercentage: gst, totalPax,
     }), [hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal, margin, gst, totalPax]);
 
-    function handleVerifyAndSend() {
+    function handleApprove() {
         startTransition(async () => {
-            const result = await verifyAndSendPackage(pkg.id);
+            const result = await approveCustomPackage(pkg.id);
             if (result.success) {
-                const whatsappUrl = result.data?.whatsappUrl;
-                // The email (if the client has one on file) already went out
-                // server-side. WhatsApp needs an explicit user gesture to
-                // open — calling window.open() here directly would fire after
-                // the `await` above, outside the click's call stack, and get
-                // silently blocked as a popup by most browsers. Routing it
-                // through the toast's action button keeps it tied to a real
-                // click, and doesn't just vanish if a blocker eats it.
-                toast.success(result.message, whatsappUrl ? {
-                    action: { label: "Open WhatsApp", onClick: () => window.open(whatsappUrl, "_blank") },
-                    duration: 15000,
-                } : undefined);
+                toast.success(result.message);
             } else {
                 toast.error(result.message);
             }
@@ -254,7 +243,9 @@ export function VerifyPackageDetailClient({
                 <div className="flex flex-wrap items-center gap-2">
                     {state === "verified" && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700">
-                            <CheckCircle2 className="size-3.5" /> Verified &amp; sent by {pkg.verifiedByName ?? "—"} · {fmtDateTime(pkg.verifiedAt)}
+                            <CheckCircle2 className="size-3.5" />
+                            Approved by {pkg.verifiedByName ?? "—"} · {fmtDateTime(pkg.verifiedAt)}
+                            {pkg.status === "SENT" ? ` — sent to client ${fmtDateTime(pkg.sentAt)}` : " — awaiting exec to share with client"}
                         </span>
                     )}
                     {state === "rejected" && (
@@ -262,7 +253,7 @@ export function VerifyPackageDetailClient({
                             <XCircle className="size-3.5" /> Rejected by {pkg.rejectedByName ?? "—"} · {fmtDateTime(pkg.rejectedAt)} — awaiting rework
                         </span>
                     )}
-                    {pkg.status === "READY" && !editMode && (
+                    {pkg.status === "READY" && !pkg.verified && !editMode && (
                         <>
                             <Button type="button" variant="outline" size="sm" onClick={enterEditMode} className="gap-1.5">
                                 <Pencil className="size-3.5" /> Edit Pricing
@@ -272,9 +263,9 @@ export function VerifyPackageDetailClient({
                                     <XCircle className="size-3.5" /> Reject
                                 </Button>
                             </RejectPricingDialog>
-                            <Button type="button" size="sm" onClick={handleVerifyAndSend} disabled={isPending} className="gap-1.5 bg-dashboard-primary text-white hover:opacity-90">
+                            <Button type="button" size="sm" onClick={handleApprove} disabled={isPending} className="gap-1.5 bg-dashboard-primary text-white hover:opacity-90">
                                 {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-                                {isPending ? "Sending…" : "Verify and Send"}
+                                {isPending ? "Approving…" : "Approve"}
                             </Button>
                         </>
                     )}
@@ -304,7 +295,7 @@ export function VerifyPackageDetailClient({
                                 ? "Correcting pricing before it's locked in — saving keeps this package awaiting review."
                                 : pkg.sentAt
                                     ? `Frozen ${fmtDateTime(new Date(s.lockedAt))} — the exact hotel/cab/ticket costs behind the price sent to the client.`
-                                    : "Live preview — these are the exact numbers that will be locked in the moment this is verified and sent."}
+                                    : "Live preview — these are the exact numbers that will be locked in the moment the exec sends this to the client."}
                         </p>
 
                         {hotelDrift && s.displayedTotalPrice != null && (

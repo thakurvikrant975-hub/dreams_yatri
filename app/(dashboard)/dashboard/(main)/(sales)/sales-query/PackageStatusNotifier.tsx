@@ -7,9 +7,9 @@ import { getMyUnseenPackageEvents } from "@/app/(dashboard)/dashboard/(builder)/
 const CHECK_INTERVAL_MS = 20 * 1000;
 
 /**
- * Surfaces "your package was verified & sent" / "…was rejected — <reason>"
- * as a toast without the exec needing to refresh — polled, not pushed (no
- * generic in-app notification bus exists in this dashboard yet; see
+ * Surfaces "your package was approved" / "…was rejected — <reason>" as a
+ * toast without the exec needing to refresh — polled, not pushed (no generic
+ * in-app notification bus exists in this dashboard yet; see
  * getMyUnseenPackageEvents for why this stays narrowly scoped to just these
  * two package events rather than building one).
  */
@@ -24,8 +24,8 @@ export function PackageStatusNotifier() {
             }
             for (const e of events) {
                 if (e.kind === "verified") {
-                    toast.success(`Verified & sent to client — ${e.title}`, {
-                        description: "Your package pricing was approved and the client has been notified.",
+                    toast.success(`Package approved — ${e.title}`, {
+                        description: "Costing signed off on the pricing. Open the package and use Share with Client to send it.",
                         duration: 12000,
                     });
                 } else {

@@ -33,9 +33,13 @@ export async function computeVerificationCounts(): Promise<VerificationCounts> {
             },
         }),
         // Verify Packages sidebar badge — same "pending" filter as
-        // VerifyPackagesClient.tsx's own query.
+        // VerifyPackagesClient.tsx's own query. verified: false excludes
+        // packages costing has already approved but the exec hasn't sent yet
+        // (status stays READY until the exec's own send step) — without it,
+        // an approved package would keep inflating this "still needs costing
+        // review" count.
         db.custom_packages.count({
-            where: { readyAt: { not: null }, status: "READY" },
+            where: { readyAt: { not: null }, status: "READY", verified: false },
         }),
     ]);
     return { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending };

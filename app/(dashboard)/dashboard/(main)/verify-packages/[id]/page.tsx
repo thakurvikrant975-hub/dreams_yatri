@@ -66,14 +66,14 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
     // submitted has nothing to review yet.
     if (!pkg || !pkg.readyAt || !pkg.query) notFound();
 
-    // sentAt+pricingSnapshot present → this package has already been through
-    // verify-and-send at least once; show the frozen numbers actually locked
-    // in and delivered to the client. Otherwise (awaiting review, or sent
-    // back and not yet resubmitted) there's nothing frozen yet — compute a
-    // LIVE preview the same way sendPackageToClient itself will, so costing
-    // reviews the exact numbers that'll be locked in the moment they approve
-    // it, including any hotel/cab correction already saved via
-    // updatePackagePricing.
+    // sentAt+pricingSnapshot present → the exec has already sent this
+    // package at least once; show the frozen numbers actually locked in and
+    // delivered to the client. Otherwise (awaiting review, approved but not
+    // yet sent, or sent back and not yet resubmitted) there's nothing frozen
+    // yet — compute a LIVE preview the same way sendPackageToClient itself
+    // will, so costing reviews the exact numbers that'll be locked in
+    // whenever the exec does send it, including any hotel/cab correction
+    // already saved via updatePackagePricing.
     let snapshot: PricingSnapshot | null;
     if (pkg.sentAt && pkg.pricingSnapshot) {
         snapshot = pkg.pricingSnapshot as unknown as PricingSnapshot;

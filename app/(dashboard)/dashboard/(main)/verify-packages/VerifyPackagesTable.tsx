@@ -214,7 +214,7 @@ export function VerifyPackagesTable({
                             : "bg-dashboard-primary text-white hover:opacity-90"
                     }`}
                 >
-                    {p.verified ? <><Eye className="size-3" /> View</> : p.rejectedAt ? <><Eye className="size-3" /> Review</> : "Verify & Send →"}
+                    {p.verified ? <><Eye className="size-3" /> View</> : p.rejectedAt ? <><Eye className="size-3" /> Review</> : "Approve →"}
                 </Link>
             ),
         },

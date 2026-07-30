@@ -4,19 +4,18 @@
 //
 // Mandatory pre-send pricing review for custom packages a sales exec has
 // marked ready — nothing reaches the client until the costing team either
-// verifies-and-sends it (locks pricing + notifies the client, all in one
-// action) or rejects it with a reason, which kicks it back to the exec as a
-// DRAFT they can edit and resubmit. Costing can also correct pricing errors
-// directly here (margin/GST, hotel/cab subtotal, ticket fares, add-on
-// price+qty) before verifying.
+// approves it (locks in the pricing sign-off, but does NOT send anything —
+// the exec triggers the actual send from the package builder via
+// shareCustomPackageWithClient) or rejects it with a reason, which kicks it
+// back to the exec as a DRAFT they can edit and resubmit. Costing can also
+// correct pricing errors directly here (margin/GST, hotel/cab subtotal,
+// ticket fares, add-on price+qty) before approving.
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/app/lib/db";
 import { getCurrentActor, logTimeline, type ActionResult } from "../(marketing)/queries/actions";
 import { actionError } from "@/app/lib/action-error";
-import { sendPackageToClient } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
-import { emailPackageToClient } from "@/app/(dashboard)/dashboard/(builder)/package-builder/email-package";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 
 function revalidateAll(packageId: string) {
@@ -27,9 +26,9 @@ function revalidateAll(packageId: string) {
     revalidatePath(`/dashboard/package-builder/${packageId}`);
 }
 
-// ── Verify and send ──────────────────────────────────────────────────────────
+// ── Approve (pricing sign-off — does not send anything to the client) ───────
 
-export async function verifyAndSendPackage(packageId: string): Promise<ActionResult<{ whatsappUrl?: string; shareUrl?: string }>> {
+export async function approveCustomPackage(packageId: string): Promise<ActionResult> {
     try {
         const { actor } = await getCurrentActor();
 
@@ -39,16 +38,6 @@ export async function verifyAndSendPackage(packageId: string): Promise<ActionRes
         });
         if (!pkg) return { success: false, message: "Package not found" };
         if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review — the exec needs to mark it ready first." };
-
-        // Does the real work: recomputes pricing fresh (respecting any
-        // hotel/cab override set below via updatePackagePricing), locks the
-        // snapshot, sets status SENT, builds the WhatsApp link. Identical to
-        // what the old sales-exec-triggered "Send to Client" used to call —
-        // the only thing that changed is WHO can trigger it and WHEN.
-        const sendResult = await sendPackageToClient(packageId);
-        if (!sendResult.success) {
-            return { success: false, message: sendResult.error ?? "Failed to send package" };
-        }
 
         await db.custom_packages.update({
             where: { id: packageId },
@@ -62,28 +51,15 @@ export async function verifyAndSendPackage(packageId: string): Promise<ActionRes
             },
         });
 
-        // Best-effort — an email failure shouldn't undo the verify-and-send;
-        // the WhatsApp link is still handed back either way, and the client
-        // link itself is now live regardless of whether the email lands.
-        try {
-            await emailPackageToClient(packageId);
-        } catch (e) {
-            console.error("[verifyAndSendPackage] email failed", e);
-        }
-
         if (pkg.queryId) {
-            await logTimeline(pkg.queryId, `Package verified and sent to client by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
+            await logTimeline(pkg.queryId, `Package pricing approved by ${actor?.name ?? "team member"} — ready for the exec to share with the client`, actor?.id, actor?.name ?? undefined);
         }
         await broadcastVerificationCounts();
 
         revalidateAll(packageId);
-        return {
-            success: true,
-            data: { whatsappUrl: sendResult.whatsappUrl, shareUrl: sendResult.shareUrl },
-            message: "Verified and sent to client",
-        };
+        return { success: true, data: undefined, message: "Approved — the exec can now share this with the client" };
     } catch (e) {
-        console.error("[verifyAndSendPackage] FAILED:", e);
+        console.error("[approveCustomPackage] FAILED:", e);
         return actionError(e);
     }
 }
@@ -192,8 +168,8 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
         // Ticket fares / add-on price+qty are real fields — write straight
         // through. Hotel/cab are computed live from the itinerary (catalog
         // rates × occupancy), so a correction there is stored as an override
-        // that sendPackageToClient applies at verify-and-send time (see
-        // hotelSubtotalOverride/cabSubtotalOverride on the schema).
+        // that sendPackageToClient applies whenever the exec later sends it
+        // (see hotelSubtotalOverride/cabSubtotalOverride on the schema).
         await Promise.all([
             ...data.tickets.map((t) => db.custom_package_tickets.update({ where: { id: t.id }, data: { fare: t.fare } })),
             ...data.addOns.map((a) => db.custom_package_addons.update({ where: { id: a.id }, data: { price: a.price, quantity: a.quantity } })),

@@ -14,10 +14,10 @@ const COUNTRY_OPTIONS = [
     { code: '+91',  flag: '🇮🇳', label: 'IN' },
     { code: '+1',   flag: '🇺🇸', label: 'US' },
     { code: '+44',  flag: '🇬🇧', label: 'UK' },
-    { code: '+61',  flag: '🇦🇺', label: 'AU' },
-    { code: '+971', flag: '🇦🇪', label: 'AE' },
-    { code: '+65',  flag: '🇸🇬', label: 'SG' },
     { code: '+60',  flag: '🇲🇾', label: 'MY' },
+    { code: '+61',  flag: '🇦🇺', label: 'AU' },
+    { code: '+65',  flag: '🇸🇬', label: 'SG' },
+    { code: '+971', flag: '🇦🇪', label: 'AE' },
 ];
 
  

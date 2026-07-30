@@ -17,7 +17,7 @@ import {
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
-import { SalesQueryStatusBadge, PackageVerificationBadge } from "./Salesquerybadges";
+import { SalesQueryStatusBadge, PackageVerificationBadge, PackageSentBadge } from "./Salesquerybadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
@@ -363,7 +363,12 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                 </>
                             )}
                         </div>
-                        {latest?.readyAt && <PackageVerificationBadge pkg={latest} />}
+                        {latest?.readyAt && (
+                            <div className="flex flex-col items-center gap-1">
+                                <PackageVerificationBadge pkg={latest} />
+                                <PackageSentBadge pkg={latest} />
+                            </div>
+                        )}
                     </div>
                 );
             },

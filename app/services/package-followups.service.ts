@@ -4,9 +4,9 @@ export type PackageFollowUpSummary = { created: number; skipped: number };
 
 /**
  * Auto-nudges the sales exec to check in with the client ~1h after a package
- * they built was verified & sent — most execs move on to the next lead the
- * moment they hand a package to costing, so this catches the "did they even
- * open it?" follow-up that'd otherwise only happen if they remembered.
+ * they built was sent — most execs move on to the next lead the moment
+ * they've shared a package, so this catches the "did they even open it?"
+ * follow-up that'd otherwise only happen if they remembered.
  *
  * QueryFollowUp is upserted one-per-(query, exec) elsewhere in the app (see
  * addFollowUp in sales-query/actions.ts) — if the exec already has their own

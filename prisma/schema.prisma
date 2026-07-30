@@ -2508,8 +2508,8 @@ model custom_packages {
    * Costing-team correction, set during pre-send review (verify-packages'
    * updatePackagePricing) when the live-computed hotel/cab subtotal is
    * wrong — e.g. the exec picked the wrong room rate. Null means "use the
-   * live computed subtotal as-is". Checked by sendPackageToClient at
-   * verify-and-send time so a correction actually reaches the locked price
+   * live computed subtotal as-is". Checked by sendPackageToClient at the
+   * exec's send time so a correction actually reaches the locked price
    * instead of being silently recomputed away. Reset to null every time the
    * exec marks the package ready again, since a re-submitted itinerary may
    * have genuinely different rooms/cabs the old override no longer applies to.
@@ -2571,12 +2571,13 @@ model custom_packages {
   readyBy               String?
   readyByName           String?
   /**
-   * Internal pricing double-check, independent of the client-facing status
-   * (accepted/declined) — a reviewer confirms the locked pricingSnapshot
-   * math and the sent total actually agree before/after it's out the door.
-   * Under the mandatory pre-send review flow, "verified" and "sent" happen
-   * together in one verify-and-send action (see verify-packages/actions.ts),
-   * not as a post-hoc audit of an already-sent package.
+   * Costing's pricing sign-off, independent of the client-facing status
+   * (accepted/declined) and of whether it's actually been sent — a reviewer
+   * confirms the pricing is correct (see approveCustomPackage in
+   * verify-packages/actions.ts), which unlocks the exec's own separate send
+   * step (shareCustomPackageWithClient, in package-builder/action.ts) but
+   * doesn't trigger it. status only flips to SENT and pricingSnapshot gets
+   * locked once the exec actually sends it.
    */
   verified              Boolean                  @default(false)
   verifiedAt            DateTime?

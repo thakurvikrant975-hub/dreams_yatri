@@ -45,6 +45,7 @@ import {
   getQueryLeadInfo,
   saveCustomPackage,
   markPackageReady,
+  shareCustomPackageWithClient,
   getDestinationCoverImage,
   searchActivitiesForBuilder,
   searchVehiclesForBuilder,
@@ -2247,7 +2248,9 @@ export default function PackageBuilderDetailPage() {
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
+  const [isSharing, startShare] = useTransition();
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
+  const [confirmShareOpen, setConfirmShareOpen] = useState(false);
 
   const [form, setForm] = useState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
@@ -2647,11 +2650,13 @@ export default function PackageBuilderDetailPage() {
   }
 
   // ── Mark ready for costing review ───────────────────────────────────────────
-  // The ONLY way a package moves forward now — no direct "send to client"
-  // from here. This locks nothing and notifies no one; it just hands the
-  // package to /dashboard/verify-packages, where costing either verifies AND
-  // sends it (one action, see verify-packages/actions.ts) or rejects it back
-  // to DRAFT with a reason for the exec to fix and resubmit.
+  // The ONLY way a package moves forward from the builder into review — no
+  // direct "send to client" from here. This locks nothing and notifies no
+  // one; it just hands the package to /dashboard/verify-packages, where
+  // costing either approves the pricing (see approveCustomPackage in
+  // verify-packages/actions.ts — sending is a separate step below, triggered
+  // by the exec once approved) or rejects it back to DRAFT with a reason for
+  // the exec to fix and resubmit.
   // Validates first, then opens the confirm dialog (see confirmReadyOpen) —
   // the actual submit only runs once the exec confirms they understand this
   // locks out further edits until costing verifies or rejects it.
@@ -2697,6 +2702,42 @@ export default function PackageBuilderDetailPage() {
         if (fresh) setQuery(fresh);
       } else {
         toast.error(result2.error ?? "Failed to mark package ready");
+      }
+    });
+  }
+
+  // ── Share with client (only once costing has approved the pricing) ─────────
+  // Opens the WhatsApp deep link (needs a real click to avoid the popup
+  // blocker — see the toast action below) and best-effort emails the client.
+  // This is the exec's own send step, reintroduced after being folded into
+  // costing's approval for a while — see shareCustomPackageWithClient.
+  function handleShareClick() {
+    setConfirmShareOpen(true);
+  }
+
+  function handleShare() {
+    setConfirmShareOpen(false);
+    startShare(async () => {
+      const result = await shareCustomPackageWithClient(packageId);
+      if (result.success) {
+        toast.success("Sent to client", result.whatsappUrl ? {
+          action: { label: "Open WhatsApp", onClick: () => window.open(result.whatsappUrl, "_blank") },
+          duration: 15000,
+        } : undefined);
+        if (result.shareUrl) {
+          try {
+            await navigator.clipboard.writeText(result.shareUrl);
+            toast.info("Client link copied to clipboard");
+          } catch {
+            // Clipboard access can be denied (permissions/insecure context) —
+            // the WhatsApp message already includes the link either way, so
+            // this is a convenience, not something worth erroring over.
+          }
+        }
+        const fresh = await getPackageDetail(packageId);
+        if (fresh) setQuery(fresh);
+      } else {
+        toast.error(result.error ?? "Failed to send package");
       }
     });
   }
@@ -3263,10 +3304,17 @@ Rules:
   const ac = r?.activities;
 
   // Awaiting costing review — no further edits allowed until it's either
-  // verified & sent, or rejected back to DRAFT with a reason. The read-only
-  // preview pane stays fully visible either way; only the editor surface and
-  // save/submit actions are gated.
+  // approved, or rejected back to DRAFT with a reason. The read-only preview
+  // pane stays fully visible either way; only the editor surface and
+  // save/submit actions are gated. Left as status === "READY" alone (not
+  // combined with verified) since editing stays locked for the whole review
+  // + approved-awaiting-share window, not just the review part — the
+  // Save Draft/Mark Ready action-button area below has its own, separate
+  // four-state branching (draft / awaiting review / approved / sent) on top
+  // of this.
   const isLocked = query.customPackage?.status === "READY";
+  const pkgVerified = query.customPackage?.verified ?? false;
+  const pkgSent = query.customPackage?.status === "SENT";
 
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const shiftedMeals = computeShiftedMeals(form.itineraries);
@@ -3390,7 +3438,24 @@ Rules:
               </Button>
             </CreatePackageDialog>
 
-            {isLocked ? (
+            {pkgSent ? (
+              <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">
+                <CheckCircle size={13} /> Sent to Client
+              </span>
+            ) : isLocked && pkgVerified ? (
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                onClick={handleShareClick}
+                disabled={isSharing}
+              >
+                {isSharing
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <Send size={13} />
+                }
+                <span className="hidden sm:inline text-xs">Share with Client</span>
+              </Button>
+            ) : isLocked ? (
               <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">
                 <Clock size={13} /> Awaiting Costing Review
               </span>
@@ -3416,7 +3481,7 @@ Rules:
 
             <ItineraryPdfExport form={previewForm} />
 
-            {!isLocked && (
+            {!isLocked && !pkgSent && (
               <Button
                 size="sm"
                 className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
@@ -4572,9 +4637,24 @@ Rules:
             </Tabs>
 
             {/* Bottom action bar */}
-            {isLocked ? (
+            {pkgSent ? (
+              <div className="flex items-center justify-end gap-2 pt-6 pb-10 text-sm text-blue-700">
+                <CheckCircle size={14} /> Sent to client{query.customPackage?.sentAt ? ` — ${new Date(query.customPackage.sentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
+              </div>
+            ) : isLocked && pkgVerified ? (
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
+                <Button
+                  className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
+                  onClick={handleShareClick}
+                  disabled={isSharing}
+                >
+                  {isSharing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  Share with Client
+                </Button>
+              </div>
+            ) : isLocked ? (
               <div className="flex items-center justify-end gap-2 pt-6 pb-10 text-sm text-amber-700">
-                <Clock size={14} /> Awaiting costing review — editing is disabled until it's verified &amp; sent, or rejected back to you.
+                <Clock size={14} /> Awaiting costing review — editing is disabled until it&apos;s approved, or rejected back to you.
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
@@ -4608,13 +4688,29 @@ Rules:
             <AlertDialogTitle>Submit for costing review?</AlertDialogTitle>
             <AlertDialogDescription>
               Once this package goes under costing review, you won&apos;t be able to change anything —
-              editing stays locked until the costing team either verifies &amp; sends it, or rejects it
+              editing stays locked until the costing team either approves it, or rejects it
               back to you with a reason.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleMarkReady}>Mark Ready</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmShareOpen} onOpenChange={setConfirmShareOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send this package to the client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This opens a pre-filled WhatsApp message to {query.name || "the client"} and emails them a copy of the itinerary.
+              The price and itinerary get locked at today&apos;s numbers — no further pricing changes after this.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleShare}>Share with Client</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -4844,7 +4940,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
             label="Verification"
             value={
               query.customPackage.verified
-                ? "Verified & sent"
+                ? (query.customPackage.status === "SENT" ? "Approved & sent" : "Approved — awaiting share")
                 : query.customPackage.rejectedAt
                   ? `Rejected — ${query.customPackage.rejectionReason?.label ?? "see note"}`
                   : "Awaiting costing review"

@@ -5,9 +5,9 @@ import { packageItineraryTemplate, packageItineraryTextTemplate } from "@/app/co
 /**
  * Emails the client a full, branded copy of their itinerary — a richer
  * follow-up to sendPackageToClient (which only locks pricing and hands back
- * a WhatsApp link). Called automatically by verifyAndSendPackage the moment
- * costing verifies & sends a package — there's no separate "choose to email"
- * step anymore now that sending only ever happens from that one action.
+ * a WhatsApp link). Called automatically by shareCustomPackageWithClient the
+ * moment the sales exec sends an approved package — there's no separate
+ * "choose to email" step, sending always includes this.
  *
  * Plain module (no "use server"), imported directly by the calling Server
  * Action rather than being one itself.
@@ -18,8 +18,10 @@ import { packageItineraryTemplate, packageItineraryTextTemplate } from "@/app/co
  *
  * No PDF attachment: that used to be generated client-side (html2canvas, in
  * the browser) and passed in from the old exec-triggered "Send to Client"
- * dialog, which no longer exists — sending now only ever happens from
- * verifyAndSendPackage on the server, which has no way to render one.
+ * dialog. That flow was removed and this rebuild reintroduces exec-triggered
+ * sending via shareCustomPackageWithClient, but still server-side with no PDF
+ * render available — a client-generated attachment would need threading the
+ * PDF bytes through from the browser again.
  */
 export async function emailPackageToClient(
   packageId: string,
