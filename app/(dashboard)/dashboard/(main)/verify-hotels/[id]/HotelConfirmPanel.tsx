@@ -202,6 +202,17 @@ function ChangeHotelModal({
     // Using snapshot values avoids NaN from DB queries and ensures the diff is accurate.
     const adjustedSnapshotTotal = Number(snapshotTotal) + Number(snapshotMealTotal);
 
+    // Same meal-cost basis as each card's own breakdown, so the footer's
+    // "vs current" figure matches what's shown per-room in the list above.
+    const selectedMealCostPerPax = selected
+        ? (meals.get(selected.hotel.id) ?? [])
+            .filter((m) => snapshotMealTypes.includes(m.meal_type))
+            .reduce((s, m) => s + m.price_per_person, 0)
+        : 0;
+    const selectedGrandTotal = newTotal + selectedMealCostPerPax * travellers * numNights;
+    const selectedIsCurrent = selected != null && selected.hotel.id === defaultHotelId && selected.pricing.id === defaultPricingId;
+    const selectedDiff = selected && !selectedIsCurrent ? selectedGrandTotal - adjustedSnapshotTotal : 0;
+
     // Build flat list: one card per room+plan
     const cards = visibleRooms.flatMap((room) => {
         const hotel = hotelMap.get(room.hotel_id);
@@ -504,6 +515,18 @@ function ChangeHotelModal({
                     </button>
                 </div>
 
+                {/* Currently proposed hotel — the baseline every "vs current" diff below is measured against */}
+                <div className="shrink-0 flex items-center justify-between gap-2 border-b border-dashboard-base-300 bg-dashboard-base-200/40 px-5 py-2">
+                    <p className="text-xs text-dashboard-neutral">
+                        <span className="font-medium text-dashboard-base-content">Currently proposed:</span>{" "}
+                        {hotelMap.get(defaultHotelId)?.name ?? "—"}
+                        <span className="text-dashboard-neutral"> · {inr(oldRatePerRoom)}/room/night</span>
+                    </p>
+                    <p className="shrink-0 text-xs font-semibold text-dashboard-base-content">
+                        {inr(adjustedSnapshotTotal)} <span className="font-normal text-dashboard-neutral">total ({numNights}N)</span>
+                    </p>
+                </div>
+
                 {/* Search */}
                 <div className="shrink-0 border-b border-dashboard-base-300 px-5 py-3 flex items-center gap-2">
                     <input
@@ -597,7 +620,12 @@ function ChangeHotelModal({
                                     <span className="font-semibold">{selected.hotel.name}</span>
                                     <span className="text-dashboard-neutral"> · {selected.room.name}</span>
                                     {selected.pricing.plan_name && <span className="text-dashboard-neutral"> · {selected.pricing.plan_name}</span>}
-                                    <span className="ml-1.5 font-bold tabular-nums">{inr(newTotal)}</span>
+                                    <span className="ml-1.5 font-bold tabular-nums">{inr(selectedGrandTotal)}</span>
+                                    {selectedDiff !== 0 && (
+                                        <span className={`ml-1.5 font-bold tabular-nums ${selectedDiff > 0 ? "text-red-500" : "text-green-600"}`}>
+                                            ({selectedDiff > 0 ? "+" : "-"}{inr(Math.abs(selectedDiff))} vs current)
+                                        </span>
+                                    )}
                                 </span>
                             ) : (
                                 <span className="text-dashboard-neutral">Select a room from the list above</span>

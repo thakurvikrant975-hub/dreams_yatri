@@ -27,10 +27,14 @@ import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 // what's due, and paise-level precision just looks noisy here.
 const fmt = (n: number) => `₹${Math.ceil(n).toLocaleString('en-IN')}`;
 
+// Pure UTC date math — a local-time Date + toISOString() round-trip shifts
+// the result back a day in any timezone ahead of UTC (e.g. IST), since local
+// midnight + n days converts to n-1 days on the UTC clock.
 function addDaysISO(iso: string, n: number): string {
-    const d = new Date(`${iso}T00:00:00`);
-    d.setDate(d.getDate() + n);
-    return d.toISOString().slice(0, 10);
+    const [y, m, d] = iso.split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    date.setUTCDate(date.getUTCDate() + n);
+    return date.toISOString().slice(0, 10);
 }
 function formatDate(iso: string): string {
     const d = new Date(`${iso}T00:00:00`);

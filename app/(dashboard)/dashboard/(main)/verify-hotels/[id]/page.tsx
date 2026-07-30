@@ -37,10 +37,14 @@ function fmtDateTime(d: Date | null): string {
         day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
     }).format(d);
 }
+// Pure UTC date math — a local-time Date + toISOString() round-trip shifts
+// the result back a day on any server whose timezone is ahead of UTC (e.g.
+// IST), since local midnight + n days converts to n-1 days on the UTC clock.
 function addDays(dateStr: string, n: number): string {
-    const d = new Date(`${dateStr}T00:00:00`);
-    d.setDate(d.getDate() + n);
-    return d.toISOString().split("T")[0];
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    date.setUTCDate(date.getUTCDate() + n);
+    return date.toISOString().split("T")[0];
 }
 
 // ── Multi-night stay grouping ──────────────────────────────────────────────
@@ -387,6 +391,21 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                         {chip}
                                                     </span>
                                                 ))}
+                                            </div>
+                                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                <span className="rounded-full border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 py-0.5 text-xs text-dashboard-base-content">
+                                                    ₹{Number(snap.price_per_room).toLocaleString("en-IN")}/room{isMultiNight ? "/night" : ""}
+                                                </span>
+                                                {snap.mattresses_count > 0 && (
+                                                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs text-amber-800">
+                                                        {snap.mattresses_count} mattress{snap.mattresses_count !== 1 ? "es" : ""}
+                                                        {snap.extra_bed_rate > 0 && (
+                                                            <span className="font-medium">
+                                                                &nbsp;· ₹{Number(snap.extra_bed_rate).toLocaleString("en-IN")}{isMultiNight ? "/night" : ""} each
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 
