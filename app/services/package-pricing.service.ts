@@ -21,6 +21,14 @@ export type PricingInput = {
    *  itinerary_stays row, in place of its DB-configured default. Unknown/inactive
    *  ids fall back silently to the original room_pricing. */
   room_pricing_overrides?: { itinerary_stay_id: number; room_pricing_id: number }[] | null;
+  /** The guest's real per-room breakdown (from the MMT-style rooms picker) —
+   *  when it validates against a given stay's own capacity (see the guard in
+   *  the hotel-cost block below), room count and occupancy-tier pricing are
+   *  driven by this instead of being derived purely from adults+children.
+   *  Untrusted input: every caller-reachable entry point into this function
+   *  re-validates it independently before using it — never trust `rooms` on
+   *  its own to lower the price below what adults+children alone would cost. */
+  rooms?: { adults: number; children: number }[] | null;
 };
 
 export type DayHotelLine = {
@@ -376,7 +384,7 @@ export async function computePackagePrice(
   const {
     package_id, duration_id, route_id, stay_category_id,
     adults, children, infants, child_ages,
-    cab_type_ids, travel_date, room_pricing_overrides,
+    cab_type_ids, travel_date, room_pricing_overrides, rooms,
   } = input;
 
   // When no travel date is provided, fall back to today so seasonal pricing is applied.
@@ -774,10 +782,33 @@ export async function computePackagePrice(
       const extraBedCap   = stay.room_pricing.room?.extra_bed_capacity ?? 1;
       const effectiveCap  = bedCapacity + extraBedCap;
       const persons       = Math.max(adults + children, 1);
-      const roomsNeeded   = Math.ceil(persons / effectiveCap);
-      const mattresses    = Math.max(0, persons - roomsNeeded * bedCapacity);
       const numNights     = stay.num_nights;
-      const typicalOccupancy = Math.min(adults, bedCapacity);
+
+      // The guest's real per-room breakdown is only trusted for THIS stay if
+      // it can't possibly underprice the safe derived minimum: never fewer
+      // rooms than the party mathematically needs, headcounts exactly
+      // accounting for everyone, and no single room claiming more people
+      // than its own real capacity — every entry point into this function
+      // re-derives this independently, it is never taken on faith from a
+      // caller (see PricingInput.rooms).
+      const derivedRoomsNeeded = Math.ceil(persons / effectiveCap);
+      const validRooms = !!rooms
+        && Number.isInteger(rooms.length) && rooms.length > 0 && rooms.length <= 20
+        && rooms.every((r) => Number.isInteger(r.adults) && r.adults >= 1
+            && Number.isInteger(r.children) && r.children >= 0
+            && (r.adults + r.children) <= effectiveCap)
+        && rooms.length >= derivedRoomsNeeded
+        && rooms.reduce((s, r) => s + r.adults + r.children, 0) === persons;
+      const explicitRooms = validRooms ? rooms! : null;
+
+      const roomsNeeded = explicitRooms ? explicitRooms.length : derivedRoomsNeeded;
+      const perRoomHeadcount = explicitRooms ? explicitRooms.map((r) => r.adults + r.children) : null;
+      const mattresses = perRoomHeadcount
+        ? perRoomHeadcount.reduce((s, h) => s + Math.min(extraBedCap, Math.max(0, h - bedCapacity)), 0)
+        : Math.max(0, persons - roomsNeeded * bedCapacity);
+      const typicalOccupancy = explicitRooms
+        ? Math.round(persons / roomsNeeded)
+        : Math.min(adults, bedCapacity);
 
       // A multi-night stay can cross a season boundary or a weekday→weekend
       // transition partway through, so every night is resolved (room rate,
@@ -792,13 +823,33 @@ export async function computePackagePrice(
           ? new Date(travelDateObj.getTime() + (itin.day - 1 + n) * 24 * 60 * 60 * 1000)
           : null;
         const { basePrice, extraBedRate, occPrices } = resolveHotelSeasonPricing(stay.room_pricing, nightDate);
-        let nightPricePerRoom = basePrice;
-        if (occPrices.length > 0) {
-          const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
-          const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
-          nightPricePerRoom = Number(match.price_per_night);
+
+        let nightPricePerRoom: number;
+        if (perRoomHeadcount) {
+          // Real per-room breakdown: price EACH room at its own occupancy
+          // tier, rather than one trip-wide tier applied flatly to every room.
+          let nightRoomsCost = 0;
+          for (const headcount of perRoomHeadcount) {
+            let roomPrice = basePrice;
+            if (occPrices.length > 0) {
+              const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
+              const match = sorted.find((op) => op.occupancy <= headcount) ?? sorted[sorted.length - 1];
+              roomPrice = Number(match.price_per_night);
+            }
+            nightRoomsCost += roomPrice;
+          }
+          roomCost += nightRoomsCost;
+          nightPricePerRoom = nightRoomsCost / roomsNeeded; // for the price_per_room headline below
+        } else {
+          nightPricePerRoom = basePrice;
+          if (occPrices.length > 0) {
+            const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
+            const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
+            nightPricePerRoom = Number(match.price_per_night);
+          }
+          roomCost += roomsNeeded * nightPricePerRoom;
         }
-        roomCost += roomsNeeded * nightPricePerRoom;
+
         mattressCost += mattresses * extraBedRate;
         if (n === 0) {
           firstNightPricePerRoom = nightPricePerRoom;

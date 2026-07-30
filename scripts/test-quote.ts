@@ -59,8 +59,22 @@ console.log("Schema:");
         check("infants defaults to 0", r.data.infants === 0);
         check("child_ages defaults to []", Array.isArray(r.data.child_ages) && r.data.child_ages.length === 0);
         check("cab_type_ids defaults to []", Array.isArray(r.data.cab_type_ids) && r.data.cab_type_ids.length === 0);
+        check("rooms defaults to []", Array.isArray(r.data.rooms) && r.data.rooms.length === 0);
     }
 }
+
+check(
+    "rooms occupant total must match adults+children",
+    !quoteInputSchema.safeParse({ ...baseValid, adults: 2, rooms: [{ adults: 1, children: 0 }] }).success,
+);
+check(
+    "matching rooms total passes",
+    quoteInputSchema.safeParse({ ...baseValid, adults: 3, rooms: [{ adults: 2, children: 0 }, { adults: 1, children: 0 }] }).success,
+);
+check(
+    "rooms adults below 1 rejected",
+    !quoteInputSchema.safeParse({ ...baseValid, adults: 2, rooms: [{ adults: 0, children: 2 }] }).success,
+);
 
 check(
     "past travel_date rejected",
@@ -112,6 +126,13 @@ const parsedC = quoteInputSchema.parse({ ...baseValid, adults: 3, children: 1, c
 
 check("inputs hash is order-insensitive for cab_type_ids", computeInputsHash(parsedA) === computeInputsHash(parsedB));
 check("different pax → different inputs hash", computeInputsHash(parsedA) !== computeInputsHash(parsedC));
+
+const parsedRoomsSplitA = quoteInputSchema.parse({ ...baseValid, adults: 3, rooms: [{ adults: 2, children: 0 }, { adults: 1, children: 0 }] });
+const parsedRoomsSplitB = quoteInputSchema.parse({ ...baseValid, adults: 3, rooms: [{ adults: 1, children: 0 }, { adults: 2, children: 0 }] });
+const parsedRoomsSame   = quoteInputSchema.parse({ ...baseValid, adults: 3, rooms: [{ adults: 2, children: 0 }, { adults: 1, children: 0 }] });
+check("inputs hash changes when only room split/order changes (same totals)", computeInputsHash(parsedRoomsSplitA) !== computeInputsHash(parsedRoomsSplitB));
+check("inputs hash is identical for an identical rooms array", computeInputsHash(parsedRoomsSplitA) === computeInputsHash(parsedRoomsSame));
+check("rooms vs no-rooms → different inputs hash for the same pax", computeInputsHash(parsedRoomsSplitA) !== computeInputsHash(quoteInputSchema.parse({ ...baseValid, adults: 3 })));
 
 const payload: QuoteSignaturePayload = {
     inputs_hash: computeInputsHash(parsedA),

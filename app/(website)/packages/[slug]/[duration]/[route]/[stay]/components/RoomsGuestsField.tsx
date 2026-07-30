@@ -35,12 +35,13 @@ function summarizeTrip(rooms: RoomGuests[]): string {
  *  the actual hotel-inventory check deferred to Apply — see the plan doc
  *  for why this replaces TravellersField on the package page specifically. */
 export default function RoomsGuestsField() {
-    const { roomGuests, setRoomGuests, maxRooms, personsPerRoom } = useBooking();
+    const { roomGuests, setRoomGuests, maxRooms, personsPerRoom, requestMoreRooms } = useBooking();
     const [open, setOpen] = useState(false);
 
     // Draft edited inside the popover; committed on Apply (mirrors MMT).
     const [draftRooms, setDraftRooms] = useState<RoomGuests[]>(roomGuests);
     const [expandedIndex, setExpandedIndex] = useState(0);
+    const [checkingAvailability, setCheckingAvailability] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -69,11 +70,19 @@ export default function RoomsGuestsField() {
 
     const hasUnsetAge = draftRooms.some((r) => r.childAges.some((a) => a < 0));
 
-    function apply() {
+    async function apply() {
         if (hasUnsetAge) return;
         if (draftRooms.length > maxRooms) {
-            notifyLimit(`Only up to ${maxRooms} room${maxRooms > 1 ? 's' : ''} available for this trip's hotels — you have ${draftRooms.length}, please remove ${draftRooms.length - maxRooms}.`);
-            return;
+            // Before hard-blocking, see if a nearby same-category hotel has
+            // enough rooms to cover the shortfall — mirrors "Change Hotel"'s
+            // own geo-search, just triggered automatically here.
+            setCheckingAvailability(true);
+            const unlocked = await requestMoreRooms(draftRooms.length);
+            setCheckingAvailability(false);
+            if (!unlocked) {
+                notifyLimit(`Only up to ${maxRooms} room${maxRooms > 1 ? 's' : ''} available for this trip's hotels — you have ${draftRooms.length}, please remove ${draftRooms.length - maxRooms}.`);
+                return;
+            }
         }
         setRoomGuests(draftRooms);
         setOpen(false);
@@ -232,15 +241,25 @@ export default function RoomsGuestsField() {
                         variant="outline"
                         size="sm"
                         onClick={addRoom}
-                        className="mt-3 w-full !text-primary-500 !ring-1 !ring-inset !ring-primary-200"
+                        disabled={draftRooms.length >= MAX_ROOM_CARDS}
+                        className="mt-3 w-full text-primary-500! ring-1! ring-inset! ring-primary-200!"
                     >
                         <PlusIcon weight="bold" className="size-3.5" />
                         Add Another Room
                     </Button>
 
                     <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-3">
-                        <span className="text-xs text-neutral-400">{summarizeTrip(draftRooms)}</span>
-                        <Button variant="premium" size="sm" disabled={hasUnsetAge} onClick={apply} className="rounded-lg px-6">
+                        <span className="text-xs text-neutral-400">
+                            {checkingAvailability ? 'Checking room availability…' : summarizeTrip(draftRooms)}
+                        </span>
+                        <Button
+                            variant="premium"
+                            size="sm"
+                            disabled={hasUnsetAge || checkingAvailability}
+                            loading={checkingAvailability}
+                            onClick={apply}
+                            className="rounded-lg px-6"
+                        >
                             Apply
                         </Button>
                     </div>

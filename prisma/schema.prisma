@@ -2260,6 +2260,11 @@ model package_quote {
   infants          Int         @default(0)
   child_ages       Int[]       @default([])
   cab_type_ids     Int[]       @default([])
+  // Real per-room breakdown ({adults, children}[]) from the MMT-style rooms
+  // picker, frozen onto the quote so re-pricing (freshness checks, date
+  // changes) stays consistent with what was originally quoted. [] = the
+  // engine derived room count the old way (adults+children only).
+  rooms            Json        @default("[]")
   travel_date      DateTime
   currency         String      @default("INR")
   breakdown        Json

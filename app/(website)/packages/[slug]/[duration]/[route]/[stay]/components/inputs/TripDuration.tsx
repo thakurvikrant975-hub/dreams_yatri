@@ -39,7 +39,7 @@ function TripDuration({
     const [val, setVal] = useState(durationSlug);
 
     // Recompute each duration's per-adult price as the selected travellers change.
-    const { adults, childCount, childAges, travelDate } = useBooking();
+    const { adults, childCount, childAges, roomGuests, travelDate } = useBooking();
     const [livePrices, setLivePrices] = useState<Record<number, number>>({});
     const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const childAgesKey = childAges.join(',');
@@ -59,6 +59,7 @@ function TripDuration({
                         children: childCount,
                         infants: 0,
                         child_ages: childAges.length === childCount ? childAges : undefined,
+                        rooms: roomGuests.map((r) => ({ adults: r.adults, children: r.childAges.length })),
                         travel_date: travelDate || null,
                     });
                     if (res.success && !res.data.missing_pricing_config) {
@@ -75,7 +76,7 @@ function TripDuration({
         }, 400);
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [adults, childCount, childAgesKey, travelDate, packageId, stayCategoryId]);
+    }, [adults, childCount, childAgesKey, roomGuests, travelDate, packageId, stayCategoryId]);
 
     return (
         <section>

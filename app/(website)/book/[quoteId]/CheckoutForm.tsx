@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { PencilSimpleIcon, PlusIcon, CheckCircleIcon, UserCirclePlusIcon } from '@phosphor-icons/react';
+import { PencilSimpleIcon, PlusIcon, CheckCircleIcon, UserCirclePlusIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { Input, inputVariants } from '@/app/components/forms/Input';
 import { Select, Option } from '@/app/components/forms/Select';
 import { checkoutSchema, type CheckoutInput, type TravellerInput } from '@/app/actions/quote/checkout-schema';
@@ -57,7 +57,7 @@ function travellerLabels(list: TravellerInput[]): string[] {
 
 
 export default function CheckoutForm({
-    pax, onChange, initialEmail = null, initialPhone = null,
+    pax, onChange, initialEmail = null, initialPhone = null, onTravellersCompleteChange,
 }: {
     pax: Pax;
     onChange: (v: CheckoutInput | null) => void;
@@ -65,6 +65,9 @@ export default function CheckoutForm({
      *  retype details already on file — still fully editable before checkout. */
     initialEmail?: string | null;
     initialPhone?: string | null;
+    /** Lets the page badge its "Traveller Details" nav entry while any
+     *  traveller is still missing details. */
+    onTravellersCompleteChange?: (allComplete: boolean) => void;
 }) {
     const [travellers, setTravellers] = useState<TravellerInput[]>(() => initialTravellers(pax));
     const [email, setEmail]           = useState(() => initialEmail ?? '');
@@ -74,9 +77,22 @@ export default function CheckoutForm({
     const [specialRequests, setSpecialRequests] = useState('');
     const [touched, setTouched]       = useState<Record<string, boolean>>({});
 
-    const [modalOpen, setModalOpen] = useState(false);
-    const [modalTab, setModalTab]   = useState(0);
+    // Traveller details are the one thing that blocks payment, so the modal
+    // opens straight away on the first incomplete traveller rather than
+    // waiting to be discovered — the rest of the review page is read-only
+    // confirmation the guest can get to afterwards.
+    const firstIncomplete = travellers.findIndex((t) => !isTravellerComplete(t));
+    const [modalOpen, setModalOpen] = useState(firstIncomplete !== -1);
+    const [modalTab, setModalTab]   = useState(firstIncomplete === -1 ? 0 : firstIncomplete);
     const labels = useMemo(() => travellerLabels(travellers), [travellers]);
+
+    const allTravellersComplete = travellers.every(isTravellerComplete);
+    const pendingCount = travellers.filter((t) => !isTravellerComplete(t)).length;
+
+    useEffect(() => {
+        onTravellersCompleteChange?.(allTravellersComplete);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allTravellersComplete]);
 
     useEffect(() => {
         const phone = phoneInput ? `${countryCode}${phoneInput}` : '';
@@ -95,23 +111,37 @@ export default function CheckoutForm({
     return (
         <div className="flex flex-col gap-5">
             {/* Traveller slots */}
+            {!allTravellersComplete && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+                    <WarningCircleIcon weight="fill" className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                        {pendingCount} traveller{pendingCount === 1 ? '' : 's'} still need{pendingCount === 1 ? 's' : ''} details before you can pay.
+                    </p>
+                </div>
+            )}
             <div className="rounded-xl border border-(--border-muted) divide-y divide-(--border-muted)">
                 {travellers.map((t, i) => {
                     const done = isTravellerComplete(t);
                     const name = `${t.firstName} ${t.lastName}`.trim();
                     return (
                         <button key={i} type="button" onClick={() => { setModalTab(i); setModalOpen(true); }}
-                            className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-neutral-50 rounded-xl bg-linear-to-b from-neutral-50 via-white to-white cursor-pointer ">
-                            <span className={`flex size-9 shrink-0 items-center justify-center rounded-full bg-white shadow-sm shadow-neutral-300 ${done ? ' text-success-600' : ' text-muted'}`}>
+                            className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition rounded-xl cursor-pointer ${
+                                done
+                                    ? 'hover:bg-neutral-50 bg-linear-to-b from-neutral-50 via-white to-white'
+                                    : 'bg-amber-50/60 hover:bg-amber-50 ring-1 ring-inset ring-amber-200'
+                            }`}>
+                            <span className={`flex size-9 shrink-0 items-center justify-center rounded-full bg-white shadow-sm shadow-neutral-300 ${done ? ' text-success-600' : ' text-amber-500'}`}>
                                 {done ? <CheckCircleIcon weight="fill" className="size-5" /> : <UserCirclePlusIcon weight="fill" className="size-7" />}
                             </span>
                             <span className="min-w-0 flex-1">
                                 <span className="block text-sm font-semibold text-(--text-primary)">{done ? name : `Add ${labels[i]}`}</span>
-                                <span className="block text-xs text-(--text-muted)">
+                                <span className={`block text-xs ${done ? 'text-(--text-muted)' : 'text-amber-700'}`}>
                                     {done ? labels[i] + (i === 0 ? ' · Lead traveller' : '') : i === 0 ? 'Lead traveller — required' : 'Required'}
                                 </span>
                             </span>
-                            <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-gray-700 bg-gray-200 rounded-md px-3 py-1.5">
+                            <span className={`flex shrink-0 items-center gap-1 text-xs font-bold rounded-md px-3 py-1.5 ${
+                                done ? 'text-gray-700 bg-gray-200' : 'text-white bg-amber-500'
+                            }`}>
                                 {done ? <><PencilSimpleIcon weight="bold" className="size-3.5" /> Edit</> : 'Add'}
                             </span>
                         </button>

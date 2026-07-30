@@ -257,6 +257,8 @@ export default function TrendingPackages({ packages }: TrendingPackagesProps) {
                                 itinerary={pkg.itinerary}
                                 originalPrice={pkg.originalPrice}
                                 discountedPrice={pkg.discountedPrice}
+                                totalPrice={pkg.totalPrice}
+                                pricedForAdults={pkg.pricedForAdults}
                                 isPriority={index < 3}
                             />
                         </Link>

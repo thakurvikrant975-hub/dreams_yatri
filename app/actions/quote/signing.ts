@@ -45,6 +45,10 @@ export function computeInputsHash(input: QuoteParsed): string {
         [...input.child_ages].sort((a, b) => a - b).join(","),
         [...input.cab_type_ids].sort((a, b) => a - b).join(","),
         input.travel_date,
+        // Room ORDER is preserved (not sorted) — unlike child_ages/cab_type_ids,
+        // which room has which headcount is a distinct real configuration, not
+        // an equivalent reordering of interchangeable values.
+        input.rooms.map((r) => `${r.adults}:${r.children}`).join(","),
     ].join("|");
     return createHash("sha256").update(canonical).digest("hex");
 }

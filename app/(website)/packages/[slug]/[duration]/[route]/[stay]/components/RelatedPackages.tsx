@@ -30,6 +30,8 @@ export default async function RelatedPackages({ currentPackageId, destinationId 
                         itinerary={pkg.itinerary}
                         originalPrice={pkg.originalPrice}
                         discountedPrice={pkg.discountedPrice}
+                        totalPrice={pkg.totalPrice}
+                        pricedForAdults={pkg.pricedForAdults}
                         inclusions={['hotel', 'meals', 'cab', 'activities']}
                     />
                 ))}

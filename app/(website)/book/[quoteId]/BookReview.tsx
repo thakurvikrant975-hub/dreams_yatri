@@ -98,6 +98,7 @@ export default function BookReview({
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [checkout, setCheckout] = useState<CheckoutInput | null>(null);
+    const [travellersComplete, setTravellersComplete] = useState(false);
     const [policy, setPolicy] = useState(false);
     const [priceSummaryOpen, setPriceSummaryOpen] = useState(false);
 
@@ -120,6 +121,19 @@ export default function BookReview({
     const activitiesCount = itinerary.reduce((s, d) => s + (d.activities?.length ?? 0), 0);
     const baseAmount = Math.max(0, quote.total_amount - quote.gst_amount);
 
+    /** The mobile number the guest just entered in Contact details — the login
+     *  modal uses it to send an OTP straight away instead of asking for a
+     *  number they've already given us. `checkout.contact.phone` is stored as
+     *  a single E.164-ish string ("+919876543210"). */
+    function loginPrefill() {
+        const raw = checkout?.contact?.phone ?? '';
+        const m = raw.match(/^(\+\d{1,4})(\d+)$/);
+        return {
+            redirectTo: window.location.pathname + window.location.search,
+            ...(m ? { countryCode: m[1], phone: m[2] } : {}),
+        };
+    }
+
     async function proceedToPayment() {
         setSubmitting(true);
         try {
@@ -127,7 +141,7 @@ export default function BookReview({
             if (!res.success) {
                 setSubmitting(false);
                 if (res.reason === 'unauthenticated') {
-                    openModal('login-modal', { redirectTo: window.location.pathname + window.location.search });
+                    openModal('login-modal', loginPrefill());
                     return;
                 }
                 setError(
@@ -151,7 +165,7 @@ export default function BookReview({
         if (!policy) { setError('Please accept the booking policies to continue.'); return; }
 
         if (status === 'unauthenticated') {
-            openModal('login-modal', { redirectTo: window.location.pathname + window.location.search });
+            openModal('login-modal', loginPrefill());
             return;
         }
 
@@ -182,11 +196,21 @@ export default function BookReview({
                 <div className="screen-space flex flex-wrap items-center justify-between gap-3 py-3.5">
                     <span className="text-base font-medium">Review Package</span>
                     <nav className="flex flex-wrap items-center gap-x-6 gap-y-1">
-                        {sections.map((s, i) => (
-                            <a key={s.id} href={`#${s.id}`} className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-white transition-colors">
-                                {i + 1}. {s.label}
-                            </a>
-                        ))}
+                        {sections.map((s, i) => {
+                            // Flag the traveller step in the nav while it's the
+                            // thing standing between the guest and paying.
+                            const needsAttention = s.id === 'sec-travellers' && !travellersComplete;
+                            return (
+                                <a key={s.id} href={`#${s.id}`} className={`flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                                    needsAttention ? 'text-amber-300 hover:text-amber-200' : 'text-neutral-400 hover:text-white'
+                                }`}>
+                                    {i + 1}. {s.label}
+                                    {needsAttention && (
+                                        <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" aria-hidden="true" />
+                                    )}
+                                </a>
+                            );
+                        })}
                     </nav>
                 </div>
             </div>
@@ -228,6 +252,7 @@ export default function BookReview({
                                 onChange={setCheckout}
                                 initialEmail={contactEmail}
                                 initialPhone={contactPhone}
+                                onTravellersCompleteChange={setTravellersComplete}
                             />
                         </Section>
 

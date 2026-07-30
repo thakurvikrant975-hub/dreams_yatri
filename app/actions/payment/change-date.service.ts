@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/app/lib/db";
 import { computePackagePrice } from "@/app/services/package-pricing.service";
+import { parseRoomsJson } from "@/app/actions/quote/get-quote.service";
 import { resolveConfig } from "@/app/services/cancellation-policy/config";
 import { getProvider, activeGateway } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
@@ -38,10 +39,11 @@ function isRealFutureDate(s: string): boolean {
 async function reprice(quoteId: string, newDate: string): Promise<number | null> {
     const q = await db.package_quote.findUnique({ where: { id: quoteId } });
     if (!q) return null;
+    const rooms = parseRoomsJson(q.rooms);
     const bd = await computePackagePrice({
         package_id: q.package_id, duration_id: q.duration_id, route_id: q.route_id, stay_category_id: q.stay_category_id,
         adults: q.adults, children: q.children, infants: q.infants, child_ages: q.child_ages,
-        cab_type_ids: q.cab_type_ids.length ? q.cab_type_ids : null, travel_date: newDate,
+        cab_type_ids: q.cab_type_ids.length ? q.cab_type_ids : null, rooms: rooms.length ? rooms : null, travel_date: newDate,
     });
     if (bd.missing_pricing_config) return null;
     return rupeesToPaise(bd.final_price);

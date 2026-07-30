@@ -40,7 +40,13 @@ const EMPTY_DIGITS = (): string[] => ['', '', '', '', '', ''];
 
 function LoginModal() {
   const { isOpen, type, data, closeModal } = useModal();
-  const redirectTo = (data as { redirectTo?: string } | null)?.redirectTo ?? '/profile';
+  const modalData = data as { redirectTo?: string; phone?: string; countryCode?: string } | null;
+  const redirectTo = modalData?.redirectTo ?? '/profile';
+  // Callers mid-flow (e.g. checkout) already collected a mobile number — pass
+  // it in and the modal skips straight to OTP entry for that number instead of
+  // asking for it a second time.
+  const prefillPhone = modalData?.phone ?? '';
+  const prefillCountryCode = modalData?.countryCode ?? '+91';
   const router = useRouter();
   const [errors, setErrors]           = useState<Record<string, string>>({});
   const [countryCode, setCountryCode] = useState('+91');
@@ -69,6 +75,33 @@ function LoginModal() {
     if (!otpSent) return;
     setResendTimer(30);
   }, [otpSent]);
+
+  // Auto-send the OTP when a caller opened the modal with a known number.
+  // Guarded by a ref so a re-render (or the resend timer ticking) can't fire a
+  // second SMS for the same modal opening.
+  const autoSentForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpen || type !== 'login-modal') { autoSentForRef.current = null; return; }
+    if (!prefillPhone) return;
+
+    const key = `${prefillCountryCode}${prefillPhone}`;
+    if (autoSentForRef.current === key) return;
+    autoSentForRef.current = key;
+
+    setActiveMethod('phone');
+    setCountryCode(prefillCountryCode);
+    setPhone(prefillPhone);
+    setLoading(true);
+    msg91Send(
+      `${prefillCountryCode.replace('+', '')}${prefillPhone}`,
+      () => { setOtpSent(true); setLoading(false); setTimeout(() => otpRefs.current[0]?.focus(), 50); },
+      () => { setLoading(false); },
+      // If the auto-send fails, fall back to the normal number-entry step
+      // (pre-filled) rather than stranding the user on an OTP box.
+      (msg) => { setOtpSent(false); setErrors({ phone: msg }); setLoading(false); },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, type, prefillPhone, prefillCountryCode]);
 
   useEffect(() => {
     if (resendTimer <= 0) return;

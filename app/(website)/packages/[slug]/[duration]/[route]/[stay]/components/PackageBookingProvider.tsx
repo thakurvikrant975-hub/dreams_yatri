@@ -24,21 +24,29 @@ import { notifyLimit } from '@/app/components/ui/Stepper';
 // from a hotel that genuinely only has one room of that type. Treating a
 // bare "1" as an authoritative cap would wrongly lock nearly every existing
 // package down to a single room. So: only numbers greater than 1 are trusted
-// as a real, deliberately-set inventory limit; "1" is treated as
-// "not configured yet" and falls back to the app-wide MAX_ROOMS ceiling.
+// as a real, deliberately-set inventory limit; "1" is treated as "not
+// configured yet" and falls back to a generous-but-modest default — not the
+// app-wide MAX_ROOMS ceiling, which would wildly overstate what an
+// unconfigured property can actually fulfil.
+const UNCONFIGURED_ROOM_FALLBACK = 3;
 export function effectiveRoomCap(numRooms: number): number {
-    return numRooms > 1 ? numRooms : MAX_ROOMS;
+    return numRooms > 1 ? numRooms : UNCONFIGURED_ROOM_FALLBACK;
 }
 
 // A room with no configured capacity is assumed to sleep 2 + 1 extra bed —
 // matches the pricing engine's own fallback (package-pricing.service.ts).
 const DEFAULT_PERSONS_PER_ROOM = 3;
 
+// requestMoreRooms won't attempt an auto-swap when more stays than this are
+// simultaneously the bottleneck — see the comment at its call site.
+const MAX_AUTO_SWAP_BOTTLENECKS = 2;
+
 /** One package stay's default room + its total inventory, as shipped from
  *  the server (see fetch-page-data.ts's HotelDay/RoomOption). */
 export type StayRoomCount = {
     itineraryStayId: number;
     roomPricingId:   number;
+    hotelId:         number;
     numRooms:        number;
     roomCapacity:    number | null;
     roomExtraBeds:   number;
@@ -128,6 +136,13 @@ export interface BookingContextValue {
     leavingFrom: LocationValue | null;  // user's origin city (carried from search)
 
     setRoomGuests: (rooms: RoomGuests[]) => void;
+    /** Called when the guest wants more rooms than `maxRooms` currently
+     *  allows. Tries to raise the ceiling by swapping every bottleneck
+     *  stay's hotel for a nearby (~22km), same-tier alternative with enough
+     *  room inventory — mirrors "Change Hotel"'s own geo-search. Resolves
+     *  true only if EVERY bottleneck stay found a fit (so the full
+     *  `desired` count is now achievable); false leaves maxRooms untouched. */
+    requestMoreRooms: (desired: number) => Promise<boolean>;
     setInfants:    (n: number) => void;
     setTravelDate: (d: string) => void;
     setLeavingFrom: (l: LocationValue | null) => void;
@@ -396,6 +411,60 @@ export function PackageBookingProvider({
         }
     }
 
+    async function requestMoreRooms(desired: number): Promise<boolean> {
+        if (desired <= maxRooms) return true;
+
+        // Stays currently pinning the ceiling (maxRooms = the smallest cap
+        // across the trip) — every one of them needs a bigger room for the
+        // ceiling to actually move; a single unswappable stay still caps it.
+        const bottlenecks = stayRoomCounts.filter((stay) => {
+            const overrideId = roomSelections.get(stay.itineraryStayId);
+            let activeNumRooms = stay.numRooms;
+            if (overrideId != null && overrideId !== stay.roomPricingId) {
+                const alternates = [
+                    ...(roomAlternatesByStay.get(stay.itineraryStayId) ?? []),
+                    ...(hotelAlternatesByStay.get(stay.itineraryStayId) ?? []),
+                ];
+                activeNumRooms = alternates.find((o) => o.room_pricing_id === overrideId)?.room_num_rooms ?? stay.numRooms;
+            }
+            return effectiveRoomCap(activeNumRooms) === maxRooms;
+        });
+        // Each bottleneck fans out into its own geo-search (haversine +
+        // several OSRM road-routing calls). Fine for the common case of one
+        // or two tied-for-tightest hotels; with most stays unconfigured and
+        // sharing the same fallback cap, this list can realistically be
+        // "every stay in the trip" — swapping that many hotels at once
+        // against a free routing service isn't practical (or likely to fully
+        // succeed anyway), so bail immediately rather than making the guest
+        // wait a long time for a search that probably won't fully unblock.
+        if (bottlenecks.length === 0 || bottlenecks.length > MAX_AUTO_SWAP_BOTTLENECKS) return false;
+
+        const AUTO_SWAP_TIMEOUT_MS = 8_000;
+        const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), AUTO_SWAP_TIMEOUT_MS));
+
+        const results = await Promise.race([
+            Promise.all(bottlenecks.map(async (stay) => {
+                const rows = await fetchHotelAlternatives(stay.hotelId);
+                setHotelAlternatesByStay((prev) => new Map(prev).set(stay.itineraryStayId, rows));
+                // Rows already come back nearest + same-star-tier first — just take
+                // the first one that actually has enough inventory to fit.
+                const fit = rows.find((o) => effectiveRoomCap(o.room_num_rooms) >= desired);
+                return fit ? { itineraryStayId: stay.itineraryStayId, roomPricingId: fit.room_pricing_id } : null;
+            })),
+            timeout,
+        ]);
+
+        // Timed out, or at least one bottleneck had nothing that fit.
+        if (results === null || results.some((r) => r === null)) return false;
+
+        setRoomSelections((prev) => {
+            const next = new Map(prev);
+            for (const r of results) next.set(r!.itineraryStayId, r!.roomPricingId);
+            return next;
+        });
+        return true;
+    }
+
     // Re-fetch price whenever pax changes (debounced 400 ms)
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -418,6 +487,7 @@ export function PackageBookingProvider({
                     travel_date:      travelDate || (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })(),
                     cab_type_ids:     cabTypeIds.length > 0 ? cabTypeIds : null,
                     room_pricing_overrides: roomOverrides.length > 0 ? roomOverrides : null,
+                    rooms:            roomGuests.map((r) => ({ adults: r.adults, children: r.childAges.length })),
                 });
                 if (res.success) {
                     if (res.data.missing_pricing_config) {
@@ -455,12 +525,12 @@ export function PackageBookingProvider({
 
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [adults, childCount, infants, childAges, travelDate, cabSelections, roomSelections, packageId, durationId, routeId, stayCategoryId]);
+    }, [adults, childCount, infants, childAges, roomGuests, travelDate, cabSelections, roomSelections, packageId, durationId, routeId, stayCategoryId]);
 
     return (
         <BookingContext.Provider value={{
             adults, childCount, infants, childAges, rooms, roomGuests, maxRooms, personsPerRoom, travelDate, leavingFrom,
-            setRoomGuests, setInfants, setTravelDate, setLeavingFrom,
+            setRoomGuests, requestMoreRooms, setInfants, setTravelDate, setLeavingFrom,
             cabGroups, cabSelections, setCabForGroup,
             roomSelections, setRoomForStay, roomAlternatesByStay, hotelAlternatesByStay,
             loadRoomAlternatives, loadHotelAlternatives, isLoadingAlternatives,

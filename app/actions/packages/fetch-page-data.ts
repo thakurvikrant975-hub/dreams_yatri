@@ -3,6 +3,12 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { computePackagePrice } from "@/app/services/package-pricing.service";
 import { parseRoomAmenities } from "@/app/lib/hotel-inventory/room-amenities";
 import { getCardImage } from "@/app/lib/imageUrl";
+import {
+  shapePackageCards,
+  PACKAGE_CARD_SELECT,
+  type PackageCardRow,
+  type PackageCardItem,
+} from "@/app/lib/packages/cardShaper";
 
 // ── Output types ───────────────────────────────────────────────────────────
 
@@ -964,28 +970,16 @@ export async function getActivePackageParams() {
 
 // ── Related packages ───────────────────────────────────────────────────────
 
-export type RelatedPackageItem = {
-  id: number;
-  title: string;
-  slug: string;
-  images: string[];
-  duration: string;
-  durationSlug: string;
-  routeSlug: string;
-  staySlug: string;
-  itinerary: { days: number; place: string }[];
-  discountedPrice: number;
-  originalPrice: number;
-};
+/** Card shape for the related-packages widget and the home page — the same
+ *  shape every other package card uses, so they all render through PackageCard
+ *  with identical, real "starting from" pricing (see cardPricing.ts). */
+export type RelatedPackageItem = PackageCardItem;
 
 export async function fetchRelatedPackages(
   currentPackageId: number,
   destinationId: number,
   limit = 3,
 ): Promise<RelatedPackageItem[]> {
-  const imgUrl = (key: string | null | undefined) =>
-    !key ? "" : key.startsWith("http") ? key : getCardImage(key);
-
   // Lookup region for the current destination (needed for tier-2 fallback)
   const currentDestination = await db.destinations.findUnique({
     where: { id: destinationId },
@@ -993,75 +987,16 @@ export async function fetchRelatedPackages(
   });
   const regionId = currentDestination?.region_id ?? null;
 
-  type PkgRow = {
-    id: number;
-    title: string;
-    slug: string;
-    thumbnail: string | null;
-    images: { url: string | null }[];
-    durations: {
-      id: number;
-      slug: string;
-      days: number;
-      nights: number;
-      routes: {
-        id: number;
-        slug: string;
-        stops: { place_name: string; stay_days: number }[];
-      }[];
-    }[];
-    stay_categories: { id: number; slug: string }[];
-  };
-
-  async function fetchTier(
-    where: Prisma.packagesWhereInput,
-    take: number,
-  ): Promise<PkgRow[]> {
+  function fetchTier(where: Prisma.packagesWhereInput, take: number): Promise<PackageCardRow[]> {
     return db.packages.findMany({
       where,
       take,
       orderBy: { created_at: "desc" },
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        thumbnail: true,
-        images: { orderBy: { sort_order: "asc" }, take: 3, select: { url: true } },
-        durations: {
-          where: { is_active: true },
-          orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
-          take: 1,
-          select: {
-            id: true,
-            slug: true,
-            days: true,
-            nights: true,
-            routes: {
-              where: { is_active: true },
-              orderBy: { sort_order: "asc" },
-              take: 1,
-              select: {
-                id: true,
-                slug: true,
-                stops: {
-                  orderBy: { sort_order: "asc" },
-                  select: { place_name: true, stay_days: true },
-                },
-              },
-            },
-          },
-        },
-        stay_categories: {
-          where: { is_active: true },
-          orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
-          take: 1,
-          select: { id: true, slug: true },
-        },
-      },
-    }) as Promise<PkgRow[]>;
+      select: PACKAGE_CARD_SELECT,
+    }) as Promise<PackageCardRow[]>;
   }
 
-  const collected: PkgRow[] = [];
+  const collected: PackageCardRow[] = [];
   const seenIds = new Set<number>([currentPackageId]);
 
   // Tier 1 — same destination
@@ -1091,175 +1026,20 @@ export async function fetchRelatedPackages(
     for (const p of rows) { collected.push(p); seenIds.add(p.id); }
   }
 
-  if (collected.length === 0) return [];
-
-  // Fetch hotel pricing for each package in parallel
-  const pricingResults = await Promise.all(
-    collected.map(async (pkg) => {
-      const duration = pkg.durations[0];
-      const route = duration?.routes[0];
-      const stay = pkg.stay_categories[0];
-      if (!duration || !route || !stay) return { id: pkg.id, discountedPrice: 0, originalPrice: 0 };
-
-      const stays = await db.itinerary_stays.findMany({
-        where: {
-          stay_category_id: stay.id,
-          itinerary: { package_id: pkg.id, duration_id: duration.id, route_id: route.id },
-        },
-        select: {
-          num_nights: true,
-          room_pricing: { select: { price_per_night: true, original_price: true } },
-        },
-      });
-
-      const discountedPrice = Math.ceil(stays.reduce(
-        (sum, s) => sum + Number(s.room_pricing.price_per_night) * s.num_nights, 0,
-      ));
-      const originalPrice = Math.ceil(stays.reduce(
-        (sum, s) => sum + Number(s.room_pricing.original_price ?? s.room_pricing.price_per_night) * s.num_nights, 0,
-      ));
-
-      return { id: pkg.id, discountedPrice, originalPrice };
-    }),
-  );
-
-  const pricingMap = new Map(pricingResults.map((p) => [p.id, p]));
-
-  return collected
-    .map((pkg): RelatedPackageItem | null => {
-      const duration = pkg.durations[0];
-      const route = duration?.routes[0];
-      const stay = pkg.stay_categories[0];
-      if (!duration || !route || !stay) return null;
-
-      const images = [
-        imgUrl(pkg.thumbnail),
-        ...pkg.images.map((i) => imgUrl(i.url)),
-      ].filter(Boolean) as string[];
-
-      if (images.length === 0) return null;
-
-      const pricing = pricingMap.get(pkg.id) ?? { discountedPrice: 0, originalPrice: 0 };
-
-      return {
-        id: pkg.id,
-        title: pkg.title,
-        slug: pkg.slug,
-        images,
-        duration: `${duration.days}D/${duration.nights}N`,
-        durationSlug: duration.slug,
-        routeSlug: route.slug,
-        staySlug: stay.slug,
-        itinerary: route.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
-        discountedPrice: pricing.discountedPrice,
-        originalPrice: pricing.originalPrice || pricing.discountedPrice,
-      };
-    })
-    .filter((p): p is RelatedPackageItem => p !== null);
+  return shapePackageCards(collected);
 }
 
 // ── Recent packages for home page ─────────────────────────────────────────
 
 export async function fetchRecentPackages(limit = 6): Promise<RelatedPackageItem[]> {
-  const imgUrl = (key: string | null | undefined) =>
-    !key ? "" : key.startsWith("http") ? key : getCardImage(key);
-
-  const packages = await db.packages.findMany({
+  const packages = (await db.packages.findMany({
     where: { is_active: true },
     take: limit,
     orderBy: { created_at: "desc" },
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      thumbnail: true,
-      images: { orderBy: { sort_order: "asc" }, take: 3, select: { url: true } },
-      durations: {
-        where: { is_active: true },
-        orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
-        take: 1,
-        select: {
-          id: true, slug: true, days: true, nights: true,
-          routes: {
-            where: { is_active: true },
-            orderBy: { sort_order: "asc" },
-            take: 1,
-            select: {
-              id: true, slug: true,
-              stops: { orderBy: { sort_order: "asc" }, select: { place_name: true, stay_days: true } },
-            },
-          },
-        },
-      },
-      stay_categories: {
-        where: { is_active: true },
-        orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
-        take: 1,
-        select: { id: true, slug: true },
-      },
-    },
-  });
+    select: PACKAGE_CARD_SELECT,
+  })) as PackageCardRow[];
 
-  if (packages.length === 0) return [];
-
-  const pricingResults = await Promise.all(
-    packages.map(async (pkg) => {
-      const duration = pkg.durations[0];
-      const route    = duration?.routes[0];
-      const stay     = pkg.stay_categories[0];
-      if (!duration || !route || !stay) return { id: pkg.id, discountedPrice: 0, originalPrice: 0 };
-
-      const stays = await db.itinerary_stays.findMany({
-        where: {
-          stay_category_id: stay.id,
-          itinerary: { package_id: pkg.id, duration_id: duration.id, route_id: route.id },
-        },
-        select: {
-          num_nights: true,
-          room_pricing: { select: { price_per_night: true, original_price: true } },
-        },
-      });
-
-      const discountedPrice = Math.ceil(stays.reduce(
-        (sum, s) => sum + Number(s.room_pricing.price_per_night) * s.num_nights, 0,
-      ));
-      const originalPrice = Math.ceil(stays.reduce(
-        (sum, s) => sum + Number(s.room_pricing.original_price ?? s.room_pricing.price_per_night) * s.num_nights, 0,
-      ));
-
-      return { id: pkg.id, discountedPrice, originalPrice };
-    }),
-  );
-
-  const pricingMap = new Map(pricingResults.map((p) => [p.id, p]));
-
-  return packages
-    .map((pkg): RelatedPackageItem | null => {
-      const duration = pkg.durations[0];
-      const route    = duration?.routes[0];
-      const stay     = pkg.stay_categories[0];
-      if (!duration || !route || !stay) return null;
-
-      const images = [imgUrl(pkg.thumbnail), ...pkg.images.map((i) => imgUrl(i.url))].filter(Boolean) as string[];
-      if (images.length === 0) return null;
-
-      const pricing = pricingMap.get(pkg.id) ?? { discountedPrice: 0, originalPrice: 0 };
-
-      return {
-        id: pkg.id,
-        title: pkg.title,
-        slug: pkg.slug,
-        images,
-        duration: `${duration.days}D/${duration.nights}N`,
-        durationSlug: duration.slug,
-        routeSlug: route.slug,
-        staySlug: stay.slug,
-        itinerary: route.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
-        discountedPrice: pricing.discountedPrice,
-        originalPrice: pricing.originalPrice || pricing.discountedPrice,
-      };
-    })
-    .filter((p): p is RelatedPackageItem => p !== null);
+  return shapePackageCards(packages);
 }
 
 export type DurationPriceInfo = { routeId: number; pricePerAdult: number };

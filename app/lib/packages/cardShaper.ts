@@ -1,6 +1,6 @@
-import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { getCardImage } from "@/app/lib/imageUrl";
+import { computeCardPricingBatch, CARD_PRICING_ADULTS } from "./cardPricing";
 
 const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
 
@@ -25,48 +25,27 @@ export type PackageCardItem = {
   routeSlug: string;
   staySlug: string;
   itinerary: { days: number; place: string }[];
+  /** Per-adult price at the card occupancy (CARD_PRICING_ADULTS). */
   discountedPrice: number;
   originalPrice: number;
+  /** Full trip total at the card occupancy — shown under the per-adult figure. */
+  totalPrice: number;
+  /** How many adults the two figures above are quoted for. */
+  pricedForAdults: number;
 };
 
 // ── Shared Prisma select for a package card ──────────────────────────────────
 
+// Duration / route / stay-category and the itinerary stops are NOT selected
+// here any more — which combo a card represents is decided by pricing (the
+// cheapest one, see cardPricing.ts), so resolving it here as well would just
+// risk the two disagreeing.
 export const PACKAGE_CARD_SELECT = {
   id: true,
   title: true,
   slug: true,
   thumbnail: true,
   images: { orderBy: { sort_order: "asc" }, take: 6, select: { url: true } },
-  durations: {
-    where: { is_active: true },
-    orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
-    take: 1,
-    select: {
-      id: true,
-      slug: true,
-      days: true,
-      nights: true,
-      routes: {
-        where: { is_active: true },
-        orderBy: { sort_order: "asc" },
-        take: 1,
-        select: {
-          id: true,
-          slug: true,
-          stops: {
-            orderBy: { sort_order: "asc" },
-            select: { place_name: true, stay_days: true },
-          },
-        },
-      },
-    },
-  },
-  stay_categories: {
-    where: { is_active: true },
-    orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
-    take: 1,
-    select: { id: true, slug: true },
-  },
 } satisfies Prisma.packagesSelect;
 
 export type PackageCardRow = {
@@ -75,18 +54,6 @@ export type PackageCardRow = {
   slug: string;
   thumbnail: string | null;
   images: { url: string | null }[];
-  durations: {
-    id: number;
-    slug: string;
-    days: number;
-    nights: number;
-    routes: {
-      id: number;
-      slug: string;
-      stops: { place_name: string; stay_days: number }[];
-    }[];
-  }[];
-  stay_categories: { id: number; slug: string }[];
 };
 
 // ── Shaping: rows → card items, with hotel pricing computed per package ──────
@@ -94,43 +61,12 @@ export type PackageCardRow = {
 export async function shapePackageCards(rows: PackageCardRow[]): Promise<PackageCardItem[]> {
   if (rows.length === 0) return [];
 
-  const pricingResults = await Promise.all(
-    rows.map(async (pkg) => {
-      const duration = pkg.durations[0];
-      const route = duration?.routes[0];
-      const stay = pkg.stay_categories[0];
-      if (!duration || !route || !stay) return { id: pkg.id, discountedPrice: 0, originalPrice: 0 };
-
-      const stays = await db.itinerary_stays.findMany({
-        where: {
-          stay_category_id: stay.id,
-          itinerary: { package_id: pkg.id, duration_id: duration.id, route_id: route.id },
-        },
-        select: {
-          num_nights: true,
-          room_pricing: { select: { price_per_night: true, original_price: true } },
-        },
-      });
-
-      const discountedPrice = Math.ceil(stays.reduce(
-        (sum, s) => sum + Number(s.room_pricing.price_per_night) * s.num_nights, 0,
-      ));
-      const originalPrice = Math.ceil(stays.reduce(
-        (sum, s) => sum + Number(s.room_pricing.original_price ?? s.room_pricing.price_per_night) * s.num_nights, 0,
-      ));
-
-      return { id: pkg.id, discountedPrice, originalPrice };
-    }),
-  );
-
-  const pricingMap = new Map(pricingResults.map((p) => [p.id, p]));
+  const pricingMap = await computeCardPricingBatch(rows.map((r) => r.id));
 
   return rows
     .map((pkg): PackageCardItem | null => {
-      const duration = pkg.durations[0];
-      const route = duration?.routes[0];
-      const stay = pkg.stay_categories[0];
-      if (!duration || !route || !stay) return null;
+      const pricing = pricingMap.get(pkg.id);
+      if (!pricing) return null;
 
       const images = [
         cardImgUrl(pkg.thumbnail),
@@ -139,20 +75,24 @@ export async function shapePackageCards(rows: PackageCardRow[]): Promise<Package
 
       if (images.length === 0) return null;
 
-      const pricing = pricingMap.get(pkg.id) ?? { discountedPrice: 0, originalPrice: 0 };
-
       return {
         id: pkg.id,
         title: pkg.title,
         slug: pkg.slug,
         images,
-        duration: `${duration.days}D/${duration.nights}N`,
-        durationSlug: duration.slug,
-        routeSlug: route.slug,
-        staySlug: stay.slug,
-        itinerary: route.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
-        discountedPrice: pricing.discountedPrice,
-        originalPrice: pricing.originalPrice || pricing.discountedPrice,
+        duration: `${pricing.days}D/${pricing.nights}N`,
+        durationSlug: pricing.durationSlug,
+        routeSlug: pricing.routeSlug,
+        staySlug: pricing.staySlug,
+        itinerary: pricing.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
+        discountedPrice: pricing.perAdult,
+        // No honest "list price" exists for a computed package total (the old
+        // strikethrough came from a flat room-rate sum that never matched the
+        // real price anyway), so nothing is struck through — the card hides
+        // the savings row when this is 0.
+        originalPrice: 0,
+        totalPrice: pricing.total,
+        pricedForAdults: CARD_PRICING_ADULTS,
       };
     })
     .filter((p): p is PackageCardItem => p !== null);
