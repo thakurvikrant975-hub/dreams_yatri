@@ -169,6 +169,11 @@ export async function getSharedPackage(packageId: string) {
       hotelCheckIn:              it.hotelCheckIn ?? "",
       hotelCheckOut:             it.hotelCheckOut ?? "",
       hotelMealPlan:             it.hotelMealPlan ?? "",
+      // Internal-only fulfillment state — the client-facing page never
+      // shows a pending day (nothing gets sent until every day is filled).
+      hotelPending:              false,
+      hotelPendingNote:          "",
+      manualHotelPricePerNight:  null,
       transport:                 it.transport ?? "",
       transportPhoto:            it.transportPhoto ?? "",
       transportVehicleType:      it.transportVehicleType ?? "",

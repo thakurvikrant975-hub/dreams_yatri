@@ -1179,6 +1179,18 @@ export type BuilderHotelPricingResult = {
   nightsCounted: number;
 };
 
+/** Splits a manually-filled day's combined `accommodation` string (written
+ * as "Hotel Name — Room Name" by hotel-requests' fillPendingHotel, same
+ * separator HotelRoomPicker's own auto-fill uses) back into the two parts
+ * computeBuilderHotelPricing's manual-price branch needs for its pricing
+ * line — there's no catalog join to pull them from for these days. */
+export function splitManualHotelName(accommodation: string | null | undefined): { manualHotelName: string | null; manualRoomName: string | null } {
+  if (!accommodation) return { manualHotelName: null, manualRoomName: null };
+  const idx = accommodation.indexOf(" — ");
+  if (idx === -1) return { manualHotelName: accommodation, manualRoomName: null };
+  return { manualHotelName: accommodation.slice(0, idx), manualRoomName: accommodation.slice(idx + 3) };
+}
+
 export async function computeBuilderHotelPricing(input: {
   travelDate: string | null;
   adults: number;
@@ -1198,6 +1210,14 @@ export async function computeBuilderHotelPricing(input: {
      * quantity × that room's own base per-night rate. No occupancy/mattress
      * logic applies here — quantity is exactly what the exec asked for. */
     extraRooms?: { roomPricingId: number; quantity: number }[];
+    /** Hotel-team fulfillment (see /dashboard/hotel-requests): when the exec
+     * couldn't find a catalog hotel and the team filled one in manually,
+     * roomPricingId stays null and pricing comes from these three instead —
+     * no hotel_room_pricing lookup, no occupancy/mattress math, just
+     * roomsCount (or 1) × pricePerNight. */
+    manualHotelPricePerNight?: number | null;
+    manualHotelName?: string | null;
+    manualRoomName?: string | null;
   }[];
 }): Promise<BuilderHotelPricingResult> {
   const { travelDate, adults, children, days } = input;
@@ -1209,11 +1229,12 @@ export async function computeBuilderHotelPricing(input: {
       ...days.flatMap((d) => (d.extraRooms ?? []).map((r) => r.roomPricingId)),
     ]),
   ];
-  if (roomPricingIds.length === 0) {
+  const hasManualPricing = days.some((d) => d.manualHotelPricePerNight != null);
+  if (roomPricingIds.length === 0 && !hasManualPricing) {
     return { days: [], hotelSubtotal: 0, nightsCounted: 0 };
   }
 
-  const rows = await db.hotel_room_pricing.findMany({
+  const rows = roomPricingIds.length === 0 ? [] : await db.hotel_room_pricing.findMany({
     where: { id: { in: roomPricingIds } },
     select: {
       id: true,
@@ -1282,6 +1303,24 @@ export async function computeBuilderHotelPricing(input: {
           total,
         });
       }
+    } else if (d.manualHotelPricePerNight != null) {
+      // Hotel-team fulfillment — no catalog room, no occupancy/mattress
+      // math, just the flat price and room count the team entered.
+      const roomsNeeded = d.roomsCount && d.roomsCount > 0 ? d.roomsCount : 1;
+      const total = roomsNeeded * d.manualHotelPricePerNight;
+      hotelSubtotal += total;
+
+      lines.push({
+        day: d.day,
+        hotelName: d.manualHotelName ?? "Manually added hotel",
+        roomName: d.manualRoomName ?? "Room",
+        planName: null,
+        pricePerRoom: d.manualHotelPricePerNight,
+        roomsNeeded,
+        mattresses: 0,
+        extraBedRate: 0,
+        total,
+      });
     }
 
     for (const extra of d.extraRooms ?? []) {

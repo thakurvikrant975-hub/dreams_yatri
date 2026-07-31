@@ -6,7 +6,7 @@ import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, splitManualHotelName } from "@/app/services/package-pricing.service";
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
 import type { RoomSelection, CabSelection } from "./room-cab-selections";
 import type { Prisma } from "@/app/generated/prisma";
@@ -673,6 +673,19 @@ export interface DayItinerary {
   hotelCheckIn:       string;
   hotelCheckOut:      string;
   hotelMealPlan:      string;
+  /** Set when the exec couldn't find a catalog hotel and flagged this day for
+   * the hotel team instead (see /dashboard/hotel-requests) — accommodation/
+   * roomPricingId etc. above stay empty while true. Blocks markPackageReady. */
+  hotelPending:       boolean;
+  hotelPendingNote:   string;
+  /** B2B price/night the hotel team entered when fulfilling a pending
+   * request — feeds computeBuilderHotelPricing's manual-price branch since
+   * roomPricingId stays null for these days. */
+  manualHotelPricePerNight: number | null;
+  /** Read-only — who/when the hotel team filled this day in, for display
+   * only (not written back by saveCustomPackage). */
+  hotelFilledAt?:     Date | null;
+  hotelFilledByName?: string | null;
   transport:          string;
   transportPhoto:     string;
   transportVehicleType: string;
@@ -935,6 +948,11 @@ export async function copyPackageIntoDraft(
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
       hotelCheckOut:      day.hotel?.check_out_time ?? "",
       hotelMealPlan:      day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
+      hotelPending:       false,
+      hotelPendingNote:   "",
+      manualHotelPricePerNight: null,
+      hotelFilledAt:      null,
+      hotelFilledByName:  null,
       transport:          transfer?.vehicle_name ?? "",
       transportPhoto:     transfer?.vehicle_image_key ? getThumbnailImage(transfer.vehicle_image_key) : "",
       transportVehicleType: transfer?.vehicle_type ?? "",
@@ -1099,6 +1117,9 @@ function normalizeItinerary(it: {
   roomsCount: number | null;
   extraRooms: Prisma.JsonValue;
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
+  hotelPending: boolean; hotelPendingNote: string | null;
+  manualHotelPricePerNight: number | null;
+  hotelFilledAt: Date | null; hotelFilledByName: string | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
   transportPickupLat: number | null; transportPickupLng: number | null;
@@ -1128,6 +1149,11 @@ function normalizeItinerary(it: {
     hotelCheckIn:              it.hotelCheckIn ?? "",
     hotelCheckOut:             it.hotelCheckOut ?? "",
     hotelMealPlan:             it.hotelMealPlan ?? "",
+    hotelPending:              it.hotelPending,
+    hotelPendingNote:          it.hotelPendingNote ?? "",
+    manualHotelPricePerNight:  it.manualHotelPricePerNight ?? null,
+    hotelFilledAt:             it.hotelFilledAt,
+    hotelFilledByName:         it.hotelFilledByName,
     transport:                 it.transport ?? "",
     transportPhoto:            it.transportPhoto ?? "",
     transportVehicleType:      it.transportVehicleType ?? "",
@@ -1306,6 +1332,11 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           hotelCheckIn:       true,
           hotelCheckOut:      true,
           hotelMealPlan:      true,
+          hotelPending:       true,
+          hotelPendingNote:   true,
+          manualHotelPricePerNight: true,
+          hotelFilledAt:      true,
+          hotelFilledByName:  true,
           transport:          true,
           transportPhoto:     true,
           transportVehicleType: true,
@@ -1589,14 +1620,36 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     // Replace itineraries (and their nested activities, via cascade) — delete
     // all then recreate. Nested `activities.create` needs one create per day
     // rather than createMany, since createMany can't take nested writes.
+    //
+    // Fetched BEFORE the delete so hotel-fulfillment provenance
+    // (hotelFilledAt/By/ByName) can be carried forward untouched rather than
+    // trusted from the client payload — the exec's browser form state is a
+    // point-in-time snapshot, and the hotel team fills in a pending day from
+    // a completely separate page (/dashboard/hotel-requests) while the exec
+    // may still have this package open mid-edit. Without this, a stale save
+    // could silently revert a completed fulfillment back to "pending",
+    // re-blocking Mark Ready even though the team already handled it.
+    const existingHotelState = await db.custom_itineraries.findMany({
+      where: { customPackageId: pkg.id },
+      select: { day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true },
+    });
+    const existingByDay = new Map(existingHotelState.map((r) => [r.day, r]));
+
     await db.custom_itineraries.deleteMany({
       where: { customPackageId: pkg.id },
     });
 
     if (itineraries.length > 0) {
       await db.$transaction(
-        itineraries.map((it) =>
-          db.custom_itineraries.create({
+        itineraries.map((it) => {
+          const existing = existingByDay.get(it.day);
+          const alreadyFilled = !!existing?.hotelFilledAt;
+          // Can't resurrect "pending" on a day the hotel team already filled.
+          const hotelPending = it.hotelPending && !alreadyFilled;
+          const hotelRequestedAt = hotelPending
+            ? (existing?.hotelPending ? existing.hotelRequestedAt : new Date())
+            : (existing?.hotelRequestedAt ?? null);
+          return db.custom_itineraries.create({
             data: {
               customPackageId:    pkg.id,
               day:                it.day,
@@ -1611,6 +1664,13 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
               roomPricingId:      it.roomPricingId ?? null,
               roomsCount:         it.roomsCount ?? null,
+              hotelPending,
+              hotelPendingNote:   hotelPending ? (it.hotelPendingNote || null) : null,
+              hotelRequestedAt,
+              hotelFilledAt:      existing?.hotelFilledAt ?? null,
+              hotelFilledById:    existing?.hotelFilledById ?? null,
+              hotelFilledByName:  existing?.hotelFilledByName ?? null,
+              manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
               // Drop any "add another room" row the exec never finished
               // picking a room for (roomPricingId still 0, the picker's
               // "unselected" sentinel) rather than persisting junk entries.
@@ -1646,8 +1706,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
                   })),
               },
             },
-          }),
-        ),
+          });
+        }),
       );
     }
 
@@ -1770,6 +1830,8 @@ export async function sendPackageToClient(packageId: string): Promise<{
           roomPricingId: it.roomPricingId,
           roomsCount:    it.roomsCount,
           extraRooms:    parseRoomSelections(it.extraRooms),
+          manualHotelPricePerNight: it.manualHotelPricePerNight,
+          ...splitManualHotelName(it.accommodation),
         })),
       }),
       computeBuilderCabPricing({

@@ -7,7 +7,7 @@ import { publishVerificationCounts, type VerificationCounts } from "@/app/lib/ab
  * VerifyPackagesClient.tsx) — kept in one place so the live count and each
  * page's own "Total Pending" stat can never drift apart. */
 export async function computeVerificationCounts(): Promise<VerificationCounts> {
-    const [hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending] = await Promise.all([
+    const [hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending] = await Promise.all([
         db.booking.count({
             where: {
                 paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
@@ -41,8 +41,13 @@ export async function computeVerificationCounts(): Promise<VerificationCounts> {
         db.custom_packages.count({
             where: { readyAt: { not: null }, status: "READY", verified: false },
         }),
+        // Hotel Requests sidebar badge — packages with at least one day the
+        // sales exec flagged as needing a hotel from the team.
+        db.custom_packages.count({
+            where: { itineraries: { some: { hotelPending: true } } },
+        }),
     ]);
-    return { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending };
+    return { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending };
 }
 
 /**

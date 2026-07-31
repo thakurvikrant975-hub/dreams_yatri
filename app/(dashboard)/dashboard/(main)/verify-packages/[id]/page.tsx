@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { getRejectionReasons } from "../../(marketing)/queries/actions";
-import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, splitManualHotelName } from "@/app/services/package-pricing.service";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
 
@@ -52,6 +52,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                     select: {
                         day: true, roomPricingId: true, roomsCount: true, extraRooms: true,
                         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
+                        accommodation: true, manualHotelPricePerNight: true,
                     },
                 },
             },
@@ -85,6 +86,8 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 days: pkg.itineraries.map((it) => ({
                     day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount,
                     extraRooms: parseRoomSelections(it.extraRooms),
+                    manualHotelPricePerNight: it.manualHotelPricePerNight,
+                    ...splitManualHotelName(it.accommodation),
                 })),
             }),
             computeBuilderCabPricing({

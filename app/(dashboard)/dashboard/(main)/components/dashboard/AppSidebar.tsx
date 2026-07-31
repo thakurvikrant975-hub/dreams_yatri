@@ -18,12 +18,14 @@ export function AppSidebar({
   cabsPending = 0,
   bookingsUnconfirmed = 0,
   packagesPending = 0,
+  hotelRequestsPending = 0,
 }: {
   pageAccess?: string[] | null;
   hotelsPending?: number;
   cabsPending?: number;
   bookingsUnconfirmed?: number;
   packagesPending?: number;
+  hotelRequestsPending?: number;
 }) {
   const pathname = usePathname();
 
@@ -59,11 +61,19 @@ export function AppSidebar({
     setLivePackagesPending(packagesPending);
   }
 
+  const [hotelRequestsSyncedFrom, setHotelRequestsSyncedFrom] = useState(hotelRequestsPending);
+  const [liveHotelRequestsPending, setLiveHotelRequestsPending] = useState(hotelRequestsPending);
+  if (hotelRequestsPending !== hotelRequestsSyncedFrom) {
+    setHotelRequestsSyncedFrom(hotelRequestsPending);
+    setLiveHotelRequestsPending(hotelRequestsPending);
+  }
+
   useVerificationCounts((counts) => {
     setLiveHotelsPending(counts.hotelsPending);
     setLiveCabsPending(counts.cabsPending);
     setLiveBookingsUnconfirmed(counts.bookingsUnconfirmed);
     setLivePackagesPending(counts.packagesPending);
+    setLiveHotelRequestsPending(counts.hotelRequestsPending);
   });
 
   // Nav hrefs that carry a live "still needs doing" count badge.
@@ -72,6 +82,7 @@ export function AppSidebar({
     "/dashboard/verify-cabs": liveCabsPending,
     "/dashboard/package-bookings": liveBookingsUnconfirmed,
     "/dashboard/verify-packages": livePackagesPending,
+    "/dashboard/hotel-requests": liveHotelRequestsPending,
   };
 
   function isPageAllowed(href: string) {

@@ -64,7 +64,7 @@ import {
   type ExtraPolicyItems,
   getCurrentUserRole,
 } from "../action";
-import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult, splitManualHotelName } from "@/app/services/package-pricing.service";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { validateItineraryRequiredFields } from "./pdfExport";
@@ -1102,7 +1102,7 @@ function DayCard({
 
   // Collapsed-state summary dots — lets an exec scan the whole trip for
   // gaps (e.g. "Day 4 has no cab yet") without opening every card.
-  const hasHotel = !!data.accommodation;
+  const hasHotel = !!data.accommodation || data.hotelPending;
   const hasCab = !!data.transport || data.cabPricingId != null;
   const hasMeals = data.meals.length > 0;
   const hasActivities = data.activities.some((a) => a.title.trim());
@@ -1184,6 +1184,31 @@ function DayCard({
               />
             )}
           >
+            {data.hotelPending ? (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+                <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
+                  <Clock size={14} /> Pending — awaiting hotel team
+                </div>
+                <Textarea
+                  value={data.hotelPendingNote}
+                  onChange={(e) => onChange({ ...data, hotelPendingNote: e.target.value })}
+                  placeholder="Optional note for the team — budget, why unavailable, preferred area…"
+                  rows={2}
+                  className="text-xs resize-none border-amber-300 bg-white focus-visible:ring-amber-300 rounded-md"
+                />
+                <p className="text-[11px] text-amber-700/80">
+                  This day is now in the hotel team&apos;s queue (Hotel Requests). Submitting for costing review is blocked until they fill it in.
+                </p>
+                <Button
+                  type="button" variant="outline" size="sm"
+                  className="h-7 text-xs gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-100"
+                  onClick={() => onChange({ ...data, hotelPending: false, hotelPendingNote: "" })}
+                >
+                  Undo — search for a hotel instead
+                </Button>
+              </div>
+            ) : (
+              <>
             {stayPreference && stayPreference.length > 0 && (
               <p className="text-[11px] text-dashboard-base-content/70 -mt-1.5 flex flex-wrap items-center gap-1">
                 <span className="text-dashboard-base-content/50">Client wants:</span>
@@ -1195,6 +1220,12 @@ function DayCard({
                     {STAY_LABELS[t] ?? t}
                   </span>
                 ))}
+              </p>
+            )}
+            {data.hotelFilledAt && (
+              <p className="text-[11px] text-emerald-700 flex items-center gap-1 -mt-1">
+                <CheckCircle size={11} /> Filled by {data.hotelFilledByName ?? "hotel team"} on {new Date(data.hotelFilledAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                {data.manualHotelPricePerNight != null && ` · ₹${data.manualHotelPricePerNight.toLocaleString("en-IN")}/night`}
               </p>
             )}
             <div>
@@ -1216,6 +1247,21 @@ function DayCard({
                 {data.accommodation ? `Currently: ${data.accommodation} — click above to change it. ` : ""}
                 {searchCity ? `Showing hotels near ${searchCity} by default — search above for a different city.` : "Search by hotel name, city, or state."}
               </p>
+              <button
+                type="button"
+                onClick={() => onChange({
+                  ...data,
+                  hotelPending: true,
+                  accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+                  accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+                  roomPricingId: null, roomsCount: null, extraRooms: [],
+                  hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+                  manualHotelPricePerNight: null,
+                })}
+                className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:underline"
+              >
+                Can&apos;t find a hotel here? Add hotels by team
+              </button>
             </div>
 
             {/* Rooms needed — auto-computed from traveller count, but
@@ -1449,6 +1495,8 @@ function DayCard({
                 className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
+              </>
+            )}
           </DaySectionCard>
           )}
 
@@ -2019,6 +2067,8 @@ const emptyDay = (day: number): DayItinerary => ({
   accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
   roomPricingId: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+  hotelPending: false, hotelPendingNote: "", manualHotelPricePerNight: null,
+  hotelFilledAt: null, hotelFilledByName: null,
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,
   transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
@@ -2503,16 +2553,18 @@ export default function PackageBuilderDetailPage() {
   // those three inputs change — the sales exec still applies it manually via
   // the "Use this price" button so an already-typed price isn't clobbered.
   const roomPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${JSON.stringify(it.extraRooms ?? [])}`)
+    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount, extraRooms: it.extraRooms,
+      manualHotelPricePerNight: it.manualHotelPricePerNight,
+      ...splitManualHotelName(it.accommodation),
     }));
-    if (days.every((d) => d.roomPricingId == null && (d.extraRooms ?? []).length === 0)) {
+    if (days.every((d) => d.roomPricingId == null && (d.extraRooms ?? []).length === 0 && d.manualHotelPricePerNight == null)) {
       setHotelPricing(null);
       return;
-    }  
+    }
     let cancelled = false;
     setComputingPrice(true);
     const timer = setTimeout(async () => {
@@ -2664,6 +2716,11 @@ export default function PackageBuilderDetailPage() {
     const validationError = validateItineraryRequiredFields(form);
     if (validationError) {
       toast.error(validationError);
+      return;
+    }
+    const pendingDay = form.itineraries.find((it) => it.hotelPending);
+    if (pendingDay) {
+      toast.error(`Day ${pendingDay.day} is still awaiting the hotel team — fill in or undo the pending hotel request before submitting for review.`);
       return;
     }
     setConfirmReadyOpen(true);
@@ -3320,7 +3377,7 @@ Rules:
   const shiftedMeals = computeShiftedMeals(form.itineraries);
   // Per-section completion, for the focus-mode filter's "3/6" badges.
   const dayFlags = form.itineraries.map((d) => ({
-    hotel: !!d.accommodation,
+    hotel: !!d.accommodation || d.hotelPending,
     cab: !!d.transport || d.cabPricingId != null,
     meals: d.meals.length > 0,
     activities: d.activities.some((a) => a.title.trim()),

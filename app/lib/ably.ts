@@ -54,7 +54,7 @@ export function verificationCountsChannelName(): string {
   return "dashboard:verification-counts";
 }
 
-export type VerificationCounts = { hotelsPending: number; cabsPending: number; bookingsUnconfirmed: number; packagesPending: number };
+export type VerificationCounts = { hotelsPending: number; cabsPending: number; bookingsUnconfirmed: number; packagesPending: number; hotelRequestsPending: number };
 
 /** Best-effort publish — never throws; the count is a live-refresh nicety on
  * top of the always-correct server-rendered page, so a missing/misconfigured
