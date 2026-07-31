@@ -288,12 +288,23 @@ function SectionHeader({
   label: string;
   tone?: "primary" | "emerald";
 }) {
-  const badge = tone === "emerald" ? "bg-emerald-100 text-emerald-600" : "bg-primary-100 text-primary-600";
+  const badge = tone === "emerald" ? "bg-emerald-100" : "bg-primary-100";
   const rule = tone === "emerald" ? "bg-emerald-100" : "bg-primary-100";
+  // Explicit hex instead of the text-primary-600/text-emerald-600 class:
+  // html2canvas-pro's PDF-export capture doesn't reliably resolve
+  // currentColor for an inline SVG's stroke when the source color is an
+  // oklch() token (this app's Tailwind v4 theme, globals.css) — the badge's
+  // own background-color renders fine either way, only the icon glyph goes
+  // blank. Baking the color directly into the icon's stroke attribute
+  // sidesteps that CSS-resolution step entirely. #c0392b is this app's own
+  // already-established rgb fallback for --color-primary-600 (see the
+  // .prose-editor/.prose-article var(..., #c0392b) rules in globals.css);
+  // #059669 is Tailwind's stable published emerald-600.
+  const iconColor = tone === "emerald" ? "#059669" : "#c0392b";
   return (
     <div className="flex items-center gap-2.5" style={{ breakAfter: "avoid" }}>
       <span className={`flex items-center justify-center size-7 rounded-xl shrink-0 ${badge}`}>
-        <Icon size={14} />
+        <Icon size={14} color={iconColor} />
       </span>
       <h2 className="text-[15px] font-extrabold text-neutral-900 tracking-tight whitespace-nowrap">{label}</h2>
       <span className={`h-px flex-1 ${rule}`} />

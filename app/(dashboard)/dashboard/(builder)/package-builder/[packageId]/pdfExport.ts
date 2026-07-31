@@ -120,13 +120,28 @@ async function toCanvasSafeUrl(url: string): Promise<string> {
   }
   if (sameOrigin) return url;
 
+  // Falling through to the `return url` paths below is what produces a
+  // blank/gradient-fallback image in the exported PDF (see HeroCover/
+  // StopTile's onError handler in ItineraryDocument.tsx) — logged loudly so
+  // an environment-specific failure (e.g. "works on localhost, fails in
+  // production") shows up in the browser console instead of just silently
+  // degrading.
+  const start = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const res = await fetch(`/api/pdf-image-proxy?url=${encodeURIComponent(url)}`);
-    if (!res.ok) return url;
+    const res = await fetch(`/api/pdf-image-proxy?url=${encodeURIComponent(url)}`, { signal: controller.signal });
+    if (!res.ok) {
+      console.warn(`[pdf-export] image proxy returned ${res.status} for ${url} after ${Date.now() - start}ms — falling back to the original (likely cross-origin, canvas-unsafe) URL`);
+      return url;
+    }
     const blob = await res.blob();
     return URL.createObjectURL(blob);
-  } catch {
+  } catch (e) {
+    console.warn(`[pdf-export] image proxy fetch failed for ${url} after ${Date.now() - start}ms — falling back to the original URL:`, e);
     return url; // best-effort — leave the original if the proxy fetch fails
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -245,12 +260,22 @@ async function waitForImages(root: HTMLElement, timeoutMs = 15000): Promise<void
   const images = Array.from(root.querySelectorAll("img"));
   await Promise.all(
     images.map((img) => {
-      if (img.complete) return Promise.resolve();
-      return new Promise<void>((resolve) => {
+      const settled = img.complete ? Promise.resolve() : new Promise<void>((resolve) => {
         const done = () => resolve();
         img.addEventListener("load", done, { once: true });
         img.addEventListener("error", done, { once: true });
         setTimeout(done, timeoutMs);
+      });
+      // naturalWidth === 0 after settling means the image never actually
+      // decoded (broken src, load error, or it just never finished within
+      // timeoutMs) — this is the direct DOM-level signal for "this photo is
+      // about to render blank in the capture," logged here since by this
+      // point React's own onError fallback (the gradient box) may already
+      // have fired and replaced the <img> entirely, hiding the original cause.
+      return settled.then(() => {
+        if (img.naturalWidth === 0) {
+          console.warn(`[pdf-export] image never loaded (naturalWidth=0), will render blank: ${img.src}`);
+        }
       });
     }),
   );

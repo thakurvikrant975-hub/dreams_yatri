@@ -45,22 +45,44 @@ export async function GET(req: NextRequest) {
   try {
     const { address } = await dns.lookup(parsed.hostname);
     if (isPrivateIp(address)) {
+      console.error(`[pdf-image-proxy] blocked private IP for ${parsed.hostname} (${address})`);
       return NextResponse.json({ error: "Host not allowed" }, { status: 403 });
     }
-  } catch {
+  } catch (e) {
+    console.error(`[pdf-image-proxy] DNS lookup failed for ${parsed.hostname}:`, e);
     return NextResponse.json({ error: "Could not resolve host" }, { status: 400 });
   }
 
-  const upstream = await fetch(parsed.toString());
+  // No timeout here previously meant a slow/hung upstream (a plausible
+  // explanation for "works on localhost, fails in production" — a
+  // serverless platform's own hard execution limit can kill this function
+  // mid-fetch before it ever returns a catchable error) could run until the
+  // hosting platform's own outer limit killed the function uncleanly.
+  // Failing fast and loud here at least surfaces which image and why.
+  const start = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  let upstream: Response;
+  try {
+    upstream = await fetch(parsed.toString(), { signal: controller.signal });
+  } catch (e) {
+    console.error(`[pdf-image-proxy] upstream fetch failed for ${url} after ${Date.now() - start}ms:`, e);
+    return NextResponse.json({ error: "Fetch failed" }, { status: 502 });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!upstream.ok || !upstream.body) {
+    console.error(`[pdf-image-proxy] upstream returned ${upstream.status} for ${url} after ${Date.now() - start}ms`);
     return NextResponse.json({ error: "Fetch failed" }, { status: 502 });
   }
   const contentType = upstream.headers.get("content-type") ?? "";
   if (!contentType.startsWith("image/")) {
+    console.error(`[pdf-image-proxy] non-image content-type "${contentType}" for ${url}`);
     return NextResponse.json({ error: "Not an image" }, { status: 415 });
   }
 
   const buf = await upstream.arrayBuffer();
+  console.log(`[pdf-image-proxy] ok: ${url} (${buf.byteLength} bytes, ${Date.now() - start}ms)`);
   return new NextResponse(buf, {
     headers: { "Content-Type": contentType, "Cache-Control": "private, max-age=300" },
   });

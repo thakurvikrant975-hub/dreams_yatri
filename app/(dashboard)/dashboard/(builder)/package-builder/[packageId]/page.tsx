@@ -64,7 +64,8 @@ import {
   type ExtraPolicyItems,
   getCurrentUserRole,
 } from "../action";
-import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult, splitManualHotelName } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
+import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { validateItineraryRequiredFields } from "./pdfExport";

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { getRejectionReasons } from "../../(marketing)/queries/actions";
-import { computeBuilderHotelPricing, computeBuilderCabPricing, splitManualHotelName } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
+import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
 
