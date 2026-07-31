@@ -26,7 +26,12 @@ export function useBookCustomPackage(packageId: string) {
       if (!res.success) {
         setSubmitting(false);
         if (res.reason === "unauthenticated") {
-          openModal("login-modal", { redirectTo: window.location.pathname });
+          openModal("login-modal", {
+            redirectTo: window.location.pathname,
+            // Re-attempt the booking once logged in, rather than leaving the
+            // guest to wonder why verifying the OTP didn't do anything.
+            onSuccess: () => { handleBookNow(); },
+          });
           return;
         }
         setError(res.message ?? "Could not start your booking. Please try again.");

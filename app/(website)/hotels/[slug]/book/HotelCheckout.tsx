@@ -35,22 +35,20 @@ export default function HotelCheckout({
 
     const redirectTo = () => (typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined);
 
-    async function handleProceed() {
-        setError(null);
-        if (!checkout) { setError('Please complete your details.'); return; }
-        if (!policy) { setError('Please accept the booking policies to continue.'); return; }
-        if (status === 'unauthenticated') {
-            openModal('login-modal', { redirectTo: redirectTo() });
-            return;
-        }
-
+    async function submitBooking() {
         setSubmitting(true);
         try {
-            const res = await createHotelBookingDraft({ roomId, checkIn, checkOut, units, pricingId, holdKey, details: checkout });
+            const res = await createHotelBookingDraft({ roomId, checkIn, checkOut, units, pricingId, holdKey, details: checkout! });
             if (!res.success) {
                 setSubmitting(false);
                 if (res.reason === 'unauthenticated') {
-                    openModal('login-modal', { redirectTo: redirectTo() });
+                    openModal('login-modal', {
+                        redirectTo: redirectTo(),
+                        // Resume the submission once logged in, rather than
+                        // leaving the guest to wonder why verifying the OTP
+                        // didn't do anything.
+                        onSuccess: () => { submitBooking(); },
+                    });
                     return;
                 }
                 setError(res.message ?? 'Could not continue to payment. Please try again.');
@@ -62,6 +60,18 @@ export default function HotelCheckout({
             setSubmitting(false);
             setError('Something went wrong. Please try again.');
         }
+    }
+
+    async function handleProceed() {
+        setError(null);
+        if (!checkout) { setError('Please complete your details.'); return; }
+        if (!policy) { setError('Please accept the booking policies to continue.'); return; }
+        if (status === 'unauthenticated') {
+            openModal('login-modal', { redirectTo: redirectTo(), onSuccess: () => { submitBooking(); } });
+            return;
+        }
+
+        await submitBooking();
     }
 
     return (

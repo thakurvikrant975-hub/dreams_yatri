@@ -599,6 +599,7 @@ export default async function PackagePage({
             numRooms:        h.room_num_rooms,
             roomCapacity:    h.room_capacity,
             roomExtraBeds:   h.room_extra_beds,
+            roomTotalCapacity: h.room_total_capacity,
         });
     }
 

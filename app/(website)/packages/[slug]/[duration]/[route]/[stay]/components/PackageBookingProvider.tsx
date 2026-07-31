@@ -15,6 +15,7 @@ import type { CabTypeOption, RoomOption } from '@/app/actions/packages/fetch-pag
 import { fetchRoomAlternatives, fetchHotelAlternatives } from '@/app/actions/packages/hotel-alternatives.actions';
 import { MAX_ROOMS } from '@/app/components/ui/TravellersField';
 import { notifyLimit } from '@/app/components/ui/Stepper';
+import { MAX_GUESTS_PER_ROOM } from '@/app/lib/room-guest-limits';
 
 // ── Room-count cap ────────────────────────────────────────────────────────
 //
@@ -33,9 +34,10 @@ export function effectiveRoomCap(numRooms: number): number {
     return numRooms > 1 ? numRooms : UNCONFIGURED_ROOM_FALLBACK;
 }
 
-// A room with no configured capacity is assumed to sleep 2 + 1 extra bed —
-// matches the pricing engine's own fallback (package-pricing.service.ts).
-const DEFAULT_PERSONS_PER_ROOM = 3;
+// Guest cap per room, independent of each hotel's configured room
+// capacity/extra-bed data — every room card allows up to this many guests.
+// Shared with the dashboard pricing preview via MAX_GUESTS_PER_ROOM so both
+// stay in lockstep.
 
 // requestMoreRooms won't attempt an auto-swap when more stays than this are
 // simultaneously the bottleneck — see the comment at its call site.
@@ -50,6 +52,10 @@ export type StayRoomCount = {
     numRooms:        number;
     roomCapacity:    number | null;
     roomExtraBeds:   number;
+    /** Total guests one room of this type really holds — computed server-side
+     *  by roomTotalCapacity(); see app/lib/room-capacity.ts for why the raw
+     *  columns can't be added up naively here. */
+    roomTotalCapacity: number;
 };
 
 /** One MMT-style room card: its own adults + child ages, independent of
@@ -305,23 +311,30 @@ export function PackageBookingProvider({
         return Math.min(...caps);
     }, [stayRoomCounts, roomSelections, roomAlternatesByStay, hotelAlternatesByStay]);
 
-    // How many people the tightest active room across the itinerary can hold
-    // (max_occupancy + extra_bed_capacity) — the smallest wins, since every
-    // stay must be able to house the full party with the same room count.
+    // How many guests the tightest active room across the itinerary holds —
+    // the smallest wins, since every stay must house the party with the same
+    // room split. This is the room's REAL total capacity (max_adults +
+    // max_children, floored at the bed count), computed server-side by
+    // roomTotalCapacity(); the raw max_occupancy column is only the base beds,
+    // and treating it as the total is what used to force extra rooms and a
+    // higher price than the hotel's own configuration implies.
+    // The pricing engine re-derives this same number per stay, so a split the
+    // picker allows here is always one the engine will honour.
     const personsPerRoom = useMemo(() => {
-        if (stayRoomCounts.length === 0) return DEFAULT_PERSONS_PER_ROOM;
+        if (stayRoomCounts.length === 0) return MAX_GUESTS_PER_ROOM;
         const capacities = stayRoomCounts.map((stay) => {
             const overrideId = roomSelections.get(stay.itineraryStayId);
             if (overrideId == null || overrideId === stay.roomPricingId) {
-                return (stay.roomCapacity ?? 2) + stay.roomExtraBeds;
+                return stay.roomTotalCapacity;
             }
             const alternates = [
                 ...(roomAlternatesByStay.get(stay.itineraryStayId) ?? []),
                 ...(hotelAlternatesByStay.get(stay.itineraryStayId) ?? []),
             ];
             const picked = alternates.find((o) => o.room_pricing_id === overrideId);
-            if (!picked) return (stay.roomCapacity ?? 2) + stay.roomExtraBeds;
-            return (picked.room_capacity ?? 2) + picked.room_extra_beds;
+            // Alternates load on demand — until they arrive, fall back to the
+            // default room's capacity rather than guessing.
+            return picked?.room_total_capacity ?? stay.roomTotalCapacity;
         });
         return Math.max(1, Math.min(...capacities));
     }, [stayRoomCounts, roomSelections, roomAlternatesByStay, hotelAlternatesByStay]);
@@ -524,7 +537,6 @@ export function PackageBookingProvider({
         }, 400);
 
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [adults, childCount, infants, childAges, roomGuests, travelDate, cabSelections, roomSelections, packageId, durationId, routeId, stayCategoryId]);
 
     return (
