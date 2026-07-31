@@ -39,6 +39,10 @@ function StatusChip({ status }: { status: FulfillmentState }) {
 }
 
 
+
+
+
+
 function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: string | null }) {
     const KindI = KIND_ICON[item.kind];
     const confirmed = item.status === 'CONFIRMED' || item.status === 'REPLACED';
