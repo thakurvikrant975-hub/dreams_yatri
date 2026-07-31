@@ -20,6 +20,7 @@ import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { formatPaiseRoundedUp } from '@/app/lib/money';
+import { splitPrefillPhone } from '@/app/lib/validators/login';
 import type { SafeQuote } from '@/app/actions/quote/create-quote.service';
 import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 
@@ -27,10 +28,14 @@ import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 // what's due, and paise-level precision just looks noisy here.
 const fmt = (n: number) => `₹${Math.ceil(n).toLocaleString('en-IN')}`;
 
+// Pure UTC date math — a local-time Date + toISOString() round-trip shifts
+// the result back a day in any timezone ahead of UTC (e.g. IST), since local
+// midnight + n days converts to n-1 days on the UTC clock.
 function addDaysISO(iso: string, n: number): string {
-    const d = new Date(`${iso}T00:00:00`);
-    d.setDate(d.getDate() + n);
-    return d.toISOString().slice(0, 10);
+    const [y, m, d] = iso.split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    date.setUTCDate(date.getUTCDate() + n);
+    return date.toISOString().slice(0, 10);
 }
 function formatDate(iso: string): string {
     const d = new Date(`${iso}T00:00:00`);
@@ -76,6 +81,8 @@ export default function BookReview({
     schedule,
     itinerary = [],
     hotelRules = null,
+    contactEmail = null,
+    contactPhone = null,
 }: {
     quote: SafeQuote;
     packageTitle: string;
@@ -85,6 +92,9 @@ export default function BookReview({
     schedule: PaymentScheduleDTO | null;
     itinerary?: PreviewDay[];
     hotelRules?: HotelRules | null;
+    /** Logged-in customer's profile contact details, to prefill the checkout form. */
+    contactEmail?: string | null;
+    contactPhone?: string | null;
 }) {
     const router = useRouter();
     const { status } = useSession();
@@ -121,11 +131,15 @@ export default function BookReview({
      *  number they've already given us. `checkout.contact.phone` is stored as
      *  a single E.164-ish string ("+919876543210"). */
     function loginPrefill() {
-        const raw = checkout?.contact?.phone ?? '';
-        const m = raw.match(/^(\+\d{1,4})(\d+)$/);
+        const split = splitPrefillPhone(checkout?.contact?.phone);
         return {
             redirectTo: window.location.pathname + window.location.search,
-            ...(m ? { countryCode: m[1], phone: m[2] } : {}),
+            ...(split ?? {}),
+            // Resume the booking directly once logged in — skips handleProceed's
+            // own (now-stale) `status` check and goes straight to the part that
+            // needs auth, so verifying the OTP actually continues the booking
+            // instead of just closing the modal with nothing visibly happening.
+            onSuccess: () => { proceedToPayment(); },
         };
     }
 
@@ -245,6 +259,8 @@ export default function BookReview({
                             <CheckoutForm
                                 pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }}
                                 onChange={setCheckout}
+                                initialEmail={contactEmail}
+                                initialPhone={contactPhone}
                                 onTravellersCompleteChange={setTravellersComplete}
                             />
                         </Section>
