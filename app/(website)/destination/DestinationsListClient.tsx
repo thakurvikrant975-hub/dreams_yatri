@@ -3,8 +3,16 @@
 import { useState, useRef, useEffect, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MapPin, SlidersHorizontal, X } from "lucide-react";
+import { MapPin, X } from "lucide-react";
 import DestinationCard from "@/app/components/destinations/Destination";
+import {
+  FilterCheckRow,
+  FilterDrawer,
+  FilterPanel,
+  FilterRadioRow,
+  FilterSection,
+  FilterTrigger,
+} from "@/app/components/filters/FilterPanel";
 import {
   fetchDestinationsPage,
   type DestinationListItem,
@@ -162,135 +170,66 @@ export default function DestinationsListClient({ initial, sidebar, initialFilter
 
   const filterContent = (
     <div className="space-y-6">
-      {/* Type */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">
-          Destination Type
-        </p>
-        <div className="space-y-1">
-          {(
-            [
-              { id: "all" as const, label: "All Destinations", count: sidebar.total },
-              { id: "domestic" as const, label: "Domestic", count: sidebar.totalDomestic },
-              { id: "international" as const, label: "International", count: sidebar.totalInternational },
-            ] as const
-          ).map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => setType(opt.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
-                filters.type === opt.id
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-neutral-600 hover:bg-neutral-50"
-              }`}
-            >
-              <span>{opt.label}</span>
-              <span
-                className={`text-xs px-1.5 py-0.5 rounded-md ${
-                  filters.type === opt.id
-                    ? "bg-primary/15 text-primary"
-                    : "text-neutral-400 bg-neutral-100"
-                }`}
-              >
-                {opt.count}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+      <FilterSection title="Destination Type" selected={0}>
+        {(
+          [
+            { id: "all" as const, label: "All Destinations", count: sidebar.total },
+            { id: "domestic" as const, label: "Domestic", count: sidebar.totalDomestic },
+            { id: "international" as const, label: "International", count: sidebar.totalInternational },
+          ] as const
+        ).map((opt) => (
+          <FilterRadioRow
+            key={opt.id}
+            label={opt.label}
+            count={opt.count}
+            active={filters.type === opt.id}
+            onSelect={() => setType(opt.id)}
+          />
+        ))}
+      </FilterSection>
 
       {/* Regions — always visible, disabled when International is selected */}
       {sidebar.regions.length > 0 && (
-        <>
-          <div className="border-t border-neutral-100" />
-          <div className={regionsDisabled ? "opacity-40 pointer-events-none select-none" : ""}>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-                Region
-              </p>
-              {regionsDisabled && (
-                <span className="text-[10px] text-neutral-400 font-normal normal-case tracking-normal">
-                  Domestic only
-                </span>
-              )}
-              {!regionsDisabled && filters.regionIds.length > 0 && (
-                <button
-                  onClick={() => { const next = { ...filters, regionIds: [] }; setFilters(next); pushFilters(next); }}
-                  className="text-[10px] text-primary hover:underline"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <div className="space-y-2">
-              {sidebar.regions.map((r) => (
-                <label
-                  key={r.id}
-                  className={`flex items-center gap-2.5 py-0.5 ${regionsDisabled ? "cursor-not-allowed" : "cursor-pointer group"}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.regionIds.includes(r.id)}
-                    onChange={() => toggleRegion(r.id)}
-                    disabled={regionsDisabled}
-                    className="h-4 w-4 rounded border-neutral-300 disabled:cursor-not-allowed"
-                  />
-                  <span className={`flex-1 text-sm text-neutral-700 ${!regionsDisabled ? "group-hover:text-primary transition-colors" : ""}`}>
-                    {r.name}
-                  </span>
-                  <span className="text-xs text-neutral-400">({r.count})</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </>
+        <FilterSection
+          title="Region"
+          selected={filters.regionIds.length}
+          disabled={regionsDisabled}
+          disabledNote="Domestic only"
+          onClear={() => { const next = { ...filters, regionIds: [] }; setFilters(next); pushFilters(next); }}
+        >
+          {sidebar.regions.map((r) => (
+            <FilterCheckRow
+              key={r.id}
+              label={r.name}
+              count={r.count}
+              checked={filters.regionIds.includes(r.id)}
+              disabled={regionsDisabled}
+              onChange={() => toggleRegion(r.id)}
+            />
+          ))}
+        </FilterSection>
       )}
 
       {/* Countries — always visible, disabled when Domestic is selected */}
       {sidebar.countries.length > 0 && (
-        <>
-          <div className="border-t border-neutral-100" />
-          <div className={countriesDisabled ? "opacity-40 pointer-events-none select-none" : ""}>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-                Country
-              </p>
-              {countriesDisabled && (
-                <span className="text-[10px] text-neutral-400 font-normal normal-case tracking-normal">
-                  International only
-                </span>
-              )}
-              {!countriesDisabled && filters.countries.length > 0 && (
-                <button
-                  onClick={() => { const next = { ...filters, countries: [] }; setFilters(next); pushFilters(next); }}
-                  className="text-[10px] text-primary hover:underline"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <div className="space-y-2">
-              {sidebar.countries.map((c) => (
-                <label
-                  key={c.name}
-                  className={`flex items-center gap-2.5 py-0.5 ${countriesDisabled ? "cursor-not-allowed" : "cursor-pointer group"}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.countries.includes(c.name)}
-                    onChange={() => toggleCountry(c.name)}
-                    disabled={countriesDisabled}
-                    className="h-4 w-4 rounded border-neutral-300 disabled:cursor-not-allowed"
-                  />
-                  <span className={`flex-1 text-sm text-neutral-700 ${!countriesDisabled ? "group-hover:text-primary transition-colors" : ""}`}>
-                    {c.name}
-                  </span>
-                  <span className="text-xs text-neutral-400">({c.count})</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </>
+        <FilterSection
+          title="Country"
+          selected={filters.countries.length}
+          disabled={countriesDisabled}
+          disabledNote="International only"
+          onClear={() => { const next = { ...filters, countries: [] }; setFilters(next); pushFilters(next); }}
+        >
+          {sidebar.countries.map((c) => (
+            <FilterCheckRow
+              key={c.name}
+              label={c.name}
+              count={c.count}
+              checked={filters.countries.includes(c.name)}
+              disabled={countriesDisabled}
+              onChange={() => toggleCountry(c.name)}
+            />
+          ))}
+        </FilterSection>
       )}
     </div>
   );
@@ -300,30 +239,9 @@ export default function DestinationsListClient({ initial, sidebar, initialFilter
   return (
     <div className="screen-space mx-auto py-8 pb-24 lg:pb-8">
       <div className="flex gap-7">
-        {/* Desktop sidebar */}
-        <aside className="hidden lg:block w-60 shrink-0">
-          <div
-            className="sticky flex flex-col bg-white border border-neutral-100 rounded-2xl shadow-sm overflow-hidden"
-            style={{
-              top: "calc(var(--spacing-header-height) + 1rem)",
-              height: "calc(100svh - var(--spacing-header-height) - 2rem)",
-            }}
-          >
-            {/* Sticky header row — never scrolls */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 shrink-0">
-              <p className="font-semibold text-neutral-800 text-sm">Filters</p>
-              {activeCount > 0 && (
-                <button onClick={clearAll} className="text-xs text-primary hover:underline font-medium">
-                  Clear all
-                </button>
-              )}
-            </div>
-            {/* Scrollable filter list with slim scrollbar */}
-            <div className="flex-1 overflow-y-auto px-5 py-5 scrollbar-slim">
-              {filterContent}
-            </div>
-          </div>
-        </aside>
+        <FilterPanel activeCount={activeCount} onClearAll={clearAll} isPending={isPending}>
+          {filterContent}
+        </FilterPanel>
 
         {/* Main content */}
         <div
@@ -435,53 +353,17 @@ export default function DestinationsListClient({ initial, sidebar, initialFilter
         </div>
       </div>
 
-      {/* Mobile filter bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-neutral-100 px-4 py-3">
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 border border-neutral-200 rounded-full text-sm font-medium bg-white shadow-sm"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          Filters
-          {activeCount > 0 && (
-            <span className="ml-0.5 bg-primary text-white text-xs font-semibold rounded-full h-5 w-5 flex items-center justify-center">
-              {activeCount}
-            </span>
-          )}
-        </button>
-      </div>
+      <FilterTrigger activeCount={activeCount} onOpen={() => setMobileOpen(true)} />
 
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 flex">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
-          <div className="relative ml-auto w-72 bg-white h-full flex flex-col shadow-xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
-              <p className="font-semibold text-neutral-800 text-sm">Filters</p>
-              <button onClick={() => setMobileOpen(false)}>
-                <X className="h-5 w-5 text-neutral-500" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-5 py-5">{filterContent}</div>
-            <div className="px-5 py-4 border-t border-neutral-100 space-y-2">
-              {activeCount > 0 && (
-                <button
-                  onClick={() => { clearAll(); setMobileOpen(false); }}
-                  className="w-full py-2.5 border border-neutral-200 rounded-xl text-sm text-neutral-600"
-                >
-                  Clear All
-                </button>
-              )}
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-medium"
-              >
-                Show {total} Destinations
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <FilterDrawer
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        activeCount={activeCount}
+        onClearAll={clearAll}
+        applyLabel={`Show ${total} Destination${total !== 1 ? "s" : ""}`}
+      >
+        {filterContent}
+      </FilterDrawer>
     </div>
   );
 }

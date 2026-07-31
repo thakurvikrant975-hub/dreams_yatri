@@ -43,7 +43,60 @@ export type ActiveDestinationItem = {
   image: string;
   packageCount: number;
   country: string;
+  /** Parent custom_region name, when the caller selected it. */
+  region?: string | null;
 };
+
+/**
+ * Active destinations WITHIN a country — the home page's "States" row.
+ *
+ * Distinct from fetchActiveDestinations below, which excludes a country to
+ * build an "international" row. Every destination currently on file is
+ * country="India", so that exclusion returns nothing and the row silently
+ * collapsed — this is the include-side counterpart.
+ *
+ * `region` carries the parent custom_region's name so a destination card can
+ * show which region it belongs to (e.g. Goa → West India).
+ */
+export async function fetchDestinationsInCountry(
+  country = "India",
+  limit = 12,
+): Promise<ActiveDestinationItem[]> {
+  const dests = await db.destinations.findMany({
+    where: {
+      is_active: true,
+      is_deleted: false,
+      country,
+      packages: { some: { is_active: true } },
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      thumbnail: true,
+      cover_image: true,
+      country: true,
+      region: { select: { name: true } },
+      _count: { select: { packages: { where: { is_active: true } } } },
+    },
+    // Most packages first — the row is a shortcut into the biggest catalogues,
+    // not a chronological list.
+    orderBy: { packages: { _count: "desc" } },
+    take: limit,
+  });
+
+  return dests
+    .map((d) => ({
+      id: d.id,
+      name: d.name,
+      slug: d.slug,
+      image: imgUrl(d.thumbnail ?? d.cover_image),
+      packageCount: d._count.packages,
+      country: d.country,
+      region: d.region?.name ?? null,
+    }))
+    .filter((d) => d.image);
+}
 
 export async function fetchActiveDestinations(
   excludeCountry = "India",

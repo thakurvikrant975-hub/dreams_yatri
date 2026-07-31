@@ -79,6 +79,10 @@ export default function RegionPackagesList({ regionId, initial }: Props) {
                             discountedPrice={pkg.discountedPrice}
                             totalPrice={pkg.totalPrice}
                             pricedForAdults={pkg.pricedForAdults}
+                            inclusions={pkg.inclusions}
+                            highlights={pkg.highlights}
+                            badge={pkg.badge}
+                            badgeColor={pkg.badgeColor}
                             isPriority={index < 3}
                         />
                     </Link>

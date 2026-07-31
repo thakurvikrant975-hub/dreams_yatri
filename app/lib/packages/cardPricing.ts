@@ -33,6 +33,22 @@ export const DEFAULT_CARD_OCCUPANCY: CardPricingOccupancy = {
   travelDate: null,
 };
 
+/** What a package actually contains, derived from the same priced breakdown
+ *  the figures above come from — so a card can never advertise an inclusion
+ *  the itinerary doesn't really have. */
+export type CardInclusions = {
+  hotel: boolean;
+  meals: boolean;
+  cab: boolean;
+  activities: boolean;
+  /** Distinct hotel nights across the itinerary. */
+  nights: number;
+  /** Count of non-optional activities. */
+  activityCount: number;
+  /** Count of transfer legs. */
+  transferCount: number;
+};
+
 /** The cheapest bookable configuration of a package, priced for real. */
 export type CardPricing = {
   durationId: number;
@@ -50,6 +66,13 @@ export type CardPricing = {
   total: number;
   /** True when the package has no usable pricing config — card should hide price. */
   missingPricing: boolean;
+  /** Real inclusions for this exact configuration. */
+  inclusions: CardInclusions;
+};
+
+const EMPTY_INCLUSIONS: CardInclusions = {
+  hotel: false, meals: false, cab: false, activities: false,
+  nights: 0, activityCount: 0, transferCount: 0,
 };
 
 type DurationRow = {
@@ -156,16 +179,36 @@ export async function computeCardPricingBatch(
               travel_date: occupancy.travelDate,
             });
             if (b.missing_pricing_config) {
-              return { ...base, perAdult: 0, total: 0, missingPricing: true };
+              return { ...base, perAdult: 0, total: 0, missingPricing: true, inclusions: EMPTY_INCLUSIONS };
             }
+
+            // Read inclusions off the priced breakdown rather than the
+            // packages.inclusions prose column — that column is free text
+            // ("Meals as per hotel plan or Inclusion Mentioned.") and is
+            // identical across unrelated packages, so it can't tell a card
+            // what this itinerary genuinely contains.
+            const includedActivities = b.days.reduce(
+              (n, d) => n + d.activities.filter((a) => !a.is_optional).length, 0);
+            const transferCount = b.days.reduce((n, d) => n + d.transfers.length, 0);
+            const nights = b.days.reduce((n, d) => n + (d.hotel?.num_nights ?? 0), 0);
+
             return {
               ...base,
               perAdult: Math.ceil(b.price_per_adult),
               total: Math.ceil(b.final_price),
               missingPricing: false,
+              inclusions: {
+                hotel: b.hotel_subtotal > 0 || b.days.some((d) => d.hotel != null),
+                meals: b.meal_subtotal > 0 || b.days.some((d) => d.meals.length > 0),
+                cab: b.cab_subtotal > 0 || transferCount > 0,
+                activities: includedActivities > 0,
+                nights,
+                activityCount: includedActivities,
+                transferCount,
+              },
             };
           } catch {
-            return { ...base, perAdult: 0, total: 0, missingPricing: true };
+            return { ...base, perAdult: 0, total: 0, missingPricing: true, inclusions: EMPTY_INCLUSIONS };
           }
         }),
       );

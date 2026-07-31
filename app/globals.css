@@ -840,3 +840,33 @@ body {
 .scrollbar-slim:hover::-webkit-scrollbar-thumb {
     background-color: var(--color-neutral-500, #6b7280);
 }
+
+/* Scrollbar for panels that sit on white (filter sidebar, sheets): neutral-300
+   thumb on a neutral-50 track, with a stable gutter so rows don't shift when
+   the thumb appears. `scrollbar-color` is what platforms with overlay
+   scrollbars (macOS) honour — they ignore the ::-webkit rules entirely, which
+   are here for classic scrollbars (Windows/Linux). */
+.scrollbar-panel {
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+    scrollbar-color: var(--color-neutral-300) var(--color-neutral-50);
+}
+.scrollbar-panel::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.scrollbar-panel::-webkit-scrollbar-track {
+    background-color: var(--color-neutral-50);
+    border-radius: 9999px;
+}
+.scrollbar-panel::-webkit-scrollbar-thumb {
+    background-color: var(--color-neutral-300);
+    border-radius: 9999px;
+}
+.scrollbar-panel:hover {
+    scrollbar-color: var(--color-neutral-400) var(--color-neutral-50);
+}
+.scrollbar-panel:hover::-webkit-scrollbar-thumb,
+.scrollbar-panel::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-neutral-400);
+}

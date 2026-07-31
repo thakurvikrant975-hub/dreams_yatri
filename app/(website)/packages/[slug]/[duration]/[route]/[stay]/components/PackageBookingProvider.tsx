@@ -16,6 +16,7 @@ import { fetchRoomAlternatives, fetchHotelAlternatives } from '@/app/actions/pac
 import { MAX_ROOMS } from '@/app/components/ui/TravellersField';
 import { notifyLimit } from '@/app/components/ui/Stepper';
 import { MAX_GUESTS_PER_ROOM } from '@/app/lib/room-guest-limits';
+import { seedRoomGuests, type RoomGuests } from '@/app/lib/packages/roomGuests';
 
 // ── Room-count cap ────────────────────────────────────────────────────────
 //
@@ -58,28 +59,11 @@ export type StayRoomCount = {
     roomTotalCapacity: number;
 };
 
-/** One MMT-style room card: its own adults + child ages, independent of
- *  every other room in the booking. `childAges` entries of -1 mean "age not
- *  yet selected" (mirrors TravellersField's convention). */
-export type RoomGuests = { adults: number; childAges: number[] };
-
-/** Seeds the initial room breakdown from the flat adults/children/rooms
- *  carried over from the search page — which never captured a real per-room
- *  split, so this is a best-effort default the guest can freely re-shape in
- *  the new picker. Room count is capped at `adults` (each room needs >=1
- *  adult) so the even split always sums back to exactly `adults`. */
-function seedRoomGuests(initialAdults?: number, initialChildAges?: number[], initialRooms?: number): RoomGuests[] {
-    const adults = initialAdults && initialAdults > 0 ? initialAdults : 2;
-    const childAges = initialChildAges ?? [];
-    const roomCount = Math.max(1, Math.min(initialRooms ?? 1, adults));
-    if (roomCount <= 1) return [{ adults, childAges }];
-    const base = Math.floor(adults / roomCount);
-    const remainder = adults % roomCount;
-    return Array.from({ length: roomCount }, (_, i) => ({
-        adults: base + (i < remainder ? 1 : 0),
-        childAges: i === 0 ? childAges : [],
-    }));
-}
+/** One MMT-style room card: its own adults + child ages, independent of every
+ *  other room in the booking. Defined in lib/packages/roomGuests alongside its
+ *  URL codec, so the search surfaces can hand this page the exact split the
+ *  guest picked rather than a flat total it has to guess back. */
+export type { RoomGuests };
 
 // ── Safe pricing — only these fields reach the browser ──────────────────────
 
@@ -241,6 +225,9 @@ interface ProviderProps {
     stayRoomCounts:     StayRoomCount[];
     children:       ReactNode;
     // Initial values carried from the search page (all optional)
+    /** The real per-room split from the search bar's `pax` param. Preferred
+     *  over the flat trio below, which can only be split back by guessing. */
+    initialRoomGuests?:  RoomGuests[];
     initialAdults?:      number;
     initialChildAges?:   number[];
     initialRooms?:       number;
@@ -252,10 +239,13 @@ export function PackageBookingProvider({
     packageId, durationId, routeId, stayCategoryId, packageName, recentEnquiryCount,
     cabTypes, stayRoomCounts,
     children,
-    initialAdults, initialChildAges, initialRooms, initialTravelDate, initialLeavingFrom,
+    initialRoomGuests, initialAdults, initialChildAges, initialRooms,
+    initialTravelDate, initialLeavingFrom,
 }: ProviderProps) {
     const [roomGuests, setRoomGuestsRaw] = useState<RoomGuests[]>(
-        () => seedRoomGuests(initialAdults, initialChildAges, initialRooms),
+        () => initialRoomGuests?.length
+            ? initialRoomGuests
+            : seedRoomGuests(initialAdults, initialChildAges, initialRooms),
     );
     const [infants,    setInfantsRaw]   = useState(0);
     const [travelDate, setTravelDateRaw] = useState(initialTravelDate ?? '');

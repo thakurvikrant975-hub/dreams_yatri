@@ -9,9 +9,7 @@ import Button from '@/app/components/ui/Button'
 import { Carousel } from '@/app/components/ui/Carousel'
 import {
     MapPinIcon,
-    AirplaneTiltIcon,
     ArrowRightIcon,
-    IslandIcon,
 } from '@phosphor-icons/react'
 import SectionHeader from '@/app/components/ui/SectionHeader'
 import { fadeIn, fadeUp, fadeRight, fadeLeft } from '@/app/lib/motionPresets'
@@ -24,9 +22,14 @@ export type DestinationItem = Omit<DestinationCardProps, 'onClick'> & {
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
+// `states` are the individual destinations created in the dashboard (Goa,
+// Rajasthan, Kerala…). A second row for custom regions (West India, South
+// India…) was dropped: only 3 of the 7 regions currently contain destinations
+// with bookable packages, so the row read as sparse. Regions are still browsable
+// at /region — see fetchActiveRegions if this is worth restoring once the
+// catalogue fills out.
 interface ExploreDestinationsProps {
-    domestic?: DestinationItem[]
-    international?: DestinationItem[]
+    states?: DestinationItem[]
 }
 
 // ─── Row ──────────────────────────────────────────────────────────────────────
@@ -101,13 +104,11 @@ function DestinationRow({
 
 // ─── Main section ─────────────────────────────────────────────────────────────
 export default function ExploreDestinations({
-    domestic,
-    international,
+    states,
 }: ExploreDestinationsProps) {
-    const domesticData = domestic ?? []
-    const internationalData = international ?? []
+    const stateData = states ?? []
 
-    if (domesticData.length === 0 && internationalData.length === 0) return null
+    if (stateData.length === 0) return null
 
     return (
         <section className="w-full py-section overflow-hidden bg-surface-muted relative z-10">
@@ -162,18 +163,10 @@ export default function ExploreDestinations({
                 </SectionHeader>
 
                 <DestinationRow
-                    label="Domestic"
+                    label="States"
                     icon={MapPinIcon}
-                    items={domesticData}
-                    viewAllHref="/destination?type=domestic"
-                    itemBasePath="/region"
-                />
-
-                <DestinationRow
-                    label="Beyond Borders"
-                    icon={AirplaneTiltIcon}
-                    items={internationalData}
-                    viewAllHref="/destination?type=international"
+                    items={stateData}
+                    viewAllHref="/destination"
                     itemBasePath="/destination"
                 />
 

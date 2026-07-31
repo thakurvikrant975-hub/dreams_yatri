@@ -21,6 +21,7 @@ import ShortNoticeBanner from "./components/ShortNoticeBanner";
 import { CheckIcon, XMarkIcon, StarIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
 import RelatedPackages from "./components/RelatedPackages";
+import { decodeRoomGuests, PAX_PARAM } from "@/app/lib/packages/roomGuests";
 
 export const revalidate = 3600;
 
@@ -154,6 +155,10 @@ export default async function PackagePage({
         ? spStr(sp.children).split(",").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
         : undefined;
     const initialRooms = Math.max(1, parseInt(spStr(sp.rooms) || "0", 10) || 0) || undefined;
+    // The real per-room split, when the search bar sent one — so a "2 adults +
+    // a 5-year-old in room 1, 1 adult in room 2" search arrives intact instead
+    // of being re-derived by dividing the totals evenly.
+    const initialRoomGuests = decodeRoomGuests(spStr(sp[PAX_PARAM])) ?? undefined;
     const initialTravelDate = spStr(sp.date) || undefined;
     const fromId = spStr(sp.from);
     const initialLeavingFrom = fromId
@@ -613,6 +618,7 @@ export default async function PackagePage({
                 stayCategoryId={pageData.selectedStay!.id}
                 packageName={pageData.title}
                 recentEnquiryCount={pageData.recentEnquiryCount}
+                initialRoomGuests={initialRoomGuests}
                 initialAdults={initialAdults}
                 initialChildAges={initialChildAges}
                 initialRooms={initialRooms}

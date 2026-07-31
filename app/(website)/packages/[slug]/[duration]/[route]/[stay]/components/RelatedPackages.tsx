@@ -32,7 +32,14 @@ export default async function RelatedPackages({ currentPackageId, destinationId 
                         discountedPrice={pkg.discountedPrice}
                         totalPrice={pkg.totalPrice}
                         pricedForAdults={pkg.pricedForAdults}
-                        inclusions={['hotel', 'meals', 'cab', 'activities']}
+                        // Real inclusions from the priced itinerary — these used
+                        // to be hardcoded to all four, and `highlights` (the
+                        // "2 Nights Stay" lines) wasn't passed at all, leaving
+                        // the card's reserved highlight row visibly empty.
+                        inclusions={pkg.inclusions}
+                        highlights={pkg.highlights}
+                        badge={pkg.badge}
+                        badgeColor={pkg.badgeColor}
                     />
                 ))}
             </PackageGrid>

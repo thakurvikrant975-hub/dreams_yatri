@@ -4,18 +4,18 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import PackageCard from '@/app/components/packages/Packages'
 import PackageGrid from '@/app/components/packages/PackageGrid'
-import { Text } from '@/app/components/ui/Typography'
 import type { SearchPackageItem } from '@/app/actions/search/search-packages'
-
-const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+import { ROOM_GUEST_PARAM_KEYS } from '@/app/lib/packages/roomGuests'
 
 export default function PackagesList({ items }: { items: SearchPackageItem[] }) {
     const params = useSearchParams()
 
-    // Carry leaving-from, date and travellers into the package page so it pre-fills.
+    // Carry leaving-from, date and the room/guest split into the package page so
+    // it pre-fills. `pax` (and `rooms`) used to be dropped here, so a two-room
+    // search silently landed on the package page as a single room.
     function packageHref(pkg: SearchPackageItem) {
         const q = new URLSearchParams()
-        for (const k of ['from', 'fromName', 'fromType', 'date', 'adults', 'children']) {
+        for (const k of ['from', 'fromName', 'fromType', 'date', ...ROOM_GUEST_PARAM_KEYS]) {
             const v = params.get(k)
             if (v) q.set(k, v)
         }
@@ -24,29 +24,28 @@ export default function PackagesList({ items }: { items: SearchPackageItem[] }) 
         return qs ? `${base}?${qs}` : base
     }
 
+    // Two-up from lg — the filter sidebar takes the width a third column would
+    // need — and back to three once there's room at xl.
     return (
-        <PackageGrid>
+        <PackageGrid className="lg:grid-cols-2 xl:grid-cols-3">
             {items.map((pkg, index) => (
-                <div key={pkg.id} className="flex flex-col">
-                    <Link href={packageHref(pkg)} className="block">
-                        <PackageCard
-                            title={pkg.title}
-                            images={pkg.images}
-                            duration={pkg.duration}
-                            itinerary={pkg.itinerary}
-                            originalPrice={pkg.originalPerPerson}
-                            discountedPrice={pkg.perPerson}
-                            totalPrice={pkg.total}
-                            pricedForAdults={pkg.pricedForAdults}
-                            isPriority={index < 3}
-                        />
-                    </Link>
-                    {pkg.total > 0 && (
-                        <Text size="xs" intent="muted" className="mt-1.5 pl-1">
-                            Total {fmt(pkg.total)} for all travellers
-                        </Text>
-                    )}
-                </div>
+                <Link key={pkg.id} href={packageHref(pkg)} className="block">
+                    <PackageCard
+                        title={pkg.title}
+                        images={pkg.images}
+                        duration={pkg.duration}
+                        itinerary={pkg.itinerary}
+                        originalPrice={pkg.originalPerPerson}
+                        discountedPrice={pkg.perPerson}
+                        totalPrice={pkg.total}
+                        pricedForAdults={pkg.pricedForAdults}
+                        inclusions={pkg.inclusions}
+                        highlights={pkg.highlights}
+                        badge={pkg.badge}
+                        badgeColor={pkg.badgeColor}
+                        isPriority={index < 3}
+                    />
+                </Link>
             ))}
         </PackageGrid>
     )

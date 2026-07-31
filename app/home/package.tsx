@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import PackageCard from '@/app/components/packages/Packages'
 import Button from '@/app/components/ui/Button'
 import Tabs from '@/app/components/ui/Tabs'
 import {
-    ArrowRightIcon, TrendUpIcon, MapPinIcon, AirplaneTiltIcon, CurrencyInrIcon, SunIcon,
+    ArrowRightIcon, TrendUpIcon, SunIcon,
+    HeartIcon, UsersThreeIcon, MountainsIcon, WavesIcon,
 } from '@phosphor-icons/react'
 import PackageGrid from '@/app/components/packages/PackageGrid'
 import SectionHeader from '@/app/components/ui/SectionHeader'
@@ -16,18 +17,44 @@ interface TrendingPackagesProps {
     packages: RelatedPackageItem[]
 }
 
-// Category tabs (Figma). Trending is the live default; the rest are scaffolded
-// until the packages query returns per-category sets.
-const CATEGORY_TABS = [
-    { id: 'trending', label: 'Trending', icon: TrendUpIcon },
-    { id: 'domestic', label: 'Domestic', icon: MapPinIcon },
-    { id: 'international', label: 'International', icon: AirplaneTiltIcon },
-    { id: 'budget', label: 'Budget', icon: CurrencyInrIcon },
-    { id: 'seasonal', label: 'Seasonal', icon: SunIcon },
+// How many cards a tab shows. The section is a teaser — "View All" leads to
+// the full listing, where the same themes exist as real filters.
+const CARDS_PER_TAB = 6
+
+// Theme tabs, keyed to THEME_RULES slugs so they mean exactly what the
+// /packages filter of the same name means. The previous set (Domestic /
+// International / Budget / Seasonal) was scaffolding: nothing was wired to it,
+// and three of the four had no data behind them — every destination on file is
+// domestic, and there's no seasonality or budget-tier field to group by.
+// These are matched from each package's own categories and tags.
+const THEME_TABS: { id: string; label: string; icon: React.ElementType }[] = [
+    { id: 'honeymoon', label: 'Honeymoon',       icon: HeartIcon },
+    { id: 'family',    label: 'Family',          icon: UsersThreeIcon },
+    { id: 'adventure', label: 'Adventure',       icon: MountainsIcon },
+    { id: 'beach',     label: 'Beach & Islands', icon: WavesIcon },
+    { id: 'weekend',   label: 'Weekend',         icon: SunIcon },
 ]
 
+const ALL_TAB = { id: 'all', label: 'Trending', icon: TrendUpIcon }
+
 export default function TrendingPackages({ packages }: TrendingPackagesProps) {
-    const [activeTab, setActiveTab] = useState('trending')
+    const [activeTab, setActiveTab] = useState(ALL_TAB.id)
+
+    // Only offer a tab that actually has packages behind it — an empty tab is
+    // worse than no tab, and which themes are populated depends on the catalogue.
+    const tabs = useMemo(() => [
+        ALL_TAB,
+        ...THEME_TABS.filter((t) => packages.some((p) => p.themes?.includes(t.id))),
+    ], [packages])
+
+    // Guard against the active tab disappearing if `packages` changes.
+    const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : ALL_TAB.id
+
+    const visiblePackages = useMemo(() => (
+        currentTab === ALL_TAB.id
+            ? packages
+            : packages.filter((p) => p.themes?.includes(currentTab))
+    ).slice(0, CARDS_PER_TAB), [packages, currentTab])
 
     return (
         <section className="w-full py-section relative overflow-hidden">
@@ -229,8 +256,8 @@ export default function TrendingPackages({ packages }: TrendingPackagesProps) {
                 {/* ── Category tabs ── */}
                 <div className="mb-8">
                     <Tabs
-                        tabs={CATEGORY_TABS}
-                        activeTab={activeTab}
+                        tabs={tabs}
+                        activeTab={currentTab}
                         onTabChange={setActiveTab}
                         idPrefix="home-pkg"
                         trailing={
@@ -244,7 +271,7 @@ export default function TrendingPackages({ packages }: TrendingPackagesProps) {
 
                 {/* ── Package grid ── */}
                 <PackageGrid>
-                    {packages.map((pkg, index) => (
+                    {visiblePackages.map((pkg, index) => (
                         <Link
                             key={pkg.id}
                             href={`/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`}
@@ -259,6 +286,10 @@ export default function TrendingPackages({ packages }: TrendingPackagesProps) {
                                 discountedPrice={pkg.discountedPrice}
                                 totalPrice={pkg.totalPrice}
                                 pricedForAdults={pkg.pricedForAdults}
+                                inclusions={pkg.inclusions}
+                                highlights={pkg.highlights}
+                                badge={pkg.badge}
+                                badgeColor={pkg.badgeColor}
                                 isPriority={index < 3}
                             />
                         </Link>

@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 import LocationSearchSelect, { type LocationValue } from '@/app/components/ui/LocationSearchSelect';
 import DatePickerField from '@/app/components/ui/DatePickerField';
 import TravellersField, { type TravellersValue } from '@/app/components/ui/TravellersField';
+import RoomsGuestsField from '@/app/components/ui/RoomsGuestsField';
+import { DEFAULT_ROOM_GUESTS, writeRoomGuests, type RoomGuests } from '@/app/lib/packages/roomGuests';
 
 import ShowLogin from '../lib/show-login';
 
@@ -143,7 +145,9 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
     const [fromLoc, setFromLoc] = useState<LocationValue | null>(null)
     const [toLoc, setToLoc] = useState<LocationValue | null>(null)
     const [departDate, setDepartDate] = useState<Date | null>(null)
-    const [travellers, setTravellers] = useState<TravellersValue>({ adults: 2, childrenAges: [], rooms: 1 })
+    // Per-room split (not a flat total) so the package page receives exactly
+    // the rooms the guest configured here — see lib/packages/roomGuests.
+    const [roomGuests, setRoomGuests] = useState<RoomGuests[]>(DEFAULT_ROOM_GUESTS)
 
     function handleSearch() {
         if (!toLoc) { toast.error('Please choose where you want to go.'); return }
@@ -159,9 +163,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
             const d = String(departDate.getDate()).padStart(2, '0')
             params.set('date', `${y}-${m}-${d}`)
         }
-        params.set('adults', String(travellers.adults))
-        if (travellers.childrenAges.length) params.set('children', travellers.childrenAges.join(','))
-        params.set('rooms', String(travellers.rooms ?? 1))
+        writeRoomGuests(params, roomGuests)
         startTransition(() => { router.push(`/packages?${params.toString()}`) })
     }
 
@@ -363,7 +365,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                 {/* Travellers */}
                                 <div className="flex flex-col gap-1.5">
                                     <label className={FIELD_LABEL_CLASS}>Travellers</label>
-                                    <TravellersField value={travellers} onChange={setTravellers} showRooms />
+                                    <RoomsGuestsField value={roomGuests} onChange={setRoomGuests} />
                                 </div>
 
                             </div>
