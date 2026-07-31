@@ -74,7 +74,7 @@ export default function DestinationCard({
                         {name}
                     </Heading>
                     <Text size='sm' intent='muted'>
-                        {packageCount} Packages
+                        {packageCount} Package{packageCount !== 1 ? 's' : ''}
                     </Text>
                 </div>
             </Card>

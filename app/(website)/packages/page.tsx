@@ -5,8 +5,11 @@ import Footer from "@/app/components/navigation/Footer";
 import type { LocationValue } from "@/app/components/ui/LocationSearchSelect";
 import type { LocationType } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { Text } from "@/app/components/ui/Typography";
+import { parsePackageFilters, packageFiltersKey } from "@/app/lib/packages/packageFacets";
+import { readRoomGuests, totalAdults, totalChildAges } from "@/app/lib/packages/roomGuests";
 import PackagesSearchBar from "./PackagesSearchBar";
 import PackagesResults from "./PackagesResults";
+import PackagesFilters, { FiltersSkeleton } from "./PackagesFilters";
 
 function ResultsSkeleton() {
     return (
@@ -37,9 +40,10 @@ function pick(v: string | string[] | undefined): string {
     return typeof v === "string" ? v : Array.isArray(v) ? v[0] ?? "" : "";
 }
 
-function travellersLabel(adults: number, children: number): string {
+function travellersLabel(adults: number, children: number, rooms: number): string {
     const parts = [`${adults} Adult${adults !== 1 ? "s" : ""}`];
     if (children > 0) parts.push(`${children} Child${children !== 1 ? "ren" : ""}`);
+    if (rooms > 1) parts.push(`${rooms} Rooms`);
     return parts.join(", ");
 }
 
@@ -74,18 +78,19 @@ export default async function PackagesIndexPage({
     const fromName = pick(sp.fromName);
     const fromType = pick(sp.fromType);
     const date = pick(sp.date);
-    const adults = Math.max(1, parseInt(pick(sp.adults) || "2", 10) || 2);
-    const childrenRaw = pick(sp.children);
-    const childAges = childrenRaw
-        ? childrenRaw.split(",").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
-        : [];
-    const rooms = Math.max(1, parseInt(pick(sp.rooms) || "1", 10) || 1);
+    // `pax` carries the real per-room split; the flat adults/children/rooms
+    // trio is the fallback for links written before it existed.
+    const roomGuests = readRoomGuests((key) => pick(sp[key]));
+    const adults = totalAdults(roomGuests);
+    const childAges = totalChildAges(roomGuests);
 
-    const travellers = travellersLabel(adults, childAges.length);
+    const travellers = travellersLabel(adults, childAges.length, roomGuests.length);
     const dateLabel = formatDate(date);
 
     const parsedDate = date ? new Date(`${date}T00:00:00`) : null;
     const initialDate = parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate : null;
+
+    const filters = parsePackageFilters((key) => pick(sp[key]));
 
     return (
         <>
@@ -95,23 +100,35 @@ export default async function PackagesIndexPage({
                 initialFrom={toLocationValue(from, fromName, fromType)}
                 initialTo={toLocationValue(to, toName, toType)}
                 initialDate={initialDate}
-                initialTravellers={{ adults, childrenAges: childAges, rooms }}
+                initialRoomGuests={roomGuests}
             />
 
-            <div className="screen-space py-8">
+            <div className="screen-space py-8 pb-24 lg:pb-8">
                 <Text size="sm" intent="secondary" className="mb-7 block">
                     Prices shown for {travellers}{dateLabel ? ` · ${dateLabel}` : ""}
                 </Text>
 
-                <Suspense fallback={<ResultsSkeleton />}>
-                    <PackagesResults
-                        to={to}
-                        toName={toName}
-                        adults={adults}
-                        childAges={childAges}
-                        travelDate={date || null}
-                    />
-                </Suspense>
+                <div className="flex gap-7">
+                    <Suspense fallback={<FiltersSkeleton />}>
+                        <PackagesFilters to={to} filters={filters} />
+                    </Suspense>
+
+                    <div className="flex-1 min-w-0">
+                        {/* Re-keyed on the filter selection so changing a filter
+                            re-suspends and shows the skeleton instead of leaving
+                            stale cards on screen. */}
+                        <Suspense key={packageFiltersKey(filters)} fallback={<ResultsSkeleton />}>
+                            <PackagesResults
+                                to={to}
+                                toName={toName}
+                                adults={adults}
+                                childAges={childAges}
+                                travelDate={date || null}
+                                filters={filters}
+                            />
+                        </Suspense>
+                    </div>
+                </div>
             </div>
 
             <Footer />

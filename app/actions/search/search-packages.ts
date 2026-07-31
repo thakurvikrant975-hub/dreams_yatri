@@ -2,8 +2,20 @@
 
 import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
-import { imgUrl, PACKAGE_CARD_SELECT, type PackageCardRow } from "@/app/lib/packages/cardShaper";
+import {
+  imgUrl, PACKAGE_CARD_SELECT, inclusionKeys, buildHighlights, type PackageCardRow,
+} from "@/app/lib/packages/cardShaper";
 import { computeCardPricingBatch } from "@/app/lib/packages/cardPricing";
+import { referencePriceFor, resolveBadge, type BadgeColor } from "@/app/lib/packages/packageOffer";
+import { matchDestinationIds } from "@/app/lib/packages/destinationMatch";
+import {
+  DURATION_BUCKETS,
+  EMPTY_PACKAGE_FILTERS,
+  matchesBudget,
+  stayTierForLabel,
+  themesForNames,
+  type PackageFilters,
+} from "@/app/lib/packages/packageFacets";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,14 +31,20 @@ export type SearchPackageItem = {
   itinerary: { days: number; place: string }[];
   /** Per-adult price for the selected traveller mix */
   perPerson: number;
-  /** Strikethrough "before" price — always 0; no honest list price exists for
-   *  a computed package total, so the card hides the savings row. */
+  /** Display-only reference ("was") price behind the standing offer; 0 hides
+   *  the savings row. Never charged — see lib/packages/packageOffer.ts. */
   originalPerPerson: number;
   /** Grand total for all travellers */
   total: number;
   /** Adults the two figures above are quoted for (search pax, or the 2-adult default). */
   pricedForAdults: number;
   missingPricing: boolean;
+  /** Which inclusion icons to light up, derived from the priced itinerary. */
+  inclusions: ('hotel' | 'meals' | 'cab' | 'activities')[];
+  /** Short MMT-style inclusion lines, e.g. "2 Nights Stay". */
+  highlights: string[];
+  badge?: string;
+  badgeColor?: BadgeColor;
 };
 
 export type SearchParams = {
@@ -36,82 +54,138 @@ export type SearchParams = {
   childAges: number[];
   travelDate?: string | null;
   limit?: number;
+  /** Sidebar filters. Omitted → unfiltered. */
+  filters?: PackageFilters;
 };
 
 export type SearchResult = {
   items: SearchPackageItem[];
   total: number;
+  /** True when the budget filter had more candidates to price than the cap
+   *  allows, i.e. the list may not be exhaustive. */
+  capped: boolean;
 };
 
 
-// ── Destination matching ──────────────────────────────────────────────────
-// Matches a destination to the selected location by intersecting their
-// {id, state_id} key sets. This works in both directions and survives the
-// duplicate location rows in the imported dataset (e.g. selecting the city
-// "Manali" matches the state-level "Himachal" destination because both share
-// state_id = the canonical Himachal state). state_id is used (not parent_id /
-// country_id) so we never over-match across an entire country.
-async function matchDestinationIds(toLocationId: string): Promise<number[]> {
-  let selId: bigint;
-  try { selId = BigInt(toLocationId); } catch { return []; }
+// ── Sidebar filters → Prisma ───────────────────────────────────────────────
+//
+// Everything except budget is expressible as a WHERE clause. Budget is not:
+// a package's price is computed per traveller mix by the pricing engine, never
+// stored, so it can only be applied after the cards have been priced (below).
 
-  const sel = await db.location.findUnique({
-    where: { id: selId },
-    select: { id: true, state_id: true },
-  });
-
-  const selKeys = new Set<string>([selId.toString()]);
-  if (sel?.state_id) selKeys.add(sel.state_id.toString());
-
-  const dests = await db.destinations.findMany({
-    where: { is_active: true, is_deleted: false, location_id: { not: null } },
-    select: { id: true, location_id: true },
-  });
-  if (dests.length === 0) return [];
-
-  const locIds = [...new Set(dests.map((d) => d.location_id!).filter(Boolean))]
-    .map((s) => { try { return BigInt(s); } catch { return null; } })
-    .filter((v): v is bigint => v !== null);
-
-  const locs = await db.location.findMany({
-    where: { id: { in: locIds } },
-    select: { id: true, state_id: true },
-  });
-  const locMap = new Map(locs.map((l) => [l.id.toString(), l]));
-
-  const matches = (locId: string) => {
-    const l = locMap.get(locId);
-    if (!l) return false;
-    if (selKeys.has(l.id.toString())) return true;
-    if (l.state_id && selKeys.has(l.state_id.toString())) return true;
-    return false;
+/** Category + tag ids whose (messy, free-text) names match any selected theme. */
+async function resolveThemeIds(themes: string[]): Promise<{ categoryIds: number[]; tagIds: number[] }> {
+  const selected = new Set(themes);
+  const [categories, tags] = await Promise.all([
+    db.categories.findMany({ where: { is_active: true }, select: { id: true, name: true } }),
+    db.tags.findMany({ select: { id: true, name: true } }),
+  ]);
+  const hits = (name: string) => themesForNames([name]).some((slug) => selected.has(slug));
+  return {
+    categoryIds: categories.filter((c) => hits(c.name)).map((c) => c.id),
+    tagIds: tags.filter((t) => hits(t.name)).map((t) => t.id),
   };
-
-  return dests.filter((d) => d.location_id && matches(d.location_id)).map((d) => d.id);
 }
+
+/** Raw stay-category labels that normalise onto any selected tier. */
+async function resolveStayLabels(tiers: string[]): Promise<string[]> {
+  const selected = new Set(tiers);
+  const rows = await db.package_stay_categories.groupBy({
+    by: ["label"],
+    where: { is_active: true },
+  });
+  return rows
+    .map((r) => r.label)
+    .filter((label) => {
+      const tier = stayTierForLabel(label);
+      return tier !== null && selected.has(tier);
+    });
+}
+
+/**
+ * Extra WHERE conditions for the selected filters, or null when a filter is
+ * selected that nothing in the DB can satisfy (→ the caller returns no results
+ * rather than silently widening the search).
+ */
+async function buildFilterConditions(
+  f: PackageFilters,
+): Promise<Prisma.packagesWhereInput[] | null> {
+  const conditions: Prisma.packagesWhereInput[] = [];
+
+  if (f.destinationIds.length > 0) {
+    conditions.push({ destination_id: { in: f.destinationIds } });
+  }
+
+  if (f.themes.length > 0) {
+    const { categoryIds, tagIds } = await resolveThemeIds(f.themes);
+    if (categoryIds.length === 0 && tagIds.length === 0) return null;
+    conditions.push({
+      OR: [
+        ...(categoryIds.length > 0 ? [{ categories: { some: { category_id: { in: categoryIds } } } }] : []),
+        ...(tagIds.length > 0 ? [{ tags: { some: { tag_id: { in: tagIds } } } }] : []),
+      ],
+    });
+  }
+
+  if (f.stayTiers.length > 0) {
+    const labels = await resolveStayLabels(f.stayTiers);
+    if (labels.length === 0) return null;
+    conditions.push({ stay_categories: { some: { is_active: true, label: { in: labels } } } });
+  }
+
+  if (f.durations.length > 0) {
+    const buckets = DURATION_BUCKETS.filter((b) => f.durations.includes(b.slug));
+    if (buckets.length === 0) return null;
+    conditions.push({
+      OR: buckets.map((b) => ({
+        durations: { some: { is_active: true, nights: { gte: b.minNights, lte: b.maxNights } } },
+      })),
+    });
+  }
+
+  return conditions;
+}
+
+/** How many packages we're willing to price when a budget filter is on. Pricing
+ *  runs the real engine once per duration per package, so this is the ceiling
+ *  that keeps a broad "Under ₹15,000" search from pricing the whole catalogue.
+ *  Without a budget filter we only ever price the page we're about to show. */
+const BUDGET_CANDIDATE_CAP = 60;
 
 // ── Main search ────────────────────────────────────────────────────────────
 export async function searchPackages(params: SearchParams): Promise<SearchResult> {
-  const { toLocationId, adults, childAges, travelDate, limit = 24 } = params;
+  const {
+    toLocationId, adults, childAges, travelDate, limit = 24,
+    filters = EMPTY_PACKAGE_FILTERS,
+  } = params;
 
   // With a destination → match by location hierarchy; without → list all packages.
   let where: Prisma.packagesWhereInput;
   if (toLocationId) {
     const destinationIds = await matchDestinationIds(toLocationId);
-    if (destinationIds.length === 0) return { items: [], total: 0 };
+    if (destinationIds.length === 0) return { items: [], total: 0, capped: false };
     where = { is_active: true, destination_id: { in: destinationIds } };
   } else {
     where = { is_active: true };
   }
 
+  const conditions = await buildFilterConditions(filters);
+  if (conditions === null) return { items: [], total: 0, capped: false };
+  if (conditions.length > 0) where = { AND: [where, ...conditions] };
+
+  // A budget filter can only be applied post-pricing, so pull a wider candidate
+  // set and trim back to `limit` afterwards.
+  const hasBudgetFilter = filters.budgets.length > 0;
+  const take = hasBudgetFilter ? Math.max(limit, BUDGET_CANDIDATE_CAP) : limit;
+
   const rows = (await db.packages.findMany({
     where,
     orderBy: { created_at: "desc" },
-    take: limit,
+    take,
     select: PACKAGE_CARD_SELECT,
   })) as PackageCardRow[];
 
-  if (rows.length === 0) return { items: [], total: 0 };
+  if (rows.length === 0) return { items: [], total: 0, capped: false };
 
   const children = childAges.length;
   const pricedForAdults = Math.max(1, adults);
@@ -132,6 +206,8 @@ export async function searchPackages(params: SearchParams): Promise<SearchResult
       .filter(Boolean) as string[];
     if (images.length === 0) return null;
 
+    const badge = resolveBadge((pkg.categories ?? []).map((c) => c.category.name));
+
     return {
       id: pkg.id,
       title: pkg.title,
@@ -143,13 +219,28 @@ export async function searchPackages(params: SearchParams): Promise<SearchResult
       staySlug: pricing.staySlug,
       itinerary: pricing.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
       perPerson: pricing.perAdult,
-      originalPerPerson: 0,
+      originalPerPerson: referencePriceFor(pricing.perAdult),
       total: pricing.total,
       pricedForAdults,
       missingPricing: pricing.missingPricing,
+      inclusions: inclusionKeys(pricing.inclusions),
+      highlights: buildHighlights(pricing.inclusions),
+      ...(badge ? { badge: badge.label, badgeColor: badge.color } : {}),
     };
   });
 
-  const filtered = items.filter((p): p is SearchPackageItem => p !== null);
-  return { items: filtered, total: filtered.length };
+  const priced = items.filter((p): p is SearchPackageItem => p !== null);
+
+  // Budget, finally — against the same per-adult figure the card advertises,
+  // for this search's own traveller mix. Un-priceable packages drop out of a
+  // budget search rather than pretending to be free.
+  const filtered = hasBudgetFilter
+    ? priced.filter((p) => !p.missingPricing && matchesBudget(p.perPerson, filters.budgets))
+    : priced;
+
+  return {
+    items: filtered.slice(0, limit),
+    total: Math.min(filtered.length, limit),
+    capped: hasBudgetFilter && rows.length >= take,
+  };
 }

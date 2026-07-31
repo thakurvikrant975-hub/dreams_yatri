@@ -10,31 +10,26 @@ import NewsletterSection from "@/app/home/newsletter";
 import Footer from "../components/navigation/Footer";
 import Header from "../components/navigation/Header";
 import { fetchRecentPackages } from "@/app/actions/packages/fetch-page-data";
-import { fetchActiveRegions } from "@/app/actions/regions/fetch-region-page";
-import { fetchActiveDestinations } from "@/app/actions/destinations/fetch-destination-page";
+import { fetchDestinationsInCountry } from "@/app/actions/destinations/fetch-destination-page";
 import { getPublishedBlogs } from "@/app/actions/blogs/public";
 
 export default async function Home() {
-  const [recentPackages, activeRegions, activeDestinations, { posts: latestBlogs }] = await Promise.all([
-    fetchRecentPackages(6),
-    fetchActiveRegions("India", 12),
-    fetchActiveDestinations("India", 12),
+  const [recentPackages, activeDestinations, { posts: latestBlogs }] = await Promise.all([
+    // Pool, not page size: the section shows 6 at a time but filters this set
+    // down per theme tab, so it needs enough spread to keep every tab stocked.
+    fetchRecentPackages(18),
+    fetchDestinationsInCountry("India", 12),
     getPublishedBlogs({ limit: 3 }),
   ]);
 
-  const domesticItems = activeRegions.map((r) => ({
-    slug: r.slug,
-    name: r.name,
-    packageCount: r.packageCount,
-    image: r.image,
-  }));
-
-  const internationalItems = activeDestinations.map((d) => ({
+  // Individual destinations from the dashboard (Goa, Kerala…), tagged with the
+  // region they roll up into so the card can show that relationship.
+  const stateItems = activeDestinations.map((d) => ({
     slug: d.slug,
     name: d.name,
     packageCount: d.packageCount,
     image: d.image,
-    region: d.country,
+    region: d.region ?? undefined,
   }));
 
   return (
@@ -45,8 +40,7 @@ export default async function Home() {
         <TrustSignals />
         <PackageSection packages={recentPackages} />
         <ExploreDestinations
-          domestic={domesticItems.length > 0 ? domesticItems : undefined}
-          international={internationalItems.length > 0 ? internationalItems : undefined}
+          states={stateItems.length > 0 ? stateItems : undefined}
         />
         <AvantiSection />
         <WhyChooseUsSection />

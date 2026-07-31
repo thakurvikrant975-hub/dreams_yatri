@@ -9,6 +9,7 @@ import {
     ForkKnifeIcon,
     CarIcon,
     StarIcon,
+    CheckIcon,
 } from '@phosphor-icons/react'
 import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid'
 import SavingsBadge from './SavingBadge'
@@ -38,6 +39,9 @@ export interface PackageCardProps {
      *  duration rather than a fixed one. */
     startingFrom?: boolean
     inclusions?: Array<'hotel' | 'meals' | 'cab' | 'activities'>
+    /** Short inclusion lines e.g. "2 Nights Stay", "3 Activities" — the detail
+     *  that makes a card feel concrete rather than just a price. */
+    highlights?: string[]
     /** Category badge shown top-left on image e.g. "Honeymoon", "Friends" */
     badge?: string
     /** Color theme for the badge */
@@ -188,6 +192,16 @@ const BADGE_COLORS: Record<string, string> = {
     red: 'bg-red-500 text-white',
 }
 
+// Darker shade for the little folded-corner triangle under each badge.
+const BADGE_FOLD: Record<string, string> = {
+    teal: 'border-teal-700',
+    blue: 'border-blue-700',
+    orange: 'border-orange-700',
+    green: 'border-emerald-700',
+    purple: 'border-purple-700',
+    red: 'border-red-700',
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function PackageCard({
     title,
@@ -202,8 +216,10 @@ export default function PackageCard({
     pricedForAdults = 2,
     startingFrom = true,
     inclusions = [],
+    highlights = [],
     isPriority = false,
     badge,
+    badgeColor = 'red',
     onRequestCallback,
     onClick,
     className = '',
@@ -212,6 +228,11 @@ export default function PackageCard({
     const touchStartX = useRef(0)
     const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
     const savings = originalPrice - discountedPrice
+    // Percentage reads better than an absolute amount on a "starting from"
+    // figure, where the rupee saving changes with occupancy but the offer doesn't.
+    const savingsPct = originalPrice > 0 && savings > 0
+        ? Math.round((savings / originalPrice) * 100)
+        : 0
 
     function startAutoSlide() {
         if (images.length <= 1) return
@@ -344,16 +365,32 @@ export default function PackageCard({
                         <ItineraryRow items={itinerary} />
                     </div>
 
+                    {/* What's included — short, scannable lines. Only rendered
+                        for facts the priced itinerary actually supports.
+                        Height is reserved for two lines regardless of content:
+                        cards narrow (listing page, which has a filter sidebar)
+                        wrap three highlights onto a second line while wider
+                        ones don't, and without a fixed height that difference
+                        pushes the price row out of alignment across a grid. */}
+                    <ul className="flex flex-wrap content-start items-center gap-x-3 gap-y-1 mb-3 min-h-9">
+                        {highlights.map((h) => (
+                            <li key={h} className="flex items-center gap-1.5">
+                                <CheckIcon weight="bold" aria-hidden="true" className="size-3 text-success-600 shrink-0" />
+                                <Text as="span" size="xs" intent="secondary">{h}</Text>
+                            </li>
+                        ))}
+                    </ul>
+
                     {/* Price row */}
                     <div className="flex items-center justify-between">
 
                         <div className='flex flex-col gap-0.5'>
-                            {originalPrice > 0 && savings > 0 && (
+                            {savingsPct > 0 && (
                                 <div className="flex items-center gap-5">
                                     <Text as='span' weight='medium' intent='secondary' className='relative w-max px-1 after:absolute after:top-1/2 after:left-0 after:h-[0.1em] after:w-full after:bg-error-500 after:z-10 after:-translate-y-1/2'>
                                         {formatINR(originalPrice)}
                                     </Text>
-                                    <SavingsBadge amount={formatINR(savings)} />
+                                    <SavingsBadge amount={`${savingsPct}%`} />
                                 </div>
                             )}
 
@@ -399,11 +436,11 @@ export default function PackageCard({
             {badge && (
                 <div className="absolute top-7 left-0 z-10 flex flex-col gap-1.5">
                     <div className="relative -translate-x-4 ">
-                        <span className={`text-sm font-medium pl-6 px-4 py-2 rounded-e-pill leading-none bg-primary-500 text-white`}>
+                        <span className={`text-sm font-medium pl-6 px-4 py-2 rounded-e-pill leading-none ${BADGE_COLORS[badgeColor] ?? BADGE_COLORS.red}`}>
                             {badge}
                         </span>
                         <div className="absolute  top-full left-0 translate-y-1.25">
-                            <div className="w-0 h-0 border-primary-800 border-l-transparent border-b-transparent border-8"></div>
+                            <div className={`w-0 h-0 ${BADGE_FOLD[badgeColor] ?? BADGE_FOLD.red} border-l-transparent border-b-transparent border-8`}></div>
                         </div>
                     </div>
 

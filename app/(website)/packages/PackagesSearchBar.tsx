@@ -5,14 +5,15 @@ import { useRouter } from 'next/navigation'
 import { MagnifyingGlassIcon } from '@phosphor-icons/react'
 import LocationSearchSelect, { type LocationValue } from '@/app/components/ui/LocationSearchSelect'
 import DatePickerField from '@/app/components/ui/DatePickerField'
-import TravellersField, { type TravellersValue } from '@/app/components/ui/TravellersField'
+import RoomsGuestsField from '@/app/components/ui/RoomsGuestsField'
+import { writeRoomGuests, type RoomGuests } from '@/app/lib/packages/roomGuests'
 import Button from '@/app/components/ui/Button'
 
 export interface PackagesSearchBarProps {
     initialFrom: LocationValue | null
     initialTo: LocationValue | null
     initialDate: Date | null
-    initialTravellers: TravellersValue
+    initialRoomGuests: RoomGuests[]
 }
 
 function Label({ id, children }: { id: string; children: React.ReactNode }) {
@@ -24,14 +25,14 @@ function Label({ id, children }: { id: string; children: React.ReactNode }) {
 }
 
 export default function PackagesSearchBar({
-    initialFrom, initialTo, initialDate, initialTravellers,
+    initialFrom, initialTo, initialDate, initialRoomGuests,
 }: PackagesSearchBarProps) {
     const router = useRouter()
     const [isPending, startTransition] = useTransition()
     const [fromLoc, setFromLoc] = useState<LocationValue | null>(initialFrom)
     const [toLoc, setToLoc] = useState<LocationValue | null>(initialTo)
     const [departDate, setDepartDate] = useState<Date | null>(initialDate)
-    const [travellers, setTravellers] = useState<TravellersValue>(initialTravellers)
+    const [roomGuests, setRoomGuests] = useState<RoomGuests[]>(initialRoomGuests)
 
     function search() {
         const p = new URLSearchParams()
@@ -52,9 +53,7 @@ export default function PackagesSearchBar({
             const d = String(departDate.getDate()).padStart(2, '0')
             p.set('date', `${y}-${m}-${d}`)
         }
-        p.set('adults', String(travellers.adults))
-        if (travellers.childrenAges.length) p.set('children', travellers.childrenAges.join(','))
-        p.set('rooms', String(travellers.rooms ?? 1))
+        writeRoomGuests(p, roomGuests)
         const qs = p.toString()
         startTransition(() => {
             router.push(qs ? `/packages?${qs}` : '/packages')
@@ -88,7 +87,7 @@ export default function PackagesSearchBar({
 
                         <div className="flex flex-col gap-1" role="group" aria-labelledby="label-travellers">
                             <Label id="label-travellers">Travellers</Label>
-                            <TravellersField value={travellers} onChange={setTravellers} showRooms />
+                            <RoomsGuestsField value={roomGuests} onChange={setRoomGuests} />
                         </div>
 
                         <div className="flex flex-col gap-1">
