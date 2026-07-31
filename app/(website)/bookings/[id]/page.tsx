@@ -1,10 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-    CheckCircleIcon, MapTrifoldIcon, CalendarBlankIcon, UsersThreeIcon,
-    CompassIcon,
-} from '@phosphor-icons/react/dist/ssr';
-import type { Icon } from '@phosphor-icons/react';
+import { CheckCircleIcon, CompassIcon } from '@phosphor-icons/react/dist/ssr';
 import Header from '@/app/components/navigation/Header';
 import Footer from '@/app/components/navigation/Footer';
 import Card from '@/app/components/ui/Card';
@@ -13,9 +9,8 @@ import { Heading, Text } from '@/app/components/ui/Typography';
 import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { isPaidStatus } from '@/app/lib/messaging';
-import { formatPaiseRoundedUp } from '@/app/lib/money';
+import InvoiceDocument from '@/app/components/invoice/InvoiceDocument';
 import StatusPoller from './StatusPoller';
-import RedirectTimer from './RedirectTimer';
 import DownloadReceiptButton from './DownloadReceiptButton';
 import GuestChatThread from './GuestChatThread';
 
@@ -24,11 +19,6 @@ export const metadata: Metadata = {
     title: 'Booking confirmation | Dreams Yatri',
     robots: { index: false, follow: false },
 };
-
-function formatDate(d: Date | null): string {
-    if (!d) return '';
-    return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(d);
-}
 
 function StatusScreen({ heading, body }: { heading: string; body: string }) {
     return (
@@ -54,12 +44,14 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
         const booking = await db.booking.findUnique({
             where: { id },
             select: {
-                id: true, userId: true, bookingNumber: true, status: true, paymentStatus: true, paymentPlan: true,
-                startDate: true, endDate: true, travellers: true,
-                totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
-                packageId: true,
+                id: true, userId: true, bookingNumber: true, status: true, paymentStatus: true,
+                startDate: true, endDate: true, travellers: true, createdAt: true,
+                totalAmount_paise: true,
+                priceSnapshot: true, contactEmail: true, contactPhone: true, gstStateCode: true,
                 package: { select: { title: true } },
-                hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } },
+                destination: { select: { name: true } },
+                user: { select: { name: true, email: true } },
+                payments: { select: { amount_paise: true, method: true, status: true, paidAt: true, createdAt: true, purpose: true }, orderBy: { createdAt: 'asc' } },
             },
         });
 
@@ -68,10 +60,6 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
         } else {
             const pending = booking.paymentStatus === 'PENDING';
             const cancelled = booking.status === 'CANCELLED';
-            const isFull = booking.paymentPlan === 'FULL';
-            const paidPaise = isFull ? booking.totalAmount_paise : booking.advanceAmount_paise;
-            const isHotelOnly = booking.packageId == null;
-            const tripLabel = isHotelOnly ? (booking.hotelBookings[0]?.hotel.name ?? 'Your stay') : (booking.package?.title ?? 'Your package');
 
             // If still pending, is there an in-flight charge (PENDING payment) or did
             // the last attempt fail? A failed attempt → offer a retry instead of
@@ -90,7 +78,7 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
             content = (
                 <div className="screen-space py-10">
                     {confirming && <StatusPoller />}
-                    <Card className="max-w-xl mx-auto px-8 py-9">
+                    <Card className={confirming || cancelled || paymentFailed ? 'max-w-xl mx-auto px-8 py-9' : 'max-w-4xl mx-auto px-8 py-9'}>
                         {cancelled ? (
                             <div className="text-center">
                                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-error-50 text-error-600 text-2xl">✕</div>
@@ -136,30 +124,8 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                     </Text>
                                 </div>
 
-                                <div className="mt-7 overflow-hidden rounded-xl border border-(--border-muted)">
-                                    <div className="border-b border-(--border-muted) bg-neutral-50 px-4 py-2.5">
-                                        <Text size="xs" weight="semibold" intent="secondary" className="uppercase tracking-wide">Trip details</Text>
-                                    </div>
-                                    <div className="divide-y divide-(--border-muted)">
-                                        <DetailRow icon={MapTrifoldIcon} label={isHotelOnly ? 'Hotel' : 'Package'} value={tripLabel} />
-                                        <DetailRow icon={CalendarBlankIcon} label="Travel dates" value={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`} />
-                                        <DetailRow icon={UsersThreeIcon} label="Travellers" value={String(booking.travellers)} />
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 overflow-hidden rounded-xl border border-(--border-muted)">
-                                    <div className="border-b border-(--border-muted) bg-neutral-50 px-4 py-2.5">
-                                        <Text size="xs" weight="semibold" intent="secondary" className="uppercase tracking-wide">Payment summary</Text>
-                                    </div>
-                                    <div className="divide-y divide-(--border-muted)">
-                                        <Row label={isFull ? 'Paid in full' : 'Deposit paid'} value={formatPaiseRoundedUp(paidPaise)} />
-                                        {!isFull && (
-                                            <Row
-                                                label="Balance due"
-                                                value={`${formatPaiseRoundedUp(booking.balanceAmount_paise)}${booking.balanceDueDate ? ` by ${formatDate(booking.balanceDueDate)}` : ''}`}
-                                            />
-                                        )}
-                                    </div>
+                                <div className="mt-7 -mx-8 sm:mx-0">
+                                    <InvoiceDocument booking={booking} />
                                 </div>
 
                                 <div className="mt-4 flex justify-center gap-4 text-sm">
@@ -181,8 +147,6 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                     </Link>
                                     <DownloadReceiptButton bookingId={booking.id} />
                                 </div>
-
-                                <RedirectTimer href={`/bookings/${booking.id}/status`} seconds={10} />
                             </>
                         )}
                     </Card>
@@ -197,28 +161,5 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
             {content}
             <Footer />
         </>
-    );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="flex items-center justify-between px-4 py-3">
-            <Text size="sm" intent="secondary">{label}</Text>
-            <Text size="sm" weight="medium" intent="primary">{value}</Text>
-        </div>
-    );
-}
-
-function DetailRow({ icon: IconCmp, label, value }: { icon: Icon; label: string; value: string }) {
-    return (
-        <div className="flex items-center gap-3 px-4 py-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-                <IconCmp weight="duotone" className="size-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-                <Text size="xs" intent="muted">{label}</Text>
-                <Text size="sm" weight="semibold" intent="primary" className="block truncate">{value}</Text>
-            </div>
-        </div>
     );
 }

@@ -2,6 +2,7 @@ import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { computePackagePrice } from "@/app/services/package-pricing.service";
 import { parseRoomAmenities } from "@/app/lib/hotel-inventory/room-amenities";
+import { roomTotalCapacity } from "@/app/lib/room-capacity";
 import { getCardImage } from "@/app/lib/imageUrl";
 import {
   shapePackageCards,
@@ -71,11 +72,14 @@ export type HotelDay = {
   meal_type: string | null;
   active_meals: string[];
   room_name: string | null;
+  /** Base adults on standard beds (hotel_rooms.max_occupancy) — NOT the total. */
   room_capacity: number | null;
   room_bed_type: string | null;
   room_area_sqft: number | null;
   room_view: string | null;
   room_extra_beds: number;
+  /** Total guests one room really holds — use this for occupancy limits. */
+  room_total_capacity: number;
   room_num_rooms: number;
   price_per_night: number;
   original_price: number | null;
@@ -129,6 +133,10 @@ export const ROOM_PRICING_DISPLAY_SELECT = {
       bed_type: true,
       view_type: true,
       extra_bed_capacity: true,
+      // Needed to derive the room's REAL total capacity — max_occupancy alone
+      // is only the base beds. See app/lib/room-capacity.ts.
+      max_adults: true,
+      max_children: true,
       num_rooms: true,
       amenities: true,
       images: {
@@ -156,11 +164,14 @@ export type RoomOption = {
   plan_name: string | null;
   meal_type: string | null;
   room_name: string | null;
+  /** Base adults on standard beds (hotel_rooms.max_occupancy) — NOT the total. */
   room_capacity: number | null;
   room_bed_type: string | null;
   room_area_sqft: number | null;
   room_view: string | null;
   room_extra_beds: number;
+  /** Total guests one room really holds — use this for occupancy limits. */
+  room_total_capacity: number;
   /** Total inventory of this room type at its hotel (hotel_rooms.num_rooms).
    *  Many hotels have never set this — see effectiveRoomCap() in
    *  PackageBookingProvider.tsx for how the un-configured case (<=1) is handled. */
@@ -203,6 +214,7 @@ export function mapRoomPricingRowToOption(rp: RoomPricingRow): RoomOption {
     room_area_sqft: rp.room?.area_sqft ?? null,
     room_view: rp.room?.view_type ?? null,
     room_extra_beds: rp.room?.extra_bed_capacity ?? 0,
+    room_total_capacity: roomTotalCapacity(rp.room),
     room_num_rooms: rp.room?.num_rooms ?? 1,
     price_per_night: Number(rp.price_per_night),
     original_price: rp.original_price ? Number(rp.original_price) : null,

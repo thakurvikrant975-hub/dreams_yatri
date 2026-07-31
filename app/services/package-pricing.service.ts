@@ -3,6 +3,9 @@
 import { db } from "../lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { resolveCabPrice } from "./cab-pricing-utils";
+import {
+  roomTotalCapacity, roomExtraBedsUsed, roomsNeededFor, splitPersonsAcrossRooms,
+} from "../lib/room-capacity";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -46,7 +49,20 @@ export type DayHotelLine = {
   plan_name: string | null;
   bed_capacity: number;       // people who sleep on standard beds (max_occupancy)
   extra_bed_capacity: number; // additional mattresses allowed per room
+  /** Total guests ONE room of this type holds — max_adults + max_children,
+   *  floored at the physical bed count (see app/lib/room-capacity.ts). */
+  room_total_capacity: number;
   rooms_count: number;
+  /** Rooms the caller asked for, when they supplied an explicit split; null
+   *  when the room count was derived purely from the headcount. */
+  rooms_configured: number | null;
+  /** True when an explicit split was supplied but could not be honoured for
+   *  this stay (a room held more guests than this room type allows), so the
+   *  count below was re-derived. Surfaced so the UI can say so out loud
+   *  instead of silently showing a different number of rooms. */
+  split_adjusted: boolean;
+  /** Guests per room for the split actually charged, e.g. [4, 3]. */
+  per_room_occupancy: number[];
   price_per_room: number;
   mattresses_count: number;   // total extra mattresses needed
   extra_bed_rate: number;     // price per mattress per night
@@ -171,7 +187,14 @@ const STAY_ROOM_PRICING_SELECT = {
   },
   extra_bed_rate: true,
   weekend_extra_bed_rate: true,
-  room: { select: { id: true, name: true, max_occupancy: true, extra_bed_capacity: true } },
+  room: {
+    select: {
+      id: true, name: true,
+      // Capacity columns are read only through app/lib/room-capacity.ts — see
+      // that file for what each one actually means.
+      max_occupancy: true, extra_bed_capacity: true, max_adults: true, max_children: true,
+    },
+  },
   occupancy_prices: {
     orderBy: { occupancy: "asc" },
     select: { occupancy: true, price_per_night: true, weekend_price_per_night: true },
@@ -774,41 +797,48 @@ export async function computePackagePrice(
 
     if (stay) {
       // ── Room & mattress capacity ──────────────────────────────────────────
-      // bed_capacity  = people who sleep on standard beds (max_occupancy on the room)
-      // extra_bed_cap = additional people on mattresses per room
-      // effective_cap = bed_capacity + extra_bed_cap (total per room)
-      // persons       = adults + children (infants excluded from room count)
-      const bedCapacity   = stay.room_pricing.room?.max_occupancy ?? 2;
-      const extraBedCap   = stay.room_pricing.room?.extra_bed_capacity ?? 1;
-      const effectiveCap  = bedCapacity + extraBedCap;
+      // What each capacity column actually means (max_occupancy is base beds,
+      // NOT the total) is documented once in app/lib/room-capacity.ts — always
+      // go through those helpers rather than reading the columns directly.
+      // persons = adults + children (infants excluded from room occupancy).
+      const roomFields    = stay.room_pricing.room;
+      const bedCapacity   = roomFields?.max_occupancy ?? 2;      // base beds, no surcharge
+      const extraBedCap   = roomFields?.extra_bed_capacity ?? 1; // mattresses available per room
+      const roomCap       = roomTotalCapacity(roomFields);       // real total guests per room
       const persons       = Math.max(adults + children, 1);
       const numNights     = stay.num_nights;
 
-      // The guest's real per-room breakdown is only trusted for THIS stay if
-      // it can't possibly underprice the safe derived minimum: never fewer
-      // rooms than the party mathematically needs, headcounts exactly
-      // accounting for everyone, and no single room claiming more people
-      // than its own real capacity — every entry point into this function
-      // re-derives this independently, it is never taken on faith from a
-      // caller (see PricingInput.rooms).
-      const derivedRoomsNeeded = Math.ceil(persons / effectiveCap);
+      // The caller's per-room split is honoured for THIS stay only if it can't
+      // underprice the safe derived minimum: enough rooms for the party, every
+      // guest accounted for exactly once, and no single room holding more
+      // guests than this room type really takes. Untrusted input — re-derived
+      // here rather than taken on faith from a caller (see PricingInput.rooms).
+      const derivedRoomsNeeded = roomsNeededFor(persons, roomFields);
+      const roomsRequested = rooms?.length ?? null;
       const validRooms = !!rooms
         && Number.isInteger(rooms.length) && rooms.length > 0 && rooms.length <= 20
         && rooms.every((r) => Number.isInteger(r.adults) && r.adults >= 1
             && Number.isInteger(r.children) && r.children >= 0
-            && (r.adults + r.children) <= effectiveCap)
+            && (r.adults + r.children) <= roomCap)
         && rooms.length >= derivedRoomsNeeded
         && rooms.reduce((s, r) => s + r.adults + r.children, 0) === persons;
-      const explicitRooms = validRooms ? rooms! : null;
 
-      const roomsNeeded = explicitRooms ? explicitRooms.length : derivedRoomsNeeded;
-      const perRoomHeadcount = explicitRooms ? explicitRooms.map((r) => r.adults + r.children) : null;
-      const mattresses = perRoomHeadcount
-        ? perRoomHeadcount.reduce((s, h) => s + Math.min(extraBedCap, Math.max(0, h - bedCapacity)), 0)
-        : Math.max(0, persons - roomsNeeded * bedCapacity);
-      const typicalOccupancy = explicitRooms
-        ? Math.round(persons / roomsNeeded)
-        : Math.min(adults, bedCapacity);
+      const roomsNeeded = validRooms ? rooms!.length : derivedRoomsNeeded;
+      // A single occupancy list drives every calculation below, whether the
+      // split came from the caller or had to be derived — so mattress counts
+      // and per-room occupancy tiers can never disagree between the two paths.
+      const perRoomHeadcount = validRooms
+        ? rooms!.map((r) => r.adults + r.children)
+        : splitPersonsAcrossRooms(persons, roomsNeeded);
+      // Only the mattresses a room physically has are chargeable; guests past
+      // that share a bed (hotel_rooms.max_children is explicitly "may share
+      // adult beds"), so they add no extra-bed cost.
+      const mattresses = perRoomHeadcount.reduce(
+        (sum, headcount) => sum + roomExtraBedsUsed(headcount, roomFields), 0,
+      );
+      // Lowest occupancy tier any room was priced at — a headline only; the
+      // real cost sums each room at its own tier in the night loop below.
+      const typicalOccupancy = Math.min(...perRoomHeadcount);
 
       // A multi-night stay can cross a season boundary or a weekday→weekend
       // transition partway through, so every night is resolved (room rate,
@@ -824,31 +854,20 @@ export async function computePackagePrice(
           : null;
         const { basePrice, extraBedRate, occPrices } = resolveHotelSeasonPricing(stay.room_pricing, nightDate);
 
-        let nightPricePerRoom: number;
-        if (perRoomHeadcount) {
-          // Real per-room breakdown: price EACH room at its own occupancy
-          // tier, rather than one trip-wide tier applied flatly to every room.
-          let nightRoomsCost = 0;
-          for (const headcount of perRoomHeadcount) {
-            let roomPrice = basePrice;
-            if (occPrices.length > 0) {
-              const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
-              const match = sorted.find((op) => op.occupancy <= headcount) ?? sorted[sorted.length - 1];
-              roomPrice = Number(match.price_per_night);
-            }
-            nightRoomsCost += roomPrice;
-          }
-          roomCost += nightRoomsCost;
-          nightPricePerRoom = nightRoomsCost / roomsNeeded; // for the price_per_room headline below
-        } else {
-          nightPricePerRoom = basePrice;
+        // Price EACH room at its own occupancy tier rather than applying one
+        // trip-wide tier flatly to every room.
+        let nightRoomsCost = 0;
+        for (const headcount of perRoomHeadcount) {
+          let roomPrice = basePrice;
           if (occPrices.length > 0) {
             const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
-            const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
-            nightPricePerRoom = Number(match.price_per_night);
+            const match = sorted.find((op) => op.occupancy <= headcount) ?? sorted[sorted.length - 1];
+            roomPrice = Number(match.price_per_night);
           }
-          roomCost += roomsNeeded * nightPricePerRoom;
+          nightRoomsCost += roomPrice;
         }
+        roomCost += nightRoomsCost;
+        const nightPricePerRoom = nightRoomsCost / roomsNeeded; // headline only
 
         mattressCost += mattresses * extraBedRate;
         if (n === 0) {
@@ -873,7 +892,11 @@ export async function computePackagePrice(
         plan_name: stay.room_pricing.plan_name,
         bed_capacity: bedCapacity,
         extra_bed_capacity: extraBedCap,
+        room_total_capacity: roomCap,
         rooms_count: roomsNeeded,
+        rooms_configured: roomsRequested,
+        split_adjusted: roomsRequested != null && !validRooms,
+        per_room_occupancy: perRoomHeadcount,
         // First-night rate — a simple "per night" headline; `total` below is
         // the true sum across all nights and is what actually gets charged.
         price_per_room: firstNightPricePerRoom,
@@ -1219,7 +1242,12 @@ export async function computeBuilderHotelPricing(input: {
       price_per_night: true,
       extra_bed_rate: true,
       hotel: { select: { name: true } },
-      room: { select: { name: true, max_occupancy: true, extra_bed_capacity: true } },
+      room: {
+        select: {
+          name: true,
+          max_occupancy: true, extra_bed_capacity: true, max_adults: true, max_children: true,
+        },
+      },
       occupancy_prices: {
         orderBy: { occupancy: "asc" },
         select: { occupancy: true, price_per_night: true, weekend_price_per_night: true },
@@ -1249,11 +1277,18 @@ export async function computeBuilderHotelPricing(input: {
       const rp = byId.get(d.roomPricingId);
       if (rp) {
         const bedCapacity = rp.room?.max_occupancy ?? 2;
-        const extraBedCap = rp.room?.extra_bed_capacity ?? 1;
-        const effectiveCap = bedCapacity + extraBedCap;
         const isManualCount = d.roomsCount != null && d.roomsCount > 0;
-        const roomsNeeded = isManualCount ? d.roomsCount! : Math.ceil(persons / effectiveCap);
-        const mattresses = isManualCount ? 0 : Math.max(0, persons - roomsNeeded * bedCapacity);
+        // Room count comes from the room's REAL total capacity (see
+        // app/lib/room-capacity.ts) — max_occupancy alone is just the base
+        // beds, and using it here used to demand more rooms than the room type
+        // actually needs.
+        const roomsNeeded = isManualCount ? d.roomsCount! : roomsNeededFor(persons, rp.room);
+        // Only the mattresses the rooms physically have are chargeable; guests
+        // beyond that share a bed.
+        const mattresses = isManualCount
+          ? 0
+          : splitPersonsAcrossRooms(persons, roomsNeeded)
+              .reduce((sum, headcount) => sum + roomExtraBedsUsed(headcount, rp.room), 0);
         const extraBedRate = rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
 
         const typicalOccupancy = Math.min(adults, bedCapacity);
