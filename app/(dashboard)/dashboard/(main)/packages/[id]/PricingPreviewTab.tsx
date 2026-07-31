@@ -15,10 +15,15 @@ import {
   Loader2, Bed, Car, Zap, ChevronDown, ChevronRight, ChevronUp,
   Calculator, IndianRupee, Users, MapPin, CalendarDays, Sparkles,
   UtensilsCrossed, Hotel, Moon, TrendingUp, Percent, Receipt, FileCheck2,
+  Plus, Minus, X, TriangleAlert, BedDouble,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { toast } from "sonner";
-import { handleComputePackagePrice } from "@/app/actions/packages/pricing.actions";
+import {
+  handleComputePackagePrice,
+  handleGetItineraryRoomCapacity,
+} from "@/app/actions/packages/pricing.actions";
+import { MAX_GUESTS_PER_ROOM } from "@/app/lib/room-guest-limits";
 import type {
   FullPricingBreakdown,
   DayPricingBreakdown,
@@ -145,6 +150,55 @@ function formatDayDate(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+}
+
+// ── Rooms & Guests ───────────────────────────────────────────────────────────
+// Mirrors the frontend's RoomsGuestsField (MMT-style manual room split) so an
+// admin previewing a package sees exactly what a real customer configuring
+// the same room split would be charged — both feed the identical
+// computePackagePrice engine via the shared `rooms` param.
+
+type RoomGuest = { adults: number; children: number };
+
+const MAX_ROOM_CARDS = 20; // soft UI ceiling — mirrors RoomsGuestsField.tsx
+
+function summarizeRoomsTrip(rooms: RoomGuest[]): string {
+  const adults = rooms.reduce((s, r) => s + r.adults, 0);
+  const children = rooms.reduce((s, r) => s + r.children, 0);
+  const parts = [`${adults} Adult${adults !== 1 ? "s" : ""}`];
+  if (children > 0) parts.push(`${children} Child${children !== 1 ? "ren" : ""}`);
+  parts.push(`${rooms.length} Room${rooms.length !== 1 ? "s" : ""}`);
+  return parts.join(", ");
+}
+
+function GuestStepper({ label, value, min, max, onChange }: {
+  label: string; value: number; min: number; max: number; onChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        aria-label={`Decrease ${label}`}
+        disabled={value <= min}
+        onClick={() => onChange(value - 1)}
+      >
+        <Minus className="h-3 w-3" />
+      </Button>
+      <span className="w-5 text-center text-sm font-semibold tabular-nums">{value}</span>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        aria-label={`Increase ${label}`}
+        disabled={value >= max}
+        onClick={() => onChange(value + 1)}
+      >
+        <Plus className="h-3 w-3" />
+      </Button>
+    </div>
+  );
 }
 
 // ── Chip badge ─────────────────────────────────────────────────────────────
@@ -298,25 +352,57 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
                     <Bed className="h-2.5 w-2.5 mr-0.5" />
                     {day.hotel.bed_capacity} bed{day.hotel.extra_bed_capacity > 0 ? ` + ${day.hotel.extra_bed_capacity} mattress` : ""}
                   </Chip>
+                  <Chip color="slate">holds {day.hotel.room_total_capacity}/room</Chip>
                   {day.hotel.plan_name && <Chip color="slate">{day.hotel.plan_name}</Chip>}
                 </div>
 
-                {/* Mattress extra line */}
-                {day.hotel.mattresses_count > 0 && (
-                  <div className="flex items-center justify-between pt-1.5 border-t border-blue-100">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-blue-700 font-medium">Extra mattresses</span>
-                      <div className="flex gap-1">
-                        <Chip color="amber">{day.hotel.mattresses_count} mattress{day.hotel.mattresses_count !== 1 ? "es" : ""}</Chip>
-                        <Chip color="amber">₹{fmt(day.hotel.extra_bed_rate)}/night</Chip>
-                        <Chip color="amber">{day.hotel.num_nights} night{day.hotel.num_nights !== 1 ? "s" : ""}</Chip>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold text-amber-700">
-                      ₹{fmt(day.hotel.mattresses_count * day.hotel.extra_bed_rate * day.hotel.num_nights)}
-                    </span>
+                {/* Split-adjusted notice — the engine could not honour the
+                    configured split for this room type, so say so explicitly
+                    rather than just showing a different room count. */}
+                {day.hotel.split_adjusted && day.hotel.rooms_configured != null && (
+                  <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5">
+                    <TriangleAlert className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-px" />
+                    <p className="text-[11px] text-amber-700">
+                      Split adjusted — you configured{" "}
+                      <strong>{day.hotel.rooms_configured} room{day.hotel.rooms_configured !== 1 ? "s" : ""}</strong>,
+                      but this room type holds {day.hotel.room_total_capacity} guests each, so{" "}
+                      <strong>{day.hotel.rooms_count}</strong> {day.hotel.rooms_count !== 1 ? "are" : "is"} charged.
+                    </p>
                   </div>
                 )}
+
+                {/* Explicit arithmetic — every rupee in `total` accounted for. */}
+                <div className="space-y-1 pt-1.5 border-t border-blue-100">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-blue-700">
+                      {day.hotel.rooms_count} room{day.hotel.rooms_count !== 1 ? "s" : ""} × ₹{fmt(day.hotel.price_per_room)}
+                      {day.hotel.num_nights !== 1 ? ` × ${day.hotel.num_nights} nights` : ""}
+                      <span className="text-blue-600/60">
+                        {" "}({day.hotel.per_room_occupancy.join(" + ")} guests)
+                      </span>
+                    </span>
+                    <span className="text-xs font-semibold text-blue-800 shrink-0">
+                      ₹{fmt(day.hotel.total - day.hotel.mattresses_count * day.hotel.extra_bed_rate * day.hotel.num_nights)}
+                    </span>
+                  </div>
+
+                  {day.hotel.mattresses_count > 0 ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-amber-700">
+                        {day.hotel.mattresses_count} extra mattress{day.hotel.mattresses_count !== 1 ? "es" : ""} × ₹{fmt(day.hotel.extra_bed_rate)}
+                        {day.hotel.num_nights !== 1 ? ` × ${day.hotel.num_nights} nights` : ""}
+                        <span className="text-amber-600/60"> (guests past the {day.hotel.bed_capacity} beds)</span>
+                      </span>
+                      <span className="text-xs font-semibold text-amber-700 shrink-0">
+                        ₹{fmt(day.hotel.mattresses_count * day.hotel.extra_bed_rate * day.hotel.num_nights)}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground/60">
+                      No extra mattresses needed — every guest fits the standard beds.
+                    </p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-muted-foreground/20 px-3 py-2">
@@ -512,13 +598,21 @@ function PermitBreakdown({ permits }: {
 
 // ── Summary card ─────────────────────────────────────────────────────────
 
-function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
+function SummaryCard({ breakdown, roomsConfigured }: { breakdown: FullPricingBreakdown; roomsConfigured: number }) {
   const { adults, children, infants } = breakdown;
   const paxLabel = [
     `${adults} adult${adults !== 1 ? "s" : ""}`,
     children > 0 ? `${children} child${children !== 1 ? "ren" : ""}` : null,
     infants > 0 ? `${infants} infant${infants !== 1 ? "s" : ""}` : null,
+    `${roomsConfigured} room${roomsConfigured !== 1 ? "s" : ""} configured`,
   ].filter(Boolean).join(" · ");
+
+  // Rooms the engine actually charged. Differs from `roomsConfigured` only when
+  // some stay's room type couldn't hold the configured split.
+  const appliedRooms = [...new Set(
+    breakdown.days.filter((d) => d.hotel).map((d) => d.hotel!.rooms_count),
+  )];
+  const anyAdjusted = breakdown.days.some((d) => d.hotel?.split_adjusted);
 
   const rows: { icon: React.ReactNode; label: string; value: number; color: string }[] = [
     { icon: <Hotel className="h-3.5 w-3.5" />,         label: "Hotels",     value: breakdown.hotel_subtotal,    color: "text-blue-600"   },
@@ -545,6 +639,15 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
           <Users className="h-3 w-3 text-violet-500" />
           <span className="text-[10px] text-violet-700">{paxLabel}</span>
         </div>
+        {anyAdjusted && (
+          <div className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5">
+            <TriangleAlert className="h-3 w-3 text-amber-600 shrink-0 mt-px" />
+            <p className="text-[10px] text-amber-700">
+              Charged as <strong>{appliedRooms.join(" / ")} room{appliedRooms.some((n) => n !== 1) ? "s" : ""}</strong>
+              {" "}— some room types can&apos;t hold the configured split. See the day cards.
+            </p>
+          </div>
+        )}
       </div>
 
       <CardContent className="px-4 py-3 space-y-1">
@@ -643,11 +746,15 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
     () => new Map(),
   );
   const [travelDate, setTravelDate] = useState(todayISODate());
-  const [adults, setAdults]         = useState("1");
-  const [children, setChildren]     = useState("0");
+  const [rooms, setRooms]           = useState<RoomGuest[]>([{ adults: 1, children: 0 }]);
   const [infants, setInfants]       = useState("0");
   const [breakdown, setBreakdown]   = useState<FullPricingBreakdown | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Guests-per-room cap for the CURRENT duration/route/category — the tightest
+  // room across those stays. The engine re-derives the same number, so keeping
+  // the steppers at this cap means a configured split is never silently
+  // re-split. null until loaded (or when no stays are mapped).
+  const [personsPerRoom, setPersonsPerRoom] = useState<number | null>(null);
 
   const selectedDuration = durations.find((d) => d.id.toString() === durationId);
   const routes = selectedDuration?.routes ?? [];
@@ -657,14 +764,78 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
     [durationId, cabTypes],
   );
 
-  const adultsNum   = Math.max(1, parseInt(adults)   || 1);
-  const childrenNum = Math.max(0, parseInt(children) || 0);
+  const adultsNum   = Math.max(1, rooms.reduce((s, r) => s + r.adults, 0));
+  const childrenNum = rooms.reduce((s, r) => s + r.children, 0);
+  // Fall back to the shared default only while capacity is still loading or
+  // when the itinerary has no stays mapped for this category.
+  const guestsPerRoomCap = personsPerRoom ?? MAX_GUESTS_PER_ROOM;
+
+  function updateRoom(idx: number, patch: Partial<RoomGuest>) {
+    setRooms((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  }
+  function addRoom() {
+    if (rooms.length >= MAX_ROOM_CARDS) {
+      toast.warning(`Maximum ${MAX_ROOM_CARDS} rooms per booking`);
+      return;
+    }
+    setRooms((prev) => [...prev, { adults: 1, children: 0 }]);
+  }
+  function removeRoom(idx: number) {
+    setRooms((prev) => prev.filter((_, i) => i !== idx));
+  }
 
   // Reset route when duration changes
   useEffect(() => {
     setRouteId(routes[0]?.id.toString() ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationId]);
+
+  // Load the real per-room capacity for the selected combination, and if it's
+  // tighter than the current split, re-pack the guests so the preview can
+  // never show a split the engine would silently override.
+  useEffect(() => {
+    if (!durationId || !routeId || !categoryId) return;
+    let cancelled = false;
+    (async () => {
+      const res = await handleGetItineraryRoomCapacity({
+        package_id: packageId,
+        duration_id: parseInt(durationId),
+        route_id: parseInt(routeId),
+        stay_category_id: parseInt(categoryId),
+      });
+      if (cancelled || !res.success) return;
+      const cap = res.data.persons_per_room;
+      setPersonsPerRoom(cap);
+      if (cap == null) return;
+      setRooms((prev) => {
+        if (prev.every((r) => r.adults + r.children <= cap)) return prev;
+        // Re-pack: keep the headcount, spread it across enough rooms that no
+        // room exceeds the cap, and keep at least one adult in every room.
+        const totalAdults = prev.reduce((s, r) => s + r.adults, 0);
+        const totalChildren = prev.reduce((s, r) => s + r.children, 0);
+        const roomCount = Math.max(
+          prev.length,
+          Math.ceil((totalAdults + totalChildren) / cap),
+          1,
+        );
+        const next: RoomGuest[] = Array.from({ length: roomCount }, () => ({ adults: 0, children: 0 }));
+        let a = totalAdults;
+        let c = totalChildren;
+        // One adult per room first, then fill adults, then children.
+        for (const room of next) { if (a > 0) { room.adults = 1; a--; } }
+        for (const room of next) {
+          const take = Math.min(a, cap - (room.adults + room.children));
+          room.adults += take; a -= take;
+        }
+        for (const room of next) {
+          const take = Math.min(c, cap - (room.adults + room.children));
+          room.children += take; c -= take;
+        }
+        return next.map((r) => ({ ...r, adults: Math.max(1, r.adults) }));
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [packageId, durationId, routeId, categoryId]);
 
   // Auto-select optimal cab when passengers or duration groups change
   useEffect(() => {
@@ -711,6 +882,7 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
         adults: adultsNum,
         children: childrenNum,
         infants: Math.max(0, parseInt(infants) || 0),
+        rooms: rooms.map((r) => ({ adults: r.adults, children: r.children })),
         cab_type_ids: selectedCabTypeIds.length > 0 ? selectedCabTypeIds : null,
         travel_date: travelDate || null,
       });
@@ -789,18 +961,85 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
 
           <Separator />
 
-          {/* Row 2: Pax + Calculate */}
+          {/* Row 2: Rooms & Guests + Calculate */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Passengers</p>
-            <div className="flex items-end gap-3 flex-wrap">
-              <div className="space-y-1 w-24">
-                <label className="text-xs text-muted-foreground">Adults</label>
-                <Input type="number" min="1" max="500" value={adults} onChange={(e) => setAdults(e.target.value)} className="h-9 text-sm" />
-              </div>
-              <div className="space-y-1 w-24">
-                <label className="text-xs text-muted-foreground">Children</label>
-                <Input type="number" min="0" max="500" value={children} onChange={(e) => setChildren(e.target.value)} className="h-9 text-sm" />
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Rooms &amp; Guests</p>
+              {passengers > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">{passengers} total pax · {summarizeRoomsTrip(rooms)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {rooms.map((room, idx) => {
+                const atCap = room.adults + room.children >= guestsPerRoomCap;
+                return (
+                  <div key={idx} className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                        <BedDouble className="h-3.5 w-3.5 text-muted-foreground" /> Room {idx + 1}
+                      </span>
+                      {rooms.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeRoom(idx)}
+                          className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                          aria-label={`Remove room ${idx + 1}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-6 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-14">Adults</span>
+                        <GuestStepper
+                          label={`adults in room ${idx + 1}`}
+                          value={room.adults}
+                          min={1}
+                          max={guestsPerRoomCap - room.children}
+                          onChange={(n) => updateRoom(idx, { adults: n })}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-14">Children</span>
+                        <GuestStepper
+                          label={`children in room ${idx + 1}`}
+                          value={room.children}
+                          min={0}
+                          max={guestsPerRoomCap - room.adults}
+                          onChange={(n) => updateRoom(idx, { children: n })}
+                        />
+                      </div>
+                    </div>
+                    {atCap && (
+                      <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5">
+                        <TriangleAlert className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                        <p className="text-[11px] text-amber-700">
+                          Maximum <strong>{guestsPerRoomCap} guests</strong> allowed in this room
+                          {personsPerRoom != null && " — the tightest room in this itinerary"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-end gap-3 flex-wrap mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addRoom}
+                disabled={rooms.length >= MAX_ROOM_CARDS}
+                className="gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Another Room
+              </Button>
               <div className="space-y-1 w-24">
                 <label className="text-xs text-muted-foreground">Infants</label>
                 <Input type="number" min="0" max="100" value={infants} onChange={(e) => setInfants(e.target.value)} className="h-9 text-sm" />
@@ -810,14 +1049,6 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
                   ? <><Loader2 className="h-4 w-4 animate-spin" />Calculating…</>
                   : <><Calculator className="h-4 w-4" />Calculate</>}
               </Button>
-              {passengers > 1 && (
-                <div className="flex items-center gap-1.5 pb-0.5">
-                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    {passengers} total pax
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 
@@ -932,7 +1163,7 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
             )}
           </div>
           <div className="lg:col-span-1">
-            <SummaryCard breakdown={breakdown} />
+            <SummaryCard breakdown={breakdown} roomsConfigured={rooms.length} />
           </div>
         </div>
       )}

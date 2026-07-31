@@ -16,6 +16,31 @@ const PHONE_RULES = {
 
 export const COUNTRY_CODES = Object.keys(PHONE_RULES) as (keyof typeof PHONE_RULES)[];
 
+/**
+ * Split a stored E.164-ish phone ("+919876543210") into a countryCode/phone
+ * pair the login modal's prefill accepts.
+ *
+ * A generic `/^(\+\d{1,4})(\d+)$/` looks reasonable but isn't: `\d{1,4}` is
+ * greedy, so on "+919876543210" it grabs 4 digits for the "code" — "+9198" —
+ * leaving "76543210" as the phone (the leading 9 lost) and a countryCode that
+ * matches none of our enum values. `phoneLoginSchema` then rejects it with an
+ * error on `errors.countryCode`, which the OTP-entry screen never renders (it
+ * only shows `errors.otp`) — so verifying looked like the button did nothing.
+ * Matching against our own known prefixes (longest first, so "+971" isn't
+ * shadowed by a shorter false match) removes the ambiguity entirely.
+ */
+export function splitPrefillPhone(raw: string | null | undefined): { countryCode: CountryCode; phone: string } | null {
+  if (!raw) return null;
+  const byLength = [...COUNTRY_CODES].sort((a, b) => b.length - a.length);
+  for (const code of byLength) {
+    if (raw.startsWith(code)) {
+      const phone = raw.slice(code.length);
+      if (/^\d+$/.test(phone) && phone.length > 0) return { countryCode: code, phone };
+    }
+  }
+  return null;
+}
+
 // ─── Phone Schema ─────────────────────────────────────────────────────────────
 
 export const phoneLoginSchema = z

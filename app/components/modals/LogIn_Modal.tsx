@@ -38,15 +38,47 @@ type LoginMethod = 'phone' | 'email';
 
 const EMPTY_DIGITS = (): string[] => ['', '', '', '', '', ''];
 
+/** MSG91's verify errors come back terse and lowercase (e.g. code 705
+ *  "invalid otp"), which is too cryptic to show a guest as-is. Map the ones
+ *  worth acting on differently to text that says what to actually do. */
+function verifyErrorMessage(err: unknown): string {
+  const e = err as { message?: string; code?: number } | string | null;
+  const raw = (typeof e === 'string' ? e : e?.message ?? '').trim();
+  const code = typeof e === 'object' && e !== null ? e.code : undefined;
+  const lower = raw.toLowerCase();
+
+  if (code === 705 || lower.includes('invalid otp') || lower.includes('incorrect')) {
+    return 'OTP is not correct. Please try again with the correct details.';
+  }
+  // A missing/stale reqId means this code no longer maps to a live request —
+  // resending is the only way forward, so say that rather than "invalid".
+  if (lower.includes('expired') || lower.includes('reqid')) {
+    return 'This OTP has expired. Tap “Resend OTP” to get a new code.';
+  }
+  if (lower.includes('retries') || lower.includes('attempt') || lower.includes('limit')) {
+    return 'Too many incorrect attempts. Please wait a moment, then tap “Resend OTP”.';
+  }
+  if (!raw) return 'Could not verify the OTP. Please try again.';
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
 function LoginModal() {
   const { isOpen, type, data, closeModal } = useModal();
-  const modalData = data as { redirectTo?: string; phone?: string; countryCode?: string } | null;
+  const modalData = data as { redirectTo?: string; phone?: string; countryCode?: string; onSuccess?: () => void } | null;
   const redirectTo = modalData?.redirectTo ?? '/profile';
   // Callers mid-flow (e.g. checkout) already collected a mobile number — pass
   // it in and the modal skips straight to OTP entry for that number instead of
   // asking for it a second time.
   const prefillPhone = modalData?.phone ?? '';
   const prefillCountryCode = modalData?.countryCode ?? '+91';
+  // Callers that opened this modal mid-action (Pay, Proceed to payment, Book
+  // Now, save/wishlist…) pass this so their own action actually resumes once
+  // login succeeds. Without it, a same-page login only triggers `router
+  // .refresh()` below — that re-renders Server Component data but can't
+  // re-drive a client-side action the user was in the middle of, so from the
+  // user's side the modal just closes and nothing they were trying to do
+  // happens (this was reported as "Verify OTP button does nothing").
+  const onLoginSuccess = modalData?.onSuccess;
   const router = useRouter();
   const [errors, setErrors]           = useState<Record<string, string>>({});
   const [countryCode, setCountryCode] = useState('+91');
@@ -196,22 +228,44 @@ function LoginModal() {
         msg91Verify(
           otp,
           async (data: any) => {
-            const token = data?.message ?? data?.access_token ?? data?.token ?? data;
-            const res = await signIn('credentials', {
-              redirect: false,
-              msg91Token: typeof token === 'string' ? token : JSON.stringify(token),
-              phone: `${countryCode}${phone}`,
-            });
-            if (res?.error) { setErrors({ otp: 'Verification failed. Please try again.' }); }
-            else {
-              closeModal();
-              const currentPath = window.location.pathname + window.location.search;
-              if (redirectTo === currentPath) { router.refresh(); }
-              else { window.location.href = redirectTo; }
+            try {
+              const token = data?.message ?? data?.access_token ?? data?.token ?? data;
+              const res = await signIn('credentials', {
+                redirect: false,
+                msg91Token: typeof token === 'string' ? token : JSON.stringify(token),
+                phone: `${countryCode}${phone}`,
+              });
+              if (res?.error) { setErrors({ otp: 'Verification failed. Please try again.' }); }
+              else {
+                closeModal();
+                if (onLoginSuccess) {
+                  onLoginSuccess();
+                } else {
+                  const currentPath = window.location.pathname + window.location.search;
+                  if (redirectTo === currentPath) { router.refresh(); }
+                  else { window.location.href = redirectTo; }
+                }
+              }
+            } catch (err) {
+              // Without this, a thrown signIn() (network blip, bad response) left
+              // the button stuck on "Please wait…" forever with zero feedback —
+              // indistinguishable from the button just not working.
+              console.error('[LoginModal] verify/signIn failed', err);
+              setErrors({ otp: 'Something went wrong signing you in. Please try again.' });
+            } finally {
+              setLoading(false);
             }
+          },
+          // Wrong/expired code — clear the boxes and refocus so the guest can
+          // retype immediately instead of having to delete six digits first.
+          (err: any) => {
+            setErrors({ otp: verifyErrorMessage(err) });
+            setOtpDigits(EMPTY_DIGITS());
+            setTimeout(() => otpRefs.current[0]?.focus(), 50);
             setLoading(false);
           },
-          (err: any) => { setErrors({ otp: err?.message ?? 'Invalid OTP. Please try again.' }); setLoading(false); },
+          // Already a friendly, actionable string from msg91.ts (e.g. the
+          // watchdog timeout) — don't run it through the MSG91 error mapper.
           (msg: string) => { setErrors({ otp: msg }); setLoading(false); },
         );
         return;

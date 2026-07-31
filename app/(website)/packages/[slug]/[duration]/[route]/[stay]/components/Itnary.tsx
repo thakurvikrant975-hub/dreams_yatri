@@ -1169,7 +1169,7 @@ function HotelStars({ stayType }: { stayType: string }) {
 
 function StayContent({ section }: { section: StaySection }) {
   const {
-    adults, childCount, travelDate,
+    adults, childCount, travelDate, roomGuests,
     roomSelections, setRoomForStay,
     roomAlternatesByStay, hotelAlternatesByStay,
     loadRoomAlternatives, loadHotelAlternatives, isLoadingAlternatives,
@@ -1191,7 +1191,6 @@ function StayContent({ section }: { section: StaySection }) {
   const stayType      = selectedOption?.stay_type ?? section.stayType;
   const location       = selectedOption?.location ?? section.location;
   const roomName       = selectedOption?.room_name ?? section.roomName;
-  const roomCapacity   = selectedOption?.room_capacity ?? section.roomCapacity;
   const roomBedType    = selectedOption?.room_bed_type ?? section.roomBedType;
   const roomAreaSqft   = selectedOption?.room_area_sqft ?? section.roomAreaSqft;
   const roomView       = selectedOption?.room_view ?? section.roomView;
@@ -1220,10 +1219,15 @@ function StayContent({ section }: { section: StaySection }) {
   const hasMealInfo = meals.length > 0 || planName || mealTypeVal;
 
   // ── Occupancy + stay dates (from the traveller's booking context) ──
-  const totalPax = adults + childCount;
-  const rooms = roomCapacity && roomCapacity > 0
-    ? Math.max(1, Math.ceil(totalPax / roomCapacity))
-    : 1;
+  // Room count mirrors roomGuests.length — the guest's own MMT-style split —
+  // rather than re-deriving totalPax ÷ capacity here. The two pickers'
+  // shared per-room cap (personsPerRoom in PackageBookingProvider) is already
+  // clamped to the tightest room across every stay in the itinerary, so any
+  // split the guest can configure is guaranteed to fit THIS stay's room too;
+  // re-deriving independently here (and worse, off room_capacity alone, which
+  // is only the base beds — see app/lib/room-capacity.ts) used to disagree
+  // with both what the guest picked and what pricing actually charges.
+  const rooms = roomGuests.length;
   const occupancy =
     `${rooms} Room${rooms !== 1 ? 's' : ''} | ${adults} Adult${adults !== 1 ? 's' : ''}` +
     (childCount > 0 ? `, ${childCount} Child${childCount !== 1 ? 'ren' : ''}` : '');

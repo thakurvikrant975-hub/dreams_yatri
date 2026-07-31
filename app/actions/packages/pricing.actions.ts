@@ -6,6 +6,7 @@ import {
   computePackagePrice,
   type PricingInput,
 } from "@/app/services/package-pricing.service";
+import { roomTotalCapacity } from "@/app/lib/room-capacity";
 
 export async function handleGetPackagePricings(packageId: number) {
   try {
@@ -77,6 +78,57 @@ function sanitizeRooms(rooms: PricingInput["rooms"]): PricingInput["rooms"] {
     .map((r) => ({ adults: Math.max(1, r.adults), children: Math.max(0, r.children) }))
     .slice(0, 20);
   return cleaned.length > 0 ? cleaned : undefined;
+}
+
+/** Tightest per-room guest capacity across an itinerary's stays, so a room
+ *  picker can cap its steppers at a split the pricing engine will actually
+ *  honour (it re-derives the same number per stay — see the `rooms` validation
+ *  in computePackagePrice). Returns null capacity when the itinerary has no
+ *  hotel stays mapped, letting the caller fall back to its own default. */
+export async function handleGetItineraryRoomCapacity(input: {
+  package_id: number;
+  duration_id: number;
+  route_id: number;
+  stay_category_id: number;
+}) {
+  try {
+    const stays = await db.itinerary_stays.findMany({
+      where: {
+        stay_category_id: input.stay_category_id,
+        itinerary: {
+          package_id: input.package_id,
+          duration_id: input.duration_id,
+          route_id: input.route_id,
+        },
+      },
+      select: {
+        room_pricing: {
+          select: {
+            room: {
+              select: {
+                max_occupancy: true, extra_bed_capacity: true,
+                max_adults: true, max_children: true, num_rooms: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (stays.length === 0) {
+      return { success: true as const, data: { persons_per_room: null, stay_count: 0 } };
+    }
+    const capacities = stays.map((s) => roomTotalCapacity(s.room_pricing.room));
+    return {
+      success: true as const,
+      data: {
+        persons_per_room: Math.max(1, Math.min(...capacities)),
+        stay_count: stays.length,
+      },
+    };
+  } catch (e) {
+    console.error("[handleGetItineraryRoomCapacity]", e);
+    return { success: false as const, error: "Failed to load room capacity" };
+  }
 }
 
 export async function handleComputePackagePrice(input: PricingInput) {
