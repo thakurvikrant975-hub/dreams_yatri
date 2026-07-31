@@ -10,6 +10,14 @@ import {
 import { ItineraryDocument, type PreviewData } from "./ItineraryDocument";
 import { captureToPdfPages, buildPdf, validateItineraryRequiredFields, type PdfPage } from "./pdfExport";
 
+function warnAboutFailedImages(imageWarnings: string[]) {
+  if (imageWarnings.length === 0) return;
+  toast.warning(
+    `${imageWarnings.length} photo${imageWarnings.length !== 1 ? "s" : ""} didn't load and will show blank in the PDF`,
+    { description: imageWarnings.join(" · "), duration: 20000 },
+  );
+}
+
 /** "Romantic Kerala Honeymoon Package" → "romantic-kerala-honeymoon-package-itinerary.pdf" */
 function pdfFilename(title: string): string {
   const slug = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -35,8 +43,9 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
     }
     setGenerating(true);
     try {
-      const result = await captureToPdfPages(root);
+      const { pages: result, imageWarnings } = await captureToPdfPages(root);
       setPages(result);
+      warnAboutFailedImages(imageWarnings);
       return result;
     } catch (e) {
       console.error(e);

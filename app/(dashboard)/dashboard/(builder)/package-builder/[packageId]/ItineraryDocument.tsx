@@ -1278,7 +1278,7 @@ function HeroCover({
         // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog URL, not a static app asset
         <img
           src={form.coverImage}
-          alt=""
+          alt="Cover photo"
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: `center ${form.coverImagePosition ?? 50}%` }}
           onError={() => setCoverFailed(true)}

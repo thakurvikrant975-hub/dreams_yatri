@@ -109,8 +109,8 @@ function computePageBreaks(totalHeightPx: number, pageHeightPx: number, unsafeRa
  * bytes server-side (no CORS involved for a server-to-server request), and
  * returns a same-origin blob: URL that's always canvas-safe. Same-origin
  * URLs are returned unchanged. */
-async function toCanvasSafeUrl(url: string): Promise<string> {
-  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+async function toCanvasSafeUrl(url: string): Promise<{ url: string; warning?: string }> {
+  if (url.startsWith("data:") || url.startsWith("blob:")) return { url };
 
   let sameOrigin = true;
   try {
@@ -118,45 +118,53 @@ async function toCanvasSafeUrl(url: string): Promise<string> {
   } catch {
     // relative/unparsable URL — treat as same-origin, nothing to proxy
   }
-  if (sameOrigin) return url;
+  if (sameOrigin) return { url };
 
   // Falling through to the `return url` paths below is what produces a
   // blank/gradient-fallback image in the exported PDF (see HeroCover/
-  // StopTile's onError handler in ItineraryDocument.tsx) — logged loudly so
-  // an environment-specific failure (e.g. "works on localhost, fails in
-  // production") shows up in the browser console instead of just silently
-  // degrading.
+  // StopTile's onError handler in ItineraryDocument.tsx). Logged to the
+  // console AND returned as a human-readable warning string — the export UI
+  // (ItineraryPdfExport.tsx) surfaces that directly in a toast, so a
+  // production-only failure is visible without anyone needing devtools open.
   const start = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   try {
     const res = await fetch(`/api/pdf-image-proxy?url=${encodeURIComponent(url)}`, { signal: controller.signal });
     if (!res.ok) {
+      const warning = `proxy returned HTTP ${res.status} after ${Date.now() - start}ms`;
       console.warn(`[pdf-export] image proxy returned ${res.status} for ${url} after ${Date.now() - start}ms — falling back to the original (likely cross-origin, canvas-unsafe) URL`);
-      return url;
+      return { url, warning };
     }
     const blob = await res.blob();
-    return URL.createObjectURL(blob);
+    return { url: URL.createObjectURL(blob) };
   } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    const warning = `proxy fetch failed after ${Date.now() - start}ms (${reason})`;
     console.warn(`[pdf-export] image proxy fetch failed for ${url} after ${Date.now() - start}ms — falling back to the original URL:`, e);
-    return url; // best-effort — leave the original if the proxy fetch fails
+    return { url, warning }; // best-effort — leave the original if the proxy fetch fails
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function inlineCrossOriginImages(root: HTMLElement): Promise<void> {
+async function inlineCrossOriginImages(root: HTMLElement): Promise<string[]> {
   const images = Array.from(root.querySelectorAll("img"));
   const resolved = await Promise.all(
     images.map(async (img) => {
       const src = img.getAttribute("src");
       if (!src) return null;
-      return { img, safeUrl: await toCanvasSafeUrl(src) };
+      const { url: safeUrl, warning } = await toCanvasSafeUrl(src);
+      return { img, safeUrl, warning };
     }),
   );
+  const warnings: string[] = [];
   for (const r of resolved) {
-    if (r) r.img.src = r.safeUrl;
+    if (!r) continue;
+    r.img.src = r.safeUrl;
+    if (r.warning) warnings.push(`${r.img.alt || "photo"}: ${r.warning}`);
   }
+  return warnings;
 }
 
 export type MaskedElementPatch = {
@@ -213,7 +221,7 @@ async function rasterizeMaskedElements(root: HTMLElement): Promise<MaskedElement
   const results = await Promise.all(
     targets.map(async (t) => {
       try {
-        const safeUrl = await toCanvasSafeUrl(t.maskUrl);
+        const { url: safeUrl } = await toCanvasSafeUrl(t.maskUrl);
         const image = await new Promise<HTMLImageElement>((resolve, reject) => {
           const src = new Image();
           src.onload = () => {
@@ -256,15 +264,18 @@ async function rasterizeMaskedElements(root: HTMLElement): Promise<MaskedElement
  * for images it catches mid-load at the moment it runs, so anything that
  * hadn't started downloading yet would silently render blank. Wait for every
  * <img> to actually finish (or fail) first so the DOM is fully ready. */
-async function waitForImages(root: HTMLElement, timeoutMs = 15000): Promise<void> {
+async function waitForImages(root: HTMLElement, timeoutMs = 15000): Promise<string[]> {
   const images = Array.from(root.querySelectorAll("img"));
-  await Promise.all(
+  const results = await Promise.all(
     images.map((img) => {
-      const settled = img.complete ? Promise.resolve() : new Promise<void>((resolve) => {
-        const done = () => resolve();
-        img.addEventListener("load", done, { once: true });
-        img.addEventListener("error", done, { once: true });
-        setTimeout(done, timeoutMs);
+      const startedComplete = img.complete;
+      const start = Date.now();
+      const settled = startedComplete ? Promise.resolve<"load" | "error" | "timeout">("load") : new Promise<"load" | "error" | "timeout">((resolve) => {
+        const onLoad = () => resolve("load");
+        const onError = () => resolve("error");
+        img.addEventListener("load", onLoad, { once: true });
+        img.addEventListener("error", onError, { once: true });
+        setTimeout(() => resolve("timeout"), timeoutMs);
       });
       // naturalWidth === 0 after settling means the image never actually
       // decoded (broken src, load error, or it just never finished within
@@ -272,13 +283,17 @@ async function waitForImages(root: HTMLElement, timeoutMs = 15000): Promise<void
       // about to render blank in the capture," logged here since by this
       // point React's own onError fallback (the gradient box) may already
       // have fired and replaced the <img> entirely, hiding the original cause.
-      return settled.then(() => {
+      return settled.then((outcome) => {
         if (img.naturalWidth === 0) {
-          console.warn(`[pdf-export] image never loaded (naturalWidth=0), will render blank: ${img.src}`);
+          const reason = outcome === "timeout" ? `timed out after ${timeoutMs}ms` : `${outcome} event fired but never decoded`;
+          console.warn(`[pdf-export] image never loaded (naturalWidth=0), will render blank: ${img.src} — ${reason} (took ${Date.now() - start}ms)`);
+          return `${img.alt || "photo"}: ${reason}`;
         }
+        return null;
       });
     }),
   );
+  return results.filter((r): r is string => r !== null);
 }
 
 /** The route map (Leaflet + Mapbox) initializes itself well after mount: a
@@ -379,11 +394,20 @@ async function captureMapsSeparately(root: HTMLElement, scale: number): Promise<
   return patches;
 }
 
+export type PdfCaptureResult = {
+  pages: PdfPage[];
+  /** Human-readable "<photo label>: <reason>" entries for any photo that
+   * ended up rendering blank — surfaced directly in a toast by
+   * ItineraryPdfExport.tsx so a production-only image failure is visible
+   * without anyone needing devtools open. Empty when everything loaded. */
+  imageWarnings: string[];
+};
+
 /**
  * Captures `root` (must already be laid out at exactly 210mm CSS width, with
  * natural height for its full content) and slices it into A4 page images.
  */
-export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<PdfPage[]> {
+export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<PdfCaptureResult> {
   const rootWidthPx = root.offsetWidth;
   // Slice using the FULL page height — shrinking this budget up front to
   // "make room for a margin" only forces more (and bigger) whole-card
@@ -398,8 +422,18 @@ export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<P
   // captureMapsSeparately for why each map needs its own isolated capture.
   const mapPatches = await captureMapsSeparately(root, scale);
   const maskPatches = await rasterizeMaskedElements(root);
-  await inlineCrossOriginImages(root);
-  await waitForImages(root);
+  const proxyWarnings = await inlineCrossOriginImages(root);
+  const loadWarnings = await waitForImages(root);
+  // A proxy failure (recorded pre-swap, by alt label) and a post-swap load
+  // failure (recorded independently) can both fire for the same photo —
+  // de-dupe by label so the toast doesn't repeat "Cover photo" twice.
+  const seenLabels = new Set<string>();
+  const imageWarnings = [...proxyWarnings, ...loadWarnings].filter((w) => {
+    const label = w.split(":")[0];
+    if (seenLabels.has(label)) return false;
+    seenLabels.add(label);
+    return true;
+  });
 
   // Measured after every async step above has settled the DOM to its final
   // shape — measuring earlier (e.g. while the map is still showing its
@@ -471,7 +505,7 @@ export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<P
     cursorPx = breakPx;
   }
 
-  return pages;
+  return { pages, imageWarnings };
 }
 
 export function buildPdf(pages: PdfPage[]): jsPDF {
