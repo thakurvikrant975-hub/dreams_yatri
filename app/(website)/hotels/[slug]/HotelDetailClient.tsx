@@ -610,7 +610,14 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
     const result = await toggleWishlist(hotel.id);
     if (!result.ok) {
       setSaved(prev);
-      if (result.error) openModal("login-modal", { redirectTo: window.location.pathname + window.location.search });
+      if (result.error) {
+        openModal("login-modal", {
+          redirectTo: window.location.pathname + window.location.search,
+          // Re-attempt the save once logged in — otherwise the heart just
+          // reverts and the OTP step looks like it did nothing.
+          onSuccess: () => { handleToggleSave(); },
+        });
+      }
     } else {
       setSaved(result.wishlisted);
     }

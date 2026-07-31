@@ -13,6 +13,7 @@ import Button from '@/app/components/ui/Button';
 import { useModal } from '@/app/hooks/useModals';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { formatPaiseRoundedUp } from '@/app/lib/money';
+import { splitPrefillPhone } from '@/app/lib/validators/login';
 import type { GatewayId } from '@/app/lib/payments/types';
 import Card from '@/app/components/ui/Card';
 
@@ -87,10 +88,15 @@ export default function PaymentStep({
                     // Same inline OTP flow the review page uses — pre-seeded
                     // with this booking's own contact number so the guest just
                     // enters the code, rather than hitting a dead-end message.
-                    const m = (contactPhone ?? '').match(/^(\+\d{1,4})(\d+)$/);
+                    const split = splitPrefillPhone(contactPhone);
                     openModal('login-modal', {
                         redirectTo: window.location.pathname + window.location.search,
-                        ...(m ? { countryCode: m[1], phone: m[2] } : {}),
+                        ...(split ?? {}),
+                        // Re-attempt payment once logged in — otherwise the guest
+                        // verifies the OTP, the modal closes, and nothing visibly
+                        // happens since staying on this page only refreshes server
+                        // data rather than re-driving this button's own click.
+                        onSuccess: () => { handlePay(); },
                     });
                     return;
                 }

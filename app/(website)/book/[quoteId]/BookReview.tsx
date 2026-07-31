@@ -20,6 +20,7 @@ import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { formatPaiseRoundedUp } from '@/app/lib/money';
+import { splitPrefillPhone } from '@/app/lib/validators/login';
 import type { SafeQuote } from '@/app/actions/quote/create-quote.service';
 import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 
@@ -126,11 +127,15 @@ export default function BookReview({
      *  number they've already given us. `checkout.contact.phone` is stored as
      *  a single E.164-ish string ("+919876543210"). */
     function loginPrefill() {
-        const raw = checkout?.contact?.phone ?? '';
-        const m = raw.match(/^(\+\d{1,4})(\d+)$/);
+        const split = splitPrefillPhone(checkout?.contact?.phone);
         return {
             redirectTo: window.location.pathname + window.location.search,
-            ...(m ? { countryCode: m[1], phone: m[2] } : {}),
+            ...(split ?? {}),
+            // Resume the booking directly once logged in — skips handleProceed's
+            // own (now-stale) `status` check and goes straight to the part that
+            // needs auth, so verifying the OTP actually continues the booking
+            // instead of just closing the modal with nothing visibly happening.
+            onSuccess: () => { proceedToPayment(); },
         };
     }
 
