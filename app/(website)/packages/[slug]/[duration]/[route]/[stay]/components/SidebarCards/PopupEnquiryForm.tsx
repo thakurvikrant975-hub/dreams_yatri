@@ -21,7 +21,7 @@ export default function PopupEnquiryForm({ packageName, destination, onSuccess }
         name:        '',
         countryCode: DEFAULT_COUNTRY.code,
         mobile:      '',
-        travelDate:  '',
+        travelDate:  '', 
         travellers:  '',
     });
     const [errors,    setErrors]    = useState<FormErrors>({});
