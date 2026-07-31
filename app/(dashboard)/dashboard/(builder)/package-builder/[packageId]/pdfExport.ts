@@ -126,11 +126,15 @@ async function toCanvasSafeUrl(url: string): Promise<{ url: string; warning?: st
   // console AND returned as a human-readable warning string — the export UI
   // (ItineraryPdfExport.tsx) surfaces that directly in a toast, so a
   // production-only failure is visible without anyone needing devtools open.
+  //
+  // No client-side timeout either — same reasoning as the proxy route
+  // itself (see its comment): an earlier 12s AbortController here was the
+  // actual regression, cutting off fetches that legitimately just take
+  // longer than that for large third-party images under production
+  // conditions but do eventually succeed.
   const start = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const res = await fetch(`/api/pdf-image-proxy?url=${encodeURIComponent(url)}`, { signal: controller.signal });
+    const res = await fetch(`/api/pdf-image-proxy?url=${encodeURIComponent(url)}`);
     if (!res.ok) {
       const warning = `proxy returned HTTP ${res.status} after ${Date.now() - start}ms`;
       console.warn(`[pdf-export] image proxy returned ${res.status} for ${url} after ${Date.now() - start}ms — falling back to the original (likely cross-origin, canvas-unsafe) URL`);
@@ -143,8 +147,6 @@ async function toCanvasSafeUrl(url: string): Promise<{ url: string; warning?: st
     const warning = `proxy fetch failed after ${Date.now() - start}ms (${reason})`;
     console.warn(`[pdf-export] image proxy fetch failed for ${url} after ${Date.now() - start}ms — falling back to the original URL:`, e);
     return { url, warning }; // best-effort — leave the original if the proxy fetch fails
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

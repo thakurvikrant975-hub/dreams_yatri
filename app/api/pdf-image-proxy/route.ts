@@ -53,23 +53,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Could not resolve host" }, { status: 400 });
   }
 
-  // No timeout here previously meant a slow/hung upstream (a plausible
-  // explanation for "works on localhost, fails in production" — a
-  // serverless platform's own hard execution limit can kill this function
-  // mid-fetch before it ever returns a catchable error) could run until the
-  // hosting platform's own outer limit killed the function uncleanly.
-  // Failing fast and loud here at least surfaces which image and why.
+  // No explicit timeout — an earlier attempt to add an 8s AbortController
+  // here turned out to be the actual regression: production legitimately
+  // takes longer than that for some of these (large, multi-MB, third-party)
+  // images, so the "fix" was cutting off fetches that would otherwise have
+  // succeeded. Whatever the hosting platform's own outer function-timeout
+  // is remains the real ceiling; better to let a slow-but-successful fetch
+  // finish than to fail it early ourselves.
   const start = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
   let upstream: Response;
   try {
-    upstream = await fetch(parsed.toString(), { signal: controller.signal });
+    upstream = await fetch(parsed.toString());
   } catch (e) {
     console.error(`[pdf-image-proxy] upstream fetch failed for ${url} after ${Date.now() - start}ms:`, e);
     return NextResponse.json({ error: "Fetch failed" }, { status: 502 });
-  } finally {
-    clearTimeout(timeout);
   }
   if (!upstream.ok || !upstream.body) {
     console.error(`[pdf-image-proxy] upstream returned ${upstream.status} for ${url} after ${Date.now() - start}ms`);
