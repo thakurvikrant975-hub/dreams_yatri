@@ -2934,6 +2934,25 @@ model custom_itineraries {
   hotelCheckIn              String?
   hotelCheckOut             String?
   hotelMealPlan             String?
+  /**
+   * Set when the exec can't find a catalog hotel for this day and flags it
+   * for the hotel team instead of leaving it silently blank (see
+   * /dashboard/hotel-requests). While true, accommodation/roomPricingId etc.
+   * above stay empty — a day is either catalog-picked/manually-typed, or
+   * pending, never both. Blocks markPackageReady until cleared.
+   */
+  hotelPending              Boolean                       @default(false)
+  hotelPendingNote          String?
+  hotelRequestedAt          DateTime?
+  hotelFilledAt             DateTime?
+  hotelFilledById           String?
+  hotelFilledByName         String?
+  /**
+   * B2B price/night the hotel team enters when fulfilling a pending request
+   * — used instead of hotel_room_pricing lookups (roomPricingId stays null
+   * for these days) by computeBuilderHotelPricing's manual-price branch.
+   */
+  manualHotelPricePerNight  Float?
   transport                 String?
   transportPhoto            String?
   transportVehicleType      String?
@@ -2956,6 +2975,7 @@ model custom_itineraries {
 
   @@index([customPackageId])
   @@index([day])
+  @@index([hotelPending])
 }
 
 model custom_itinerary_activities {
