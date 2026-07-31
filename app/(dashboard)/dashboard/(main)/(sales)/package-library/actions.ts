@@ -173,12 +173,17 @@ export async function searchPackageLibraryForTemplate(params: {
      * name given here are returned; the matching route (not necessarily the
      * package's default one) is what gets shown/priced/used-as-template. */
     routeStops?: string[];
+    /** The query's requested trip length (e.g. 3D/2N) — when a package has a
+     * duration variant that matches exactly, that variant (not the package's
+     * default one) is what gets shown/priced/used-as-template, and the
+     * package is sorted ahead of non-matching ones. */
+    targetDuration?: { days: number; nights: number };
 } = {}): Promise<{ packages: TemplatePackage[]; total: number }> {
     const {
         search = "", page = 1, size = 12,
         travelDate = null, adults = 2, children = 0, infants = 0,
         budgetMin, budgetMax, budgetType = "PER_PERSON",
-        queryDestination, querySlug, routeStops,
+        queryDestination, querySlug, routeStops, targetDuration,
     } = params;
     const safeSize = Math.min(size, 50);
     const hasBudget = budgetMin != null || budgetMax != null;
@@ -186,7 +191,8 @@ export async function searchPackageLibraryForTemplate(params: {
     const hasSlugPriority = !!querySlug?.trim();
     const cleanStops = (routeStops ?? []).map((s) => s.trim()).filter(Boolean);
     const hasRouteStops = cleanStops.length > 0;
-    const needsInMemorySort = hasBudget || hasDestinationPriority || hasSlugPriority;
+    const hasDurationPriority = targetDuration != null;
+    const needsInMemorySort = hasBudget || hasDestinationPriority || hasSlugPriority || hasDurationPriority;
     // With a budget or destination-priority sort, we price/sort every match
     // (catalog is small — capped for safety) instead of just whichever page
     // happened to load first from the DB's own ordering.
@@ -284,29 +290,37 @@ export async function searchPackageLibraryForTemplate(params: {
     };
 
     /** Picks which duration/route to show for a package. Normally that's just
-     * the default one; for a route search it's whichever route actually
-     * covers every requested stop (default duration preferred among matches,
-     * since `where` already guarantees at least one match exists). */
+     * the default one, unless the query asked for a specific trip length and
+     * this package has a variant matching it exactly — that wins over the
+     * default so "Use Template" copies the right duration, not just
+     * whichever one happens to be marked default. For a route search it's
+     * whichever route actually covers every requested stop (default
+     * duration preferred among matches, since `where` already guarantees at
+     * least one match exists). */
     function pickDurationRoute(durations: {
         id: number; slug: string; days: number; nights: number; is_default?: boolean;
         routes: { id: number; slug: string; stops: { place_name: string }[] }[];
     }[]) {
-        if (!hasRouteStops) {
+        if (hasRouteStops) {
+            const ordered = [...durations].sort((a, b) =>
+                a.is_default === b.is_default ? 0 : a.is_default ? -1 : 1,
+            );
+            for (const duration of ordered) {
+                const route = duration.routes.find((rt) => {
+                    const names = rt.stops.map((s) => s.place_name.toLowerCase());
+                    return cleanStops.every((stop) => names.some((n) => n.includes(stop.toLowerCase())));
+                });
+                if (route) return { duration, route };
+            }
+            // Shouldn't happen — `where` already required a matching route to exist.
             const duration = durations[0];
             return { duration, route: duration?.routes[0] };
         }
-        const ordered = [...durations].sort((a, b) =>
-            a.is_default === b.is_default ? 0 : a.is_default ? -1 : 1,
-        );
-        for (const duration of ordered) {
-            const route = duration.routes.find((rt) => {
-                const names = rt.stops.map((s) => s.place_name.toLowerCase());
-                return cleanStops.every((stop) => names.some((n) => n.includes(stop.toLowerCase())));
-            });
-            if (route) return { duration, route };
+        if (hasDurationPriority) {
+            const match = durations.find((d) => d.days === targetDuration!.days && d.nights === targetDuration!.nights);
+            if (match) return { duration: match, route: match.routes[0] };
         }
-        // Shouldn't happen — `where` already required a matching route to exist.
-        const duration = durations[0];
+        const duration = durations.find((d) => d.is_default) ?? durations[0];
         return { duration, route: duration?.routes[0] };
     }
 
@@ -352,7 +366,11 @@ export async function searchPackageLibraryForTemplate(params: {
         };
     }
 
-    const rowSelect = hasRouteStops ? TEMPLATE_ROW_SELECT_ROUTE_MATCH : TEMPLATE_ROW_SELECT;
+    // Duration-priority needs every active duration variant to search for an
+    // exact days/nights match (TEMPLATE_ROW_SELECT only fetches the default
+    // one) — the route-match shape already selects all of them, so it's
+    // reused here rather than adding a third near-identical select.
+    const rowSelect = (hasRouteStops || hasDurationPriority) ? TEMPLATE_ROW_SELECT_ROUTE_MATCH : TEMPLATE_ROW_SELECT;
 
     let [total, rows] = await Promise.all([
         db.packages.count({ where }),
@@ -389,18 +407,25 @@ export async function searchPackageLibraryForTemplate(params: {
     }
 
     // Sort the exact originating package first (not a guess — literally the
-    // page this lead's query came from), then exact-destination-match, then
-    // within-budget, then by how close the price is to the budget (packages
-    // with no computed price sort last for the budget tiebreak — we can't
-    // tell if they fit).
+    // page this lead's query came from), then an exact trip-length match,
+    // then exact-destination-match, then within-budget, then by how close
+    // the price is to the budget (packages with no computed price sort last
+    // for the budget tiebreak — we can't tell if they fit).
     const destKey = queryDestination?.trim().toLowerCase();
     const isDestMatch = (pkg: TemplatePackage) => !!destKey && pkg.destinationName.trim().toLowerCase() === destKey;
     const isSlugMatch = (pkg: TemplatePackage) => hasSlugPriority && pkg.slug === querySlug;
+    const isDurationMatch = (pkg: TemplatePackage) =>
+        hasDurationPriority && pkg.totalDays === targetDuration!.days && pkg.totalNights === targetDuration!.nights;
     const compareValue = (pkg: TemplatePackage) => budgetType === "PER_PERSON" ? (pkg.pricePerAdult ?? pkg.estimatedPrice) : pkg.estimatedPrice;
     const sorted = [...packages].sort((a, b) => {
         if (hasSlugPriority) {
             const aMatch = isSlugMatch(a);
             const bMatch = isSlugMatch(b);
+            if (aMatch !== bMatch) return aMatch ? -1 : 1;
+        }
+        if (hasDurationPriority) {
+            const aMatch = isDurationMatch(a);
+            const bMatch = isDurationMatch(b);
             if (aMatch !== bMatch) return aMatch ? -1 : 1;
         }
         if (hasDestinationPriority) {

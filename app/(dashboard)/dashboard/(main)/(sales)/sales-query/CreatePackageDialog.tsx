@@ -172,6 +172,7 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
                 budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
                 queryDestination: destination ?? undefined,
                 querySlug: querySlug ?? undefined,
+                targetDuration: duration ?? undefined,
             });
             if (id !== requestId.current) return;
             setPackages(result.packages);
@@ -195,6 +196,7 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
             budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
             queryDestination: destination ?? undefined,
             querySlug: querySlug ?? undefined,
+            targetDuration: duration ?? undefined,
         });
         setPackages((prev) => [...prev, ...result.packages]);
         setTotal(result.total);
@@ -407,13 +409,21 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
                                         ? pkg.slug === querySlug
                                         : !!destination && pkg.destinationName.trim().toLowerCase() === destination.trim().toLowerCase()
                                 );
+                                // The sort already pins these near the top (see
+                                // searchPackageLibraryForTemplate's isDurationMatch
+                                // tier) — this just makes it visually obvious why.
+                                const isDurationMatch = !!duration
+                                    && pkg.totalDays === duration.days
+                                    && pkg.totalNights === duration.nights;
                                 return (
                                 <div
                                     key={pkg.id}
                                     className={
                                         isQueryMatch
                                             ? "rounded-xl border-2 border-amber-400 overflow-hidden shadow-sm flex flex-col"
-                                            : "rounded-xl border border-border overflow-hidden hover:shadow-sm transition-shadow flex flex-col"
+                                            : isDurationMatch
+                                                ? "rounded-xl border-2 border-emerald-400 overflow-hidden shadow-sm flex flex-col"
+                                                : "rounded-xl border border-border overflow-hidden hover:shadow-sm transition-shadow flex flex-col"
                                     }
                                 >
                                     <div className="h-28 bg-muted relative shrink-0">
@@ -457,8 +467,9 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
                                             </label>
                                         )}
                                         {(pkg.totalDays || pkg.totalNights) && (
-                                            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                            <p className={isDurationMatch ? "text-[11px] font-semibold text-emerald-700 flex items-center gap-1" : "text-[11px] text-muted-foreground flex items-center gap-1"}>
                                                 <CalendarDays size={10} /> {pkg.totalDays}D / {pkg.totalNights}N
+                                                {isDurationMatch && <span className="text-emerald-600">— matches request</span>}
                                             </p>
                                         )}
                                         {recomputingId === pkg.id ? (

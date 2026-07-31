@@ -3700,6 +3700,7 @@ Rules:
                       <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Travel Date</label>
                       <Input
                         type="date"
+                        min={new Date().toISOString().slice(0, 10)}
                         value={form.travelDate}
                         onChange={field("travelDate")}
                         className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
