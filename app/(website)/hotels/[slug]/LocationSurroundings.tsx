@@ -26,6 +26,7 @@ export default function LocationSurroundings({
   city,
   latitude,
   longitude,
+  approximate,
   landmarks,
 }: {
   name: string;
@@ -33,6 +34,8 @@ export default function LocationSurroundings({
   city: string;
   latitude: number | null;
   longitude: number | null;
+  /** Pin is the locality centre, not a surveyed address — say so on the map. */
+  approximate?: boolean;
   landmarks: LandmarkGroup[];
 }) {
   const [landmarkTab, setLandmarkTab] = useState(0);
@@ -240,6 +243,13 @@ export default function LocationSurroundings({
                   <span className="text-xs font-semibold text-neutral-700">{address}</span>
                 </span>
               </div>
+            )}
+            {/* Top-right: the zoom control owns the top-left corner and
+                "Get Directions" the bottom-right. */}
+            {hasCoords && approximate && (
+              <span className="absolute top-2 right-2 z-400 max-w-3/5 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 shadow">
+                Approximate location — exact address shared on booking
+              </span>
             )}
             {hasCoords && (
               <a

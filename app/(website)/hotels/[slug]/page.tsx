@@ -6,6 +6,7 @@ import HotelDetailClient from "./HotelDetailClient";
 import { getHotelForBooking } from "./booking-data";
 import { isHotelWishlisted } from "./wishlist-actions";
 import { getMyPaidBookingAtHotel } from "./chat-entry-actions";
+import { readRoomGuests } from "@/app/lib/packages/roomGuests";
 
 // Default stay window when the guest hasn't picked dates yet: tomorrow → day after.
 export function resolveDates(sp: { in?: string; out?: string }) {
@@ -26,10 +27,14 @@ export default async function HotelDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ in?: string; out?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
-  const { checkIn, checkOut } = resolveDates(await searchParams);
+  const sp = await searchParams;
+  const pick = (v: string | string[] | undefined) =>
+    typeof v === "string" ? v : Array.isArray(v) ? v[0] ?? "" : "";
+  const { checkIn, checkOut } = resolveDates({ in: pick(sp.in) || undefined, out: pick(sp.out) || undefined });
+  const roomGuests = readRoomGuests((key) => pick(sp[key]));
 
   const hotel = await getHotelForBooking(slug, checkIn, checkOut);
   if (!hotel) notFound();
@@ -40,7 +45,14 @@ export default async function HotelDetailPage({
   return (
     <>
       <Header />
-      <HotelDetailClient hotel={hotel} checkIn={checkIn} checkOut={checkOut} initialSaved={initialSaved} chatBookingId={chatBookingId} />
+      <HotelDetailClient
+        hotel={hotel}
+        checkIn={checkIn}
+        checkOut={checkOut}
+        roomGuests={roomGuests}
+        initialSaved={initialSaved}
+        chatBookingId={chatBookingId}
+      />
       <Footer />
     </>
   );

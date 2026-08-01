@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { cn } from "@/app/lib/utils";
 import { Card } from "@/app/components/ui/Card";
@@ -23,7 +24,7 @@ import {
 import { StarIcon as StarSolid, UserGroupIcon, } from "@heroicons/react/24/solid";
 import { PencilRulerIcon, BedIcon, EyeIcon, BathtubIcon, ImagesIcon, StarIcon,
   MapPinIcon, PawPrintIcon, WheelchairIcon, BabyIcon,
-  HeartIcon as HeartIconPh, ChatCircleDotsIcon, } from "@phosphor-icons/react";
+  HeartIcon as HeartIconPh, ChatCircleDotsIcon, ForkKnifeIcon, } from "@phosphor-icons/react";
 import type { BedroomLayout } from "./dummy";
 
 import type { Hotel, Room, RatePlan } from "./dummy";
@@ -32,7 +33,8 @@ import HotelChatModal from "./HotelChatModal";
 import { useModal } from "@/app/hooks/useModals";
 import Button from "@/app/components/ui/Button";
 import DatePickerField from "@/app/components/ui/DatePickerField";
-import TravellersField, { type TravellersValue } from "@/app/components/ui/TravellersField";
+import RoomsGuestsField from "@/app/components/ui/RoomsGuestsField";
+import { writeRoomGuests, summarizeRoomGuests, type RoomGuests } from "@/app/lib/packages/roomGuests";
 import LocationSearchSelect, { type LocationValue } from "@/app/components/ui/LocationSearchSelect";
 import type { LocationType } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { AMENITY_ICONS } from "./amenity-icons";
@@ -45,6 +47,19 @@ import LocationSurroundings from "./LocationSurroundings";
 const FullGallery = dynamic(() => import("@/app/components/gallery/FullGallery"));
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+
+/** "Thu, 22 Feb — Fri, 23 Feb" from the stay's own ISO dates. */
+function formatStay(checkIn: string, checkOut: string): string {
+  const fmt = (iso: string) => {
+    const d = new Date(`${iso}T00:00:00`);
+    return isNaN(d.getTime())
+      ? ""
+      : d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  };
+  const from = fmt(checkIn);
+  const to = fmt(checkOut);
+  return from && to ? `${from} — ${to}` : from || to;
+}
 
 // ── Small shared bits ─────────────────────────────────────────────────────────
 
@@ -123,11 +138,18 @@ function toISO(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string; checkOut: string }) {
+function SearchBar({
+  hotel, checkIn, checkOut, roomGuests: initialRoomGuests,
+}: {
+  hotel: Hotel;
+  checkIn: string;
+  checkOut: string;
+  roomGuests: RoomGuests[];
+}) {
   const router = useRouter();
   const [ci, setCi] = useState<Date | null>(toDate(checkIn));
   const [co, setCo] = useState<Date | null>(toDate(checkOut));
-  const [guests, setGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [], rooms: 1 });
+  const [roomGuests, setRoomGuests] = useState<RoomGuests[]>(initialRoomGuests);
   const [city, setCity] = useState<LocationValue | null>(
     hotel.city ? { id: hotel.city, name: hotel.city, type: "CITY" as LocationType, breadcrumb: hotel.city, slug: "" } : null,
   );
@@ -137,15 +159,23 @@ function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string
   function search() {
     const inD = ci ?? today;
     const outD = co && co > inD ? co : new Date(inD.getTime() + 86_400_000);
-    const qs = `in=${toISO(inD)}&out=${toISO(outD)}`;
+
+    // The guest selection used to be dropped here entirely — only the dates
+    // made it into the URL, so changing the party size and pressing Search
+    // silently discarded it.
+    const params = new URLSearchParams({ in: toISO(inD), out: toISO(outD) });
+    writeRoomGuests(params, roomGuests);
 
     // A different city than this hotel's own — jump to the listing page filtered
     // by that city instead of trying to show it on this hotel's URL.
     if (city && city.name && city.name !== hotel.city) {
-      router.push(`/hotels?city=${encodeURIComponent(city.name)}&${qs}`);
+      params.set("city", city.name);
+      if (city.id) params.set("locId", city.id);
+      if (city.type) params.set("locType", city.type);
+      router.push(`/hotels?${params.toString()}`);
       return;
     }
-    router.push(`/hotels/${hotel.slug}?${qs}`);
+    router.push(`/hotels/${hotel.slug}?${params.toString()}`);
   }
 
   return (
@@ -173,8 +203,8 @@ function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string
             </div>
 
             <div className="flex flex-col gap-1" role="group" aria-labelledby="label-guests">
-              <FieldLabel id="label-guests">Guests</FieldLabel>
-              <TravellersField value={guests} onChange={setGuests} showRooms />
+              <FieldLabel id="label-guests">Rooms &amp; Guests</FieldLabel>
+              <RoomsGuestsField value={roomGuests} onChange={setRoomGuests} />
             </div>
 
             <div className="flex flex-col gap-1">
@@ -524,24 +554,83 @@ function BookingSummary({
   selected,
   current,
   hasRates,
+  room,
+  checkIn,
+  checkOut,
+  guestsLabel,
   onBook,
+  onSeeAllRooms,
 }: {
   hotel: Hotel;
   selected: boolean;
   current: RatePlan;
   hasRates: boolean;
+  /** The room being quoted — the guest's pick, else our recommendation. */
+  room: Room | null;
+  checkIn: string;
+  checkOut: string;
+  guestsLabel: string;
+  /** Goes straight to checkout for `room` + `current`. */
   onBook: () => void;
+  onSeeAllRooms: () => void;
 }) {
   return (
     <Card variant="elevated" radius="md" className="p-5 h-fit">
+      {/* An unreviewed property showed a green "0.0" badge, which reads as a
+          terrible score rather than an absent one. Until it has ratings, lead
+          with the star tier — a fact we do hold — and drop the numeric badge. */}
       <div className="flex items-center gap-2 mb-3">
-        <ScoreBadge score={hotel.reviewScore} />
-        <div>
-          <p className="text-sm font-bold text-neutral-800">{hotel.reviewLabel}</p>
-          <p className="text-xs text-neutral-500">{hotel.reviewCount.toLocaleString("en-IN")} reviews</p>
-        </div>
+        {hotel.reviewCount > 0 ? (
+          <>
+            <ScoreBadge score={hotel.reviewScore} />
+            <div>
+              <p className="text-sm font-bold text-neutral-800">{hotel.reviewLabel}</p>
+              <p className="text-xs text-neutral-500">{hotel.reviewCount.toLocaleString("en-IN")} reviews</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="inline-flex items-center gap-0.5 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-sm font-bold text-amber-700">
+              {hotel.starRating}
+              <StarIcon size={13} weight="fill" className="text-amber-500" />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-neutral-800">{hotel.starRating}-star property</p>
+              <p className="text-xs text-neutral-500">Be the first to review</p>
+            </div>
+          </>
+        )}
       </div>
-      <div className="border-t border-neutral-100 pt-3">
+      {/* The room being quoted. The card used to show a price with no
+          indication of what it bought, then disable its own button until the
+          guest scrolled down and picked a room — so the primary action on the
+          page was dead on arrival. It now stands behind a specific room and
+          books it directly. */}
+      {room && hasRates && (
+        <div className="border-t border-neutral-100 pt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-primary-600">
+            {selected ? "Your selection" : "Recommended for you"}
+          </p>
+          <p className="text-sm font-bold text-neutral-800 mt-1">{room.name}</p>
+          <p className="text-[11px] text-neutral-500 mt-0.5">
+            {[room.occupancy, room.bed, room.size].filter(Boolean).join(" · ")}
+          </p>
+          <div className="flex flex-wrap gap-1 mt-2">
+            {current.mealPlan && (
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                {current.mealPlan}
+              </span>
+            )}
+            {room.roomsLeft != null && room.roomsLeft > 0 && room.roomsLeft <= 3 && (
+              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                Only {room.roomsLeft} left
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-neutral-100 pt-3 mt-3">
         {hasRates ? (
           <>
             <p className="text-xs text-neutral-400">{selected ? "Selected room from" : "Starting from"}</p>
@@ -562,21 +651,29 @@ function BookingSummary({
       </div>
       <div className="mt-3 space-y-2">
         <div className="flex items-center gap-2 text-xs text-neutral-600">
-          <CalendarDaysIcon className="w-4 h-4 text-primary-500" /> Thu, 22 Feb — Fri, 23 Feb
+          <CalendarDaysIcon className="w-4 h-4 text-primary-500" /> {formatStay(checkIn, checkOut)}
         </div>
         <div className="flex items-center gap-2 text-xs text-neutral-600">
-          <UserGroupIcon className="w-4 h-4 text-primary-500" /> 1 Room, 2 Adults
+          <UserGroupIcon className="w-4 h-4 text-primary-500" /> {guestsLabel}
         </div>
       </div>
       <Button
         onClick={onBook}
-        variant='primary'
+        variant="primary"
         className={cn("mt-4 w-full disabled:opacity-60 disabled:*:cursor-not-allowed disabled:pointer-events-none")}
-        disabled={!selected}
+        disabled={!hasRates || !room}
       >
-        {selected ? "Book Now" : "Select Room"}
+        Book This Room
         <ArrowRightIcon className="w-4 h-4" />
       </Button>
+      {hotel.rooms.length > 1 && (
+        <button
+          onClick={onSeeAllRooms}
+          className="mt-2 w-full text-[11px] font-semibold text-primary-600 hover:underline"
+        >
+          See all {hotel.rooms.length} room types
+        </button>
+      )}
       {current.refundable && (
         <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-700 mt-2.5">
           <ShieldCheckIcon className="w-3.5 h-3.5" /> Free cancellation available
@@ -588,7 +685,7 @@ function BookingSummary({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSaved = false, chatBookingId = null }: { hotel: Hotel; checkIn: string; checkOut: string; initialSaved?: boolean; chatBookingId?: string | null }) {
+export default function HotelDetailClient({ hotel, checkIn, checkOut, roomGuests, initialSaved = false, chatBookingId = null }: { hotel: Hotel; checkIn: string; checkOut: string; roomGuests: RoomGuests[]; initialSaved?: boolean; chatBookingId?: string | null }) {
   const router = useRouter();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [active, setActive] = useState("overview");
@@ -626,10 +723,33 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
 
   const allRates = hotel.rooms.flatMap((r) => r.ratePlans);
   const hasRates = allRates.length > 0;
-  const cheapest: RatePlan = hasRates
-    ? allRates.reduce((min, p) => (p.price < min.price ? p : min))
-    : { id: "", mealPlan: "", inclusions: [], cancellation: "", refundable: false, price: 0, originalPrice: 0, taxes: 0 };
+
+  /**
+   * The room the summary card recommends: the cheapest bookable rate plan,
+   * paired with the room it belongs to. Tracking the pair rather than a bare
+   * plan is what lets the card name the room and book it in one click — the
+   * booking route needs a room id, which a lone RatePlan doesn't carry.
+   * Availability wins over price: a sold-out room is not a recommendation.
+   */
+  const recommended = hotel.rooms
+    .flatMap((room) => room.ratePlans.map((plan) => ({ room, plan })))
+    .sort((a, b) => {
+      const aOut = a.room.roomsLeft === 0 ? 1 : 0;
+      const bOut = b.room.roomsLeft === 0 ? 1 : 0;
+      if (aOut !== bOut) return aOut - bOut;
+      return a.plan.price - b.plan.price;
+    })[0] ?? null;
+
+  const cheapest: RatePlan = recommended?.plan ?? {
+    id: "", mealPlan: "", inclusions: [], cancellation: "", refundable: false,
+    price: 0, originalPrice: 0, taxes: 0,
+  };
   const current = selected?.plan ?? cheapest;
+  // Once a guest picks a room the card follows their choice; until then it
+  // stands behind its own recommendation.
+  const activeRoom = selected
+    ? hotel.rooms.find((r) => r.id === selected.roomId) ?? recommended?.room ?? null
+    : recommended?.room ?? null;
   const totalAmenityCount = hotel.allAmenities.reduce((n, g) => n + g.items.length, 0);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -662,7 +782,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
 
   return (
     <div className="bg-neutral-50 min-h-screen">
-      <SearchBar hotel={hotel} checkIn={checkIn} checkOut={checkOut} />
+      <SearchBar hotel={hotel} checkIn={checkIn} checkOut={checkOut} roomGuests={roomGuests} />
 
       <main className="screen-space py-5">
         {/* Breadcrumb */}
@@ -756,7 +876,20 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
               </div>
             </div>
             <div className="hidden lg:block">
-              <BookingSummary hotel={hotel} selected={!!selected} current={current} hasRates={hasRates} onBook={() => jump("rooms")} />
+              <BookingSummary
+                hotel={hotel}
+                selected={!!selected}
+                current={current}
+                hasRates={hasRates}
+                room={activeRoom}
+                checkIn={checkIn}
+                checkOut={checkOut}
+                // Now that the picker round-trips through the URL, echo the
+                // guest's actual selection back instead of a fixed string.
+                guestsLabel={summarizeRoomGuests(roomGuests)}
+                onBook={() => activeRoom && selectRate(activeRoom.id, current)}
+                onSeeAllRooms={() => jump("rooms")}
+              />
             </div>
 
           </section>
@@ -804,6 +937,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
               city={hotel.city}
               latitude={hotel.latitude}
               longitude={hotel.longitude}
+              approximate={hotel.approximateLocation}
               landmarks={hotel.landmarks}
             />
           </section>
@@ -863,40 +997,102 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
           <ReviewsSection hotel={hotel} />
         </div>
 
-        {/* Similar properties */}
-        <section className="py-6 border-t border-neutral-200">
-          <h2 className="text-lg font-bold text-neutral-800 mb-4">Similar properties nearby</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {hotel.similar.map((s) => (
-              <Card key={s.id} variant="elevated" radius="md" className="overflow-hidden p-px group">
-                <div className="relative h-36 overflow-hidden rounded-t-[inherit]">
-                  <Image src={s.image} alt={s.name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="25vw" />
-                  <span className="absolute top-2 left-2"><ScoreBadge score={s.rating} size="sm" /></span>
-                </div>
-                <div className="p-3">
-                  <p className="text-sm font-semibold text-neutral-800 truncate">{s.name}</p>
-                  <p className="flex items-center gap-1 text-[11px] text-neutral-400 mt-0.5">
-                    <MapPinIcon className="w-3 h-3" /> {s.location}
-                  </p>
-                  <div className="flex items-center justify-between mt-2.5">
-                    <p className="text-sm font-bold text-neutral-900">{money(s.price)}<span className="text-[11px] font-normal text-neutral-400"> /night</span></p>
-                    <span className="text-[11px] font-bold text-primary-600 flex items-center gap-0.5">
-                      Book <ArrowRightIcon className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
+        {/* Similar properties — omitted entirely when there are no real
+            alternatives, rather than leaving a heading over an empty grid. */}
+        {hotel.similar.length > 0 && (
+          <section className="py-6 border-t border-neutral-200">
+            <h2 className="text-lg font-bold text-neutral-800 mb-4">Similar properties nearby</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {hotel.similar.map((s) => (
+                <Link key={s.id} href={`/hotels/${s.slug}`} className="group block">
+                  <Card variant="elevated" radius="md" className="overflow-hidden p-px h-full flex flex-col">
+                    <div className="relative h-36 overflow-hidden rounded-t-[inherit]">
+                      <Image src={s.image} alt={s.name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="25vw" />
+                      {s.starRating != null && (
+                        <span className="absolute top-2 left-2 inline-flex items-center gap-0.5 text-[11px] font-bold text-white bg-black/55 rounded-full px-2 py-0.5 backdrop-blur-[1px]">
+                          {s.starRating} <StarIcon size={10} weight="fill" className="text-amber-400" />
+                        </span>
+                      )}
+                      {s.photoCount > 1 && (
+                        <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-black/55 rounded-full px-2 py-0.5 backdrop-blur-[1px]">
+                          <ImagesIcon size={10} weight="fill" /> {s.photoCount}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-3 flex flex-1 flex-col">
+                      <p className="text-sm font-semibold text-neutral-800 truncate">{s.name}</p>
+                      <p className="flex items-center gap-1 text-[11px] text-neutral-400 mt-0.5 truncate">
+                        <MapPinIcon className="w-3 h-3 shrink-0" />
+                        {[s.city, s.state].filter(Boolean).join(", ") || "—"}
+                      </p>
+
+                      {(s.starRating != null || s.propertyType) && (
+                        <p className="mt-1.5 text-[11px] font-semibold text-neutral-600">
+                          {[s.starRating ? `${s.starRating} Star` : null, s.propertyType].filter(Boolean).join(" ")}
+                        </p>
+                      )}
+
+                      {s.roomName && (
+                        <p className="mt-1 text-[11px] text-neutral-500 truncate">
+                          {[s.roomName, s.maxOccupancy ? `Sleeps ${s.maxOccupancy}` : null].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+
+                      {s.mealPlan && (
+                        <span className="mt-1.5 self-start inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0.5">
+                          <ForkKnifeIcon size={9} weight="fill" /> {s.mealPlan}
+                        </span>
+                      )}
+
+                      {s.amenities.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {s.amenities.slice(0, 3).map((a) => (
+                            <span key={a} className="text-[9px] text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-full px-1.5 py-0.5">
+                              {a}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Pinned to the bottom so prices line up across the row
+                          however much detail each property carries above. */}
+                      <div className="flex items-end justify-between mt-auto pt-2.5">
+                        <div>
+                          {s.priceFrom != null ? (
+                            <>
+                              <p className="text-sm font-bold text-neutral-900 leading-tight">
+                                {money(s.priceFrom)}<span className="text-[10px] font-normal text-neutral-400"> /night</span>
+                              </p>
+                              {s.taxesFrom != null && (
+                                <p className="text-[10px] text-neutral-400">+ {money(s.taxesFrom)} taxes</p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-[11px] text-neutral-400">Price on request</p>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold text-primary-600 flex items-center gap-0.5 whitespace-nowrap">
+                          View <ArrowRightIcon className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
 
       {/* Mobile sticky book bar */}
       <div className="lg:hidden sticky bottom-0 z-30 bg-white border-t border-neutral-200 px-4 py-3 flex items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           {hasRates ? (
             <>
-              <p className="text-[11px] text-neutral-400">{selected ? "Selected from" : "Starting from"}</p>
+              <p className="text-[11px] text-neutral-400 truncate">
+                {activeRoom ? activeRoom.name : selected ? "Selected from" : "Starting from"}
+              </p>
               <p className="text-lg font-bold text-neutral-900 leading-none">{money(current.price)}<span className="text-[11px] font-normal text-neutral-400"> +taxes</span></p>
             </>
           ) : (
@@ -904,10 +1100,11 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, initialSav
           )}
         </div>
         <button
-          onClick={() => jump("rooms")}
-          className="flex-1 max-w-[200px] rounded-xl bg-primary-600 text-white text-sm font-bold py-3"
+          onClick={() => (activeRoom ? selectRate(activeRoom.id, current) : jump("rooms"))}
+          disabled={!hasRates}
+          className="flex-1 max-w-50 rounded-xl bg-primary-600 text-white text-sm font-bold py-3 disabled:opacity-60"
         >
-          {selected ? "Book Now" : "Select Room"}
+          {activeRoom ? "Book This Room" : "See Rooms"}
         </button>
       </div>
 
