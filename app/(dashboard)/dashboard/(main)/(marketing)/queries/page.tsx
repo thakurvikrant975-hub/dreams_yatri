@@ -2,8 +2,10 @@
 
 
 import { Suspense } from "react";
-import { Inbox } from "lucide-react";
+import Link from "next/link";
+import { Inbox, XCircle } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";
+import { Button } from "../../components/ui/button";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -101,6 +103,11 @@ export default async function QueriesPage() {
                 actions={
                     <div className="flex items-center gap-3">
                         <AutoAssignToggle initialEnabled={autoAssignEnabled} />
+                        <Button asChild variant="outline" size="sm" className="gap-1.5">
+                            <Link href="/dashboard/queries/rejection-reasons">
+                                <XCircle className="size-3.5" /> Rejection Reasons
+                            </Link>
+                        </Button>
                         <AddQueryDialog />
                     </div>
                 }

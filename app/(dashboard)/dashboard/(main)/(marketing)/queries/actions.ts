@@ -296,6 +296,30 @@ export async function getRejectionReasons(): Promise<RejectionReason[]> {
     }));
 }
 
+/** Active + inactive — the reject dialogs only ever need getRejectionReasons
+ * (active-only, above); this is for the /dashboard/queries/rejection-reasons
+ * management page, where a retired reason still needs to be visible (to
+ * re-enable it, or just to see it was used historically). */
+export async function getAllRejectionReasons(): Promise<RejectionReason[]> {
+    const data = await db.rejectionReason.findMany({
+        include: {
+            _count: { select: { package_queries: true, custom_packages: true } },
+        },
+        orderBy: [{ isActive: "desc" }, { sortOrder: "asc" }, { label: "asc" }],
+    });
+
+    return data.map((item) => ({
+        ...item,
+        _count: {
+            // Combined usage across both rejection surfaces this reason can
+            // be attached to (query rejection and package-pricing rejection)
+            // — the management page just needs "is this reason in use at
+            // all", not a breakdown by which flow used it.
+            queries: item._count.package_queries + item._count.custom_packages,
+        },
+    }));
+}
+
 // ── FIX: getSalesMembers — active-only, correct counts, richer stats ──────────
 export async function getSalesMembers(): Promise<SalesMember[]> {
     // FIX 1: Only active sales team members
@@ -677,7 +701,11 @@ export async function createRejectionReason(
         return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
     }
     try {
-        await db.rejectionReason.create({ data: parsed.data });
+        // sortOrder has no DB default beyond 0 — without this, every
+        // newly-created reason would sort before all the seeded ones
+        // (10, 20, 30…) instead of after them.
+        const last = await db.rejectionReason.findFirst({ orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
+        await db.rejectionReason.create({ data: { ...parsed.data, sortOrder: (last?.sortOrder ?? 0) + 10 } });
         revalidatePath("/dashboard/queries");
         revalidatePath("/dashboard/queries/rejection-reasons");
         return { success: true, message: "Rejection reason created" };
@@ -687,10 +715,40 @@ export async function createRejectionReason(
     }
 }
 
+export async function updateRejectionReason(
+    id: string,
+    _prev: RejectionReasonFormState,
+    formData: FormData,
+): Promise<RejectionReasonFormState> {
+    const parsed = reasonSchema.safeParse({
+        label: formData.get("label"),
+        description: formData.get("description") || undefined,
+    });
+    if (!parsed.success) {
+        return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
+    }
+    try {
+        await db.rejectionReason.update({ where: { id }, data: parsed.data });
+        revalidatePath("/dashboard/queries");
+        revalidatePath("/dashboard/queries/rejection-reasons");
+        return { success: true, message: "Rejection reason updated" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
+    }
+}
+
 export async function deleteRejectionReason(id: string): Promise<ActionResult> {
     try {
-        const reason = await db.rejectionReason.findUnique({ where: { id } });
+        const reason = await db.rejectionReason.findUnique({
+            where: { id },
+            select: { isSystem: true, _count: { select: { package_queries: true, custom_packages: true } } },
+        });
         if (reason?.isSystem) return { success: false, message: "System reasons cannot be deleted" };
+        const usageCount = (reason?._count.package_queries ?? 0) + (reason?._count.custom_packages ?? 0);
+        if (usageCount > 0) {
+            return { success: false, message: `This reason is used on ${usageCount} past ${usageCount === 1 ? "record" : "records"} — disable it instead of deleting so that history stays intact.` };
+        }
         await db.rejectionReason.delete({ where: { id } });
         revalidatePath("/dashboard/queries");
         revalidatePath("/dashboard/queries/rejection-reasons");
