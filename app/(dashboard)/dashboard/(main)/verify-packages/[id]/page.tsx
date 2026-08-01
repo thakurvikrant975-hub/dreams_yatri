@@ -33,6 +33,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 verified: true, verifiedAt: true, verifiedByName: true,
                 rejectedAt: true, rejectedByName: true, rejectionNote: true,
                 rejectionReason: { select: { label: true } },
+                revisionRequestedAt: true, revisionRequestedByName: true, revisionNote: true,
                 flightsIncluded: true, flightNotes: true, flightFrom: true, flightTo: true,
                 trainIncluded: true, trainNotes: true, trainFrom: true, trainTo: true,
                 tickets: {
@@ -173,6 +174,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 verified: pkg.verified, verifiedAt: pkg.verifiedAt, verifiedByName: pkg.verifiedByName,
                 rejectedAt: pkg.rejectedAt, rejectedByName: pkg.rejectedByName, rejectionNote: pkg.rejectionNote,
                 rejectionReasonLabel: pkg.rejectionReason?.label ?? null,
+                revisionRequestedAt: pkg.revisionRequestedAt, revisionRequestedByName: pkg.revisionRequestedByName, revisionNote: pkg.revisionNote,
                 flightsIncluded: pkg.flightsIncluded, flightNotes: pkg.flightNotes, flightFrom: pkg.flightFrom, flightTo: pkg.flightTo,
                 trainIncluded: pkg.trainIncluded, trainNotes: pkg.trainNotes, trainFrom: pkg.trainFrom, trainTo: pkg.trainTo,
             }}

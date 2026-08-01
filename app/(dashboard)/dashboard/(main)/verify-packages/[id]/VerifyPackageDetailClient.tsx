@@ -53,6 +53,7 @@ type PkgInfo = {
     viewedAt: Date | null; viewCount: number;
     verified: boolean; verifiedAt: Date | null; verifiedByName: string | null;
     rejectedAt: Date | null; rejectedByName: string | null; rejectionNote: string | null; rejectionReasonLabel: string | null;
+    revisionRequestedAt: Date | null; revisionRequestedByName: string | null; revisionNote: string | null;
     flightsIncluded: boolean; flightNotes: string | null; flightFrom: string | null; flightTo: string | null;
     trainIncluded: boolean; trainNotes: string | null; trainFrom: string | null; trainTo: string | null;
 };
@@ -242,7 +243,7 @@ export function VerifyPackageDetailClient({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <Link
-                        href={`/dashboard/package-builder/${pkg.id}`}
+                        href={`/dashboard/verify-packages/${pkg.id}/pdf`}
                         target="_blank"
                         className="inline-flex items-center gap-1.5 rounded-md border border-dashboard-base-300 px-3 py-1.5 text-xs font-medium text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
                     >
@@ -285,6 +286,18 @@ export function VerifyPackageDetailClient({
                     <div>
                         <p className="text-sm font-semibold text-red-800">Sent back for rework — {pkg.rejectionReasonLabel ?? "Unknown reason"}</p>
                         {pkg.rejectionNote && <p className="text-xs text-red-700 mt-0.5">&quot;{pkg.rejectionNote}&quot;</p>}
+                    </div>
+                </div>
+            )}
+
+            {state === "pending" && pkg.revisionNote && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 shadow-lg">
+                    <Pencil className="size-4 mt-0.5 shrink-0 text-blue-600" />
+                    <div>
+                        <p className="text-sm font-semibold text-blue-800">
+                            {pkg.revisionRequestedByName ?? "The sales exec"} pulled this back for another look — resubmitted for review
+                        </p>
+                        <p className="text-xs text-blue-700 mt-0.5">&quot;{pkg.revisionNote}&quot;</p>
                     </div>
                 </div>
             )}

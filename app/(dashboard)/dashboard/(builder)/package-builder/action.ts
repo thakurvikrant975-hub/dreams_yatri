@@ -589,6 +589,9 @@ export interface QueryDetail {
     rejectedByName:  string | null;
     rejectionNote:   string | null;
     rejectionReason: { label: string } | null;
+    revisionRequestedAt:     Date | null;
+    revisionRequestedByName: string | null;
+    revisionNote:            string | null;
     viewedAt:        Date | null;
     viewCount:       number;
     /** Snapshot of the last-SENT version, captured right before an edit
@@ -1269,6 +1272,9 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       rejectedByName:  true,
       rejectionNote:   true,
       rejectionReason: { select: { label: true } },
+      revisionRequestedAt:     true,
+      revisionRequestedByName: true,
+      revisionNote:            true,
       viewedAt:        true,
       viewCount:       true,
       previousSnapshot: true,
@@ -2033,6 +2039,58 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
   } catch (err) {
     console.error("[markPackageReady]", err);
     return { success: false, error: "Failed to mark package ready" };
+  }
+}
+
+/**
+ * The exec's own equivalent of a rejection, in reverse — pulls an
+ * already-verified (but not yet sent) package back out of the locked
+ * "approved" state so it can be edited again, with a free-text note
+ * explaining what needs another look. Unlocks the builder (status → DRAFT)
+ * exactly like a costing rejection does; the exec then edits as needed and
+ * calls markPackageReady again to put it back in costing's queue, where the
+ * note stays visible until that next review concludes.
+ */
+export async function requestPackageRevision(packageId: string, note: string): Promise<{ success: boolean; error?: string }> {
+  const trimmedNote = note.trim();
+  if (!trimmedNote) return { success: false, error: "Explain what needs another look before resubmitting." };
+
+  try {
+    const { actor } = await getCurrentActor();
+
+    const pkg = await db.custom_packages.findUnique({
+      where: { id: packageId },
+      select: { id: true, status: true, verified: true, sentAt: true, queryId: true },
+    });
+    if (!pkg) return { success: false, error: "Package not found" };
+    if (pkg.status !== "READY" || !pkg.verified) return { success: false, error: "This package isn't in an approved state." };
+    if (pkg.sentAt) return { success: false, error: "This package has already been sent to the client." };
+
+    await db.custom_packages.update({
+      where: { id: packageId },
+      data: {
+        status: "DRAFT",
+        verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
+        revisionRequestedAt: new Date(),
+        revisionRequestedBy: actor?.id ?? null,
+        revisionRequestedByName: actor?.name ?? null,
+        revisionNote: trimmedNote,
+      },
+    });
+
+    if (pkg.queryId) {
+      await logTimeline(pkg.queryId, `${actor?.name ?? "Sales exec"} pulled this package back for another look — ${trimmedNote}`, actor?.id, actor?.name ?? undefined);
+    }
+    await broadcastVerificationCounts();
+
+    revalidatePath("/dashboard/package-builder");
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath("/dashboard/verify-packages");
+    revalidatePath("/dashboard/sales-query");
+    return { success: true };
+  } catch (err) {
+    console.error("[requestPackageRevision]", err);
+    return { success: false, error: "Failed to request a revision" };
   }
 }
 

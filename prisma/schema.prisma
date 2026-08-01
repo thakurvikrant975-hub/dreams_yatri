@@ -2598,6 +2598,21 @@ model custom_packages {
   rejectionNote         String?
   rejectionReason       RejectionReason?         @relation(fields: [rejectionReasonId], references: [id])
   /**
+   * The exec's own equivalent of a rejection, in reverse — set when they
+   * pull an already-verified package back out of "ready to share" (e.g. the
+   * client asked for a change after approval) via requestPackageRevision
+   * (package-builder/action.ts). Unlike a costing rejection this doesn't
+   * come with a structured reason, just a free-text note explaining what
+   * needs another look. Cleared by approveCustomPackage/rejectCustomPackage
+   * once costing has acted on the resubmission — never cleared by
+   * markPackageReady itself, so the note stays visible through the review
+   * cycle it was requested for.
+   */
+  revisionRequestedAt   DateTime?
+  revisionRequestedBy   String?
+  revisionRequestedByName String?
+  revisionNote          String?
+  /**
    * Set the moment the exec has been shown (via the in-app toast poller)
    * that this package was verified-and-sent or rejected — prevents
    * re-notifying on every poll. Cleared whenever a fresh verify/reject

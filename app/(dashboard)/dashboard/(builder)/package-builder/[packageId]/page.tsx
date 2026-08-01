@@ -19,7 +19,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift, GripVertical, Clock, XCircle,
+  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -68,6 +68,7 @@ import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuil
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
@@ -3503,18 +3504,37 @@ Rules:
                 <CheckCircle size={13} /> Sent to Client
               </span>
             ) : isLocked && pkgVerified ? (
-              <Button
-                size="sm"
-                className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
-                onClick={handleShareClick}
-                disabled={isSharing}
-              >
-                {isSharing
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : <Send size={13} />
-                }
-                <span className="hidden sm:inline text-xs">Share with Client</span>
-              </Button>
+              <>
+                <RequestRevisionDialog
+                  packageId={packageId}
+                  packageTitle={form.title}
+                  onSuccess={async () => {
+                    const fresh = await getPackageDetail(packageId);
+                    if (fresh) setQuery(fresh);
+                  }}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                  >
+                    <RotateCcw size={13} />
+                    <span className="hidden sm:inline text-xs">Request Revision</span>
+                  </Button>
+                </RequestRevisionDialog>
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                  onClick={handleShareClick}
+                  disabled={isSharing}
+                >
+                  {isSharing
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <Send size={13} />
+                  }
+                  <span className="hidden sm:inline text-xs">Share with Client</span>
+                </Button>
+              </>
             ) : isLocked ? (
               <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">
                 <Clock size={13} /> Awaiting Costing Review
@@ -3668,6 +3688,16 @@ Rules:
                       <p className="text-xs text-red-700 mt-0.5">&quot;{query.customPackage.rejectionNote}&quot;</p>
                     )}
                     <p className="text-xs text-red-700 mt-1">Fix the issue above and click Mark Ready to resubmit.</p>
+                  </div>
+                </div>
+              )}
+              {!isLocked && !query.customPackage?.rejectedAt && query.customPackage?.revisionNote && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                  <RotateCcw className="size-4 mt-0.5 shrink-0 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800">Pulled back for revision</p>
+                    <p className="text-xs text-blue-700 mt-0.5">&quot;{query.customPackage.revisionNote}&quot;</p>
+                    <p className="text-xs text-blue-700 mt-1">Click Mark Ready once you&apos;re done to send it back to costing.</p>
                   </div>
                 </div>
               )}
@@ -4704,6 +4734,19 @@ Rules:
               </div>
             ) : isLocked && pkgVerified ? (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
+                <RequestRevisionDialog
+                  packageId={packageId}
+                  packageTitle={form.title}
+                  onSuccess={async () => {
+                    const fresh = await getPackageDetail(packageId);
+                    if (fresh) setQuery(fresh);
+                  }}
+                >
+                  <Button variant="outline" className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content">
+                    <RotateCcw size={14} />
+                    Request Revision
+                  </Button>
+                </RequestRevisionDialog>
                 <Button
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleShareClick}
