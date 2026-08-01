@@ -95,6 +95,7 @@ export const NAV_GROUPS = [
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },
       { title: "Verify Packages", href: "/dashboard/verify-packages", icon: ShieldCheck },
       { title: "My Bookings", href: "/dashboard/my-bookings", icon: PackagePlus },
+      { title: "Cab Directory", href: "/dashboard/cab-directory", icon: Car },
     ],
   },
   {

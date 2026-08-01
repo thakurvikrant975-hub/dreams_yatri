@@ -58,6 +58,7 @@ export const ALL_HREFS = [
   "/dashboard/package-library",
   "/dashboard/package-builder",
   "/dashboard/verify-packages",
+  "/dashboard/cab-directory",
   // Transactions
   "/dashboard/transactions",
   "/dashboard/failed-transactions",
