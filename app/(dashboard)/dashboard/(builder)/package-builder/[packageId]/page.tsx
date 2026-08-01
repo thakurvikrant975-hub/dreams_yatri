@@ -3500,9 +3500,28 @@ Rules:
             )}
 
             {pkgSent ? (
-              <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">
-                <CheckCircle size={13} /> Sent to Client
-              </span>
+              <>
+                <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">
+                  <CheckCircle size={13} /> Sent to Client
+                </span>
+                <RequestRevisionDialog
+                  packageId={packageId}
+                  packageTitle={form.title}
+                  onSuccess={async () => {
+                    const fresh = await getPackageDetail(packageId);
+                    if (fresh) setQuery(fresh);
+                  }}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                  >
+                    <RotateCcw size={13} />
+                    <span className="hidden sm:inline text-xs">Request Revision</span>
+                  </Button>
+                </RequestRevisionDialog>
+              </>
             ) : isLocked && pkgVerified ? (
               <>
                 <RequestRevisionDialog
@@ -4729,8 +4748,23 @@ Rules:
 
             {/* Bottom action bar */}
             {pkgSent ? (
-              <div className="flex items-center justify-end gap-2 pt-6 pb-10 text-sm text-blue-700">
-                <CheckCircle size={14} /> Sent to client{query.customPackage?.sentAt ? ` — ${new Date(query.customPackage.sentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
+                <span className="text-sm text-blue-700 flex items-center gap-2">
+                  <CheckCircle size={14} /> Sent to client{query.customPackage?.sentAt ? ` — ${new Date(query.customPackage.sentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
+                </span>
+                <RequestRevisionDialog
+                  packageId={packageId}
+                  packageTitle={form.title}
+                  onSuccess={async () => {
+                    const fresh = await getPackageDetail(packageId);
+                    if (fresh) setQuery(fresh);
+                  }}
+                >
+                  <Button variant="outline" className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content">
+                    <RotateCcw size={14} />
+                    Request Revision
+                  </Button>
+                </RequestRevisionDialog>
               </div>
             ) : isLocked && pkgVerified ? (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">

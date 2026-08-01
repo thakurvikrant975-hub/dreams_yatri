@@ -53,8 +53,8 @@ export function RequestRevisionDialog({ packageId, packageTitle, onSuccess, chil
                         <RotateCcw className="h-4 w-4" /> Request Revision
                     </DialogTitle>
                     <DialogDescription>
-                        Pulls <span className="font-semibold">{packageTitle}</span> back out of &quot;approved&quot; so you
-                        can edit it again. Costing will see your note once you resubmit it with Mark Ready.
+                        Unlocks <span className="font-semibold">{packageTitle}</span> for editing again. Costing will
+                        see your note once you resubmit it with Mark Ready.
                     </DialogDescription>
                 </DialogHeader>
 

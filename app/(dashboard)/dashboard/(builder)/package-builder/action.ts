@@ -2044,12 +2044,15 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
 
 /**
  * The exec's own equivalent of a rejection, in reverse — pulls an
- * already-verified (but not yet sent) package back out of the locked
- * "approved" state so it can be edited again, with a free-text note
- * explaining what needs another look. Unlocks the builder (status → DRAFT)
- * exactly like a costing rejection does; the exec then edits as needed and
- * calls markPackageReady again to put it back in costing's queue, where the
- * note stays visible until that next review concludes.
+ * already-verified-or-already-sent package back out of its locked/done
+ * state so it can be edited again, with a free-text note explaining what
+ * needs another look (e.g. the client asked for a change after receiving
+ * the itinerary). Unlocks the builder (status → DRAFT) exactly like a
+ * costing rejection does; the exec then edits as needed and calls
+ * markPackageReady again to put it back in costing's queue, where the note
+ * stays visible until that next review concludes. sentAt itself is never
+ * cleared — same as everywhere else in this file, it's kept as "was this
+ * ever sent" history, not "is this currently sent".
  */
 export async function requestPackageRevision(packageId: string, note: string): Promise<{ success: boolean; error?: string }> {
   const trimmedNote = note.trim();
@@ -2063,8 +2066,11 @@ export async function requestPackageRevision(packageId: string, note: string): P
       select: { id: true, status: true, verified: true, sentAt: true, queryId: true },
     });
     if (!pkg) return { success: false, error: "Package not found" };
-    if (pkg.status !== "READY" || !pkg.verified) return { success: false, error: "This package isn't in an approved state." };
-    if (pkg.sentAt) return { success: false, error: "This package has already been sent to the client." };
+    const isApprovedNotSent = pkg.status === "READY" && pkg.verified;
+    const isSent = pkg.status === "SENT";
+    if (!isApprovedNotSent && !isSent) {
+      return { success: false, error: "This package isn't in a state that can be pulled back for revision." };
+    }
 
     await db.custom_packages.update({
       where: { id: packageId },
