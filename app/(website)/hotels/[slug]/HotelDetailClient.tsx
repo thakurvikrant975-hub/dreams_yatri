@@ -430,7 +430,12 @@ function RateRow({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const off = Math.round(((plan.originalPrice - plan.price) / plan.originalPrice) * 100);
+  // A discount is only shown when the property set a real pre-discount rate
+  // that is genuinely higher than what we're charging.
+  const hasDiscount = plan.originalPrice != null && plan.originalPrice > plan.price;
+  const off = hasDiscount
+    ? Math.round(((plan.originalPrice! - plan.price) / plan.originalPrice!) * 100)
+    : 0;
   return (
     <div className={cn(
       "grid sm:grid-cols-[1fr_auto] gap-3 p-4 transition-colors",
@@ -461,10 +466,12 @@ function RateRow({
 
       <div className="sm:text-right flex sm:flex-col items-end justify-between gap-1">
         <div>
-          <div className="flex items-center gap-1.5 sm:justify-end">
-            <span className="text-xs text-neutral-400 line-through">{money(plan.originalPrice)}</span>
-            <span className="text-[11px] font-semibold text-emerald-600">{off}% off</span>
-          </div>
+          {hasDiscount && (
+            <div className="flex items-center gap-1.5 sm:justify-end">
+              <span className="text-xs text-neutral-400 line-through">{money(plan.originalPrice!)}</span>
+              <span className="text-[11px] font-semibold text-emerald-600">{off}% off</span>
+            </div>
+          )}
           <p className="text-xl font-bold text-neutral-900 leading-tight">{money(plan.price)}</p>
           <p className="text-[11px] text-neutral-400">+ {money(plan.taxes)} taxes & fees / night</p>
         </div>
@@ -634,14 +641,14 @@ function BookingSummary({
         {hasRates ? (
           <>
             <p className="text-xs text-neutral-400">{selected ? "Selected room from" : "Starting from"}</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm text-neutral-400 line-through">{money(current.originalPrice)}</span>
-              {current.originalPrice > current.price && (
+            {current.originalPrice != null && current.originalPrice > current.price && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm text-neutral-400 line-through">{money(current.originalPrice)}</span>
                 <span className="text-[11px] font-semibold text-emerald-600">
                   {Math.round(((current.originalPrice - current.price) / current.originalPrice) * 100)}% off
                 </span>
-              )}
-            </div>
+              </div>
+            )}
             <span className="text-2xl font-bold text-neutral-900">{money(current.price)}</span>
             <p className="text-[11px] text-neutral-400">+ {money(current.taxes)} taxes & fees · per night</p>
           </>
@@ -742,7 +749,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, roomGuests
 
   const cheapest: RatePlan = recommended?.plan ?? {
     id: "", mealPlan: "", inclusions: [], cancellation: "", refundable: false,
-    price: 0, originalPrice: 0, taxes: 0,
+    price: 0, originalPrice: null, taxes: 0,
   };
   const current = selected?.plan ?? cheapest;
   // Once a guest picks a room the card follows their choice; until then it

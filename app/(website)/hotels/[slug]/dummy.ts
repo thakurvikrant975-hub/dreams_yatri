@@ -9,7 +9,12 @@ export type RatePlan = {
   cancellation: string;
   refundable: boolean;
   price: number;
-  originalPrice: number;
+  /**
+   * The pre-discount rate, or null when the property never set one. Nullable
+   * on purpose: a non-null default invited a synthesised "was" price, which is
+   * a discount claim we can't substantiate.
+   */
+  originalPrice: number | null;
   taxes: number;
   badge?: string;
 };

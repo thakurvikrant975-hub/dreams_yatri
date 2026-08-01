@@ -852,7 +852,13 @@ export async function getHotelForBooking(
       const ratePlans: RatePlan[] = rows.map((p, idx) => {
         const nightly = p ? Number(p.price_per_night) : ari[0]?.price ?? 0;
         const gst = p ? Number(p.gst_percentage) : 12;
-        const original = p?.original_price ? Number(p.original_price) : Math.round(nightly * 1.15);
+        // Only ever the property's own pre-discount rate. This used to fall
+        // back to `nightly * 1.15`, which invented a 15% "was" price for every
+        // rate plan that had none — and no hotel in the imported catalogue has
+        // one, so the entire live inventory advertised a discount off a price
+        // that was never charged. A struck-through figure is a factual claim
+        // about past pricing; absent real data the honest answer is no claim.
+        const original = p?.original_price ? Number(p.original_price) : null;
         const label = p?.plan_name || p?.meal_type?.name || "Room Only";
         const policy = effectivePolicy(
           (p?.cancellation_policy as CancellationPolicy | null) ?? null,
