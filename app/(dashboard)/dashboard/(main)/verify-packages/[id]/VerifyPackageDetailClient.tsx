@@ -46,6 +46,7 @@ type PkgInfo = {
     id: string; title: string; destination: string; startingPoint: string | null;
     totalDays: number; totalNights: number; travelDate: Date | null;
     adults: number; children: number; infants: number;
+    childrenAges: number[]; infantAges: number[];
     pricePerPerson: number | null; totalPrice: number | null; currency: string;
     marginPercentage: number; gstPercentage: number;
     status: string; builtByName: string | null; sentAt: Date | null;
@@ -217,7 +218,11 @@ export function VerifyPackageDetailClient({
         });
     }
 
-    const pax = pkg.adults + pkg.children + pkg.infants;
+    const travellersLine = [
+        `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}`,
+        pkg.children > 0 ? `${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}${pkg.childrenAges.length > 0 ? ` (age ${pkg.childrenAges.join(", ")})` : ""}` : null,
+        pkg.infants > 0 ? `${pkg.infants} Infant${pkg.infants !== 1 ? "s" : ""}${pkg.infantAges.length > 0 ? ` (age ${pkg.infantAges.join(", ")})` : ""}` : null,
+    ].filter(Boolean).join(", ");
     const nHotels = s ? new Set(s.hotel.lines.map((l) => l.hotelName)).size : 0;
     const nCabVehicles = s ? new Set(s.cab.lines.map((l) => l.vehicleName)).size : 0;
     const addonLines = addOns; // live rows — always the current source of truth
@@ -531,7 +536,7 @@ export function VerifyPackageDetailClient({
                                 )}
                                 <InfoItem icon={MapPin} label="Destination" value={`${pkg.destination}${pkg.startingPoint ? ` (from ${pkg.startingPoint})` : ""}`} />
                                 <InfoItem icon={CalendarDays} label="Travel Date" value={fmtDate(pkg.travelDate)} />
-                                <InfoItem icon={Users} label="Travellers" value={`${pax} pax · ${pkg.totalDays}D/${pkg.totalNights}N`} />
+                                <InfoItem icon={Users} label="Travellers" value={`${travellersLine} · ${pkg.totalDays}D/${pkg.totalNights}N`} />
                                 {query.message && (
                                     <div className="mt-1 rounded-lg bg-dashboard-base-200 border border-dashboard-base-300 px-3 py-2">
                                         <p className="text-xs text-dashboard-base-content/60 italic">&quot;{query.message}&quot;</p>

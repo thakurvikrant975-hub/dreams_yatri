@@ -1975,6 +1975,11 @@ interface PackageForm {
   adults: number;
   children: number;
   infants: number;
+  /** Index-aligned with children/infants above — see the schema comment on
+   * custom_packages.childrenAges. Resized (padded/truncated) automatically
+   * whenever the count input changes, see the Travellers section handler. */
+  childrenAges: number[];
+  infantAges: number[];
   pricePerPerson: string;
   totalPrice: string;
   marginPercentage: string;
@@ -2004,6 +2009,13 @@ interface PackageForm {
   execName: string;
   execEmail: string;
   execDesignation: string;
+}
+
+/** Keeps a children/infants ages array in sync with a changed traveller
+ * count — grows with 0-filled slots, shrinks by dropping the trailing ones. */
+function resizeAges(ages: number[], count: number): number[] {
+  if (count <= ages.length) return ages.slice(0, count);
+  return [...ages, ...Array(count - ages.length).fill(0)];
 }
 
 /** Sum of stop nights → total nights/days + a joined destination string. */
@@ -2307,7 +2319,7 @@ export default function PackageBuilderDetailPage() {
   const [form, setForm] = useState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
-    adults: 1, children: 0, infants: 0,
+    adults: 1, children: 0, infants: 0, childrenAges: [], infantAges: [],
     pricePerPerson: "", totalPrice: "",
     marginPercentage: "25", gstPercentage: "5",
     currency: "INR",
@@ -2443,6 +2455,8 @@ export default function PackageBuilderDetailPage() {
           adults: cp.adults,
           children: cp.children,
           infants: cp.infants,
+          childrenAges: cp.childrenAges ?? [],
+          infantAges: cp.infantAges ?? [],
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
@@ -3885,12 +3899,76 @@ Rules:
                         <Input
                           type="number" min={0}
                           value={form[key]}
-                          onChange={(e) => setForm((f) => ({ ...f, [key]: +e.target.value }))}
+                          onChange={(e) => {
+                            const n = Math.max(0, +e.target.value || 0);
+                            setForm((f) => ({
+                              ...f,
+                              [key]: n,
+                              ...(key === "children" ? { childrenAges: resizeAges(f.childrenAges, n) } : {}),
+                              ...(key === "infants" ? { infantAges: resizeAges(f.infantAges, n) } : {}),
+                            }));
+                          }}
                           className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                         />
                       </div>
                     ))}
                   </div>
+
+                  {(form.children > 0 || form.infants > 0) && (
+                    <div className="grid grid-cols-2 gap-3 pt-1 border-t border-dashboard-base-300/60">
+                      {form.children > 0 && (
+                        <div className="pt-3">
+                          <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
+                            Children&apos;s Ages
+                          </label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {form.childrenAges.map((age, i) => (
+                              <Input
+                                key={i}
+                                type="number" min={0} max={17}
+                                value={age}
+                                onChange={(e) => {
+                                  const v = Math.max(0, +e.target.value || 0);
+                                  setForm((f) => ({
+                                    ...f,
+                                    childrenAges: f.childrenAges.map((a, idx) => idx === i ? v : a),
+                                  }));
+                                }}
+                                title={`Child ${i + 1}`}
+                                className="text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {form.infants > 0 && (
+                        <div className="pt-3">
+                          <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
+                            Infants&apos; Ages
+                          </label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {form.infantAges.map((age, i) => (
+                              <Input
+                                key={i}
+                                type="number" min={0} max={2}
+                                value={age}
+                                onChange={(e) => {
+                                  const v = Math.max(0, +e.target.value || 0);
+                                  setForm((f) => ({
+                                    ...f,
+                                    infantAges: f.infantAges.map((a, idx) => idx === i ? v : a),
+                                  }));
+                                }}
+                                title={`Infant ${i + 1}`}
+                                className="text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-dashboard-base-content/50">
                     Pricing is computed automatically from hotels, cabs, tickets, margin & GST — see the Pricing Breakdown tab.
                   </p>

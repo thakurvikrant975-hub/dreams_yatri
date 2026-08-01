@@ -2499,6 +2499,16 @@ model custom_packages {
   adults                Int                      @default(1)
   children              Int                      @default(0)
   infants               Int                      @default(0)
+  /**
+   * Per-traveller ages, entered by the sales exec on the Package tab —
+   * costing sometimes needs the actual age (not just the count) to check
+   * hotel child-policy brackets (free-under-X, extra-bed-under-Y) against
+   * what's actually been priced in. Index-aligned with the count above but
+   * not enforced to always match its length — a count change resizes the
+   * array client-side, this is just whatever was last saved.
+   */
+  childrenAges          Int[]                    @default([])
+  infantAges            Int[]                    @default([])
   pricePerPerson        Float?
   totalPrice            Float?
   currency              String                   @default("INR")

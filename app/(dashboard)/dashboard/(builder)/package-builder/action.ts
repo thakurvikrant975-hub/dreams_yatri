@@ -607,6 +607,8 @@ export interface QueryDetail {
     adults:          number;
     children:        number;
     infants:         number;
+    childrenAges:    number[];
+    infantAges:      number[];
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
@@ -770,6 +772,8 @@ export interface PackageInput {
   adults:          number;
   children:        number;
   infants:         number;
+  childrenAges:    number[];
+  infantAges:      number[];
   pricePerPerson:  number | null;
   totalPrice:      number | null;
   marginPercentage: number;
@@ -1288,6 +1292,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       adults:          true,
       children:        true,
       infants:         true,
+      childrenAges:    true,
+      infantAges:      true,
       pricePerPerson:  true,
       totalPrice:      true,
       marginPercentage: true,
@@ -1433,7 +1439,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
   try {
     const {
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
-      totalDays, totalNights, travelDate, adults, children, infants,
+      totalDays, totalNights, travelDate, adults, children, infants, childrenAges, infantAges,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
       termsNotes, extraPolicyItems,
       status, stops, itineraries, tickets, addOns,
@@ -1539,6 +1545,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         adults,
         children,
         infants,
+        childrenAges:    childrenAges ?? [],
+        infantAges:      infantAges ?? [],
         pricePerPerson:  pricePerPerson ?? null,
         totalPrice:      totalPrice ?? null,
         marginPercentage,
@@ -1578,6 +1586,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         adults,
         children,
         infants,
+        childrenAges:    childrenAges ?? [],
+        infantAges:      infantAges ?? [],
         pricePerPerson:  pricePerPerson ?? null,
         totalPrice:      totalPrice ?? null,
         marginPercentage,
