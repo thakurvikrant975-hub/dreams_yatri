@@ -290,7 +290,7 @@ export function VerifyPackageDetailClient({
                 </div>
             )}
 
-            {state === "pending" && pkg.revisionNote && (
+            {pkg.status === "READY" && state === "pending" && pkg.revisionNote && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 shadow-lg">
                     <Pencil className="size-4 mt-0.5 shrink-0 text-blue-600" />
                     <div>
@@ -302,7 +302,26 @@ export function VerifyPackageDetailClient({
                 </div>
             )}
 
-            {!s ? (
+            {pkg.status !== "READY" && pkg.revisionNote && !pkg.verified && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 shadow-lg">
+                    <Pencil className="size-4 mt-0.5 shrink-0 text-blue-600" />
+                    <div>
+                        <p className="text-sm font-semibold text-blue-800">
+                            {pkg.revisionRequestedByName ?? "The sales exec"} pulled this back for revision — still editing
+                        </p>
+                        <p className="text-xs text-blue-700 mt-0.5">&quot;{pkg.revisionNote}&quot;</p>
+                        <p className="text-xs text-blue-700 mt-1">Nothing to review yet — this reappears here once they resubmit it with Mark Ready.</p>
+                    </div>
+                </div>
+            )}
+
+            {pkg.status !== "READY" ? (
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-10 text-center text-sm text-dashboard-neutral shadow-lg">
+                    {pkg.revisionNote
+                        ? "Being edited by the sales exec right now — check back once it's resubmitted."
+                        : "Sent back for rework — waiting for the sales exec to fix and resubmit it."}
+                </div>
+            ) : !s ? (
                 <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-10 text-center text-sm text-dashboard-neutral shadow-lg">
                     No locked pricing snapshot found for this package — nothing to verify yet.
                 </div>

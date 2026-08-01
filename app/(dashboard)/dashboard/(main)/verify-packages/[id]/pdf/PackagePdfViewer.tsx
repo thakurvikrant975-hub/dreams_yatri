@@ -2,16 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, AlertCircle, RotateCcw } from "lucide-react";
+import { Loader2, AlertCircle, AlertTriangle, RotateCcw } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
-import { captureToPdfPages, buildPdf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/pdfExport";
+import { captureToPdfPages, buildPdf, type PdfPage } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/pdfExport";
 import { getPackagePdfPreviewData } from "./actions";
 
 export function PackagePdfViewer({ packageId }: { packageId: string }) {
     const captureRef = useRef<HTMLDivElement>(null);
     const [form, setForm] = useState<PreviewData | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [imageWarnings, setImageWarnings] = useState<string[] | null>(null);
+    const [pendingPages, setPendingPages] = useState<PdfPage[] | null>(null);
     const [attempt, setAttempt] = useState(0);
+
+    function openPdf(pages: PdfPage[]) {
+        const pdf = buildPdf(pages);
+        const blobUrl = URL.createObjectURL(pdf.output("blob"));
+        window.location.replace(blobUrl);
+    }
 
     useEffect(() => {
         let cancelled = false;
@@ -46,11 +54,19 @@ export function PackagePdfViewer({ packageId }: { packageId: string }) {
                 return;
             }
             try {
-                const { pages } = await captureToPdfPages(root);
+                const { pages, imageWarnings: warnings } = await captureToPdfPages(root);
                 if (cancelled) return;
-                const pdf = buildPdf(pages);
-                const blobUrl = URL.createObjectURL(pdf.output("blob"));
-                window.location.replace(blobUrl);
+                // A blank cover/photo silently shipped as a "working" PDF is
+                // exactly what looked like a broken layout before — pause
+                // here instead of navigating straight to a PDF with gaps in
+                // it, so a proxy hiccup is visible and retryable rather than
+                // just quietly producing a worse-looking document.
+                if (warnings.length > 0) {
+                    setPendingPages(pages);
+                    setImageWarnings(warnings);
+                } else {
+                    openPdf(pages);
+                }
             } catch (e) {
                 if (cancelled) return;
                 console.error(e);
@@ -60,6 +76,14 @@ export function PackagePdfViewer({ packageId }: { packageId: string }) {
         return () => { cancelled = true; };
     }, [form]);
 
+    function retry() {
+        setError(null);
+        setImageWarnings(null);
+        setPendingPages(null);
+        setForm(null);
+        setAttempt((n) => n + 1);
+    }
+
     return (
         <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-neutral-100 px-6 text-center">
             {error ? (
@@ -67,11 +91,7 @@ export function PackagePdfViewer({ packageId }: { packageId: string }) {
                     <AlertCircle className="size-6 text-red-500" />
                     <p className="text-sm text-neutral-700">{error}</p>
                     <div className="flex items-center gap-3 mt-1">
-                        <button
-                            type="button"
-                            onClick={() => setAttempt((n) => n + 1)}
-                            className="inline-flex items-center gap-1.5 text-sm font-medium text-dashboard-primary hover:underline"
-                        >
+                        <button type="button" onClick={retry} className="inline-flex items-center gap-1.5 text-sm font-medium text-dashboard-primary hover:underline">
                             <RotateCcw className="size-3.5" /> Try again
                         </button>
                         <Link href="/dashboard/verify-packages" className="text-sm text-neutral-500 hover:underline">
@@ -79,6 +99,24 @@ export function PackagePdfViewer({ packageId }: { packageId: string }) {
                         </Link>
                     </div>
                 </>
+            ) : imageWarnings && pendingPages ? (
+                <div className="max-w-md">
+                    <AlertTriangle className="size-6 text-amber-500 mx-auto" />
+                    <p className="text-sm font-medium text-neutral-800 mt-2">
+                        {imageWarnings.length} photo{imageWarnings.length !== 1 ? "s" : ""} didn&apos;t load and will show blank in the PDF
+                    </p>
+                    <ul className="text-xs text-neutral-500 mt-2 space-y-0.5 text-left">
+                        {imageWarnings.map((w, i) => <li key={i}>• {w}</li>)}
+                    </ul>
+                    <div className="flex items-center justify-center gap-3 mt-4">
+                        <button type="button" onClick={retry} className="inline-flex items-center gap-1.5 text-sm font-medium text-dashboard-primary hover:underline">
+                            <RotateCcw className="size-3.5" /> Retry
+                        </button>
+                        <button type="button" onClick={() => openPdf(pendingPages)} className="text-sm text-neutral-600 hover:underline">
+                            Open PDF anyway
+                        </button>
+                    </div>
+                </div>
             ) : (
                 <>
                     <Loader2 className="size-6 animate-spin text-dashboard-primary" />
