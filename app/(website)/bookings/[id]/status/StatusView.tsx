@@ -4,12 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import {
-    BedIcon, CarProfileIcon, TicketIcon,
-    CheckCircleIcon, ClockIcon, WarningCircleIcon, ArrowsClockwiseIcon,
-    DownloadSimpleIcon, ArrowRightIcon, TrendUpIcon, TrendDownIcon,
-    type Icon,
-} from '@phosphor-icons/react';
+import {BedIcon, CarProfileIcon, TicketIcon,CheckCircleIcon, ClockIcon, WarningCircleIcon, ArrowsClockwiseIcon,DownloadSimpleIcon, ArrowRightIcon, TrendUpIcon, TrendDownIcon, type Icon,} from '@phosphor-icons/react';
 import Card from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button'; 
 import { Heading, Text } from '@/app/components/ui/Typography';
@@ -37,10 +32,6 @@ function StatusChip({ status }: { status: FulfillmentState }) {
         </span>
     );
 }
-
-
-
-
 
 
 function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: string | null }) {
@@ -85,6 +76,11 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                                     : 'Your package price has been adjusted downward for this change.'}
                             </div>
                         )}
+                        {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 && payExtraHref && (
+                            <Link href={payExtraHref} className="mt-1 inline-flex items-center gap-1 font-semibold text-warning-700 hover:text-warning-800">
+                                Pay the difference <ArrowRightIcon weight="bold" className="size-3" />
+                            </Link>
+                        )}
                         <div className="mt-1.5 pt-1.5 border-t border-warning-200/70 text-warning-600">
                             Note: Hotel changed due to Unavailability
                         </div>
@@ -117,6 +113,11 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                                 <span className="font-medium text-warning-800">{item.newRoomType}</span>
                             </div>
                         )}
+                        {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 && payExtraHref && (
+                            <Link href={payExtraHref} className="mt-1 inline-flex items-center gap-1 font-semibold text-warning-700 hover:text-warning-800">
+                                Pay the difference <ArrowRightIcon weight="bold" className="size-3" />
+                            </Link>
+                        )}
                     </div>
                 )}
 
@@ -146,6 +147,11 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                                     ? 'Your package price has been adjusted upward for this change.'
                                     : 'Your package price has been adjusted downward for this change.'}
                             </div>
+                        )}
+                        {item.cabPriceDiff != null && item.cabPriceDiff > 0 && payExtraHref && (
+                            <Link href={payExtraHref} className="mt-1 inline-flex items-center gap-1 font-semibold text-warning-700 hover:text-warning-800">
+                                Pay the difference <ArrowRightIcon weight="bold" className="size-3" />
+                            </Link>
                         )}
                     </div>
                 )}
