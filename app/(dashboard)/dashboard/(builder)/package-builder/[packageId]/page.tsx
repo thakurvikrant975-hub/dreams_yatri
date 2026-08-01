@@ -3476,25 +3476,27 @@ Rules:
               <span className="text-xs">Preview</span>
             </Button>
 
-            <CreatePackageDialog
-              packageId={packageId}
-              destination={j?.destinations?.join(", ") ?? query.destination ?? null}
-              packageUrl={query.packageUrl}
-              travelDate={j?.travelDate ?? (query.travelDate ? new Date(query.travelDate).toISOString().slice(0, 10) : null)}
-              travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
-              budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
-              duration={j?.noOfDays ? { days: j.noOfDays, nights: j.noOfNights } : null}
-              queryReceivedAt={query.createdAt}
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+            {!isLocked && (
+              <CreatePackageDialog
+                packageId={packageId}
+                destination={j?.destinations?.join(", ") ?? query.destination ?? null}
+                packageUrl={query.packageUrl}
+                travelDate={j?.travelDate ?? (query.travelDate ? new Date(query.travelDate).toISOString().slice(0, 10) : null)}
+                travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
+                budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
+                duration={j?.noOfDays ? { days: j.noOfDays, nights: j.noOfNights } : null}
+                queryReceivedAt={query.createdAt}
               >
-                <Package size={13} />
-                <span className="hidden sm:inline text-xs">Change Template</span>
-              </Button>
-            </CreatePackageDialog>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                >
+                  <Package size={13} />
+                  <span className="hidden sm:inline text-xs">Change Template</span>
+                </Button>
+              </CreatePackageDialog>
+            )}
 
             {pkgSent ? (
               <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">

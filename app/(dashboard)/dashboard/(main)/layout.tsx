@@ -80,7 +80,18 @@ export default async function DashboardLayout({
   if (pageAccess.length > 0 && !isFullStackDev) {
     const pathname = (await headers()).get("x-pathname") ?? "/dashboard";
     const matched = resolveNavHref(pathname);
-    if (matched && !pageAccess.includes(matched)) {
+    // A single-package builder page is read-only for anyone reviewing it
+    // (the fieldset there disables on status READY) — someone who can reach
+    // Verify Packages needs to open the exact package they're reviewing to
+    // see its full graphical itinerary, without us granting them the whole
+    // Package Builder module (which would also surface every sales exec's
+    // in-progress drafts). Only the `/dashboard/package-builder/<id>` detail
+    // route gets this carve-out, never the `/dashboard/package-builder` list.
+    const isPackageBuilderDetail = matched === "/dashboard/package-builder"
+      && /^\/dashboard\/package-builder\/[^/]+$/.test(pathname);
+    const allowed = matched
+      && (pageAccess.includes(matched) || (isPackageBuilderDetail && pageAccess.includes("/dashboard/verify-packages")));
+    if (matched && !allowed) {
       const fallback = pageAccess[0] ?? "/dashboard";
       if (pathname !== fallback) redirect(fallback);
     }

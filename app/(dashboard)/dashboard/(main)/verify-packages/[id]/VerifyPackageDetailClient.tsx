@@ -241,6 +241,13 @@ export function VerifyPackageDetailClient({
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                        href={`/dashboard/package-builder/${pkg.id}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-dashboard-base-300 px-3 py-1.5 text-xs font-medium text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
+                    >
+                        <Eye className="size-3.5" /> View Package
+                    </Link>
                     {state === "verified" && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700">
                             <CheckCircle2 className="size-3.5" />
