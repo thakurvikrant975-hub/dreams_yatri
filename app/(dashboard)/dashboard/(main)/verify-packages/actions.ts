@@ -47,6 +47,7 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
                 verifiedBy: actor?.id ?? null,
                 verifiedByName: actor?.name ?? null,
                 rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
+                revisionRequestedAt: null, revisionRequestedBy: null, revisionRequestedByName: null, revisionNote: null,
                 execNotifiedAt: null, // fresh event — the exec's notification poller should surface it
             },
         });
@@ -104,6 +105,7 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
                 rejectedByName: actor?.name ?? null,
                 rejectionReasonId: parsed.data.rejectionReasonId,
                 rejectionNote: parsed.data.rejectionNote ?? null,
+                revisionRequestedAt: null, revisionRequestedBy: null, revisionRequestedByName: null, revisionNote: null,
                 execNotifiedAt: null,
             },
         });

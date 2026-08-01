@@ -24,6 +24,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 id: true, title: true, destination: true, startingPoint: true,
                 totalDays: true, totalNights: true, travelDate: true,
                 adults: true, children: true, infants: true,
+                childrenAges: true, infantAges: true,
                 pricePerPerson: true, totalPrice: true, currency: true,
                 marginPercentage: true, gstPercentage: true,
                 hotelSubtotalOverride: true, cabSubtotalOverride: true,
@@ -33,6 +34,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 verified: true, verifiedAt: true, verifiedByName: true,
                 rejectedAt: true, rejectedByName: true, rejectionNote: true,
                 rejectionReason: { select: { label: true } },
+                revisionRequestedAt: true, revisionRequestedByName: true, revisionNote: true,
                 flightsIncluded: true, flightNotes: true, flightFrom: true, flightTo: true,
                 trainIncluded: true, trainNotes: true, trainFrom: true, trainTo: true,
                 tickets: {
@@ -165,6 +167,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 id: pkg.id, title: pkg.title, destination: pkg.destination, startingPoint: pkg.startingPoint,
                 totalDays: pkg.totalDays, totalNights: pkg.totalNights, travelDate: pkg.travelDate,
                 adults: pkg.adults, children: pkg.children, infants: pkg.infants,
+                childrenAges: pkg.childrenAges, infantAges: pkg.infantAges,
                 pricePerPerson: pkg.pricePerPerson, totalPrice: pkg.totalPrice, currency: pkg.currency,
                 marginPercentage: pkg.marginPercentage, gstPercentage: pkg.gstPercentage,
                 status: pkg.status, builtByName: pkg.builtByName, sentAt: pkg.sentAt,
@@ -173,6 +176,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 verified: pkg.verified, verifiedAt: pkg.verifiedAt, verifiedByName: pkg.verifiedByName,
                 rejectedAt: pkg.rejectedAt, rejectedByName: pkg.rejectedByName, rejectionNote: pkg.rejectionNote,
                 rejectionReasonLabel: pkg.rejectionReason?.label ?? null,
+                revisionRequestedAt: pkg.revisionRequestedAt, revisionRequestedByName: pkg.revisionRequestedByName, revisionNote: pkg.revisionNote,
                 flightsIncluded: pkg.flightsIncluded, flightNotes: pkg.flightNotes, flightFrom: pkg.flightFrom, flightTo: pkg.flightTo,
                 trainIncluded: pkg.trainIncluded, trainNotes: pkg.trainNotes, trainFrom: pkg.trainFrom, trainTo: pkg.trainTo,
             }}

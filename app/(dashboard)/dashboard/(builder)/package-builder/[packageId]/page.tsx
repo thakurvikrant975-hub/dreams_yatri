@@ -19,7 +19,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift, GripVertical, Clock, XCircle,
+  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -68,6 +68,7 @@ import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuil
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
@@ -1974,6 +1975,11 @@ interface PackageForm {
   adults: number;
   children: number;
   infants: number;
+  /** Index-aligned with children/infants above — see the schema comment on
+   * custom_packages.childrenAges. Resized (padded/truncated) automatically
+   * whenever the count input changes, see the Travellers section handler. */
+  childrenAges: number[];
+  infantAges: number[];
   pricePerPerson: string;
   totalPrice: string;
   marginPercentage: string;
@@ -2003,6 +2009,13 @@ interface PackageForm {
   execName: string;
   execEmail: string;
   execDesignation: string;
+}
+
+/** Keeps a children/infants ages array in sync with a changed traveller
+ * count — grows with 0-filled slots, shrinks by dropping the trailing ones. */
+function resizeAges(ages: number[], count: number): number[] {
+  if (count <= ages.length) return ages.slice(0, count);
+  return [...ages, ...Array(count - ages.length).fill(0)];
 }
 
 /** Sum of stop nights → total nights/days + a joined destination string. */
@@ -2306,7 +2319,7 @@ export default function PackageBuilderDetailPage() {
   const [form, setForm] = useState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
-    adults: 1, children: 0, infants: 0,
+    adults: 1, children: 0, infants: 0, childrenAges: [], infantAges: [],
     pricePerPerson: "", totalPrice: "",
     marginPercentage: "25", gstPercentage: "5",
     currency: "INR",
@@ -2442,6 +2455,8 @@ export default function PackageBuilderDetailPage() {
           adults: cp.adults,
           children: cp.children,
           infants: cp.infants,
+          childrenAges: cp.childrenAges ?? [],
+          infantAges: cp.infantAges ?? [],
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
@@ -3499,22 +3514,60 @@ Rules:
             )}
 
             {pkgSent ? (
-              <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">
-                <CheckCircle size={13} /> Sent to Client
-              </span>
+              <>
+                <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">
+                  <CheckCircle size={13} /> Sent to Client
+                </span>
+                <RequestRevisionDialog
+                  packageId={packageId}
+                  packageTitle={form.title}
+                  onSuccess={async () => {
+                    const fresh = await getPackageDetail(packageId);
+                    if (fresh) setQuery(fresh);
+                  }}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                  >
+                    <RotateCcw size={13} />
+                    <span className="hidden sm:inline text-xs">Request Revision</span>
+                  </Button>
+                </RequestRevisionDialog>
+              </>
             ) : isLocked && pkgVerified ? (
-              <Button
-                size="sm"
-                className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
-                onClick={handleShareClick}
-                disabled={isSharing}
-              >
-                {isSharing
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : <Send size={13} />
-                }
-                <span className="hidden sm:inline text-xs">Share with Client</span>
-              </Button>
+              <>
+                <RequestRevisionDialog
+                  packageId={packageId}
+                  packageTitle={form.title}
+                  onSuccess={async () => {
+                    const fresh = await getPackageDetail(packageId);
+                    if (fresh) setQuery(fresh);
+                  }}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                  >
+                    <RotateCcw size={13} />
+                    <span className="hidden sm:inline text-xs">Request Revision</span>
+                  </Button>
+                </RequestRevisionDialog>
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                  onClick={handleShareClick}
+                  disabled={isSharing}
+                >
+                  {isSharing
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <Send size={13} />
+                  }
+                  <span className="hidden sm:inline text-xs">Share with Client</span>
+                </Button>
+              </>
             ) : isLocked ? (
               <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">
                 <Clock size={13} /> Awaiting Costing Review
@@ -3668,6 +3721,16 @@ Rules:
                       <p className="text-xs text-red-700 mt-0.5">&quot;{query.customPackage.rejectionNote}&quot;</p>
                     )}
                     <p className="text-xs text-red-700 mt-1">Fix the issue above and click Mark Ready to resubmit.</p>
+                  </div>
+                </div>
+              )}
+              {!isLocked && !query.customPackage?.rejectedAt && query.customPackage?.revisionNote && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                  <RotateCcw className="size-4 mt-0.5 shrink-0 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800">Pulled back for revision</p>
+                    <p className="text-xs text-blue-700 mt-0.5">&quot;{query.customPackage.revisionNote}&quot;</p>
+                    <p className="text-xs text-blue-700 mt-1">Click Mark Ready once you&apos;re done to send it back to costing.</p>
                   </div>
                 </div>
               )}
@@ -3836,12 +3899,76 @@ Rules:
                         <Input
                           type="number" min={0}
                           value={form[key]}
-                          onChange={(e) => setForm((f) => ({ ...f, [key]: +e.target.value }))}
+                          onChange={(e) => {
+                            const n = Math.max(0, +e.target.value || 0);
+                            setForm((f) => ({
+                              ...f,
+                              [key]: n,
+                              ...(key === "children" ? { childrenAges: resizeAges(f.childrenAges, n) } : {}),
+                              ...(key === "infants" ? { infantAges: resizeAges(f.infantAges, n) } : {}),
+                            }));
+                          }}
                           className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                         />
                       </div>
                     ))}
                   </div>
+
+                  {(form.children > 0 || form.infants > 0) && (
+                    <div className="grid grid-cols-2 gap-3 pt-1 border-t border-dashboard-base-300/60">
+                      {form.children > 0 && (
+                        <div className="pt-3">
+                          <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
+                            Children&apos;s Ages
+                          </label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {form.childrenAges.map((age, i) => (
+                              <Input
+                                key={i}
+                                type="number" min={0} max={17}
+                                value={age}
+                                onChange={(e) => {
+                                  const v = Math.max(0, +e.target.value || 0);
+                                  setForm((f) => ({
+                                    ...f,
+                                    childrenAges: f.childrenAges.map((a, idx) => idx === i ? v : a),
+                                  }));
+                                }}
+                                title={`Child ${i + 1}`}
+                                className="text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {form.infants > 0 && (
+                        <div className="pt-3">
+                          <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
+                            Infants&apos; Ages
+                          </label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {form.infantAges.map((age, i) => (
+                              <Input
+                                key={i}
+                                type="number" min={0} max={2}
+                                value={age}
+                                onChange={(e) => {
+                                  const v = Math.max(0, +e.target.value || 0);
+                                  setForm((f) => ({
+                                    ...f,
+                                    infantAges: f.infantAges.map((a, idx) => idx === i ? v : a),
+                                  }));
+                                }}
+                                title={`Infant ${i + 1}`}
+                                className="text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-dashboard-base-content/50">
                     Pricing is computed automatically from hotels, cabs, tickets, margin & GST — see the Pricing Breakdown tab.
                   </p>
@@ -4699,11 +4826,39 @@ Rules:
 
             {/* Bottom action bar */}
             {pkgSent ? (
-              <div className="flex items-center justify-end gap-2 pt-6 pb-10 text-sm text-blue-700">
-                <CheckCircle size={14} /> Sent to client{query.customPackage?.sentAt ? ` — ${new Date(query.customPackage.sentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
+                <span className="text-sm text-blue-700 flex items-center gap-2">
+                  <CheckCircle size={14} /> Sent to client{query.customPackage?.sentAt ? ` — ${new Date(query.customPackage.sentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
+                </span>
+                <RequestRevisionDialog
+                  packageId={packageId}
+                  packageTitle={form.title}
+                  onSuccess={async () => {
+                    const fresh = await getPackageDetail(packageId);
+                    if (fresh) setQuery(fresh);
+                  }}
+                >
+                  <Button variant="outline" className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content">
+                    <RotateCcw size={14} />
+                    Request Revision
+                  </Button>
+                </RequestRevisionDialog>
               </div>
             ) : isLocked && pkgVerified ? (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
+                <RequestRevisionDialog
+                  packageId={packageId}
+                  packageTitle={form.title}
+                  onSuccess={async () => {
+                    const fresh = await getPackageDetail(packageId);
+                    if (fresh) setQuery(fresh);
+                  }}
+                >
+                  <Button variant="outline" className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content">
+                    <RotateCcw size={14} />
+                    Request Revision
+                  </Button>
+                </RequestRevisionDialog>
                 <Button
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleShareClick}
