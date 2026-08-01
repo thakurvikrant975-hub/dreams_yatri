@@ -57,7 +57,7 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                             <span>Hotel changed</span>
                             {item.hotelPriceDiff != null && item.hotelPriceDiff !== 0 && (
                                 <span className={`ml-1 font-bold ${item.hotelPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
-                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}₹{Math.abs(Math.round(item.hotelPriceDiff)).toLocaleString('en-IN')}
+                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}{fmtRupees(Math.abs(item.hotelPriceDiff))}
                                 </span>
                             )}
                         </div>
@@ -101,7 +101,7 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                             </span>
                             {item.hotelPriceDiff != null && item.hotelPriceDiff !== 0 && (
                                 <span className={`ml-1 font-bold ${item.hotelPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
-                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}₹{Math.abs(Math.round(item.hotelPriceDiff)).toLocaleString('en-IN')}
+                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}{fmtRupees(Math.abs(item.hotelPriceDiff))}
                                 </span>
                             )}
                         </div>
@@ -129,7 +129,7 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                             <span>Cab changed</span>
                             {item.cabPriceDiff != null && item.cabPriceDiff !== 0 && (
                                 <span className={`ml-1 font-bold ${item.cabPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
-                                    · {item.cabPriceDiff > 0 ? '+' : '−'}₹{Math.abs(Math.round(item.cabPriceDiff)).toLocaleString('en-IN')}
+                                    · {item.cabPriceDiff > 0 ? '+' : '−'}{fmtRupees(Math.abs(item.cabPriceDiff))}
                                 </span>
                             )}
                         </div>
