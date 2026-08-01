@@ -12,8 +12,9 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { approveCustomPackage, updatePackagePricing, type PricingEditInput } from "../actions";
+import { approveCustomPackage, updatePackagePricing, getPackagePricingHistory, type PricingEditInput } from "../actions";
 import { RejectPricingDialog } from "./RejectPricingDialog";
+import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
 
 // ── Locked pricing snapshot — frozen at send time, see package-builder/action.ts ──
@@ -254,6 +255,14 @@ export function VerifyPackageDetailClient({
                     >
                         <Eye className="size-3.5" /> View Package
                     </Link>
+                    <span className="inline-flex items-center rounded-md border border-dashboard-base-300">
+                        <HistorySheet
+                            id={pkg.id}
+                            title={pkg.title}
+                            entityLabel="package pricing"
+                            fetchHistory={getPackagePricingHistory}
+                        />
+                    </span>
                     {state === "verified" && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700">
                             <CheckCircle2 className="size-3.5" />
