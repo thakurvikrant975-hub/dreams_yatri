@@ -3928,7 +3928,7 @@ Rules:
                                 type="number" min={0} max={17}
                                 value={age}
                                 onChange={(e) => {
-                                  const v = Math.max(0, +e.target.value || 0);
+                                  const v = Math.min(17, Math.max(0, +e.target.value || 0));
                                   setForm((f) => ({
                                     ...f,
                                     childrenAges: f.childrenAges.map((a, idx) => idx === i ? v : a),
@@ -3953,7 +3953,7 @@ Rules:
                                 type="number" min={0} max={2}
                                 value={age}
                                 onChange={(e) => {
-                                  const v = Math.max(0, +e.target.value || 0);
+                                  const v = Math.min(2, Math.max(0, +e.target.value || 0));
                                   setForm((f) => ({
                                     ...f,
                                     infantAges: f.infantAges.map((a, idx) => idx === i ? v : a),
