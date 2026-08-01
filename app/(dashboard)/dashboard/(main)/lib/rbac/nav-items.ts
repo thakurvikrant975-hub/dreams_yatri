@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
   MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
-  ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, BedDouble, ChartNoAxesCombined,
+  BanknoteArrowDown, BanknoteX, Car, Bed, BedDouble,
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
   ShieldCheck, NotebookPen, Eye, Users, CalendarClock,
