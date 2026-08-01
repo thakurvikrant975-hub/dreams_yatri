@@ -300,6 +300,38 @@ function PaymentCard({ payment, payHref }: { payment: PaymentSummary; payHref: s
                         <span className="text-(--text-muted)">(was {fmt(payment.originalTotalPaise)})</span>
                     </div>
                 )}
+
+                {/* Price breakdown — was computed and passed through but never
+                    actually shown; each row is only as trustworthy as the
+                    frozen itinerary snapshot it's read from. */}
+                {(payment.hotelCost != null || payment.mealCost != null || payment.cabCost != null || payment.gstAmount != null) && (
+                    <div className="mt-3 pt-3 border-t border-(--border-muted) flex flex-col gap-1">
+                        {payment.hotelCost != null && (
+                            <div className="flex justify-between text-xs">
+                                <Text size="xs" intent="secondary">Hotels</Text>
+                                <Text size="xs" intent="secondary">{fmtRupees(payment.hotelCost)}</Text>
+                            </div>
+                        )}
+                        {payment.mealCost != null && (
+                            <div className="flex justify-between text-xs">
+                                <Text size="xs" intent="secondary">Meals</Text>
+                                <Text size="xs" intent="secondary">{fmtRupees(payment.mealCost)}</Text>
+                            </div>
+                        )}
+                        {payment.cabCost != null && (
+                            <div className="flex justify-between text-xs">
+                                <Text size="xs" intent="secondary">Cabs</Text>
+                                <Text size="xs" intent="secondary">{fmtRupees(payment.cabCost)}</Text>
+                            </div>
+                        )}
+                        {payment.gstAmount != null && (
+                            <div className="flex justify-between text-xs">
+                                <Text size="xs" intent="secondary">GST{payment.gstPct != null ? ` (${payment.gstPct}%)` : ''}</Text>
+                                <Text size="xs" intent="secondary">{fmtRupees(payment.gstAmount)}</Text>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Payment status */}
