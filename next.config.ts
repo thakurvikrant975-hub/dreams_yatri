@@ -29,9 +29,9 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "50mb",
     },
-    // Allow the middleware proxy to forward large upload payloads (server action
-    // photo uploads go through the middleware before reaching the action handler).
-    middlewareClientMaxBodySize: "50mb",
+    // Allow the proxy to forward large upload payloads (server action photo
+    // uploads pass through it before reaching the action handler).
+    proxyClientMaxBodySize: "50mb",
   },
   images: {
     // The Next 16 dev image optimizer 500s on remote images locally (sharp is
