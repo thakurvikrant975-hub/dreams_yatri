@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { fillPendingHotel } from "../actions";
@@ -24,6 +24,10 @@ export function FillHotelForm({
     const [roomName, setRoomName] = useState("");
     const [roomsCount, setRoomsCount] = useState("1");
     const [pricePerNight, setPricePerNight] = useState("");
+    const [roomSpecs, setRoomSpecs] = useState("");
+    const [checkIn, setCheckIn] = useState("");
+    const [checkOut, setCheckOut] = useState("");
+    const [mealPlan, setMealPlan] = useState("");
     const [done, setDone] = useState(false);
 
     function handleSubmit() {
@@ -33,6 +37,10 @@ export function FillHotelForm({
                 roomName,
                 roomsCount: parseInt(roomsCount, 10) || 1,
                 pricePerNight: parseFloat(pricePerNight) || 0,
+                roomSpecs,
+                checkIn,
+                checkOut,
+                mealPlan,
             });
             if (result.success) {
                 setDone(true);
@@ -109,6 +117,46 @@ export function FillHotelForm({
                         value={pricePerNight}
                         onChange={(e) => setPricePerNight(e.target.value)}
                         placeholder="e.g. 4500"
+                        className="text-sm h-9"
+                    />
+                </div>
+                <div>
+                    <label className="text-[11px] text-dashboard-neutral mb-1 block">Room Specs</label>
+                    <Input
+                        value={roomSpecs}
+                        onChange={(e) => setRoomSpecs(e.target.value)}
+                        placeholder="1 Double Bed | Mountain View"
+                        className="text-sm h-9"
+                    />
+                </div>
+                <div>
+                    <label className="text-[11px] text-dashboard-neutral mb-1 block">Meal Plan</label>
+                    <Input
+                        value={mealPlan}
+                        onChange={(e) => setMealPlan(e.target.value)}
+                        placeholder="MAP - Breakfast & Dinner"
+                        className="text-sm h-9"
+                    />
+                </div>
+                <div>
+                    <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
+                        <LogIn className="size-2.5" /> Check-In
+                    </label>
+                    <Input
+                        value={checkIn}
+                        onChange={(e) => setCheckIn(e.target.value)}
+                        placeholder="2:00 PM"
+                        className="text-sm h-9"
+                    />
+                </div>
+                <div>
+                    <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
+                        <LogOut className="size-2.5" /> Check-Out
+                    </label>
+                    <Input
+                        value={checkOut}
+                        onChange={(e) => setCheckOut(e.target.value)}
+                        placeholder="11:00 AM"
                         className="text-sm h-9"
                     />
                 </div>
