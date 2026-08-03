@@ -759,7 +759,10 @@ export async function getHotelForBooking(
     select: {
       id: true, name: true, slug: true, address: true, city: true, state: true,
       latitude: true, longitude: true,
-      star_rating: true, description: true, property_amenities: true,
+      // `stay_type` carries the real tier as text ("4 Star") on almost all
+      // stock — `star_rating` is populated on a handful of rows — so the detail
+      // page needs both to report the tier truthfully.
+      star_rating: true, stay_type: true, category: true, description: true, property_amenities: true,
       check_in_time: true, check_out_time: true, cancellation_policy: true,
       allow_unmarried_couples: true, allow_guests_below_18: true, smoking_allowed: true,
       acceptable_id_proofs: true, pets_allowed: true,
@@ -1172,7 +1175,10 @@ export async function getHotelForBooking(
     id: h.id,
     slug: h.slug,
     name: h.name,
-    starRating: h.star_rating ?? 3,
+    // Same fallback the listing card uses. Defaulting to 3 here labelled every
+    // unrated property a "3-Star Hotel", including 5-star ones.
+    starRating: h.star_rating ?? starsFromStayType(h.stay_type),
+    propertyType: h.category ? prettify(h.category) : null,
     address: [h.address, h.city, h.state].filter(Boolean).join(", ") || (h.city ?? ""),
     area: h.city ?? "",
     city: h.city ?? "",
