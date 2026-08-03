@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import crypto from "crypto";
 
-export const runtime = "nodejs";
-
-export default async function middleware(req: NextRequest) {
+// Renamed from `middleware.ts` (Next 16 deprecated that convention). Note there
+// is deliberately no `export const runtime` here: Proxy runs on the Node.js
+// runtime by default, and setting the option throws — which is what `getToken`
+// needs anyway.
+export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/dashboard")) {
