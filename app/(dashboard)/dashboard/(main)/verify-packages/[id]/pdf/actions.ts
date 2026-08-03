@@ -11,18 +11,13 @@
 // package-builder/[packageId]/page.tsx; keep the two in sync if either
 // changes what it derives from a saved package.
 
-import { db } from "@/app/lib/db";
 import {
   getPackageDetail, getDestinationCoverImage,
   type StopInput,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { getItinerarySettings } from "../../../itinerary-settings/actions";
-import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
-import { splitManualHotelName } from "@/app/services/hotel-name-utils";
-import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
+import { computeFinalPackagePricing } from "@/app/services/package-pricing.service";
 import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
-
-const TICKET_MARGIN_PCT = 5;
 
 function recalcFromStops(stops: StopInput[]) {
   const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
@@ -63,43 +58,11 @@ export async function getPackagePdfPreviewData(packageId: string): Promise<Previ
   let pricePerPerson = cp.pricePerPerson;
   let totalPrice = cp.totalPrice;
   if (pricePerPerson == null || totalPrice == null) {
-    const overrides = await db.custom_packages.findUnique({
-      where: { id: packageId },
-      select: { hotelSubtotalOverride: true, cabSubtotalOverride: true },
-    });
-    const travelDateIso = cp.travelDate ? cp.travelDate.toISOString().slice(0, 10) : null;
-    const [hotelPricing, cabPricing] = await Promise.all([
-      computeBuilderHotelPricing({
-        travelDate: travelDateIso, adults: cp.adults, children: cp.children,
-        days: cp.itineraries.map((it) => ({
-          day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount ?? null,
-          extraRooms: parseRoomSelections(it.extraRooms),
-          manualHotelPricePerNight: it.manualHotelPricePerNight,
-          ...splitManualHotelName(it.accommodation),
-        })),
-      }),
-      computeBuilderCabPricing({
-        travelDate: travelDateIso,
-        days: cp.itineraries.map((it) => ({
-          day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
-          cabQuantity: it.cabQuantity ?? null, extraCabs: parseCabSelections(it.extraCabs),
-        })),
-      }),
-    ]);
-    const hotelSubtotal = overrides?.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal;
-    const cabSubtotal = overrides?.cabSubtotalOverride ?? cabPricing.cabSubtotal;
-    const ticketsSubtotal = cp.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
-    const addonsSubtotal = cp.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0);
-    const hotelCabBase = hotelSubtotal + cabSubtotal;
-    const baseCost = hotelCabBase + addonsSubtotal + ticketsSubtotal;
-    const hotelCabMarginAmount = Math.round((hotelCabBase + addonsSubtotal) * cp.marginPercentage / 100);
-    const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
-    const taxable = baseCost + hotelCabMarginAmount + ticketsMarginAmount;
-    const gstAmount = Math.round(taxable * cp.gstPercentage / 100);
-    const finalPrice = taxable + gstAmount;
-    const totalPax = cp.adults + cp.children;
-    totalPrice ??= finalPrice;
-    pricePerPerson ??= totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
+    const computed = await computeFinalPackagePricing(packageId);
+    if (computed) {
+      totalPrice ??= computed.totalPrice;
+      pricePerPerson ??= computed.pricePerPerson;
+    }
   }
 
   return {

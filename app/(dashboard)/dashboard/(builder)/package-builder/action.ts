@@ -692,6 +692,13 @@ export interface DayItinerary {
    * only (not written back by saveCustomPackage). */
   hotelFilledAt?:     Date | null;
   hotelFilledByName?: string | null;
+  /** Read-only — costing's per-day price correction (see
+   * /dashboard/verify-packages), set only from the review screen. Carried
+   * forward untouched by saveCustomPackage; feeds computeBuilderHotelPricing/
+   * computeBuilderCabPricing so the builder's own live preview matches what
+   * costing has already corrected instead of ignoring it. */
+  hotelPriceOverride?: number | null;
+  cabPriceOverride?:   number | null;
   transport:          string;
   transportPhoto:     string;
   transportVehicleType: string;
@@ -1128,6 +1135,7 @@ function normalizeItinerary(it: {
   hotelPending: boolean; hotelPendingNote: string | null;
   manualHotelPricePerNight: number | null;
   hotelFilledAt: Date | null; hotelFilledByName: string | null;
+  hotelPriceOverride: number | null; cabPriceOverride: number | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
   transportPickupLat: number | null; transportPickupLng: number | null;
@@ -1162,6 +1170,8 @@ function normalizeItinerary(it: {
     manualHotelPricePerNight:  it.manualHotelPricePerNight ?? null,
     hotelFilledAt:             it.hotelFilledAt,
     hotelFilledByName:         it.hotelFilledByName,
+    hotelPriceOverride:        it.hotelPriceOverride ?? null,
+    cabPriceOverride:          it.cabPriceOverride ?? null,
     transport:                 it.transport ?? "",
     transportPhoto:            it.transportPhoto ?? "",
     transportVehicleType:      it.transportVehicleType ?? "",
@@ -1350,6 +1360,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           manualHotelPricePerNight: true,
           hotelFilledAt:      true,
           hotelFilledByName:  true,
+          hotelPriceOverride: true,
+          cabPriceOverride:   true,
           transport:          true,
           transportPhoto:     true,
           transportVehicleType: true,
@@ -1648,7 +1660,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     // re-blocking Mark Ready even though the team already handled it.
     const existingHotelState = await db.custom_itineraries.findMany({
       where: { customPackageId: pkg.id },
-      select: { day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true },
+      select: {
+        day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
+        hotelPriceOverride: true, cabPriceOverride: true,
+      },
     });
     const existingByDay = new Map(existingHotelState.map((r) => [r.day, r]));
 
@@ -1688,6 +1703,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               hotelFilledById:    existing?.hotelFilledById ?? null,
               hotelFilledByName:  existing?.hotelFilledByName ?? null,
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
+              // Costing-only corrections — never sourced from the exec's own
+              // form (it doesn't expose them), always carried forward as-is
+              // from whatever was there before this save.
+              hotelPriceOverride: existing?.hotelPriceOverride ?? null,
+              cabPriceOverride:   existing?.cabPriceOverride ?? null,
               // Drop any "add another room" row the exec never finished
               // picking a room for (roomPricingId still 0, the picker's
               // "unselected" sentinel) rather than persisting junk entries.
@@ -1848,6 +1868,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
           roomsCount:    it.roomsCount,
           extraRooms:    parseRoomSelections(it.extraRooms),
           manualHotelPricePerNight: it.manualHotelPricePerNight,
+          hotelPriceOverride: it.hotelPriceOverride,
           ...splitManualHotelName(it.accommodation),
         })),
       }),
@@ -1859,6 +1880,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
           transportDistanceKm: it.transportDistanceKm,
           cabQuantity:         it.cabQuantity,
           extraCabs:           parseCabSelections(it.extraCabs),
+          cabPriceOverride:    it.cabPriceOverride,
         })),
       }),
     ]);
@@ -2022,21 +2044,30 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
     if (!pkg.queryId) return { success: false, error: "This package isn't linked to a client query yet — attach one before submitting for review." };
     if (pkg.status === "SENT") return { success: false, error: "This package has already been sent to the client." };
 
-    await db.custom_packages.update({
-      where: { id: packageId },
-      data: {
-        status: "READY",
-        readyAt: new Date(),
-        readyBy: actor?.id ?? null,
-        readyByName: actor?.name ?? null,
-        verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
-        rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
-        execNotifiedAt: null,
-        // A prior review cycle's correction may no longer apply to whatever
-        // the exec just changed — start the new cycle with a clean slate.
-        hotelSubtotalOverride: null, cabSubtotalOverride: null,
-      },
-    });
+    await db.$transaction([
+      db.custom_packages.update({
+        where: { id: packageId },
+        data: {
+          status: "READY",
+          readyAt: new Date(),
+          readyBy: actor?.id ?? null,
+          readyByName: actor?.name ?? null,
+          verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
+          rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
+          execNotifiedAt: null,
+          // A prior review cycle's correction may no longer apply to whatever
+          // the exec just changed — start the new cycle with a clean slate.
+          hotelSubtotalOverride: null, cabSubtotalOverride: null,
+        },
+      }),
+      // Same reasoning, per-day: whatever costing corrected a specific
+      // hotel/cab to last cycle may no longer match what's actually in the
+      // itinerary now — costing re-corrects fresh if still needed.
+      db.custom_itineraries.updateMany({
+        where: { customPackageId: packageId },
+        data: { hotelPriceOverride: null, cabPriceOverride: null },
+      }),
+    ]);
 
     await logTimeline(pkg.queryId, `Package marked ready for costing review by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
     await broadcastVerificationCounts();

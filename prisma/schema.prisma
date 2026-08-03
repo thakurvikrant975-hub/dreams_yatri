@@ -2978,6 +2978,18 @@ model custom_itineraries {
    * for these days) by computeBuilderHotelPricing's manual-price branch.
    */
   manualHotelPricePerNight  Float?
+  /**
+   * Costing's per-day correction to what this day's hotel/cab would
+   * otherwise cost (catalog rate, or manualHotelPricePerNight above) — set
+   * from the Edit Pricing screen on /dashboard/verify-packages/[id] when a
+   * specific day's line item is wrong, instead of one lump sum for the whole
+   * trip. computeBuilderHotelPricing/computeBuilderCabPricing use these in
+   * place of the computed total for that day when present. Cleared back to
+   * null has no special meaning here — the exec never sets these; only
+   * costing does, and only while the package is READY for review.
+   */
+  hotelPriceOverride        Float?
+  cabPriceOverride          Float?
   transport                 String?
   transportPhoto            String?
   transportVehicleType      String?

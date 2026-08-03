@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
     CalendarDays, Mail, MapPin, Phone, Users, IndianRupee,
@@ -22,8 +23,8 @@ import type { RejectionReason } from "../../(marketing)/queries/actions";
 export type PricingSnapshot = {
     lockedAt: string;
     currency: string;
-    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number }[]; overridden?: boolean };
-    cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number }[]; overridden?: boolean };
+    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean }[]; overridden?: boolean };
+    cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number; overridden?: boolean }[]; overridden?: boolean };
     tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
     addOns?: { subtotal: number; lines: { name: string; price: number; quantity: number; day: number | null }[] };
     baseCost: number;
@@ -100,6 +101,17 @@ function computeFinalPricing(input: { hotelSubtotal: number; cabSubtotal: number
     return { baseCost, hotelCabMarginAmount, ticketsMarginAmount, marginAmount, taxable, gstAmount, finalPrice, pricePerPerson };
 }
 
+// Groups same-day line items (e.g. an extra room type booked alongside the
+// primary one) into one editable row — a correction is per DAY, not per
+// catalog line, so editing has to operate on the day's combined total.
+function groupByDay<T extends { day: number; total: number }>(lines: T[]): { day: number; lines: T[]; total: number }[] {
+    const groups = new Map<number, T[]>();
+    for (const l of lines) groups.set(l.day, [...(groups.get(l.day) ?? []), l]);
+    return [...groups.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([day, dayLines]) => ({ day, lines: dayLines, total: dayLines.reduce((sum, l) => sum + l.total, 0) }));
+}
+
 function SideCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden shadow-lg">
@@ -156,13 +168,32 @@ export function VerifyPackageDetailClient({
     rejectionReasons: RejectionReason[];
     hotelIdByDay: Record<number, number>;
 }) {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [editMode, setEditMode] = useState(false);
 
     const [margin, setMargin] = useState(pkg.marginPercentage);
     const [gst, setGst] = useState(pkg.gstPercentage);
-    const [hotelSubtotal, setHotelSubtotal] = useState(s?.hotel.subtotal ?? 0);
-    const [cabSubtotal, setCabSubtotal] = useState(s?.cab.subtotal ?? 0);
+    // Per-day hotel/cab amounts, keyed by day — seeded from the current
+    // (possibly already-overridden) line totals so the inputs always start
+    // at what's actually shown. Only days the costing manager actually edits
+    // get sent as a correction (see touchedHotelDays/touchedCabDays) —
+    // re-saving without touching a line must NOT silently pin every day to
+    // its current catalog price.
+    const hotelDayTotals = (snap: PricingSnapshot | null) => {
+        const totals = new Map<number, number>();
+        for (const l of snap?.hotel.lines ?? []) totals.set(l.day, (totals.get(l.day) ?? 0) + l.total);
+        return Object.fromEntries(totals);
+    };
+    const cabDayTotals = (snap: PricingSnapshot | null) => {
+        const totals = new Map<number, number>();
+        for (const l of snap?.cab.lines ?? []) totals.set(l.day, (totals.get(l.day) ?? 0) + l.total);
+        return Object.fromEntries(totals);
+    };
+    const [hotelDayEdits, setHotelDayEdits] = useState<Record<number, number>>(hotelDayTotals(s));
+    const [cabDayEdits, setCabDayEdits] = useState<Record<number, number>>(cabDayTotals(s));
+    const [touchedHotelDays, setTouchedHotelDays] = useState<Set<number>>(new Set());
+    const [touchedCabDays, setTouchedCabDays] = useState<Set<number>>(new Set());
     const [ticketFares, setTicketFares] = useState<Record<string, number>>(
         Object.fromEntries(tickets.map((t) => [t.id, t.fare ?? 0])),
     );
@@ -173,13 +204,26 @@ export function VerifyPackageDetailClient({
     function enterEditMode() {
         setMargin(pkg.marginPercentage);
         setGst(pkg.gstPercentage);
-        setHotelSubtotal(s?.hotel.subtotal ?? 0);
-        setCabSubtotal(s?.cab.subtotal ?? 0);
+        setHotelDayEdits(hotelDayTotals(s));
+        setCabDayEdits(cabDayTotals(s));
+        setTouchedHotelDays(new Set());
+        setTouchedCabDays(new Set());
         setTicketFares(Object.fromEntries(tickets.map((t) => [t.id, t.fare ?? 0])));
         setAddonEdits(Object.fromEntries(addOns.map((a) => [a.id, { price: a.price, quantity: a.quantity }])));
         setEditMode(true);
     }
 
+    function editHotelDay(day: number, amount: number) {
+        setHotelDayEdits((prev) => ({ ...prev, [day]: amount }));
+        setTouchedHotelDays((prev) => new Set(prev).add(day));
+    }
+    function editCabDay(day: number, amount: number) {
+        setCabDayEdits((prev) => ({ ...prev, [day]: amount }));
+        setTouchedCabDays((prev) => new Set(prev).add(day));
+    }
+
+    const hotelSubtotal = useMemo(() => Object.values(hotelDayEdits).reduce((sum, v) => sum + (v || 0), 0), [hotelDayEdits]);
+    const cabSubtotal = useMemo(() => Object.values(cabDayEdits).reduce((sum, v) => sum + (v || 0), 0), [cabDayEdits]);
     const ticketsSubtotal = useMemo(() => Object.values(ticketFares).reduce((sum, f) => sum + (f || 0), 0), [ticketFares]);
     const addonsSubtotal = useMemo(() => Object.values(addonEdits).reduce((sum, a) => sum + (a.price || 0) * (a.quantity || 1), 0), [addonEdits]);
     const totalPax = pkg.adults + pkg.children;
@@ -194,6 +238,12 @@ export function VerifyPackageDetailClient({
             const result = await approveCustomPackage(pkg.id);
             if (result.success) {
                 toast.success(result.message);
+                // revalidatePath inside the action invalidates the route's
+                // cache, but this page's `pkg` prop won't actually refetch
+                // without an explicit refresh — without this, the button row
+                // below (gated on !pkg.verified) kept showing "Approve" as
+                // though nothing had happened until a manual reload.
+                router.refresh();
             } else {
                 toast.error(result.message);
             }
@@ -204,7 +254,8 @@ export function VerifyPackageDetailClient({
         const payload: PricingEditInput = {
             marginPercentage: margin,
             gstPercentage: gst,
-            hotelSubtotal, cabSubtotal,
+            hotelDayOverrides: [...touchedHotelDays].map((day) => ({ day, amount: hotelDayEdits[day] ?? null })),
+            cabDayOverrides: [...touchedCabDays].map((day) => ({ day, amount: cabDayEdits[day] ?? null })),
             tickets: tickets.map((t) => ({ id: t.id, fare: ticketFares[t.id] ?? 0 })),
             addOns: addOns.map((a) => ({ id: a.id, price: addonEdits[a.id]?.price ?? 0, quantity: addonEdits[a.id]?.quantity ?? 1 })),
         };
@@ -213,6 +264,7 @@ export function VerifyPackageDetailClient({
             if (result.success) {
                 toast.success(result.message);
                 setEditMode(false);
+                router.refresh();
             } else {
                 toast.error(result.message);
             }
@@ -385,37 +437,46 @@ export function VerifyPackageDetailClient({
                                 title="Hotel"
                                 meta={`${nHotels} hotel${nHotels !== 1 ? "s" : ""} · ${s.hotel.nightsCounted} night${s.hotel.nightsCounted !== 1 ? "s" : ""}`}
                                 subtotal={hotelSubtotal}
-                                editing={editMode}
-                                subtotalInput={
-                                    <Input type="number" min={0} value={hotelSubtotal}
-                                        onChange={(e) => setHotelSubtotal(Number(e.target.value))} className="w-32 text-right font-semibold" />
-                                }
                             >
-                                {s.hotel.lines.map((l, i) => {
-                                    const hotelId = hotelIdByDay[l.day];
+                                {groupByDay(s.hotel.lines).map(({ day, lines, total }) => {
+                                    const hotelId = hotelIdByDay[day];
+                                    const overridden = lines.some((l) => l.overridden);
                                     return (
-                                        <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                                            <div>
-                                                <p className="text-dashboard-base-content">
-                                                    Day {l.day}:{" "}
-                                                    {hotelId != null ? (
-                                                        <a
-                                                            href={`/dashboard/hotels/${hotelId}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-dashboard-primary hover:underline"
-                                                        >
-                                                            {l.hotelName}
-                                                        </a>
-                                                    ) : l.hotelName}
-                                                    {" "}— {l.roomName}
-                                                </p>
-                                                <p className="text-xs text-dashboard-neutral mt-0.5">
-                                                    {l.roomsNeeded} room{l.roomsNeeded !== 1 ? "s" : ""} × {inr(l.pricePerRoom)}
-                                                    {l.mattresses > 0 && ` + ${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} × ${inr(l.extraBedRate)}`}
-                                                </p>
+                                        <div key={day} className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
+                                            <div className="min-w-0">
+                                                {lines.map((l, i) => (
+                                                    <div key={i} className={i > 0 ? "mt-1.5" : ""}>
+                                                        <p className="text-dashboard-base-content">
+                                                            Day {l.day}:{" "}
+                                                            {i === 0 && hotelId != null ? (
+                                                                <a
+                                                                    href={`/dashboard/hotels/${hotelId}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-dashboard-primary hover:underline"
+                                                                >
+                                                                    {l.hotelName}
+                                                                </a>
+                                                            ) : l.hotelName}
+                                                            {" "}— {l.roomName}
+                                                            {overridden && <span className="ml-1.5 text-[10px] font-medium text-amber-600">(corrected)</span>}
+                                                        </p>
+                                                        {!l.overridden && (
+                                                            <p className="text-xs text-dashboard-neutral mt-0.5">
+                                                                {l.roomsNeeded} room{l.roomsNeeded !== 1 ? "s" : ""} × {inr(l.pricePerRoom)}
+                                                                {l.mattresses > 0 && ` + ${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} × ${inr(l.extraBedRate)}`}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <span className="font-semibold text-dashboard-base-content shrink-0 ml-3">{inr(l.total)}</span>
+                                            {editMode ? (
+                                                <Input type="number" min={0} value={hotelDayEdits[day] ?? total}
+                                                    onChange={(e) => editHotelDay(day, Number(e.target.value))}
+                                                    className="w-28 text-right font-semibold shrink-0" />
+                                            ) : (
+                                                <span className="font-semibold text-dashboard-base-content shrink-0 ml-3">{inr(total)}</span>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -431,18 +492,26 @@ export function VerifyPackageDetailClient({
                                 title="Cab"
                                 meta={`${nCabVehicles} vehicle type${nCabVehicles !== 1 ? "s" : ""} · ${s.cab.daysCounted} day${s.cab.daysCounted !== 1 ? "s" : ""}`}
                                 subtotal={cabSubtotal}
-                                editing={editMode}
-                                subtotalInput={
-                                    <Input type="number" min={0} value={cabSubtotal}
-                                        onChange={(e) => setCabSubtotal(Number(e.target.value))} className="w-32 text-right font-semibold" />
-                                }
                             >
-                                {s.cab.lines.map((l, i) => (
-                                    <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                                        <p className="text-dashboard-base-content">Day {l.day}: {l.vehicleName} ({l.pricingType})</p>
-                                        <span className="font-semibold text-dashboard-base-content shrink-0 ml-3">{inr(l.total)}</span>
-                                    </div>
-                                ))}
+                                {groupByDay(s.cab.lines).map(({ day, lines, total }) => {
+                                    const overridden = lines.some((l) => l.overridden);
+                                    return (
+                                        <div key={day} className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
+                                            <p className="text-dashboard-base-content min-w-0">
+                                                {lines.map((l) => `${l.vehicleName} (${l.pricingType})`).join(" + ")}
+                                                {" "}on Day {day}
+                                                {overridden && <span className="ml-1.5 text-[10px] font-medium text-amber-600">(corrected)</span>}
+                                            </p>
+                                            {editMode ? (
+                                                <Input type="number" min={0} value={cabDayEdits[day] ?? total}
+                                                    onChange={(e) => editCabDay(day, Number(e.target.value))}
+                                                    className="w-28 text-right font-semibold shrink-0" />
+                                            ) : (
+                                                <span className="font-semibold text-dashboard-base-content shrink-0 ml-3">{inr(total)}</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                                 {s.cab.lines.length === 0 && (
                                     <p className="px-4 py-3 text-xs text-dashboard-neutral">No per-day breakdown recorded — subtotal only.</p>
                                 )}

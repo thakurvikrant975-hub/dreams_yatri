@@ -18,6 +18,7 @@ import { getCurrentActor, logTimeline, type ActionResult } from "../(marketing)/
 import { actionError } from "@/app/lib/action-error";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { createLog } from "../lib/logger";
+import { computeFinalPackagePricing } from "@/app/services/package-pricing.service";
 
 // Entity name pricing corrections are logged under in ActivityLog — kept
 // distinct from "custom_package" so this history can be queried and shown
@@ -46,6 +47,13 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
         if (!pkg) return { success: false, message: "Package not found" };
         if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review — the exec needs to mark it ready first." };
 
+        // Lock in the exact price this approval is signing off on — hotel/cab
+        // overrides included — so the package builder and PDF viewer show the
+        // real approved number instead of recomputing (and drifting from it
+        // the moment catalog rates change) or falling back to whatever stale
+        // price the exec typed in before this review even started.
+        const finalPricing = await computeFinalPackagePricing(packageId);
+
         await db.custom_packages.update({
             where: { id: packageId },
             data: {
@@ -56,6 +64,7 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
                 rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
                 revisionRequestedAt: null, revisionRequestedBy: null, revisionRequestedByName: null, revisionNote: null,
                 execNotifiedAt: null, // fresh event — the exec's notification poller should surface it
+                ...(finalPricing ? { pricePerPerson: finalPricing.pricePerPerson, totalPrice: finalPricing.totalPrice } : {}),
             },
         });
 
@@ -140,8 +149,10 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
 const pricingEditSchema = z.object({
     marginPercentage: z.coerce.number().min(0).max(100),
     gstPercentage: z.coerce.number().min(0).max(100),
-    hotelSubtotal: z.coerce.number().min(0),
-    cabSubtotal: z.coerce.number().min(0),
+    // Per-day corrections — null means "no correction, use the catalog-
+    // computed price for that day" (or clears a previously-set correction).
+    hotelDayOverrides: z.array(z.object({ day: z.number().int(), amount: z.coerce.number().min(0).nullable() })),
+    cabDayOverrides: z.array(z.object({ day: z.number().int(), amount: z.coerce.number().min(0).nullable() })),
     tickets: z.array(z.object({ id: z.string(), fare: z.coerce.number().min(0) })),
     addOns: z.array(z.object({ id: z.string(), price: z.coerce.number().min(0), quantity: z.coerce.number().int().min(1) })),
 });
@@ -162,9 +173,9 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
             select: {
                 id: true, status: true, queryId: true, title: true,
                 marginPercentage: true, gstPercentage: true,
-                hotelSubtotalOverride: true, cabSubtotalOverride: true,
                 tickets: { select: { id: true, fare: true, type: true, fromPlace: true, toPlace: true } },
                 addOns: { select: { id: true, name: true, price: true, quantity: true } },
+                itineraries: { select: { day: true, hotelPriceOverride: true, cabPriceOverride: true } },
             },
         });
         if (!pkg) return { success: false, message: "Package not found" };
@@ -172,7 +183,13 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
 
         const validTicketIds = new Set(pkg.tickets.map((t) => t.id));
         const validAddonIds = new Set(pkg.addOns.map((a) => a.id));
-        if (data.tickets.some((t) => !validTicketIds.has(t.id)) || data.addOns.some((a) => !validAddonIds.has(a.id))) {
+        const validDays = new Set(pkg.itineraries.map((it) => it.day));
+        if (
+            data.tickets.some((t) => !validTicketIds.has(t.id)) ||
+            data.addOns.some((a) => !validAddonIds.has(a.id)) ||
+            data.hotelDayOverrides.some((o) => !validDays.has(o.day)) ||
+            data.cabDayOverrides.some((o) => !validDays.has(o.day))
+        ) {
             return { success: false, message: "Stale form data — please refresh and try again" };
         }
 
@@ -187,15 +204,22 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
         const previousData: Record<string, string> = {
             "Margin": `${pkg.marginPercentage}%`,
             "GST": `${pkg.gstPercentage}%`,
-            "Hotel subtotal": rupee(pkg.hotelSubtotalOverride ?? 0),
-            "Cab subtotal": rupee(pkg.cabSubtotalOverride ?? 0),
         };
         const newData: Record<string, string> = {
             "Margin": `${data.marginPercentage}%`,
             "GST": `${data.gstPercentage}%`,
-            "Hotel subtotal": rupee(data.hotelSubtotal),
-            "Cab subtotal": rupee(data.cabSubtotal),
         };
+        const itineraryByDay = new Map(pkg.itineraries.map((it) => [it.day, it]));
+        for (const o of data.hotelDayOverrides) {
+            const label = `Hotel — Day ${o.day}`;
+            previousData[label] = itineraryByDay.get(o.day)?.hotelPriceOverride != null ? rupee(itineraryByDay.get(o.day)!.hotelPriceOverride!) : "catalog price";
+            newData[label] = o.amount != null ? rupee(o.amount) : "catalog price";
+        }
+        for (const o of data.cabDayOverrides) {
+            const label = `Cab — Day ${o.day}`;
+            previousData[label] = itineraryByDay.get(o.day)?.cabPriceOverride != null ? rupee(itineraryByDay.get(o.day)!.cabPriceOverride!) : "catalog price";
+            newData[label] = o.amount != null ? rupee(o.amount) : "catalog price";
+        }
         for (const t of pkg.tickets) {
             const edit = data.tickets.find((x) => x.id === t.id);
             if (!edit) continue;
@@ -212,23 +236,42 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
         }
 
         // Ticket fares / add-on price+qty are real fields — write straight
-        // through. Hotel/cab are computed live from the itinerary (catalog
-        // rates × occupancy), so a correction there is stored as an override
-        // that sendPackageToClient applies whenever the exec later sends it
-        // (see hotelSubtotalOverride/cabSubtotalOverride on the schema).
+        // through. Hotel/cab corrections are per-day (see hotelPriceOverride/
+        // cabPriceOverride on custom_itineraries) — null clears back to the
+        // catalog-computed price for that day. The old package-wide lump
+        // override fields are retired here (nulled out) now that per-day
+        // granularity is the mechanism — leaving a stale lump override set
+        // would otherwise silently outrank these per-day corrections (see
+        // computeFinalPackagePricing's `pkg.hotelSubtotalOverride ?? …`).
         await Promise.all([
             ...data.tickets.map((t) => db.custom_package_tickets.update({ where: { id: t.id }, data: { fare: t.fare } })),
             ...data.addOns.map((a) => db.custom_package_addons.update({ where: { id: a.id }, data: { price: a.price, quantity: a.quantity } })),
+            ...data.hotelDayOverrides.map((o) =>
+                db.custom_itineraries.updateMany({ where: { customPackageId: packageId, day: o.day }, data: { hotelPriceOverride: o.amount } })),
+            ...data.cabDayOverrides.map((o) =>
+                db.custom_itineraries.updateMany({ where: { customPackageId: packageId, day: o.day }, data: { cabPriceOverride: o.amount } })),
             db.custom_packages.update({
                 where: { id: packageId },
                 data: {
                     marginPercentage: data.marginPercentage,
                     gstPercentage: data.gstPercentage,
-                    hotelSubtotalOverride: data.hotelSubtotal,
-                    cabSubtotalOverride: data.cabSubtotal,
+                    hotelSubtotalOverride: null,
+                    cabSubtotalOverride: null,
                 },
             }),
         ]);
+
+        // Re-lock the final price against what was just saved — otherwise the
+        // package builder and PDF viewer keep showing whatever price existed
+        // before this correction (either a stale exec-typed number, or a
+        // catalog-only total that ignores the override just set above).
+        const finalPricing = await computeFinalPackagePricing(packageId);
+        if (finalPricing) {
+            await db.custom_packages.update({
+                where: { id: packageId },
+                data: { pricePerPerson: finalPricing.pricePerPerson, totalPrice: finalPricing.totalPrice },
+            });
+        }
 
         if (pkg.queryId) {
             await logTimeline(

@@ -2569,15 +2569,16 @@ export default function PackageBuilderDetailPage() {
   // those three inputs change — the sales exec still applies it manually via
   // the "Use this price" button so an already-typed price isn't clobbered.
   const roomPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}`)
+    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}:${it.hotelPriceOverride ?? ""}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount, extraRooms: it.extraRooms,
       manualHotelPricePerNight: it.manualHotelPricePerNight,
+      hotelPriceOverride: it.hotelPriceOverride,
       ...splitManualHotelName(it.accommodation),
     }));
-    if (days.every((d) => d.roomPricingId == null && (d.extraRooms ?? []).length === 0 && d.manualHotelPricePerNight == null)) {
+    if (days.every((d) => d.roomPricingId == null && (d.extraRooms ?? []).length === 0 && d.manualHotelPricePerNight == null && d.hotelPriceOverride == null)) {
       setHotelPricing(null);
       return;
     }
@@ -2604,14 +2605,15 @@ export default function PackageBuilderDetailPage() {
   // that day's transportDistanceKm, so a multi-day cab hire naturally sums
   // across however many days it was applied to.
   const cabPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}`)
+    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}:${it.cabPriceOverride ?? ""}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
       cabQuantity: it.cabQuantity, extraCabs: it.extraCabs,
+      cabPriceOverride: it.cabPriceOverride,
     }));
-    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0)) {
+    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0 && d.cabPriceOverride == null)) {
       setCabPricing(null);
       return;
     }
