@@ -52,3 +52,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
+# One-off rollback snapshots from scripts/make-hotels-live.ts
+hotel-live-rollback.*.json
+hotel-stars-rollback.*.json

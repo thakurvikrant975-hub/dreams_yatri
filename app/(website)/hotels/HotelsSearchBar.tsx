@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import LocationSearchSelect, { type LocationValue } from "@/app/components/ui/LocationSearchSelect";
 import DatePickerField from "@/app/components/ui/DatePickerField";
-import TravellersField, { type TravellersValue } from "@/app/components/ui/TravellersField";
+import RoomsGuestsField from "@/app/components/ui/RoomsGuestsField";
+import { writeRoomGuests, type RoomGuests } from "@/app/lib/packages/roomGuests";
 import Button from "@/app/components/ui/Button";
 
 export interface HotelsSearchBarProps {
   initialCity: LocationValue | null;
   initialCheckIn: Date | null;
   initialCheckOut: Date | null;
-  initialGuests: TravellersValue;
+  /** Per-room split, same shape the packages search bar carries. */
+  initialRoomGuests: RoomGuests[];
 }
 
 function Label({ id, children }: { id: string; children: React.ReactNode }) {
@@ -31,24 +33,30 @@ function ymd(d: Date): string {
 }
 
 export default function HotelsSearchBar({
-  initialCity, initialCheckIn, initialCheckOut, initialGuests,
+  initialCity, initialCheckIn, initialCheckOut, initialRoomGuests,
 }: HotelsSearchBarProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [city, setCity] = useState<LocationValue | null>(initialCity);
   const [checkIn, setCheckIn] = useState<Date | null>(initialCheckIn);
   const [checkOut, setCheckOut] = useState<Date | null>(initialCheckOut);
-  const [guests, setGuests] = useState<TravellersValue>(initialGuests);
+  const [roomGuests, setRoomGuests] = useState<RoomGuests[]>(initialRoomGuests);
 
   function search() {
     const p = new URLSearchParams();
+    // `city` carries the display name; `locId`/`locType` let the server match
+    // the location hierarchy, so picking a state or region finds the
+    // properties filed under its cities rather than requiring a literal
+    // match on the hotel's own `city` string.
     if (city?.name) p.set("city", city.name);
+    if (city?.id) p.set("locId", city.id);
+    if (city?.type) p.set("locType", city.type);
     if (checkIn) p.set("in", ymd(checkIn));
     // check-out must be after check-in
     if (checkOut && (!checkIn || checkOut > checkIn)) p.set("out", ymd(checkOut));
-    p.set("adults", String(guests.adults));
-    if (guests.childrenAges.length) p.set("children", guests.childrenAges.join(","));
-    p.set("rooms", String(guests.rooms ?? 1));
+    // Writes `pax` (the real per-room split) plus the flat adults/children/rooms
+    // trio, so older links and anything still reading the trio keep working.
+    writeRoomGuests(p, roomGuests);
     const qs = p.toString();
     startTransition(() => router.push(qs ? `/hotels?${qs}` : "/hotels"));
   }
@@ -74,8 +82,8 @@ export default function HotelsSearchBar({
             </div>
 
             <div className="flex flex-col gap-1" role="group" aria-labelledby="label-guests">
-              <Label id="label-guests">Guests</Label>
-              <TravellersField value={guests} onChange={setGuests} showRooms />
+              <Label id="label-guests">Rooms & Guests</Label>
+              <RoomsGuestsField value={roomGuests} onChange={setRoomGuests} />
             </div>
 
             <div className="flex flex-col gap-1">

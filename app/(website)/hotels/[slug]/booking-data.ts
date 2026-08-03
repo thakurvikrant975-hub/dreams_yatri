@@ -2,13 +2,18 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
 import { resolveCancellation, effectivePolicy, cancellationLabel, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
-import { AMENITY_CATEGORIES } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/amenities-data";
 import { ROOM_AMENITY_GROUPS } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/room-data";
 import { HOTEL_PHOTO_TAGS, GUEST_HOUSE_PHOTO_TAGS } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/tabs/photo-tags-data";
-import type { Hotel, Room, RatePlan, BedroomLayout, ReviewItem } from "./dummy";
+import type { Hotel, Room, RatePlan, BedroomLayout, ReviewItem, SimilarHotel } from "./dummy";
 import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
 import { getOrFetchLandmarks } from "@/app/lib/hotel-inventory/landmarks";
 import { parseRoomAmenities, iconFor } from "@/app/lib/hotel-inventory/room-amenities";
+import type { Prisma } from "@/app/generated/prisma/client";
+import {
+  PRICE_BUCKETS, ROOM_TYPES, PROPERTY_TYPES, MEAL_PLANS, AMENITY_OPTIONS, type HotelFilters,
+} from "@/app/lib/hotels/hotelFacets";
+import { groupAmenityNames, headlineAmenities } from "@/app/lib/hotels/amenityGroups";
+import type { HotelCard } from "@/app/lib/hotels/hotelCard";
 
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&h=800&q=80";
@@ -85,26 +90,6 @@ function amenityLabels(raw: unknown): string[] {
     if (isAmenityOn(v)) out.push(prettify(k));
   }
   return out;
-}
-
-/**
- * Group property_amenities by the same categories hotel-connect's own
- * Amenities wizard step uses (AMENITY_CATEGORIES) — property_amenities is
- * keyed by the exact amenity name (see amenities-actions.ts), so this is a
- * direct lookup, not a guess. Empty categories are dropped. Powers the
- * guest-facing "View All Amenities" modal's tabs.
- */
-function groupedAmenities(raw: unknown): { group: string; items: { label: string; icon: string }[] }[] {
-  if (!raw || typeof raw !== "object") return [];
-  const map = raw as Record<string, unknown>;
-  return AMENITY_CATEGORIES
-    .map((cat) => ({
-      group: cat.label,
-      items: cat.items
-        .filter((name) => isAmenityOn(map[name]))
-        .map((name) => ({ label: name, icon: iconFor(name) })),
-    }))
-    .filter((g) => g.items.length > 0);
 }
 
 // Guest-friendlier copy for a couple of the wizard's internal group labels —
@@ -286,54 +271,407 @@ function bedsLabel(beds: Record<string, number> | undefined): string {
     .join(", ");
 }
 
-export type HotelCard = {
-  id: number;
-  slug: string;
-  name: string;
-  city: string | null;
-  state: string | null;
-  starRating: number | null;
-  image: string;
-  priceFrom: number | null;
-  amenities: string[];
+export type { HotelCard } from "@/app/lib/hotels/hotelCard";
+
+export type HotelSearchPage = {
+  items: HotelCard[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 };
 
-/** Search LIVE hotels for the listing page, optionally filtered by city. */
-export async function searchHotels(opts: { city?: string }): Promise<HotelCard[]> {
-  const hotels = await db.hotels.findMany({
-    where: {
-      listing_status: "LIVE",
-      ...(opts.city ? { city: { contains: opts.city, mode: "insensitive" as const } } : {}),
-    },
-    orderBy: [{ star_rating: "desc" }, { id: "desc" }],
-    take: 48,
+/** Leading digit of the legacy "3 Star" text, accepted only in 1–5. */
+function starsFromStayType(stayType: string | null): number | null {
+  const n = Number(stayType?.trim().match(/^([1-5])/)?.[1]);
+  return Number.isInteger(n) ? n : null;
+}
+
+/**
+ * Match one star tier, reading the legacy `stay_type` text wherever the integer
+ * column is still unset — the same fallback the card badge uses, so the filter
+ * and what the card displays can't disagree. Once `star_rating` is backfilled
+ * the first branch answers everything and the second matches nothing.
+ */
+export function starRatingWhere(n: number): Prisma.hotelsWhereInput {
+  return {
+    OR: [
+      { star_rating: n },
+      { star_rating: null, stay_type: { startsWith: `${n} Star`, mode: "insensitive" } },
+    ],
+  };
+}
+
+/**
+ * Guest-facing name for a meal plan. The stored names are trade codes with the
+ * detail bolted on ("CP(Breakfast only)", "MAP (Breakfast + Dinner)") — matched
+ * on the descriptive part, never the code, because "AP" is a substring of "MAP".
+ */
+function mealPlanLabel(rawName: string | null | undefined): string | null {
+  if (!rawName) return null;
+  const text = rawName.toLowerCase();
+  if (text.includes("all inclusive")) return "All Inclusive";
+  if (text.includes("lunch")) return "All Meals Included";
+  if (text.includes("breakfast + dinner")) return "Breakfast + Dinner";
+  if (text.includes("breakfast")) return "Breakfast Included";
+  return null;
+}
+
+/**
+ * The chips shown on a card: the amenities a guest actually scans for, pulled
+ * from the union of the property's rooms and ordered by AMENITY_OPTIONS so the
+ * recognisable ones (Wi-Fi, Parking, Restaurant) win the four visible slots
+ * instead of back-of-house entries like "Fire Extinguisher".
+ */
+function cardAmenities(rooms: { amenities: unknown }[]): string[] {
+  const all = new Set<string>();
+  for (const r of rooms) {
+    for (const a of parseRoomAmenities(r.amenities)) all.add(a);
+  }
+  if (all.size === 0) return [];
+  const preferred = AMENITY_OPTIONS.filter((a) => all.has(a));
+  const rest = [...all].filter((a) => !preferred.includes(a as (typeof AMENITY_OPTIONS)[number]));
+  return [...preferred, ...rest].slice(0, 4);
+}
+
+export const HOTELS_PAGE_SIZE = 24;
+
+/**
+ * Everything a hotel tile needs, in one place. Shared by the search results and
+ * the detail page's similar-properties rail so the two can't drift — a guest
+ * comparing four alternatives sees the same facts they were shown on the way in.
+ */
+const HOTEL_CARD_SELECT = {
+  id: true, slug: true, name: true, city: true, state: true,
+  star_rating: true, stay_type: true, category: true,
+  images: { orderBy: [{ is_primary: "desc" as const }, { sort_order: "asc" as const }], take: 1, select: { url: true } },
+  _count: { select: { images: true } },
+  hotelRooms: {
+    where: { is_active: true },
     select: {
-      id: true, slug: true, name: true, city: true, state: true,
-      star_rating: true, property_amenities: true,
-      images: { orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }], take: 1, select: { url: true } },
-      hotelRooms: {
+      name: true, max_occupancy: true, bed_type: true, amenities: true,
+      pricing: {
         where: { is_active: true },
+        orderBy: { price_per_night: "asc" as const },
+        take: 1,
         select: {
-          pricing: { where: { is_active: true }, orderBy: { price_per_night: "asc" }, take: 1, select: { price_per_night: true } },
+          price_per_night: true, gst_percentage: true,
+          meal_type: { select: { name: true } },
         },
       },
     },
-  });
+  },
+} satisfies Prisma.hotelsSelect;
 
-  return hotels.map((h) => {
-    const prices = h.hotelRooms.flatMap((r) => r.pricing.map((p) => Number(p.price_per_night)));
-    return {
-      id: h.id,
-      slug: h.slug,
-      name: h.name,
-      city: h.city,
-      state: h.state,
-      starRating: h.star_rating,
-      image: imageUrl(h.images[0]?.url) ?? FALLBACK_IMG,
-      priceFrom: prices.length ? Math.min(...prices) : null,
-      amenities: amenityLabels(h.property_amenities).slice(0, 4),
-    };
-  });
+type HotelCardRow = Prisma.hotelsGetPayload<{ select: typeof HOTEL_CARD_SELECT }>;
+
+function shapeHotelCard(h: HotelCardRow): HotelCard {
+  // The cheapest sellable room drives the whole price block, so the "from"
+  // figure and the room it describes can never come from different rooms.
+  const cheapest = h.hotelRooms
+    .map((r) => ({ room: r, plan: r.pricing[0] }))
+    .filter((x): x is { room: typeof x.room; plan: NonNullable<typeof x.plan> } => !!x.plan)
+    .sort((a, b) => Number(a.plan.price_per_night) - Number(b.plan.price_per_night))[0];
+
+  const price = cheapest ? Number(cheapest.plan.price_per_night) : null;
+  const gst = cheapest ? Number(cheapest.plan.gst_percentage) : null;
+
+  return {
+    id: h.id,
+    slug: h.slug,
+    name: h.name,
+    city: h.city,
+    state: h.state,
+    // `star_rating` is still unpopulated on dashboard stock; the tier only
+    // exists as text in `stay_type`. Falling back keeps the badge working
+    // before the backfill lands, and costs nothing once it has.
+    starRating: h.star_rating ?? starsFromStayType(h.stay_type),
+    propertyType: h.category ? prettify(h.category) : null,
+    image: imageUrl(h.images[0]?.url) ?? FALLBACK_IMG,
+    photoCount: h._count.images,
+    priceFrom: price,
+    taxesFrom: price != null && gst != null ? Math.round(price * (gst / 100)) : null,
+    mealPlan: mealPlanLabel(cheapest?.plan.meal_type?.name),
+    roomName: cheapest?.room.name ?? null,
+    maxOccupancy: cheapest?.room.max_occupancy ?? null,
+    bedType: cheapest?.room.bed_type ?? null,
+    roomTypeCount: h.hotelRooms.length,
+    // Property-level `property_amenities` is set on 2 of 1 149 live hotels, so
+    // the card's chips were almost always empty. The rooms carry the real list
+    // (1 097 hotels), including property facilities like Reception and
+    // Restaurant, so the card reads off those instead.
+    amenities: cardAmenities(h.hotelRooms),
+  };
+}
+
+/** Where the guest is searching — the place half, without sidebar selections. */
+export type HotelSearchScope = {
+  /** Free-text place or property name, e.g. the picked location's name. */
+  query?: string;
+  /** `Location.id` of the picked suggestion, when one was chosen from the picker. */
+  locationId?: string;
+  /** `Location.type` of that suggestion — decides which hierarchy column to match. */
+  locationType?: string;
+};
+
+export type HotelSearchOpts = HotelSearchScope & {
+  /** Sidebar selections. Omitted or empty means "no constraint". */
+  filters?: HotelFilters;
+  page?: number;
+  pageSize?: number;
+};
+
+/**
+ * Places match by hierarchy, not by string equality on one column.
+ *
+ * The picker returns any location type, but a hotel row only stores flat
+ * `city`/`state` strings — so a STATE pick like "Kerala" matched nothing
+ * against `city`, even though 172 Kerala properties exist under cities like
+ * Munnar and Alappuzha. `locations` denormalises `country_id`/`state_id`/
+ * `city_id` on every row (each indexed), so the picked location's own type
+ * tells us which column to filter `hotels.location` on.
+ */
+function locationScopeFilter(locationId: string, locationType: string) {
+  let id: bigint;
+  try {
+    id = BigInt(locationId);
+  } catch {
+    return null;
+  }
+
+  switch (locationType) {
+    case "COUNTRY":
+      return { location: { country_id: id } };
+    case "STATE":
+      return { location: { state_id: id } };
+    case "REGION":
+    case "SUBREGION":
+      // Regions aren't denormalised onto locations — fall back to text match.
+      return null;
+    default:
+      // CITY and everything more granular (AREA, DISTRICT, NEIGHBOURHOOD,
+      // LANDMARK…): the location itself, anything filed under it as a city,
+      // or anything hanging directly off it.
+      return { location: { OR: [{ id }, { city_id: id }, { parent_id: id }] } };
+  }
+}
+
+/**
+ * Translate the sidebar selections into `hotels` where-clauses.
+ *
+ * Every dimension is ANDed (a 4-star *and* pool search means both), while the
+ * options within one dimension are ORed — ticking two price bands widens the
+ * range rather than returning nothing.
+ *
+ * Room-level dimensions use `some`, i.e. "this hotel has at least one room
+ * that qualifies". That's the semantic guests expect from a hotel filter:
+ * a property with one suite under ₹4 000 belongs in both a "Suite" search and
+ * an "under ₹4 000" one.
+ */
+export function hotelFilterClauses(f: HotelFilters): Prisma.hotelsWhereInput[] {
+  const and: Prisma.hotelsWhereInput[] = [];
+
+  if (f.stars.length > 0) {
+    and.push({ OR: f.stars.map(starRatingWhere) });
+  }
+
+  if (f.propertyTypes.length > 0) {
+    const categories = PROPERTY_TYPES
+      .filter((p) => f.propertyTypes.includes(p.slug))
+      .flatMap((p) => p.categories);
+    if (categories.length > 0) and.push({ category: { in: categories } });
+  }
+
+  if (f.price.length > 0) {
+    const buckets = PRICE_BUCKETS.filter((b) => f.price.includes(b.slug));
+    and.push({
+      OR: buckets.map((b) => ({
+        hotelRooms: {
+          some: {
+            is_active: true,
+            pricing: {
+              some: {
+                is_active: true,
+                price_per_night: {
+                  gte: b.min,
+                  ...(Number.isFinite(b.max) ? { lt: b.max } : {}),
+                },
+              },
+            },
+          },
+        },
+      })),
+    });
+  }
+
+  if (f.roomTypes.length > 0) {
+    const keywords = ROOM_TYPES
+      .filter((r) => f.roomTypes.includes(r.slug))
+      .flatMap((r) => r.keywords);
+    and.push({
+      hotelRooms: {
+        some: {
+          is_active: true,
+          OR: keywords.map((kw) => ({ name: { contains: kw, mode: "insensitive" as const } })),
+        },
+      },
+    });
+  }
+
+  if (f.mealPlans.length > 0) {
+    const keywords = MEAL_PLANS
+      .filter((m) => f.mealPlans.includes(m.slug))
+      .flatMap((m) => m.keywords);
+    and.push({
+      room_pricing: {
+        some: {
+          is_active: true,
+          OR: keywords.map((kw) => ({
+            meal_type: { name: { contains: kw, mode: "insensitive" as const } },
+          })),
+        },
+      },
+    });
+  }
+
+  // Amenities are stored as a JSON string array per room. Each selected
+  // amenity gets its own `some` rather than sharing one — a single clause
+  // would only require one room to hold *any* of them, so ticking Pool + Gym
+  // would match a hotel that has neither together.
+  for (const amenity of f.amenities) {
+    and.push({
+      hotelRooms: {
+        some: { is_active: true, amenities: { array_contains: [amenity] } },
+      },
+    });
+  }
+
+  return and;
+}
+
+/**
+ * The LIVE-and-in-this-place half of the search predicate, with no sidebar
+ * selections applied. Shared with the facet counts so a checkbox's number and
+ * the result set it produces can never disagree about what "here" means.
+ */
+export function hotelSearchScopeWhere(scope: HotelSearchScope): Prisma.hotelsWhereInput {
+  const q = scope.query?.trim();
+  const hierarchy = scope.locationId && scope.locationType
+    ? locationScopeFilter(scope.locationId, scope.locationType)
+    : null;
+
+  // Text match stays in the OR even when a location scope resolved: ~6% of
+  // hotels have no `location_id` at all, so hierarchy alone would silently
+  // drop them from results for their own city or state.
+  //
+  // Property name is matched at word starts only, not as a bare substring —
+  // an unanchored `contains` pulls "Castle Bijaipur" (Bassi, Rajasthan) into a
+  // Jaipur search. Anchoring still catches the cases that matter, like
+  // "Ginger Goa Candolim", whose own city/state columns are empty.
+  const textMatch = q
+    ? [
+        { city:  { contains: q, mode: "insensitive" as const } },
+        { state: { contains: q, mode: "insensitive" as const } },
+        { name:  { startsWith: q, mode: "insensitive" as const } },
+        { name:  { contains: ` ${q}`, mode: "insensitive" as const } },
+      ]
+    : [];
+
+  const anyOf = [...(hierarchy ? [hierarchy] : []), ...textMatch];
+
+  return {
+    listing_status: "LIVE" as const,
+    ...(anyOf.length > 0 ? { OR: anyOf } : {}),
+  };
+}
+
+/**
+ * Search LIVE hotels for the listing page.
+ *
+ * Offset-paginated: the listing now serves 1 000+ properties, so the whole set
+ * can't be sent in one payload. `id` is the ordering tiebreaker, which keeps
+ * page boundaries stable — `star_rating` alone is NULL for the bulk of the
+ * catalogue and would leave rows free to reshuffle between requests, silently
+ * duplicating or skipping properties across pages.
+ */
+export async function searchHotels(opts: HotelSearchOpts = {}): Promise<HotelSearchPage> {
+  const page = Math.max(1, Math.floor(opts.page ?? 1));
+  const pageSize = Math.min(48, Math.max(1, Math.floor(opts.pageSize ?? HOTELS_PAGE_SIZE)));
+  const skip = (page - 1) * pageSize;
+
+  const filterClauses = opts.filters ? hotelFilterClauses(opts.filters) : [];
+
+  const where: Prisma.hotelsWhereInput = {
+    ...hotelSearchScopeWhere(opts),
+    ...(filterClauses.length > 0 ? { AND: filterClauses } : {}),
+  };
+
+  const [total, hotels] = await Promise.all([
+    db.hotels.count({ where }),
+    db.hotels.findMany({
+      where,
+      orderBy: [{ star_rating: "desc" }, { id: "desc" }],
+      skip,
+      take: pageSize,
+      select: HOTEL_CARD_SELECT,
+    }),
+  ]);
+
+  return {
+    items: hotels.map(shapeHotelCard),
+    total,
+    page,
+    pageSize,
+    hasMore: skip + hotels.length < total,
+  };
+}
+
+/**
+ * Nearby alternatives for the "Similar properties nearby" rail.
+ *
+ * "Nearby" is resolved by locality, not radius: dashboard-created hotels have
+ * no coordinates of their own, and the fallback ones we can derive resolve to a
+ * shared city centroid — every hotel in a city would sit at distance zero from
+ * every other, so a radius sort would be noise dressed up as precision.
+ *
+ * Widens one step at a time (same city → same state) and stops as soon as it
+ * has enough, so a well-stocked city never pulls in a property 400 km away.
+ */
+async function getSimilarHotels(
+  hotelId: number,
+  city: string | null,
+  state: string | null,
+  take = 4,
+): Promise<SimilarHotel[]> {
+  const baseWhere: Prisma.hotelsWhereInput = {
+    listing_status: "LIVE",
+    id: { not: hotelId },
+    // Only offer alternatives a guest can actually act on.
+    hotelRooms: { some: { is_active: true, pricing: { some: { is_active: true, price_per_night: { gt: 0 } } } } },
+  };
+
+  const runTier = (where: Prisma.hotelsWhereInput, exclude: number[], limit: number) =>
+    db.hotels.findMany({
+      where: { ...baseWhere, ...where, id: { notIn: [hotelId, ...exclude] } },
+      orderBy: [{ star_rating: "desc" }, { id: "desc" }],
+      take: limit,
+      select: HOTEL_CARD_SELECT,
+    });
+
+  const tiers: Prisma.hotelsWhereInput[] = [
+    ...(city ? [{ city }] : []),
+    ...(state ? [{ state }] : []),
+  ];
+
+  const found: HotelCardRow[] = [];
+
+  for (const tier of tiers) {
+    if (found.length >= take) break;
+    const rows = await runTier(tier, found.map((r) => r.id), take - found.length);
+    found.push(...rows);
+  }
+
+  return found.map(shapeHotelCard);
 }
 
 export type RoomBookingContext = {
@@ -433,6 +771,10 @@ export async function getHotelForBooking(
       },
       property_category: true, property_sub_type: true, hs_bedrooms: true, hs_bathrooms: true,
       hs_bedroom_details: true, host_lives_at_property: true, caretaker_stays: true,
+      // Coordinate fallbacks — dashboard-created hotels never captured their
+      // own lat/lng, which left the location map switched off entirely.
+      location: { select: { latitude: true, longitude: true } },
+      destination: { select: { latitude: true, longitude: true } },
       images: {
         orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
         select: { url: true, tags: true },
@@ -443,7 +785,7 @@ export async function getHotelForBooking(
         select: {
           id: true, name: true, area_sqft: true, area_unit: true, bed_type: true,
           view_type: true, base_adults: true, max_adults: true, max_children: true,
-          max_occupancy: true, amenities: true,
+          max_occupancy: true, amenities: true, extra_bed_capacity: true,
           images: { orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }], select: { url: true } },
           pricing: {
             where: { is_active: true },
@@ -451,6 +793,9 @@ export async function getHotelForBooking(
             select: {
               id: true, price_per_night: true, original_price: true, gst_percentage: true,
               plan_name: true, cancellation_policy: true, meal_type: { select: { name: true } },
+              // Presence only — enough to tell the guest rates move with the
+              // calendar, without listing every season back at them.
+              seasons: { where: { is_active: true }, take: 1, select: { id: true } },
             },
           },
         },
@@ -460,7 +805,14 @@ export async function getHotelForBooking(
   if (!h) return null;
 
   const hotelImages = h.images.map((i) => imageUrl(i.url)).filter((u): u is string => !!u);
-  const labels = amenityLabels(h.property_amenities);
+  // Amenity source of truth: the property-level `property_amenities` JSON is
+  // set on 2 of 1 149 live hotels, so relying on it alone rendered an empty
+  // Amenities section for the whole imported catalogue. The rooms carry the
+  // real list — 111 distinct values, ~20 per property, including house-wide
+  // facilities like Reception, Restaurant and Power Backup — so the union of
+  // those is used, with `property_amenities` merged in wherever it does exist.
+  const roomAmenityNames = [...new Set(h.hotelRooms.flatMap((r) => parseRoomAmenities(r.amenities)))];
+  const labels = [...new Set([...amenityLabels(h.property_amenities), ...roomAmenityNames])];
 
   // Full gallery: grouped by each photo's own owner-set tag (Facade, Lobby,
   // Bedroom, …) + a "Rooms" category aggregating every room's own photos —
@@ -473,7 +825,21 @@ export async function getHotelForBooking(
   );
   if (roomGalleryImages.length > 0) galleryCategories.push({ label: "Rooms", images: roomGalleryImages });
 
-  const [rooms, reviewStats, landmarkGroups] = await Promise.all([
+  // Precise coordinates the property itself supplied, versus the locality
+  // centroid we can derive from its linked location/destination. The two are
+  // kept apart deliberately: the map can honestly show an approximate pin, but
+  // landmark distances ("1.2 km from the property") are quantitative claims and
+  // are only computed from coordinates the property actually gave us.
+  const ownLat = h.latitude != null ? Number(h.latitude) : null;
+  const ownLng = h.longitude != null ? Number(h.longitude) : null;
+  const hasOwnCoords = ownLat != null && ownLng != null;
+
+  const fallbackLat = h.location?.latitude ?? h.destination?.latitude ?? null;
+  const fallbackLng = h.location?.longitude ?? h.destination?.longitude ?? null;
+  const displayLat = ownLat ?? (fallbackLat != null ? Number(fallbackLat) : null);
+  const displayLng = ownLng ?? (fallbackLng != null ? Number(fallbackLng) : null);
+
+  const [rooms, reviewStats, landmarkGroups, similar] = await Promise.all([
     Promise.all(
     h.hotelRooms.map(async (r): Promise<Room> => {
       const ari = await getRoomARI(r.id, checkIn, checkOut);
@@ -486,7 +852,13 @@ export async function getHotelForBooking(
       const ratePlans: RatePlan[] = rows.map((p, idx) => {
         const nightly = p ? Number(p.price_per_night) : ari[0]?.price ?? 0;
         const gst = p ? Number(p.gst_percentage) : 12;
-        const original = p?.original_price ? Number(p.original_price) : Math.round(nightly * 1.15);
+        // Only ever the property's own pre-discount rate. This used to fall
+        // back to `nightly * 1.15`, which invented a 15% "was" price for every
+        // rate plan that had none — and no hotel in the imported catalogue has
+        // one, so the entire live inventory advertised a discount off a price
+        // that was never charged. A struck-through figure is a factual claim
+        // about past pricing; absent real data the honest answer is no claim.
+        const original = p?.original_price ? Number(p.original_price) : null;
         const label = p?.plan_name || p?.meal_type?.name || "Room Only";
         const policy = effectivePolicy(
           (p?.cancellation_policy as CancellationPolicy | null) ?? null,
@@ -529,9 +901,10 @@ export async function getHotelForBooking(
     }),
     ),
     getReviewStats(h.id),
-    h.latitude != null && h.longitude != null
-      ? getOrFetchLandmarks(h.id, Number(h.latitude), Number(h.longitude))
+    hasOwnCoords
+      ? getOrFetchLandmarks(h.id, ownLat, ownLng)
       : Promise.resolve([]),
+    getSimilarHotels(h.id, h.city, h.state),
   ]);
 
   // Homestay/Villa: MMT/Goibibo-style "Property Layout" showing the physical
@@ -666,6 +1039,70 @@ export async function getHotelForBooking(
     ].filter((x): x is string => x != null),
   };
 
+  // ── Sections derived from the rooms and rate plans ─────────────────────────
+  // The wizard's tri-state policy booleans are unset across the imported
+  // catalogue, which left Property Rules showing little more than a
+  // cancellation line. These facts are read off inventory the property really
+  // did fill in — room configuration, occupancy, meal plans and tax — so they
+  // add substance without asserting anything nobody entered.
+  const activeRooms = h.hotelRooms;
+  const bedTypes = [...new Set(activeRooms.map((r) => r.bed_type).filter((b): b is string => !!b))];
+  const viewTypes = [...new Set(activeRooms.map((r) => r.view_type).filter((v): v is string => !!v))];
+  const maxGuestsAcrossRooms = Math.max(
+    0,
+    ...activeRooms.map((r) => r.max_occupancy ?? r.max_adults + (r.max_children ?? 0)),
+  );
+  const roomsWithExtraBed = activeRooms.filter((r) => (r.extra_bed_capacity ?? 0) > 0).length;
+  const maxChildren = Math.max(0, ...activeRooms.map((r) => r.max_children ?? 0));
+  const mealPlanNames = [
+    ...new Set(
+      activeRooms
+        .flatMap((r) => r.pricing.map((p) => mealPlanLabel(p.meal_type?.name)))
+        .filter((m): m is string => !!m),
+    ),
+  ];
+  const gstRates = [...new Set(activeRooms.flatMap((r) => r.pricing.map((p) => Number(p.gst_percentage))))]
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const hasSeasonalRates = activeRooms.some((r) => r.pricing.some((p) => p.seasons.length > 0));
+
+  const roomsAndBedding: PolicySection = {
+    title: "Rooms & Bedding",
+    items: [
+      activeRooms.length > 0
+        ? `${activeRooms.length} room type${activeRooms.length === 1 ? "" : "s"} available at this property.`
+        : null,
+      maxGuestsAcrossRooms > 0 ? `Rooms accommodate up to ${maxGuestsAcrossRooms} guests.` : null,
+      bedTypes.length > 0 ? `Bedding options: ${bedTypes.join(", ")}.` : null,
+      viewTypes.length > 0 ? `Room views available: ${viewTypes.join(", ")}.` : null,
+      roomsWithExtraBed > 0
+        ? `Extra bed can be added in ${roomsWithExtraBed} of ${activeRooms.length} room type${activeRooms.length === 1 ? "" : "s"}.`
+        : null,
+      maxChildren > 0 ? `Children can be accommodated — up to ${maxChildren} per room.` : null,
+    ].filter((x): x is string => x != null),
+  };
+
+  const mealsAndPlans: PolicySection = {
+    title: "Meals & Rate Plans",
+    items: [
+      mealPlanNames.length > 0
+        ? `Rate plans available with: ${mealPlanNames.join(", ")}.`
+        : "Room-only rates. Meals can be arranged directly with the property.",
+      hasSeasonalRates ? "Rates vary by season and travel date — the price shown is for your selected dates." : null,
+    ].filter((x): x is string => x != null),
+  };
+
+  const paymentAndTaxes: PolicySection = {
+    title: "Payment & Taxes",
+    items: [
+      gstRates.length === 1
+        ? `${gstRates[0]}% GST is applicable on the room tariff.`
+        : gstRates.length > 1
+          ? `GST of ${Math.min(...gstRates)}–${Math.max(...gstRates)}% applies depending on the rate plan.`
+          : null,
+      "Taxes and fees are shown separately at checkout before you pay.",
+    ].filter((x): x is string => x != null),
+  };
+
   const youNeedToKnow: PolicySection = {
     title: "You Need to Know",
     items: [
@@ -726,17 +1163,18 @@ export async function getHotelForBooking(
     address: [h.address, h.city, h.state].filter(Boolean).join(", ") || (h.city ?? ""),
     area: h.city ?? "",
     city: h.city ?? "",
-    latitude: h.latitude != null ? Number(h.latitude) : null,
-    longitude: h.longitude != null ? Number(h.longitude) : null,
+    latitude: displayLat,
+    longitude: displayLng,
+    approximateLocation: !hasOwnCoords && displayLat != null,
     reviewScore: reviewStats.overall,
     reviewLabel: reviewStats.label,
     reviewCount: reviewStats.count,
-    tags: labels.slice(0, 4),
+    tags: headlineAmenities(labels, 4),
     images: hotelImages.length ? hotelImages : [FALLBACK_IMG],
     galleryCategories,
     about: h.description ?? `${h.name} in ${h.city ?? "India"} — comfortable rooms and warm hospitality.`,
-    amenities: labels.slice(0, 8).map((l) => ({ icon: iconFor(l), label: l })),
-    allAmenities: groupedAmenities(h.property_amenities),
+    amenities: headlineAmenities(labels, 8).map((l) => ({ icon: iconFor(l), label: l })),
+    allAmenities: groupAmenityNames(labels, iconFor),
     landmarks: landmarkGroups,
     policies: {
       checkIn: h.check_in_time ?? "12:00 PM",
@@ -744,13 +1182,16 @@ export async function getHotelForBooking(
       couplesRule,
       minAgeRule,
       badges: policyBadges,
-      sections: withFacts([checkInOutNotes, specialInstructions, accessMethods, guestProfile, pets, childrenAndExtraBeds]),
-      importantInfo: withFacts([optionalExtras, youNeedToKnow, weShouldMention]),
+      sections: withFacts([
+        checkInOutNotes, specialInstructions, accessMethods,
+        roomsAndBedding, guestProfile, pets, childrenAndExtraBeds,
+      ]),
+      importantInfo: withFacts([mealsAndPlans, optionalExtras, paymentAndTaxes, youNeedToKnow, weShouldMention]),
     },
     rooms,
     homestay,
     reviews: reviewStats,
-    similar: [],
+    similar,
     nights: nightsBetween(checkIn, checkOut),
   } as Hotel & { nights: number };
 }

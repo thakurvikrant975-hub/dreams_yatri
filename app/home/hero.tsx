@@ -9,7 +9,6 @@ import { IslandIcon, MagnifyingGlassIcon, BedIcon, CarProfileIcon, RocketLaunchI
 import { toast } from 'sonner';
 import LocationSearchSelect, { type LocationValue } from '@/app/components/ui/LocationSearchSelect';
 import DatePickerField from '@/app/components/ui/DatePickerField';
-import TravellersField, { type TravellersValue } from '@/app/components/ui/TravellersField';
 import RoomsGuestsField from '@/app/components/ui/RoomsGuestsField';
 import { DEFAULT_ROOM_GUESTS, writeRoomGuests, type RoomGuests } from '@/app/lib/packages/roomGuests';
 
@@ -171,7 +170,10 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
     const [hotelCity, setHotelCity] = useState<LocationValue | null>(null)
     const [checkIn, setCheckIn] = useState<Date | null>(null)
     const [checkOut, setCheckOut] = useState<Date | null>(null)
-    const [hotelGuests, setHotelGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [], rooms: 1 })
+    // Same per-room picker the packages tab above uses, so a stay configured
+    // here survives the hop to /hotels intact rather than collapsing to a flat
+    // adults/children/rooms trio.
+    const [hotelRoomGuests, setHotelRoomGuests] = useState<RoomGuests[]>(DEFAULT_ROOM_GUESTS)
 
     function ymd(d: Date): string {
         const y = d.getFullYear()
@@ -184,11 +186,13 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
         if (!hotelCity) { toast.error('Please choose a city to search hotels in.'); return }
         const params = new URLSearchParams()
         params.set('city', hotelCity.name)
+        // Carry the picked location's identity too — /hotels resolves a state or
+        // region through the location hierarchy, which a bare name can't express.
+        if (hotelCity.id) params.set('locId', hotelCity.id)
+        if (hotelCity.type) params.set('locType', hotelCity.type)
         if (checkIn) params.set('in', ymd(checkIn))
         if (checkOut && (!checkIn || checkOut > checkIn)) params.set('out', ymd(checkOut))
-        params.set('adults', String(hotelGuests.adults))
-        if (hotelGuests.childrenAges.length) params.set('children', hotelGuests.childrenAges.join(','))
-        params.set('rooms', String(hotelGuests.rooms ?? 1))
+        writeRoomGuests(params, hotelRoomGuests)
         startTransition(() => { router.push(`/hotels?${params.toString()}`) })
     }
 
@@ -433,7 +437,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                 {/* Guests */}
                                 <div className="flex flex-col gap-1.5">
                                     <label className={FIELD_LABEL_CLASS}>Guests</label>
-                                    <TravellersField value={hotelGuests} onChange={setHotelGuests} showRooms />
+                                    <RoomsGuestsField value={hotelRoomGuests} onChange={setHotelRoomGuests} />
                                 </div>
 
                             </div>

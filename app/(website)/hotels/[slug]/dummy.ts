@@ -1,5 +1,6 @@
 // Dummy data for the hotel detail page (UI development only).
 // Replace with real data fetching once the hotel engine backend is wired.
+import type { HotelCard } from "@/app/lib/hotels/hotelCard";
 
 export type RatePlan = {
   id: string;
@@ -8,7 +9,12 @@ export type RatePlan = {
   cancellation: string;
   refundable: boolean;
   price: number;
-  originalPrice: number;
+  /**
+   * The pre-discount rate, or null when the property never set one. Nullable
+   * on purpose: a non-null default invited a synthesised "was" price, which is
+   * a discount claim we can't substantiate.
+   */
+  originalPrice: number | null;
   taxes: number;
   badge?: string;
 };
@@ -51,14 +57,12 @@ export type ReviewItem = {
   tags?: string[];
 };
 
-export type SimilarHotel = {
-  id: string;
-  name: string;
-  image: string;
-  location: string;
-  rating: number;
-  price: number;
-};
+/**
+ * Same shape as a search-result tile. The rail used to carry a thinner,
+ * bespoke type, so the four properties a guest lines up for comparison showed
+ * strictly less than the listing they arrived from.
+ */
+export type SimilarHotel = HotelCard;
 
 export type Hotel = {
   id: number;
@@ -70,6 +74,9 @@ export type Hotel = {
   city: string;
   latitude: number | null;
   longitude: number | null;
+  /** Coordinates came from the linked locality, not the property itself — the
+   *  map pin is the area centre and must be labelled as such. */
+  approximateLocation?: boolean;
   reviewScore: number;
   reviewLabel: string;
   reviewCount: number;
@@ -390,9 +397,9 @@ export const hotel: Hotel = {
     ],
   },
   similar: [
-    { id: "s1", name: "The Ganges Grand", image: IMG("photo-1571003123894-1f0594d2b5d9", 500, 350), location: "Sigra, Varanasi", rating: 4.4, price: 3299 },
-    { id: "s2", name: "Riverside Retreat", image: IMG("photo-1520250497591-112f2f40a3f4", 500, 350), location: "Assi Ghat, Varanasi", rating: 4.1, price: 2799 },
-    { id: "s3", name: "Kashi Comfort Inn", image: IMG("photo-1445019980597-93fa8acb246c", 500, 350), location: "Lanka, Varanasi", rating: 3.9, price: 1899 },
-    { id: "s4", name: "Sarnath Serenity", image: IMG("photo-1512918728675-ed5a9ecdebfd", 500, 350), location: "Sarnath, Varanasi", rating: 4.3, price: 3599 },
+    { id: 1, slug: "the-ganges-grand", name: "The Ganges Grand", city: "Sigra", state: "Varanasi", starRating: 4, propertyType: "Hotel", image: IMG("photo-1571003123894-1f0594d2b5d9", 500, 350), photoCount: 18, priceFrom: 3299, taxesFrom: 594, mealPlan: "Breakfast Included", roomName: "Deluxe Room", maxOccupancy: 2, bedType: "1 King Bed", roomTypeCount: 3, amenities: ["Wi-Fi", "Parking", "Restaurant"] },
+    { id: 2, slug: "riverside-retreat", name: "Riverside Retreat", city: "Assi Ghat", state: "Varanasi", starRating: 4, propertyType: "Resort", image: IMG("photo-1520250497591-112f2f40a3f4", 500, 350), photoCount: 12, priceFrom: 2799, taxesFrom: 504, mealPlan: null, roomName: "Premium Room", maxOccupancy: 3, bedType: "1 Double Bed", roomTypeCount: 2, amenities: ["Wi-Fi", "Swimming Pool"] },
+    { id: 3, slug: "kashi-comfort-inn", name: "Kashi Comfort Inn", city: "Lanka", state: "Varanasi", starRating: 3, propertyType: "Hotel", image: IMG("photo-1445019980597-93fa8acb246c", 500, 350), photoCount: 9, priceFrom: 1899, taxesFrom: 228, mealPlan: "Breakfast Included", roomName: "Standard Room", maxOccupancy: 2, bedType: "2 Single Beds", roomTypeCount: 1, amenities: ["Wi-Fi", "Parking"] },
+    { id: 4, slug: "sarnath-serenity", name: "Sarnath Serenity", city: "Sarnath", state: "Varanasi", starRating: 4, propertyType: "Resort", image: IMG("photo-1512918728675-ed5a9ecdebfd", 500, 350), photoCount: 21, priceFrom: 3599, taxesFrom: 648, mealPlan: "All Meals Included", roomName: "Suite", maxOccupancy: 4, bedType: "1 King Bed", roomTypeCount: 4, amenities: ["Wi-Fi", "Spa", "Restaurant"] },
   ],
 };
