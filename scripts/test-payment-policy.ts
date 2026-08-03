@@ -65,10 +65,16 @@ check("past → FULL (daysUntil < 0)", (() => { const s = computePaymentSchedule
     check("odd total balance = remainder", s.balancePaise === 75_001);
     check("odd total legs sum exact", s.depositPaise + s.balancePaise === 100_001);
 }
-// half-up at .5
+// Deposits are ceiled to a whole rupee (engine.ts), so they can never be a
+// fractional-rupee amount — and a sub-rupee deposit ceils past a tiny total.
 {
     const s = computePaymentSchedule({ totalPaise: 2, travelDate: "2026-08-01", now: NOW, config: NO_FLOOR });
-    check("0.5 paise rounds half-up to 1", s.depositPaise === 1 && s.balancePaise === 1);
+    check("sub-rupee deposit ceils past total → FULL", s.plan === "FULL" && s.depositPaise === 2 && s.balancePaise === 0);
+}
+{
+    const s = computePaymentSchedule({ totalPaise: 100_010, travelDate: "2026-08-01", now: NOW, config: NO_FLOOR });
+    check("fractional-rupee deposit ceils to whole rupee", s.depositPaise === 25_100 && s.depositPaise % 100 === 0);
+    check("ceiled deposit still sums to total", s.depositPaise + s.balancePaise === 100_010);
 }
 
 // 6) Floor RAISES a small-percentage deposit (still < total → DEPOSIT).
