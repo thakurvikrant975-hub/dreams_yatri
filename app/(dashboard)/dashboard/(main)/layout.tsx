@@ -12,7 +12,6 @@ import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-c
 import { computeVerificationCounts } from "@/app/services/verification-counts.service";
 import { resolveNavHref } from "./lib/rbac/nav-hrefs";
 import { Toaster } from "sonner";
-import { SalesStatusToggle } from "./components/dashboard/Salesstatustoggle";
 import { OfflineDetector } from "./components/dashboard/OfflineDetector";
 import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminderprovider";
 import { PackageStatusNotifier } from "./(sales)/sales-query/PackageStatusNotifier";

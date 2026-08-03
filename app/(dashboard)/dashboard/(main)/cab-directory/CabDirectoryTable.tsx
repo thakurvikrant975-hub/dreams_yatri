@@ -11,6 +11,10 @@ import type { CabDirectoryGroup } from "./actions";
 
 type Status = "all" | "active" | "inactive";
 
+// Duplicated from (cabs)/vehicles/VehiclesClient.tsx's VEHICLE_TYPES rather
+// than imported — that file is the admin vehicle-editor, a different route
+// tree this sales-facing page has no other reason to depend on, and the
+// label set (VehicleType enum values) rarely changes.
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
     HATCHBACK: "Hatchback",
     SEDAN: "Sedan",

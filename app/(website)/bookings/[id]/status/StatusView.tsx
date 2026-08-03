@@ -4,14 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import {
-    BedIcon, CarProfileIcon, TicketIcon,
-    CheckCircleIcon, ClockIcon, WarningCircleIcon, ArrowsClockwiseIcon,
-    DownloadSimpleIcon, ArrowRightIcon, TrendUpIcon, TrendDownIcon,
-    type Icon,
-} from '@phosphor-icons/react';
+import {BedIcon, CarProfileIcon, TicketIcon,CheckCircleIcon, ClockIcon, WarningCircleIcon, ArrowsClockwiseIcon,DownloadSimpleIcon, ArrowRightIcon, TrendUpIcon, TrendDownIcon, type Icon,} from '@phosphor-icons/react';
 import Card from '@/app/components/ui/Card';
-import Button from '@/app/components/ui/Button'; 
+import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { chooseReplacement } from '@/app/actions/fulfillment.actions';
 import StatusAutoRefresh from './StatusAutoRefresh';
@@ -38,11 +33,6 @@ function StatusChip({ status }: { status: FulfillmentState }) {
     );
 }
 
-
-
-
-
-
 function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: string | null }) {
     const KindI = KIND_ICON[item.kind];
     const confirmed = item.status === 'CONFIRMED' || item.status === 'REPLACED';
@@ -66,7 +56,7 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                             <span>Hotel changed</span>
                             {item.hotelPriceDiff != null && item.hotelPriceDiff !== 0 && (
                                 <span className={`ml-1 font-bold ${item.hotelPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
-                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}₹{Math.abs(Math.round(item.hotelPriceDiff)).toLocaleString('en-IN')}
+                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}{fmtRupees(Math.abs(item.hotelPriceDiff))}
                                 </span>
                             )}
                         </div>
@@ -84,6 +74,11 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                                     ? 'Your package price has been adjusted upward for this change.'
                                     : 'Your package price has been adjusted downward for this change.'}
                             </div>
+                        )}
+                        {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 && payExtraHref && (
+                            <Link href={payExtraHref} className="mt-1 inline-flex items-center gap-1 font-semibold text-warning-700 hover:text-warning-800">
+                                Pay the difference <ArrowRightIcon weight="bold" className="size-3" />
+                            </Link>
                         )}
                         <div className="mt-1.5 pt-1.5 border-t border-warning-200/70 text-warning-600">
                             Note: Hotel changed due to Unavailability
@@ -105,7 +100,7 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                             </span>
                             {item.hotelPriceDiff != null && item.hotelPriceDiff !== 0 && (
                                 <span className={`ml-1 font-bold ${item.hotelPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
-                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}₹{Math.abs(Math.round(item.hotelPriceDiff)).toLocaleString('en-IN')}
+                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}{fmtRupees(Math.abs(item.hotelPriceDiff))}
                                 </span>
                             )}
                         </div>
@@ -116,6 +111,11 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                                 <span className="text-warning-400">→</span>
                                 <span className="font-medium text-warning-800">{item.newRoomType}</span>
                             </div>
+                        )}
+                        {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 && payExtraHref && (
+                            <Link href={payExtraHref} className="mt-1 inline-flex items-center gap-1 font-semibold text-warning-700 hover:text-warning-800">
+                                Pay the difference <ArrowRightIcon weight="bold" className="size-3" />
+                            </Link>
                         )}
                     </div>
                 )}
@@ -128,7 +128,7 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                             <span>Cab changed</span>
                             {item.cabPriceDiff != null && item.cabPriceDiff !== 0 && (
                                 <span className={`ml-1 font-bold ${item.cabPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
-                                    · {item.cabPriceDiff > 0 ? '+' : '−'}₹{Math.abs(Math.round(item.cabPriceDiff)).toLocaleString('en-IN')}
+                                    · {item.cabPriceDiff > 0 ? '+' : '−'}{fmtRupees(Math.abs(item.cabPriceDiff))}
                                 </span>
                             )}
                         </div>
@@ -146,6 +146,11 @@ function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: 
                                     ? 'Your package price has been adjusted upward for this change.'
                                     : 'Your package price has been adjusted downward for this change.'}
                             </div>
+                        )}
+                        {item.cabPriceDiff != null && item.cabPriceDiff > 0 && payExtraHref && (
+                            <Link href={payExtraHref} className="mt-1 inline-flex items-center gap-1 font-semibold text-warning-700 hover:text-warning-800">
+                                Pay the difference <ArrowRightIcon weight="bold" className="size-3" />
+                            </Link>
                         )}
                     </div>
                 )}
@@ -292,6 +297,38 @@ function PaymentCard({ payment, payHref }: { payment: PaymentSummary; payHref: s
                             Price {priceWentUp ? 'increased' : 'decreased'} by {fmt(Math.abs(payment.priceDeltaPaise))}
                         </span>
                         <span className="text-(--text-muted)">(was {fmt(payment.originalTotalPaise)})</span>
+                    </div>
+                )}
+
+                {/* Price breakdown — was computed and passed through but never
+                    actually shown; each row is only as trustworthy as the
+                    frozen itinerary snapshot it's read from. */}
+                {(payment.hotelCost != null || payment.mealCost != null || payment.cabCost != null || payment.gstAmount != null) && (
+                    <div className="mt-3 pt-3 border-t border-(--border-muted) flex flex-col gap-1">
+                        {payment.hotelCost != null && (
+                            <div className="flex justify-between text-xs">
+                                <Text size="xs" intent="secondary">Hotels</Text>
+                                <Text size="xs" intent="secondary">{fmtRupees(payment.hotelCost)}</Text>
+                            </div>
+                        )}
+                        {payment.mealCost != null && (
+                            <div className="flex justify-between text-xs">
+                                <Text size="xs" intent="secondary">Meals</Text>
+                                <Text size="xs" intent="secondary">{fmtRupees(payment.mealCost)}</Text>
+                            </div>
+                        )}
+                        {payment.cabCost != null && (
+                            <div className="flex justify-between text-xs">
+                                <Text size="xs" intent="secondary">Cabs</Text>
+                                <Text size="xs" intent="secondary">{fmtRupees(payment.cabCost)}</Text>
+                            </div>
+                        )}
+                        {payment.gstAmount != null && (
+                            <div className="flex justify-between text-xs">
+                                <Text size="xs" intent="secondary">GST{payment.gstPct != null ? ` (${payment.gstPct}%)` : ''}</Text>
+                                <Text size="xs" intent="secondary">{fmtRupees(payment.gstAmount)}</Text>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

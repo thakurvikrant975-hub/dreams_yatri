@@ -6,6 +6,8 @@ import { resolveCabPrice } from "./cab-pricing-utils";
 import {
   roomTotalCapacity, roomExtraBedsUsed, roomsNeededFor, splitPersonsAcrossRooms,
 } from "../lib/room-capacity";
+import { splitManualHotelName } from "./hotel-name-utils";
+import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -1194,6 +1196,8 @@ export type BuilderHotelDayLine = {
   mattresses: number;
   extraBedRate: number;
   total: number;
+  /** True when costing hand-corrected this day's price (hotelPriceOverride) — the room/rate breakdown above no longer applies, `total` is the override amount directly. */
+  overridden?: boolean;
 };
 
 export type BuilderHotelPricingResult = {
@@ -1229,6 +1233,11 @@ export async function computeBuilderHotelPricing(input: {
     manualHotelPricePerNight?: number | null;
     manualHotelName?: string | null;
     manualRoomName?: string | null;
+    /** Costing's flat correction for this day's TOTAL hotel cost (see
+     * custom_itineraries.hotelPriceOverride) — when set, replaces whatever
+     * this day would otherwise cost (catalog room, extra rooms, or manual
+     * price) with this single amount. */
+    hotelPriceOverride?: number | null;
   }[];
 }): Promise<BuilderHotelPricingResult> {
   const { travelDate, adults, children, days } = input;
@@ -1241,7 +1250,8 @@ export async function computeBuilderHotelPricing(input: {
     ]),
   ];
   const hasManualPricing = days.some((d) => d.manualHotelPricePerNight != null);
-  if (roomPricingIds.length === 0 && !hasManualPricing) {
+  const hasHotelOverride = days.some((d) => d.hotelPriceOverride != null);
+  if (roomPricingIds.length === 0 && !hasManualPricing && !hasHotelOverride) {
     return { days: [], hotelSubtotal: 0, nightsCounted: 0 };
   }
 
@@ -1283,6 +1293,28 @@ export async function computeBuilderHotelPricing(input: {
     const dayDate = travelDateObj
       ? new Date(travelDateObj.getTime() + (d.day - 1) * 24 * 60 * 60 * 1000)
       : null;
+
+    if (d.hotelPriceOverride != null) {
+      // Costing's flat correction wins outright — no room/mattress math, no
+      // extra-rooms add-on, just the one number they set for this day. Still
+      // shows the real hotel/room name (from the catalog pick or the manual
+      // entry) so the line stays identifiable in the breakdown.
+      const rp = d.roomPricingId != null ? byId.get(d.roomPricingId) : undefined;
+      hotelSubtotal += d.hotelPriceOverride;
+      lines.push({
+        day: d.day,
+        hotelName: rp?.hotel.name ?? d.manualHotelName ?? "Hotel",
+        roomName: rp?.room?.name ?? d.manualRoomName ?? "Room",
+        planName: rp?.plan_name ?? null,
+        pricePerRoom: d.hotelPriceOverride,
+        roomsNeeded: 1,
+        mattresses: 0,
+        extraBedRate: 0,
+        total: d.hotelPriceOverride,
+        overridden: true,
+      });
+      continue;
+    }
 
     if (d.roomPricingId != null) {
       const rp = byId.get(d.roomPricingId);
@@ -1388,6 +1420,8 @@ export type BuilderCabDayLine = {
   rate: number;
   distanceKm: number | null;
   total: number;
+  /** True when costing hand-corrected this day's price (cabPriceOverride). */
+  overridden?: boolean;
 };
 
 export type BuilderCabPricingResult = {
@@ -1409,6 +1443,10 @@ export async function computeBuilderCabPricing(input: {
      * SUV) — each priced at quantity × that cab's own resolved rate, using
      * the same day's transportDistanceKm for any PER_KM cab. */
     extraCabs?: { cabPricingId: number | null; quantity: number }[];
+    /** Costing's flat correction for this day's TOTAL cab cost (see
+     * custom_itineraries.cabPriceOverride) — replaces the primary +
+     * extra-cabs total for this day with this single amount. */
+    cabPriceOverride?: number | null;
   }[];
 }): Promise<BuilderCabPricingResult> {
   const { travelDate, days } = input;
@@ -1420,7 +1458,8 @@ export async function computeBuilderCabPricing(input: {
       ...days.flatMap((d) => (d.extraCabs ?? []).map((c) => c.cabPricingId).filter((id): id is number => id != null)),
     ]),
   ];
-  if (cabPricingIds.length === 0) {
+  const hasCabOverride = days.some((d) => d.cabPriceOverride != null);
+  if (cabPricingIds.length === 0 && !hasCabOverride) {
     return { days: [], cabSubtotal: 0, daysCounted: 0 };
   }
 
@@ -1450,6 +1489,22 @@ export async function computeBuilderCabPricing(input: {
       ? new Date(travelDateObj.getTime() + (d.day - 1) * 24 * 60 * 60 * 1000)
       : null;
     const isWeekend = dayDate ? (dayDate.getDay() === 0 || dayDate.getDay() === 6) : false;
+
+    if (d.cabPriceOverride != null) {
+      const cp = d.cabPricingId != null ? byId.get(d.cabPricingId) : undefined;
+      cabSubtotal += d.cabPriceOverride;
+      lines.push({
+        day: d.day,
+        vehicleName: cp?.vehicle.name ?? "Cab",
+        pricingType: "PER_DAY",
+        isWeekend,
+        rate: d.cabPriceOverride,
+        distanceKm: d.transportDistanceKm,
+        total: d.cabPriceOverride,
+        overridden: true,
+      });
+      continue;
+    }
 
     if (d.cabPricingId != null) {
       const cp = byId.get(d.cabPricingId);
@@ -1496,4 +1551,77 @@ export async function computeBuilderCabPricing(input: {
 
   const daysCounted = new Set(lines.map((l) => l.day)).size;
   return { days: lines, cabSubtotal, daysCounted };
+}
+
+// ── Final price for a builder package, override-aware ──────────────────────
+// The single place that turns a custom_packages row into "what the client
+// should be charged" — hotel/cab subtotal (costing's override if set, else
+// the live catalog computation), + tickets, + add-ons, + margin, + GST. Used
+// both to show costing a live preview before anything's frozen (see
+// verify-packages/[id]/page.tsx) and, now, to persist a locked pricePerPerson/
+// totalPrice whenever costing corrects pricing or approves — so the package
+// builder and the PDF viewer (which prefer the stored fields over
+// recomputing) actually pick up costing's correction instead of showing a
+// stale, pre-correction number.
+const TICKET_MARGIN_PCT = 5;
+
+export async function computeFinalPackagePricing(packageId: string): Promise<{ pricePerPerson: number; totalPrice: number } | null> {
+  const pkg = await db.custom_packages.findUnique({
+    where: { id: packageId },
+    select: {
+      travelDate: true, adults: true, children: true,
+      marginPercentage: true, gstPercentage: true,
+      hotelSubtotalOverride: true, cabSubtotalOverride: true,
+      tickets: { select: { fare: true } },
+      addOns: { select: { price: true, quantity: true } },
+      itineraries: {
+        select: {
+          day: true, roomPricingId: true, roomsCount: true, extraRooms: true,
+          cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
+          accommodation: true, manualHotelPricePerNight: true,
+          hotelPriceOverride: true, cabPriceOverride: true,
+        },
+      },
+    },
+  });
+  if (!pkg) return null;
+
+  const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
+  const [hotelPricing, cabPricing] = await Promise.all([
+    computeBuilderHotelPricing({
+      travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
+      days: pkg.itineraries.map((it) => ({
+        day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount,
+        extraRooms: parseRoomSelections(it.extraRooms),
+        manualHotelPricePerNight: it.manualHotelPricePerNight,
+        hotelPriceOverride: it.hotelPriceOverride,
+        ...splitManualHotelName(it.accommodation),
+      })),
+    }),
+    computeBuilderCabPricing({
+      travelDate: travelDateIso,
+      days: pkg.itineraries.map((it) => ({
+        day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
+        cabQuantity: it.cabQuantity, extraCabs: parseCabSelections(it.extraCabs),
+        cabPriceOverride: it.cabPriceOverride,
+      })),
+    }),
+  ]);
+
+  const hotelSubtotal = pkg.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal;
+  const cabSubtotal = pkg.cabSubtotalOverride ?? cabPricing.cabSubtotal;
+  const ticketsSubtotal = pkg.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
+  const addonsSubtotal = pkg.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0);
+  const hotelCabBase = hotelSubtotal + cabSubtotal;
+  const baseCost = hotelCabBase + addonsSubtotal + ticketsSubtotal;
+  const hotelCabMarginAmount = Math.round((hotelCabBase + addonsSubtotal) * pkg.marginPercentage / 100);
+  const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
+  const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
+  const taxable = baseCost + marginAmount;
+  const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
+  const finalPrice = taxable + gstAmount;
+  const totalPax = pkg.adults + pkg.children;
+  const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
+
+  return { pricePerPerson, totalPrice: finalPrice };
 }
