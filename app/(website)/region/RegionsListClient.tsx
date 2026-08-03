@@ -6,6 +6,7 @@ import Link from "next/link";
 import { SlidersHorizontal, X } from "lucide-react";
 import { MapPin } from "lucide-react";
 import RegionCard from "@/app/components/regions/RegionCard";
+import { FilterCheckRow } from "@/app/components/filters/FilterPanel";
 import {
   fetchRegionsPage,
   type RegionListItem,
@@ -171,21 +172,13 @@ export default function RegionsListClient({ initial, sidebar, initialFilters }: 
             </div>
             <div className="space-y-2">
               {sidebar.countries.map((c) => (
-                <label
+                <FilterCheckRow
                   key={c.name}
-                  className="flex items-center gap-2.5 py-0.5 cursor-pointer group"
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.countries.includes(c.name)}
-                    onChange={() => toggleCountry(c.name)}
-                    className="h-4 w-4 rounded border-neutral-300"
-                  />
-                  <span className="flex-1 text-sm text-neutral-700 group-hover:text-primary transition-colors">
-                    {c.name}
-                  </span>
-                  <span className="text-xs text-neutral-400">({c.count})</span>
-                </label>
+                  label={c.name}
+                  count={c.count}
+                  checked={filters.countries.includes(c.name)}
+                  onChange={() => toggleCountry(c.name)}
+                />
               ))}
             </div>
           </div>

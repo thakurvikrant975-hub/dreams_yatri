@@ -92,8 +92,8 @@ export function FilterPanel({
           // just the pre-hydration value so the first paint isn't oversized.
           style={{ maxHeight: "calc(100svh - var(--spacing-header-height) - 2rem)" }}
         >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-muted shrink-0">
-            <p className="font-semibold text-neutral-800 text-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-muted shrink-0 ">
+            <p className="font-semibold font-heading text-neutral-900 text-sm ">
               Filters
               {activeCount > 0 && (
                 <span className="ml-1.5 text-xs font-normal text-neutral-400">({activeCount})</span>
@@ -243,10 +243,10 @@ export function FilterSection({
       }`}
     >
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+        <p className="text-xs font-semibold font-heading uppercase tracking-widest text-neutral-900">
           {title}
           {subtitle && (
-            <span className="ml-1.5 normal-case tracking-normal font-normal text-neutral-300">
+            <span className="ml-1.5 normal-case tracking-normal font-normal text-neutral-500/90">
               {subtitle}
             </span>
           )}
@@ -289,13 +289,40 @@ export function FilterCheckRow({
         disabled ? "cursor-not-allowed" : "cursor-pointer group"
       }`}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        disabled={disabled}
-        className="h-4 w-4 rounded border-neutral-300 shrink-0 disabled:cursor-not-allowed"
-      />
+      {/* Tailwind's grid-overlay checkbox: the native input is stripped with
+          appearance-none and the tick is a sibling SVG stacked in the same grid
+          cell, so the control keeps real checkbox semantics (focus, keyboard,
+          :checked, forced-colors) while being fully styleable. `group` on the
+          wrapper is what lets the SVG react to the input's state. */}
+      <div className="group grid size-4 shrink-0 grid-cols-1">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          disabled={disabled}
+          className="col-start-1 row-start-1 appearance-none rounded-sm border border-neutral-300 bg-white checked:border-primary-500 checked:bg-primary-500 indeterminate:border-primary-500 indeterminate:bg-primary-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-neutral-100 disabled:checked:bg-neutral-100 forced-colors:appearance-auto"
+        />
+        <svg
+          fill="none"
+          viewBox="0 0 14 14"
+          className="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-white group-has-disabled:stroke-neutral-950/25"
+        >
+          <path
+            d="M3 8L6 11L11 3.5"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="opacity-0 group-has-checked:opacity-100"
+          />
+          <path
+            d="M3 7H11"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="opacity-0 group-has-indeterminate:opacity-100"
+          />
+        </svg>
+      </div>
       <span
         className={`flex-1 min-w-0 text-sm text-neutral-700 ${
           disabled ? "" : "group-hover:text-primary transition-colors"
