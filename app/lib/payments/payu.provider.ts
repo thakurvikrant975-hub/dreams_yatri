@@ -34,8 +34,43 @@ function env(key: string): string {
     return v;
 }
 
+function envOr(key: string, fallback: string): string {
+    const v = process.env[key];
+    return v && v.trim() !== "" ? v : fallback;
+}
+
 const sha512 = (s: string) => createHash("sha512").update(s).digest("hex");
 const rupees = (amountPaise: number) => (amountPaise / 100).toFixed(2);
+
+/**
+ * PayU serves the hosted checkout and the postservice API from DIFFERENT hosts in
+ * production — a split that test mode hides, since test.payu.in serves both:
+ *
+ *            checkout (`/_payment`)   postservice API
+ *   test     test.payu.in             test.payu.in
+ *   prod     secure.payu.in           info.payu.in
+ *
+ * So PAYU_API_URL exists separately from PAYU_BASE_URL, and falls back to it when
+ * unset (test setups still need only the one var). Note `.php` in the path: test
+ * tolerates its absence, production is documented with it.
+ */
+const checkoutUrl = () => `${env("PAYU_BASE_URL")}/_payment`;
+const postserviceUrl = () => `${envOr("PAYU_API_URL", env("PAYU_BASE_URL"))}/merchant/postservice.php?form=2`;
+
+/** POST a postservice command. Hash is always key|command|var1|salt. */
+async function postservice<T>(command: string, vars: { var1: string; var2?: string; var3?: string }): Promise<T> {
+    const key = env("PAYU_KEY");
+    const salt = env("PAYU_SALT");
+    const body = new URLSearchParams({ key, command, var1: vars.var1, hash: sha512(`${key}|${command}|${vars.var1}|${salt}`) });
+    if (vars.var2 !== undefined) body.set("var2", vars.var2);
+    if (vars.var3 !== undefined) body.set("var3", vars.var3);
+    const res = await fetch(postserviceUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+    });
+    return (await res.json()) as T;
+}
 
 // Constants used for BOTH createCharge and resume so the hash is reproducible
 // from (txnid, amount) alone. (Customer prefill deferred — see Phase 6 notes.)
@@ -67,7 +102,7 @@ function buildCheckout(txnid: string, amountPaise: number, successUrl: string, f
         udf1: "", udf2: "", udf3: "", udf4: "", udf5: "",
         hash: requestHash(key, salt, txnid, amount),
     };
-    return { provider: "PAYU", actionUrl: `${env("PAYU_BASE_URL")}/_payment`, fields };
+    return { provider: "PAYU", actionUrl: checkoutUrl(), fields };
 }
 
 function verifyPosted(fields: Record<string, string>): boolean {
@@ -110,8 +145,10 @@ export const payuProvider: PaymentProvider = {
     },
 
     checkoutForExistingOrder(args): CheckoutInit {
-        // surl/furl omitted on resume — the client re-derives them isn't needed; PayU only needs them at submit.
-        return buildCheckout(args.gatewayOrderRef, args.amountPaise, "", "");
+        // surl/furl are form fields (not part of the hash), so a resumed payment must
+        // carry them too — omit them and PayU falls back to its dashboard-configured
+        // return URL, stranding the customer away from our confirmation page.
+        return buildCheckout(args.gatewayOrderRef, args.amountPaise, args.successUrl ?? "", args.failureUrl ?? "");
     },
 
     verifyCallback(payload: Record<string, string>): CallbackResult {
@@ -130,17 +167,10 @@ export const payuProvider: PaymentProvider = {
     },
 
     async fetchChargeStatus(gatewayOrderRef: string): Promise<ChargeStatus> {
-        const key = env("PAYU_KEY");
-        const salt = env("PAYU_SALT");
-        const command = "verify_payment";
-        const hash = sha512(`${key}|${command}|${gatewayOrderRef}|${salt}`);
-        const body = new URLSearchParams({ key, command, var1: gatewayOrderRef, hash });
-        const res = await fetch(`${env("PAYU_BASE_URL")}/merchant/postservice?form=2`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: body.toString(),
-        });
-        const json = (await res.json()) as { transaction_details?: Record<string, { status?: string; mihpayid?: string; mode?: string }> };
+        const json = await postservice<{ transaction_details?: Record<string, { status?: string; mihpayid?: string; mode?: string }> }>(
+            "verify_payment",
+            { var1: gatewayOrderRef },
+        );
         const detail = json.transaction_details?.[gatewayOrderRef];
         const status = (detail?.status ?? "").toLowerCase();
         if (status === "success" || status === "captured") return { state: "captured", gatewayPaymentId: detail?.mihpayid, method: detail?.mode };
@@ -149,36 +179,22 @@ export const payuProvider: PaymentProvider = {
     },
 
     async refund(args): Promise<RefundResult> {
-        const key = env("PAYU_KEY");
-        const salt = env("PAYU_SALT");
-        const command = "cancel_refund_transaction";
         const token = `rf${Date.now()}${Math.random().toString(36).slice(2, 6)}`.slice(0, 25);
-        // PayU hash for postservice commands: key|command|var1|salt (var1 = mihpayid).
-        const hash = sha512(`${key}|${command}|${args.gatewayPaymentId}|${salt}`);
-        const body = new URLSearchParams({ key, command, var1: args.gatewayPaymentId, var2: token, var3: rupees(args.amountPaise), hash });
-        const res = await fetch(`${env("PAYU_BASE_URL")}/merchant/postservice?form=2`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: body.toString(),
-        });
-        const json = (await res.json()) as { status?: number; request_id?: string | number; mihpayid?: string };
+        // var1 = mihpayid, var2 = our refund token, var3 = amount in rupees.
+        const json = await postservice<{ status?: number; request_id?: string | number; mihpayid?: string }>(
+            "cancel_refund_transaction",
+            { var1: args.gatewayPaymentId, var2: token, var3: rupees(args.amountPaise) },
+        );
         // PayU refunds are async (status 1 = request accepted) → pending until the refund webhook confirms.
         const ok = json.status === 1;
         return { refundId: String(json.request_id ?? token), state: ok ? "pending" : "failed", amountPaise: args.amountPaise };
     },
 
     async fetchRefundStatus(refundId: string): Promise<RefundStatus> {
-        const key = env("PAYU_KEY");
-        const salt = env("PAYU_SALT");
-        const command = "check_action_status";
-        const hash = sha512(`${key}|${command}|${refundId}|${salt}`);
-        const body = new URLSearchParams({ key, command, var1: refundId, hash });
-        const res = await fetch(`${env("PAYU_BASE_URL")}/merchant/postservice?form=2`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: body.toString(),
-        });
-        const json = (await res.json()) as { transaction_details?: Record<string, { status?: string }> };
+        const json = await postservice<{ transaction_details?: Record<string, { status?: string }> }>(
+            "check_action_status",
+            { var1: refundId },
+        );
         const status = (json.transaction_details?.[refundId]?.status ?? "").toLowerCase();
         if (status.includes("success") || status.includes("refund")) return { state: "processed" };
         if (status.includes("fail")) return { state: "failed" };

@@ -266,6 +266,8 @@ export async function createOrderForBooking(params: {
             gatewayOrderRef: payment.gatewayOrderId,
             amountPaise: payment.amount_paise,
             currency: booking.currency,
+            successUrl: payuReturnUrl(booking.id, "success"),
+            failureUrl: payuReturnUrl(booking.id, "failure"),
         });
     } else {
         const charge = await provider.createCharge({

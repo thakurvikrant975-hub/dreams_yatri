@@ -200,6 +200,15 @@ export function countActiveHotelFilters(f: HotelFilters): number {
 
 /** Stable signature of the filter state — used to re-key Suspense and to
  *  detect when the server has re-rendered with a different selection. */
+/**
+ * Scope segment shared by the hotel search + facet cache keys. Takes the three
+ * scope fields structurally rather than importing HotelSearchScope, so this
+ * stays a dependency-free lib module both server modules can pull from.
+ */
+export function hotelScopeKey(s: { locationId?: string; locationType?: string; query?: string }): string {
+  return [s.locationId || "-", s.locationType || "-", (s.query || "-").toLowerCase()].join("|");
+}
+
 export function hotelFiltersKey(f: HotelFilters): string {
   return [
     [...f.stars].sort((a, b) => a - b).join(","),

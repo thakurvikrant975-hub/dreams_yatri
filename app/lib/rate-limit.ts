@@ -13,6 +13,13 @@ export async function checkRateLimit(
   limit: number,
   windowSeconds: number,
 ): Promise<{ allowed: boolean; remaining: number }> {
+  // No REDIS_URL ⇒ no limiter. Still fails open, but note this is a STANDING
+  // condition rather than the brief blip the comment above contemplates: with
+  // Redis unconfigured there is no brute-force protection on login, signup,
+  // password reset or OTP send/verify at all. Configure REDIS_URL in any
+  // environment reachable from the internet.
+  if (!redis) return { allowed: true, remaining: limit };
+
   try {
     const count = await redis.incr(key);
     if (count === 1) {

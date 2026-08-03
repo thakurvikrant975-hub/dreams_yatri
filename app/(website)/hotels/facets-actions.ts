@@ -7,6 +7,8 @@ import {
   starLabel,
 } from "@/app/lib/hotels/hotelFacets";
 import { hotelSearchScopeWhere, starRatingWhere, type HotelSearchScope } from "./[slug]/booking-data";
+import { hotelScopeKey } from "@/app/lib/hotels/hotelFacets";
+import { cached, CACHE_TTL, CACHE_KEYS } from "@/app/lib/cache";
 
 export type FacetOption<T = string> = { value: T; label: string; hint?: string; count: number };
 
@@ -30,6 +32,14 @@ export type HotelSearchFacets = {
  * the sidebar rather than shown as dead "(0)" rows.
  */
 export async function fetchHotelSearchFacets(scope: HotelSearchScope): Promise<HotelSearchFacets> {
+  return cached(
+    `${CACHE_KEYS.hotelFacets}:${hotelScopeKey(scope)}`,
+    () => fetchHotelSearchFacetsUncached(scope),
+    CACHE_TTL.short,
+  );
+}
+
+async function fetchHotelSearchFacetsUncached(scope: HotelSearchScope): Promise<HotelSearchFacets> {
   const base = hotelSearchScopeWhere(scope);
 
   const countWhere = (extra: Prisma.hotelsWhereInput) =>

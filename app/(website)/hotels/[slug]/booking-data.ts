@@ -10,8 +10,10 @@ import { getOrFetchLandmarks } from "@/app/lib/hotel-inventory/landmarks";
 import { parseRoomAmenities, iconFor } from "@/app/lib/hotel-inventory/room-amenities";
 import type { Prisma } from "@/app/generated/prisma/client";
 import {
-  PRICE_BUCKETS, ROOM_TYPES, PROPERTY_TYPES, MEAL_PLANS, AMENITY_OPTIONS, type HotelFilters,
+  PRICE_BUCKETS, ROOM_TYPES, PROPERTY_TYPES, MEAL_PLANS, AMENITY_OPTIONS,
+  hotelFiltersKey, hotelScopeKey, type HotelFilters,
 } from "@/app/lib/hotels/hotelFacets";
+import { cached, CACHE_TTL, CACHE_KEYS } from "@/app/lib/cache";
 import { groupAmenityNames, headlineAmenities } from "@/app/lib/hotels/amenityGroups";
 import type { HotelCard } from "@/app/lib/hotels/hotelCard";
 
@@ -595,6 +597,17 @@ export function hotelSearchScopeWhere(scope: HotelSearchScope): Prisma.hotelsWhe
  * duplicating or skipping properties across pages.
  */
 export async function searchHotels(opts: HotelSearchOpts = {}): Promise<HotelSearchPage> {
+  const key = [
+    CACHE_KEYS.hotelSearch,
+    hotelScopeKey(opts),
+    opts.page ?? 1,
+    opts.pageSize ?? HOTELS_PAGE_SIZE,
+    opts.filters ? hotelFiltersKey(opts.filters) : "-",
+  ].join(":");
+  return cached(key, () => searchHotelsUncached(opts), CACHE_TTL.short);
+}
+
+async function searchHotelsUncached(opts: HotelSearchOpts = {}): Promise<HotelSearchPage> {
   const page = Math.max(1, Math.floor(opts.page ?? 1));
   const pageSize = Math.min(48, Math.max(1, Math.floor(opts.pageSize ?? HOTELS_PAGE_SIZE)));
   const skip = (page - 1) * pageSize;
