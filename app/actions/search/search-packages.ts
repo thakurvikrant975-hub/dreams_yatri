@@ -12,10 +12,12 @@ import {
   DURATION_BUCKETS,
   EMPTY_PACKAGE_FILTERS,
   matchesBudget,
+  packageFiltersKey,
   stayTierForLabel,
   themesForNames,
   type PackageFilters,
 } from "@/app/lib/packages/packageFacets";
+import { cached, CACHE_TTL, CACHE_KEYS } from "@/app/lib/cache";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,7 +155,36 @@ async function buildFilterConditions(
 const BUDGET_CANDIDATE_CAP = 60;
 
 // ── Main search ────────────────────────────────────────────────────────────
+/**
+ * Cache key for one search. Every input that changes the result is in here —
+ * destination, traveller mix, travel date (it drives pricing), limit and the
+ * sidebar filters — so two requests share an entry only when they'd have
+ * produced identical output.
+ */
+function searchPackagesKey(p: SearchParams): string {
+  return [
+    CACHE_KEYS.packageSearch,
+    p.toLocationId || "all",
+    p.adults,
+    p.childAges.join(",") || "-",
+    p.travelDate || "-",
+    p.limit ?? 24,
+    packageFiltersKey(p.filters ?? EMPTY_PACKAGE_FILTERS),
+  ].join(":");
+}
+
+/**
+ * Cached wrapper. TTL is deliberately short: card pricing is derived from
+ * rate/pricing tables an admin can edit at any time, and a 60s bound means a
+ * price change is visible within a minute without needing every mutation path
+ * to remember to invalidate. Redis being down degrades to a direct DB read
+ * (see lib/cache.ts) rather than an error.
+ */
 export async function searchPackages(params: SearchParams): Promise<SearchResult> {
+  return cached(searchPackagesKey(params), () => searchPackagesUncached(params), CACHE_TTL.short);
+}
+
+async function searchPackagesUncached(params: SearchParams): Promise<SearchResult> {
   const {
     toLocationId, adults, childAges, travelDate, limit = 24,
     filters = EMPTY_PACKAGE_FILTERS,

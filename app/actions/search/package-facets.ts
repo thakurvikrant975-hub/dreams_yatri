@@ -12,6 +12,7 @@ import {
   stayTierForLabel,
   themesForNames,
 } from "@/app/lib/packages/packageFacets";
+import { cached, CACHE_TTL, CACHE_KEYS } from "@/app/lib/cache";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,16 @@ function countBySlug<T extends { slug: string; label: string; hint?: string }>(
  * count useful while choosing. That matches the destinations sidebar.
  */
 export async function fetchPackageSearchFacets(
+  toLocationId?: string,
+): Promise<PackageSearchFacets> {
+  return cached(
+    `${CACHE_KEYS.packageFacets}:${toLocationId || "all"}`,
+    () => fetchPackageSearchFacetsUncached(toLocationId),
+    CACHE_TTL.short,
+  );
+}
+
+async function fetchPackageSearchFacetsUncached(
   toLocationId?: string,
 ): Promise<PackageSearchFacets> {
   let scope: Prisma.packagesWhereInput = { is_active: true };
