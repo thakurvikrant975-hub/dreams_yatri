@@ -2697,6 +2697,28 @@ export default function PackageBuilderDetailPage() {
     setForm((f) => ({ ...f, pricePerPerson: String(perPerson) }));
   }
 
+  // Re-syncs `query` AND the price fields inside `form` from a fresh fetch.
+  // `form` is local state hydrated once on mount (see the initial load effect
+  // above) — a bare `setQuery(fresh)` after an action like Request Revision
+  // updates `isLocked`/`pkgVerified` so the fieldset unlocks, but leaves
+  // `form.pricePerPerson`/`totalPrice` sitting at whatever was last loaded
+  // into this tab. Without this, an exec who pulls an already-priced package
+  // back for revision and saves (without touching the price field) writes
+  // that stale number straight over whatever costing had corrected it to.
+  function syncPricingFromFresh(fresh: QueryDetail) {
+    setQuery(fresh);
+    const cp = fresh.customPackage;
+    if (cp) {
+      setForm((f) => ({
+        ...f,
+        pricePerPerson: cp.pricePerPerson?.toString() ?? "",
+        totalPrice: cp.totalPrice?.toString() ?? "",
+        marginPercentage: cp.marginPercentage?.toString() ?? f.marginPercentage,
+        gstPercentage: cp.gstPercentage?.toString() ?? f.gstPercentage,
+      }));
+    }
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
@@ -2774,7 +2796,7 @@ export default function PackageBuilderDetailPage() {
         // reload, letting the exec keep editing a package that's already
         // out for costing review.
         const fresh = await getPackageDetail(packageId);
-        if (fresh) setQuery(fresh);
+        if (fresh) syncPricingFromFresh(fresh);
       } else {
         toast.error(result2.error ?? "Failed to mark package ready");
       }
@@ -2810,7 +2832,7 @@ export default function PackageBuilderDetailPage() {
           }
         }
         const fresh = await getPackageDetail(packageId);
-        if (fresh) setQuery(fresh);
+        if (fresh) syncPricingFromFresh(fresh);
       } else {
         toast.error(result.error ?? "Failed to send package");
       }
@@ -3525,7 +3547,7 @@ Rules:
                   packageTitle={form.title}
                   onSuccess={async () => {
                     const fresh = await getPackageDetail(packageId);
-                    if (fresh) setQuery(fresh);
+                    if (fresh) syncPricingFromFresh(fresh);
                   }}
                 >
                   <Button
@@ -3545,7 +3567,7 @@ Rules:
                   packageTitle={form.title}
                   onSuccess={async () => {
                     const fresh = await getPackageDetail(packageId);
-                    if (fresh) setQuery(fresh);
+                    if (fresh) syncPricingFromFresh(fresh);
                   }}
                 >
                   <Button
@@ -4837,7 +4859,7 @@ Rules:
                   packageTitle={form.title}
                   onSuccess={async () => {
                     const fresh = await getPackageDetail(packageId);
-                    if (fresh) setQuery(fresh);
+                    if (fresh) syncPricingFromFresh(fresh);
                   }}
                 >
                   <Button variant="outline" className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content">
@@ -4853,7 +4875,7 @@ Rules:
                   packageTitle={form.title}
                   onSuccess={async () => {
                     const fresh = await getPackageDetail(packageId);
-                    if (fresh) setQuery(fresh);
+                    if (fresh) syncPricingFromFresh(fresh);
                   }}
                 >
                   <Button variant="outline" className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content">

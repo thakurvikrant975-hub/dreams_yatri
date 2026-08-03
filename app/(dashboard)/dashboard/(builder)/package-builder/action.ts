@@ -1663,9 +1663,37 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       select: {
         day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
         hotelPriceOverride: true, cabPriceOverride: true,
+        roomPricingId: true, roomsCount: true, extraRooms: true, manualHotelPricePerNight: true, accommodation: true,
+        cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
       },
     });
     const existingByDay = new Map(existingHotelState.map((r) => [r.day, r]));
+
+    // A costing correction is tied to whatever hotel/cab was priced when it
+    // was set — if the exec swaps the actual hotel/cab afterward, that
+    // correction no longer means anything and must NOT silently reapply to
+    // the new selection. Only invalidate it here, per day, when the thing it
+    // was priced against actually changed — a resubmission that touches
+    // nothing about a given day's hotel/cab keeps costing's correction
+    // (previously this was wiped wholesale on every markPackageReady, which
+    // threw away a valid correction just for resubmitting unrelated edits).
+    const filteredExtraRooms = (it: { extraRooms?: { roomPricingId: number }[] | null }) =>
+      (it.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
+    const filteredExtraCabs = (it: { extraCabs?: { label: string }[] | null }) =>
+      (it.extraCabs ?? []).filter((c) => c.label.trim());
+    const hotelSelectionChanged = (existing: typeof existingHotelState[number] | undefined, it: (typeof itineraries)[number]) =>
+      !existing
+      || existing.roomPricingId !== (it.roomPricingId ?? null)
+      || existing.roomsCount !== (it.roomsCount ?? null)
+      || existing.manualHotelPricePerNight !== (it.manualHotelPricePerNight ?? null)
+      || existing.accommodation !== (it.accommodation || null)
+      || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(filteredExtraRooms(it));
+    const cabSelectionChanged = (existing: typeof existingHotelState[number] | undefined, it: (typeof itineraries)[number]) =>
+      !existing
+      || existing.cabPricingId !== (it.cabPricingId ?? null)
+      || existing.transportDistanceKm !== (it.transportDistanceKm ?? null)
+      || existing.cabQuantity !== (it.cabQuantity ?? null)
+      || JSON.stringify(existing.extraCabs ?? []) !== JSON.stringify(filteredExtraCabs(it));
 
     await db.custom_itineraries.deleteMany({
       where: { customPackageId: pkg.id },
@@ -1704,10 +1732,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               hotelFilledByName:  existing?.hotelFilledByName ?? null,
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
               // Costing-only corrections — never sourced from the exec's own
-              // form (it doesn't expose them), always carried forward as-is
-              // from whatever was there before this save.
-              hotelPriceOverride: existing?.hotelPriceOverride ?? null,
-              cabPriceOverride:   existing?.cabPriceOverride ?? null,
+              // form (it doesn't expose them). Carried forward as-is unless
+              // this save actually changed the hotel/cab it was priced
+              // against, in which case it no longer applies.
+              hotelPriceOverride: hotelSelectionChanged(existing, it) ? null : existing!.hotelPriceOverride,
+              cabPriceOverride:   cabSelectionChanged(existing, it) ? null : existing!.cabPriceOverride,
               // Drop any "add another room" row the exec never finished
               // picking a room for (roomPricingId still 0, the picker's
               // "unselected" sentinel) rather than persisting junk entries.
@@ -2044,30 +2073,24 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
     if (!pkg.queryId) return { success: false, error: "This package isn't linked to a client query yet — attach one before submitting for review." };
     if (pkg.status === "SENT") return { success: false, error: "This package has already been sent to the client." };
 
-    await db.$transaction([
-      db.custom_packages.update({
-        where: { id: packageId },
-        data: {
-          status: "READY",
-          readyAt: new Date(),
-          readyBy: actor?.id ?? null,
-          readyByName: actor?.name ?? null,
-          verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
-          rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
-          execNotifiedAt: null,
-          // A prior review cycle's correction may no longer apply to whatever
-          // the exec just changed — start the new cycle with a clean slate.
-          hotelSubtotalOverride: null, cabSubtotalOverride: null,
-        },
-      }),
-      // Same reasoning, per-day: whatever costing corrected a specific
-      // hotel/cab to last cycle may no longer match what's actually in the
-      // itinerary now — costing re-corrects fresh if still needed.
-      db.custom_itineraries.updateMany({
-        where: { customPackageId: packageId },
-        data: { hotelPriceOverride: null, cabPriceOverride: null },
-      }),
-    ]);
+    // Per-day hotel/cab corrections from a prior review cycle are left as-is
+    // here — saveCustomPackage already invalidates a given day's correction
+    // the moment the exec actually changes that day's hotel/cab, so whatever
+    // survives to this point is still valid and should carry into the new
+    // review cycle rather than forcing costing to redo it from scratch for a
+    // resubmission that didn't touch pricing at all.
+    await db.custom_packages.update({
+      where: { id: packageId },
+      data: {
+        status: "READY",
+        readyAt: new Date(),
+        readyBy: actor?.id ?? null,
+        readyByName: actor?.name ?? null,
+        verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
+        rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
+        execNotifiedAt: null,
+      },
+    });
 
     await logTimeline(pkg.queryId, `Package marked ready for costing review by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
     await broadcastVerificationCounts();

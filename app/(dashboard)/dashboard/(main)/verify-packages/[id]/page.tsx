@@ -71,16 +71,21 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
     // submitted has nothing to review yet.
     if (!pkg || !pkg.readyAt || !pkg.query) notFound();
 
-    // sentAt+pricingSnapshot present → the exec has already sent this
-    // package at least once; show the frozen numbers actually locked in and
-    // delivered to the client. Otherwise (awaiting review, approved but not
-    // yet sent, or sent back and not yet resubmitted) there's nothing frozen
-    // yet — compute a LIVE preview the same way sendPackageToClient itself
-    // will, so costing reviews the exact numbers that'll be locked in
-    // whenever the exec does send it, including any hotel/cab correction
-    // already saved via updatePackagePricing.
+    // status === SENT (currently delivered) → show the frozen numbers
+    // actually locked in and delivered to the client. Anything else —
+    // including a package that was sent once but has since been pulled back
+    // for revision and resubmitted — needs a LIVE preview instead: sentAt/
+    // pricingSnapshot are deliberately never cleared on resubmission (kept as
+    // "was this ever sent" history, see requestPackageRevision), so checking
+    // sentAt alone here would keep showing the STALE snapshot from the
+    // previous send cycle throughout the new review, even though the price
+    // may have been corrected or the itinerary changed since. Live-compute
+    // the same way sendPackageToClient itself will, so costing reviews the
+    // exact numbers that'll be locked in whenever the exec next sends it,
+    // including any hotel/cab correction already saved via
+    // updatePackagePricing.
     let snapshot: PricingSnapshot | null;
-    if (pkg.sentAt && pkg.pricingSnapshot) {
+    if (pkg.status === "SENT" && pkg.pricingSnapshot) {
         snapshot = pkg.pricingSnapshot as unknown as PricingSnapshot;
     } else {
         const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
