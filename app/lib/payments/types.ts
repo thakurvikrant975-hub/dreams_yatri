@@ -78,8 +78,12 @@ export interface RefundStatus {
 export interface PaymentProvider {
     gateway: GatewayId;
     createCharge(input: CreateChargeInput): Promise<CreateChargeResult>;
-    /** Rebuild the client checkout for an already-created charge (idempotent resume). */
-    checkoutForExistingOrder(args: { gatewayOrderRef: string; amountPaise: number; currency?: string }): CheckoutInit;
+    /**
+     * Rebuild the client checkout for an already-created charge (idempotent resume).
+     * Redirect-based providers (PayU) need the return URLs here too — they are form
+     * fields rather than properties of the charge, so they don't survive the resume.
+     */
+    checkoutForExistingOrder(args: { gatewayOrderRef: string; amountPaise: number; currency?: string; successUrl?: string; failureUrl?: string }): CheckoutInit;
     verifyCallback(payload: Record<string, string>): CallbackResult;
     verifyWebhook(rawBody: string, headers: Headers): boolean;
     parseWebhookEvent(rawBody: string, headers: Headers): NormalizedWebhookEvent | null;
