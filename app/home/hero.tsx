@@ -9,6 +9,7 @@ import { IslandIcon, MagnifyingGlassIcon, BedIcon, CarProfileIcon, RocketLaunchI
 import { toast } from 'sonner';
 import LocationSearchSelect, { type LocationValue } from '@/app/components/ui/LocationSearchSelect';
 import DatePickerField from '@/app/components/ui/DatePickerField';
+import CheckInOutField from '@/app/components/ui/CheckInOutField';
 import RoomsGuestsField from '@/app/components/ui/RoomsGuestsField';
 import { DEFAULT_ROOM_GUESTS, writeRoomGuests, type RoomGuests } from '@/app/lib/packages/roomGuests';
 
@@ -411,28 +412,16 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                     />
                                 </div>
 
-                                {/* Check-in */}
-                                <div className="flex flex-col gap-1.5">
-                                    <label className={FIELD_LABEL_CLASS}>Check-in</label>
-                                    <DatePickerField
-                                        className='cursor-pointer'
-                                        value={checkIn}
-                                        onChange={(d) => { setCheckIn(d); if (d && checkOut && checkOut <= d) setCheckOut(null) }}
-                                        placeholder="Add date"
-                                    />
-                                </div>
-
-                                {/* Check-out */}
-                                <div className="flex flex-col gap-1.5">
-                                    <label className={FIELD_LABEL_CLASS}>Check-out</label>
-                                    <DatePickerField
-                                        className='cursor-pointer'
-                                        value={checkOut}
-                                        onChange={setCheckOut}
-                                        minDate={checkIn ?? undefined}
-                                        placeholder="Add date"
-                                    />
-                                </div>
+                                {/* Check-in / Check-out — two fields, one shared calendar.
+                                    Still two dates in state, so handleHotelSearch's
+                                    `in`/`out` params are untouched. */}
+                                <CheckInOutField
+                                    className="sm:col-span-2 gap-3 sm:gap-4"
+                                    triggerClassName="cursor-pointer"
+                                    labelClassName={FIELD_LABEL_CLASS}
+                                    value={{ from: checkIn ?? undefined, to: checkOut ?? undefined }}
+                                    onChange={({ from, to }) => { setCheckIn(from ?? null); setCheckOut(to ?? null) }}
+                                />
 
                                 {/* Guests */}
                                 <div className="flex flex-col gap-1.5">
