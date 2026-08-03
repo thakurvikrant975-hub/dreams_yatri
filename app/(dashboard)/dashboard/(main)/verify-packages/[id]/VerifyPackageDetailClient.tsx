@@ -395,12 +395,16 @@ export function VerifyPackageDetailClient({
                 <div className="grid gap-5 lg:grid-cols-3 items-start">
                     {/* ── Pricing breakdown ─────────────────────────────────── */}
                     <div className="lg:col-span-2 flex flex-col gap-4">
+                        {/* This branch only ever renders while pkg.status === "READY"
+                            (see the outer ternary above) — i.e. always mid-review, even
+                            if the package was sent in an earlier cycle and pulled back
+                            for revision (sentAt/pricingSnapshot are kept as history and
+                            never cleared on resubmission, see requestPackageRevision).
+                            So this is always a live preview, never the frozen send. */}
                         <p className="text-xs text-dashboard-neutral">
                             {editMode
                                 ? "Correcting pricing before it's locked in — saving keeps this package awaiting review."
-                                : pkg.sentAt
-                                    ? `Frozen ${fmtDateTime(new Date(s.lockedAt))} — the exact hotel/cab/ticket costs behind the price sent to the client.`
-                                    : "Live preview — these are the exact numbers that will be locked in the moment the exec sends this to the client."}
+                                : "Live preview — these are the exact numbers that will be locked in the moment the exec sends this to the client."}
                         </p>
 
                         {hotelDrift && s.displayedTotalPrice != null && (
@@ -651,7 +655,7 @@ export function VerifyPackageDetailClient({
                                     value={state === "verified" ? "Verified" : state === "rejected" ? "Rejected — awaiting rework" : "Pending review"}
                                 />
                                 <div className="mt-1 flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
-                                    <span className="text-xs font-medium text-dashboard-neutral flex items-center gap-1"><IndianRupee className="size-3" /> {pkg.sentAt ? "Sent Price" : "Preview Price"}</span>
+                                    <span className="text-xs font-medium text-dashboard-neutral flex items-center gap-1"><IndianRupee className="size-3" /> Preview Price</span>
                                     <span className="text-sm font-bold text-dashboard-base-content">{inr(pkg.totalPrice ?? s.finalPrice)}</span>
                                 </div>
                             </div>
