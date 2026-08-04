@@ -60,7 +60,19 @@ async function main() {
         select: { id: true, name: true },
     });
     if (!destination) throw new Error("No destination rows found — cannot attach the test package.");
-    console.log(`  destination: #${destination.id} ${destination.name} (borrowed for the FK only)\n`);
+    console.log(`  destination: #${destination.id} ${destination.name} (borrowed for the FK only)`);
+
+    // A package with no imagery renders the quote page with empty/missing <Image>
+    // src warnings, which is noise in exactly the console you'll be watching for
+    // payment errors. Borrow a thumbnail key already in the catalogue rather than
+    // hardcoding a URL — it resolves through the same R2 base as every other
+    // package, so it can't rot independently.
+    const donor = await db.packages.findFirst({
+        where: { thumbnail: { not: null }, slug: { not: PACKAGE_SLUG } },
+        orderBy: { id: "asc" },
+        select: { thumbnail: true },
+    });
+    console.log(`  thumbnail:   ${donor?.thumbnail ? "borrowed from catalogue" : "none available (page will warn)"}\n`);
 
     if (!COMMIT) {
         console.log("  Would create/update:");
@@ -163,6 +175,7 @@ async function main() {
             slug: PACKAGE_SLUG,
             description: "Internal payment-gateway test package. Not for sale.",
             destination_id: destination.id,
+            thumbnail: donor?.thumbnail ?? null,
             inclusions: ["Nothing — this is a payment test"],
             exclusions: ["Everything"],
             // MUST stay true: the quote page's own fetch (fetchPackagePageData)
@@ -171,7 +184,7 @@ async function main() {
             // app/lib/packages/internal-skus.ts.
             is_active: true,
         },
-        update: { title: PACKAGE_TITLE, is_active: true },
+        update: { title: PACKAGE_TITLE, is_active: true, thumbnail: donor?.thumbnail ?? null },
         select: { id: true },
     });
     step(`packages #${pkg.id}`);

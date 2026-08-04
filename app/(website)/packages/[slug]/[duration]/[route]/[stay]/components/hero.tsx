@@ -60,7 +60,11 @@ export default function PackageHero({
   const [initialLightbox, setInitialLightbox] = useState<{ catIdx: number; imgIdx: number } | undefined>()
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  const heroImage  = images[0]
+  // Optional: a package with no images at all is unusual but reachable (one
+  // saved before any photos were uploaded), and dereferencing images[0] blindly
+  // took the whole page down with "Cannot read properties of undefined". The
+  // four grid slots below already guard for this — the hero simply hadn't.
+  const heroImage: GalleryImage | undefined = images[0]
   const gridImages = images.slice(1, 5)
 
   // catIdx 0 = first category (always "Gallery" / overview images)
@@ -174,29 +178,35 @@ export default function PackageHero({
       <div className="md:hidden mt-2 flex flex-col gap-2">
         <div
           className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group cursor-pointer"
-          onClick={() => openGallery()}
+          onClick={() => heroImage && openGallery()}
         >
-          <Image
-            src={heroImage.src}
-            alt={heroImage.label || title}
-            fill
-            className={[
-              'object-cover transition-all duration-500',
-              heroLoaded ? 'opacity-100' : 'opacity-0',
-              'group-hover:scale-[1.02]',
-            ].join(' ')}
-            onLoad={() => setHeroLoaded(true)}
-            priority
-            sizes="100vw"
-          />
-          {!heroLoaded && <div className="skeleton-box absolute inset-0" />}
-          <button
-            onClick={e => { e.stopPropagation(); openGallery() }}
-            className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
-          >
-            <ImagesIcon weight="duotone" className="size-5" />
-            View Gallery
-          </button>
+          {heroImage ? (
+            <>
+              <Image
+                src={heroImage.src}
+                alt={heroImage.label || title}
+                fill
+                className={[
+                  'object-cover transition-all duration-500',
+                  heroLoaded ? 'opacity-100' : 'opacity-0',
+                  'group-hover:scale-[1.02]',
+                ].join(' ')}
+                onLoad={() => setHeroLoaded(true)}
+                priority
+                sizes="100vw"
+              />
+              {!heroLoaded && <div className="skeleton-box absolute inset-0" />}
+              <button
+                onClick={e => { e.stopPropagation(); openGallery() }}
+                className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
+              >
+                <ImagesIcon weight="duotone" className="size-5" />
+                View Gallery
+              </button>
+            </>
+          ) : (
+            <div className="skeleton-box absolute inset-0" />
+          )}
         </div>
         <div className="grid grid-cols-2 gap-2">
           {Array.from({ length: 4 }).map((_, i) => {
@@ -236,30 +246,36 @@ export default function PackageHero({
 
         <div
           className="col-span-2 row-span-2 relative group cursor-pointer"
-          onClick={() => openGallery()}
+          onClick={() => heroImage && openGallery()}
         >
-          <Image
-            src={heroImage.src}
-            alt={heroImage.label || title}
-            fill
-            className={[
-              'object-cover transition-all duration-500',
-              heroLoaded ? 'opacity-100' : 'opacity-0',
-              'group-hover:scale-[1.02]',
-            ].join(' ')}
-            onLoad={() => setHeroLoaded(true)}
-            priority
-            sizes="50vw"
-          />
-          {!heroLoaded && <div className="skeleton-box absolute inset-0" />}
+          {heroImage ? (
+            <>
+              <Image
+                src={heroImage.src}
+                alt={heroImage.label || title}
+                fill
+                className={[
+                  'object-cover transition-all duration-500',
+                  heroLoaded ? 'opacity-100' : 'opacity-0',
+                  'group-hover:scale-[1.02]',
+                ].join(' ')}
+                onLoad={() => setHeroLoaded(true)}
+                priority
+                sizes="50vw"
+              />
+              {!heroLoaded && <div className="skeleton-box absolute inset-0" />}
 
-          <button
-            onClick={e => { e.stopPropagation(); openGallery() }}
-            className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
-          >
-            <ImagesIcon weight="duotone" className="size-5" />
-            View Gallery
-          </button>
+              <button
+                onClick={e => { e.stopPropagation(); openGallery() }}
+                className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
+              >
+                <ImagesIcon weight="duotone" className="size-5" />
+                View Gallery
+              </button>
+            </>
+          ) : (
+            <div className="skeleton-box absolute inset-0" />
+          )}
         </div>
 
         {Array.from({ length: 4 }).map((_, i) => {
