@@ -4,6 +4,7 @@ import { bookingConfirmationEmail, cancellationEmail, hotelBookingConfirmedEmail
 import { sendBookingEmail, opsEmail } from "./send";
 import { getSystemActorId } from "./system-actor";
 import { formatPaiseRoundedUp } from "@/app/lib/money";
+import { buildInvoiceViewModel, INVOICE_BOOKING_SELECT } from "@/app/lib/invoice";
 import { paymentInvoiceTemplate, paymentInvoiceTextTemplate } from "@/app/components/email-template/paymentInvoiceTemplate";
 import { hotelsAndCabsConfirmedTemplate, hotelsAndCabsConfirmedTextTemplate } from "@/app/components/email-template/hotelsAndCabsConfirmedTemplate";
 
@@ -148,28 +149,47 @@ export async function notifyPaymentReceived(paymentId: string): Promise<void> {
         where: { id: paymentId },
         select: {
             amount_paise: true, method: true, paidAt: true, gatewayPaymentId: true,
-            booking: { select: { id: true, bookingNumber: true } },
+            booking: { select: { id: true, ...INVOICE_BOOKING_SELECT } },
             user: { select: { name: true, email: true } },
         },
     });
     if (!p || !p.booking) return;
+
+    // The login account often has no email at all (phone/OTP sign-up), in which
+    // case the only address we hold is the one entered at checkout. Sending only
+    // to user.email silently dropped the receipt for every such booking.
+    const recipient = p.user?.email ?? p.booking.contactEmail;
+    if (!recipient) return;
+
+    const v = buildInvoiceViewModel(p.booking);
 
     const paidAtStr = (p.paidAt ?? new Date()).toLocaleString("en-IN", {
         day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
 
     const params = {
-        clientName:    p.user?.name ?? "Traveller",
+        clientName:    p.user?.name ?? v.billedToName,
         bookingNumber: p.booking.bookingNumber,
         amountStr:     formatPaiseRoundedUp(p.amount_paise),
         paidAtStr,
         paymentMethod: p.method ? PAYMENT_METHOD_LABELS[p.method] ?? p.method : "—",
         transactionId: p.gatewayPaymentId ?? "—",
         bookingUrl:    bookingStatusUrl(p.booking.id),
+        invoice: {
+            lineItemLabel:  v.lineItemLabel,
+            lineItemDetail: v.lineItemDetail,
+            taxableStr:     formatPaiseRoundedUp(v.taxable),
+            gstStr:         formatPaiseRoundedUp(v.gst),
+            gstPct:         v.gstPct,
+            totalStr:       formatPaiseRoundedUp(v.total),
+            paidStr:        formatPaiseRoundedUp(v.paid),
+            balanceStr:     formatPaiseRoundedUp(v.balance),
+            invoiceUrl:     `${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/bookings/${p.booking.id}/invoice`,
+        },
     };
 
-    await sendBookingEmail(p.user?.email, {
-        subject: `Payment Received — Booking ${p.booking.bookingNumber}`,
+    await sendBookingEmail(recipient, {
+        subject: `Receipt — Booking ${p.booking.bookingNumber}`,
         html:    paymentInvoiceTemplate(params),
         text:    paymentInvoiceTextTemplate(params),
     });

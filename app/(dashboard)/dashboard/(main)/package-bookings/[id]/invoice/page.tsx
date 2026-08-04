@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import InvoiceDocument from "@/app/components/invoice/InvoiceDocument";
+import { INVOICE_BOOKING_SELECT } from "@/app/lib/invoice";
 import PrintInvoiceButton from "./PrintInvoiceButton";
 
 export const dynamic = "force-dynamic";
@@ -15,14 +16,7 @@ export default async function BookingInvoicePage({ params }: { params: Promise<{
 
     const booking = await db.booking.findUnique({
         where: { id },
-        select: {
-            bookingNumber: true, createdAt: true, startDate: true, endDate: true, travellers: true,
-            totalAmount_paise: true, priceSnapshot: true, contactEmail: true, contactPhone: true, gstStateCode: true,
-            package: { select: { title: true } },
-            destination: { select: { name: true } },
-            user: { select: { name: true, email: true } },
-            payments: { select: { amount_paise: true, method: true, status: true, paidAt: true, createdAt: true, purpose: true }, orderBy: { createdAt: "asc" } },
-        },
+        select: INVOICE_BOOKING_SELECT,
     });
     if (!booking) notFound();
 

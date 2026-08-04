@@ -81,7 +81,10 @@ export default function InvoiceDocument({ booking }: { booking: InvoiceBookingDa
                         <tbody>
                             <tr>
                                 <td className="px-3 py-3 align-top text-neutral-800">
-                                    {v.lineItemLabel} — {booking.travellers} traveller{booking.travellers !== 1 ? "s" : ""}
+                                    {v.lineItemLabel}
+                                    {v.lineItemDetail && (
+                                        <span className="block text-xs text-neutral-600/90 mt-0.5">{v.lineItemDetail}</span>
+                                    )}
                                 </td>
                                 <td className="px-3 py-3 align-top text-right text-neutral-800">{formatPaiseRoundedUp(v.taxable)}</td>
                             </tr>

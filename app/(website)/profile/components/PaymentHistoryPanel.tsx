@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react";
 import { Section } from "./Section";
 import Tabs from "@/app/components/ui/Tabs";
-import Button from "@/app/components/ui/Button";
+import Link from "next/link";
+import { buttonVariants } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
 import { EmptyState } from "./EmptyState";
-import { ReceiptIcon, InfoIcon } from "@phosphor-icons/react";
-import { BookingStatusModal, type BookingStatusSummary } from "./BookingStatusModal";
+import { ReceiptIcon } from "@phosphor-icons/react";
 import { BOOKING_STATUS_INFO } from "@/app/lib/booking-display-status";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,6 +27,7 @@ interface Payment {
   paidAt: string | null;
   createdAt: string;
   booking: {
+    id: string;
     bookingNumber: string;
     startDate: string;
     status: keyof typeof BOOKING_STATUS_INFO;
@@ -83,15 +84,13 @@ function PaymentCard({ payment }: { payment: Payment }) {
   const title    = payment.booking.package?.title ?? payment.booking.destination?.name ?? "Trip";
   const subtitle = payment.booking.package ? payment.booking.destination?.name ?? null : null;
 
-  const [statusOpen, setStatusOpen] = useState(false);
-
-  const statusSummary: BookingStatusSummary = {
-    bookingNumber: payment.booking.bookingNumber,
-    rawStatus:     payment.booking.status,
-    cancelReason:  payment.booking.cancelReason,
-    destination:   payment.booking.destination,
-    package:       payment.booking.package,
-  };
+  // Booking *status* belongs on the booking itself (and the Trips tab already
+  // shows it) — on a payment row the useful action is the receipt for the money
+  // that actually moved, which is why the status modal is gone from here.
+  const hasReceipt = payment.status === "FULLY_PAID"
+    || payment.status === "ADVANCE_PAID"
+    || payment.status === "REFUNDED"
+    || payment.status === "PARTIALLY_REFUNDED";
 
   return (
     <div className="bg-white border border-neutral-200 rounded-xl p-4 space-y-3 hover:border-neutral-300 transition-colors">
@@ -151,19 +150,22 @@ function PaymentCard({ payment }: { payment: Payment }) {
       <div className="flex items-center justify-between border-t border-neutral-100 pt-2 text-xs text-neutral-400">
         <span>{payment.gateway}</span>
 
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-1 hover:text-neutral-600">
-            <ReceiptIcon size={14} />
-            Receipt
-          </button>
-          <Button variant="outline" size="sm" onClick={() => setStatusOpen(true)}>
-            <InfoIcon weight="bold" className="size-3.5" />
-            View status
-          </Button>
-        </div>
+        {/* Only a captured payment has anything to invoice — a failed or still
+            processing attempt would render an invoice showing nothing paid. */}
+        {hasReceipt ? (
+          <Link
+            href={`/bookings/${payment.booking.id}/invoice`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <ReceiptIcon weight="bold" className="size-3.5" />
+            View receipt
+          </Link>
+        ) : (
+          <span className="text-neutral-300">No receipt</span>
+        )}
       </div>
-
-      <BookingStatusModal booking={statusSummary} open={statusOpen} onClose={setStatusOpen} />
     </div>
   );
 }

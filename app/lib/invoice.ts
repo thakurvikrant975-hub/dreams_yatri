@@ -1,8 +1,20 @@
 // Single place that turns a booking row into invoice numbers — the dashboard
-// admin invoice and the customer-facing invoice must show identical figures
-// for the same booking, so both go through this rather than each computing
-// taxable/GST/paid/balance independently (that duplication is exactly how the
-// two invoice UIs drifted apart before).
+// admin invoice, the customer-facing invoice and the emailed receipt must show
+// identical figures for the same booking, so all of them go through this rather
+// than each computing taxable/GST/paid/balance independently (that duplication
+// is exactly how the invoice UIs drifted apart before).
+//
+// Two booking shapes flow through here and they price very differently:
+//
+//   package  totalAmount_paise is GST-INCLUSIVE (the quote engine adds margin
+//            then GST on top), and priceSnapshot carries the rate that was
+//            applied — so the taxable base is back-computed out of the total.
+//   hotel    totalAmount_paise is the plain sum of nightly rates. No tax is
+//            computed anywhere in the hotel booking path, and priceSnapshot is
+//            the per-night array (NOT an object with gst_percentage), so the
+//            old `priceSnapshot.gst_percentage` read silently yielded 0% on
+//            every hotel invoice. Treated as tax-inclusive at the rate stored
+//            on the booked room, matching the package convention.
 
 export type InvoiceBookingData = {
     bookingNumber: string;
@@ -18,6 +30,17 @@ export type InvoiceBookingData = {
     package: { title: string | null } | null;
     destination?: { name: string | null } | null;
     user: { name: string | null; email: string | null } | null;
+    /** Hotel legs. A direct hotel booking has exactly one and no `package`; a
+     *  package booking may have several, which are already priced into the
+     *  package total and so never form the invoice's line item. */
+    hotelBookings?: {
+        cityName: string;
+        roomType: string;
+        roomsCount: number;
+        checkInDate: Date;
+        checkOutDate: Date;
+        hotel?: { name: string | null; gst_percentage?: unknown } | null;
+    }[];
     payments: {
         amount_paise: number;
         method: string | null;
@@ -30,6 +53,8 @@ export type InvoiceBookingData = {
 
 export type InvoiceViewModel = {
     lineItemLabel: string;
+    /** Second line under the description — nights/rooms for a stay, else null. */
+    lineItemDetail: string | null;
     total: number;
     gstPct: number;
     taxable: number;
@@ -41,11 +66,67 @@ export type InvoiceViewModel = {
     billedToContact: string;
 };
 
+/**
+ * The exact selection `buildInvoiceViewModel` needs. Every caller spreads this
+ * rather than listing fields itself — a page that forgets `hotelBookings` does
+ * not fail loudly, it just silently renders a hotel stay as "Holiday package".
+ */
+export const INVOICE_BOOKING_SELECT = {
+    bookingNumber: true, createdAt: true, startDate: true, endDate: true, travellers: true,
+    totalAmount_paise: true, priceSnapshot: true, contactEmail: true, contactPhone: true, gstStateCode: true,
+    package: { select: { title: true } },
+    destination: { select: { name: true } },
+    user: { select: { name: true, email: true } },
+    hotelBookings: {
+        orderBy: { dayNumber: "asc" },
+        select: {
+            cityName: true, roomType: true, roomsCount: true, checkInDate: true, checkOutDate: true,
+            hotel: { select: { name: true, gst_percentage: true } },
+        },
+    },
+    payments: {
+        orderBy: { createdAt: "asc" },
+        select: { amount_paise: true, method: true, status: true, paidAt: true, createdAt: true, purpose: true },
+    },
+} as const;
+
+const MS_PER_NIGHT = 86_400_000;
+
+function nightsBetween(from: Date, to: Date): number {
+    return Math.max(1, Math.round((to.getTime() - from.getTime()) / MS_PER_NIGHT));
+}
+
 export function buildInvoiceViewModel(booking: InvoiceBookingData): InvoiceViewModel {
     const total = booking.totalAmount_paise;
-    const gstPct = (booking.priceSnapshot as { gst_percentage?: number } | null)?.gst_percentage ?? 0;
+
+    // A direct hotel booking is one with no package attached — package bookings
+    // can also carry hotel legs, but those are already inside the package price
+    // and must not retitle the invoice.
+    const stay = !booking.package?.title ? booking.hotelBookings?.[0] : undefined;
+
+    // Package: the rate the quote engine actually applied. Hotel: the booked
+    // room's own rate. Either way the total is treated as inclusive of it.
+    const gstPct = stay
+        ? Number(stay.hotel?.gst_percentage ?? 0)
+        : (booking.priceSnapshot as { gst_percentage?: number } | null)?.gst_percentage ?? 0;
+
     const taxable = gstPct > 0 ? Math.round(total / (1 + gstPct / 100)) : total;
     const gst = total - taxable;
+
+    let lineItemLabel: string;
+    let lineItemDetail: string | null = null;
+
+    if (stay) {
+        // Previously fell through to "Holiday package" — a hotel booking has no
+        // `package` row, so every hotel invoice was mislabelled.
+        const hotelName = stay.hotel?.name ?? stay.cityName;
+        const nights = nightsBetween(stay.checkInDate, stay.checkOutDate);
+        lineItemLabel = `${hotelName} — ${stay.roomType}`;
+        lineItemDetail = `${nights} night${nights !== 1 ? "s" : ""} · ${stay.roomsCount} room${stay.roomsCount !== 1 ? "s" : ""}`;
+    } else {
+        lineItemLabel = booking.package?.title ?? booking.destination?.name ?? "Holiday package";
+        lineItemDetail = `${booking.travellers} traveller${booking.travellers !== 1 ? "s" : ""}`;
+    }
 
     const paidPayments = booking.payments
         .filter((p) => p.status === "FULLY_PAID")
@@ -58,7 +139,8 @@ export function buildInvoiceViewModel(booking: InvoiceBookingData): InvoiceViewM
     const balance = Math.max(0, total - paid);
 
     return {
-        lineItemLabel: booking.package?.title ?? booking.destination?.name ?? "Holiday package",
+        lineItemLabel,
+        lineItemDetail,
         total,
         gstPct,
         taxable,

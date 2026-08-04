@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import InvoiceDocument from '@/app/components/invoice/InvoiceDocument';
+import { INVOICE_BOOKING_SELECT } from '@/app/lib/invoice';
 import PrintButton from '../PrintButton';
 import AutoPrint from './AutoPrint';
 
@@ -18,14 +19,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
 
     const booking = await db.booking.findUnique({
         where: { id },
-        select: {
-            userId: true, bookingNumber: true, createdAt: true, startDate: true, endDate: true, travellers: true,
-            totalAmount_paise: true, priceSnapshot: true, contactEmail: true, contactPhone: true, gstStateCode: true,
-            package: { select: { title: true } },
-            destination: { select: { name: true } },
-            user: { select: { name: true, email: true } },
-            payments: { select: { amount_paise: true, method: true, status: true, paidAt: true, createdAt: true, purpose: true }, orderBy: { createdAt: 'asc' } },
-        },
+        select: { userId: true, ...INVOICE_BOOKING_SELECT },
     });
     if (!booking || booking.userId !== user.id) notFound();
 
