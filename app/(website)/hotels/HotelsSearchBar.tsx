@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import LocationSearchSelect, { type LocationValue } from "@/app/components/ui/LocationSearchSelect";
-import DatePickerField from "@/app/components/ui/DatePickerField";
+import CheckInOutField from "@/app/components/ui/CheckInOutField";
 import RoomsGuestsField from "@/app/components/ui/RoomsGuestsField";
 import { writeRoomGuests, type RoomGuests } from "@/app/lib/packages/roomGuests";
 import Button from "@/app/components/ui/Button";
@@ -71,15 +71,15 @@ export default function HotelsSearchBar({
               <LocationSearchSelect value={city} onChange={setCity} placeholder="Where are you going?" showCurrentLocation />
             </div>
 
-            <div className="flex flex-col gap-1" role="group" aria-labelledby="label-in">
-              <Label id="label-in">Check-in</Label>
-              <DatePickerField value={checkIn} onChange={setCheckIn} placeholder="Add date" />
-            </div>
-
-            <div className="flex flex-col gap-1" role="group" aria-labelledby="label-out">
-              <Label id="label-out">Check-out</Label>
-              <DatePickerField value={checkOut} onChange={setCheckOut} placeholder="Add date" />
-            </div>
+            {/* Two fields, one shared calendar. State stays as two dates so the
+                `in`/`out` params and the search handler are unchanged. */}
+            <CheckInOutField
+              className="sm:col-span-2 gap-2.5"
+              fieldClassName="gap-1"
+              value={{ from: checkIn ?? undefined, to: checkOut ?? undefined }}
+              onChange={({ from, to }) => { setCheckIn(from ?? null); setCheckOut(to ?? null) }}
+              labelClassName="pl-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55"
+            />
 
             <div className="flex flex-col gap-1" role="group" aria-labelledby="label-guests">
               <Label id="label-guests">Rooms & Guests</Label>

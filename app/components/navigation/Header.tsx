@@ -10,8 +10,8 @@ import DyLogo from '@/app/components/ui/DyLogo'
 import Link from 'next/link'
 import MobileMenu from './MobileMenu'
 import MarketingTopbar from './MarketingTopbar'
-import LanguageDropdown from './LanguageDropdown'
-import ServiceDropdown from './ServiceDropdown'
+// ServiceDropdown / LanguageDropdown are parked, not deleted — neither is
+// production-ready yet. Re-import and drop back into the right-nav below.
 import { SearchDropdown } from './SearchDropdown'
 import { useSession } from 'next-auth/react'
 import { useModal } from '@/app/hooks/useModals'
@@ -87,9 +87,6 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
 
               {/* Right nav — desktop */}
               <div className="hidden lg:flex lg:items-center lg:gap-8">
-                <ServiceDropdown isSolid={isSolid} />
-                <LanguageDropdown isSolid={isSolid} />
-
                 {isLoggedIn && (
                   <motion.button
                     onClick={handleProfileClick}

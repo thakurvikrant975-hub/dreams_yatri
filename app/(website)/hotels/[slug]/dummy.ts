@@ -68,7 +68,10 @@ export type Hotel = {
   id: number;
   slug: string;
   name: string;
-  starRating: number;
+  /** null when the property has no classification — never guess a tier. */
+  starRating: number | null;
+  /** "Resort", "Homestay" — so the tier badge doesn't call everything a Hotel. */
+  propertyType: string | null;
   address: string;
   area: string;
   city: string;
@@ -124,6 +127,7 @@ export const hotel: Hotel = {
   slug: "hotel-jyoti-plaza-varanasi",
   name: "Hotel Jyoti Plaza",
   starRating: 3,
+  propertyType: "Hotel",
   address: "S-20/51, The Mall Road, Cantonment, Varanasi",
   area: "Cantonment",
   city: "Varanasi",

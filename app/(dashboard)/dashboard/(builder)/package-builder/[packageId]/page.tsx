@@ -67,6 +67,7 @@ import {
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
@@ -2028,25 +2029,6 @@ function recalcFromStops(stops: StopInput[]) {
   };
 }
 
-/**
- * One location name per day, derived from the route stops' night counts —
- * e.g. stops [Manali·2N, Shimla·1N] → [Manali, Manali, Shimla, Shimla] for a
- * 4-day trip (the trailing day inherits the last stop, as the departure day).
- * Powers the hotel/activity search scoping per day without a separate
- * persisted "day → stop" mapping.
- */
-function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
-  if (stops.length === 0) return Array(totalDays).fill("");
-  const locations: string[] = [];
-  for (const stop of stops) {
-    for (let i = 0; i < stop.nights && locations.length < totalDays; i++) {
-      locations.push(stop.name);
-    }
-  }
-  const lastStopName = stops[stops.length - 1]?.name ?? "";
-  while (locations.length < totalDays) locations.push(lastStopName);
-  return locations;
-}
 
 /** "2h 15m" / "1d 4h" — how long it took to go from assignment to sent,
  * so an exec (and later, reporting) can see whether this tool is actually

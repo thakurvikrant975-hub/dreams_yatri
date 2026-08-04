@@ -595,7 +595,7 @@ function BookingSummary({
               <p className="text-xs text-neutral-500">{hotel.reviewCount.toLocaleString("en-IN")} reviews</p>
             </div>
           </>
-        ) : (
+        ) : hotel.starRating != null ? (
           <>
             <span className="inline-flex items-center gap-0.5 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-sm font-bold text-amber-700">
               {hotel.starRating}
@@ -606,6 +606,12 @@ function BookingSummary({
               <p className="text-xs text-neutral-500">Be the first to review</p>
             </div>
           </>
+        ) : (
+          // No reviews AND no classification — say nothing about quality.
+          <div>
+            <p className="text-sm font-bold text-neutral-800">No reviews yet</p>
+            <p className="text-xs text-neutral-500">Be the first to review</p>
+          </div>
         )}
       </div>
       {/* The room being quoted. The card used to show a price with no
@@ -803,10 +809,15 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut, roomGuests
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold text-neutral-900">{hotel.name}</h1>
-              <Stars n={hotel.starRating} />
-              <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                {hotel.starRating}-Star Hotel
-              </span>
+              {/* Unclassified stock shows no tier at all rather than a guess. */}
+              {hotel.starRating != null && (
+                <>
+                  <Stars n={hotel.starRating} />
+                  <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                    {hotel.starRating}-Star {hotel.propertyType ?? "Hotel"}
+                  </span>
+                </>
+              )}
             </div>
             <p className="flex items-center gap-1.5 text-sm text-neutral-500 mt-1.5">
               <MapPinIcon className="w-4 h-4 text-primary-500" />

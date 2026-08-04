@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Users } from "lucide-react";
 import { db } from "@/app/lib/db";
-import { deriveDayLocations } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
+import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { FillHotelForm } from "./FillHotelForm";
 
 export const metadata: Metadata = {

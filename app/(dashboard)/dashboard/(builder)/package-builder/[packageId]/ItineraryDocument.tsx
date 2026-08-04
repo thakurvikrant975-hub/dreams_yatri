@@ -16,6 +16,12 @@ import { ItineraryMap } from "./ItineraryMap";
 import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
+import { deriveDayLocations } from "@/app/lib/route-builder-utils";
+
+// Re-exported for existing consumers (e.g. CustomPackageHero) that import it
+// from here — the implementation itself lives in route-builder-utils since
+// it's a plain function server components need too (see hotel-requests).
+export { deriveDayLocations };
 
 /** Identifies exactly which image a click on an edit button refers to, so
  * one onImageChange callback (threaded down from page.tsx) can cover every
@@ -584,22 +590,6 @@ export function DaySummaryTable({
  * falls back to the package cover photo, then any day's hotel photo, then a
  * plain brand-gradient tile, so the row never looks broken even when a stop
  * name has no catalog match. */
-/** One location name per day, derived from the route stops' night counts —
- * mirrors deriveDayLocations in page.tsx (kept as a local copy since that
- * one isn't exported) so a stop's own days can be found here too. */
-export function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
-  if (stops.length === 0) return Array(totalDays).fill("");
-  const locations: string[] = [];
-  for (const stop of stops) {
-    for (let i = 0; i < stop.nights && locations.length < totalDays; i++) {
-      locations.push(stop.name);
-    }
-  }
-  const lastStopName = stops[stops.length - 1]?.name ?? "";
-  while (locations.length < totalDays) locations.push(lastStopName);
-  return locations;
-}
-
 /** A photo that actually belongs to this stop — an activity photo from one
  * of its days first (what the client asked to see: what they'll be doing
  * there), then that stop's own hotel photo — before any package-wide

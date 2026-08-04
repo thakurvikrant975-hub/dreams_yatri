@@ -44,15 +44,15 @@ function HotelRow({ h, stayQs, priority }: { h: HotelCard; stayQs: string; prior
 
   return (
     <Link href={`/hotels/${h.slug}${stayQs ? `?${stayQs}` : ""}`} className="group block">
-      <Card variant="elevated" radius="md" className="overflow-hidden p-px hover:shadow-md transition-shadow">
-        <div className="flex flex-col sm:flex-row">
+      <Card variant="elevated" radius="lg" className="overflow-hidden p-px hover:shadow-md transition-shadow ">
+        <div className="flex flex-col sm:flex-row min-h-52 sm:min-h-54">
           <div className="relative h-52 sm:h-auto sm:w-64 md:w-72 shrink-0 overflow-hidden sm:rounded-l-[inherit]">
             <Image
               src={h.image}
               alt={h.name}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-              sizes="(max-width:640px) 100vw, 288px"
+              className="object-cover group-hover:scale-105 transition-transform duration-300 "
+              sizes="(max-width:640px) 100vw, 300px"
               priority={priority}
             />
             {h.starRating ? (
@@ -70,34 +70,34 @@ function HotelRow({ h, stayQs, priority }: { h: HotelCard; stayQs: string; prior
 
           <div className="flex flex-1 min-w-0 flex-col sm:flex-row">
             <div className="flex-1 min-w-0 p-4 sm:p-5">
-              <p className="text-base font-bold text-neutral-800 truncate group-hover:text-primary-600 transition-colors">
+              <p className="text-base sm:text-lg font-heading font-bold text-neutral-800 truncate group-hover:text-primary-500 transition-colors">
                 {h.name}
               </p>
 
-              <p className="flex items-center gap-1 text-xs text-neutral-400 mt-1">
-                <MapPinIcon size={13} weight="fill" className="text-neutral-300" />
+              <p className="flex items-center gap-1 text-xs text-neutral-600/90 mt-0.5">
+                <MapPinIcon size={13} weight="fill" className="text-neutral-400/90" />
                 {[h.city, h.state].filter(Boolean).join(", ") || "—"}
               </p>
 
               {tier && (
-                <p className="mt-2 inline-block text-[11px] font-semibold text-neutral-600 border-l-2 border-primary-500 pl-2">
+                <p className="mt-3 inline-block text-sm font-semibold text-neutral-700 border-l-2 border-primary-500 pl-2">
                   {tier}
                 </p>
               )}
 
               {room && (
-                <p className="mt-2 text-xs text-neutral-500 truncate">{room}</p>
+                <p className="mt-2 text-xs text-neutral-600/90 truncate">{room}</p>
               )}
 
               <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
                 {h.mealPlan && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                    <ForkKnifeIcon size={11} weight="fill" />
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600   rounded-full px-2 py-0.5">
+                    <ForkKnifeIcon size={14} weight="fill" className="text-emerald-500/90" />
                     {h.mealPlan}
                   </span>
                 )}
                 {h.roomTypeCount > 1 && (
-                  <span className="text-[11px] text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-full px-2 py-0.5">
+                  <span className="text-xs text-neutral-600/90  rounded-full px-2 py-0.5">
                     {h.roomTypeCount} room types
                   </span>
                 )}
@@ -108,7 +108,7 @@ function HotelRow({ h, stayQs, priority }: { h: HotelCard; stayQs: string; prior
                   {h.amenities.map((a) => (
                     <span
                       key={a}
-                      className="text-[10px] text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-full px-2 py-0.5"
+                      className="text-[10px] text-neutral-500 bg-neutral-50 ring-1 ring-inset ring-neutral-200/75 shadow-sm shadow-neutral-200/80 rounded-full px-2 py-0.75"
                     >
                       {a}
                     </span>
@@ -118,26 +118,26 @@ function HotelRow({ h, stayQs, priority }: { h: HotelCard; stayQs: string; prior
             </div>
 
             {/* Price rail: its own column on desktop, a footer strip on mobile */}
-            <div className="flex sm:flex-col items-end sm:items-end justify-between sm:justify-center gap-2 shrink-0 px-4 pb-4 sm:p-5 sm:w-48 sm:border-l border-neutral-100">
+            <div className="flex sm:flex-col items-end sm:items-end justify-between sm:justify-center gap-2 shrink-0 px-4 pb-4 sm:p-5 sm:w-48 sm:border-l border-neutral-200/75 bg-linear-to-r from-neutral-50 to-white rounded-r-2xl">
               <div className="text-right">
                 {h.priceFrom != null ? (
                   <>
-                    <p className="text-[11px] text-neutral-400">From</p>
-                    <p className="text-xl font-bold text-neutral-900 leading-tight">
+                    <p className="text-[11px] text-neutral-600/90">Starting From</p>
+                    <p className="text-xl font-bold font-heading text-neutral-900 leading-tight">
                       {money(h.priceFrom)}
                     </p>
                     {h.taxesFrom != null && (
-                      <p className="text-[11px] text-neutral-400 mt-0.5">
+                      <p className="text-[11px] text-neutral-500/90 mt-1">
                         + {money(h.taxesFrom)} taxes &amp; fees
                       </p>
                     )}
-                    <p className="text-[11px] text-neutral-400">per night</p>
+                    <p className="text-[11px] text-neutral-600/90">per night</p>
                   </>
                 ) : (
                   <p className="text-xs text-neutral-400">Price on request</p>
                 )}
               </div>
-              <span className="text-xs font-bold text-primary-600 group-hover:underline whitespace-nowrap">
+              <span className="text-xs font-bold text-primary-500 whitespace-nowrap">
                 View →
               </span>
             </div>
