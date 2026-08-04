@@ -4,7 +4,7 @@ import { db } from "../lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { resolveCabPrice } from "./cab-pricing-utils";
 import {
-  roomTotalCapacity, roomExtraBedsUsed, roomsNeededFor, splitPersonsAcrossRooms,
+  roomTotalCapacity, roomExtraBedsUsed, roomsNeededFor, roomFits, splitPersonsAcrossRooms,
 } from "../lib/room-capacity";
 import { splitManualHotelName } from "./hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
@@ -813,15 +813,19 @@ export async function computePackagePrice(
       // The caller's per-room split is honoured for THIS stay only if it can't
       // underprice the safe derived minimum: enough rooms for the party, every
       // guest accounted for exactly once, and no single room holding more
-      // guests than this room type really takes. Untrusted input — re-derived
-      // here rather than taken on faith from a caller (see PricingInput.rooms).
-      const derivedRoomsNeeded = roomsNeededFor(persons, roomFields);
+      // guests than this room type really takes — checked per-room via
+      // roomFits (adults capped at max_adults, not just the blended total;
+      // see app/lib/room-capacity.ts) rather than just the combined headcount
+      // against roomCap, which let an all-adult room slip past max_adults.
+      // Untrusted input — re-derived here rather than taken on faith from a
+      // caller (see PricingInput.rooms).
+      const derivedRoomsNeeded = roomsNeededFor(adults, children, roomFields);
       const roomsRequested = rooms?.length ?? null;
       const validRooms = !!rooms
         && Number.isInteger(rooms.length) && rooms.length > 0 && rooms.length <= 20
         && rooms.every((r) => Number.isInteger(r.adults) && r.adults >= 1
             && Number.isInteger(r.children) && r.children >= 0
-            && (r.adults + r.children) <= roomCap)
+            && roomFits(r.adults, r.children, roomFields))
         && rooms.length >= derivedRoomsNeeded
         && rooms.reduce((s, r) => s + r.adults + r.children, 0) === persons;
 
@@ -1321,11 +1325,13 @@ export async function computeBuilderHotelPricing(input: {
       if (rp) {
         const bedCapacity = rp.room?.max_occupancy ?? 2;
         const isManualCount = d.roomsCount != null && d.roomsCount > 0;
-        // Room count comes from the room's REAL total capacity (see
-        // app/lib/room-capacity.ts) — max_occupancy alone is just the base
-        // beds, and using it here used to demand more rooms than the room type
-        // actually needs.
-        const roomsNeeded = isManualCount ? d.roomsCount! : roomsNeededFor(persons, rp.room);
+        // Room count comes from the room's REAL per-room limits (see
+        // app/lib/room-capacity.ts): max_occupancy alone is just the base
+        // beds, and the blended max_adults+max_children total alone isn't
+        // enough either — it only works for a mixed party, since an all-adult
+        // group can't use the "+max_children" headroom that only exists
+        // because a child may share an adult's bed.
+        const roomsNeeded = isManualCount ? d.roomsCount! : roomsNeededFor(adults, children, rp.room);
         // Only the mattresses the rooms physically have are chargeable; guests
         // beyond that share a bed.
         const mattresses = isManualCount
