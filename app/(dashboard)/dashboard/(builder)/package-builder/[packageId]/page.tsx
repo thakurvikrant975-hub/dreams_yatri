@@ -19,7 +19,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw,
+  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -68,6 +68,7 @@ import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuil
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
+import { roomsNeededFor, roomExtraBedsUsed, splitPersonsAcrossRooms } from "@/app/lib/room-capacity";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
@@ -847,10 +848,126 @@ function RemoveSectionActions({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Hotel Info — room capacity + rooms/mattresses needed
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Shown once a catalog room is picked (roomPricingId set) — the room's own
+ * occupancy caps (snapshotted at selection time, see handleHotelRoomSelect),
+ * plus how many rooms and mattresses this exact party actually needs,
+ * computed the same way the pricing engine does (room-capacity.ts) — so the
+ * hotel/ops team can read straight off this card what to arrange, instead of
+ * re-deriving it from raw capacity numbers themselves. */
+function RoomCapacitySummary({ data, adults, childrenCount, onChange }: {
+  data: DayItinerary; adults: number; childrenCount: number; onChange: (d: DayItinerary) => void;
+}) {
+  const hasCapacityData = data.accommodationMaxAdults != null || data.accommodationExtraBedCapacity != null;
+  const roomFields = {
+    max_occupancy: data.accommodationRoomCapacity,
+    extra_bed_capacity: data.accommodationExtraBedCapacity,
+    max_adults: data.accommodationMaxAdults,
+    max_children: data.accommodationMaxChildren,
+  };
+  const autoRooms = roomsNeededFor(adults, childrenCount, roomFields);
+  const roomsUsed = data.roomsCount ?? autoRooms;
+  const totalMattresses = splitPersonsAcrossRooms(adults + childrenCount, roomsUsed)
+    .reduce((sum, headcount) => sum + roomExtraBedsUsed(headcount, roomFields), 0);
+
+  return (
+    <div className="space-y-2">
+      {hasCapacityData && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 px-2.5 py-2 text-[11px] text-dashboard-base-content/70">
+          {data.accommodationRoomCapacity != null && <span>Sleeps {data.accommodationRoomCapacity}</span>}
+          {data.accommodationMaxAdults != null && <span>Max {data.accommodationMaxAdults} adult{data.accommodationMaxAdults !== 1 ? "s" : ""}</span>}
+          {data.accommodationMaxChildren != null && <span>{data.accommodationMaxChildren} child{data.accommodationMaxChildren !== 1 ? "ren" : ""}</span>}
+          {data.accommodationExtraBedCapacity != null && (
+            <span className="flex items-center gap-1">
+              <BedDouble size={11} className="shrink-0" /> +{data.accommodationExtraBedCapacity} extra bed{data.accommodationExtraBedCapacity !== 1 ? "s" : ""}/room
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
+        <Input
+          type="number"
+          min={1}
+          value={data.roomsCount ?? ""}
+          onChange={(e) => onChange({
+            ...data,
+            roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+          })}
+          placeholder="Auto"
+          className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+        <p className="text-[10px] text-dashboard-base-content/40">
+          Leave blank to auto-compute from traveller count
+        </p>
+      </div>
+
+      {hasCapacityData && (
+        <p className="flex items-center gap-1.5 text-xs font-medium text-dashboard-primary">
+          <Users size={12} className="shrink-0" />
+          For {adults} adult{adults !== 1 ? "s" : ""}{childrenCount > 0 ? `, ${childrenCount} child${childrenCount !== 1 ? "ren" : ""}` : ""}:
+          {" "}{roomsUsed} room{roomsUsed !== 1 ? "s" : ""}
+          {totalMattresses > 0 && <> · {totalMattresses} mattress{totalMattresses !== 1 ? "es" : ""}</>} needed
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Shown for a day with NO catalog roomPricingId — a hand-typed hotel, or
+ * one the hotel team filled via /dashboard/hotel-requests. There's no
+ * catalog capacity to compute rooms/mattresses from here, so both are plain
+ * manual counts instead of the auto-computed readout above. */
+function ManualHotelCapacityInputs({ data, onChange }: {
+  data: DayItinerary; onChange: (d: DayItinerary) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
+        <Input
+          type="number"
+          min={1}
+          value={data.roomsCount ?? ""}
+          onChange={(e) => onChange({
+            ...data,
+            roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+          })}
+          placeholder="1"
+          className="text-sm h-8 w-16 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-dashboard-base-content/60 shrink-0 flex items-center gap-1">
+          <BedDouble size={11} /> Mattresses needed
+        </label>
+        <Input
+          type="number"
+          min={0}
+          value={data.manualExtraBeds ?? ""}
+          onChange={(e) => onChange({
+            ...data,
+            manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
+          })}
+          placeholder="0"
+          className="text-sm h-8 w-16 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+      <p className="text-[10px] text-dashboard-base-content/40 basis-full">
+        No catalog room selected — enter how many rooms and extra mattresses this hotel needs to provide.
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Day Itinerary Card
 // ─────────────────────────────────────────────────────────────────────────────
 function DayCard({
-  day, data, location, totalDays, onChange, onRemove,
+  day, data, location, totalDays, adults, childrenCount, onChange, onRemove,
   onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
   focusSection, shiftedMeals,
   dayAddons, onAddAddon, onUpdateAddon, onRemoveAddon,
@@ -859,6 +976,13 @@ function DayCard({
   data: DayItinerary;
   location?: string;
   totalDays: number;
+  /** Party size — feeds the "rooms & mattresses needed" readout in the
+   * Hotel Info card (see RoomCapacitySummary), same adults/children the
+   * pricing engine itself uses. Named childrenCount, not children — that
+   * name is reserved for JSX's own children prop, and passing children={x}
+   * as a plain attribute (not nested JSX) trips react/no-children-prop. */
+  adults: number;
+  childrenCount: number;
   onChange: (d: DayItinerary) => void;
   onRemove: () => void;
   onApplyVehicleToDays: (vehicle: VehicleResult, dayNumbers: number[], cabPricingId: number | null) => void;
@@ -984,7 +1108,8 @@ function DayCard({
       ...data,
       accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
       accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
-      roomPricingId: null, roomsCount: null, extraRooms: [],
+      accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
+      roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
       hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
     });
   }
@@ -1013,6 +1138,14 @@ function DayCard({
       accommodationLocation: raw.location ?? data.accommodationLocation,
       accommodationRoomSpecs: raw.roomSpecs ?? data.accommodationRoomSpecs,
       accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
+      // Occupancy caps snapshotted straight from the picked room — feeds the
+      // "rooms & mattresses needed for this party" readout below. A manual
+      // mattress count from before (if this day was previously hand-typed)
+      // no longer means anything once a real catalog room is behind it.
+      accommodationMaxAdults: raw.maxAdults,
+      accommodationMaxChildren: raw.maxChildren,
+      accommodationExtraBedCapacity: raw.extraBedCapacity,
+      manualExtraBeds: null,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
       meals: hotelMeals.length > 0 ? hotelMeals : data.meals,
       // The hotel's own check-in/check-out policy — previously never fetched
@@ -1257,7 +1390,8 @@ function DayCard({
                   hotelPending: true,
                   accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
                   accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
-                  roomPricingId: null, roomsCount: null, extraRooms: [],
+                  accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
+                  roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
                   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
                   manualHotelPricePerNight: null,
                 })}
@@ -1267,28 +1401,17 @@ function DayCard({
               </button>
             </div>
 
-            {/* Rooms needed — auto-computed from traveller count, but
-               overridable when the group is splitting across separately
-               booked rooms rather than sharing by pure occupancy. */}
-            {data.roomPricingId != null && (
-              <div className="flex items-center gap-2">
-                <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={data.roomsCount ?? ""}
-                  onChange={(e) => onChange({
-                    ...data,
-                    roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-                  })}
-                  placeholder="Auto"
-                  className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-                <p className="text-[10px] text-dashboard-base-content/40">
-                  Leave blank to auto-compute from traveller count
-                </p>
-              </div>
-            )}
+            {/* Rooms/mattresses needed — auto-computed from the room's own
+               capacity + traveller count when a catalog room is picked
+               (overridable, for a group splitting across separately booked
+               rooms rather than sharing by pure occupancy); plain manual
+               counts for a hand-typed/hotel-team-filled day, which has no
+               catalog capacity to compute from. */}
+            {data.roomPricingId != null ? (
+              <RoomCapacitySummary data={data} adults={adults} childrenCount={childrenCount} onChange={onChange} />
+            ) : (data.accommodation || data.hotelFilledAt) ? (
+              <ManualHotelCapacityInputs data={data} onChange={onChange} />
+            ) : null}
 
             {/* Additional, different room types for the same night — e.g. one
                couple in this room, another in a different room type. */}
@@ -3033,6 +3156,10 @@ export default function PackageBuilderDetailPage() {
               accommodationLocation: room.location ?? it.accommodationLocation,
               accommodationRoomSpecs: room.roomSpecs ?? it.accommodationRoomSpecs,
               accommodationRoomCapacity: room.roomCapacity ?? it.accommodationRoomCapacity,
+              accommodationMaxAdults: room.maxAdults,
+              accommodationMaxChildren: room.maxChildren,
+              accommodationExtraBedCapacity: room.extraBedCapacity,
+              manualExtraBeds: null,
               hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
               meals: hotelMeals.length > 0 ? hotelMeals : it.meals,
               hotelCheckIn: room.checkInTime ? formatTime12h(room.checkInTime) : it.hotelCheckIn,
@@ -3059,7 +3186,8 @@ export default function PackageBuilderDetailPage() {
               ...it,
               accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
               accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
-              roomPricingId: null, roomsCount: null, extraRooms: [],
+              accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
+              roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
               hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
             }
           : it,
@@ -4260,6 +4388,8 @@ Rules:
                     data={day}
                     location={dayLocations[idx]}
                     totalDays={form.itineraries.length}
+                    adults={form.adults}
+                    childrenCount={form.children}
                     onChange={(d) => updateDay(idx, d)}
                     onRemove={() => removeDay(idx)}
                     onApplyVehicleToDays={applyVehicleToDays}

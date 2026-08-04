@@ -31,6 +31,9 @@ export type FillHotelInput = {
     hotelName: string;
     roomName: string;
     roomsCount: number;
+    /** Extra mattresses/rollaway beds the hotel needs to provide alongside
+     * the rooms above — see custom_itineraries.manualExtraBeds. */
+    extraBeds?: number;
     pricePerNight: number;
     roomSpecs?: string;
     checkIn?: string;
@@ -67,6 +70,7 @@ export async function fillPendingHotel(
             hotelCheckOut: input.checkOut?.trim() || null,
             hotelMealPlan: input.mealPlan?.trim() || null,
             roomsCount: Math.max(1, Math.round(input.roomsCount) || 1),
+            manualExtraBeds: Math.max(0, Math.round(input.extraBeds ?? 0)),
             manualHotelPricePerNight: input.pricePerNight,
             hotelPending: false,
             hotelFilledAt: new Date(),

@@ -2944,6 +2944,28 @@ model custom_itineraries {
   accommodationLocation     String?
   accommodationRoomSpecs    String?
   accommodationRoomCapacity Int?
+  /**
+   * Room-level occupancy caps snapshotted from hotel_rooms at the moment a
+   * catalog room is picked (see HotelRoomResult.maxAdults/maxChildren/
+   * extraBedCapacity) — kept on the itinerary row itself, not re-joined live,
+   * same reasoning as accommodationRoomCapacity above: what's shown here
+   * should never silently drift just because someone edited the hotel's
+   * catalog listing after this day was booked. Null for a hand-typed/manual
+   * day (no roomPricingId) — there's no catalog capacity to snapshot.
+   */
+  accommodationMaxAdults        Int?
+  accommodationMaxChildren      Int?
+  accommodationExtraBedCapacity Int?
+  /**
+   * Mattress/rollaway-bed count for a day with NO catalog roomPricingId —
+   * either the hotel team fulfilling an "Add Hotels by Team" request
+   * (fillPendingHotel) or a sales exec hand-typing a hotel in the builder.
+   * A catalog-picked room's mattress count is computed instead, live, from
+   * accommodationExtraBedCapacity + the party size (see room-capacity.ts) —
+   * this field only exists because that computation has nothing to work
+   * from once there's no catalog room behind the day.
+   */
+  manualExtraBeds           Int?
   roomPricingId             Int?
   /**
    * Overrides the auto-computed (adults+children ÷ room capacity) room

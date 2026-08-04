@@ -669,6 +669,21 @@ export interface DayItinerary {
   accommodationLocation: string;
   accommodationRoomSpecs: string;
   accommodationRoomCapacity: number | null;
+  /** Occupancy caps snapshotted from the picked catalog room (see
+   * HotelRoomResult) — max adults/children the room itself allows, and how
+   * many extra mattresses/rollaway beds it has. Feeds the "rooms & mattresses
+   * needed for this party" readout in the Hotel Info card (room-capacity.ts).
+   * Null for a hand-typed day with no roomPricingId. */
+  accommodationMaxAdults?: number | null;
+  accommodationMaxChildren?: number | null;
+  accommodationExtraBedCapacity?: number | null;
+  /** Mattress/rollaway-bed count for a day with NO roomPricingId — set by
+   * the hotel team filling an "Add Hotels by Team" request, or typed
+   * directly here for a hand-entered hotel. A catalog-picked room's
+   * mattress count is computed instead (see roomExtraBedsUsed in
+   * room-capacity.ts) — this only matters once there's no catalog room to
+   * compute it from. */
+  manualExtraBeds?: number | null;
   /** The exact `hotel_room_pricing` row picked for this night — lets the
    * package price be computed from real, date/occupancy-aware hotel rates
    * instead of typed in by hand. Null when the hotel was entered as free text. */
@@ -1092,6 +1107,8 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           id: true, day: true, title: true, description: true, meals: true,
           accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
           accommodationLocation: true, accommodationRoomSpecs: true, accommodationRoomCapacity: true,
+          accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
+          manualExtraBeds: true,
           roomPricingId: true, roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           hotelPending: true, hotelPendingNote: true, manualHotelPricePerNight: true,
@@ -1124,6 +1141,8 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       accommodation: n.accommodation, accommodationPhoto: n.accommodationPhoto,
       accommodationRoomPhotos: n.accommodationRoomPhotos, accommodationLocation: n.accommodationLocation,
       accommodationRoomSpecs: n.accommodationRoomSpecs, accommodationRoomCapacity: n.accommodationRoomCapacity,
+      accommodationMaxAdults: n.accommodationMaxAdults, accommodationMaxChildren: n.accommodationMaxChildren,
+      accommodationExtraBedCapacity: n.accommodationExtraBedCapacity, manualExtraBeds: n.manualExtraBeds,
       roomPricingId: n.roomPricingId, roomsCount: n.roomsCount, extraRooms: n.extraRooms,
       hotelCheckIn: n.hotelCheckIn, hotelCheckOut: n.hotelCheckOut, hotelMealPlan: n.hotelMealPlan,
       hotelPending: n.hotelPending, hotelPendingNote: n.hotelPendingNote,
@@ -1291,6 +1310,8 @@ function normalizeItinerary(it: {
   id: string; day: number; title: string; description: string | null; meals: string[];
   accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
   accommodationLocation: string | null; accommodationRoomSpecs: string | null; accommodationRoomCapacity: number | null;
+  accommodationMaxAdults: number | null; accommodationMaxChildren: number | null; accommodationExtraBedCapacity: number | null;
+  manualExtraBeds: number | null;
   roomPricingId: number | null;
   roomsCount: number | null;
   extraRooms: Prisma.JsonValue;
@@ -1322,6 +1343,10 @@ function normalizeItinerary(it: {
     accommodationLocation:     it.accommodationLocation ?? "",
     accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
     accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
+    accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
+    accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
+    accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
+    manualExtraBeds:           it.manualExtraBeds ?? null,
     roomPricingId:             it.roomPricingId ?? null,
     roomsCount:                it.roomsCount ?? null,
     extraRooms:                parseRoomSelections(it.extraRooms),
@@ -1514,6 +1539,10 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           accommodationLocation: true,
           accommodationRoomSpecs: true,
           accommodationRoomCapacity: true,
+          accommodationMaxAdults: true,
+          accommodationMaxChildren: true,
+          accommodationExtraBedCapacity: true,
+          manualExtraBeds:    true,
           roomPricingId:      true,
           roomsCount:         true,
           extraRooms:         true,
@@ -1887,6 +1916,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               accommodationLocation: it.accommodationLocation || null,
               accommodationRoomSpecs: it.accommodationRoomSpecs || null,
               accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
+              accommodationMaxAdults: it.accommodationMaxAdults ?? null,
+              accommodationMaxChildren: it.accommodationMaxChildren ?? null,
+              accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
+              manualExtraBeds:    it.manualExtraBeds ?? null,
               roomPricingId:      it.roomPricingId ?? null,
               roomsCount:         it.roomsCount ?? null,
               hotelPending,
