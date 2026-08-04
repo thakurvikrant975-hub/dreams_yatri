@@ -15,8 +15,17 @@
  */
 export const INTERNAL_PACKAGE_SLUGS = ["test-payment-package"];
 
+/**
+ * Deep clones (scripts/clone-test-skus.ts) are named `test-clone-<source>-<runid>`
+ * with a per-run suffix, so they cannot be listed individually above — matching
+ * the prefix is what keeps every clone, including ones made later, out of view.
+ */
+export const INTERNAL_PACKAGE_SLUG_PREFIX = "test-clone-";
+
 /** Spread into a `packages` where-clause to drop internal SKUs from a listing. */
-export const NOT_INTERNAL_PACKAGE = { slug: { notIn: INTERNAL_PACKAGE_SLUGS } };
+export const NOT_INTERNAL_PACKAGE = {
+    slug: { notIn: INTERNAL_PACKAGE_SLUGS, not: { startsWith: INTERNAL_PACKAGE_SLUG_PREFIX } },
+};
 
 /**
  * The standard "a customer may see this package" predicate. Prefer this over a

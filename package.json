@@ -33,7 +33,11 @@
     "e2e:phase9": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase9.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "clone:test-skus": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/clone-test-skus.ts",
+    "clone:test-skus:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/clone-test-skus.ts",
+    "teardown:test-clone": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/teardown-test-clone.ts",
+    "teardown:test-clone:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/teardown-test-clone.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"

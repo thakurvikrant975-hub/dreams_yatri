@@ -55,3 +55,6 @@ next-env.d.ts
 # One-off rollback snapshots from scripts/make-hotels-live.ts
 hotel-live-rollback.*.json
 hotel-stars-rollback.*.json
+
+# Test-clone manifests are per-database state, not source
+scripts/test-clone-manifest.*.json
