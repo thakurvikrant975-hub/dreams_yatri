@@ -168,7 +168,7 @@ async function main() {
     const days = source.itineraries.length;
     const hotelIds = [...new Set(source.itineraries.flatMap((i) => i.itineraryStays.map((s) => s.room_pricing.hotel.id)))];
     const activityVariantIds = [...new Set(source.itineraries.flatMap((i) => i.itinerary_activities.map((a) => a.variant?.id).filter((x): x is number => x != null)))];
-    const cabPricingIds = [...new Set(source.durations.flatMap((d) => d.cabTypes.flatMap((c) => c.segments.map((s) => s.cab_pricing_id))))];
+    const cabPricingIds: number[] = []; // filled once the combination is chosen
 
     console.log(`  source package: #${source.id} ${source.title}`);
     console.log(`    ${days} day(s), ${nights} night(s), ${hotelIds.length} hotel(s), ${activityVariantIds.length} activity variant(s), ${cabPricingIds.length} cab rate(s)\n`);
@@ -212,75 +212,117 @@ async function main() {
 
     manifest = new ManifestWriter({ packageSlug: source.slug, hotelSlug: null });
 
-    // ── 1. Hotels the itinerary stays on ────────────────────────────────────
-    // Cloned wholesale so the clone owns its rates; occupancy tiers are dropped
-    // rather than copied, since a tier price REPLACES the base rate and would
-    // silently override the fractional per-night cost set below.
-    const roomPricingMap = new Map<number, number>(); // source rate id → clone rate id
+    // ── Exactly one (duration, route, stay category) ────────────────────────
+    // A package's itinerary is written per duration AND per stay tier, so cloning
+    // all of them pulls in every hotel the package has ever referenced — 16, for
+    // a 4-tier Kerala package. One combination is all a booking exercises, and it
+    // keeps the clone to a single hotel.
+    const chosenDur = source.durations.find((d) => d.is_default) ?? source.durations[0];
+    const chosenRoute = chosenDur?.routes[0];
+    const chosenCat = source.stay_categories.find((c) => c.is_default) ?? source.stay_categories[0];
+    if (!chosenDur || !chosenRoute || !chosenCat) {
+        throw new Error("Source package has no usable duration/route/stay-category combination.");
+    }
+    const chosenItins = source.itineraries.filter(
+        (i) => i.duration_id === chosenDur.id && i.route_id === chosenRoute.id,
+    );
+    const chosenStays = chosenItins.flatMap((i) => i.itineraryStays.filter((s) => s.stay_category_id === chosenCat.id));
+    if (chosenStays.length === 0) throw new Error("Chosen combination has no itinerary stays.");
+    console.log(`  cloning combination: ${chosenDur.slug}/${chosenRoute.slug}/${chosenCat.slug}`);
+    console.log(`    ${chosenItins.length} day(s), ${chosenStays.reduce((n, x) => n + x.num_nights, 0)} night(s)\n`);
 
-    for (const hotelId of hotelIds) {
-        const src = await db.hotels.findUniqueOrThrow({
-            where: { id: hotelId },
-            include: { hotelRooms: { include: { pricing: true } }, meal_pricing: true },
-        });
+    // ── 1. One hotel, carrying TWO rate plans ──────────────────────────────
+    // The same property has to serve two tests with different targets:
+    //
+    //   direct hotel booking  charges the nightly rate as-is, with no rounding,
+    //                         so it needs ₹1.00/night to hit ₹1.
+    //   inside the package    is one of several components the engine sums before
+    //                         rounding, so ₹1.00/night × 4 nights would make the
+    //                         package quote ₹4.
+    //
+    // One rate cannot satisfy both. getRoomARI picks the first active plan by
+    // sort_order for a direct booking, while the package references its plan by
+    // id — so plan 0 is the ₹1 retail rate and plan 1 is the fractional rate the
+    // itinerary points at.
+    const sourceHotelId = chosenStays[0].room_pricing.hotel.id;
+    const srcHotel = await db.hotels.findUniqueOrThrow({
+        where: { id: sourceHotelId },
+        include: { hotelRooms: { include: { pricing: true } }, meal_pricing: true },
+    });
+    const srcRoom = srcHotel.hotelRooms.find((r) => r.is_active) ?? srcHotel.hotelRooms[0];
+    if (!srcRoom) throw new Error(`Source hotel ${srcHotel.name} has no rooms to clone.`);
 
-        const hotel = await track("hotels", await db.hotels.create({
+    const hotel = await track("hotels", await db.hotels.create({
+        data: {
+            ...scalarsOf(srcHotel, [...REL.hotels, "slug", "name", "listing_status", "is_active", "margin_percentage", "gst_percentage"]),
+            name: `${TAG} ${srcHotel.name}`,
+            slug: uniqueSlug(srcHotel.slug),
+            listing_status: "DRAFT",
+            is_active: false,
+            margin_percentage: 0,
+            gst_percentage: 0,
+        } as Parameters<typeof db.hotels.create>[0]["data"],
+    }));
+    note(`hotels #${hotel.id} ← ${srcHotel.name}`);
+
+    const room = await track("hotel_rooms", await db.hotel_rooms.create({
+        data: {
+            ...scalarsOf(srcRoom, [...REL.hotel_rooms, "hotel_id", "slug"]),
+            hotel_id: hotel.id,
+            slug: `${SLUG_PREFIX}${srcRoom.slug}`.slice(0, 190),
+        } as Parameters<typeof db.hotel_rooms.create>[0]["data"],
+    }));
+
+    const srcRate = srcRoom.pricing.find((r) => r.is_active) ?? srcRoom.pricing[0];
+    const rateBase = srcRate
+        ? scalarsOf(srcRate, ["hotel_id", "room_id", "price_per_night", "weekend_price_per_night", "extra_bed_rate", "weekend_extra_bed_rate", "original_price", "margin_percentage", "gst_percentage", "sort_order", "plan_name"])
+        : {};
+
+    const makeRate = async (planName: string, price: number, sortOrder: number) =>
+        track("hotel_room_pricing", await db.hotel_room_pricing.create({
             data: {
-                ...scalarsOf(src, [...REL.hotels, "slug", "name", "listing_status", "is_active", "margin_percentage", "gst_percentage"]),
-                name: `${TAG} ${src.name}`,
-                slug: uniqueSlug(src.slug),
-                listing_status: "DRAFT",
-                is_active: false,
+                ...rateBase,
+                hotel_id: hotel.id,
+                room_id: room.id,
+                plan_name: planName,
+                price_per_night: price.toFixed(2),
+                weekend_price_per_night: price.toFixed(2),
+                extra_bed_rate: "0.00",
+                weekend_extra_bed_rate: "0.00",
+                original_price: null,
                 margin_percentage: 0,
                 gst_percentage: 0,
-            } as Parameters<typeof db.hotels.create>[0]["data"],
+                sort_order: sortOrder,
+                is_active: true,
+            } as Parameters<typeof db.hotel_room_pricing.create>[0]["data"],
         }));
-        note(`hotels #${hotel.id} ← ${src.name}`);
 
-        for (const srcRoom of src.hotelRooms) {
-            const room = await track("hotel_rooms", await db.hotel_rooms.create({
-                data: {
-                    ...scalarsOf(srcRoom, [...REL.hotel_rooms, "hotel_id", "slug"]),
-                    hotel_id: hotel.id,
-                    slug: `${SLUG_PREFIX}${srcRoom.slug}`.slice(0, 190),
-                } as Parameters<typeof db.hotel_rooms.create>[0]["data"],
-            }));
+    const retailRate = await makeRate(`${TAG} Room Only`, 1, 0);
+    const packageRate = await makeRate(`${TAG} Package rate`, BUDGET.hotelPerNight, 1);
+    note(`hotel_room_pricing #${retailRate.id} @ ₹1/night (direct booking), #${packageRate.id} @ ₹${BUDGET.hotelPerNight}/night (in package)`);
 
-            for (const srcRate of srcRoom.pricing) {
-                const rate = await track("hotel_room_pricing", await db.hotel_room_pricing.create({
-                    data: {
-                        ...scalarsOf(srcRate, ["hotel_id", "room_id", "price_per_night", "weekend_price_per_night", "extra_bed_rate", "weekend_extra_bed_rate", "original_price", "margin_percentage", "gst_percentage"]),
-                        hotel_id: hotel.id,
-                        room_id: room.id,
-                        price_per_night: BUDGET.hotelPerNight.toFixed(2),
-                        weekend_price_per_night: BUDGET.hotelPerNight.toFixed(2),
-                        extra_bed_rate: "0.00",
-                        weekend_extra_bed_rate: "0.00",
-                        original_price: null,
-                        margin_percentage: 0,
-                        gst_percentage: 0,
-                    } as Parameters<typeof db.hotel_room_pricing.create>[0]["data"],
-                }));
-                roomPricingMap.set(srcRate.id, rate.id);
-            }
-        }
-
-        for (const srcMeal of src.meal_pricing) {
-            await track("hotel_meal_pricing", await db.hotel_meal_pricing.create({
-                data: {
-                    ...scalarsOf(srcMeal, ["hotel_id", "price", "weekend_price"]),
-                    hotel_id: hotel.id,
-                    price: BUDGET.mealPerPersonPerMeal,
-                    weekend_price: BUDGET.mealPerPersonPerMeal,
-                } as Parameters<typeof db.hotel_meal_pricing.create>[0]["data"],
-            }));
-        }
+    for (const srcMeal of srcHotel.meal_pricing) {
+        await track("hotel_meal_pricing", await db.hotel_meal_pricing.create({
+            data: {
+                ...scalarsOf(srcMeal, ["hotel_id", "price", "weekend_price"]),
+                hotel_id: hotel.id,
+                price: BUDGET.mealPerPersonPerMeal,
+                weekend_price: BUDGET.mealPerPersonPerMeal,
+            } as Parameters<typeof db.hotel_meal_pricing.create>[0]["data"],
+        }));
     }
+
+    // Every stay in the itinerary — whichever real hotel it used — resolves to the
+    // single cloned property's package rate, so the clone stays one hotel.
+    const roomPricingMap = new Map<number, number>(
+        chosenStays.map((st) => [st.room_pricing_id, packageRate.id]),
+    );
 
     // ── 2. Cab rates ─────────────────────────────────────────────────────────
     // PER_KM would multiply by itinerary distance and blow the budget wide open,
     // so every cloned rate is forced to PER_DAY at a flat fraction.
     const cabPricingMap = new Map<number, number>();
+    cabPricingIds.push(...new Set(chosenDur.cabTypes.flatMap((c) => c.segments.map((sg) => sg.cab_pricing_id))));
     for (const cpId of cabPricingIds) {
         const src = await db.cab_pricing.findUniqueOrThrow({ where: { id: cpId } });
         const clone = await track("cab_pricing", await db.cab_pricing.create({
@@ -354,13 +396,13 @@ async function main() {
     const routeMap = new Map<number, number>();
     const cabTypeMap = new Map<number, number>();
 
-    for (const srcDur of source.durations) {
+    for (const srcDur of [chosenDur]) {
         const dur = await track("package_durations", await db.package_durations.create({
             data: { ...scalarsOf(srcDur, [...REL.package_durations, "package_id"]), package_id: pkg.id } as Parameters<typeof db.package_durations.create>[0]["data"],
         }));
         durationMap.set(srcDur.id, dur.id);
 
-        for (const srcRoute of srcDur.routes) {
+        for (const srcRoute of [chosenRoute]) {
             const route = await track("package_routes", await db.package_routes.create({
                 data: {
                     ...scalarsOf(srcRoute, [...REL.package_routes, "duration_id", "packagesId"]),
@@ -413,7 +455,7 @@ async function main() {
     }
 
     const stayCatMap = new Map<number, number>();
-    for (const srcCat of source.stay_categories) {
+    for (const srcCat of [chosenCat]) {
         const cat = await track("package_stay_categories", await db.package_stay_categories.create({
             data: { ...scalarsOf(srcCat, ["package_id"]), package_id: pkg.id } as Parameters<typeof db.package_stay_categories.create>[0]["data"],
         }));
@@ -431,7 +473,7 @@ async function main() {
         }));
     }
 
-    for (const srcItin of source.itineraries) {
+    for (const srcItin of chosenItins) {
         const dId = durationMap.get(srcItin.duration_id);
         const rId = routeMap.get(srcItin.route_id);
         if (dId == null || rId == null) continue;
@@ -443,7 +485,7 @@ async function main() {
             } as Parameters<typeof db.package_itineraries.create>[0]["data"],
         }));
 
-        for (const stay of srcItin.itineraryStays) {
+        for (const stay of srcItin.itineraryStays.filter((x) => x.stay_category_id === chosenCat.id)) {
             const catId = stayCatMap.get(stay.stay_category_id);
             const rateId = roomPricingMap.get(stay.room_pricing_id);
             if (catId == null || rateId == null) continue;
@@ -481,12 +523,13 @@ async function main() {
     manifest.save();
 
     const pkgSlug = pkg.slug;
-    const defaultDur = source.durations.find((d) => d.is_default) ?? source.durations[0];
-    const defaultRoute = defaultDur?.routes[0];
-    const defaultCat = source.stay_categories.find((c) => c.is_default) ?? source.stay_categories[0];
+    const defaultDur = chosenDur;
+    const defaultRoute = chosenRoute;
+    const defaultCat = chosenCat;
 
     console.log(`\n  ${manifest.count} rows created and recorded to the manifest.\n`);
-    console.log(`  Package  /packages/${pkgSlug}/${defaultDur?.slug ?? "?"}/${defaultRoute?.slug ?? "?"}/${defaultCat?.slug ?? "?"}`);
+    console.log(`  Package  /packages/${pkgSlug}/${defaultDur.slug}/${defaultRoute.slug}/${defaultCat.slug}`);
+    console.log(`  Hotel    /hotels/${hotel.slug}`);
     console.log(`\n  Add "${pkgSlug}" to INTERNAL_PACKAGE_SLUGS to keep it out of listings.`);
     console.log(`  Remove everything again with:  npm run teardown:test-clone -- --commit\n`);
 }
