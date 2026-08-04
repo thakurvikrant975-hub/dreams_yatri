@@ -32,6 +32,10 @@ export type FillHotelInput = {
     roomName: string;
     roomsCount: number;
     pricePerNight: number;
+    roomSpecs?: string;
+    checkIn?: string;
+    checkOut?: string;
+    mealPlan?: string;
 };
 
 export async function fillPendingHotel(
@@ -58,6 +62,10 @@ export async function fillPendingHotel(
         where: { id: row.id },
         data: {
             accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
+            accommodationRoomSpecs: input.roomSpecs?.trim() || null,
+            hotelCheckIn: input.checkIn?.trim() || null,
+            hotelCheckOut: input.checkOut?.trim() || null,
+            hotelMealPlan: input.mealPlan?.trim() || null,
             roomsCount: Math.max(1, Math.round(input.roomsCount) || 1),
             manualHotelPricePerNight: input.pricePerNight,
             hotelPending: false,
