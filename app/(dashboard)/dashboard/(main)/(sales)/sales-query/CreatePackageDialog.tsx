@@ -472,6 +472,12 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
                                                 {isDurationMatch && <span className="text-emerald-600">— matches request</span>}
                                             </p>
                                         )}
+                                        <span className={`inline-flex items-center gap-1 w-fit text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                            pkg.isActive ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+                                        }`}>
+                                            <span className={`size-1.5 rounded-full ${pkg.isActive ? "bg-emerald-500" : "bg-muted-foreground/50"}`} />
+                                            {pkg.isActive ? "Live" : "Not Live"}
+                                        </span>
                                         {recomputingId === pkg.id ? (
                                             <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
                                                 <Loader2 size={11} className="animate-spin" /> Recalculating…
