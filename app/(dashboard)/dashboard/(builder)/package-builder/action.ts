@@ -874,11 +874,33 @@ export interface PackageCopyPayload {
   startingPoint: string;
   totalDays:     number;
   totalNights:   number;
-  inclusions:    string[];
-  exclusions:    string[];
+  /** Optional — the catalog "Use Template" flow always sets these (they're
+   * the whole point of picking a template), but duplicateCustomPackageIntoDraft
+   * below deliberately omits them: a custom package's inclusions/exclusions
+   * are always re-sourced live from itinerary_settings on the next save
+   * regardless (see saveCustomPackage), so setting them here would only be a
+   * momentary, ultimately-overwritten flash — omitting the key entirely lets
+   * the builder's existing "Load itinerary settings" effect keep owning them
+   * uncontested, exactly as it does for a brand-new blank draft. */
+  inclusions?:    string[];
+  exclusions?:    string[];
   termsNotes:    string;
   stops:         StopInput[];
   itineraries:   DayItinerary[];
+  /** Present only when duplicating an existing custom package (see
+   * duplicateCustomPackageIntoDraft) — the catalog "Use Template" flow has
+   * no equivalent source data for these, so they're optional here rather
+   * than teaching that flow to fake them. */
+  coverImagePosition?: number;
+  /** String, matching PackageForm's input-bound field type — not the raw
+   * Prisma Float. */
+  marginPercentage?:   string;
+  gstPercentage?:      string;
+  extraPolicyItems?:   ExtraPolicyItems;
+  tickets?:            TicketInput[];
+  addOns?:             AddonInput[];
+  flightsIncluded?: boolean; flightNotes?: string; flightFrom?: string; flightTo?: string;
+  trainIncluded?:   boolean; trainNotes?: string;  trainFrom?: string;  trainTo?: string;
 }
 
 export async function copyPackageIntoDraft(
@@ -1021,6 +1043,136 @@ export async function copyPackageIntoDraft(
     termsNotes,
     stops,
     itineraries,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Copy previous package" — duplicate an already-built CUSTOM package (e.g.
+// the query's first package) into a fresh draft, for when an exec needs a
+// second budget option/variant for the same client instead of rebuilding the
+// whole itinerary by hand. Unlike copyPackageIntoDraft above (which extracts
+// generic template content from a public catalog package), this is a real
+// duplicate — hotel/cab selections, tickets, add-ons, margin/GST and
+// policy additions all come across, since it's copying one exec's own work,
+// not adapting a catalog listing. Explicitly NOT carried over: identity
+// (ids — every row must be a fresh insert), pricing totals (recomputed
+// fresh for the new draft), and anything tied to the SOURCE package's own
+// review/fulfillment history (hotelFilledAt/By, hotelPriceOverride/
+// cabPriceOverride) — those describe events that happened to that package,
+// not this one.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): Promise<PackageCopyPayload | null> {
+  const cp = await db.custom_packages.findUnique({
+    where: { id: sourcePackageId },
+    select: {
+      title: true, description: true, coverImage: true, coverImagePosition: true,
+      destination: true, startingPoint: true, totalDays: true, totalNights: true,
+      marginPercentage: true, gstPercentage: true, termsNotes: true, extraPolicyItems: true,
+      flightsIncluded: true, flightNotes: true, flightFrom: true, flightTo: true,
+      trainIncluded: true, trainNotes: true, trainFrom: true, trainTo: true,
+      stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
+      tickets: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, type: true, provider: true, ticketNumber: true,
+          fromPlace: true, toPlace: true, travelDate: true,
+          departureTime: true, arrivalTime: true, durationText: true,
+          adults: true, children: true, infants: true,
+          ticketCount: true, fare: true, notes: true,
+        },
+      },
+      addOns: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, price: true, quantity: true, notes: true, day: true },
+      },
+      itineraries: {
+        orderBy: { day: "asc" },
+        select: {
+          id: true, day: true, title: true, description: true, meals: true,
+          accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
+          accommodationLocation: true, accommodationRoomSpecs: true, accommodationRoomCapacity: true,
+          roomPricingId: true, roomsCount: true, extraRooms: true,
+          hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
+          hotelPending: true, hotelPendingNote: true, manualHotelPricePerNight: true,
+          hotelFilledAt: true, hotelFilledByName: true,
+          hotelPriceOverride: true, cabPriceOverride: true,
+          transport: true, transportPhoto: true, transportVehicleType: true,
+          transportSeats: true, transportPickup: true,
+          transportPickupLat: true, transportPickupLng: true,
+          transportDrop: true, transportDistanceKm: true, transportTravelTime: true,
+          cabPricingId: true, cabQuantity: true, extraCabs: true, notes: true,
+          activities: {
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
+          },
+        },
+      },
+    },
+  });
+  if (!cp) return null;
+
+  const stops: StopInput[] = cp.stops.map((s) => ({ name: s.name, nights: s.nights, image: s.image ?? undefined }));
+
+  const itineraries: DayItinerary[] = cp.itineraries.map((it) => {
+    const n = normalizeItinerary(it);
+    return {
+      day: n.day, title: n.title, description: n.description, meals: n.meals,
+      activities: n.activities.map((a) => ({
+        title: a.title, description: a.description, photo: a.photo, photos: a.photos, photoLabels: a.photoLabels,
+      })),
+      accommodation: n.accommodation, accommodationPhoto: n.accommodationPhoto,
+      accommodationRoomPhotos: n.accommodationRoomPhotos, accommodationLocation: n.accommodationLocation,
+      accommodationRoomSpecs: n.accommodationRoomSpecs, accommodationRoomCapacity: n.accommodationRoomCapacity,
+      roomPricingId: n.roomPricingId, roomsCount: n.roomsCount, extraRooms: n.extraRooms,
+      hotelCheckIn: n.hotelCheckIn, hotelCheckOut: n.hotelCheckOut, hotelMealPlan: n.hotelMealPlan,
+      hotelPending: n.hotelPending, hotelPendingNote: n.hotelPendingNote,
+      manualHotelPricePerNight: n.manualHotelPricePerNight,
+      hotelFilledAt: null, hotelFilledByName: null,
+      hotelPriceOverride: null, cabPriceOverride: null,
+      transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
+      transportSeats: n.transportSeats, transportPickup: n.transportPickup,
+      transportPickupLat: n.transportPickupLat, transportPickupLng: n.transportPickupLng,
+      transportDrop: n.transportDrop, transportDistanceKm: n.transportDistanceKm, transportTravelTime: n.transportTravelTime,
+      cabPricingId: n.cabPricingId, cabQuantity: n.cabQuantity, extraCabs: n.extraCabs, notes: n.notes,
+    };
+  });
+
+  const tickets: TicketInput[] = cp.tickets.map((t) => {
+    const n = normalizeTicket(t);
+    return {
+      type: n.type, provider: n.provider, ticketNumber: n.ticketNumber,
+      fromPlace: n.fromPlace, toPlace: n.toPlace, travelDate: n.travelDate,
+      departureTime: n.departureTime, arrivalTime: n.arrivalTime, durationText: n.durationText,
+      adults: n.adults, children: n.children, infants: n.infants,
+      ticketCount: n.ticketCount, fare: n.fare, notes: n.notes,
+    };
+  });
+
+  const addOns: AddonInput[] = cp.addOns.map((a) => {
+    const n = normalizeAddon(a);
+    return { name: n.name, price: n.price, quantity: n.quantity, notes: n.notes, day: n.day };
+  });
+
+  return {
+    title:         `${cp.title} (Copy)`,
+    description:   cp.description ?? "",
+    coverImage:    cp.coverImage ?? "",
+    coverImagePosition: cp.coverImagePosition,
+    destination:   cp.destination,
+    startingPoint: cp.startingPoint ?? "",
+    totalDays:     cp.totalDays,
+    totalNights:   cp.totalNights,
+    termsNotes:    cp.termsNotes ?? "",
+    stops,
+    itineraries,
+    marginPercentage: String(cp.marginPercentage),
+    gstPercentage:    String(cp.gstPercentage),
+    extraPolicyItems: normalizeExtraPolicyItems(cp.extraPolicyItems),
+    tickets,
+    addOns,
+    flightsIncluded: cp.flightsIncluded, flightNotes: cp.flightNotes ?? "", flightFrom: cp.flightFrom ?? "", flightTo: cp.flightTo ?? "",
+    trainIncluded:   cp.trainIncluded,   trainNotes: cp.trainNotes ?? "",   trainFrom: cp.trainFrom ?? "",   trainTo: cp.trainTo ?? "",
   };
 }
 

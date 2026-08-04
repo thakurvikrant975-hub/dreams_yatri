@@ -333,6 +333,7 @@ export function SalesQueryDetailSheet({
 
                     <CreatePackageDialog
                         queryId={query.id}
+                        existingPackages={query.customPackages}
                         destination={query.destination}
                         packageUrl={query.packageUrl}
                         travelDate={query.travelDate ? query.travelDate.toISOString().slice(0, 10) : reqs?.journey?.travelDate ?? null}
