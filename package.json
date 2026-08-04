@@ -37,7 +37,11 @@
     "clone:test-skus": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/clone-test-skus.ts",
     "clone:test-skus:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/clone-test-skus.ts",
     "teardown:test-clone": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/teardown-test-clone.ts",
-    "teardown:test-clone:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/teardown-test-clone.ts"
+    "teardown:test-clone:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/teardown-test-clone.ts",
+    "teardown:test-skus": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/teardown-test-payment-skus.ts",
+    "teardown:test-skus:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/teardown-test-payment-skus.ts",
+    "purge:bookings": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/purge-bookings.ts",
+    "purge:bookings:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/purge-bookings.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"
