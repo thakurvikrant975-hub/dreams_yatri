@@ -19,6 +19,7 @@ import { actionError } from "@/app/lib/action-error";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { createLog } from "../lib/logger";
 import { computeFinalPackagePricing } from "@/app/services/package-pricing.service";
+import { getItinerarySettings } from "../itinerary-settings/actions";
 
 // Entity name pricing corrections are logged under in ActivityLog — kept
 // distinct from "custom_package" so this history can be queried and shown
@@ -300,6 +301,102 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
         console.error("[updatePackagePricing] FAILED:", e);
         return actionError(e);
     }
+}
+
+// ── Inclusions/Exclusions review (costing curating what the client sees) ───
+//
+// Standard inclusions/exclusions are company-wide (itinerary_settings) and a
+// Sales Executive can only ever ADD to them for a package (extraPolicyItems),
+// never remove one — see the Lock notice on the builder's Inclusions tab.
+// Costing needs the opposite power here: drop a standard (or exec-added)
+// line that doesn't actually apply to this specific package, without
+// touching the global defaults every other package still uses. The client
+// submits the FULL desired list per section; this diffs it against the live
+// standard list to work out what's newly vetoed vs newly added, rather than
+// trusting separate remove/add arrays from the client.
+
+/** Mirrors ExtraPolicyItems in package-builder/action.ts — duplicated rather
+ * than imported since normalizeExtraPolicyItems itself isn't exported from
+ * that "use server" file (only async functions may be). */
+type ExtraPolicyItems = {
+  inclusions: string[]; exclusions: string[]; termsConditions: string[];
+  paymentPolicy: string[]; amendmentPolicy: string[]; travelBenefits: string[];
+};
+function normalizeExtraPolicyItems(raw: unknown): ExtraPolicyItems {
+  const obj = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof ExtraPolicyItems, unknown>>;
+  const arr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  return {
+    inclusions: arr(obj.inclusions), exclusions: arr(obj.exclusions), termsConditions: arr(obj.termsConditions),
+    paymentPolicy: arr(obj.paymentPolicy), amendmentPolicy: arr(obj.amendmentPolicy), travelBenefits: arr(obj.travelBenefits),
+  };
+}
+
+const inclusionsExclusionsSchema = z.object({
+  inclusions: z.array(z.string().trim().min(1)).max(100),
+  exclusions: z.array(z.string().trim().min(1)).max(100),
+});
+
+export async function updatePackageInclusionsExclusions(
+  packageId: string,
+  input: z.infer<typeof inclusionsExclusionsSchema>,
+): Promise<ActionResult> {
+  const parsed = inclusionsExclusionsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
+  }
+
+  try {
+    const { actor } = await getCurrentActor();
+    const pkg = await db.custom_packages.findUnique({
+      where: { id: packageId },
+      select: { id: true, status: true, queryId: true, title: true, extraPolicyItems: true },
+    });
+    if (!pkg) return { success: false, message: "Package not found" };
+    if (pkg.status !== "READY") return { success: false, message: "Inclusions/exclusions can only be corrected while a package is awaiting review." };
+
+    const settings = await getItinerarySettings();
+    const currentExtra = normalizeExtraPolicyItems(pkg.extraPolicyItems);
+
+    // Standard-list items the reviewer dropped from the submitted list.
+    const removedInclusions = settings.inclusions.filter((i) => !parsed.data.inclusions.includes(i));
+    const removedExclusions = settings.exclusions.filter((e) => !parsed.data.exclusions.includes(e));
+    // Whatever's left in the submitted list that isn't a standard item is
+    // this package's additions — kept extras the reviewer didn't remove,
+    // plus anything they freshly typed in.
+    const newExtraInclusions = parsed.data.inclusions.filter((i) => !settings.inclusions.includes(i));
+    const newExtraExclusions = parsed.data.exclusions.filter((e) => !settings.exclusions.includes(e));
+
+    const changed = removedInclusions.length > 0 || removedExclusions.length > 0
+      || newExtraInclusions.join("|") !== currentExtra.inclusions.join("|")
+      || newExtraExclusions.join("|") !== currentExtra.exclusions.join("|");
+
+    await db.custom_packages.update({
+      where: { id: packageId },
+      data: {
+        removedInclusions,
+        removedExclusions,
+        extraPolicyItems: {
+          ...currentExtra,
+          inclusions: newExtraInclusions,
+          exclusions: newExtraExclusions,
+        },
+      },
+    });
+
+    if (changed && pkg.queryId) {
+      await logTimeline(
+        pkg.queryId,
+        `Inclusions/exclusions adjusted during review by ${actor?.name ?? "team member"}`,
+        actor?.id, actor?.name ?? undefined,
+      );
+    }
+
+    revalidateAll(packageId);
+    return { success: true, data: undefined, message: "Inclusions & exclusions updated" };
+  } catch (e) {
+    console.error("[updatePackageInclusionsExclusions] FAILED:", e);
+    return actionError(e);
+  }
 }
 
 // ── Pricing history (costing-only — never surfaced to the sales exec) ──────

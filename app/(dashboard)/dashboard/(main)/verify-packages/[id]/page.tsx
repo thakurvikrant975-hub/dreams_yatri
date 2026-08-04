@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { getRejectionReasons } from "../../(marketing)/queries/actions";
+import { getItinerarySettings } from "../../itinerary-settings/actions";
 import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
@@ -17,7 +18,7 @@ const TICKET_MARGIN_PCT = 5;
 export default async function VerifyPackageDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
 
-    const [pkg, rejectionReasons] = await Promise.all([
+    const [pkg, rejectionReasons, itinerarySettings] = await Promise.all([
         db.custom_packages.findUnique({
             where: { id },
             select: {
@@ -37,6 +38,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 revisionRequestedAt: true, revisionRequestedByName: true, revisionNote: true,
                 flightsIncluded: true, flightNotes: true, flightFrom: true, flightTo: true,
                 trainIncluded: true, trainNotes: true, trainFrom: true, trainTo: true,
+                extraPolicyItems: true, removedInclusions: true, removedExclusions: true,
                 tickets: {
                     orderBy: { sortOrder: "asc" },
                     select: { id: true, type: true, provider: true, fromPlace: true, toPlace: true, fare: true, ticketCount: true },
@@ -62,6 +64,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
             },
         }),
         getRejectionReasons(),
+        getItinerarySettings(),
     ]);
 
     // readyAt is only ever set once a package has been marked ready for
@@ -169,6 +172,17 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
         if (hotelId != null) hotelIdByDay[it.day] = hotelId;
     }
 
+    // Effective inclusions/exclusions this reviewer is looking at right now —
+    // live standard defaults + this package's own additions, minus anything
+    // already vetoed in an earlier review pass. See
+    // updatePackageInclusionsExclusions, which diffs a re-submitted list of
+    // this shape back against the live standard lists.
+    const extraPolicy = pkg.extraPolicyItems as unknown as { inclusions?: string[]; exclusions?: string[] } | null;
+    const inclusions = [...itinerarySettings.inclusions, ...(extraPolicy?.inclusions ?? [])]
+        .filter((i) => !pkg.removedInclusions.includes(i));
+    const exclusions = [...itinerarySettings.exclusions, ...(extraPolicy?.exclusions ?? [])]
+        .filter((e) => !pkg.removedExclusions.includes(e));
+
     return (
         <VerifyPackageDetailClient
             pkg={{
@@ -194,6 +208,8 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
             query={pkg.query}
             rejectionReasons={rejectionReasons}
             hotelIdByDay={hotelIdByDay}
+            inclusions={inclusions}
+            exclusions={exclusions}
         />
     );
 }

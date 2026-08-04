@@ -615,6 +615,12 @@ export interface QueryDetail {
     gstPercentage:    number;
     inclusions:      string[];
     exclusions:      string[];
+    /** Read-only — costing's per-package removals from the merged
+     * inclusions/exclusions list (see the schema comment on
+     * custom_packages.removedInclusions). Set only from verify-packages,
+     * never written back by saveCustomPackage. */
+    removedInclusions: string[];
+    removedExclusions: string[];
     termsNotes:      string | null;
     termsConditions: string[];
     paymentPolicy:   string[];
@@ -1315,6 +1321,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       gstPercentage:    true,
       inclusions:      true,
       exclusions:      true,
+      removedInclusions: true,
+      removedExclusions: true,
       termsNotes:      true,
       termsConditions: true,
       paymentPolicy:   true,

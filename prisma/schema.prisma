@@ -2528,6 +2528,20 @@ model custom_packages {
   cabSubtotalOverride   Float?
   inclusions            String[]
   exclusions            String[]
+  /**
+   * Costing-team vetoes applied during pre-send review (verify-packages) —
+   * exact-string removals from the merged inclusions/exclusions list (the
+   * live itinerary_settings standard lists above + this package's own
+   * extraPolicyItems additions). Kept separate from the two fields above
+   * (which just mirror the global defaults on every builder save, see
+   * saveCustomPackage) so a reviewer can drop a line that doesn't apply to
+   * THIS package without touching the company-wide defaults. Never touched
+   * by saveCustomPackage — set only from updatePackageInclusionsExclusions
+   * (verify-packages/actions.ts), so an exec's builder save can't clobber a
+   * costing edit made while the package sits in READY review.
+   */
+  removedInclusions     String[]                 @default([])
+  removedExclusions     String[]                 @default([])
   termsNotes            String?
   /**
    * Short, removable bullet points — seeded with company-wide defaults the

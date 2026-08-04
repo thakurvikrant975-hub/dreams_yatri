@@ -1988,6 +1988,12 @@ interface PackageForm {
   currency: string;
   inclusions: string[];
   exclusions: string[];
+  /** Read-only — costing's per-package removals of standard/added inclusion
+   * and exclusion lines (see custom_packages.removedInclusions), hydrated
+   * from the saved package and applied when building previewForm below.
+   * Never sent back by saveCustomPackage. */
+  removedInclusions: string[];
+  removedExclusions: string[];
   termsNotes: string;
   termsConditions: string[];
   paymentPolicy: string[];
@@ -2307,6 +2313,8 @@ export default function PackageBuilderDetailPage() {
     currency: "INR",
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
+    removedInclusions: [],
+    removedExclusions: [],
     termsNotes: "",
     termsConditions: DEFAULT_TERMS_CONDITIONS,
     paymentPolicy: DEFAULT_PAYMENT_POLICY,
@@ -2450,6 +2458,8 @@ export default function PackageBuilderDetailPage() {
           // stale) snapshot stored on this package row. extraPolicyItems is
           // the opposite — genuinely per-package, so it DOES load from cp.
           extraPolicyItems: cp.extraPolicyItems,
+          removedInclusions: cp.removedInclusions ?? [],
+          removedExclusions: cp.removedExclusions ?? [],
           termsNotes: cp.termsNotes ?? f.termsNotes,
           stops: cp.stops,
           // Renumbered 1..N by array position (already the correct order —
@@ -3426,8 +3436,11 @@ Rules:
     // The document only knows one flat list per section — merge this
     // package's additions in here rather than teaching it about the
     // global/extra split, since that distinction only matters for editing.
-    inclusions: [...form.inclusions, ...form.extraPolicyItems.inclusions],
-    exclusions: [...form.exclusions, ...form.extraPolicyItems.exclusions],
+    // Inclusions/exclusions also drop anything costing vetoed during review
+    // (removedInclusions/removedExclusions) — see
+    // updatePackageInclusionsExclusions in verify-packages/actions.ts.
+    inclusions: [...form.inclusions, ...form.extraPolicyItems.inclusions].filter((i) => !form.removedInclusions.includes(i)),
+    exclusions: [...form.exclusions, ...form.extraPolicyItems.exclusions].filter((i) => !form.removedExclusions.includes(i)),
     termsConditions: [...form.termsConditions, ...form.extraPolicyItems.termsConditions],
     paymentPolicy: [...form.paymentPolicy, ...form.extraPolicyItems.paymentPolicy],
     amendmentPolicy: [...form.amendmentPolicy, ...form.extraPolicyItems.amendmentPolicy],
