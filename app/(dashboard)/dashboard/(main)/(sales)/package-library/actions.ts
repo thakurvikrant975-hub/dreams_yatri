@@ -90,6 +90,11 @@ export type TemplatePackage = LibraryPackage & {
     pricePerAdult:       number | null;
     /** Price fits inside the query's stated budget (per-adult vs. total, per `budgetType`) — null when no budget was given. */
     withinBudget:        boolean | null;
+    /** Whether this package is currently live on the public site — inactive
+     * ones are still selectable as a template here (the exec may want to
+     * reuse an older/retired package), just flagged so it's obvious it
+     * isn't something a client could currently browse to themselves. */
+    isActive:            boolean;
 };
 
 async function priceForPackage(
@@ -199,7 +204,9 @@ export async function searchPackageLibraryForTemplate(params: {
     const PRICE_ALL_CAP = 200;
 
     const where = {
-        is_active: true,
+        // Inactive (not-live) packages are still shown as templates — just
+        // flagged via isActive below — so an exec can reuse a retired
+        // package's content instead of losing access to it entirely.
         ...(search ? {
             OR: [
                 { title:       { contains: search, mode: "insensitive" as const } },
@@ -235,6 +242,7 @@ export async function searchPackageLibraryForTemplate(params: {
         slug:        true,
         thumbnail:   true,
         description: true,
+        is_active:   true,
         destination: { select: { name: true, region: { select: { name: true } } } },
         stay_categories: {
             where:   { is_active: true as const },
@@ -265,6 +273,7 @@ export async function searchPackageLibraryForTemplate(params: {
         slug:        true,
         thumbnail:   true,
         description: true,
+        is_active:   true,
         destination: { select: { name: true, region: { select: { name: true } } } },
         stay_categories: {
             where:   { is_active: true as const },
@@ -326,6 +335,7 @@ export async function searchPackageLibraryForTemplate(params: {
 
     async function mapTemplateRow(r: {
         id: number; title: string; slug: string; thumbnail: string | null; description: string | null;
+        is_active: boolean;
         destination: { name: string; region: { name: string } | null };
         stay_categories: { id: number; label: string; is_default: boolean }[];
         durations: { id: number; slug: string; days: number; nights: number; is_default?: boolean;
@@ -352,6 +362,7 @@ export async function searchPackageLibraryForTemplate(params: {
             description:     r.description,
             destinationName: r.destination.name,
             regionName:      r.destination.region?.name ?? null,
+            isActive:        r.is_active,
             durationSlug:    duration?.slug ?? null,
             routeSlug:       route?.slug ?? null,
             totalDays:       duration?.days ?? null,
@@ -393,7 +404,7 @@ export async function searchPackageLibraryForTemplate(params: {
     // it surviving the `where` clause.
     if (hasSlugPriority && page === 1 && !packages.some((p) => p.slug === querySlug)) {
         const pinnedRow = await db.packages.findFirst({
-            where:  { slug: querySlug, is_active: true },
+            where:  { slug: querySlug },
             select: rowSelect,
         });
         if (pinnedRow) {
