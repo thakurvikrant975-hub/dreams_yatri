@@ -250,6 +250,175 @@ export type TravelDeptReportData = {
   dailyChart: DailyTravelPoint[];
 };
 
+// ── Sales/leads dept report ─────────────────────────────────────────────────
+//
+// The other three depts count work by createdAt (when the row was made).
+// Sales is different: what matters here is when a lead was handed to an
+// exec, not when it first came in — a lead created last week but assigned
+// today is "today's work" for that exec, not last week's. So the by-member
+// breakdown below is windowed on assignedAt, while the summary's headline
+// "leads received" figure still uses createdAt (how many leads actually
+// came in during this range) — see getSalesDeptReport.
+
+export type QueryRowDetail = {
+  id: string;
+  name: string;
+  phone: string;
+  destination: string | null;
+  status: string;
+  source: string;
+  verified: boolean;
+  assignedAt: string | null;
+  createdAt: string;
+};
+
+export type SalesDeptMember = {
+  id: string;
+  name: string;
+  profilePicUrl: string | null;
+  designation: string | null;
+  isActive: boolean;
+  leadsAssigned: number;
+  converted: number;
+  rejected: number;
+  inProgress: number;
+  queries: QueryRowDetail[];
+};
+
+export type DailySalesPoint = {
+  date: string;
+  total: number;
+  [memberId: string]: number | string;
+};
+
+export type SalesDeptReportData = {
+  summary: {
+    leadsReceived: number;
+    assigned: number;
+    unassigned: number;
+    converted: number;
+    rejected: number;
+    convRate: number;
+  };
+  members: SalesDeptMember[];
+  dailyChart: DailySalesPoint[];
+};
+
+async function getSalesDeptReport(range: { gte: Date; lte: Date }): Promise<SalesDeptReportData> {
+  // Department grouping lives on team_roles, same pattern as the other three
+  // depts — case-insensitive match mirrors auto-assign.ts/queries actions.ts.
+  const [allMembers, leadsReceived, unassignedInPeriod, assignedInPeriod] = await Promise.all([
+    db.teamMember.findMany({
+      where: { teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } } },
+      select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+      orderBy: { name: "asc" },
+    }),
+    db.package_queries.count({ where: { createdAt: range } }),
+    db.package_queries.count({ where: { createdAt: range, assignedTo: null } }),
+    db.package_queries.findMany({
+      where: { assignedAt: range },
+      select: {
+        id: true, name: true, phone: true, destination: true, status: true, source: true,
+        verified: true, assignedAt: true, assignedTo: true, createdAt: true,
+      },
+      orderBy: { assignedAt: "desc" },
+    }),
+  ]);
+
+  const assignedByMember = new Map<string, typeof assignedInPeriod>();
+  for (const q of assignedInPeriod) {
+    const key = q.assignedTo ?? "__unknown__";
+    if (!assignedByMember.has(key)) assignedByMember.set(key, []);
+    assignedByMember.get(key)!.push(q);
+  }
+
+  // Merge dept members + any non-dept member (e.g. a reassigned/former exec)
+  // who still has leads assigned in this window.
+  const deptMemberIds = new Set(allMembers.map((m) => m.id));
+  const extraIds = [...assignedByMember.keys()].filter((id) => id !== "__unknown__" && !deptMemberIds.has(id));
+  const extraMembers = extraIds.length > 0
+    ? await db.teamMember.findMany({
+        where: { id: { in: extraIds } },
+        select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+      })
+    : [];
+  const memberList = [...allMembers, ...extraMembers];
+
+  const members: SalesDeptMember[] = memberList
+    .map((m) => {
+      const qs = assignedByMember.get(m.id) ?? [];
+      const converted = qs.filter((q) => q.status === "CONVERTED" || q.status === "PAYMENT_INITIATED").length;
+      const rejected = qs.filter((q) => q.status === "REJECTED" || q.status === "CLIENT_DECLINED").length;
+      return {
+        id: m.id,
+        name: m.name,
+        profilePicUrl: m.profilePicUrl ?? null,
+        designation: m.designation ?? null,
+        isActive: m.isActive,
+        leadsAssigned: qs.length,
+        converted,
+        rejected,
+        inProgress: qs.length - converted - rejected,
+        queries: qs.map((q) => ({
+          id: q.id,
+          name: q.name,
+          phone: q.phone,
+          destination: q.destination,
+          status: q.status,
+          source: q.source,
+          verified: q.verified,
+          assignedAt: q.assignedAt ? q.assignedAt.toISOString().split("T")[0] : null,
+          createdAt: q.createdAt.toISOString().split("T")[0],
+        })),
+      };
+    })
+    .sort((a, b) => b.leadsAssigned - a.leadsAssigned);
+
+  const totalConverted = members.reduce((s, m) => s + m.converted, 0);
+  const totalRejected = members.reduce((s, m) => s + m.rejected, 0);
+  const convRate = assignedInPeriod.length > 0 ? Math.round((totalConverted / assignedInPeriod.length) * 100) : 0;
+
+  // Daily chart — leads assigned per day per member, same shape as the other
+  // three depts' dailyChart (see getHotelDeptReport).
+  const dailyRaw = new Map<string, Record<string, number>>();
+  for (const q of assignedInPeriod) {
+    if (!q.assignedAt) continue;
+    const d = q.assignedAt.toISOString().split("T")[0];
+    if (!dailyRaw.has(d)) dailyRaw.set(d, {});
+    const slot = dailyRaw.get(d)!;
+    const mid = q.assignedTo ?? "__unknown__";
+    slot[mid] = (slot[mid] ?? 0) + 1;
+    slot.__total__ = (slot.__total__ ?? 0) + 1;
+  }
+  const dailyChart: DailySalesPoint[] = [];
+  const cur = new Date(range.gte);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(range.lte);
+  end.setHours(23, 59, 59, 999);
+  while (cur <= end) {
+    const iso = cur.toISOString().split("T")[0];
+    const slot = dailyRaw.get(iso) ?? {};
+    const label = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(iso));
+    const point: DailySalesPoint = { date: label, total: slot.__total__ ?? 0 };
+    for (const m of members) point[m.id] = slot[m.id] ?? 0;
+    dailyChart.push(point);
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return {
+    summary: {
+      leadsReceived,
+      assigned: assignedInPeriod.length,
+      unassigned: unassignedInPeriod,
+      converted: totalConverted,
+      rejected: totalRejected,
+      convRate,
+    },
+    members,
+    dailyChart,
+  };
+}
+
 export type ReportsData = {
   hotel: HotelReportData;
   hotelDept: HotelDeptReportData;
@@ -257,6 +426,7 @@ export type ReportsData = {
   cabDept: CabDeptReportData;
   travel: TravelReportData;
   travelDept: TravelDeptReportData;
+  salesDept: SalesDeptReportData;
   period: TimePeriod;
   fromStr: string;
   toStr: string;
@@ -700,6 +870,7 @@ export async function getReportsData(
     hotelDept,
     cabDept,
     travelDept,
+    salesDept,
     hotelsAdded,
     roomsAdded,
     imagesAdded,
@@ -709,6 +880,7 @@ export async function getReportsData(
     getHotelDeptReport(range),
     getCabDeptReport(range),
     getTravelDeptReport(range),
+    getSalesDeptReport(range),
     db.hotels.count({ where: { created_at: range } }),
     db.hotel_rooms.count({ where: { created_at: range } }),
     db.hotel_images.count({ where: { created_at: range } }),
@@ -918,6 +1090,7 @@ export async function getReportsData(
       byMember: travelByMember,
     },
     travelDept,
+    salesDept,
     period,
     fromStr: fmt(range.gte),
     toStr: fmt(range.lte),

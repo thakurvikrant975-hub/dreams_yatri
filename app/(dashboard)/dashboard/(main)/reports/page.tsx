@@ -49,7 +49,7 @@ export default async function ReportsPage({
         initialPeriod={period}
         initialFrom={sp.from}
         initialTo={sp.to}
-        initialDept={(sp.dept as "hotel" | "cab" | "travel") ?? "hotel"}
+        initialDept={(sp.dept as "hotel" | "cab" | "travel" | "sales") ?? "sales"}
       />
     </div>
   );
