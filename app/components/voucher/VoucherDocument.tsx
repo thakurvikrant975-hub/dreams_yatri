@@ -27,10 +27,6 @@ const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\
 function nightsBetween(a: Date, b: Date): number {
     return Math.max(1, Math.round((b.getTime() - a.getTime()) / 86_400_000));
 }
-function fmtDateRange(start: Date, end: Date): string {
-    return start.getTime() === end.getTime() ? fmtDate(start) : `${fmtDate(start)} – ${fmtDate(end)}`;
-}
-
 /** Collapses a sequence into runs where consecutive items satisfy `sameGroup`
  * — used to fold a trip's day-by-day hotel/cab rows into one row per
  * continuous stay/hire instead of one row per day. */
@@ -97,7 +93,6 @@ function ItineraryTable({ days }: { days: VoucherDay[] }) {
             <thead className="print:table-header-group">
                 <tr className="bg-primary-500 text-white">
                     <th className="text-left font-semibold px-3 py-2.5 w-16">Day</th>
-                    <th className="text-left font-semibold px-3 py-2.5">Title</th>
                     <th className="text-left font-semibold px-3 py-2.5">Hotel</th>
                     <th className="text-left font-semibold px-3 py-2.5">Meals</th>
                     <th className="text-left font-semibold px-3 py-2.5">Activities</th>
@@ -110,7 +105,6 @@ function ItineraryTable({ days }: { days: VoucherDay[] }) {
                             <div className="text-xs font-bold text-primary-600">Day {d.day}</div>
                             {d.date && <div className="text-[10px] text-neutral-500 mt-0.5">{fmtDate(d.date)}</div>}
                         </td>
-                        <td className="px-3 py-3 font-medium text-neutral-900">{d.title}</td>
                         <td className="px-3 py-3 text-neutral-700">
                             {d.hotelName ? (
                                 <>
@@ -270,7 +264,12 @@ export default function VoucherDocument({
                     </div>
                 )}
 
-                {/* ── Hotel table ── */}
+                {/* ── Hotel table ──
+                    Only when there is no day-by-day table to carry the hotels,
+                    i.e. a direct hotel booking. On a package the itinerary above
+                    already names the property for every night, and repeating it
+                    here just costs a page. */}
+                {!hasItinerary && (
                 <div className="px-10">
                     <SectionTitle>Accommodation</SectionTitle>
                     <TableFrame>
@@ -306,6 +305,7 @@ export default function VoucherDocument({
                         </tbody>
                     </TableFrame>
                 </div>
+                )}
 
                 {/* ── Cab table ── */}
                 <div className="px-10 mt-8">
@@ -313,11 +313,11 @@ export default function VoucherDocument({
                     <TableFrame>
                         <thead className="print:table-header-group">
                             <tr className="bg-primary-500 text-white">
-                                <th className="text-left font-semibold px-3 py-2.5">Vehicle</th>
-                                <th className="text-left font-semibold px-3 py-2.5">From</th>
-                                <th className="text-left font-semibold px-3 py-2.5">To</th>
-                                <th className="text-right font-semibold px-3 py-2.5">Date</th>
-                                <th className="text-right font-semibold px-3 py-2.5">Days</th>
+                                <th className="text-left font-semibold px-3 py-2.5">Cab</th>
+                                <th className="text-left font-semibold px-3 py-2.5">Pickup Point</th>
+                                <th className="text-left font-semibold px-3 py-2.5">Drop Point</th>
+                                <th className="text-right font-semibold px-3 py-2.5">Pickup Date</th>
+                                <th className="text-right font-semibold px-3 py-2.5">Drop Date</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -333,6 +333,8 @@ export default function VoucherDocument({
                                                 {titleCase(first.cabType)}{first.cabCount > 1 ? ` × ${first.cabCount}` : ""}
                                                 <span className="ml-1 text-xs font-normal text-neutral-600/90">({first.capacity}-seater)</span>
                                             </div>
+                                            {/* Driver and plate appear only once ops has assigned them; until
+                                                then the badge below is the guest's cue that it's still coming. */}
                                             {(first.driverName || first.vehicleNumber) && (
                                                 <div className="text-xs text-neutral-600/90">
                                                     {[first.driverName, first.driverPhone, first.vehicleNumber].filter(Boolean).join(" · ")}
@@ -342,8 +344,8 @@ export default function VoucherDocument({
                                         </td>
                                         <td className="px-3 py-3 align-top text-neutral-600/90">{first.fromLocation || "—"}</td>
                                         <td className="px-3 py-3 align-top text-neutral-600/90">{last.toLocation || "—"}</td>
-                                        <td className="px-3 py-3 align-top text-right text-neutral-600/90">{fmtDateRange(first.transferDate, last.transferDate)}</td>
-                                        <td className="px-3 py-3 align-top text-right font-semibold text-neutral-700">{group.length}</td>
+                                        <td className="px-3 py-3 align-top text-right text-neutral-600/90">{fmtDate(first.transferDate)}</td>
+                                        <td className="px-3 py-3 align-top text-right text-neutral-600/90">{fmtDate(last.transferDate)}</td>
                                     </tr>
                                 );
                             })}
