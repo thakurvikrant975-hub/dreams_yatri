@@ -7,7 +7,7 @@ import Link from "next/link";
 import { buttonVariants } from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
 import { EmptyState } from "./EmptyState";
-import { ReceiptIcon } from "@phosphor-icons/react";
+import { ReceiptIcon, TicketIcon } from "@phosphor-icons/react";
 import { BOOKING_STATUS_INFO } from "@/app/lib/booking-display-status";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -85,9 +85,9 @@ function PaymentCard({ payment }: { payment: Payment }) {
   const subtitle = payment.booking.package ? payment.booking.destination?.name ?? null : null;
 
   // Booking *status* belongs on the booking itself (and the Trips tab already
-  // shows it) — on a payment row the useful action is the receipt for the money
-  // that actually moved, which is why the status modal is gone from here.
-  const hasReceipt = payment.status === "FULLY_PAID"
+  // shows it) — on a payment row the useful actions are the documents for the
+  // money that actually moved, which is why the status link is gone from here.
+  const hasDocuments = payment.status === "FULLY_PAID"
     || payment.status === "ADVANCE_PAID"
     || payment.status === "REFUNDED"
     || payment.status === "PARTIALLY_REFUNDED";
@@ -151,19 +151,31 @@ function PaymentCard({ payment }: { payment: Payment }) {
         <span>{payment.gateway}</span>
 
         {/* Only a captured payment has anything to invoice — a failed or still
-            processing attempt would render an invoice showing nothing paid. */}
-        {hasReceipt ? (
-          <Link
-            href={`/bookings/${payment.booking.id}/invoice`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-          >
-            <ReceiptIcon weight="bold" className="size-3.5" />
-            View receipt
-          </Link>
+            processing attempt would render an invoice showing nothing paid,
+            and a voucher for a trip that was never paid for. */}
+        {hasDocuments ? (
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/bookings/${payment.booking.id}/invoice`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <ReceiptIcon weight="bold" className="size-3.5" />
+              Invoice
+            </Link>
+            <Link
+              href={`/bookings/${payment.booking.id}/voucher`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <TicketIcon weight="bold" className="size-3.5" />
+              Voucher
+            </Link>
+          </div>
         ) : (
-          <span className="text-neutral-300">No receipt</span>
+          <span className="text-neutral-300">No documents</span>
         )}
       </div>
     </div>
