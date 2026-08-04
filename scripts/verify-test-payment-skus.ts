@@ -15,6 +15,7 @@
 import { db, dbTarget } from "./_db";
 import { computePaymentSchedule } from "../app/services/payment-policy/engine";
 import { rupeesToPaise } from "../app/lib/money";
+import { INTERNAL_PACKAGE_SLUGS } from "../app/lib/packages/internal-skus";
 
 const HOTEL_SLUG = "test-payment-property";
 const PACKAGE_SLUG = "test-payment-package";
@@ -129,7 +130,7 @@ async function main() {
     check(mandatoryActivities === 0, "no mandatory activities");
     check(duration.cabTypes.length === 0, "no cab types", "cab cost is added per day");
     check(duration.permits.length === 0, "no included permits");
-    check(!pkg.is_active, "hidden from listings", `is_active=${pkg.is_active}`);
+    check(pkg.is_active && INTERNAL_PACKAGE_SLUGS.includes(PACKAGE_SLUG), "bookable + excluded from discovery", `is_active=${pkg.is_active}, slug in INTERNAL_PACKAGE_SLUGS`);
 
     console.log(`\n  → package quote should read ₹${Math.ceil(1 * hotelNights)} (hotel-only base, 0% margin, 0% GST)`);
 

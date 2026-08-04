@@ -7,11 +7,15 @@
  * be exercised end-to-end against live Razorpay/PayU credentials without moving
  * real money.
  *
- * Visibility: both rows stay out of every listing, search result and sitemap
- * (`packages.is_active = false`, `hotels.listing_status = DRAFT` + `is_active =
- * false`) while remaining reachable by direct URL — the detail pages resolve by
- * slug alone and never gate on those flags. That is deliberate: the point is to
- * test the real customer path, not a parallel one.
+ * Visibility: both stay out of every listing, search result and sitemap while
+ * remaining reachable by direct URL. That is deliberate — the point is to test
+ * the real customer path, not a parallel one. The two use different mechanisms:
+ *
+ *   hotel   `listing_status = DRAFT` + `is_active = false`. The detail fetch
+ *           keys on slug alone, so hiding it does not affect bookability.
+ *   package `is_active` cannot be used — the quote page requires it — so the
+ *           package stays active and is excluded from discovery surfaces by
+ *           slug instead (app/lib/packages/internal-skus.ts).
  *
  * Idempotent — re-running updates the existing rows in place rather than
  * creating duplicates.
@@ -47,9 +51,9 @@ async function main() {
     console.log(`  target: ${dbTarget}\n`);
 
     // ── The package needs a destination_id (non-null FK). Reuse an existing one
-    // rather than inventing a test destination: because the package itself is
-    // is_active=false, it can never surface under that destination — every
-    // destination/region query filters `packages: { some: { is_active: true } }`.
+    // rather than inventing a test destination: the destination and region pages
+    // filter their package lists and counts through PUBLIC_PACKAGE, which drops
+    // this slug, so it never surfaces under whichever destination it borrows.
     const destination = await db.destinations.findFirst({
         where: { is_deleted: false },
         orderBy: { id: "asc" },
@@ -63,7 +67,7 @@ async function main() {
         step(`hotels           slug=${HOTEL_SLUG}   listing_status=DRAFT, is_active=false`);
         step(`hotel_rooms      slug=${ROOM_SLUG}    num_rooms=5, max_occupancy=2`);
         step(`hotel_room_pricing                    price_per_night=₹1, extra_bed_rate=₹0`);
-        step(`packages         slug=${PACKAGE_SLUG} is_active=false`);
+        step(`packages         slug=${PACKAGE_SLUG} is_active=true (hidden via internal-skus)`);
         step(`package_durations slug=${DURATION_SLUG}  1N/2D, is_default=true`);
         step(`package_routes    slug=${ROUTE_SLUG}`);
         step(`package_stay_categories slug=${STAY_SLUG}  is_default=true`);
@@ -161,11 +165,13 @@ async function main() {
             destination_id: destination.id,
             inclusions: ["Nothing — this is a payment test"],
             exclusions: ["Everything"],
-            // Keeps it out of every listing, destination page, region page and
-            // sitemap; the detail route resolves by slug and does not check this.
-            is_active: false,
+            // MUST stay true: the quote page's own fetch (fetchPackagePageData)
+            // filters on it, so is_active=false makes the package unbookable, not
+            // merely unlisted. Discovery is suppressed separately, by slug — see
+            // app/lib/packages/internal-skus.ts.
+            is_active: true,
         },
-        update: { title: PACKAGE_TITLE, is_active: false },
+        update: { title: PACKAGE_TITLE, is_active: true },
         select: { id: true },
     });
     step(`packages #${pkg.id}`);

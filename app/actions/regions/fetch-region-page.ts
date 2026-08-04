@@ -2,6 +2,7 @@
 
 import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { PUBLIC_PACKAGE } from "@/app/lib/packages/internal-skus";
 import {
   imgUrl,
   PACKAGE_CARD_SELECT,
@@ -104,7 +105,7 @@ export async function fetchRegionsPage(
   const where: Prisma.custom_regionsWhereInput = {
     is_active: true,
     is_deleted: false,
-    destinations: { some: { is_deleted: false, packages: { some: { is_active: true } } } },
+    destinations: { some: { is_deleted: false, packages: { some: PUBLIC_PACKAGE } } },
     ...(filters.countries.length > 0 && { country: { in: filters.countries } }),
   };
 
@@ -129,7 +130,7 @@ export async function fetchRegionsPage(
     where: { region_id: { in: regionIds }, is_deleted: false },
     select: {
       region_id: true,
-      _count: { select: { packages: { where: { is_active: true } } } },
+      _count: { select: { packages: { where: PUBLIC_PACKAGE } } },
     },
   });
 
@@ -163,7 +164,7 @@ export async function fetchRegionSidebarData(): Promise<RegionSidebarData> {
     where: {
       is_active: true,
       is_deleted: false,
-      destinations: { some: { is_deleted: false, packages: { some: { is_active: true } } } },
+      destinations: { some: { is_deleted: false, packages: { some: PUBLIC_PACKAGE } } },
     },
     select: { country: true },
   });
@@ -198,7 +199,7 @@ export async function fetchActiveRegions(
       is_active: true,
       is_deleted: false,
       country,
-      destinations: { some: { is_deleted: false, packages: { some: { is_active: true } } } },
+      destinations: { some: { is_deleted: false, packages: { some: PUBLIC_PACKAGE } } },
     },
     select: { id: true, name: true, slug: true, thumbnail: true },
     take: limit,
@@ -213,7 +214,7 @@ export async function fetchActiveRegions(
     where: { region_id: { in: regionIds }, is_deleted: false },
     select: {
       region_id: true,
-      _count: { select: { packages: { where: { is_active: true } } } },
+      _count: { select: { packages: { where: PUBLIC_PACKAGE } } },
     },
   });
 

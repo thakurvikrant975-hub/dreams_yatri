@@ -8,6 +8,7 @@ import {
 import { computeCardPricingBatch } from "@/app/lib/packages/cardPricing";
 import { referencePriceFor, resolveBadge, type BadgeColor } from "@/app/lib/packages/packageOffer";
 import { matchDestinationIds } from "@/app/lib/packages/destinationMatch";
+import { PUBLIC_PACKAGE } from "@/app/lib/packages/internal-skus";
 import {
   DURATION_BUCKETS,
   EMPTY_PACKAGE_FILTERS,
@@ -195,9 +196,9 @@ async function searchPackagesUncached(params: SearchParams): Promise<SearchResul
   if (toLocationId) {
     const destinationIds = await matchDestinationIds(toLocationId);
     if (destinationIds.length === 0) return { items: [], total: 0, capped: false };
-    where = { is_active: true, destination_id: { in: destinationIds } };
+    where = { ...PUBLIC_PACKAGE, destination_id: { in: destinationIds } };
   } else {
-    where = { is_active: true };
+    where = { ...PUBLIC_PACKAGE };
   }
 
   const conditions = await buildFilterConditions(filters);

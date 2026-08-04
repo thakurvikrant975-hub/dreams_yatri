@@ -2,6 +2,7 @@
 
 import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { PUBLIC_PACKAGE } from "@/app/lib/packages/internal-skus";
 import {
   imgUrl,
   PACKAGE_CARD_SELECT,
@@ -67,7 +68,7 @@ export async function fetchDestinationsInCountry(
       is_active: true,
       is_deleted: false,
       country,
-      packages: { some: { is_active: true } },
+      packages: { some: PUBLIC_PACKAGE },
     },
     select: {
       id: true,
@@ -77,7 +78,7 @@ export async function fetchDestinationsInCountry(
       cover_image: true,
       country: true,
       region: { select: { name: true } },
-      _count: { select: { packages: { where: { is_active: true } } } },
+      _count: { select: { packages: { where: PUBLIC_PACKAGE } } },
     },
     // Most packages first — the row is a shortcut into the biggest catalogues,
     // not a chronological list.
@@ -107,7 +108,7 @@ export async function fetchActiveDestinations(
       is_active: true,
       is_deleted: false,
       country: { not: excludeCountry },
-      packages: { some: { is_active: true } },
+      packages: { some: PUBLIC_PACKAGE },
     },
     select: {
       id: true,
@@ -115,7 +116,7 @@ export async function fetchActiveDestinations(
       slug: true,
       thumbnail: true,
       country: true,
-      _count: { select: { packages: { where: { is_active: true } } } },
+      _count: { select: { packages: { where: PUBLIC_PACKAGE } } },
     },
     take: limit,
     orderBy: { created_at: "asc" },
@@ -175,7 +176,7 @@ const DEST_SELECT = {
   cover_image: true,
   country: true,
   region: { select: { name: true } },
-  _count: { select: { packages: { where: { is_active: true } } } },
+  _count: { select: { packages: { where: PUBLIC_PACKAGE } } },
 } as const;
 
 function shapeDestination(d: {
@@ -216,7 +217,7 @@ export async function fetchDestinationsPage(
   const where: Prisma.destinationsWhereInput = {
     is_active: true,
     is_deleted: false,
-    packages: { some: { is_active: true } },
+    packages: { some: PUBLIC_PACKAGE },
     ...(filters.type === "domestic" && { country: "India" }),
     ...(filters.type === "international" && { country: { not: "India" } }),
     ...subFilter,
@@ -254,7 +255,7 @@ export async function fetchDestinationSidebarData(): Promise<DestinationSidebarD
         _count: {
           select: {
             destinations: {
-              where: { is_active: true, is_deleted: false, packages: { some: { is_active: true } } },
+              where: { is_active: true, is_deleted: false, packages: { some: PUBLIC_PACKAGE } },
             },
           },
         },
@@ -262,7 +263,7 @@ export async function fetchDestinationSidebarData(): Promise<DestinationSidebarD
       orderBy: { name: "asc" },
     }),
     db.destinations.findMany({
-      where: { is_active: true, is_deleted: false, packages: { some: { is_active: true } } },
+      where: { is_active: true, is_deleted: false, packages: { some: PUBLIC_PACKAGE } },
       select: { country: true },
     }),
   ]);

@@ -4,6 +4,7 @@ import { computePackagePrice } from "@/app/services/package-pricing.service";
 import { parseRoomAmenities } from "@/app/lib/hotel-inventory/room-amenities";
 import { roomTotalCapacity } from "@/app/lib/room-capacity";
 import { getCardImage } from "@/app/lib/imageUrl";
+import { PUBLIC_PACKAGE } from "@/app/lib/packages/internal-skus";
 import {
   shapePackageCards,
   PACKAGE_CARD_SELECT,
@@ -929,7 +930,7 @@ export async function fetchPackagePageData(
 
 export async function getActivePackageParams() {
   const packages = await db.packages.findMany({
-    where: { is_active: true },
+    where: PUBLIC_PACKAGE,
     select: {
       slug: true,
       durations: {
@@ -1014,7 +1015,7 @@ export async function fetchRelatedPackages(
   // Tier 1 — same destination
   if (collected.length < limit) {
     const rows = await fetchTier(
-      { is_active: true, id: { notIn: [...seenIds] }, destination_id: destinationId },
+      { ...PUBLIC_PACKAGE, id: { notIn: [...seenIds] }, destination_id: destinationId },
       limit - collected.length,
     );
     for (const p of rows) { collected.push(p); seenIds.add(p.id); }
@@ -1023,7 +1024,7 @@ export async function fetchRelatedPackages(
   // Tier 2 — same region, different destination
   if (collected.length < limit && regionId !== null) {
     const rows = await fetchTier(
-      { is_active: true, id: { notIn: [...seenIds] }, destination: { region_id: regionId } },
+      { ...PUBLIC_PACKAGE, id: { notIn: [...seenIds] }, destination: { region_id: regionId } },
       limit - collected.length,
     );
     for (const p of rows) { collected.push(p); seenIds.add(p.id); }
@@ -1032,7 +1033,7 @@ export async function fetchRelatedPackages(
   // Tier 3 — any other active package
   if (collected.length < limit) {
     const rows = await fetchTier(
-      { is_active: true, id: { notIn: [...seenIds] } },
+      { ...PUBLIC_PACKAGE, id: { notIn: [...seenIds] } },
       limit - collected.length,
     );
     for (const p of rows) { collected.push(p); seenIds.add(p.id); }
@@ -1045,7 +1046,7 @@ export async function fetchRelatedPackages(
 
 export async function fetchRecentPackages(limit = 6): Promise<RelatedPackageItem[]> {
   const packages = (await db.packages.findMany({
-    where: { is_active: true },
+    where: PUBLIC_PACKAGE,
     take: limit,
     orderBy: { created_at: "desc" },
     select: PACKAGE_CARD_SELECT,
