@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { db } from "@/app/lib/db";
 import { getProvider, enabledGateways } from "@/app/lib/payments/registry";
-import { payuReturnUrl } from "./create-booking.service";
+import { chargeCustomer, payuReturnUrl } from "./create-booking.service";
 import type { CheckoutInit, GatewayId } from "@/app/lib/payments/types";
 import type { CreateBookingOrderResult } from "./types";
 
@@ -20,7 +20,13 @@ export async function createBalanceOrderForBooking(params: {
 }): Promise<CreateBookingOrderResult> {
     const booking = await db.booking.findUnique({
         where: { id: params.bookingId },
-        select: { id: true, userId: true, bookingNumber: true, currency: true, status: true, paymentStatus: true, balanceAmount_paise: true },
+        select: {
+            id: true, userId: true, bookingNumber: true, currency: true, status: true,
+            paymentStatus: true, balanceAmount_paise: true,
+            // PayU rejects a charge with a blank firstname/email/phone.
+            contactEmail: true, contactPhone: true,
+            travellersList: { where: { isLead: true }, select: { fullName: true }, take: 1 },
+        },
     });
     if (!booking) return { success: false, reason: "not_found" };
     if (booking.userId !== params.userId) {
@@ -67,6 +73,7 @@ export async function createBalanceOrderForBooking(params: {
         params.gateway && enabled.includes(params.gateway) ? params.gateway : (payment.gateway as GatewayId);
     const reuse = Boolean(payment.gatewayOrderId) && payment.gateway === wantGateway;
     const provider = getProvider(wantGateway);
+    const customer = chargeCustomer(booking);
 
     let checkout: CheckoutInit;
     if (reuse && payment.gatewayOrderId) {
@@ -76,21 +83,41 @@ export async function createBalanceOrderForBooking(params: {
             currency: booking.currency,
             successUrl: payuReturnUrl(booking.id, "success"),
             failureUrl: payuReturnUrl(booking.id, "failure"),
+            customer,
         });
     } else {
+        // Same hazard as the initial leg: overwriting gatewayOrderId on a gateway
+        // switch leaves the previous order open but unresolvable by the webhook.
+        const target = payment.gatewayOrderId && payment.gateway !== wantGateway
+            ? await db.payment.create({
+                  data: {
+                      bookingId: booking.id,
+                      userId: booking.userId,
+                      amount: (payment.amount_paise / 100).toFixed(2),
+                      amount_paise: payment.amount_paise,
+                      gateway: wantGateway,
+                      status: "PENDING",
+                      purpose: "BALANCE",
+                      idempotencyKey: `booking:${booking.id}:balance:${randomBytes(4).toString("hex")}`,
+                  },
+                  select: { id: true, gateway: true, amount_paise: true, gatewayOrderId: true },
+              })
+            : payment;
+
         const charge = await provider.createCharge({
-            amountPaise: payment.amount_paise,
+            amountPaise: target.amount_paise,
             receipt: `${booking.bookingNumber}-BAL`,
             bookingId: booking.id,
-            customer: {},
+            customer,
             notes: { bookingId: booking.id, purpose: "balance" },
             successUrl: payuReturnUrl(booking.id, "success"),
             failureUrl: payuReturnUrl(booking.id, "failure"),
         });
         await db.payment.update({
-            where: { id: payment.id },
+            where: { id: target.id },
             data: { gateway: wantGateway, gatewayOrderId: charge.gatewayOrderRef },
         });
+        payment = target;
         checkout = charge.checkout;
     }
 

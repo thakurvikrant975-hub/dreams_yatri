@@ -82,8 +82,21 @@ export async function processGatewayWebhook(
         // ── captured → finalize ────────────────────────────────────────────────
         if (event.type === "captured") {
             if (!event.gatewayOrderRef || !event.gatewayPaymentId) return ignore("captured without refs");
-            const payment = await db.payment.findUnique({ where: { gatewayOrderId: event.gatewayOrderRef }, select: { id: true } });
+            const payment = await db.payment.findUnique({ where: { gatewayOrderId: event.gatewayOrderRef }, select: { id: true, amount_paise: true } });
             if (!payment) return ignore("no matching payment");
+
+            // A valid signature proves the message really came from the gateway —
+            // NOT that it captured the amount we asked for. Without this check a
+            // short capture (or a charge raised against a since-changed booking)
+            // would still flip the booking to paid in full. Refuse to finalize and
+            // leave the payment PENDING for manual review instead.
+            if (typeof event.amountPaise === "number" && event.amountPaise !== payment.amount_paise) {
+                console.error(
+                    `[webhook] AMOUNT MISMATCH gateway=${gateway} order=${event.gatewayOrderRef} ` +
+                    `captured=${event.amountPaise} expected=${payment.amount_paise} — not finalizing`,
+                );
+                return ignore(`amount mismatch: captured ${event.amountPaise} != expected ${payment.amount_paise}`);
+            }
 
             const outcome = await db.$transaction(async (tx) => {
                 const fin = await finalizeCapturedPayment(tx, {
