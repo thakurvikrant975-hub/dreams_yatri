@@ -54,8 +54,21 @@ async function payu() {
     if (charge.checkout.provider !== "PAYU") throw new Error("not payu");
     const f = charge.checkout.fields, txnid = charge.gatewayOrderRef;
     check("payu amount rupees", f.amount === "9113.35");
-    const fwd = sha512(["testkey", txnid, "9113.35", "Package booking", "Guest", "", "", "", "", "", "", "", "", "", "", "", "testsalt"].join("|"));
+    // PayU makes firstname/email/phone mandatory and rejects blanks, so an empty
+    // customer resolves to placeholders rather than the empty strings it used to send.
+    check("payu sends mandatory phone", /^\d{10}$/.test(f.phone ?? ""));
+    check("payu sends non-empty email", (f.email ?? "").includes("@"));
+    const fwd = sha512(["testkey", txnid, "9113.35", "Package booking", "Guest", "noreply@dreamsyatri.com", "", "", "", "", "", "", "", "", "", "", "testsalt"].join("|"));
     check("payu forward hash matches", f.hash === fwd);
+
+    // Real contact details must reach the gateway, with +91/formatting stripped.
+    const named = await p.createCharge({
+        amountPaise: 100, receipt: "DY-2", bookingId: "b2",
+        customer: { name: "Asha Menon", email: "asha@example.com", phone: "+91 98765-43210" },
+        successUrl: "https://x/s", failureUrl: "https://x/f",
+    });
+    const nf = named.checkout.provider === "PAYU" ? named.checkout.fields : {};
+    check("payu uses real customer", nf.firstname === "Asha" && nf.email === "asha@example.com" && nf.phone === "9876543210");
     check("payu resume hash identical", p.checkoutForExistingOrder({ gatewayOrderRef: txnid, amountPaise: 911335 }).provider === "PAYU" && (p.checkoutForExistingOrder({ gatewayOrderRef: txnid, amountPaise: 911335 }) as { fields: Record<string, string> }).fields.hash === f.hash);
     const rev = sha512(["testsalt", "success", "", "", "", "", "", "", "", "", "", "", "", "Guest", "Package booking", "9113.35", txnid, "testkey"].join("|"));
     const payload: Record<string, string> = { status: "success", txnid, amount: "9113.35", productinfo: "Package booking", firstname: "Guest", email: "", mihpayid: "mih_1", mode: "UPI", udf1: "", udf2: "", udf3: "", udf4: "", udf5: "", hash: rev };

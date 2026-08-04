@@ -17,11 +17,16 @@ export type CheckoutInit =
     | { provider: "PAYU"; actionUrl: string; fields: Record<string, string> };
 
 // ── createCharge ─────────────────────────────────────────────────────────────
+/** Who's paying. PayU *requires* firstname/email/phone on every charge (they are
+ *  mandatory request params and part of the request hash), so this is not merely
+ *  prefill — an empty customer is what makes PayU reject a live transaction. */
+export interface ChargeCustomer { name?: string; email?: string; phone?: string }
+
 export interface CreateChargeInput {
     amountPaise: number;
     receipt: string; // our booking number / short ref
     bookingId: string;
-    customer: { name?: string; email?: string; phone?: string };
+    customer: ChargeCustomer;
     notes?: Record<string, string>;
     // Redirect-based providers (PayU) need return URLs.
     successUrl?: string;
@@ -82,8 +87,10 @@ export interface PaymentProvider {
      * Rebuild the client checkout for an already-created charge (idempotent resume).
      * Redirect-based providers (PayU) need the return URLs here too — they are form
      * fields rather than properties of the charge, so they don't survive the resume.
+     * `customer` likewise: PayU's mandatory identity fields are form fields that get
+     * re-hashed on every POST, so a resume must re-send them or the charge is invalid.
      */
-    checkoutForExistingOrder(args: { gatewayOrderRef: string; amountPaise: number; currency?: string; successUrl?: string; failureUrl?: string }): CheckoutInit;
+    checkoutForExistingOrder(args: { gatewayOrderRef: string; amountPaise: number; currency?: string; successUrl?: string; failureUrl?: string; customer?: ChargeCustomer }): CheckoutInit;
     verifyCallback(payload: Record<string, string>): CallbackResult;
     verifyWebhook(rawBody: string, headers: Headers): boolean;
     parseWebhookEvent(rawBody: string, headers: Headers): NormalizedWebhookEvent | null;

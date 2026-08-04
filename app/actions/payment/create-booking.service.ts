@@ -5,7 +5,7 @@ import { getQuote, isQuoteFresh } from "@/app/actions/quote/get-quote.service";
 import { computePaymentSchedule } from "@/app/services/payment-policy/engine";
 import { rupeesToPaise } from "@/app/lib/money";
 import { getProvider, enabledGateways } from "@/app/lib/payments/registry";
-import type { CheckoutInit, GatewayId } from "@/app/lib/payments/types";
+import type { ChargeCustomer, CheckoutInit, GatewayId } from "@/app/lib/payments/types";
 import { checkoutSchema, type CheckoutInput } from "@/app/actions/quote/checkout-schema";
 import type { CreateBookingOrderResult, CreateBookingResult } from "./types";
 
@@ -45,6 +45,23 @@ function isoDate(d: Date): string {
 export function payuReturnUrl(bookingId: string, kind: "success" | "failure"): string {
     const base = process.env.NEXT_PUBLIC_BASE_URL ?? "";
     return `${base}/api/payments/payu/callback?b=${bookingId}&k=${kind}`;
+}
+
+/**
+ * Booking → the identity a gateway charge is raised against. Razorpay treats these
+ * as optional prefill, but PayU makes firstname/email/phone mandatory request params
+ * and hashes two of them, so a charge built without this is rejected at the gateway.
+ */
+export function chargeCustomer(booking: {
+    contactEmail: string | null;
+    contactPhone: string | null;
+    travellersList?: { fullName: string }[];
+}): ChargeCustomer {
+    return {
+        name: booking.travellersList?.[0]?.fullName ?? undefined,
+        email: booking.contactEmail ?? undefined,
+        phone: booking.contactPhone ?? undefined,
+    };
 }
 
 // ── Step 1 — create the Booking (no gateway charge) ────────────────────────────
@@ -208,7 +225,14 @@ export async function createOrderForBooking(params: {
 }): Promise<CreateBookingOrderResult> {
     const booking = await db.booking.findUnique({
         where: { id: params.bookingId },
-        select: { id: true, userId: true, bookingNumber: true, paymentPlan: true, currency: true, paymentStatus: true, advanceAmount_paise: true },
+        select: {
+            id: true, userId: true, bookingNumber: true, paymentPlan: true, currency: true,
+            paymentStatus: true, advanceAmount_paise: true,
+            // PayU rejects a charge with a blank firstname/email/phone, so the lead
+            // traveller's real contact details have to reach the provider.
+            contactEmail: true, contactPhone: true,
+            travellersList: { where: { isLead: true }, select: { fullName: true }, take: 1 },
+        },
     });
     if (!booking) return { success: false, reason: "not_found" };
     if (booking.userId !== params.userId) {
@@ -259,6 +283,7 @@ export async function createOrderForBooking(params: {
         params.gateway && enabled.includes(params.gateway) ? params.gateway : (payment.gateway as GatewayId);
     const reuse = Boolean(payment.gatewayOrderId) && payment.gateway === wantGateway;
     const provider = getProvider(wantGateway);
+    const customer = chargeCustomer(booking);
 
     let checkout: CheckoutInit;
     if (reuse && payment.gatewayOrderId) {
@@ -268,21 +293,45 @@ export async function createOrderForBooking(params: {
             currency: booking.currency,
             successUrl: payuReturnUrl(booking.id, "success"),
             failureUrl: payuReturnUrl(booking.id, "failure"),
+            customer,
         });
     } else {
+        // Switching gateways once an order already exists must NOT overwrite
+        // gatewayOrderId: the old order stays open and payable (a stale Razorpay
+        // modal or an already-loaded PayU page), and the webhook resolves a
+        // capture solely by that id. Overwriting orphans it — the money is taken
+        // but no Payment matches, so the booking is never confirmed and even
+        // reconciliation can't find it. Give the new gateway its own row instead.
+        const target = payment.gatewayOrderId && payment.gateway !== wantGateway
+            ? await db.payment.create({
+                  data: {
+                      bookingId: booking.id,
+                      userId: booking.userId,
+                      amount: (payment.amount_paise / 100).toFixed(2),
+                      amount_paise: payment.amount_paise,
+                      gateway: wantGateway,
+                      status: "PENDING",
+                      purpose: "INITIAL",
+                      idempotencyKey: `booking:${booking.id}:initial:${randomBytes(4).toString("hex")}`,
+                  },
+                  select: { id: true, status: true, gateway: true, amount_paise: true, gatewayOrderId: true },
+              })
+            : payment;
+
         const charge = await provider.createCharge({
-            amountPaise: payment.amount_paise,
+            amountPaise: target.amount_paise,
             receipt: booking.bookingNumber,
             bookingId: booking.id,
-            customer: {},
+            customer,
             notes: { bookingId: booking.id },
             successUrl: payuReturnUrl(booking.id, "success"),
             failureUrl: payuReturnUrl(booking.id, "failure"),
         });
         await db.payment.update({
-            where: { id: payment.id },
+            where: { id: target.id },
             data: { gateway: wantGateway, gatewayOrderId: charge.gatewayOrderRef },
         });
+        payment = target;
         checkout = charge.checkout;
     }
 

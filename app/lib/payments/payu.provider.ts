@@ -72,16 +72,32 @@ async function postservice<T>(command: string, vars: { var1: string; var2?: stri
     return (await res.json()) as T;
 }
 
-// Constants used for BOTH createCharge and resume so the hash is reproducible
-// from (txnid, amount) alone. (Customer prefill deferred — see Phase 6 notes.)
 const PRODUCT_INFO = "Package booking";
-const FIRST_NAME = "Guest";
-const EMAIL = "";
 const UDF = ["", "", "", "", ""]; // udf1..5
 
+/**
+ * PayU's `_payment` API rejects a request outright when firstname, email or phone
+ * is missing or blank ("Mandatory Parameter <x> is missing"), so every charge must
+ * carry all three. These fallbacks exist only so a booking with no contact details
+ * on file still reaches the hosted page rather than erroring at the gateway — real
+ * values are threaded through from the Booking's contact fields by the caller.
+ *
+ * They also feed the request hash, so createCharge and any later resume of the same
+ * txnid must derive them identically — hence one resolver used by both paths.
+ */
+function resolveCustomer(c?: { name?: string; email?: string; phone?: string }) {
+    const firstname = (c?.name ?? "").trim().split(/\s+/)[0] || "Guest";
+    const email = (c?.email ?? "").trim() || "noreply@dreamsyatri.com";
+    // PayU validates this as a 10-digit Indian mobile; strip +91/spaces/dashes and
+    // fall back rather than posting something it will reject.
+    const digits = (c?.phone ?? "").replace(/\D/g, "").slice(-10);
+    const phone = digits.length === 10 ? digits : "9999999999";
+    return { firstname, email, phone };
+}
+
 /** Request hash: key|txnid|amount|productinfo|firstname|email|udf1..5|||||(5 empty)|salt */
-function requestHash(key: string, salt: string, txnid: string, amount: string): string {
-    const seq = [key, txnid, amount, PRODUCT_INFO, FIRST_NAME, EMAIL, ...UDF, "", "", "", "", "", salt];
+function requestHash(key: string, salt: string, txnid: string, amount: string, firstname: string, email: string): string {
+    const seq = [key, txnid, amount, PRODUCT_INFO, firstname, email, ...UDF, "", "", "", "", "", salt];
     return sha512(seq.join("|"));
 }
 
@@ -92,15 +108,22 @@ function reverseHash(key: string, salt: string, f: { status: string; amount: str
     return sha512(seq.join("|"));
 }
 
-function buildCheckout(txnid: string, amountPaise: number, successUrl: string, failureUrl: string): CheckoutInit {
+function buildCheckout(
+    txnid: string,
+    amountPaise: number,
+    successUrl: string,
+    failureUrl: string,
+    customer?: { name?: string; email?: string; phone?: string },
+): CheckoutInit {
     const key = env("PAYU_KEY");
     const salt = env("PAYU_SALT");
     const amount = rupees(amountPaise);
+    const { firstname, email, phone } = resolveCustomer(customer);
     const fields: Record<string, string> = {
-        key, txnid, amount, productinfo: PRODUCT_INFO, firstname: FIRST_NAME, email: EMAIL,
+        key, txnid, amount, productinfo: PRODUCT_INFO, firstname, email, phone,
         surl: successUrl, furl: failureUrl,
         udf1: "", udf2: "", udf3: "", udf4: "", udf5: "",
-        hash: requestHash(key, salt, txnid, amount),
+        hash: requestHash(key, salt, txnid, amount, firstname, email),
     };
     return { provider: "PAYU", actionUrl: checkoutUrl(), fields };
 }
@@ -140,15 +163,16 @@ export const payuProvider: PaymentProvider = {
 
     async createCharge(input: CreateChargeInput): Promise<CreateChargeResult> {
         const txnid = `txn${Date.now()}${Math.random().toString(36).slice(2, 6)}`.slice(0, 25);
-        const checkout = buildCheckout(txnid, input.amountPaise, input.successUrl ?? "", input.failureUrl ?? "");
+        const checkout = buildCheckout(txnid, input.amountPaise, input.successUrl ?? "", input.failureUrl ?? "", input.customer);
         return { gatewayOrderRef: txnid, checkout };
     },
 
     checkoutForExistingOrder(args): CheckoutInit {
         // surl/furl are form fields (not part of the hash), so a resumed payment must
         // carry them too — omit them and PayU falls back to its dashboard-configured
-        // return URL, stranding the customer away from our confirmation page.
-        return buildCheckout(args.gatewayOrderRef, args.amountPaise, args.successUrl ?? "", args.failureUrl ?? "");
+        // return URL, stranding the customer away from our confirmation page. The
+        // customer identity fields are mandatory on every POST for the same reason.
+        return buildCheckout(args.gatewayOrderRef, args.amountPaise, args.successUrl ?? "", args.failureUrl ?? "", args.customer);
     },
 
     verifyCallback(payload: Record<string, string>): CallbackResult {
