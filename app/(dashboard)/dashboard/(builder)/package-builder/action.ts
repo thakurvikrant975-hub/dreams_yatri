@@ -881,7 +881,12 @@ export async function copyPackageIntoDraft(
   routeSlug:    string,
   staySlug:     string,
 ): Promise<PackageCopyPayload | null> {
-  const data = await fetchPackagePageData(packageSlug, durationSlug, routeSlug, staySlug);
+  // includeInactive: this copies an admin-catalog package's content into a
+  // sales exec's draft — a package the admin has switched off for the public
+  // site (see CreatePackageDialog/searchPackageLibraryForTemplate) is still
+  // a perfectly valid template to reuse internally, it just shouldn't be
+  // reachable on the live site.
+  const data = await fetchPackagePageData(packageSlug, durationSlug, routeSlug, staySlug, { includeInactive: true });
   if (!data) return null;
 
   const stops: StopInput[] = (data.selectedRoute?.stops ?? []).map((s) => ({

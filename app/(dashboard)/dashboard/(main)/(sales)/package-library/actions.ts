@@ -495,7 +495,10 @@ export async function getPackageVariantOptions(
     packageSlug:  string,
     durationSlug: string,
 ): Promise<PackageVariantOptions | null> {
-    const data = await fetchPackagePageData(packageSlug, durationSlug, "", "");
+    // includeInactive: this is the picker used both from the package library
+    // (active packages only) and from CreatePackageDialog's "Use Template"
+    // flow, which now also surfaces inactive packages — see fetchPackagePageData.
+    const data = await fetchPackagePageData(packageSlug, durationSlug, "", "", { includeInactive: true });
     if (!data) return null;
 
     return {

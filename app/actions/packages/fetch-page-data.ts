@@ -380,12 +380,19 @@ export async function fetchPackagePageData(
   durationSlug: string,
   routeSlug: string,
   staySlug: string,
+  /** Internal (dashboard) callers — copying a package as a builder template,
+   *  or loading its variant picker — need this to work even when the package
+   *  has been switched off for the public site (see copyPackageIntoDraft/
+   *  getPackageVariantOptions). Public website call sites must never pass
+   *  this: an inactive package should stay completely unreachable there. */
+  opts: { includeInactive?: boolean } = {},
 ): Promise<PackagePageData | null> {
+  const { includeInactive = false } = opts;
 
   // ── Step 1: parallel fetch — package basics + current duration ─────────────
   const [pkg, currentDuration] = await Promise.all([
     db.packages.findUnique({
-      where: { slug: packageSlug, is_active: true },
+      where: { slug: packageSlug, ...(includeInactive ? {} : { is_active: true }) },
       select: {
         id: true,
         title: true,
