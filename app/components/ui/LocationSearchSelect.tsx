@@ -19,6 +19,11 @@ import {
     type LocationValue,
     type LocalResult,
 } from '@/app/(dashboard)/dashboard/(main)/components/location/location.types'
+import {
+    getCachedSuggestions,
+    fetchSuggestions,
+    suggestionsCacheKey,
+} from '@/app/lib/locationSuggestions'
 
 export type { LocationValue } from '@/app/(dashboard)/dashboard/(main)/components/location/location.types'
 
@@ -55,6 +60,46 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
         <p className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-widest text-primary select-none">
             {children}
         </p>
+    )
+}
+
+// ── Loading placeholders ─────────────────────────────────────────────────────
+
+/** Mirrors Row's geometry (icon, two text lines, badge) so the list doesn't
+ *  shift when real rows replace it. */
+function RowSkeleton({ withBadge = true }: { withBadge?: boolean }) {
+    return (
+        <div className="flex w-full items-start gap-2.5 px-3 py-2.5" aria-hidden="true">
+            <span className="skeleton-box mt-0.5 size-4.5 shrink-0 rounded-full" />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <span className="flex items-center gap-1.5">
+                    <span className="skeleton-box h-3.5 w-2/5 rounded" />
+                    {withBadge && <span className="skeleton-box h-3 w-10 rounded" />}
+                </span>
+                <span className="skeleton-box h-2.5 w-3/5 rounded" />
+            </span>
+        </div>
+    )
+}
+
+function ResultsSkeleton({ rows = 5, label }: { rows?: number; label: string }) {
+    return (
+        <div role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">{label}</span>
+            <SectionLabel>{label}</SectionLabel>
+            {Array.from({ length: rows }).map((_, i) => (
+                <RowSkeleton key={i} />
+            ))}
+        </div>
+    )
+}
+
+/** Centres short content (empty states) inside the fixed-height list. */
+function CenteredNote({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="flex h-full items-center justify-center px-3 py-6">
+            <p className="text-center text-xs text-neutral-400">{children}</p>
+        </div>
     )
 }
 
@@ -135,24 +180,35 @@ export default function LocationSearchSelect({
     const inputRef = useRef<HTMLInputElement>(null)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+    // `types` is almost always an inline array literal at the call site, so it
+    // is a new reference every render. Depending on it directly would re-run
+    // the effects below forever; the key is a stable string for the same set.
+    const typesKey = suggestionsCacheKey(types)
+
     useEffect(() => { setRecent(readRecent()) }, [])
 
-    // Preload popular destinations on first open (type-only query, no text)
+    // Popular destinations, warmed on first open. Reads the shared cache
+    // synchronously first so a repeat open (or a second picker on the same
+    // page) paints real rows immediately instead of flashing skeletons.
     useEffect(() => {
         if (!open || popularLoaded) return
+
+        const cachedHit = getCachedSuggestions(types)
+        if (cachedHit) {
+            setPopular(cachedHit)
+            setPopularLoaded(true)
+            return
+        }
+
         let cancelled = false
-        ;(async () => {
-            try {
-                const qs = new URLSearchParams({ destinationsOnly: 'true', limit: '8' })
-                if (types?.length) qs.set('types', types.join(','))
-                const res = await fetch(`/api/locations/search?${qs}`)
-                if (res.ok && !cancelled) setPopular((await res.json()) as LocalResult[])
-            } catch { /* ignore */ } finally {
-                if (!cancelled) setPopularLoaded(true)
-            }
-        })()
+        fetchSuggestions(types).then((items) => {
+            if (cancelled) return
+            setPopular(items)
+            setPopularLoaded(true)
+        })
         return () => { cancelled = true }
-    }, [open, popularLoaded, types])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, popularLoaded, typesKey])
 
     // Debounced local search
     useEffect(() => {
@@ -175,7 +231,8 @@ export default function LocationSearchSelect({
         }, 300)
 
         return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-    }, [query, open, types])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [query, open, typesKey])
 
     useEffect(() => { setActiveIdx(-1) }, [results, query])
 
@@ -190,7 +247,7 @@ export default function LocationSearchSelect({
     }
 
     // ── Current location via geolocation + reverse geocode ────────────────────
-    function useCurrentLocation() {
+    function detectCurrentLocation() {
         if (typeof navigator === 'undefined' || !navigator.geolocation) {
             setGeoError('Location is not supported on this device.')
             return
@@ -235,6 +292,14 @@ export default function LocationSearchSelect({
     const showRecent = !query.trim() && recentFilteprimary.length > 0
     const showPopular = !query.trim() && popularFilteprimary.length > 0
 
+    // Placeholder rows stand in for the two lists that can be mid-flight.
+    const showPopularSkeleton = !query.trim() && !popularLoaded
+    const showSearchSkeleton = Boolean(query.trim()) && loading && results.length === 0
+    // True only when there is genuinely nothing to show and nothing pending —
+    // otherwise the hint would flash under the skeletons.
+    const showIdleHint =
+        !query.trim() && !showCurrentRow && !showRecent && !showPopular && !showPopularSkeleton
+
     const navList: NavEntry[] = []
     if (showCurrentRow) navList.push({ kind: 'current' })
     if (query.trim()) {
@@ -245,7 +310,7 @@ export default function LocationSearchSelect({
     }
 
     function activate(entry: NavEntry) {
-        if (entry.kind === 'current') useCurrentLocation()
+        if (entry.kind === 'current') detectCurrentLocation()
         else pick(entry.loc)
     }
 
@@ -326,8 +391,12 @@ export default function LocationSearchSelect({
                         {loading && <CircleNotchIcon className="size-4 animate-spin text-neutral-400" />}
                     </div>
 
-                    {/* Results / suggestions */}
-                    <div role="listbox" className="scrollbar-slim max-h-80 overflow-y-auto py-1">
+                    {/* Results / suggestions.
+                        Fixed height, not max-height: the panel used to grow and
+                        shrink as results arrived, so the dropdown jumped under
+                        the cursor on every keystroke. A constant box means rows
+                        only ever scroll inside it. */}
+                    <div role="listbox" className="scrollbar-slim h-80 overflow-y-auto py-1">
 
                         {/* Current location */}
                         {showCurrentRow && (() => {
@@ -340,7 +409,7 @@ export default function LocationSearchSelect({
                                     primary={geoLoading ? 'Detecting your location…' : 'Use current location'}
                                     secondary={geoError || undefined}
                                     highlighted={activeIdx === idx}
-                                    onClick={useCurrentLocation}
+                                    onClick={detectCurrentLocation}
                                 />
                             )
                         })()}
@@ -362,7 +431,9 @@ export default function LocationSearchSelect({
                             )
                         })}
 
-                        {/* Popular destinations */}
+                        {/* Popular destinations — skeletons only on a genuinely
+                            cold cache, so the common case paints real rows. */}
+                        {showPopularSkeleton && <ResultsSkeleton label="Popular destinations" rows={6} />}
                         {showPopular && <SectionLabel>Popular destinations</SectionLabel>}
                         {showPopular && popularFilteprimary.map((r) => {
                             const idx = navIdx++
@@ -379,7 +450,11 @@ export default function LocationSearchSelect({
                             )
                         })}
 
-                        {/* Search results */}
+                        {/* Search results. Skeletons show only while the first
+                            page of results for a query is in flight — on later
+                            keystrokes the previous matches stay put rather than
+                            strobing between rows and placeholders. */}
+                        {showSearchSkeleton && <ResultsSkeleton label="Searching" rows={5} />}
                         {query.trim() && results.map((r) => {
                             const idx = navIdx++
                             return (
@@ -397,11 +472,11 @@ export default function LocationSearchSelect({
 
                         {/* Empty / hint states */}
                         {query.trim() && !loading && results.length === 0 && (
-                            <p className="px-3 py-4 text-center text-xs text-neutral-400">No locations found</p>
+                            <CenteredNote>
+                                No locations found for &ldquo;{query.trim()}&rdquo;
+                            </CenteredNote>
                         )}
-                        {!query.trim() && !showCurrentRow && !showRecent && !showPopular && (
-                            <p className="px-3 py-4 text-center text-xs text-neutral-400">Start typing to search cities</p>
-                        )}
+                        {showIdleHint && <CenteredNote>Start typing to search cities</CenteredNote>}
                     </div>
                 </Popover.Content>
             </Popover.Portal>
