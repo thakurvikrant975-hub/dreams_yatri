@@ -16,6 +16,8 @@ interface PackageResult {
   slug: string
   thumbnail: string | null
   destination: { name: string } | null
+  /** Full /packages/[slug]/[duration]/[route]/[stay] path from the API. */
+  href: string | null
 }
 interface HotelResult {
   id: number
@@ -257,7 +259,7 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
                 {activeTab === 'packages' && results.packages.map(p => (
                   <Link
                     key={p.id}
-                    href={`/packages/${p.slug}`}
+                    href={p.href ?? `/packages/${p.slug}`}
                     scroll={false}
                     onClick={closeDropdown}
                     className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"

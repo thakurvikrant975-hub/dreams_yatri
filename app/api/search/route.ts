@@ -5,6 +5,32 @@ import { handleApiError }   from '@/app/lib/api-error'
 
 const LIMIT = 4
 
+type PackageRow = {
+  id:          number
+  title:       string
+  slug:        string
+  thumbnail:   string | null
+  destination: { name: string } | null
+  durations:       { slug: string; is_default: boolean; routes: { slug: string }[] }[]
+  stay_categories: { slug: string; is_default: boolean }[]
+}
+
+/**
+ * The canonical package page lives at /packages/[slug]/[duration]/[route]/[stay];
+ * /packages/[slug] only exists to redirect there. Resolving the default combo
+ * here saves the dropdown two server round-trips per click — and mirrors the
+ * choice those redirect pages make (flagged default, else lowest sort_order).
+ */
+function packageHref(pkg: PackageRow): string {
+  const duration = pkg.durations.find(d => d.is_default) ?? pkg.durations[0]
+  const route    = duration?.routes[0]
+  const stay     = pkg.stay_categories.find(s => s.is_default) ?? pkg.stay_categories[0]
+
+  return duration && route && stay
+    ? `/packages/${pkg.slug}/${duration.slug}/${route.slug}/${stay.slug}`
+    : `/packages/${pkg.slug}`
+}
+
 export async function GET(req: NextRequest) {
   try {
     const q = req.nextUrl.searchParams.get('q')?.trim() ?? ''
@@ -25,6 +51,25 @@ export async function GET(req: NextRequest) {
           slug:        true,
           thumbnail:   true,
           destination: { select: { name: true } },
+          durations: {
+            where:   { is_active: true },
+            orderBy: { sort_order: 'asc' },
+            select: {
+              slug:       true,
+              is_default: true,
+              routes: {
+                where:   { is_active: true },
+                orderBy: { sort_order: 'asc' },
+                select:  { slug: true },
+                take:    1,
+              },
+            },
+          },
+          stay_categories: {
+            where:   { is_active: true },
+            orderBy: { sort_order: 'asc' },
+            select:  { slug: true, is_default: true },
+          },
         },
         take: LIMIT,
       }),
@@ -70,7 +115,18 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
-    return ApiResponse.ok({ packages, hotels, blogs })
+    return ApiResponse.ok({
+      packages: (packages as PackageRow[]).map(p => ({
+        id:          p.id,
+        title:       p.title,
+        slug:        p.slug,
+        thumbnail:   p.thumbnail,
+        destination: p.destination,
+        href:        packageHref(p),
+      })),
+      hotels,
+      blogs,
+    })
   } catch (error) {
     return handleApiError(error)
   }
