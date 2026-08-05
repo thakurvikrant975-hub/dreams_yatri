@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { fillPendingHotel } from "../actions";
@@ -23,6 +23,7 @@ export function FillHotelForm({
     const [hotelName, setHotelName] = useState("");
     const [roomName, setRoomName] = useState("");
     const [roomsCount, setRoomsCount] = useState("1");
+    const [extraBeds, setExtraBeds] = useState("0");
     const [pricePerNight, setPricePerNight] = useState("");
     const [roomSpecs, setRoomSpecs] = useState("");
     const [checkIn, setCheckIn] = useState("");
@@ -36,6 +37,7 @@ export function FillHotelForm({
                 hotelName,
                 roomName,
                 roomsCount: parseInt(roomsCount, 10) || 1,
+                extraBeds: parseInt(extraBeds, 10) || 0,
                 pricePerNight: parseFloat(pricePerNight) || 0,
                 roomSpecs,
                 checkIn,
@@ -107,6 +109,18 @@ export function FillHotelForm({
                         type="number" min={1}
                         value={roomsCount}
                         onChange={(e) => setRoomsCount(e.target.value)}
+                        className="text-sm h-9"
+                    />
+                </div>
+                <div>
+                    <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
+                        <BedDouble className="size-2.5" /> Mattresses Needed
+                    </label>
+                    <Input
+                        type="number" min={0}
+                        value={extraBeds}
+                        onChange={(e) => setExtraBeds(e.target.value)}
+                        placeholder="0"
                         className="text-sm h-9"
                     />
                 </div>

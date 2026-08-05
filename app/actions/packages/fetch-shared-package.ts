@@ -34,7 +34,7 @@ export async function getSharedPackage(packageId: string) {
       title: true, description: true, coverImage: true, coverImagePosition: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
       pricePerPerson: true, totalPrice: true, currency: true,
-      inclusions: true, exclusions: true, termsNotes: true,
+      inclusions: true, exclusions: true, removedInclusions: true, removedExclusions: true, termsNotes: true,
       termsConditions: true, paymentPolicy: true, amendmentPolicy: true, travelBenefits: true,
       extraPolicyItems: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
@@ -110,8 +110,10 @@ export async function getSharedPackage(packageId: string) {
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     currency:        pkg.currency,
-    inclusions:      [...pkg.inclusions, ...extraItems(pkg.extraPolicyItems, "inclusions")],
-    exclusions:      [...pkg.exclusions, ...extraItems(pkg.extraPolicyItems, "exclusions")],
+    // Drops anything costing vetoed during pre-send review — see
+    // updatePackageInclusionsExclusions (verify-packages/actions.ts).
+    inclusions:      [...pkg.inclusions, ...extraItems(pkg.extraPolicyItems, "inclusions")].filter((i) => !pkg.removedInclusions.includes(i)),
+    exclusions:      [...pkg.exclusions, ...extraItems(pkg.extraPolicyItems, "exclusions")].filter((e) => !pkg.removedExclusions.includes(e)),
     termsNotes:      pkg.termsNotes ?? "",
     termsConditions: [...pkg.termsConditions, ...extraItems(pkg.extraPolicyItems, "termsConditions")],
     paymentPolicy:   [...pkg.paymentPolicy, ...extraItems(pkg.extraPolicyItems, "paymentPolicy")],

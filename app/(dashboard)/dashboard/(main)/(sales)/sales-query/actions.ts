@@ -475,6 +475,14 @@ export async function savePackageRequirements(
             where: { id: packageQueryId },
             data: {
                 requirements: parsed.data as Prisma.InputJsonValue,
+                // The "Lead / Primary Traveller Name" field on this form is
+                // seeded from (and edits) the same identity as the query's
+                // own `name` column — without writing it back here, a name
+                // typed/corrected on this form only ever lands in the
+                // requirements JSON blob, so every other screen (query
+                // tables, package builder, PDFs) keeps showing the old
+                // top-level name.
+                name:         parsed.data.travellers.leadName.trim(),
                 groupSize:    parsed.data.travellers.adults + parsed.data.travellers.children,
                 destination:  parsed.data.journey.destinations[0] ?? null,
                 travelDate:   parsed.data.journey.travelDate ? new Date(parsed.data.journey.travelDate) : null,

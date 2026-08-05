@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const q = req.nextUrl.searchParams.get('q')?.trim() ?? ''
     if (q.length < 2) return ApiResponse.ok({ packages: [], hotels: [], blogs: [] })
 
-    const [packages, hotels, blogs] = await Promise.all([
+    const [rawPackages, hotels, blogs] = await Promise.all([
       db.packages.findMany({
         where: {
           is_active: true,
@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
     ])
 
     return ApiResponse.ok({
-      packages: (packages as PackageRow[]).map(p => ({
+      packages: (rawPackages as PackageRow[]).map(p => ({
         id:          p.id,
         title:       p.title,
         slug:        p.slug,

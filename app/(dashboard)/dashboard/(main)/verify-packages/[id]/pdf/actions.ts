@@ -84,9 +84,10 @@ export async function getPackagePdfPreviewData(packageId: string): Promise<Previ
     // Inclusions/exclusions/T&C/payment/amendment/benefits are always the
     // live company-wide defaults (never the possibly-stale copy saved on the
     // package row) plus this package's own additions — same rule the builder
-    // itself applies.
-    inclusions: [...settings.inclusions, ...cp.extraPolicyItems.inclusions],
-    exclusions: [...settings.exclusions, ...cp.extraPolicyItems.exclusions],
+    // itself applies. Inclusions/exclusions additionally drop anything
+    // costing vetoed during review — see updatePackageInclusionsExclusions.
+    inclusions: [...settings.inclusions, ...cp.extraPolicyItems.inclusions].filter((i) => !cp.removedInclusions.includes(i)),
+    exclusions: [...settings.exclusions, ...cp.extraPolicyItems.exclusions].filter((e) => !cp.removedExclusions.includes(e)),
     termsNotes: cp.termsNotes ?? "",
     termsConditions: [...settings.termsConditions, ...cp.extraPolicyItems.termsConditions],
     paymentPolicy: [...settings.paymentPolicy, ...cp.extraPolicyItems.paymentPolicy],

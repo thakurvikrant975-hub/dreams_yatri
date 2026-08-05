@@ -8,12 +8,15 @@ import {
     CalendarDays, Mail, MapPin, Phone, Users, IndianRupee,
     Building2, Car, Ticket, Gift, PlaneTakeoff, TrainFront,
     CheckCircle2, XCircle, AlertCircle, Eye, Send, ShieldCheck,
-    Pencil, X, Loader2, Clock,
+    Pencil, X, Loader2, Clock, Plus, ListChecks, ListX,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { approveCustomPackage, updatePackagePricing, getPackagePricingHistory, type PricingEditInput } from "../actions";
+import {
+    approveCustomPackage, updatePackagePricing, updatePackageInclusionsExclusions,
+    getPackagePricingHistory, type PricingEditInput,
+} from "../actions";
 import { RejectPricingDialog } from "./RejectPricingDialog";
 import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
@@ -157,8 +160,52 @@ function BreakdownCard({ icon: Icon, title, meta, subtotal, editing, subtotalInp
     );
 }
 
+// Editable checklist for one section (inclusions or exclusions) — shows
+// current items with a remove button while editing, plus an add-row; falls
+// back to a plain bulleted list when not editing (or nothing to review yet).
+function PolicyListEditor({
+    icon: Icon, tone, items, editing, onRemove, draft, onDraftChange, onAdd,
+}: {
+    icon: React.ElementType; tone: "success" | "error"; items: string[]; editing: boolean;
+    onRemove: (item: string) => void; draft: string; onDraftChange: (v: string) => void; onAdd: () => void;
+}) {
+    const toneCls = tone === "success" ? "text-dashboard-success" : "text-dashboard-error";
+    return (
+        <div className="flex flex-col gap-1.5">
+            {items.length === 0 && !editing && (
+                <p className="text-xs text-dashboard-neutral px-4 py-2">Nothing listed.</p>
+            )}
+            {items.map((item) => (
+                <div key={item} className="flex items-center gap-2 px-4 py-1.5 text-sm">
+                    <Icon className={`size-3.5 shrink-0 ${toneCls}`} />
+                    <span className="flex-1 min-w-0 text-dashboard-base-content">{item}</span>
+                    {editing && (
+                        <button type="button" onClick={() => onRemove(item)} className="shrink-0 rounded p-0.5 hover:bg-dashboard-base-200" aria-label="Remove">
+                            <X className="size-3.5 text-dashboard-neutral" />
+                        </button>
+                    )}
+                </div>
+            ))}
+            {editing && (
+                <div className="flex items-center gap-2 px-4 pt-1">
+                    <Input
+                        value={draft}
+                        onChange={(e) => onDraftChange(e.target.value)}
+                        placeholder="Add an item…"
+                        className="h-8 text-xs"
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAdd(); } }}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={onAdd} className="h-8 gap-1 shrink-0">
+                        <Plus className="size-3.5" /> Add
+                    </Button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function VerifyPackageDetailClient({
-    pkg, snapshot: s, tickets, addOns, query, rejectionReasons, hotelIdByDay,
+    pkg, snapshot: s, tickets, addOns, query, rejectionReasons, hotelIdByDay, inclusions, exclusions,
 }: {
     pkg: PkgInfo;
     snapshot: PricingSnapshot | null;
@@ -167,6 +214,8 @@ export function VerifyPackageDetailClient({
     query: QueryInfo;
     rejectionReasons: RejectionReason[];
     hotelIdByDay: Record<number, number>;
+    inclusions: string[];
+    exclusions: string[];
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -200,6 +249,49 @@ export function VerifyPackageDetailClient({
     const [addonEdits, setAddonEdits] = useState<Record<string, { price: number; quantity: number }>>(
         Object.fromEntries(addOns.map((a) => [a.id, { price: a.price, quantity: a.quantity }])),
     );
+
+    // Inclusions/exclusions review — its own edit mode/save, independent of
+    // the pricing correction flow above, so a reviewer can curate the
+    // client-facing lists without also having to touch pricing.
+    const [policyEditMode, setPolicyEditMode] = useState(false);
+    const [inclusionsEdit, setInclusionsEdit] = useState<string[]>(inclusions);
+    const [exclusionsEdit, setExclusionsEdit] = useState<string[]>(exclusions);
+    const [newInclusion, setNewInclusion] = useState("");
+    const [newExclusion, setNewExclusion] = useState("");
+
+    function enterPolicyEditMode() {
+        setInclusionsEdit(inclusions);
+        setExclusionsEdit(exclusions);
+        setNewInclusion("");
+        setNewExclusion("");
+        setPolicyEditMode(true);
+    }
+
+    function addInclusion() {
+        const v = newInclusion.trim();
+        if (!v || inclusionsEdit.includes(v)) { setNewInclusion(""); return; }
+        setInclusionsEdit((prev) => [...prev, v]);
+        setNewInclusion("");
+    }
+    function addExclusion() {
+        const v = newExclusion.trim();
+        if (!v || exclusionsEdit.includes(v)) { setNewExclusion(""); return; }
+        setExclusionsEdit((prev) => [...prev, v]);
+        setNewExclusion("");
+    }
+
+    function handleSavePolicy() {
+        startTransition(async () => {
+            const result = await updatePackageInclusionsExclusions(pkg.id, { inclusions: inclusionsEdit, exclusions: exclusionsEdit });
+            if (result.success) {
+                toast.success(result.message);
+                setPolicyEditMode(false);
+                router.refresh();
+            } else {
+                toast.error(result.message);
+            }
+        });
+    }
 
     function enterEditMode() {
         setMargin(pkg.marginPercentage);
@@ -566,6 +658,63 @@ export function VerifyPackageDetailClient({
                                 ))}
                             </BreakdownCard>
                         )}
+
+                        {/* Inclusions & Exclusions — separate edit/save from pricing, so a
+                            reviewer can veto a standard line (or a Sales Exec's own
+                            addition) that doesn't apply to this package without also
+                            touching pricing. Persists via updatePackageInclusionsExclusions;
+                            reflected in the exec's builder, the "View Package" PDF above,
+                            and the client-facing send once approved/sent. */}
+                        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden shadow-lg">
+                            <div className="flex items-center justify-between border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5">
+                                <span className="flex items-center gap-2 text-sm font-semibold text-dashboard-base-content">
+                                    <ListChecks className="size-4 text-dashboard-neutral" />
+                                    <span>Inclusions & Exclusions</span>
+                                </span>
+                                {pkg.status === "READY" && !pkg.verified && !policyEditMode && (
+                                    <Button type="button" variant="outline" size="sm" onClick={enterPolicyEditMode} className="gap-1.5 h-7 px-2.5 text-xs">
+                                        <Pencil className="size-3.5" /> Edit
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-dashboard-base-300/60">
+                                <div className="py-3">
+                                    <p className="px-4 pb-1.5 text-xs font-semibold text-dashboard-base-content/70 flex items-center gap-1.5">
+                                        <ListChecks className="size-3.5 text-dashboard-success" /> Inclusions
+                                    </p>
+                                    <PolicyListEditor
+                                        icon={ListChecks} tone="success"
+                                        items={policyEditMode ? inclusionsEdit : inclusions}
+                                        editing={policyEditMode}
+                                        onRemove={(item) => setInclusionsEdit((prev) => prev.filter((i) => i !== item))}
+                                        draft={newInclusion} onDraftChange={setNewInclusion} onAdd={addInclusion}
+                                    />
+                                </div>
+                                <div className="py-3">
+                                    <p className="px-4 pb-1.5 text-xs font-semibold text-dashboard-base-content/70 flex items-center gap-1.5">
+                                        <ListX className="size-3.5 text-dashboard-error" /> Exclusions
+                                    </p>
+                                    <PolicyListEditor
+                                        icon={ListX} tone="error"
+                                        items={policyEditMode ? exclusionsEdit : exclusions}
+                                        editing={policyEditMode}
+                                        onRemove={(item) => setExclusionsEdit((prev) => prev.filter((e) => e !== item))}
+                                        draft={newExclusion} onDraftChange={setNewExclusion} onAdd={addExclusion}
+                                    />
+                                </div>
+                            </div>
+                            {policyEditMode && (
+                                <div className="flex justify-end gap-2 border-t border-dashboard-base-300 px-4 py-3">
+                                    <Button type="button" variant="outline" size="sm" onClick={() => setPolicyEditMode(false)} disabled={isPending} className="gap-1.5">
+                                        <X className="size-3.5" /> Cancel
+                                    </Button>
+                                    <Button type="button" size="sm" onClick={handleSavePolicy} disabled={isPending} className="gap-1.5 bg-dashboard-primary text-white hover:opacity-90">
+                                        {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                                        {isPending ? "Saving…" : "Save Changes"}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
 
                         {/* Totals */}
                         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-3.5 shadow-lg text-sm space-y-1.5">

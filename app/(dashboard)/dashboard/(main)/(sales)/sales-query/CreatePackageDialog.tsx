@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
     Package, Search, MapPin, Route, BedDouble, CalendarDays, Loader2, Sparkles, ArrowRight, IndianRupee,
-    Users, Calendar, Plus, X,
+    Users, Calendar, Plus, X, Copy, FileStack,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -17,7 +17,7 @@ import { getCardImage } from "@/app/lib/imageUrl";
 import {
     searchPackageLibraryForTemplate, getTemplatePackagePriceForCategory, type TemplatePackage,
 } from "../package-library/actions";
-import { copyPackageIntoDraft } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { copyPackageIntoDraft, duplicateCustomPackageIntoDraft } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 const PAGE_SIZE = 12;
  
@@ -94,7 +94,9 @@ function newPackageId(): string {
         : `pkg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function CreatePackageDialog({ queryId, packageId, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
+export type ExistingPackageOption = { id: string; title: string; status: string };
+
+export function CreatePackageDialog({ queryId, packageId, existingPackages, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
     /** Query to attach a brand-new package to — pass this from a "Create
      * Package" entry point (Sales Query table/sheet) where no package
      * exists yet. Exactly one of queryId/packageId should be given. */
@@ -104,6 +106,12 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
      * this dialog's copy-into-draft behavior in place instead of creating
      * a new package. */
     packageId?: string;
+    /** This query's other packages already built (newest first) — only
+     * meaningful alongside queryId (the "add another package" entry point).
+     * Lets the exec duplicate an existing one instead of starting over,
+     * e.g. a second budget option for the same client. See
+     * duplicateCustomPackageIntoDraft. */
+    existingPackages?: ExistingPackageOption[];
     destination: string | null;
     /** The exact public package page path this lead submitted their query
      * from, if any — used to reliably surface the originating package first,
@@ -145,6 +153,7 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
     const [loadingMessage, setLoadingMessage] = useState(randomLoadingMessage);
     const [loadingMore, setLoadingMore] = useState(false);
     const [applyingSlug, setApplyingSlug] = useState<string | null>(null);
+    const [applyingDuplicateId, setApplyingDuplicateId] = useState<string | null>(null);
     const [recomputingId, setRecomputingId] = useState<number | null>(null);
 
     // Debounce guard so a fast-typing search doesn't race an older request
@@ -233,6 +242,22 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
         }
     }
 
+    async function handleDuplicate(pkg: ExistingPackageOption) {
+        setApplyingDuplicateId(pkg.id);
+        try {
+            const payload = await duplicateCustomPackageIntoDraft(pkg.id);
+            const targetId = packageId ?? newPackageId();
+            if (payload) {
+                sessionStorage.setItem(`pkgCopyPayload:${targetId}`, JSON.stringify(payload));
+            }
+            setOpen(false);
+            // Hard navigation — same reasoning as handleUseTemplate above.
+            window.location.href = targetUrl(targetId);
+        } finally {
+            setApplyingDuplicateId(null);
+        }
+    }
+
     async function handleStayCategoryChange(pkg: TemplatePackage, stayCategoryId: number) {
         setRecomputingId(pkg.id);
         try {
@@ -273,7 +298,9 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
                         <Package size={16} className="text-primary" /> Create Package
                     </DialogTitle>
                     <DialogDescription>
-                        Start from a package library template, or skip and build from scratch.
+                        {existingPackages && existingPackages.length > 0
+                            ? "Duplicate an existing package for this client, start from a package library template, or skip and build from scratch."
+                            : "Start from a package library template, or skip and build from scratch."}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -311,6 +338,41 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
                                 <MapPin size={11} /> {destination}
                             </span>
                         )}
+                    </div>
+                )}
+
+                {existingPackages && existingPackages.length > 0 && (
+                    <div className="shrink-0 space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                            <FileStack size={13} /> Copy an existing package for this client
+                        </p>
+                        <div className="flex flex-col gap-1.5">
+                            {existingPackages.map((pkg) => (
+                                <button
+                                    key={pkg.id}
+                                    type="button"
+                                    disabled={applyingSlug !== null || applyingDuplicateId !== null}
+                                    onClick={() => handleDuplicate(pkg)}
+                                    className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-left text-xs transition-colors hover:border-primary/50 hover:bg-primary/5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                    <span className="flex items-center gap-1.5 min-w-0">
+                                        <Package size={12} className="shrink-0 text-muted-foreground" />
+                                        <span className="truncate font-medium text-foreground">{pkg.title}</span>
+                                    </span>
+                                    <span className="flex items-center gap-1 shrink-0 font-medium text-primary">
+                                        {applyingDuplicateId === pkg.id ? (
+                                            <Loader2 size={11} className="animate-spin" />
+                                        ) : (
+                                            <Copy size={11} />
+                                        )}
+                                        Duplicate
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                            Copies the itinerary, hotels/cabs, tickets and add-ons into a new draft — or pick a template below instead.
+                        </p>
                     </div>
                 )}
 
@@ -509,7 +571,7 @@ export function CreatePackageDialog({ queryId, packageId, destination, packageUr
                                             <Button
                                                 size="sm"
                                                 className="w-full h-7 gap-1 text-xs rounded-md"
-                                                disabled={applyingSlug !== null}
+                                                disabled={applyingSlug !== null || applyingDuplicateId !== null}
                                                 onClick={() => handleUseTemplate(pkg)}
                                             >
                                                 {applyingSlug === pkg.slug ? (

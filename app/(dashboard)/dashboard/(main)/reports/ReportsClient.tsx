@@ -2,22 +2,25 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
-import { Building2, Car, TreePalm, Loader2, CalendarRange } from "lucide-react";
+import { Building2, Car, TreePalm, Users, Loader2, CalendarRange } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { HotelReportTab } from "./HotelReportTab";
 import { CabReportTab } from "./CabReportTab";
 import { TravelReportTab } from "./TravelReportTab";
+import { SalesReportTab } from "./SalesReportTab";
 import type { ReportsData, TimePeriod } from "./actions";
 
 // ── Types ──────────────────────────────────────────────────────────────────
+
+type Dept = "hotel" | "cab" | "travel" | "sales";
 
 type Props = {
   data: ReportsData;
   initialPeriod: TimePeriod;
   initialFrom?: string;
   initialTo?: string;
-  initialDept: "hotel" | "cab" | "travel";
+  initialDept: Dept;
 };
 
 // ── Period labels ──────────────────────────────────────────────────────────
@@ -153,6 +156,10 @@ export function ReportsClient({
       {/* ── Department Tabs ─────────────────────────────────────────────── */}
       <Tabs value={dept} onValueChange={(v) => setDept(v as typeof dept)}>
         <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="sales" className="gap-2">
+            <Users className="h-4 w-4" />
+            Sales / Leads
+          </TabsTrigger>
           <TabsTrigger value="hotel" className="gap-2">
             <Building2 className="h-4 w-4" />
             Hotel Department
@@ -166,6 +173,11 @@ export function ReportsClient({
             Travel Expert
           </TabsTrigger>
         </TabsList>
+
+        {/* ── Sales / Leads ──────────────────────────────────────────────── */}
+        <TabsContent value="sales" className="mt-5">
+          <SalesReportTab data={data.salesDept} />
+        </TabsContent>
 
         {/* ── Hotel ──────────────────────────────────────────────────────── */}
         <TabsContent value="hotel" className="mt-5">

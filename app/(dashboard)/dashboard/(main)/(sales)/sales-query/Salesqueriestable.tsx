@@ -351,7 +351,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                         <Eye className="h-3 w-3" />
                                         View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
                                     </a>
-                                    <CreatePackageDialog {...dialogProps}>
+                                    <CreatePackageDialog {...dialogProps} existingPackages={q.customPackages}>
                                         <button
                                             type="button"
                                             title="Create another package for this query"

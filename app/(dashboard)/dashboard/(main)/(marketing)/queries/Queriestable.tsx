@@ -5,7 +5,8 @@ import { formatDistanceToNow, format } from "date-fns";
 import {
     CheckCircle2,
     Phone, MapPin, StickyNote,
-    Inbox, UserCheck, Send, Clock, TrendingUp
+    Inbox, UserCheck, Send, Clock, TrendingUp,
+    Ticket, Users, CalendarDays,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -22,6 +23,7 @@ import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";
 import { AssignQueryDropdown } from "./Assignquerydropdown";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
+import { TodaysAssignmentDialog } from "./TodaysAssignmentDialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -258,17 +260,23 @@ export function QueriesTable({ queries, reasons }: Props) {
                     {!q.destination && !q.packageName && (
                         <span className="text-xs text-dashboard-base-content/25 italic">—</span>
                     )}
-                </div>
-            ),
-        },
-        {
-            header: "Ticket booked or not",
-            cell: (q) => (
-                <div className="space-y-1.5">
-                    {q.status === "CONVERTED" || q.status === "PAYMENT_INITIATED"
-                        ? <span className="text-xs font-medium text-success-700">Booked</span>
-                        : <span className="text-xs text-dashboard-base-content/25 italic">—</span>
-                    }
+                    {/* Folded in from the old standalone "Group / Date" column —
+                        same info, shown as small icon chips instead of its own
+                        column, to keep the table from scrolling horizontally. */}
+                    {(q.groupSize || q.travelDate) && (
+                        <div className="flex items-center gap-2 text-[11px] text-dashboard-base-content/60 pt-0.5">
+                            {q.groupSize && (
+                                <span className="flex items-center gap-0.5">
+                                    <Users className="h-2.5 w-2.5" /> {q.groupSize}
+                                </span>
+                            )}
+                            {q.travelDate && (
+                                <span className="flex items-center gap-0.5">
+                                    <CalendarDays className="h-2.5 w-2.5" /> {format(new Date(q.travelDate), "dd MMM yy")}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
             ),
         },
@@ -277,9 +285,28 @@ export function QueriesTable({ queries, reasons }: Props) {
             sortKey: (q) => q.status?.toLowerCase() ?? "",
             cell: (q) => (
                 <div className="space-y-1.5">
-                    <QueryStatusBadge status={q.status} />
+                    <div className="flex items-center gap-1.5">
+                        <QueryStatusBadge status={q.status} />
+                        {/* Folded in from the old standalone "Ticket booked or
+                            not" column — a whole column for what's almost
+                            always "—" was pure horizontal cost; a small icon
+                            only shown when actually booked says the same
+                            thing in a fraction of the width. */}
+                        {(q.status === "CONVERTED" || q.status === "PAYMENT_INITIATED") && (
+                            <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-dashboard-success/15">
+                                            <Ticket className="h-2.5 w-2.5 text-dashboard-success" />
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Ticket booked</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
+                    </div>
                     {q.status === "REJECTED" && q.rejectionReason && (
-                        <p className="text-[10px] text-dashboard-base-content/35 max-w-[120px] truncate">
+                        <p className="text-[10px] text-dashboard-base-content/35 max-w-30 truncate">
                             {q.rejectionReason.label}
                         </p>
                     )}
@@ -292,18 +319,6 @@ export function QueriesTable({ queries, reasons }: Props) {
             cell: (q) => <QuerySourceBadge source={q.source} />,
         },
         {
-            header: "Group / Date",
-            cell: (q) => (
-                <div className="space-y-0.5 text-xs text-dashboard-base-content/75">
-                    {q.groupSize && <p>{q.groupSize} pax</p>}
-                    {q.travelDate && <p>{format(new Date(q.travelDate), "dd MMM yy")}</p>}
-                    {!q.groupSize && !q.travelDate && (
-                        <span className="italic text-dashboard-base-content/75">—</span>
-                    )}
-                </div>
-            ),
-        },
-        {
             header: "Notes",
             align: "center",
             sortKey: (q) => q._count.notes ?? 0,
@@ -314,26 +329,30 @@ export function QueriesTable({ queries, reasons }: Props) {
                 </div>
             ),
         },
-{
-    header: "Received",
-    sortKey: (q) => new Date(q.createdAt).getTime(),
-    cell: (q) => (
-        <div className="flex flex-col">
-            <span className="text-xs text-dashboard-base-content/75">
-                {formatDistanceToNow(new Date(q.createdAt), { addSuffix: true })}
-            </span>
-            <span className="text-xs text-dashboard-base-content/75">
-                {new Date(q.createdAt).toLocaleDateString("en-IN")}
-                {" "}
-                {new Date(q.createdAt).toLocaleTimeString("en-IN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                })}
-            </span>
-        </div>
-    ),
-},
+        {
+            header: "Received",
+            sortKey: (q) => new Date(q.createdAt).getTime(),
+            cell: (q) => (
+                <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="text-xs text-dashboard-base-content/75 whitespace-nowrap">
+                                {formatDistanceToNow(new Date(q.createdAt), { addSuffix: true })}
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {new Date(q.createdAt).toLocaleDateString("en-IN")}
+                            {" "}
+                            {new Date(q.createdAt).toLocaleTimeString("en-IN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: true,
+                            })}
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            ),
+        },
         {
             header: "Actions",
             align: "right",
@@ -349,6 +368,9 @@ export function QueriesTable({ queries, reasons }: Props) {
             <div className="space-y-5">
 
                 {/* ── Stats ── */}
+                <div className="flex items-center justify-end">
+                    <TodaysAssignmentDialog queries={queries} />
+                </div>
                 <StatGrid cols={6}>
                     <StatCard
                         label="Total Queries"
