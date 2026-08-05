@@ -16,6 +16,13 @@ interface PackageResult {
   slug: string
   thumbnail: string | null
   destination: { name: string } | null
+  // Resolved default duration/route/stay — lets the link below skip the
+  // /packages/[slug] → /packages/[slug]/[duration] → full-URL redirect
+  // chain. Null only for a misconfigured package (no active
+  // duration/route/stay yet), where the bare slug is the best we can do.
+  durationSlug: string | null
+  routeSlug:    string | null
+  staySlug:     string | null
 }
 interface HotelResult {
   id: number
@@ -50,6 +57,15 @@ function imgSrc(key: string | null | undefined): string | null {
   if (!key) return null
   if (key.startsWith('http://') || key.startsWith('https://')) return key
   return `${R2}/${key.replace(/^\//, '')}`
+}
+
+// The full canonical URL when the default duration/route/stay all resolved
+// (the normal case) — falls back to the bare slug, which still works, just
+// via the redirect chain, for the rare package missing one of those.
+function packageHref(p: PackageResult): string {
+  return p.durationSlug && p.routeSlug && p.staySlug
+    ? `/packages/${p.slug}/${p.durationSlug}/${p.routeSlug}/${p.staySlug}`
+    : `/packages/${p.slug}`
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -257,7 +273,7 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
                 {activeTab === 'packages' && results.packages.map(p => (
                   <Link
                     key={p.id}
-                    href={`/packages/${p.slug}`}
+                    href={packageHref(p)}
                     scroll={false}
                     onClick={closeDropdown}
                     className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"

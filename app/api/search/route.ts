@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const q = req.nextUrl.searchParams.get('q')?.trim() ?? ''
     if (q.length < 2) return ApiResponse.ok({ packages: [], hotels: [], blogs: [] })
 
-    const [packages, hotels, blogs] = await Promise.all([
+    const [rawPackages, hotels, blogs] = await Promise.all([
       db.packages.findMany({
         where: {
           is_active: true,
@@ -25,6 +25,33 @@ export async function GET(req: NextRequest) {
           slug:        true,
           thumbnail:   true,
           destination: { select: { name: true } },
+          // Resolved into a single default duration/route/stay slug below —
+          // lets search results link straight to the full package URL
+          // instead of `/packages/[slug]`, which otherwise 307s through
+          // `/packages/[slug]/[duration]` and then again to
+          // `/packages/[slug]/[duration]/[route]/[stay]` (see those two
+          // redirect pages) before the real page ever loads.
+          durations: {
+            where:   { is_active: true },
+            orderBy: { sort_order: 'asc' },
+            select: {
+              slug:       true,
+              is_default: true,
+              // package_routes has no is_default flag — sort_order asc's
+              // first row is the closest thing (matches how the route
+              // picker on the package page itself orders them).
+              routes: {
+                where:   { is_active: true },
+                orderBy: { sort_order: 'asc' },
+                select:  { slug: true },
+              },
+            },
+          },
+          stay_categories: {
+            where:   { is_active: true },
+            orderBy: { sort_order: 'asc' },
+            select:  { slug: true, is_default: true },
+          },
         },
         take: LIMIT,
       }),
@@ -69,6 +96,21 @@ export async function GET(req: NextRequest) {
         take: LIMIT,
       }),
     ])
+
+    // Same "default, else first" resolution as the /packages/[slug] and
+    // /packages/[slug]/[duration] redirect pages — mirrored here so a search
+    // result can skip straight past both of those redirects.
+    const packages = rawPackages.map(({ durations, stay_categories, ...pkg }) => {
+      const defaultDuration = durations.find(d => d.is_default) ?? durations[0]
+      const defaultRoute = defaultDuration?.routes[0]
+      const defaultStay = stay_categories.find(s => s.is_default) ?? stay_categories[0]
+      return {
+        ...pkg,
+        durationSlug: defaultDuration?.slug ?? null,
+        routeSlug:    defaultRoute?.slug ?? null,
+        staySlug:     defaultStay?.slug ?? null,
+      }
+    })
 
     return ApiResponse.ok({ packages, hotels, blogs })
   } catch (error) {
