@@ -850,11 +850,13 @@ function RemoveSectionActions({
 // Day Itinerary Card
 // ─────────────────────────────────────────────────────────────────────────────
 function DayCard({
-  day, data, location, totalDays, onChange, onRemove,
+  dndId, day, data, location, totalDays, adults, childrenCount, onChange, onRemove,
   onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
   focusSection, shiftedMeals,
   dayAddons, onAddAddon, onUpdateAddon, onRemoveAddon,
 }: {
+  /** dnd-kit's stable identity for this row — see dayDndIds on the parent. */
+  dndId: string;
   day: number;
   data: DayItinerary;
   location?: string;
@@ -889,6 +891,7 @@ function DayCard({
   onRemoveAddon: (idx: number) => void;
 }) {
   const [open, setOpen] = useState(true);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dndId });
 
   // After picking a cab, offer to reuse it across the rest of the trip
   // instead of re-searching it for every day. lastCabPricingId travels
@@ -1111,9 +1114,25 @@ function DayCard({
   const hasActivities = data.activities.some((a) => a.title.trim());
 
   return (
-    <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm overflow-hidden">
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className={cn(
+        "rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm overflow-hidden",
+        isDragging && "z-10 shadow-lg",
+      )}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-dashboard-base-100 border-b border-dashboard-base-300">
+        <button
+          type="button"
+          className="flex items-center justify-center shrink-0 size-6 -ml-1 mr-0.5 text-dashboard-base-content/30 hover:text-dashboard-base-content/70 cursor-grab active:cursor-grabbing touch-none"
+          title="Drag to reorder this day"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={15} />
+        </button>
         <button onClick={() => setOpen(!open)} className="flex items-center gap-2 flex-1 text-left min-w-0">
           <div className="h-7 w-7 rounded-lg bg-linear-to-br from-dashboard-primary to-dashboard-primary/80 text-dashboard-primary-content text-xs font-bold flex items-center justify-center shrink-0">
             {day}
@@ -2321,6 +2340,19 @@ export default function PackageBuilderDetailPage() {
     execName: "", execEmail: "", execDesignation: "",
   });
 
+  // Drag-to-reorder day cards — same dnd-kit pattern as ActivityListEditor's
+  // dndIds above: a stable id per row, tracked separately from the day data
+  // itself, updated in lockstep by the exact places that change the array's
+  // length or order (add/remove/reorder/reload). A plain field edit inside a
+  // day never touches this since it changes neither.
+  const [dayDndIds, setDayDndIds] = useState<string[]>(() => form.itineraries.map((_, i) => `day-${i}`));
+  const [prevItinerariesForIds, setPrevItinerariesForIds] = useState(form.itineraries);
+  if (form.itineraries !== prevItinerariesForIds && form.itineraries.length !== dayDndIds.length) {
+    setPrevItinerariesForIds(form.itineraries);
+    setDayDndIds(form.itineraries.map((_, i) => `day-${i}`));
+  }
+  const daySensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
   // ── Current user's role — gates editing of the standard content lists ──────
   useEffect(() => {
     let cancelled = false;
@@ -2870,10 +2902,62 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
+  // Drag-reorder — hotel/cab/activities travel automatically since they're
+  // already embedded fields on the DayItinerary object being moved. Add-ons
+  // are the one piece of "the whole day" that live outside it, in their own
+  // form.addOns array keyed by day *number* rather than array position, so
+  // they need an explicit remap (old day number → new day number) or they'd
+  // silently stay pinned to whichever content ends up at that slot instead
+  // of following the day they were actually added for.
+  function handleDayDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = dayDndIds.indexOf(String(active.id));
+    const newIndex = dayDndIds.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+    setForm((f) => {
+      const reorderedRaw = arrayMove(f.itineraries, oldIndex, newIndex);
+      const dayNumberMap = new Map(reorderedRaw.map((d, i) => [d.day, i + 1]));
+      const itineraries = reorderedRaw.map((d, i) => ({ ...d, day: i + 1 }));
+      const addOns = f.addOns.map((a) => (
+        a.day != null && dayNumberMap.has(a.day) ? { ...a, day: dayNumberMap.get(a.day)! } : a
+      ));
+      return { ...f, itineraries, addOns };
+    });
+    setDayDndIds((ids) => arrayMove(ids, oldIndex, newIndex));
+  }
+
+  // A costing correction (hotelPriceOverride/cabPriceOverride) is tied to
+  // whatever hotel/cab was priced when it was set. saveCustomPackage already
+  // invalidates it server-side the moment the selection actually changes
+  // (see hotelSelectionChanged/cabSelectionChanged in package-builder/
+  // action.ts) — but that only takes effect once a save round-trips and the
+  // form is refreshed from the server, which plain "Save Draft" never does
+  // (only Mark Ready/Share re-sync via syncPricingFromFresh). Until then the
+  // live preview kept computing off the stale override, so swapping a hotel
+  // or cab right after a costing rejection silently left the old corrected
+  // price on screen — mirror the same invalidation here, client-side and
+  // immediately, so the preview always matches what's actually selected.
   function updateDay(idx: number, day: DayItinerary) {
     setForm((f) => {
       const its = [...f.itineraries];
-      its[idx] = day;
+      const existing = its[idx];
+      const hotelChanged = !existing
+        || existing.roomPricingId !== day.roomPricingId
+        || existing.roomsCount !== day.roomsCount
+        || existing.manualHotelPricePerNight !== day.manualHotelPricePerNight
+        || existing.accommodation !== day.accommodation
+        || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(day.extraRooms ?? []);
+      const cabChanged = !existing
+        || existing.cabPricingId !== day.cabPricingId
+        || existing.transportDistanceKm !== day.transportDistanceKm
+        || existing.cabQuantity !== day.cabQuantity
+        || JSON.stringify(existing.extraCabs ?? []) !== JSON.stringify(day.extraCabs ?? []);
+      its[idx] = {
+        ...day,
+        hotelPriceOverride: hotelChanged ? null : day.hotelPriceOverride,
+        cabPriceOverride: cabChanged ? null : day.cabPriceOverride,
+      };
       return { ...f, itineraries: its };
     });
   }
@@ -4240,30 +4324,37 @@ Rules:
                   </DialogContent>
                 </Dialog>
 
-                {form.itineraries.map((day, idx) => (
-                  <DayCard
-                    key={`day-${day.day}`}
-                    day={day.day}
-                    data={day}
-                    location={dayLocations[idx]}
-                    totalDays={form.itineraries.length}
-                    onChange={(d) => updateDay(idx, d)}
-                    onRemove={() => removeDay(idx)}
-                    onApplyVehicleToDays={applyVehicleToDays}
-                    onApplyRoomToDays={applyRoomToDays}
-                    onRemoveRoomFromDays={removeRoomFromDays}
-                    onRemoveCabFromDays={removeCabFromDays}
-                    stayPreference={s?.types}
-                    focusSection={focusSection}
-                    shiftedMeals={shiftedMeals[idx]}
-                    dayAddons={form.addOns
-                      .map((addon, index) => ({ addon, index }))
-                      .filter(({ addon }) => addon.day === day.day)}
-                    onAddAddon={() => addAddon(day.day)}
-                    onUpdateAddon={updateAddon}
-                    onRemoveAddon={removeAddon}
-                  />
-                ))}
+                <DndContext sensors={daySensors} onDragEnd={handleDayDragEnd}>
+                  <SortableContext items={dayDndIds} strategy={verticalListSortingStrategy}>
+                    {form.itineraries.map((day, idx) => (
+                      <DayCard
+                        key={dayDndIds[idx]}
+                        dndId={dayDndIds[idx]}
+                        day={day.day}
+                        data={day}
+                        location={dayLocations[idx]}
+                        totalDays={form.itineraries.length}
+                        adults={form.adults}
+                        childrenCount={form.children}
+                        onChange={(d) => updateDay(idx, d)}
+                        onRemove={() => removeDay(idx)}
+                        onApplyVehicleToDays={applyVehicleToDays}
+                        onApplyRoomToDays={applyRoomToDays}
+                        onRemoveRoomFromDays={removeRoomFromDays}
+                        onRemoveCabFromDays={removeCabFromDays}
+                        stayPreference={s?.types}
+                        focusSection={focusSection}
+                        shiftedMeals={shiftedMeals[idx]}
+                        dayAddons={form.addOns
+                          .map((addon, index) => ({ addon, index }))
+                          .filter(({ addon }) => addon.day === day.day)}
+                        onAddAddon={() => addAddon(day.day)}
+                        onUpdateAddon={updateAddon}
+                        onRemoveAddon={removeAddon}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               </TabsContent>
 
               {/* ── Tab: Tickets ─────────────────────────────────────────────────── */}
