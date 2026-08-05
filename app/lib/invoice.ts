@@ -52,6 +52,11 @@ export type InvoiceBookingData = {
 };
 
 export type InvoiceViewModel = {
+    /** Which of our services this invoice is for. We sell holiday packages and
+     *  hotel stays, and the two are taxed and fulfilled differently, so the
+     *  invoice names the service rather than leaving the buyer to infer it from
+     *  the line item. */
+    serviceType: string;
     lineItemLabel: string;
     /** Second line under the description — nights/rooms for a stay, else null. */
     lineItemDetail: string | null;
@@ -115,6 +120,7 @@ export function buildInvoiceViewModel(booking: InvoiceBookingData): InvoiceViewM
 
     let lineItemLabel: string;
     let lineItemDetail: string | null = null;
+    const serviceType = stay ? "Hotel Booking (Accommodation)" : "Holiday Tour Package";
 
     if (stay) {
         // Previously fell through to "Holiday package" — a hotel booking has no
@@ -139,6 +145,7 @@ export function buildInvoiceViewModel(booking: InvoiceBookingData): InvoiceViewM
     const balance = Math.max(0, total - paid);
 
     return {
+        serviceType,
         lineItemLabel,
         lineItemDetail,
         total,

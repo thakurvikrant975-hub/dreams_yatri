@@ -29,19 +29,27 @@ type SnapHotel = {
     rooms_count: number;
     num_nights: number;
 };
+type SnapTransfer = { pickup_name: string | null; drop_name: string | null; vehicle_name: string | null };
 type SnapDay = {
     day: number;
     day_title: string;
     day_date: string | null;
     hotel: SnapHotel | null;
     meals: { label: string }[];
-    activities: { name: string; is_optional: boolean }[];
+    activities: { id: number; name: string; is_optional: boolean }[];
+    transfers?: SnapTransfer[];
 };
+type SnapCabSegment = { day_from: number; day_to: number; vehicle_name: string | null; vehicle_capacity?: number };
 type Snapshot = {
     duration_label?: string;
     stay_category_label?: string;
     days?: SnapDay[];
+    cab_segments?: SnapCabSegment[];
 };
+
+/** Fulfilment state of one booked item. `null` where ops hasn't created the row
+ *  yet, which the voucher shows as Pending — nothing is confirmed by default. */
+export type VoucherStatus = { isConfirmed: boolean; status: string };
 
 export type VoucherDay = {
     day: number;
@@ -51,16 +59,47 @@ export type VoucherDay = {
     /** 1–5 when the hotel row carries a rating, else null — drives the stars. */
     hotelStars: number | null;
     roomLabel: string | null;
+    hotelStatus: VoucherStatus | null;
     meals: string[];
     /** The booked rate's plan name ("… with Breakfast & Dinner"). Priced meals
      *  live in `meals`, but a plan whose meals are bundled into the room rate
      *  produces no meal lines at all — the plan name is then the only record of
      *  what the guest is fed, so the table falls back to it. */
     mealPlan: string | null;
-    activities: string[];
+    /** Meals the stay includes, as a phrase for the hotel cell ("Breakfast
+     *  included"). Empty when the rate is room-only. */
+    mealsIncluded: string[];
+    activities: VoucherActivity[];
 };
 
+export type VoucherActivity = VoucherStatus & { name: string; isOptional: boolean };
+
 export type VoucherPolicy = { title: string; points: string[] };
+
+const MEAL_WORDS = ["Breakfast", "Lunch", "Dinner"] as const;
+
+/**
+ * What the stay feeds the guest, for the hotel cell.
+ *
+ * Priced meal lines are the reliable source, but a rate whose meals are bundled
+ * into the room price produces none — there the plan name is all we have. Indian
+ * rate plans spell it either in words ("… with Breakfast & Dinner") or in the
+ * trade's codes, so both are read: EP room-only, CP breakfast, MAP breakfast and
+ * dinner, AP all three.
+ */
+function mealsFromPlan(meals: string[], planName: string | null): string[] {
+    if (meals.length > 0) return meals;
+    if (!planName) return [];
+
+    const named = MEAL_WORDS.filter((m) => new RegExp(`\\b${m}`, "i").test(planName));
+    if (named.length > 0) return [...named];
+
+    const code = planName.match(/\b(EP|CP|MAP|AP)\b/i)?.[1]?.toUpperCase();
+    if (code === "CP") return ["Breakfast"];
+    if (code === "MAP") return ["Breakfast", "Dinner"];
+    if (code === "AP") return ["Breakfast", "Lunch", "Dinner"];
+    return [];
+}
 
 export type VoucherData = {
     bookingId: string;
@@ -93,20 +132,24 @@ export type VoucherData = {
         status: string;
         hotel: { name: string; city: string | null; state: string | null };
     }[];
-    cabs: {
-        legNumber: number;
-        fromLocation: string;
-        toLocation: string;
-        transferDate: Date;
-        cabType: string;
-        cabCount: number;
-        capacity: number;
-        isConfirmed: boolean;
-        status: string;
-        driverName: string | null;
-        driverPhone: string | null;
-        vehicleNumber: string | null;
-    }[];
+    cabs: VoucherCab[];
+};
+
+export type VoucherCab = {
+    legNumber: number;
+    fromLocation: string;
+    toLocation: string;
+    transferDate: Date;
+    cabType: string;
+    cabCount: number;
+    /** 0 when the snapshot didn't record a seat count — the voucher then omits
+     *  the "(n-seater)" note rather than printing "(0-seater)". */
+    capacity: number;
+    isConfirmed: boolean;
+    status: string;
+    driverName: string | null;
+    driverPhone: string | null;
+    vehicleNumber: string | null;
 };
 
 /**
@@ -136,6 +179,9 @@ export async function getVoucherData(bookingId: string): Promise<VoucherData | n
                     hotel: { select: { name: true, city: true, state: true } },
                 },
             },
+            bookingActivities: {
+                select: { dayNumber: true, activityId: true, status: true },
+            },
             cabBookings: {
                 orderBy: { legNumber: "asc" },
                 select: {
@@ -162,8 +208,20 @@ export async function getVoucherData(bookingId: string): Promise<VoucherData | n
             : [],
     );
 
+    // Fulfilment lives on the ops rows, which are keyed by day (and by activity
+    // within a day). Anything ops hasn't created yet has no row at all, which is
+    // reported as Pending rather than left blank — an unconfirmed stay a guest
+    // can't distinguish from a confirmed one is the failure worth avoiding.
+    const hotelStatusByDay = new Map(
+        booking.hotelBookings.map((h) => [h.dayNumber, { isConfirmed: h.isConfirmed, status: h.status }]),
+    );
+    const activityStatusByKey = new Map(
+        booking.bookingActivities.map((a) => [`${a.dayNumber}:${a.activityId}`, a.status]),
+    );
+
     const days: VoucherDay[] = snapDays.map((d) => {
         const stars = d.hotel ? starsById.get(d.hotel.hotel_id) ?? null : null;
+        const meals = (d.meals ?? []).map((m) => m.label).filter(Boolean);
         return {
             day: d.day,
             title: d.day_title,
@@ -171,11 +229,53 @@ export async function getVoucherData(bookingId: string): Promise<VoucherData | n
             hotelName: d.hotel?.hotel_name ?? null,
             hotelStars: stars && stars >= 1 && stars <= 5 ? stars : null,
             roomLabel: d.hotel?.room_name ?? null,
-            meals: (d.meals ?? []).map((m) => m.label).filter(Boolean),
+            hotelStatus: d.hotel
+                ? hotelStatusByDay.get(d.day) ?? { isConfirmed: false, status: "PENDING" }
+                : null,
+            meals,
             mealPlan: d.hotel?.plan_name ?? null,
-            activities: (d.activities ?? []).map((a) => (a.is_optional ? `${a.name} (optional)` : a.name)),
+            mealsIncluded: d.hotel ? mealsFromPlan(meals, d.hotel.plan_name) : [],
+            activities: (d.activities ?? []).map((a) => {
+                const status = activityStatusByKey.get(`${d.day}:${a.id}`) ?? "PENDING";
+                return { name: a.name, isOptional: a.is_optional, isConfirmed: status === "CONFIRMED", status };
+            }),
         };
     });
+
+    // A BookingCab row only exists once ops assigns a driver (see
+    // dashboard/assign-driver/actions.ts), so a freshly paid booking has none and
+    // the transport table would read "no cab assigned" for a trip that was sold
+    // with one. The snapshot's transfer days are the plan the guest paid for, so
+    // they drive the rows, with any assigned leg overlaid on top — same
+    // reconciliation the assign-driver screen does.
+    const cabByLeg = new Map(booking.cabBookings.map((c) => [c.legNumber, c]));
+    const transferDays = snapDays.filter((d) => (d.transfers ?? []).length > 0);
+    const startMs = booking.startDate.getTime();
+
+    const cabs: VoucherCab[] = transferDays.length > 0
+        ? transferDays.map((d) => {
+            const assigned = cabByLeg.get(d.day);
+            const transfers = d.transfers ?? [];
+            const segment = (snap.cab_segments ?? []).find((c) => d.day >= c.day_from && d.day <= c.day_to);
+            return {
+                legNumber: d.day,
+                fromLocation: assigned?.fromLocation ?? transfers[0]?.pickup_name ?? "—",
+                toLocation: assigned?.toLocation ?? transfers[transfers.length - 1]?.drop_name ?? "—",
+                transferDate: assigned?.transferDate
+                    ?? (d.day_date ? new Date(`${d.day_date}T00:00:00`) : new Date(startMs + (d.day - 1) * 86_400_000)),
+                cabType: assigned?.cabType ?? segment?.vehicle_name ?? transfers[0]?.vehicle_name ?? "Cab",
+                cabCount: assigned?.cabCount ?? 1,
+                capacity: assigned?.capacity ?? segment?.vehicle_capacity ?? 0,
+                isConfirmed: assigned?.isConfirmed ?? false,
+                status: assigned?.status ?? "PENDING",
+                driverName: assigned?.driverName ?? null,
+                driverPhone: assigned?.driverPhone ?? null,
+                vehicleNumber: assigned?.vehicleNumber ?? null,
+            };
+        })
+        // No transfers in the snapshot (a hotel-only booking, or a package sold
+        // without transport) — whatever ops assigned is then the whole story.
+        : booking.cabBookings;
 
     const policies: VoucherPolicy[] = (booking.package?.policies ?? [])
         .map((p) => p.policy)
@@ -204,6 +304,6 @@ export async function getVoucherData(bookingId: string): Promise<VoucherData | n
         exclusions: booking.package?.exclusions ?? [],
         policies,
         hotels: booking.hotelBookings,
-        cabs: booking.cabBookings,
+        cabs,
     };
 }

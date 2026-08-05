@@ -10,6 +10,7 @@ import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { isPaidStatus } from '@/app/lib/messaging';
 import InvoiceDocument from '@/app/components/invoice/InvoiceDocument';
+import { INVOICE_BOOKING_SELECT } from '@/app/lib/invoice';
 import StatusPoller from './StatusPoller';
 import DownloadReceiptButton from './DownloadReceiptButton';
 import GuestChatThread from './GuestChatThread';
@@ -41,17 +42,16 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
     if (!user?.id) {
         content = <StatusScreen heading="Please log in" body="Log in to view this booking confirmation." />;
     } else {
+        // Spread INVOICE_BOOKING_SELECT rather than listing the fields again: the
+        // hand-written select here omitted `hotelBookings`, and since that field
+        // is optional on InvoiceBookingData it failed silently — every direct
+        // hotel booking's confirmation showed a "Holiday Tour Package" invoice
+        // priced at the package GST rate.
         const booking = await db.booking.findUnique({
             where: { id },
             select: {
-                id: true, userId: true, bookingNumber: true, status: true, paymentStatus: true,
-                startDate: true, endDate: true, travellers: true, createdAt: true,
-                totalAmount_paise: true,
-                priceSnapshot: true, contactEmail: true, contactPhone: true, gstStateCode: true,
-                package: { select: { title: true } },
-                destination: { select: { name: true } },
-                user: { select: { name: true, email: true } },
-                payments: { select: { amount_paise: true, method: true, status: true, paidAt: true, createdAt: true, purpose: true }, orderBy: { createdAt: 'asc' } },
+                id: true, userId: true, status: true, paymentStatus: true,
+                ...INVOICE_BOOKING_SELECT,
             },
         });
 

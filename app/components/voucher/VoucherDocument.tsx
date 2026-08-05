@@ -1,6 +1,7 @@
 import { Phone, Mail, Star } from "lucide-react";
 import DyLogo from "@/app/components/ui/DyLogo";
 import type { VoucherData, VoucherDay } from "@/app/lib/voucher";
+import { COMPANY } from "@/app/lib/company";
 
 /**
  * The printable trip voucher, shared by the customer route
@@ -16,8 +17,9 @@ import type { VoucherData, VoucherDay } from "@/app/lib/voucher";
  * same route the invoice takes.
  */
 
-const SUPPORT_PHONE = "+91 82199 79481";
-const SUPPORT_EMAIL = "support@dreamsyatri.com";
+const SUPPORT_PHONE = COMPANY.phone;
+const SUPPORT_EMAIL = COMPANY.email;
+const OPS_CONTACTS = COMPANY.contacts;
 
 function fmtDate(d: Date | null): string {
     if (!d) return "—";
@@ -59,15 +61,38 @@ function ContactRow({ icon: Icon, children }: { icon: React.ElementType; childre
     );
 }
 
+/** `break-after-avoid` keeps a heading from being stranded at the foot of a page
+ *  with its table starting on the next one. */
 function SectionTitle({ children }: { children: React.ReactNode }) {
-    return <div className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-700">{children}</div>;
+    return <div className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-700 break-after-avoid">{children}</div>;
 }
 
-/** Table chrome used by all three tables, so they read as one document. */
+/**
+ * The document body — one continuous 210mm-wide sheet, not a stack of fixed
+ * pages.
+ *
+ * Fixed pages meant deciding up front which sections landed on which page, and
+ * a three-day itinerary then left most of page one blank while a fourteen-day
+ * one overflowed it. Letting the content flow instead hands pagination to the
+ * printer, which fills each page before starting the next; the @page margin
+ * applies to every page it creates, so the gutters stay identical throughout.
+ * `min-height` keeps a short voucher looking like a page on screen and is
+ * dropped in print, where trailing space would otherwise become a blank page.
+ */
+function Sheet({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="voucher-page mx-auto w-[210mm] max-w-full min-h-[297mm] bg-white shadow-lg print:shadow-none rounded-sm">
+            {children}
+        </div>
+    );
+}
+
+/** Table chrome used by all three tables, so they read as one document. The
+ *  frame matches the itinerary's internal grid lines (CELL_BORDER). */
 function TableFrame({ children }: { children: React.ReactNode }) {
     return (
-        <div className="rounded-lg ring-[0.1em] ring-inset ring-neutral-300/80 overflow-hidden p-[0.1em] bg-white">
-            <table className="w-full text-sm border-collapse rounded-md overflow-hidden">{children}</table>
+        <div className=" p-[0.1em] bg-white">
+            <table className="w-full text-sm border-collapse">{children}</table>
         </div>
     );
 }
@@ -87,25 +112,31 @@ function Stars({ count }: { count: number }) {
 
 // ── Day-by-day itinerary ──────────────────────────────────────────────────────
 
+/** Grid lines shared by the itinerary and transport tables, so both read as the
+ *  same drawn table: a neutral rule in the body, a lighter primary one inside
+ *  the header where the fill is already primary. */
+const CELL_BORDER = "border border-neutral-200/80";
+const HEAD_BORDER = "border border-primary-300/70";
+
 function ItineraryTable({ days }: { days: VoucherDay[] }) {
     return (
         <TableFrame>
-            <thead className="print:table-header-group">
-                <tr className="bg-primary-500 text-white">
-                    <th className="text-left font-semibold px-3 py-2.5 w-16">Day</th>
-                    <th className="text-left font-semibold px-3 py-2.5">Hotel</th>
-                    <th className="text-left font-semibold px-3 py-2.5">Meals</th>
-                    <th className="text-left font-semibold px-3 py-2.5">Activities</th>
+            <thead className="print:table-header-group ">
+                <tr className="bg-primary-500 text-white ">
+                    <th className={`text-left font-semibold px-3 py-2.5 w-16 ${HEAD_BORDER}`}>Day</th>
+                    <th className={`text-left font-semibold px-3 py-2.5 ${HEAD_BORDER}`}>Hotel</th>
+                    <th className={`text-left font-semibold px-3 py-2.5 ${HEAD_BORDER}`}>Meals</th>
+                    <th className={`text-left font-semibold px-3 py-2.5 ${HEAD_BORDER}`}>Activities</th>
                 </tr>
             </thead>
             <tbody>
                 {days.map((d, i) => (
                     <tr key={d.day} className={`break-inside-avoid align-top ${i % 2 === 1 ? "bg-neutral-50" : ""}`}>
-                        <td className="px-3 py-3">
+                        <td className={`px-3 py-3 ${CELL_BORDER}`}>
                             <div className="text-xs font-bold text-primary-600">Day {d.day}</div>
                             {d.date && <div className="text-[10px] text-neutral-500 mt-0.5">{fmtDate(d.date)}</div>}
                         </td>
-                        <td className="px-3 py-3 text-neutral-700">
+                        <td className={`px-3 py-3 text-neutral-700 ${CELL_BORDER}`}>
                             {d.hotelName ? (
                                 <>
                                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -113,13 +144,30 @@ function ItineraryTable({ days }: { days: VoucherDay[] }) {
                                         {d.hotelStars !== null && <Stars count={d.hotelStars} />}
                                     </div>
                                     {d.roomLabel && <div className="text-[11px] text-neutral-500 mt-0.5">{d.roomLabel}</div>}
+                                    {d.mealsIncluded.length > 0 && (
+                                        <div className="text-[11px] text-green-700 mt-0.5">{d.mealsIncluded.join(", ")} included</div>
+                                    )}
+                                    {d.hotelStatus && (
+                                        <div className="mt-1"><StatusBadge isConfirmed={d.hotelStatus.isConfirmed} status={d.hotelStatus.status} /></div>
+                                    )}
                                 </>
                             ) : (
                                 "—"
                             )}
                         </td>
-                        <td className="px-3 py-3 text-neutral-700">{d.meals.length > 0 ? d.meals.join(", ") : d.mealPlan ?? "—"}</td>
-                        <td className="px-3 py-3 text-neutral-700">{d.activities.length > 0 ? d.activities.join(", ") : "—"}</td>
+                        <td className={`px-3 py-3 text-neutral-700 ${CELL_BORDER}`}>{d.meals.length > 0 ? d.meals.join(", ") : d.mealPlan ?? "—"}</td>
+                        <td className={`px-3 py-3 text-neutral-700 ${CELL_BORDER}`}>
+                            {d.activities.length === 0 ? "—" : (
+                                <ul className="space-y-1.5">
+                                    {d.activities.map((a, k) => (
+                                        <li key={k}>
+                                            <div>{a.name}{a.isOptional ? <span className="text-[11px] text-neutral-500"> (optional)</span> : null}</div>
+                                            <div className="mt-0.5"><StatusBadge isConfirmed={a.isConfirmed} status={a.status} /></div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </td>
                     </tr>
                 ))}
             </tbody>
@@ -133,7 +181,7 @@ function BulletList({ items, marker }: { items: string[]; marker: "check" | "cro
     return (
         <ul className="space-y-1.5">
             {items.map((item, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs leading-relaxed text-neutral-700">
+                <li key={i} className="flex items-start gap-2 text-xs leading-relaxed text-neutral-700 break-inside-avoid">
                     <span className={`mt-1 shrink-0 font-bold ${marker === "check" ? "text-green-600" : "text-red-500"}`}>
                         {marker === "check" ? "✓" : "✕"}
                     </span>
@@ -195,22 +243,52 @@ export default function VoucherDocument({
 
     return (
         <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
-            {/* A4 with a 12mm box. The document is expected to overflow onto
-                further pages; only the break rules keep it readable when it does. */}
+            {/* Vertical margin only. The sections' own px-10 already inset the
+                content ~10mm from a full-width 210mm sheet, so reserving side
+                margin in @page as well would double the gutter and print the
+                document narrower than it renders on screen. Top and bottom stay
+                in @page because those must repeat on every page the printer
+                creates, which a padding on the sheet cannot do. */}
             <style>{`
-                @page { size: A4; margin: 12mm; }
+                @page { size: A4; margin: 12mm 0; }
+
+                /* Chrome drops every background when printing unless told
+                   otherwise, which strips the header bars, badges, zebra rows
+                   and the gradient rule — the whole theme, in other words. */
+                .voucher-page, .voucher-page * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+
                 @media print {
                     .no-print { display: none !important; }
-                    .voucher-sheet { width: auto !important; box-shadow: none !important; }
+                    .voucher-page {
+                        width: 210mm !important;
+                        min-height: 0 !important;
+                        margin: 0 auto !important;
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
+                    }
+                    /* No forced breaks anywhere: the printer fills each page
+                       before starting the next, so only the final page carries
+                       trailing space. These rules just govern WHERE it may cut —
+                       never mid-row, never mid-heading, never a stranded line. */
+                    p, li { orphans: 2; widows: 2; }
+                    thead { display: table-header-group; }
+                    tr, img { break-inside: avoid; }
+                    h1, h2, h3 { break-after: avoid; }
                 }
             `}</style>
 
-            <div className="voucher-sheet mx-auto w-[210mm] max-w-full bg-white shadow-lg print:shadow-none rounded-sm overflow-hidden">
+            <Sheet>
                 {/* ── Header ── */}
                 <div className="flex items-start justify-between px-10 pt-10 pb-6">
-                    <div>
+                    {/* Address in place of the tagline rather than under it — the
+                        header is the one block that repeats above every table, so
+                        a third line here costs vertical space on every page. */}
+                    <div className="max-w-75">
                         <DyLogo className="h-11.5 text-primary-500" />
-                        <div className="mt-1.5 text-[11px] text-neutral-600/90">Curated Holiday Experiences</div>
+                        <div className="mt-1.5 text-[10px] leading-relaxed text-neutral-600/90">{COMPANY.address}</div>
                     </div>
                     <div className="text-right">
                         <div className="text-sm font-bold tracking-[0.15em] text-neutral-700">VOUCHER</div>
@@ -313,25 +391,34 @@ export default function VoucherDocument({
                     <TableFrame>
                         <thead className="print:table-header-group">
                             <tr className="bg-primary-500 text-white">
-                                <th className="text-left font-semibold px-3 py-2.5">Cab</th>
-                                <th className="text-left font-semibold px-3 py-2.5">Pickup Point</th>
-                                <th className="text-left font-semibold px-3 py-2.5">Drop Point</th>
-                                <th className="text-right font-semibold px-3 py-2.5">Pickup Date</th>
-                                <th className="text-right font-semibold px-3 py-2.5">Drop Date</th>
+                                <th className={`text-left font-semibold px-3 py-2.5 ${HEAD_BORDER}`}>Cab</th>
+                                <th className={`text-left font-semibold px-3 py-2.5 ${HEAD_BORDER}`}>Pickup Point</th>
+                                <th className={`text-left font-semibold px-3 py-2.5 ${HEAD_BORDER}`}>Drop Point</th>
+                                <th className={`text-right font-semibold px-3 py-2.5 ${HEAD_BORDER}`}>Pickup Date</th>
+                                <th className={`text-right font-semibold px-3 py-2.5 ${HEAD_BORDER}`}>Drop Date</th>
                             </tr>
                         </thead>
                         <tbody>
                             {cabGroups.length === 0 ? (
-                                <tr><td colSpan={5} className="px-3 py-4 text-center text-neutral-600/90 text-xs">No cab assigned yet</td></tr>
+                                <tr><td colSpan={5} className={`px-3 py-4 text-center text-neutral-600/90 text-xs ${CELL_BORDER}`}>No transport included in this booking</td></tr>
                             ) : cabGroups.map((group, i) => {
                                 const first = group[0];
                                 const last = group[group.length - 1];
+                                // A multi-day hire folds into one row, so its pickup and drop
+                                // can be the same city on a round trip. The towns picked up
+                                // from on the days in between are what tells the guest where
+                                // the car actually goes.
+                                const via = group.slice(1)
+                                    .map((leg) => leg.fromLocation)
+                                    .filter((place, idx, all) => place && place !== "—" && all.indexOf(place) === idx);
                                 return (
                                     <tr key={first.legNumber} className={`break-inside-avoid ${i % 2 === 1 ? "bg-neutral-50" : ""}`}>
-                                        <td className="px-3 py-3 align-top">
+                                        <td className={`px-3 py-3 align-top ${CELL_BORDER}`}>
                                             <div className="font-medium text-neutral-900">
                                                 {titleCase(first.cabType)}{first.cabCount > 1 ? ` × ${first.cabCount}` : ""}
-                                                <span className="ml-1 text-xs font-normal text-neutral-600/90">({first.capacity}-seater)</span>
+                                                {first.capacity > 0 && (
+                                                    <span className="ml-1 text-xs font-normal text-neutral-600/90">({first.capacity}-seater)</span>
+                                                )}
                                             </div>
                                             {/* Driver and plate appear only once ops has assigned them; until
                                                 then the badge below is the guest's cue that it's still coming. */}
@@ -342,10 +429,15 @@ export default function VoucherDocument({
                                             )}
                                             <div className="mt-1"><StatusBadge isConfirmed={first.isConfirmed} status={first.status} /></div>
                                         </td>
-                                        <td className="px-3 py-3 align-top text-neutral-600/90">{first.fromLocation || "—"}</td>
-                                        <td className="px-3 py-3 align-top text-neutral-600/90">{last.toLocation || "—"}</td>
-                                        <td className="px-3 py-3 align-top text-right text-neutral-600/90">{fmtDate(first.transferDate)}</td>
-                                        <td className="px-3 py-3 align-top text-right text-neutral-600/90">{fmtDate(last.transferDate)}</td>
+                                        <td className={`px-3 py-3 align-top text-neutral-600/90 ${CELL_BORDER}`}>
+                                            <div>{first.fromLocation || "—"}</div>
+                                            {via.length > 0 && (
+                                                <div className="text-[11px] text-neutral-500 mt-0.5">via {via.join(", ")}</div>
+                                            )}
+                                        </td>
+                                        <td className={`px-3 py-3 align-top text-neutral-600/90 ${CELL_BORDER}`}>{last.toLocation || "—"}</td>
+                                        <td className={`px-3 py-3 align-top text-right text-neutral-600/90 ${CELL_BORDER}`}>{fmtDate(first.transferDate)}</td>
+                                        <td className={`px-3 py-3 align-top text-right text-neutral-600/90 ${CELL_BORDER}`}>{fmtDate(last.transferDate)}</td>
                                     </tr>
                                 );
                             })}
@@ -354,8 +446,12 @@ export default function VoucherDocument({
                 </div>
 
                 {/* ── Inclusions / Exclusions ── */}
+                {/* Not break-inside-avoid: a long inclusions list that refuses to
+                    split gets pushed whole onto the next page and leaves a hole
+                    behind it. The list items avoid breaking individually instead,
+                    so the block flows and no single line is ever cut in half. */}
                 {hasInclusions && (
-                    <div className="px-10 mt-8 break-inside-avoid">
+                    <div className="px-10 mt-8">
                         <div className="grid grid-cols-2 gap-8">
                             {data.inclusions.length > 0 && (
                                 <div>
@@ -397,12 +493,22 @@ export default function VoucherDocument({
 
                 {/* ── Need-assistance box + confirmed-count summary ── */}
                 <div className="mt-8 flex flex-wrap items-start justify-between gap-6 px-10 break-inside-avoid">
-                    <div className="max-w-65">
+                    <div className="max-w-75">
                         <div className="text-xs font-bold uppercase tracking-wide text-neutral-700">Need Assistance?</div>
-                        <div className="mt-2 space-y-1 text-xs text-neutral-600/90">
-                            <div className="font-semibold text-neutral-700">Dreams Yatri Operations</div>
-                            <div>{SUPPORT_EMAIL}</div>
-                            <div>{SUPPORT_PHONE}</div>
+                        <div className="mt-2 space-y-2 text-xs text-neutral-600/90">
+                            {OPS_CONTACTS.map((c) => (
+                                <div key={c.phone}>
+                                    <div className="font-semibold text-neutral-700">{c.name}</div>
+                                    <div>{c.role} · {c.phone}</div>
+                                </div>
+                            ))}
+                            {/* Phone omitted here — it is the manager's line listed
+                                directly above, and printing it twice reads as two
+                                different numbers at a glance. */}
+                            <div className="pt-1">
+                                <div className="font-semibold text-neutral-700">{COMPANY.name} Operations</div>
+                                <div>{SUPPORT_EMAIL}</div>
+                            </div>
                         </div>
                     </div>
 
@@ -437,7 +543,7 @@ export default function VoucherDocument({
                     <span>{SUPPORT_EMAIL} · {SUPPORT_PHONE}</span>
                     <DyLogo className="h-4 text-primary-500" />
                 </div>
-            </div>
+            </Sheet>
 
             {actions}
         </div>
