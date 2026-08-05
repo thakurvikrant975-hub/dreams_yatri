@@ -5,7 +5,10 @@
 // list, rather than a separately hand-maintained toggle that could drift.
 
 export type TicketLike = {
-  type: "FLIGHT" | "TRAIN";
+  // Helicopter legs don't get their own flightsIncluded-style highlight
+  // fields (see custom_packages) — kept out of the flights/train buckets
+  // below on purpose, not overlooked.
+  type: "FLIGHT" | "TRAIN" | "HELICOPTER";
   provider: string;
   ticketNumber: string;
   fromPlace: string;

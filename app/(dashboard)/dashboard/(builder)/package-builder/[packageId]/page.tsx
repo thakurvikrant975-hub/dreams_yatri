@@ -17,7 +17,7 @@ import {
   Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
-  Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
+  Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble,
 } from "lucide-react";
@@ -2220,12 +2220,29 @@ const emptyDay = (day: number): DayItinerary => ({
   notes: "",
 });
 
-const emptyTicket = (type: "FLIGHT" | "TRAIN"): TicketInput => ({
+const emptyTicket = (type: TicketInput["type"]): TicketInput => ({
   type, provider: "", ticketNumber: "",
   fromPlace: "", toPlace: "", travelDate: "", departureTime: "", arrivalTime: "", durationText: "",
   adults: 0, children: 0, infants: 0, ticketCount: 1,
   fare: null, notes: "",
 });
+
+const TICKET_TYPE_LABELS: Record<TicketInput["type"], string> = {
+  FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter",
+};
+const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
+  FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
+};
+const TICKET_PROVIDER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
+  FLIGHT: "Airline, e.g. IndiGo",
+  TRAIN: "Train name, e.g. Rajdhani Express",
+  HELICOPTER: "Operator, e.g. Pawan Hans",
+};
+const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
+  FLIGHT: "Flight no., e.g. 6E-204",
+  TRAIN: "Train no., e.g. 12951",
+  HELICOPTER: "Flight/booking no.",
+};
 
 /** "14:30", "09:05" (24h, matches <input type="time">) → minutes-since-midnight,
  * assuming arrival is the next day when it's earlier than departure. */
@@ -2253,7 +2270,7 @@ function TicketEditorCard({
   onChange: (patch: Partial<TicketInput>) => void;
   onRemove: () => void;
 }) {
-  const Icon = ticket.type === "FLIGHT" ? Plane : TrainFront;
+  const Icon = TICKET_TYPE_ICONS[ticket.type];
 
   function text(key: keyof TicketInput) {
     return (e: React.ChangeEvent<HTMLInputElement>) => onChange({ [key]: e.target.value });
@@ -2276,7 +2293,7 @@ function TicketEditorCard({
     <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-3.5 space-y-3">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-bold text-dashboard-base-content">
-          <Icon size={13} className="text-dashboard-primary" /> {ticket.type === "FLIGHT" ? "Flight" : "Train"}
+          <Icon size={13} className="text-dashboard-primary" /> {TICKET_TYPE_LABELS[ticket.type]}
         </span>
         <button
           type="button"
@@ -2291,13 +2308,13 @@ function TicketEditorCard({
         <Input
           value={ticket.provider}
           onChange={text("provider")}
-          placeholder={ticket.type === "FLIGHT" ? "Airline, e.g. IndiGo" : "Train name, e.g. Rajdhani Express"}
+          placeholder={TICKET_PROVIDER_PLACEHOLDERS[ticket.type]}
           className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
         />
         <Input
           value={ticket.ticketNumber}
           onChange={text("ticketNumber")}
-          placeholder={ticket.type === "FLIGHT" ? "Flight no., e.g. 6E-204" : "Train no., e.g. 12951"}
+          placeholder={TICKET_NUMBER_PLACEHOLDERS[ticket.type]}
           className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
         />
       </div>
@@ -3160,7 +3177,7 @@ export default function PackageBuilderDetailPage() {
     }));
   }
 
-  function addTicket(type: "FLIGHT" | "TRAIN") {
+  function addTicket(type: TicketInput["type"]) {
     setForm((f) => ({
       ...f,
       tickets: [...f.tickets, {
@@ -4273,16 +4290,16 @@ Rules:
                   )}
                 </div>
 
-                {/* Flights & Train */}
+                {/* Flights, Train & Helicopter */}
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                      <Plane size={15} className="text-dashboard-primary" /> Flights & Train
+                      <Plane size={15} className="text-dashboard-primary" /> Flights, Train & Helicopter
                     </h2>
                     <p className="text-xs text-dashboard-base-content/60 mt-1">
                       {form.tickets.length > 0
                         ? `${form.tickets.length} ticket${form.tickets.length !== 1 ? "s" : ""} added — priced into the package total.`
-                        : "Add flight or train tickets, with fares, on the Tickets tab."}
+                        : "Add flight, train or helicopter tickets, with fares, on the Tickets tab."}
                     </p>
                   </div>
                   <Button type="button" size="sm" variant="outline" onClick={() => setActiveTab("tickets")}>
@@ -4503,7 +4520,7 @@ Rules:
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                      <Plane size={15} className="text-dashboard-primary" /> Flight & Train Tickets
+                      <Plane size={15} className="text-dashboard-primary" /> Flight, Train & Helicopter Tickets
                     </h2>
                     <div className="flex items-center gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => addTicket("FLIGHT")}>
@@ -4511,6 +4528,9 @@ Rules:
                       </Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => addTicket("TRAIN")}>
                         <Plus size={13} className="mr-1" /> <TrainFront size={12} className="mr-1" /> Add Train
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("HELICOPTER")}>
+                        <Plus size={13} className="mr-1" /> <Helicopter size={12} className="mr-1" /> Add Helicopter
                       </Button>
                     </div>
                   </div>
@@ -4736,7 +4756,7 @@ Rules:
                               <tbody>
                                 {form.tickets.map((t, idx) => (
                                   <tr key={idx} className="border-t border-dashboard-base-300">
-                                    <td className="px-3 py-2 font-medium whitespace-nowrap">{t.type === "FLIGHT" ? "Flight" : "Train"}</td>
+                                    <td className="px-3 py-2 font-medium whitespace-nowrap">{TICKET_TYPE_LABELS[t.type]}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">{[t.provider, t.ticketNumber].filter(Boolean).join(" ") || "—"}</td>
                                     <td className="px-3 py-2 text-dashboard-base-content/70">{t.fromPlace || "—"} → {t.toPlace || "—"}</td>
                                     <td className="px-3 py-2 text-right">{t.adults + t.children + t.infants}</td>

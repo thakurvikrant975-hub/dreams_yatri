@@ -2929,6 +2929,7 @@ model LandingPageItem {
 enum TicketType {
   FLIGHT
   TRAIN
+  HELICOPTER
 }
 
 model custom_itineraries {

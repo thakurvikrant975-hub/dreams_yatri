@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
-  Plane, TrainFront, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
+  Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift,
 } from "lucide-react";
 import {
@@ -689,8 +689,15 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
  * ticket reads as part of the same document instead of a bolted-on style.
  * Fare is deliberately never shown here — it's priced into the package total
  * but not itemized per-leg on the client-facing document. */
+const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
+  FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
+};
+const TICKET_PROVIDER_FALLBACKS: Record<TicketInput["type"], string> = {
+  FLIGHT: "Airline TBD", TRAIN: "Train TBD", HELICOPTER: "Operator TBD",
+};
+
 function TicketCard({ ticket }: { ticket: TicketInput }) {
-  const Icon = ticket.type === "FLIGHT" ? Plane : TrainFront;
+  const Icon = TICKET_TYPE_ICONS[ticket.type];
   const paxLine = [
     ticket.adults ? `${ticket.adults} Adult${ticket.adults !== 1 ? "s" : ""}` : null,
     ticket.children ? `${ticket.children} Child${ticket.children !== 1 ? "ren" : ""}` : null,
@@ -708,7 +715,7 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
             <Icon size={11} className="text-primary-600" />
           </span>
           <p className="text-xs font-semibold text-neutral-800 truncate">
-            {ticket.provider || (ticket.type === "FLIGHT" ? "Airline TBD" : "Train TBD")}
+            {ticket.provider || TICKET_PROVIDER_FALLBACKS[ticket.type]}
             {ticket.ticketNumber && <span className="font-normal text-neutral-500"> · {ticket.ticketNumber}</span>}
           </p>
         </div>
@@ -754,7 +761,8 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
 export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
   const flights = tickets.filter((t) => t.type === "FLIGHT");
   const trains = tickets.filter((t) => t.type === "TRAIN");
-  if (flights.length === 0 && trains.length === 0) return null;
+  const helicopters = tickets.filter((t) => t.type === "HELICOPTER");
+  if (flights.length === 0 && trains.length === 0 && helicopters.length === 0) return null;
 
   return (
     <>
@@ -771,6 +779,14 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
           <SectionHeader icon={TrainFront} label="Train Details" />
           <div className="grid gap-3">
             {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
+          </div>
+        </div>
+      )}
+      {helicopters.length > 0 && (
+        <div className="space-y-3" style={{ breakInside: "avoid" }}>
+          <SectionHeader icon={Helicopter} label="Helicopter Details" />
+          <div className="grid gap-3">
+            {helicopters.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
         </div>
       )}

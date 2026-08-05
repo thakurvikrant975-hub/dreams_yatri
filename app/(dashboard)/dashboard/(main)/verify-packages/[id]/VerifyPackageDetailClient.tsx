@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
     CalendarDays, Mail, MapPin, Phone, Users, IndianRupee,
-    Building2, Car, Ticket, Gift, PlaneTakeoff, TrainFront,
+    Building2, Car, Ticket, Gift, PlaneTakeoff, TrainFront, Helicopter,
     CheckCircle2, XCircle, AlertCircle, Eye, Send, ShieldCheck,
     Pencil, X, Loader2, Clock, Plus, ListChecks, ListX,
 } from "lucide-react";
@@ -615,11 +615,15 @@ export function VerifyPackageDetailClient({
                         )}
 
                         {(tickets.length > 0) && (
-                            <BreakdownCard icon={Ticket} title="Flight & Train Tickets" subtotal={ticketsSubtotal}>
+                            <BreakdownCard icon={Ticket} title="Flight, Train & Helicopter Tickets" subtotal={ticketsSubtotal}>
                                 {tickets.map((t) => (
                                     <div key={t.id} className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
                                         <p className="text-dashboard-base-content min-w-0">
-                                            {t.type === "FLIGHT" ? <PlaneTakeoff className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" /> : <TrainFront className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" />}
+                                            {t.type === "FLIGHT"
+                                                ? <PlaneTakeoff className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" />
+                                                : t.type === "HELICOPTER"
+                                                    ? <Helicopter className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" />
+                                                    : <TrainFront className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" />}
                                             {t.type} {t.provider && `(${t.provider})`}: {t.fromPlace || "—"} → {t.toPlace || "—"} × {t.ticketCount}
                                         </p>
                                         {editMode ? (
