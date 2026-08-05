@@ -3003,10 +3003,37 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
+  // A costing correction (hotelPriceOverride/cabPriceOverride) is tied to
+  // whatever hotel/cab was priced when it was set. saveCustomPackage already
+  // invalidates it server-side the moment the selection actually changes
+  // (see hotelSelectionChanged/cabSelectionChanged in package-builder/
+  // action.ts) — but that only takes effect once a save round-trips and the
+  // form is refreshed from the server, which plain "Save Draft" never does
+  // (only Mark Ready/Share re-sync via syncPricingFromFresh). Until then the
+  // live preview kept computing off the stale override, so swapping a hotel
+  // or cab right after a costing rejection silently left the old corrected
+  // price on screen — mirror the same invalidation here, client-side and
+  // immediately, so the preview always matches what's actually selected.
   function updateDay(idx: number, day: DayItinerary) {
     setForm((f) => {
       const its = [...f.itineraries];
-      its[idx] = day;
+      const existing = its[idx];
+      const hotelChanged = !existing
+        || existing.roomPricingId !== day.roomPricingId
+        || existing.roomsCount !== day.roomsCount
+        || existing.manualHotelPricePerNight !== day.manualHotelPricePerNight
+        || existing.accommodation !== day.accommodation
+        || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(day.extraRooms ?? []);
+      const cabChanged = !existing
+        || existing.cabPricingId !== day.cabPricingId
+        || existing.transportDistanceKm !== day.transportDistanceKm
+        || existing.cabQuantity !== day.cabQuantity
+        || JSON.stringify(existing.extraCabs ?? []) !== JSON.stringify(day.extraCabs ?? []);
+      its[idx] = {
+        ...day,
+        hotelPriceOverride: hotelChanged ? null : day.hotelPriceOverride,
+        cabPriceOverride: cabChanged ? null : day.cabPriceOverride,
+      };
       return { ...f, itineraries: its };
     });
   }
