@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, formatDistanceStrict, format } from "date-fns";
 import {
     CheckCircle2,
     Phone, MapPin, StickyNote,
@@ -34,7 +34,8 @@ type QueryWithDetails = PackageQuery & {
 
 type Props = { queries: PackageQuery[]; reasons: RejectionReason[] };
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 const STATUS_FILTER_OPTIONS = [
     { label: "Submitted", value: "SUBMITTED" },
@@ -133,6 +134,7 @@ export function QueriesTable({ queries, reasons }: Props) {
     const [filterVerified, setFilterVerified] = useState("all");
     const [filterAssigned, setFilterAssigned] = useState("all");
     const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
     const [sheetOpen, setSheetOpen] = useState(false);
     const [detailQuery, setDetailQuery] = useState<QueryWithDetails | null>(null);
@@ -173,9 +175,14 @@ export function QueriesTable({ queries, reasons }: Props) {
         return matchSearch && matchStatus && matchSource && matchVerified && matchAssigned;
     });
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
     const safePage = Math.min(page, totalPages);
-    const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+    function handlePageSizeChange(size: number) {
+        setPageSize(size);
+        setPage(1);
+    }
     const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all"
         || filterVerified !== "all" || filterAssigned !== "all";
 
@@ -354,6 +361,37 @@ export function QueriesTable({ queries, reasons }: Props) {
             ),
         },
         {
+            header: "Time to Send",
+            sortKey: (q) => (q.packageSentAt ? new Date(q.packageSentAt).getTime() : -1),
+            cell: (q) => (
+                q.packageSentAt
+                    ? (
+                        <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center gap-1 text-xs text-dashboard-base-content/75 whitespace-nowrap">
+                                        <Send className="h-3 w-3 text-dashboard-success" />
+                                        {formatDistanceStrict(new Date(q.packageSentAt), new Date(q.createdAt))}
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    Sent {new Date(q.packageSentAt).toLocaleDateString("en-IN")}
+                                    {" "}
+                                    {new Date(q.packageSentAt).toLocaleTimeString("en-IN", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        hour12: true,
+                                    })}
+                                    {" — "}
+                                    {formatDistanceStrict(new Date(q.packageSentAt), new Date(q.createdAt))} after the query came in
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )
+                    : <span className="text-xs text-dashboard-base-content/35">—</span>
+            ),
+        },
+        {
             header: "Actions",
             align: "right",
             width: "w-[160px]",
@@ -511,6 +549,9 @@ export function QueriesTable({ queries, reasons }: Props) {
                         currentPage: safePage,
                         totalPages,
                         onPageChange: setPage,
+                        pageSize,
+                        onPageSizeChange: handlePageSizeChange,
+                        pageSizeOptions: PAGE_SIZE_OPTIONS,
                     }}
                 />
             </div>

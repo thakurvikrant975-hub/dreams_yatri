@@ -150,6 +150,10 @@ export type PackageQuery = {
     rejectionReason: { id: string; label: string } | null;
     _count: { notes: number; queryFollowUps: number };
     totalLeadQueries: number;
+    /** When the exec's package actually reached the client (custom_packages.sentAt)
+     * — null until sent. A query can have more than one package (see
+     * duplicateCustomPackageIntoDraft); this is whichever one was sent first. */
+    packageSentAt: Date | null;
 };
 
 // Aliases for backwards compatibility
@@ -497,6 +501,7 @@ export async function getQueries(): Promise<PackageQuery[]> {
                     _count: { select: { package_queries: true } },
                 },
             },
+            custom_packages: { select: { sentAt: true } },
         },
         orderBy: { createdAt: "desc" },
     }) as any[];
@@ -505,6 +510,7 @@ export async function getQueries(): Promise<PackageQuery[]> {
         ...q,
         rejectionReason: q.rejection_reasons ?? null,
         totalLeadQueries: q.lead_profiles?._count?.package_queries ?? 1,
+        packageSentAt: q.custom_packages?.find((p: { sentAt: Date | null }) => p.sentAt)?.sentAt ?? null,
     })) as PackageQuery[];
 }
 
