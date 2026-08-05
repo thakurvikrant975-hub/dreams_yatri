@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { HotelsPageServer } from "./HotelPageClient";
+import type { HotelApprovalFilter } from "./actions";
 
 export const metadata: Metadata = {
     title: "Hotels - Dashboard",
@@ -30,6 +31,8 @@ export default async function Page({
     const rawDest    = sp.destination ?? "all";
     const destination = rawDest === "all" ? ("all" as const) : ((parseInt(rawDest, 10) || "all") as number | "all");
     const category    = sp.category ?? "all";
+    const approval = (["pending", "approved", "changes"].includes(sp.approval ?? "")
+        ? sp.approval : "all") as HotelApprovalFilter;
 
     return (
         <HotelsPageServer
@@ -39,6 +42,7 @@ export default async function Page({
             status={status}
             destination={destination}
             category={category}
+            approval={approval}
         />
     );
 }

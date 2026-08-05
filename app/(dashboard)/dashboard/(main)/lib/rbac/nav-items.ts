@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
-  MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
+  MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, BadgeCheck, Banknote,
   BanknoteArrowDown, BanknoteX, Car, Bed, BedDouble,
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
@@ -52,6 +52,7 @@ export const NAV_GROUPS = [
       { title: "Hotel Directory", href: "/dashboard/hotels/overview", icon: Map },
       { title: "Hotel Inventory", href: "/dashboard/hotel-inventory", icon: Eye },
       { title: "Expiring Rates", href: "/dashboard/expiring-rates", icon: CalendarClock },
+      { title: "Hotel Approvals", href: "/dashboard/hotel-approvals", icon: BadgeCheck },
       { title: "Property Submissions", href: "/dashboard/property-submissions", icon: ClipboardCheck },
       { title: "Hotel Owners", href: "/dashboard/hotel-owners", icon: Users },
       { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: KeyRound },

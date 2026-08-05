@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Building2, Hotel, Plus, Map } from "lucide-react";
+import { BadgeCheck, Building2, ClipboardCheck, Hotel, Plus, Map } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import {
@@ -9,7 +9,10 @@ import {
 } from "../components/ui/breadcrumb";
 import { PageHeader } from "../components/dashboard/PageHeader";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
-import { getHotels, getDestinationsForHotelFilter, type GetHotelsParams } from "./actions";
+import {
+    getHotels, getDestinationsForHotelFilter,
+    type GetHotelsParams, type HotelApprovalFilter,
+} from "./actions";
 import { HotelsTableClient } from "./HotelsTableClient";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
@@ -60,10 +63,12 @@ async function HotelsData({ params }: { params: GetHotelsParams }) {
 
     return (
         <>
-            <StatGrid cols={3}>
+            <StatGrid cols={5}>
                 <StatCard label="Total Hotels"  value={stats.total}      icon={Hotel}     />
                 <StatCard label="Active Hotels" value={stats.active}     icon={Hotel}     />
                 <StatCard label="Total Rooms"   value={stats.totalRooms} icon={Building2} />
+                <StatCard label="Approved"      value={stats.approved}   icon={BadgeCheck} />
+                <StatCard label="Awaiting Approval" value={stats.pendingApproval} icon={ClipboardCheck} />
             </StatGrid>
 
             <HotelsTableClient
@@ -77,6 +82,7 @@ async function HotelsData({ params }: { params: GetHotelsParams }) {
                 destination={params.destination ?? "all"}
                 category={params.category ?? "all"}
                 status={(params.status ?? "all") as "active" | "inactive" | "all"}
+                approval={params.approval ?? "all"}
             />
         </>
     );
@@ -91,6 +97,7 @@ export async function HotelsPageServer({
     status,
     destination,
     category,
+    approval,
 }: {
     page:        number;
     limit:       number;
@@ -98,8 +105,9 @@ export async function HotelsPageServer({
     status:      "active" | "inactive" | "all";
     destination: number | "all";
     category:    string | "all";
+    approval:    HotelApprovalFilter;
 }) {
-    const params: GetHotelsParams = { page, limit, search, status, destination, category };
+    const params: GetHotelsParams = { page, limit, search, status, destination, category, approval };
 
     return (
         <div className="space-y-6">
@@ -136,7 +144,7 @@ export async function HotelsPageServer({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${String(destination)}-${category}-${status}`}
+                key={`${page}-${limit}-${search}-${String(destination)}-${category}-${status}-${approval}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-4">

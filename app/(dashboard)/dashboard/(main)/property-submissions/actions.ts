@@ -286,6 +286,12 @@ export async function approveSubmission(hotelId: number): Promise<DecisionResult
       approved_at: new Date(),
       approved_by_id: session.user.id,
       rejection_reason: null,
+      // Approving an owner submission is also a content sign-off, so the
+      // internal Hotel Approvals queue doesn't re-ask for the same review.
+      approval_status: "APPROVED",
+      approval_flags: [],
+      approval_reviewed_at: new Date(),
+      approval_reviewed_by_id: session.user.id,
     },
   });
 
@@ -328,6 +334,12 @@ export async function rejectSubmission(hotelId: number, reason: string): Promise
     data: {
       listing_status: "REJECTED",
       rejection_reason: trimmed,
+      // Mirror the decision into the internal approvals view — same content,
+      // same verdict, one place to read "has a manager signed this off?".
+      approval_status: "CHANGES_REQUESTED",
+      approval_notes: trimmed.slice(0, 1000),
+      approval_reviewed_at: new Date(),
+      approval_reviewed_by_id: session.user.id,
     },
   });
 

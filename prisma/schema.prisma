@@ -1061,6 +1061,17 @@ model hotels {
   approved_at                 DateTime?
   approved_by_id              String?
   rejection_reason            String?
+  // ── Internal QC review ─────────────────────────────────────────────────────
+  // Separate from listing_status (a hotel-connect-only owner workflow): this is
+  // the internal team's own sign-off on a hotel's content, and applies to every
+  // hotel however it was created. Deliberately does NOT gate visibility —
+  // a PENDING hotel still sells; the flag only tells the team what a manager
+  // has actually checked.
+  approval_status             HotelApprovalStatus        @default(PENDING)
+  approval_notes              String?
+  approval_flags              String[]                   @default([])
+  approval_reviewed_at        DateTime?
+  approval_reviewed_by_id     String?
   // ── Wizard fields ──────────────────────────────────────────────────────────
   property_category           PropertyCategory?
   property_sub_type           PropertySubType?
@@ -1211,6 +1222,7 @@ model hotels {
   @@index([location_id])
   @@index([slug])
   @@index([owner_id])
+  @@index([approval_status])
   // Trigram GIN indexes — let ILIKE '%term%' hotel search (expiring-rates,
   // hotel-inventory, package-builder hotel picker) use an index instead of
   // a full-table scan + regex per row.
@@ -3545,6 +3557,15 @@ enum HotelListingStatus {
   APPROVED
   REJECTED
   LIVE
+}
+
+// Internal manager sign-off on a hotel's content — see hotels.approval_status.
+// CHANGES_REQUESTED means "a manager reviewed this and something is missing",
+// not "hidden": unapproved hotels stay live and bookable for now.
+enum HotelApprovalStatus {
+  PENDING
+  APPROVED
+  CHANGES_REQUESTED
 }
 
 enum PropertyCategory {

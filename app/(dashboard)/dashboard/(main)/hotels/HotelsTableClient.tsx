@@ -19,7 +19,11 @@ import { Hotel, BedDouble, ImageIcon, Trash2, Pencil, SearchIcon, Loader2 } from
 import Image from "next/image";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { toggleHotelActive, deleteHotel, updateHotelSeo, getHotelHistory } from "./actions";
+import {
+  toggleHotelActive, deleteHotel, updateHotelSeo, getHotelHistory,
+  type HotelApprovalFilter,
+} from "./actions";
+import { ApprovalBadge } from "../hotel-approvals/ApprovalBadge";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { CATEGORIES } from "./constants";
@@ -59,6 +63,11 @@ type HotelItem = {
   updated_at: Date;
   created_by: string | null;
   updated_by: string | null;
+  approval_status: string;
+  approval_notes: string | null;
+  approval_flags: string[];
+  approval_reviewed_at: Date | null;
+  approval_reviewed_by_id: string | null;
   destination: { id: number; name: string } | null;
   _count: {
     hotelRooms: number;
@@ -80,6 +89,7 @@ export function HotelsTableClient({
   destination,
   category,
   status,
+  approval,
 }: {
   hotels: HotelItem[];
   memberNames: Record<string, string>;
@@ -91,6 +101,7 @@ export function HotelsTableClient({
   destination: number | "all";
   category: string | "all";
   status: "active" | "inactive" | "all";
+  approval: HotelApprovalFilter;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -273,6 +284,26 @@ export function HotelsTableClient({
       ),
     },
     {
+      // Manager sign-off, not visibility: an "Awaiting review" hotel is still
+      // live and bookable. Review happens in /dashboard/hotel-approvals.
+      header: "Approval",
+      sortKey: (h) => h.approval_status,
+      cell: (h) => (
+        <Link
+          href={`/dashboard/hotel-approvals/${h.id}`}
+          title={h.approval_notes ?? "Open the approval review"}
+          className="inline-flex flex-col gap-0.5"
+        >
+          <ApprovalBadge status={h.approval_status} className="hover:opacity-80 transition-opacity" />
+          {h.approval_reviewed_at && (
+            <span className="text-[11px] text-muted-foreground">
+              {h.approval_reviewed_by_id ? (memberNames[h.approval_reviewed_by_id] ?? "—") : "—"}
+            </span>
+          )}
+        </Link>
+      ),
+    },
+    {
       header: "Created By",
       sortKey: (h) => new Date(h.created_at).getTime(),
       cell: (h) => (
@@ -364,6 +395,17 @@ export function HotelsTableClient({
               options: [
                 { label: "Active", value: "active" },
                 { label: "Inactive", value: "inactive" },
+              ],
+            },
+            {
+              value: approval,
+              onChange: (v) => updateParam("approval", v),
+              placeholder: "All Approvals",
+              width: "w-44",
+              options: [
+                { label: "Awaiting review", value: "pending" },
+                { label: "Approved", value: "approved" },
+                { label: "Changes requested", value: "changes" },
               ],
             },
           ]}

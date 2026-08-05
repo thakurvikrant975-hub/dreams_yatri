@@ -33,6 +33,8 @@ const SAFE_HOTEL_SCALARS = {
   business_phone: true, business_email: true, whatsapp_number: true, b2b_email: true,
   location_id: true, margin_percentage: true, gst_percentage: true,
   created_by: true, updated_by: true,
+  approval_status: true, approval_notes: true, approval_flags: true,
+  approval_reviewed_at: true, approval_reviewed_by_id: true,
 } as const;
 
 const SAFE_HOTEL_ROOM_SCALARS = {
@@ -97,6 +99,8 @@ export type HotelFormState = {
 
 // ── Read ──────────────────────────────────────────────────────────────────
 
+export type HotelApprovalFilter = "pending" | "approved" | "changes" | "all";
+
 export type GetHotelsParams = {
   page?:        number;
   limit?:       number;
@@ -104,6 +108,7 @@ export type GetHotelsParams = {
   destination?: number | "all";
   category?:    string | "all";
   status?:      "active" | "inactive" | "all";
+  approval?:    HotelApprovalFilter;
 };
 
 const HOTEL_INCLUDE = {
@@ -126,9 +131,18 @@ export async function getHotels(params: GetHotelsParams = {}) {
     destination = "all",
     category    = "all",
     status      = "all",
+    approval    = "all",
   } = params;
 
   const skip = (page - 1) * limit;
+
+  // Manager sign-off state — see /dashboard/hotel-approvals. Purely a filter
+  // here: an unapproved hotel is still active, still sells, still listed.
+  const approvalWhere =
+    approval === "pending"  ? { approval_status: "PENDING" as const }
+    : approval === "approved" ? { approval_status: "APPROVED" as const }
+    : approval === "changes"  ? { approval_status: "CHANGES_REQUESTED" as const }
+    : {};
 
   const where = {
     ...(search ? {
@@ -147,6 +161,7 @@ export async function getHotels(params: GetHotelsParams = {}) {
     ...(category    !== "all" ? { category: category as string }           : {}),
     ...(status === "active"   ? { is_active: true }                        : {}),
     ...(status === "inactive" ? { is_active: false }                       : {}),
+    ...approvalWhere,
   };
 
   type HotelRow = Awaited<ReturnType<typeof db.hotels.findMany<{ include: typeof HOTEL_INCLUDE }>>>[number];
@@ -159,11 +174,13 @@ export async function getHotels(params: GetHotelsParams = {}) {
     select: { ...SAFE_HOTEL_SCALARS, ...HOTEL_INCLUDE },
   }) as HotelRow[];
 
-  const [totalCount, statsTotal, statsActive, totalRooms] = await Promise.all([
+  const [totalCount, statsTotal, statsActive, totalRooms, statsApproved, statsPendingApproval] = await Promise.all([
     db.hotels.count({ where }),
     db.hotels.count(),
     db.hotels.count({ where: { is_active: true } }),
     db.hotel_rooms.count(),
+    db.hotels.count({ where: { approval_status: "APPROVED" } }),
+    db.hotels.count({ where: { approval_status: { in: ["PENDING", "CHANGES_REQUESTED"] } } }),
   ]);
 
   const hotels = rows.map((h) => ({
@@ -172,7 +189,9 @@ export async function getHotels(params: GetHotelsParams = {}) {
     gst_percentage:    Number(h.gst_percentage),
   }));
 
-  const actorIds = [...new Set(hotels.flatMap((h) => [h.created_by, h.updated_by]).filter(Boolean) as string[])];
+  const actorIds = [...new Set(
+    hotels.flatMap((h) => [h.created_by, h.updated_by, h.approval_reviewed_by_id]).filter(Boolean) as string[],
+  )];
   const members = actorIds.length > 0
     ? await db.teamMember.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
     : [];
@@ -182,7 +201,13 @@ export async function getHotels(params: GetHotelsParams = {}) {
     hotels,
     memberNames,
     totalCount,
-    stats: { total: statsTotal, active: statsActive, totalRooms },
+    stats: {
+      total: statsTotal,
+      active: statsActive,
+      totalRooms,
+      approved: statsApproved,
+      pendingApproval: statsPendingApproval,
+    },
   };
 }
 
