@@ -63,17 +63,21 @@ export default function DestinationCard({
                     </div>
                 )}
 
-                {/* ── Text — bottom left ── */}
-                <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pb-4 pt-8">
+                {/* ── Text — bottom left ──
+                    Two tiles share a phone's width here, so every line is sized
+                    down and kept to one line: "South India" was wrapping inside
+                    its pill, and a name like "Andaman And Nicobar Islands" ran
+                    to three. */}
+                <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pb-3 pt-8 sm:px-4 sm:pb-4">
                     {region && (
-                        <span className="inline-flex items-center mb-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase bg-white/15 backdrop-blur-sm text-white/90 border border-white/20">
+                        <span className="block w-fit max-w-full truncate mb-1 sm:mb-1.5 px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold tracking-wide uppercase bg-white/15 backdrop-blur-sm text-white/90 border border-white/20">
                             {region}
                         </span>
                     )}
-                    <Heading level={3} weight='semibold' intent='inverse'>
+                    <Heading level={3} size='lg' weight='semibold' intent='inverse' truncate title={name}>
                         {name}
                     </Heading>
-                    <Text size='sm' intent='muted'>
+                    <Text size='xs' intent='muted'>
                         {packageCount} Package{packageCount !== 1 ? 's' : ''}
                     </Text>
                 </div>
