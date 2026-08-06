@@ -170,12 +170,14 @@ export function Carousel<T,>({
       <div className="relative">
         <div
           // The horizontal clip is what creates the peek, but it also cut the
-          // cards' drop shadows off at the track's top and bottom edges — which
-          // read as a grey band ending in a hard line above the controls.
-          // overflow can't be per-axis, so the clip box is grown vertically and
-          // pulled back by the same amount: same layout, shadows intact. 32px
-          // clears a shadow-xl, which reaches ~28px past the card's bottom.
-          className="overflow-hidden -my-8 py-8"
+          // cards' drop shadows off at the track's bottom edge — which read as
+          // a grey band ending in a hard line above the controls. overflow
+          // can't be per-axis, so the clip box is grown downwards and pulled
+          // back by the same amount: same layout, shadows intact. 32px clears a
+          // shadow-xl, which reaches ~28px past the card's bottom. Bottom only:
+          // these shadows are all cast downwards, and a top bleed would hang an
+          // invisible 32px band over whatever sits above the carousel.
+          className="overflow-hidden -mb-8 pb-8"
           {...drag}
           style={{ cursor: hasOverflow ? 'grab' : 'default' }}
           onMouseDown={e => { drag.onMouseDown(e); if (hasOverflow) (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing'; }}
@@ -223,7 +225,11 @@ export function Carousel<T,>({
 
       {/* ── Controls ── */}
       {hasOverflow && (showDots || showArrows) && (
-        <div className="flex items-center justify-between mt-3">
+        // relative z-10: the track above is wrapped in a positioned element, so
+        // it paints over this static row — and its vertical bleed (see the clip
+        // box) reaches 32px past the cards, right across the dots and arrows,
+        // swallowing their clicks. This lifts the controls back on top.
+        <div className="relative z-10 flex items-center justify-between mt-3">
 
           {/* Dot indicators */}
           {showDots && (
