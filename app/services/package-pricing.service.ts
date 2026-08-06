@@ -1238,12 +1238,17 @@ export async function computeBuilderHotelPricing(input: {
      * quantity × that room's own base per-night rate. No occupancy/mattress
      * logic applies here — quantity is exactly what the exec asked for. */
     extraRooms?: { roomPricingId: number; quantity: number }[];
-    /** Hotel-team fulfillment (see /dashboard/hotel-requests): when the exec
-     * couldn't find a catalog hotel and the team filled one in manually,
-     * roomPricingId stays null and pricing comes from these three instead —
-     * no hotel_room_pricing lookup, no occupancy/mattress math, just
-     * roomsCount (or 1) × pricePerNight. */
+    /** A hand-typed hotel (exec types the name directly in the builder) or
+     * hotel-team fulfillment (see /dashboard/hotel-requests): when there's no
+     * catalog room behind the day, roomPricingId stays null and pricing comes
+     * from these instead — no hotel_room_pricing lookup, just
+     * roomsCount (or 1) × pricePerNight, plus manualExtraBeds ×
+     * manualExtraBedRate for any mattresses. */
     manualHotelPricePerNight?: number | null;
+    /** Per-mattress rate for manualExtraBeds above — the manual counterpart
+     * to a catalog room's extra_bed_rate. Null/0 means mattresses are free
+     * (or simply not costed), matching the field's optional nature. */
+    manualExtraBedRate?: number | null;
     manualHotelName?: string | null;
     manualRoomName?: string | null;
     /** Costing's flat correction for this day's TOTAL hotel cost (see
@@ -1380,10 +1385,15 @@ export async function computeBuilderHotelPricing(input: {
         });
       }
     } else if (d.manualHotelPricePerNight != null) {
-      // Hotel-team fulfillment — no catalog room, no occupancy/mattress
-      // math, just the flat price and room count the team entered.
+      // Hand-typed (exec) or hotel-team-filled — no catalog room, so no
+      // occupancy math, just the flat per-room price and room count entered
+      // directly. Mattresses/extra beds still get their own line — the exec
+      // or hotel team enters manualExtraBeds + manualExtraBedRate the same
+      // way a catalog room's own extra_bed_rate charges for them.
       const roomsNeeded = d.roomsCount && d.roomsCount > 0 ? d.roomsCount : 1;
-      const total = roomsNeeded * d.manualHotelPricePerNight;
+      const mattresses = Math.max(0, d.manualExtraBeds ?? 0);
+      const extraBedRate = d.manualExtraBedRate ?? 0;
+      const total = roomsNeeded * d.manualHotelPricePerNight + mattresses * extraBedRate;
       hotelSubtotal += total;
 
       lines.push({
@@ -1393,8 +1403,8 @@ export async function computeBuilderHotelPricing(input: {
         planName: null,
         pricePerRoom: d.manualHotelPricePerNight,
         roomsNeeded,
-        mattresses: 0,
-        extraBedRate: 0,
+        mattresses,
+        extraBedRate,
         total,
       });
     }

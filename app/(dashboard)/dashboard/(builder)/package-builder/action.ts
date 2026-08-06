@@ -705,10 +705,12 @@ export interface DayItinerary {
    * roomPricingId etc. above stay empty while true. Blocks markPackageReady. */
   hotelPending:       boolean;
   hotelPendingNote:   string;
-  /** B2B price/night the hotel team entered when fulfilling a pending
-   * request — feeds computeBuilderHotelPricing's manual-price branch since
-   * roomPricingId stays null for these days. */
+  /** B2B price/night the hotel team entered — or the exec typed directly for
+   * a hand-entered hotel — feeds computeBuilderHotelPricing's manual-price
+   * branch since roomPricingId stays null for these days. */
   manualHotelPricePerNight: number | null;
+  /** Per-mattress rate for manualExtraBeds above, same manual-price branch. */
+  manualExtraBedRate?: number | null;
   /** Read-only — who/when the hotel team filled this day in, for display
    * only (not written back by saveCustomPackage). */
   hotelFilledAt?:     Date | null;
@@ -1111,7 +1113,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           manualExtraBeds: true,
           roomPricingId: true, roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
-          hotelPending: true, hotelPendingNote: true, manualHotelPricePerNight: true,
+          hotelPending: true, hotelPendingNote: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
           hotelFilledAt: true, hotelFilledByName: true,
           hotelPriceOverride: true, cabPriceOverride: true,
           transport: true, transportPhoto: true, transportVehicleType: true,
@@ -1147,6 +1149,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       hotelCheckIn: n.hotelCheckIn, hotelCheckOut: n.hotelCheckOut, hotelMealPlan: n.hotelMealPlan,
       hotelPending: n.hotelPending, hotelPendingNote: n.hotelPendingNote,
       manualHotelPricePerNight: n.manualHotelPricePerNight,
+      manualExtraBedRate: n.manualExtraBedRate,
       hotelFilledAt: null, hotelFilledByName: null,
       hotelPriceOverride: null, cabPriceOverride: null,
       transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
@@ -1318,6 +1321,7 @@ function normalizeItinerary(it: {
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
   hotelPending: boolean; hotelPendingNote: string | null;
   manualHotelPricePerNight: number | null;
+  manualExtraBedRate: number | null;
   hotelFilledAt: Date | null; hotelFilledByName: string | null;
   hotelPriceOverride: number | null; cabPriceOverride: number | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
@@ -1356,6 +1360,7 @@ function normalizeItinerary(it: {
     hotelPending:              it.hotelPending,
     hotelPendingNote:          it.hotelPendingNote ?? "",
     manualHotelPricePerNight:  it.manualHotelPricePerNight ?? null,
+    manualExtraBedRate:        it.manualExtraBedRate ?? null,
     hotelFilledAt:             it.hotelFilledAt,
     hotelFilledByName:         it.hotelFilledByName,
     hotelPriceOverride:        it.hotelPriceOverride ?? null,
@@ -1552,6 +1557,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           hotelPending:       true,
           hotelPendingNote:   true,
           manualHotelPricePerNight: true,
+          manualExtraBedRate: true,
           hotelFilledAt:      true,
           hotelFilledByName:  true,
           hotelPriceOverride: true,
@@ -1857,7 +1863,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       select: {
         day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
         hotelPriceOverride: true, cabPriceOverride: true,
-        roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, accommodation: true,
+        roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
       },
     });
@@ -1881,6 +1887,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       || existing.roomsCount !== (it.roomsCount ?? null)
       || existing.manualExtraBeds !== (it.manualExtraBeds ?? null)
       || existing.manualHotelPricePerNight !== (it.manualHotelPricePerNight ?? null)
+      || existing.manualExtraBedRate !== (it.manualExtraBedRate ?? null)
       || existing.accommodation !== (it.accommodation || null)
       || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(filteredExtraRooms(it));
     const cabSelectionChanged = (existing: typeof existingHotelState[number] | undefined, it: (typeof itineraries)[number]) =>
@@ -1930,6 +1937,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               hotelFilledById:    existing?.hotelFilledById ?? null,
               hotelFilledByName:  existing?.hotelFilledByName ?? null,
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
+              manualExtraBedRate: it.manualExtraBedRate ?? null,
               // Costing-only corrections — never sourced from the exec's own
               // form (it doesn't expose them). Carried forward as-is unless
               // this save actually changed the hotel/cab it was priced
@@ -2095,6 +2103,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
           roomPricingId: it.roomPricingId,
           roomsCount:    it.roomsCount,
           manualExtraBeds: it.manualExtraBeds,
+          manualExtraBedRate: it.manualExtraBedRate,
           extraRooms:    parseRoomSelections(it.extraRooms),
           manualHotelPricePerNight: it.manualHotelPricePerNight,
           hotelPriceOverride: it.hotelPriceOverride,

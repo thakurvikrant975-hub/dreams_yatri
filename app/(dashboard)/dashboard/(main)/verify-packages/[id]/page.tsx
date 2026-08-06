@@ -57,7 +57,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                     select: {
                         day: true, roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true,
                         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
-                        accommodation: true, manualHotelPricePerNight: true,
+                        accommodation: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
                         hotelPriceOverride: true, cabPriceOverride: true,
                     },
                 },
@@ -100,6 +100,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                     manualExtraBeds: it.manualExtraBeds,
                     extraRooms: parseRoomSelections(it.extraRooms),
                     manualHotelPricePerNight: it.manualHotelPricePerNight,
+                    manualExtraBedRate: it.manualExtraBedRate,
                     hotelPriceOverride: it.hotelPriceOverride,
                     ...splitManualHotelName(it.accommodation),
                 })),

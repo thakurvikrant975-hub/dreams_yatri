@@ -979,8 +979,38 @@ function ManualHotelCapacityInputs({ data, onChange }: {
           className="text-sm h-8 w-16 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
         />
       </div>
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Price / room / night (₹)</label>
+        <Input
+          type="number"
+          min={0}
+          value={data.manualHotelPricePerNight ?? ""}
+          onChange={(e) => onChange({
+            ...data,
+            manualHotelPricePerNight: e.target.value ? Math.max(0, parseFloat(e.target.value)) : null,
+          })}
+          placeholder="e.g. 4500"
+          className="text-sm h-8 w-24 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+      {(data.manualExtraBeds ?? 0) > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Price / mattress (₹)</label>
+          <Input
+            type="number"
+            min={0}
+            value={data.manualExtraBedRate ?? ""}
+            onChange={(e) => onChange({
+              ...data,
+              manualExtraBedRate: e.target.value ? Math.max(0, parseFloat(e.target.value)) : null,
+            })}
+            placeholder="0"
+            className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+          />
+        </div>
+      )}
       <p className="text-[10px] text-dashboard-base-content/40 basis-full">
-        No catalog room selected — enter how many rooms and extra mattresses this hotel needs to provide.
+        No catalog room selected — enter rooms, mattresses, and the price per night so this day prices correctly.
       </p>
     </div>
   );
@@ -1136,6 +1166,7 @@ function DayCard({
       accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
       accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
       roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
+      manualHotelPricePerNight: null, manualExtraBedRate: null,
       hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
     });
   }
@@ -1172,6 +1203,7 @@ function DayCard({
       accommodationMaxChildren: raw.maxChildren,
       accommodationExtraBedCapacity: raw.extraBedCapacity,
       manualExtraBeds: null,
+      manualHotelPricePerNight: null, manualExtraBedRate: null,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
       meals: hotelMeals.length > 0 ? hotelMeals : data.meals,
       // The hotel's own check-in/check-out policy — previously never fetched
@@ -1435,7 +1467,7 @@ function DayCard({
                   accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
                   roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
                   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-                  manualHotelPricePerNight: null,
+                  manualHotelPricePerNight: null, manualExtraBedRate: null,
                 })}
                 className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:underline"
               >
@@ -2756,12 +2788,13 @@ export default function PackageBuilderDetailPage() {
   // those three inputs change — the sales exec still applies it manually via
   // the "Use this price" button so an already-typed price isn't clobbered.
   const roomPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${it.manualExtraBeds ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}:${it.hotelPriceOverride ?? ""}`)
+    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${it.manualExtraBeds ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}:${it.manualExtraBedRate ?? ""}:${it.hotelPriceOverride ?? ""}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount, manualExtraBeds: it.manualExtraBeds, extraRooms: it.extraRooms,
       manualHotelPricePerNight: it.manualHotelPricePerNight,
+      manualExtraBedRate: it.manualExtraBedRate,
       hotelPriceOverride: it.hotelPriceOverride,
       ...splitManualHotelName(it.accommodation),
     }));
@@ -3120,6 +3153,7 @@ export default function PackageBuilderDetailPage() {
         || existing.roomsCount !== day.roomsCount
         || existing.manualExtraBeds !== day.manualExtraBeds
         || existing.manualHotelPricePerNight !== day.manualHotelPricePerNight
+        || existing.manualExtraBedRate !== day.manualExtraBedRate
         || existing.accommodation !== day.accommodation
         || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(day.extraRooms ?? []);
       const cabChanged = !existing
@@ -3295,6 +3329,7 @@ export default function PackageBuilderDetailPage() {
               accommodationMaxChildren: room.maxChildren,
               accommodationExtraBedCapacity: room.extraBedCapacity,
               manualExtraBeds: null,
+              manualHotelPricePerNight: null, manualExtraBedRate: null,
               hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
               meals: hotelMeals.length > 0 ? hotelMeals : it.meals,
               hotelCheckIn: room.checkInTime ? formatTime12h(room.checkInTime) : it.hotelCheckIn,
@@ -3328,6 +3363,7 @@ export default function PackageBuilderDetailPage() {
               accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
               accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
               roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
+              manualHotelPricePerNight: null, manualExtraBedRate: null,
               hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
               // See applyRoomToDays — a removal is as much a "hotel changed"
               // event as a new pick, so any lingering costing correction for

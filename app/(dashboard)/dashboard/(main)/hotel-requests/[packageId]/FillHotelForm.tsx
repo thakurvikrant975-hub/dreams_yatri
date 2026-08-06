@@ -24,6 +24,7 @@ export function FillHotelForm({
     const [roomName, setRoomName] = useState("");
     const [roomsCount, setRoomsCount] = useState("1");
     const [extraBeds, setExtraBeds] = useState("0");
+    const [extraBedRate, setExtraBedRate] = useState("");
     const [pricePerNight, setPricePerNight] = useState("");
     const [roomSpecs, setRoomSpecs] = useState("");
     const [checkIn, setCheckIn] = useState("");
@@ -38,6 +39,7 @@ export function FillHotelForm({
                 roomName,
                 roomsCount: parseInt(roomsCount, 10) || 1,
                 extraBeds: parseInt(extraBeds, 10) || 0,
+                extraBedRate: parseFloat(extraBedRate) || 0,
                 pricePerNight: parseFloat(pricePerNight) || 0,
                 roomSpecs,
                 checkIn,
@@ -134,6 +136,18 @@ export function FillHotelForm({
                         className="text-sm h-9"
                     />
                 </div>
+                {parseInt(extraBeds, 10) > 0 && (
+                    <div>
+                        <label className="text-[11px] text-dashboard-neutral mb-1 block">Price / Mattress (₹)</label>
+                        <Input
+                            type="number" min={0}
+                            value={extraBedRate}
+                            onChange={(e) => setExtraBedRate(e.target.value)}
+                            placeholder="0"
+                            className="text-sm h-9"
+                        />
+                    </div>
+                )}
                 <div>
                     <label className="text-[11px] text-dashboard-neutral mb-1 block">Room Specs</label>
                     <Input

@@ -3036,6 +3036,14 @@ model custom_itineraries {
    */
   manualHotelPricePerNight  Float?
   /**
+   * Price per extra mattress/rollaway bed for a day with NO catalog
+   * roomPricingId — the manual counterpart to hotel_room_pricing.extra_bed_rate.
+   * Without this, manualExtraBeds above had no rate to multiply against, so a
+   * hand-typed or hotel-team-filled day never actually charged for the
+   * mattresses it listed.
+   */
+  manualExtraBedRate        Float?
+  /**
    * Costing's per-day correction to what this day's hotel/cab would
    * otherwise cost (catalog rate, or manualHotelPricePerNight above) — set
    * from the Edit Pricing screen on /dashboard/verify-packages/[id] when a
