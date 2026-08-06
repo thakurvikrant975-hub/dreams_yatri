@@ -2300,6 +2300,14 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
+    // The detail page specifically — costing's own actions (approve/reject
+    // in verify-packages/actions.ts) already revalidate this, but a
+    // resubmission from the exec's side never did. Without it, a costing
+    // manager who had this package's review page open (or cached via the
+    // list's route prefetch) from the PREVIOUS cycle kept seeing that stale
+    // render — old hotel/cab picks, old price — until an unrelated full
+    // reload happened to blow the cache away.
+    revalidatePath(`/dashboard/verify-packages/${packageId}`);
     revalidatePath("/dashboard/sales-query");
     return { success: true };
   } catch (err) {
@@ -2358,6 +2366,7 @@ export async function requestPackageRevision(packageId: string, note: string): P
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
+    revalidatePath(`/dashboard/verify-packages/${packageId}`);
     revalidatePath("/dashboard/sales-query");
     return { success: true };
   } catch (err) {

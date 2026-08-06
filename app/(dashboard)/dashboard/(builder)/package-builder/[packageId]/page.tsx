@@ -3234,6 +3234,16 @@ export default function PackageBuilderDetailPage() {
               transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
               transportSeats: vehicle.passengerCapacity,
               cabPricingId,
+              // Same override-invalidation updateDay does for a single-day
+              // pick — this bulk "apply to remaining days" path sets
+              // cabPricingId directly via setForm, bypassing updateDay
+              // entirely, so a stale costing correction from a previous
+              // review cycle was never cleared here. Left the live preview
+              // (and the pricing costing sees on resubmit) pinned to the old
+              // corrected price instead of the newly-applied vehicle's real
+              // rate — every "apply to remaining days" click IS a cab
+              // change, so this is unconditional, no comparison needed.
+              cabPriceOverride: null,
             }
           : it,
       ),
@@ -3266,6 +3276,11 @@ export default function PackageBuilderDetailPage() {
               hotelCheckIn: room.checkInTime ? formatTime12h(room.checkInTime) : it.hotelCheckIn,
               hotelCheckOut: room.checkOutTime ? formatTime12h(room.checkOutTime) : it.hotelCheckOut,
               roomPricingId: room.id,
+              // See cabPriceOverride note in applyVehicleToDays above — same
+              // bug, same fix, hotel side. This is the exact path a multi-
+              // night "apply to the rest of the stay" pick goes through, so
+              // it's the most-hit case of the stale-override bug in practice.
+              hotelPriceOverride: null,
             }
           : it,
       ),
@@ -3290,6 +3305,10 @@ export default function PackageBuilderDetailPage() {
               accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
               roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
               hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
+              // See applyRoomToDays — a removal is as much a "hotel changed"
+              // event as a new pick, so any lingering costing correction for
+              // this day no longer means anything either.
+              hotelPriceOverride: null,
             }
           : it,
       ),
@@ -3310,6 +3329,7 @@ export default function PackageBuilderDetailPage() {
               ...it,
               transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
               cabPricingId: null, cabQuantity: null, extraCabs: [],
+              cabPriceOverride: null,
             }
           : it,
       ),
