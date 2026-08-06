@@ -147,8 +147,10 @@ export function FilterTrigger({
   activeCount: number;
   onOpen: () => void;
 }) {
+  // Offset by the mobile bottom nav, which owns the bottom edge on the list
+  // pages this trigger appears on (hotels, packages, destinations).
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-(--z-sticky) bg-white border-t border-muted px-4 py-3">
+    <div className="lg:hidden fixed bottom-[var(--bottom-nav-height,0px)] left-0 right-0 z-(--z-sticky) bg-white border-t border-muted px-4 py-3">
       <button
         onClick={onOpen}
         className="flex items-center gap-2 px-4 py-2.5 border border-default rounded-full text-sm font-medium bg-white shadow-sm"

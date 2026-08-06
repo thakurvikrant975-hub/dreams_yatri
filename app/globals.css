@@ -137,6 +137,13 @@
         --max-width-container: 1400px;
         --header-height: var(--spacing-header-height, 70px);
 
+        /* Height of the mobile bottom nav (MobileBottomNav), including the
+           iOS home-indicator inset. Anything else pinned to the bottom edge on
+           small screens — the Filters bars on the list pages — offsets by this
+           so the two stack instead of overlapping. Inert on lg+, where the nav
+           isn't rendered, but those bars are lg:hidden too. */
+        --bottom-nav-height: calc(4rem + env(safe-area-inset-bottom, 0px));
+
         --z-base: 1;
         --z-dropdown: 100;
         --z-sticky: 200;

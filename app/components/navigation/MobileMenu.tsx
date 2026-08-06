@@ -2,10 +2,16 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { useSession } from 'next-auth/react';
+import { useModal } from '@/app/hooks/useModals';
 
 const NAV_ITEMS = [
   { label: 'Home',         href: '/' },
   { label: 'Packages',     href: '/packages' },
+  // Hotels are a first-class booking surface (and a tab in the bottom nav) but
+  // were missing from this menu entirely.
+  { label: 'Hotels',       href: '/hotels' },
   { label: 'Destinations', href: '/destination' },
   { label: 'Regions',      href: '/region' },
   { label: 'Blogs',        href: '/blogs' },
@@ -26,8 +32,17 @@ interface MobileMenuProps {
 
 export default function MobileMenu({ isSolid = true }: MobileMenuProps) {
   const [open, setOpen] = useState(false);
+  const { data: session, status } = useSession();
+  const openModal = useModal(s => s.openModal);
 
   const close = useCallback(() => setOpen(false), []);
+
+  const isLoggedIn = status === 'authenticated' && !!session?.user;
+
+  function handleLogin() {
+    close();
+    openModal('login-modal');
+  }
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
@@ -134,9 +149,70 @@ export default function MobileMenu({ isSolid = true }: MobileMenuProps) {
         }
         .dy-close-btn:hover { background: #ebebeb; }
 
+        /* Account block — the only way into the login modal from a phone
+           besides the bottom nav, so it sits above the nav links. */
+        .dy-account {
+          /* Clears both the panel's own close button and the hamburger, which
+             morphs into an X at z-index 200 and so floats over this panel at
+             roughly the header's vertical centre. */
+          padding: 104px 28px 0;
+        }
+        .dy-account-btn {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          width: 100%;
+          padding: 12px 14px;
+          border-radius: 14px;
+          border: 1.5px solid #efefef;
+          background: #fafafa;
+          font-family: 'Montserrat', sans-serif;
+          text-align: left;
+          text-decoration: none;
+          cursor: pointer;
+          transition: border-color 150ms, background 150ms;
+        }
+        .dy-account-btn:hover {
+          border-color: rgba(251,43,55,0.35);
+          background: rgba(251,43,55,0.04);
+        }
+        .dy-account-avatar {
+          width: 40px;
+          height: 40px;
+          flex-shrink: 0;
+          border-radius: 50%;
+          overflow: hidden;
+          background: linear-gradient(135deg, #FB2B37 0%, #ff6b35 100%);
+          color: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+          font-weight: 700;
+        }
+        .dy-account-text { display: block; min-width: 0; }
+        .dy-account-name {
+          display: block;
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: #1a1a1a;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .dy-account-sub {
+          display: block;
+          font-size: 12px;
+          color: #8a8a8a;
+          margin-top: 1px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
         /* Nav links */
         .dy-panel-nav {
-          padding: 72px 28px 24px;
+          padding: 20px 28px 24px;
           flex: 1;
         }
         .dy-panel-nav-link {
@@ -236,6 +312,44 @@ export default function MobileMenu({ isSolid = true }: MobileMenuProps) {
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
+
+        {/* Account */}
+        <div className="dy-account">
+          {isLoggedIn ? (
+            <Link href="/profile" onClick={close} className="dy-account-btn">
+              <span className="dy-account-avatar">
+                {session.user.image ? (
+                  <Image
+                    src={session.user.image}
+                    alt=""
+                    width={40}
+                    height={40}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  (session.user.name ?? session.user.email ?? 'G').trim().charAt(0).toUpperCase()
+                )}
+              </span>
+              <span className="dy-account-text">
+                <span className="dy-account-name">{session.user.name || 'Your account'}</span>
+                <span className="dy-account-sub">View profile &amp; bookings</span>
+              </span>
+            </Link>
+          ) : (
+            <button type="button" onClick={handleLogin} className="dy-account-btn">
+              <span className="dy-account-avatar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </span>
+              <span className="dy-account-text">
+                <span className="dy-account-name">Log in or sign up</span>
+                <span className="dy-account-sub">Book faster, track your trips</span>
+              </span>
+            </button>
+          )}
+        </div>
 
         {/* Main nav */}
         <nav className="dy-panel-nav">

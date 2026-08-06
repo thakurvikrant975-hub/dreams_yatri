@@ -1,5 +1,6 @@
 // app/layout.tsx
 import { Providers } from "./providers";
+import MobileBottomNav from "@/app/components/navigation/MobileBottomNav";
 import ModalRoot from "@/app/components/modals/ModalRoot";
 import { Toaster } from "sonner";
 import AppToastContainer from "@/app/components/ui/AppToastContainer";
@@ -33,8 +34,11 @@ export default function WebsiteLayout({
 }) {
   return (
     <Providers>
+      {/* Inside data-layout so the nav can read --bottom-nav-height, which is
+          scoped to the website token block. */}
       <div className="mx-auto" data-layout='website'>
         {children}
+        <MobileBottomNav />
       </div>
       <ModalRoot />
       <Toaster position="top-center" richColors />

@@ -337,9 +337,10 @@ export default function RegionsListClient({ initial, sidebar, initialFilters }: 
         </div>
       </div>
 
-      {/* Mobile filter bar — only shown when country filter is available */}
+      {/* Mobile filter bar — only shown when country filter is available.
+          Offset by the mobile bottom nav, which sits below it. */}
       {showCountryFilter && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-neutral-100 px-4 py-3">
+        <div className="lg:hidden fixed bottom-[var(--bottom-nav-height,0px)] left-0 right-0 z-30 bg-white border-t border-neutral-100 px-4 py-3">
           <button
             onClick={() => setMobileOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 border border-neutral-200 rounded-full text-sm font-medium bg-white shadow-sm"
