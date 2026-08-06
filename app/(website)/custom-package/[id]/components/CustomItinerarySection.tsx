@@ -165,7 +165,7 @@ function StayBlock({ day, adults, childCount }: { day: DayItinerary; adults: num
           <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
             <div className="flex-1 flex flex-col gap-2.5 min-w-0">
               <div className="flex flex-col gap-1 mt-1">
-                <Text size="xs" intent="secondary">{occupancyText(day.accommodationRoomCapacity, adults, childCount, day.roomsCount)}</Text>
+                <Text size="xs" intent="secondary">{occupancyText(day, adults, childCount)}</Text>
               </div>
 
               {(day.hotelCheckIn || day.hotelCheckOut) && (

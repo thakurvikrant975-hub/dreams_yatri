@@ -129,3 +129,47 @@ export function splitPersonsAcrossRooms(persons: number, rooms: number): number[
   const remainder = total % n;
   return Array.from({ length: n }, (_, i) => base + (i < remainder ? 1 : 0));
 }
+
+/** How one night's stay is laid out: how many rooms, who's in each, and how
+ *  many mattresses that costs. */
+export type RoomOccupancyPlan = {
+  /** Rooms to book. */
+  rooms: number;
+  /** Guests per room — drives the per-room occupancy tier when pricing. */
+  perRoomHeadcount: number[];
+  /** Chargeable extra mattresses across all rooms. */
+  mattresses: number;
+};
+
+/** THE single room/mattress calculation. Every surface that shows or charges
+ *  for rooms goes through this — the builder's "rooms & mattresses needed"
+ *  readout, the itinerary document's "N Rooms | X Adults" line, the
+ *  client-facing package page, and both pricing paths in
+ *  package-pricing.service.ts. Previously each of those re-derived it and they
+ *  drifted: a 9-pax party in a sleeps-2 +1-mattress room was priced as 3 rooms
+ *  but *displayed* as 5, and an exec-typed room count silently dropped the
+ *  mattress cost to zero.
+ *
+ *  `roomsOverride` is the exec's explicit "Rooms needed" entry. It sets the
+ *  room count, but mattresses are still computed from the resulting split —
+ *  overriding how many rooms to book says nothing about the party no longer
+ *  needing mattresses in them, and treating it as "no mattresses" was
+ *  under-charging every hand-adjusted package. It is floored at the derived
+ *  minimum so an override can never book fewer rooms than the party fits in. */
+export function planRoomOccupancy(
+  adults: number,
+  children: number,
+  r: RoomCapacityFields | null | undefined,
+  roomsOverride?: number | null,
+): RoomOccupancyPlan {
+  const persons = Math.max(Math.max(0, Math.floor(adults)) + Math.max(0, Math.floor(children)), 1);
+  const derived = roomsNeededFor(adults, children, r);
+  const rooms = roomsOverride != null && roomsOverride > 0
+    ? Math.max(Math.floor(roomsOverride), derived)
+    : derived;
+  const perRoomHeadcount = splitPersonsAcrossRooms(persons, rooms);
+  const mattresses = perRoomHeadcount.reduce(
+    (sum, headcount) => sum + roomExtraBedsUsed(headcount, r), 0,
+  );
+  return { rooms, perRoomHeadcount, mattresses };
+}

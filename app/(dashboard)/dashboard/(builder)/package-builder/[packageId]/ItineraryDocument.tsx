@@ -17,6 +17,7 @@ import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
+import { planRoomOccupancy } from "@/app/lib/room-capacity";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
@@ -183,14 +184,41 @@ function formatTicketDate(iso: string): string {
   return d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** "1 Room | 2 Adults, 1 Child" — the room count auto-computes from capacity
- * vs traveller count, UNLESS the exec explicitly overrode it (roomsOverride,
- * from the day's "Rooms needed" field) — that override was already used for
+/** "1 Room | 2 Adults, 1 Child" — the room count auto-computes from the room's
+ * own occupancy caps vs traveller count, UNLESS the exec explicitly overrode
+ * it (the day's "Rooms needed" field) — that override was already used for
  * pricing but never actually shown here, so a package priced for e.g. 3
- * rooms displayed as "1 Room" regardless. */
-export function occupancyText(capacity: number | null, adults: number, children: number, roomsOverride?: number | null): string {
-  const totalPax = adults + children;
-  const rooms = roomsOverride ?? (capacity && capacity > 0 ? Math.max(1, Math.ceil(totalPax / capacity)) : 1);
+ * rooms displayed as "1 Room" regardless.
+ *
+ * The auto count goes through roomsNeededFor (room-capacity.ts), exactly like
+ * the Hotel Info card and the pricing engine. Dividing the party by
+ * accommodationRoomCapacity alone — which is the `max_occupancy` column, i.e.
+ * BASE beds only, not the room's real capacity — ignored both the extra
+ * mattresses and max_adults/max_children, so a 9-pax party in a
+ * sleeps-2 +1-mattress room read as 5 rooms while it was priced (correctly)
+ * as 3. */
+export function occupancyText(
+  day: Pick<DayItinerary,
+    "accommodationRoomCapacity" | "accommodationMaxAdults"
+    | "accommodationMaxChildren" | "accommodationExtraBedCapacity" | "roomsCount">,
+  adults: number,
+  children: number,
+): string {
+  const hasCapacityData = day.accommodationRoomCapacity != null
+    || day.accommodationMaxAdults != null
+    || day.accommodationMaxChildren != null
+    || day.accommodationExtraBedCapacity != null;
+  // A hand-typed hotel carries no catalog capacity at all — there's nothing to
+  // derive from, so it stays at the single room it has always shown unless the
+  // exec typed a count in "Rooms needed".
+  const rooms = hasCapacityData
+    ? planRoomOccupancy(adults, children, {
+        max_occupancy: day.accommodationRoomCapacity,
+        extra_bed_capacity: day.accommodationExtraBedCapacity,
+        max_adults: day.accommodationMaxAdults,
+        max_children: day.accommodationMaxChildren,
+      }, day.roomsCount).rooms
+    : (day.roomsCount ?? 1);
   return `${rooms} Room${rooms !== 1 ? "s" : ""} | ${adults} Adult${adults !== 1 ? "s" : ""}` +
     (children > 0 ? `, ${children} Child${children !== 1 ? "ren" : ""}` : "");
 }
@@ -937,7 +965,7 @@ function DayCardPreview({
 
                 <p className="text-[11px] text-neutral-500 flex items-center gap-1">
                   <Users size={10} className="text-neutral-400 shrink-0" />
-                  {occupancyText(day.accommodationRoomCapacity, adults, childCount, day.roomsCount)}
+                  {occupancyText(day, adults, childCount)}
                 </p>
 
                 {(day.hotelCheckIn || day.hotelCheckOut || checkInDate) && (

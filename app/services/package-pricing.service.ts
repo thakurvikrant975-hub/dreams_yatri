@@ -4,7 +4,7 @@ import { db } from "../lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { resolveCabPrice } from "./cab-pricing-utils";
 import {
-  roomTotalCapacity, roomExtraBedsUsed, roomsNeededFor, roomFits, splitPersonsAcrossRooms,
+  roomTotalCapacity, roomExtraBedsUsed, roomsNeededFor, roomFits, planRoomOccupancy,
 } from "../lib/room-capacity";
 import { splitManualHotelName } from "./hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
@@ -831,11 +831,14 @@ export async function computePackagePrice(
 
       const roomsNeeded = validRooms ? rooms!.length : derivedRoomsNeeded;
       // A single occupancy list drives every calculation below, whether the
-      // split came from the caller or had to be derived — so mattress counts
-      // and per-room occupancy tiers can never disagree between the two paths.
+      // split came from the caller (it passed roomFits above, so its exact
+      // per-room headcounts are kept) or had to be derived by the shared
+      // calculation — so mattress counts and per-room occupancy tiers can
+      // never disagree between the two paths. See planRoomOccupancy in
+      // app/lib/room-capacity.ts.
       const perRoomHeadcount = validRooms
         ? rooms!.map((r) => r.adults + r.children)
-        : splitPersonsAcrossRooms(persons, roomsNeeded);
+        : planRoomOccupancy(adults, children, roomFields, roomsNeeded).perRoomHeadcount;
       // Only the mattresses a room physically has are chargeable; guests past
       // that share a bed (hotel_rooms.max_children is explicitly "may share
       // adult beds"), so they add no extra-bed cost.
@@ -1289,7 +1292,6 @@ export async function computeBuilderHotelPricing(input: {
   });
   const byId = new Map(rows.map((r) => [r.id, r]));
 
-  const persons = Math.max(adults + children, 1);
   const lines: BuilderHotelDayLine[] = [];
   let hotelSubtotal = 0;
 
@@ -1323,33 +1325,36 @@ export async function computeBuilderHotelPricing(input: {
     if (d.roomPricingId != null) {
       const rp = byId.get(d.roomPricingId);
       if (rp) {
-        const bedCapacity = rp.room?.max_occupancy ?? 2;
-        const isManualCount = d.roomsCount != null && d.roomsCount > 0;
-        // Room count comes from the room's REAL per-room limits (see
-        // app/lib/room-capacity.ts): max_occupancy alone is just the base
-        // beds, and the blended max_adults+max_children total alone isn't
-        // enough either — it only works for a mixed party, since an all-adult
-        // group can't use the "+max_children" headroom that only exists
-        // because a child may share an adult's bed.
-        const roomsNeeded = isManualCount ? d.roomsCount! : roomsNeededFor(adults, children, rp.room);
-        // Only the mattresses the rooms physically have are chargeable; guests
-        // beyond that share a bed.
-        const mattresses = isManualCount
-          ? 0
-          : splitPersonsAcrossRooms(persons, roomsNeeded)
-              .reduce((sum, headcount) => sum + roomExtraBedsUsed(headcount, rp.room), 0);
+        // Rooms AND mattresses come from the one shared calculation
+        // (planRoomOccupancy in app/lib/room-capacity.ts) that the builder's
+        // "rooms & mattresses needed" readout and the itinerary document also
+        // use — so what the exec is quoted while building matches what the
+        // finished package charges. An exec-typed roomsCount used to zero the
+        // mattress count outright, silently dropping the extra-bed cost from
+        // every hand-adjusted package; it now only sets the room count and the
+        // mattresses are still derived from the resulting split.
+        const { rooms: roomsNeeded, perRoomHeadcount, mattresses } =
+          planRoomOccupancy(adults, children, rp.room, d.roomsCount);
         const extraBedRate = rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
 
-        const typicalOccupancy = Math.min(adults, bedCapacity);
         const { basePrice, occPrices } = resolveHotelSeasonPricing(rp, dayDate);
-        let pricePerRoom = basePrice;
-        if (occPrices.length > 0) {
-          const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
-          const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
-          pricePerRoom = Number(match.price_per_night);
-        }
+        // Each room is priced at ITS OWN occupancy tier, matching the stay
+        // pricing path above — a single trip-wide tier (min(adults, beds))
+        // mispriced any uneven split.
+        const sortedOccPrices = occPrices.length > 0
+          ? [...occPrices].sort((a, b) => b.occupancy - a.occupancy)
+          : null;
+        const priceForHeadcount = (headcount: number): number => {
+          if (!sortedOccPrices) return basePrice;
+          const match = sortedOccPrices.find((op) => op.occupancy <= headcount)
+            ?? sortedOccPrices[sortedOccPrices.length - 1];
+          return Number(match.price_per_night);
+        };
+        const roomsCost = perRoomHeadcount.reduce((sum, h) => sum + priceForHeadcount(h), 0);
+        // Headline per-room figure only; roomsCost above is the real total.
+        const pricePerRoom = roomsCost / roomsNeeded;
 
-        const total = roomsNeeded * pricePerRoom + mattresses * extraBedRate;
+        const total = roomsCost + mattresses * extraBedRate;
         hotelSubtotal += total;
 
         lines.push({

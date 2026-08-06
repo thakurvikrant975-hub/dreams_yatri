@@ -68,7 +68,7 @@ import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuil
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
-import { roomsNeededFor, roomExtraBedsUsed, splitPersonsAcrossRooms } from "@/app/lib/room-capacity";
+import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
@@ -867,10 +867,11 @@ function RoomCapacitySummary({ data, adults, childrenCount, onChange }: {
     max_adults: data.accommodationMaxAdults,
     max_children: data.accommodationMaxChildren,
   };
-  const autoRooms = roomsNeededFor(adults, childrenCount, roomFields);
-  const roomsUsed = data.roomsCount ?? autoRooms;
-  const totalMattresses = splitPersonsAcrossRooms(adults + childrenCount, roomsUsed)
-    .reduce((sum, headcount) => sum + roomExtraBedsUsed(headcount, roomFields), 0);
+  // One shared calculation for rooms + mattresses (room-capacity.ts) — the
+  // same call the itinerary document and the pricing engine make, so this
+  // readout can never disagree with what the package is actually priced for.
+  const { rooms: roomsUsed, mattresses: totalMattresses } =
+    planRoomOccupancy(adults, childrenCount, roomFields, data.roomsCount);
 
   return (
     <div className="space-y-2">
