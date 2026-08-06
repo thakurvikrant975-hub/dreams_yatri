@@ -2,7 +2,6 @@
 
 import { Review } from "@/app/types/home";
 import { FcGoogle } from "react-icons/fc";
-import { Star } from "lucide-react";
 import SectionHeader from "@/app/components/ui/SectionHeader";
 import ReviewCard from "@/app/components/ui/ReviewCard";
 import { Carousel } from "@/app/components/ui/Carousel";
@@ -103,36 +102,12 @@ export default function TestimonialsSection() {
     <section className="py-section bg-surface-muted overflow-hidden">
       <div className="screen-space">
 
-        {/* Header row — label from left, arrows from right */}
-        <div className="flex items-end justify-between">
-          <div className="flex justify-between w-full items-center">
-
-            <SectionHeader
-              noAnimation
-              icon={FcGoogle}
-              tag="Real Traveler Reviews"
-              title="What Our Guests Say"
-            />
-
-            <a
-              href="https://share.google/FpztNvEYjcMDt9lDd"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl bg-white border border-neutral-200 shadow-sm hover:border-rose-300 hover:shadow-md transition-all duration-200 cursor-pointer"
-            >
-              <span className="flex items-center gap-2 text-sm font-semibold text-neutral-800 group-hover:text-rose-600 transition-colors">
-                <FcGoogle className="size-5 shrink-0" />
-                Write a Review
-              </span>
-              <span className="flex items-center gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="size-3.5 fill-yellow-400 text-yellow-400" />
-                ))}
-                <span className="ml-1 text-xs text-neutral-500 font-medium">4.2</span>
-              </span>
-            </a>
-          </div>
-        </div>
+        <SectionHeader
+          noAnimation
+          icon={FcGoogle}
+          tag="Real Traveler Reviews"
+          title="What Our Guests Say"
+        />
 
         {/* Reviews carousel */}
         <Carousel
