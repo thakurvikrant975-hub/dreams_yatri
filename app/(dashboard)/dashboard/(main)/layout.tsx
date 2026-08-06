@@ -13,6 +13,7 @@ import { computeVerificationCounts } from "@/app/services/verification-counts.se
 import { resolveNavHref } from "./lib/rbac/nav-hrefs";
 import { Toaster } from "sonner";
 import { OfflineDetector } from "./components/dashboard/OfflineDetector";
+import { NumberInputScrollGuard } from "./components/dashboard/NumberInputScrollGuard";
 import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminderprovider";
 import { PackageStatusNotifier } from "./(sales)/sales-query/PackageStatusNotifier";
 
@@ -150,6 +151,7 @@ export default async function DashboardLayout({
 
       <Toaster position="top-center" />
       <OfflineDetector />
+      <NumberInputScrollGuard />
       {isSales && <FollowUpReminderProvider />}
       {isSales && <PackageStatusNotifier />}
     </SidebarProvider>
