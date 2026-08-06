@@ -6,19 +6,24 @@ import { cn } from '@/app/lib/utils';
 
 // ── Hooks (exported so callers can sync external state) ───────────────────────
 
-/** Responsive items-per-view — collapses gracefully on small screens. */
-export function usePerView(base: number) {
+/**
+ * Responsive items-per-view — collapses gracefully on small screens.
+ *
+ * `mobile` accepts a fraction: 1.4 shows one card at ~70% of the track with the
+ * next one peeking, which reads as swipeable where a full-width card doesn't.
+ */
+export function usePerView(base: number, mobile = 1) {
   const [pv, setPv] = useState(base);
   useEffect(() => {
     const calc = () => {
-      if      (window.innerWidth < 640)  setPv(1);
+      if      (window.innerWidth < 640)  setPv(mobile);
       else if (window.innerWidth < 1024) setPv(Math.min(base, 2));
       else                               setPv(base);
     };
     calc();
     window.addEventListener('resize', calc);
     return () => window.removeEventListener('resize', calc);
-  }, [base]);
+  }, [base, mobile]);
   return pv;
 }
 
@@ -56,8 +61,13 @@ export function useDrag(onSwipe: (dir: -1 | 1) => void) {
 interface CarouselProps<T> {
   items: T[];
   renderItem: (item: T, index: number) => React.ReactNode;
-  /** Desktop items-per-view. Collapses to 1 on mobile, 2 on tablet. Default: 3 */
+  /** Desktop items-per-view. Collapses to `perViewMobile` on mobile, 2 on tablet. Default: 3 */
   perView?: number;
+  /**
+   * Items-per-view below 640px. Fractional values leave the next card peeking —
+   * 1.4 puts the current card at roughly 70% of the track. Default: 1 (full width).
+   */
+  perViewMobile?: number;
   gap?: number;
   className?: string;
   showDots?: boolean;
@@ -85,7 +95,8 @@ interface CarouselProps<T> {
 export function Carousel<T,>({
   items,
   renderItem,
-  perView     = 3,
+  perView       = 3,
+  perViewMobile = 1,
   gap         = 12,
   className,
   showDots    = true,
@@ -101,7 +112,7 @@ export function Carousel<T,>({
   // color, so the edge blends cleanly (fading to bare `transparent` can leave a
   // grey tint on non-white backgrounds).
   const fadeTransparent = `color-mix(in srgb, ${fadeColor} 0%, transparent)`;
-  const pv  = usePerView(perView);
+  const pv  = usePerView(perView, perViewMobile);
   const max = Math.max(0, items.length - pv);
 
   const [internalOffset, setInternalOffset] = useState(0);
@@ -158,7 +169,13 @@ export function Carousel<T,>({
       {/* ── Sliding track + edge fades (scoped together) ── */}
       <div className="relative">
         <div
-          className="overflow-hidden"
+          // The horizontal clip is what creates the peek, but it also cut the
+          // cards' drop shadows off at the track's top and bottom edges — which
+          // read as a grey band ending in a hard line above the controls.
+          // overflow can't be per-axis, so the clip box is grown vertically and
+          // pulled back by the same amount: same layout, shadows intact. 32px
+          // clears a shadow-xl, which reaches ~28px past the card's bottom.
+          className="overflow-hidden -my-8 py-8"
           {...drag}
           style={{ cursor: hasOverflow ? 'grab' : 'default' }}
           onMouseDown={e => { drag.onMouseDown(e); if (hasOverflow) (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing'; }}

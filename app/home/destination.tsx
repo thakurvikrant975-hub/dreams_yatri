@@ -94,6 +94,10 @@ function DestinationRow({
                     </Link>
                 )}
                 perView={4.5}
+                // Two full tiles on a phone instead of one — plus a sliver of
+                // the third, the same peek the packages row uses to say the
+                // strip scrolls.
+                perViewMobile={2.2}
                 gap={24}
                 ariaLabel={`${label} destinations`}
                 fadeColor="var(--color-neutral-100)"

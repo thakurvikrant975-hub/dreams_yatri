@@ -10,6 +10,7 @@ import {
     HeartIcon, UsersThreeIcon, MountainsIcon, WavesIcon,
 } from '@phosphor-icons/react'
 import PackageGrid from '@/app/components/packages/PackageGrid'
+import { Carousel } from '@/app/components/ui/Carousel'
 import SectionHeader from '@/app/components/ui/SectionHeader'
 import type { RelatedPackageItem } from '@/app/actions/packages/fetch-page-data'
 
@@ -269,8 +270,59 @@ export default function TrendingPackages({ packages }: TrendingPackagesProps) {
                     />
                 </div>
 
-                {/* ── Package grid ── */}
-                <PackageGrid>
+                {/* ── Packages ──
+                    Below sm the grid stacked six full-width cards into a long
+                    column that read as the end of the page; the same Carousel
+                    the destinations row uses turns it into one swipeable strip.
+                    perViewMobile puts the current card at ~80% of the track and
+                    leaves the next one peeking, which is what tells a thumb
+                    there's more to the right.
+
+                    Rendered as two breakpoint-gated copies rather than swapped
+                    on a media-query hook, so the server can commit to a layout
+                    and neither viewport hydrates into a jump. Only the first
+                    card of each copy is `isPriority`, so the hidden copy costs
+                    one eager image, not three — the rest are lazy and a
+                    display:none subtree never intersects the viewport. */}
+                <div className="sm:hidden">
+                    <Carousel
+                        items={visiblePackages}
+                        renderItem={(pkg, index) => (
+                            <Link
+                                href={`/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`}
+                                className="block"
+                            >
+                                <PackageCard
+                                    title={pkg.title}
+                                    images={pkg.images}
+                                    duration={pkg.duration}
+                                    itinerary={pkg.itinerary}
+                                    originalPrice={pkg.originalPrice}
+                                    discountedPrice={pkg.discountedPrice}
+                                    totalPrice={pkg.totalPrice}
+                                    pricedForAdults={pkg.pricedForAdults}
+                                    inclusions={pkg.inclusions}
+                                    highlights={pkg.highlights}
+                                    badge={pkg.badge}
+                                    badgeColor={pkg.badgeColor}
+                                    isPriority={index === 0}
+                                />
+                            </Link>
+                        )}
+                        // 1.22 rather than a round 1.25: the gap is subtracted
+                        // from the card, so 1.25 lands at 78% on a 390px phone.
+                        perViewMobile={1.22}
+                        // The category ribbon hangs 16px past its card's left
+                        // edge (-translate-x-4), so a smaller gap puts the next
+                        // card's badge right up against the current card.
+                        gap={32}
+                        showFade={false}
+                        showCounter={false}
+                        ariaLabel="Trending packages"
+                    />
+                </div>
+
+                <PackageGrid className="hidden sm:grid">
                     {visiblePackages.map((pkg, index) => (
                         <Link
                             key={pkg.id}
@@ -290,7 +342,7 @@ export default function TrendingPackages({ packages }: TrendingPackagesProps) {
                                 highlights={pkg.highlights}
                                 badge={pkg.badge}
                                 badgeColor={pkg.badgeColor}
-                                isPriority={index < 3}
+                                isPriority={index === 0}
                             />
                         </Link>
                     ))}
