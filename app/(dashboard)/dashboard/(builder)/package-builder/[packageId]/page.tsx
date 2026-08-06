@@ -76,6 +76,7 @@ import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings, type PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
+import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -1017,12 +1018,163 @@ function ManualHotelCapacityInputs({ data, onChange }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Hotel Info — "Add Hotels by Team" request
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The pending-request card in a day's Hotel Info section — either the
+ * editable request form (composing a brand-new request, or re-opened via
+ * "Edit Request") or a locked read-only summary of what was already
+ * requested. Rooms needed / mattresses needed / meal plan reuse the day's
+ * own roomsCount/manualExtraBeds/hotelMealPlan fields (same ones a catalog
+ * or hand-typed hotel would use) so the hotel team's fill page can prefill
+ * straight from them — see FillHotelForm.tsx. */
+function HotelRequestPanel({
+  data, onChange, mealTypes, composing, onStartEdit, onSubmit, onCancelEdit, onRemoveRequest,
+}: {
+  data: DayItinerary;
+  onChange: (d: DayItinerary) => void;
+  mealTypes: { id: number; name: string }[];
+  composing: boolean;
+  onStartEdit: () => void;
+  onSubmit: () => void;
+  onCancelEdit: () => void;
+  onRemoveRequest: () => void;
+}) {
+  if (!composing) {
+    // Locked view — data.hotelPending is true whenever this renders.
+    const chips = [
+      data.hotelRequestType ? (STAY_LABELS[data.hotelRequestType] ?? data.hotelRequestType) : null,
+      data.roomsCount != null ? `${data.roomsCount} room${data.roomsCount !== 1 ? "s" : ""}` : null,
+      (data.manualExtraBeds ?? 0) > 0 ? `${data.manualExtraBeds} mattress${data.manualExtraBeds !== 1 ? "es" : ""}` : null,
+      data.hotelMealPlan || null,
+    ].filter((v): v is string => !!v);
+
+    return (
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
+            <Clock size={14} /> Pending — awaiting hotel team
+          </div>
+          <Button
+            type="button" variant="outline" size="sm"
+            className="h-6 shrink-0 text-[11px] gap-1 border-amber-300 text-amber-800 hover:bg-amber-100"
+            onClick={onStartEdit}
+          >
+            <Pencil size={11} /> Edit Request
+          </Button>
+        </div>
+        {chips.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {chips.map((c) => (
+              <span key={c} className="inline-flex items-center rounded-full bg-white border border-amber-300 text-amber-800 text-[11px] font-medium px-2 py-0.5">
+                {c}
+              </span>
+            ))}
+          </div>
+        )}
+        {data.hotelPendingNote && (
+          <p className="text-[11px] text-amber-800/90 bg-white/70 border border-amber-200 rounded-md px-2 py-1.5">
+            &quot;{data.hotelPendingNote}&quot;
+          </p>
+        )}
+        <p className="text-[11px] text-amber-700/80">
+          This day is in the hotel team&apos;s queue (Hotel Requests). Submitting for costing review is blocked until they fill it in.
+        </p>
+        <Button
+          type="button" variant="ghost" size="sm"
+          className="h-6 text-[11px] px-2 text-dashboard-error/70 hover:text-dashboard-error hover:bg-dashboard-error/10"
+          onClick={onRemoveRequest}
+        >
+          Remove request — search for a hotel instead
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2.5">
+      <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
+        <Clock size={14} /> {data.hotelPending ? "Edit hotel request" : "Request a hotel from the team"}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11px] text-amber-800/80 mb-1 block">Hotel type</label>
+          <select
+            value={data.hotelRequestType ?? ""}
+            onChange={(e) => onChange({ ...data, hotelRequestType: e.target.value || null })}
+            className="w-full text-sm h-8 rounded-md border border-amber-300 bg-white px-2 text-dashboard-base-content focus:outline-none focus:ring-2 focus:ring-amber-300"
+          >
+            <option value="">Any</option>
+            {Object.entries(STAY_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-amber-800/80 mb-1 block">Meal plan</label>
+          <select
+            value={data.hotelMealPlan}
+            onChange={(e) => onChange({ ...data, hotelMealPlan: e.target.value })}
+            className="w-full text-sm h-8 rounded-md border border-amber-300 bg-white px-2 text-dashboard-base-content focus:outline-none focus:ring-2 focus:ring-amber-300"
+          >
+            <option value="">Any</option>
+            {mealTypes.map((m) => (
+              <option key={m.id} value={m.name}>{m.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-amber-800/80 mb-1 block">Rooms needed</label>
+          <Input
+            type="number" min={1}
+            value={data.roomsCount ?? ""}
+            onChange={(e) => onChange({ ...data, roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null })}
+            placeholder="1"
+            className="text-sm h-8 border-amber-300 bg-white focus-visible:ring-amber-300 rounded-md"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] text-amber-800/80 mb-1 flex items-center gap-1">
+            <BedDouble size={11} /> Mattresses needed
+          </label>
+          <Input
+            type="number" min={0}
+            value={data.manualExtraBeds ?? ""}
+            onChange={(e) => onChange({ ...data, manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null })}
+            placeholder="0"
+            className="text-sm h-8 border-amber-300 bg-white focus-visible:ring-amber-300 rounded-md"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="text-[11px] text-amber-800/80 mb-1 block">Request message</label>
+        <Textarea
+          value={data.hotelPendingNote}
+          onChange={(e) => onChange({ ...data, hotelPendingNote: e.target.value })}
+          placeholder="Any specific details — budget, why unavailable, preferred area, special requirements…"
+          rows={2}
+          className="text-xs resize-none border-amber-300 bg-white focus-visible:ring-amber-300 rounded-md"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Button type="button" size="sm" className="h-7 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white" onClick={onSubmit}>
+          <Send size={12} /> {data.hotelPending ? "Update Request" : "Request Room"}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-amber-800 hover:bg-amber-100" onClick={onCancelEdit}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Day Itinerary Card
 // ─────────────────────────────────────────────────────────────────────────────
 function DayCard({
   dndId, day, data, location, totalDays, adults, childrenCount, onChange, onRemove,
   onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
-  focusSection, shiftedMeals,
+  focusSection, shiftedMeals, mealTypes,
   dayAddons, onAddAddon, onUpdateAddon, onRemoveAddon,
 }: {
   /** dnd-kit's stable identity for this row — see dayDndIds on the parent. */
@@ -1057,6 +1209,10 @@ function DayCard({
    * shown alongside the day's own raw meals (what tonight's hotel plan
    * covers), which is what's actually editable here. */
   shiftedMeals: string[];
+  /** Meal-plan options for the hotel-request form's Meal Plan select — same
+   * list configured at /dashboard/hotels/meal-types, fetched once by the
+   * parent and passed down so every day card shares one fetch. */
+  mealTypes: { id: number; name: string }[];
   /** Add-ons added while working on THIS day's hotel — paired with their
    * index in the parent's full form.addOns array (not this filtered list),
    * since that's what onUpdateAddon/onRemoveAddon key off. Shown right below
@@ -1092,6 +1248,13 @@ function DayCard({
   const [showRoomApplyPrompt, setShowRoomApplyPrompt] = useState(false);
   const [roomCustomDaysOpen, setRoomCustomDaysOpen] = useState(false);
   const [roomSelectedDays, setRoomSelectedDays] = useState<number[]>([]);
+
+  // Whether the hotel-request form (type/rooms/mattress/meal plan/note) is
+  // open for editing right now — true while composing a brand-new request
+  // (hotelPending still false) AND while re-opening an already-submitted one
+  // via "Edit Request" (hotelPending stays true throughout; this is purely a
+  // local view toggle, see HotelRequestPanel below).
+  const [hotelRequestComposing, setHotelRequestComposing] = useState(false);
 
   function dismissRoomApplyPrompt() {
     setShowRoomApplyPrompt(false);
@@ -1394,29 +1557,27 @@ function DayCard({
               />
             )}
           >
-            {data.hotelPending ? (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
-                <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
-                  <Clock size={14} /> Pending — awaiting hotel team
-                </div>
-                <Textarea
-                  value={data.hotelPendingNote}
-                  onChange={(e) => onChange({ ...data, hotelPendingNote: e.target.value })}
-                  placeholder="Optional note for the team — budget, why unavailable, preferred area…"
-                  rows={2}
-                  className="text-xs resize-none border-amber-300 bg-white focus-visible:ring-amber-300 rounded-md"
-                />
-                <p className="text-[11px] text-amber-700/80">
-                  This day is now in the hotel team&apos;s queue (Hotel Requests). Submitting for costing review is blocked until they fill it in.
-                </p>
-                <Button
-                  type="button" variant="outline" size="sm"
-                  className="h-7 text-xs gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-100"
-                  onClick={() => onChange({ ...data, hotelPending: false, hotelPendingNote: "" })}
-                >
-                  Undo — search for a hotel instead
-                </Button>
-              </div>
+            {data.hotelPending || hotelRequestComposing ? (
+              <HotelRequestPanel
+                data={data}
+                onChange={onChange}
+                mealTypes={mealTypes}
+                composing={hotelRequestComposing}
+                onStartEdit={() => setHotelRequestComposing(true)}
+                onSubmit={() => {
+                  onChange({ ...data, hotelPending: true });
+                  setHotelRequestComposing(false);
+                }}
+                onCancelEdit={() => setHotelRequestComposing(false)}
+                onRemoveRequest={() => {
+                  onChange({
+                    ...data,
+                    hotelPending: false, hotelPendingNote: "", hotelRequestType: null,
+                    roomsCount: null, manualExtraBeds: null, hotelMealPlan: "",
+                  });
+                  setHotelRequestComposing(false);
+                }}
+              />
             ) : (
               <>
             {stayPreference && stayPreference.length > 0 && (
@@ -1459,16 +1620,19 @@ function DayCard({
               </p>
               <button
                 type="button"
-                onClick={() => onChange({
-                  ...data,
-                  hotelPending: true,
-                  accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
-                  accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
-                  accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
-                  roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
-                  hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-                  manualHotelPricePerNight: null, manualExtraBedRate: null,
-                })}
+                onClick={() => {
+                  onChange({
+                    ...data,
+                    accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+                    accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+                    accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
+                    roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
+                    hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+                    manualHotelPricePerNight: null, manualExtraBedRate: null,
+                    hotelRequestType: null, hotelPendingNote: "",
+                  });
+                  setHotelRequestComposing(true);
+                }}
                 className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:underline"
               >
                 Can&apos;t find a hotel here? Add hotels by team
@@ -2266,7 +2430,7 @@ const emptyDay = (day: number): DayItinerary => ({
   accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
   roomPricingId: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-  hotelPending: false, hotelPendingNote: "", manualHotelPricePerNight: null,
+  hotelPending: false, hotelPendingNote: "", hotelRequestType: null, manualHotelPricePerNight: null,
   hotelFilledAt: null, hotelFilledByName: null,
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,
@@ -2490,6 +2654,10 @@ export default function PackageBuilderDetailPage() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const isSalesExecutive = userRole?.toLowerCase() === "sales executive";
   const [itinerarySettings, setItinerarySettings] = useState<ItinerarySettings | null>(null);
+  // Meal-plan options for the "Add Hotels by Team" request form's Meal Plan
+  // select (see HotelRequestPanel) — same list configured at
+  // /dashboard/hotels/meal-types, fetched once here and shared by every day.
+  const [mealTypes, setMealTypes] = useState<{ id: number; name: string }[]>([]);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("client");
   const [savedOk, setSavedOk] = useState(false);
@@ -2561,6 +2729,15 @@ export default function PackageBuilderDetailPage() {
     let cancelled = false;
     getCurrentUserRole().then((role) => {
       if (!cancelled) setUserRole(role);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Meal-plan options for the hotel-request form's Meal Plan select ────────
+  useEffect(() => {
+    let cancelled = false;
+    getMealTypes().then((types) => {
+      if (!cancelled) setMealTypes(types);
     });
     return () => { cancelled = true; };
   }, []);
@@ -4583,6 +4760,7 @@ Rules:
                         stayPreference={s?.types}
                         focusSection={focusSection}
                         shiftedMeals={shiftedMeals[idx]}
+                        mealTypes={mealTypes}
                         dayAddons={form.addOns
                           .map((addon, index) => ({ addon, index }))
                           .filter(({ addon }) => addon.day === day.day)}

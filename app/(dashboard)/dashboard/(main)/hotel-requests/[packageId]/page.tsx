@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Users } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
+import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { FillHotelForm } from "./FillHotelForm";
 
 export const metadata: Metadata = {
@@ -14,20 +15,26 @@ export const metadata: Metadata = {
 export default async function HotelRequestDetailPage({ params }: { params: Promise<{ packageId: string }> }) {
     const { packageId } = await params;
 
-    const pkg = await db.custom_packages.findUnique({
-        where: { id: packageId },
-        select: {
-            id: true, title: true, destination: true, travelDate: true,
-            totalDays: true, adults: true, children: true, infants: true,
-            builtByName: true,
-            query: { select: { name: true, phone: true } },
-            stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true } },
-            itineraries: {
-                orderBy: { day: "asc" },
-                select: { day: true, hotelPending: true, hotelPendingNote: true, accommodationLocation: true },
+    const [pkg, mealTypes] = await Promise.all([
+        db.custom_packages.findUnique({
+            where: { id: packageId },
+            select: {
+                id: true, title: true, destination: true, travelDate: true,
+                totalDays: true, adults: true, children: true, infants: true,
+                builtByName: true,
+                query: { select: { name: true, phone: true } },
+                stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true } },
+                itineraries: {
+                    orderBy: { day: "asc" },
+                    select: {
+                        day: true, hotelPending: true, hotelPendingNote: true, accommodationLocation: true,
+                        hotelRequestType: true, roomsCount: true, manualExtraBeds: true, hotelMealPlan: true,
+                    },
+                },
             },
-        },
-    });
+        }),
+        getMealTypes(),
+    ]);
 
     if (!pkg) notFound();
 
@@ -76,6 +83,11 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                                 dateLabel={dateLabel}
                                 paxLabel={paxLabel}
                                 note={it.hotelPendingNote}
+                                requestedType={it.hotelRequestType}
+                                requestedRooms={it.roomsCount}
+                                requestedMattresses={it.manualExtraBeds}
+                                requestedMealPlan={it.hotelMealPlan}
+                                mealTypeOptions={mealTypes.map((m) => m.name)}
                             />
                         );
                     })}

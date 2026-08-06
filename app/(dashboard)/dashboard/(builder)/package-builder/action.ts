@@ -705,6 +705,10 @@ export interface DayItinerary {
    * roomPricingId etc. above stay empty while true. Blocks markPackageReady. */
   hotelPending:       boolean;
   hotelPendingNote:   string;
+  /** Property type requested (e.g. "RESORT", "STAR_4" — same keys as
+   * stayPreference), shown to the hotel team on /dashboard/hotel-requests.
+   * Same lifecycle as hotelPendingNote — only meaningful while pending. */
+  hotelRequestType?:  string | null;
   /** B2B price/night the hotel team entered — or the exec typed directly for
    * a hand-entered hotel — feeds computeBuilderHotelPricing's manual-price
    * branch since roomPricingId stays null for these days. */
@@ -1113,7 +1117,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           manualExtraBeds: true,
           roomPricingId: true, roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
-          hotelPending: true, hotelPendingNote: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
+          hotelPending: true, hotelPendingNote: true, hotelRequestType: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
           hotelFilledAt: true, hotelFilledByName: true,
           hotelPriceOverride: true, cabPriceOverride: true,
           transport: true, transportPhoto: true, transportVehicleType: true,
@@ -1319,7 +1323,7 @@ function normalizeItinerary(it: {
   roomsCount: number | null;
   extraRooms: Prisma.JsonValue;
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
-  hotelPending: boolean; hotelPendingNote: string | null;
+  hotelPending: boolean; hotelPendingNote: string | null; hotelRequestType: string | null;
   manualHotelPricePerNight: number | null;
   manualExtraBedRate: number | null;
   hotelFilledAt: Date | null; hotelFilledByName: string | null;
@@ -1359,6 +1363,7 @@ function normalizeItinerary(it: {
     hotelMealPlan:             it.hotelMealPlan ?? "",
     hotelPending:              it.hotelPending,
     hotelPendingNote:          it.hotelPendingNote ?? "",
+    hotelRequestType:          it.hotelRequestType ?? null,
     manualHotelPricePerNight:  it.manualHotelPricePerNight ?? null,
     manualExtraBedRate:        it.manualExtraBedRate ?? null,
     hotelFilledAt:             it.hotelFilledAt,
@@ -1556,6 +1561,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           hotelMealPlan:      true,
           hotelPending:       true,
           hotelPendingNote:   true,
+          hotelRequestType:   true,
           manualHotelPricePerNight: true,
           manualExtraBedRate: true,
           hotelFilledAt:      true,
@@ -1932,6 +1938,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               roomsCount:         it.roomsCount ?? null,
               hotelPending,
               hotelPendingNote:   hotelPending ? (it.hotelPendingNote || null) : null,
+              hotelRequestType:   hotelPending ? (it.hotelRequestType || null) : null,
               hotelRequestedAt,
               hotelFilledAt:      existing?.hotelFilledAt ?? null,
               hotelFilledById:    existing?.hotelFilledById ?? null,

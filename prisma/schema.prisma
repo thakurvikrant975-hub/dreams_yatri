@@ -3017,6 +3017,19 @@ model custom_itineraries {
    */
   hotelPending              Boolean                       @default(false)
   hotelPendingNote          String?
+  /**
+   * Property type the exec wants for a pending request (e.g. "RESORT",
+   * "STAR_4" — same keys as the client's stayPreference chips), shown to the
+   * hotel team on /dashboard/hotel-requests so they know what to look for.
+   * Cleared whenever hotelPending goes false (same lifecycle as
+   * hotelPendingNote) — only meaningful while a request is outstanding.
+   * Rooms needed / mattresses needed / meal plan for the request reuse
+   * roomsCount / manualExtraBeds / hotelMealPlan below rather than adding
+   * dedicated columns — those fields are otherwise unused while hotelPending
+   * is true (no catalog room, no manual fill yet) and fillPendingHotel
+   * already overwrites them with the team's actual fulfillment values.
+   */
+  hotelRequestType          String?
   hotelRequestedAt          DateTime?
   hotelFilledAt             DateTime?
   hotelFilledById           String?
