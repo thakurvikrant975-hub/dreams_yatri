@@ -8,6 +8,7 @@ import {
     BedIcon,
     ForkKnifeIcon,
     CarIcon,
+    ParachuteIcon,
     StarIcon,
     CheckIcon,
 } from '@phosphor-icons/react'
@@ -68,7 +69,9 @@ const INCLUSION_ICONS: Record<string, React.ElementType> = {
     hotel: BedIcon,
     meals: ForkKnifeIcon,
     cab: CarIcon,
-    activities: StarIcon,
+    // Parachute, matching the Activities icon in the dashboard nav. A star here
+    // read as a rating, which the card already shows with a real star.
+    activities: ParachuteIcon,
 }
 
 const INCLUSION_LABELS: Record<string, string> = {
@@ -336,7 +339,7 @@ export default function PackageCard({
                 {/* ── Body ── */}
                 <CardBody className="py-3.5 pb-6">
                     {/* Title */}
-                    <Heading level={3} weight='semibold' truncate={true} className='cursor-pointer hover:text-primary-500!'>
+                    <Heading level={3} weight='semibold' truncate={false} className='inline cursor-pointer hover:text-primary-500! line-clamp-2 sm:line-clamp-1'>
                         {title}
                     </Heading>
 
@@ -372,7 +375,7 @@ export default function PackageCard({
                         wrap three highlights onto a second line while wider
                         ones don't, and without a fixed height that difference
                         pushes the price row out of alignment across a grid. */}
-                    <ul className="flex flex-wrap content-start items-center gap-x-3 gap-y-1 mb-3 min-h-9">
+                    <ul className="flex flex-wrap content-start items-center gap-x-3 gap-y-1 mb-3 sm:min-h-9">
                         {highlights.map((h) => (
                             <li key={h} className="flex items-center gap-1.5">
                                 <CheckIcon weight="bold" aria-hidden="true" className="size-3 text-success-600 shrink-0" />
