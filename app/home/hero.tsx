@@ -112,7 +112,7 @@ function comingSoonToast(label: string) {
 // ─── Slideshow dot indicator ──────────────────────────────────────────────────
 function SlideDots({ total, active }: { total: number; active: number }) {
     return (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+        <div className="absolute bottom-3.5 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 ">
             {Array.from({ length: total }).map((_, i) => (
                 <motion.span
                     key={i}
@@ -225,7 +225,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
     return (
         <>
             <section ref={sectionRef} >
-                <div className="relative flex flex-col items-center justify-center overflow-hidden px-4 py-12  sm:pb-22 -mt-header-height">
+                <div className="relative flex flex-col items-center justify-center overflow-hidden sm:px-4 py-12 pb-18  sm:pb-22 -mt-header-height">
 
                     {/* ── Background image stack ── */}
                     {/* motion.div carries the scroll-driven scale — wraps ALL slides so the
