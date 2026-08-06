@@ -19,6 +19,7 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
         select: {
             id: true, title: true, destination: true, travelDate: true,
             totalDays: true, adults: true, children: true, infants: true,
+            builtByName: true,
             query: { select: { name: true, phone: true } },
             stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true } },
             itineraries: {
@@ -48,6 +49,7 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                 </p>
                 <p className="text-xs text-dashboard-neutral mt-1 flex items-center gap-1">
                     <Users className="size-3" /> {paxLabel}
+                    {pkg.builtByName && <span>· Requested by {pkg.builtByName}</span>}
                 </p>
             </div>
 

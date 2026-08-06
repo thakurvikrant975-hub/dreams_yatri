@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import Link from "next/link";
-import { Bed, Clock, MapPin, ArrowRight } from "lucide-react";
+import { Bed, Clock, MapPin, ArrowRight, User } from "lucide-react";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
@@ -14,6 +14,8 @@ export type HotelRequestRow = {
     title: string;
     destination: string;
     travelDate: Date | null;
+    /** The sales exec who built this package — i.e. who's waiting on the fill. */
+    requestedByName: string | null;
     clientName: string | null;
     clientPhone: string | null;
     pendingDays: { day: number; note: string | null; requestedAt: Date | null }[];
@@ -79,6 +81,16 @@ export function HotelRequestsTable({
                 <div>
                     <div className="text-sm font-medium text-dashboard-base-content">{r.clientName ?? "—"}</div>
                     <div className="text-xs text-dashboard-neutral">{r.clientPhone ?? ""}</div>
+                </div>
+            ),
+        },
+        {
+            header: "Requested By",
+            sortKey: (r) => r.requestedByName?.toLowerCase() ?? "",
+            cell: (r) => (
+                <div className="flex items-center gap-1.5 text-sm text-dashboard-base-content">
+                    <User className="size-3 text-dashboard-neutral shrink-0" />
+                    {r.requestedByName ?? "—"}
                 </div>
             ),
         },

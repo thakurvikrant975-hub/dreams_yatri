@@ -2428,9 +2428,21 @@ export async function shareCustomPackageWithClient(packageId: string): Promise<{
 export type PackageStatusEvent = {
   id: string;
   title: string;
-  kind: "verified" | "rejected";
+  kind: "verified";
   reasonLabel: string | null;
   note: string | null;
+} | {
+  id: string;
+  title: string;
+  kind: "rejected";
+  reasonLabel: string | null;
+  note: string | null;
+} | {
+  id: string;
+  title: string;
+  kind: "hotel_filled";
+  days: { day: number; hotelName: string | null }[];
+  filledByName: string | null;
 };
 
 /**
@@ -2438,42 +2450,89 @@ export type PackageStatusEvent = {
  * dashboard layout) so an exec sees "your package was approved" or "…was
  * rejected — <reason>" as a toast without refreshing. No generic
  * notification bus exists in this dashboard yet — this is deliberately
- * narrow (just these two package events) rather than building one.
+ * narrow (just these package/day events) rather than building one.
  *
- * Marks every returned row execNotifiedAt=now in the same call, so a event
- * surfaces exactly once — re-marking ready (which clears execNotifiedAt)
- * or a fresh verify/reject decision is what makes an event eligible again.
+ * The hotel_filled event only fires once EVERY pending day on a package has
+ * been filled (not per day) — a package can have several days flagged
+ * pending at once, and the exec only wants the one "you're good to go"
+ * toast, not one per day as the hotel team works through them.
+ *
+ * Marks every returned row execNotifiedAt/hotelFillNotifiedAt=now in the
+ * same call, so an event surfaces exactly once — re-marking ready (which
+ * clears execNotifiedAt) or a fresh verify/reject/hotel-fill is what makes
+ * it eligible again.
  */
 export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> {
   const { teamMemberId } = await getCurrentActor();
   if (!teamMemberId) return [];
 
-  const rows = await db.custom_packages.findMany({
-    where: {
-      builtBy: teamMemberId,
-      execNotifiedAt: null,
-      OR: [{ verified: true }, { rejectedAt: { not: null } }],
-    },
-    select: {
-      id: true, title: true, verified: true, rejectedAt: true,
-      rejectionNote: true, rejectionReason: { select: { label: true } },
-    },
-    take: 20,
-  });
-  if (rows.length === 0) return [];
+  const [statusRows, hotelFillPackages] = await Promise.all([
+    db.custom_packages.findMany({
+      where: {
+        builtBy: teamMemberId,
+        execNotifiedAt: null,
+        OR: [{ verified: true }, { rejectedAt: { not: null } }],
+      },
+      select: {
+        id: true, title: true, verified: true, rejectedAt: true,
+        rejectionNote: true, rejectionReason: { select: { label: true } },
+      },
+      take: 20,
+    }),
+    db.custom_packages.findMany({
+      where: {
+        builtBy: teamMemberId,
+        itineraries: {
+          none: { hotelPending: true },
+          some: { hotelFilledAt: { not: null }, hotelFillNotifiedAt: null },
+        },
+      },
+      select: {
+        id: true, title: true,
+        itineraries: {
+          where: { hotelFilledAt: { not: null }, hotelFillNotifiedAt: null },
+          orderBy: { day: "asc" },
+          select: { id: true, day: true, accommodation: true, hotelFilledByName: true },
+        },
+      },
+      take: 20,
+    }),
+  ]);
+  if (statusRows.length === 0 && hotelFillPackages.length === 0) return [];
 
-  await db.custom_packages.updateMany({
-    where: { id: { in: rows.map((r) => r.id) } },
-    data: { execNotifiedAt: new Date() },
-  });
+  const hotelFillItineraryIds = hotelFillPackages.flatMap((p) => p.itineraries.map((it) => it.id));
 
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    kind: r.verified ? "verified" as const : "rejected" as const,
-    reasonLabel: r.rejectionReason?.label ?? null,
-    note: r.rejectionNote,
-  }));
+  await Promise.all([
+    statusRows.length > 0
+      ? db.custom_packages.updateMany({
+          where: { id: { in: statusRows.map((r) => r.id) } },
+          data: { execNotifiedAt: new Date() },
+        })
+      : Promise.resolve(),
+    hotelFillItineraryIds.length > 0
+      ? db.custom_itineraries.updateMany({
+          where: { id: { in: hotelFillItineraryIds } },
+          data: { hotelFillNotifiedAt: new Date() },
+        })
+      : Promise.resolve(),
+  ]);
+
+  return [
+    ...statusRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      kind: r.verified ? "verified" as const : "rejected" as const,
+      reasonLabel: r.rejectionReason?.label ?? null,
+      note: r.rejectionNote,
+    })),
+    ...hotelFillPackages.map((p) => ({
+      id: p.id,
+      title: p.title,
+      kind: "hotel_filled" as const,
+      days: p.itineraries.map((it) => ({ day: it.day, hotelName: it.accommodation })),
+      filledByName: p.itineraries[0]?.hotelFilledByName ?? null,
+    })),
+  ];
 }
 
 // emailPackageToClient lives in ./email-package.ts (a plain, non-"use server"

@@ -7,11 +7,11 @@ import { getMyUnseenPackageEvents } from "@/app/(dashboard)/dashboard/(builder)/
 const CHECK_INTERVAL_MS = 20 * 1000;
 
 /**
- * Surfaces "your package was approved" / "…was rejected — <reason>" as a
- * toast without the exec needing to refresh — polled, not pushed (no generic
- * in-app notification bus exists in this dashboard yet; see
- * getMyUnseenPackageEvents for why this stays narrowly scoped to just these
- * two package events rather than building one).
+ * Surfaces "your package was approved" / "…was rejected — <reason>" /
+ * "hotel added for <package>" as a toast without the exec needing to
+ * refresh — polled, not pushed (no generic in-app notification bus exists
+ * in this dashboard yet; see getMyUnseenPackageEvents for why this stays
+ * narrowly scoped to just these events rather than building one).
  */
 export function PackageStatusNotifier() {
     useEffect(() => {
@@ -28,10 +28,22 @@ export function PackageStatusNotifier() {
                         description: "Costing signed off on the pricing. Open the package and use Share with Client to send it.",
                         duration: 12000,
                     });
-                } else {
+                } else if (e.kind === "rejected") {
                     toast.error(`Package rejected — ${e.title}`, {
                         description: [e.reasonLabel, e.note].filter(Boolean).join(" — ") || "See the package for details.",
                         duration: 15000,
+                    });
+                } else {
+                    const dayLines = e.days
+                        .map((d) => [`Day ${d.day}`, d.hotelName].filter(Boolean).join(" · "))
+                        .join(", ");
+                    toast.success(`Hotel${e.days.length > 1 ? "s" : ""} added for "${e.title}"`, {
+                        description: [
+                            dayLines,
+                            "ready for costing review",
+                            e.filledByName ? `filled by ${e.filledByName}` : null,
+                        ].filter(Boolean).join(" — "),
+                        duration: 12000,
                     });
                 }
             }

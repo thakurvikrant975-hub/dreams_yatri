@@ -3022,6 +3022,14 @@ model custom_itineraries {
   hotelFilledById           String?
   hotelFilledByName         String?
   /**
+   * Set once PackageStatusNotifier's poller has surfaced the "hotel added
+   * for <package>" toast to the exec for this fill — same one-shot pattern
+   * as custom_packages.execNotifiedAt, kept as its own per-day field rather
+   * than reusing that one so a hotel-fill toast can't suppress (or be
+   * suppressed by) the separate approved/rejected toast on the same package.
+   */
+  hotelFillNotifiedAt       DateTime?
+  /**
    * B2B price/night the hotel team enters when fulfilling a pending request
    * — used instead of hotel_room_pricing lookups (roomPricingId stays null
    * for these days) by computeBuilderHotelPricing's manual-price branch.

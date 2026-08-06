@@ -63,6 +63,7 @@ async function HotelRequestsData({
             take: limit,
             select: {
                 id: true, title: true, destination: true, travelDate: true,
+                builtByName: true,
                 query: { select: { name: true, phone: true } },
                 itineraries: {
                     where:   { hotelPending: true },
@@ -80,6 +81,7 @@ async function HotelRequestsData({
         title: r.title,
         destination: r.destination,
         travelDate: r.travelDate,
+        requestedByName: r.builtByName,
         clientName: r.query?.name ?? null,
         clientPhone: r.query?.phone ?? null,
         pendingDays: r.itineraries.map((it) => ({ day: it.day, note: it.hotelPendingNote, requestedAt: it.hotelRequestedAt })),
