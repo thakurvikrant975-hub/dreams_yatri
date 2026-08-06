@@ -58,6 +58,9 @@ export async function getSharedPackage(packageId: string) {
           day: true, title: true, description: true, meals: true,
           accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
           accommodationLocation: true, accommodationRoomSpecs: true, accommodationRoomCapacity: true,
+          // Needed by occupancyText — without the real caps it falls back to
+          // base beds alone and over-reports the room count to the client.
+          accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
           roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           transport: true, transportPhoto: true, transportVehicleType: true, transportSeats: true,
@@ -165,6 +168,9 @@ export async function getSharedPackage(packageId: string) {
       accommodationLocation:     it.accommodationLocation ?? "",
       accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
       accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
+      accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
+      accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
+      accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
       roomPricingId:             null,
       roomsCount:                it.roomsCount ?? null,
       extraRooms:                parseRoomSelections(it.extraRooms),

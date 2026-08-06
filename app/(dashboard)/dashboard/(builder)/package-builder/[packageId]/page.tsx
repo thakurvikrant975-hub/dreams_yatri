@@ -68,7 +68,7 @@ import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuil
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
-import { roomsNeededFor, roomExtraBedsUsed, splitPersonsAcrossRooms } from "@/app/lib/room-capacity";
+import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
@@ -867,10 +867,14 @@ function RoomCapacitySummary({ data, adults, childrenCount, onChange }: {
     max_adults: data.accommodationMaxAdults,
     max_children: data.accommodationMaxChildren,
   };
-  const autoRooms = roomsNeededFor(adults, childrenCount, roomFields);
-  const roomsUsed = data.roomsCount ?? autoRooms;
-  const autoMattresses = splitPersonsAcrossRooms(adults + childrenCount, roomsUsed)
-    .reduce((sum, headcount) => sum + roomExtraBedsUsed(headcount, roomFields), 0);
+  // One shared calculation for rooms + mattresses (room-capacity.ts) — the
+  // same call the itinerary document and the pricing engine make, so this
+  // readout can never disagree with what the package is actually priced for.
+  // manualExtraBeds is a further explicit override on top of the derived
+  // mattress count, for a hotel that needs a different number than the
+  // occupancy split implies.
+  const { rooms: roomsUsed, mattresses: autoMattresses } =
+    planRoomOccupancy(adults, childrenCount, roomFields, data.roomsCount);
   const totalMattresses = data.manualExtraBeds ?? autoMattresses;
 
   return (
