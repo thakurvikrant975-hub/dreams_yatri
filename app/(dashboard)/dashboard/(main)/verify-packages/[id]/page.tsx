@@ -55,7 +55,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 },
                 itineraries: {
                     select: {
-                        day: true, roomPricingId: true, roomsCount: true, extraRooms: true,
+                        day: true, roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true,
                         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
                         accommodation: true, manualHotelPricePerNight: true,
                         hotelPriceOverride: true, cabPriceOverride: true,
@@ -97,6 +97,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
                 days: pkg.itineraries.map((it) => ({
                     day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount,
+                    manualExtraBeds: it.manualExtraBeds,
                     extraRooms: parseRoomSelections(it.extraRooms),
                     manualHotelPricePerNight: it.manualHotelPricePerNight,
                     hotelPriceOverride: it.hotelPriceOverride,

@@ -1224,6 +1224,12 @@ export async function computeBuilderHotelPricing(input: {
      * occupancy split) is skipped, since a manual room count means the
      * occupancy-per-room assumption no longer holds. */
     roomsCount?: number | null;
+    /** Overrides the auto-computed mattress/extra-bed count for roomPricingId
+     * — set when the exec knows exactly how many extra mattresses the hotel
+     * needs to provide (most useful alongside a manual roomsCount, where the
+     * occupancy-per-room split that the auto count relies on no longer
+     * applies). Null/undefined keeps the auto-computed behavior. */
+    manualExtraBeds?: number | null;
     /** Additional, different room types booked for the same night (e.g. one
      * couple in a Deluxe Room, another in a Suite) — each priced at
      * quantity × that room's own base per-night rate. No occupancy/mattress
@@ -1333,11 +1339,16 @@ export async function computeBuilderHotelPricing(input: {
         // because a child may share an adult's bed.
         const roomsNeeded = isManualCount ? d.roomsCount! : roomsNeededFor(adults, children, rp.room);
         // Only the mattresses the rooms physically have are chargeable; guests
-        // beyond that share a bed.
-        const mattresses = isManualCount
-          ? 0
-          : splitPersonsAcrossRooms(persons, roomsNeeded)
-              .reduce((sum, headcount) => sum + roomExtraBedsUsed(headcount, rp.room), 0);
+        // beyond that share a bed. A manual room count breaks the
+        // occupancy-per-room assumption the auto split relies on, so that
+        // case falls back to 0 unless the exec also gave an explicit
+        // mattress count.
+        const mattresses = d.manualExtraBeds != null
+          ? Math.max(0, d.manualExtraBeds)
+          : isManualCount
+            ? 0
+            : splitPersonsAcrossRooms(persons, roomsNeeded)
+                .reduce((sum, headcount) => sum + roomExtraBedsUsed(headcount, rp.room), 0);
         const extraBedRate = rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
 
         const typicalOccupancy = Math.min(adults, bedCapacity);

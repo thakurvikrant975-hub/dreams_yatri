@@ -1857,7 +1857,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       select: {
         day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
         hotelPriceOverride: true, cabPriceOverride: true,
-        roomPricingId: true, roomsCount: true, extraRooms: true, manualHotelPricePerNight: true, accommodation: true,
+        roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, accommodation: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
       },
     });
@@ -1879,6 +1879,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       !existing
       || existing.roomPricingId !== (it.roomPricingId ?? null)
       || existing.roomsCount !== (it.roomsCount ?? null)
+      || existing.manualExtraBeds !== (it.manualExtraBeds ?? null)
       || existing.manualHotelPricePerNight !== (it.manualHotelPricePerNight ?? null)
       || existing.accommodation !== (it.accommodation || null)
       || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(filteredExtraRooms(it));
@@ -2093,6 +2094,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
           day:           it.day,
           roomPricingId: it.roomPricingId,
           roomsCount:    it.roomsCount,
+          manualExtraBeds: it.manualExtraBeds,
           extraRooms:    parseRoomSelections(it.extraRooms),
           manualHotelPricePerNight: it.manualHotelPricePerNight,
           hotelPriceOverride: it.hotelPriceOverride,

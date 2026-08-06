@@ -869,8 +869,9 @@ function RoomCapacitySummary({ data, adults, childrenCount, onChange }: {
   };
   const autoRooms = roomsNeededFor(adults, childrenCount, roomFields);
   const roomsUsed = data.roomsCount ?? autoRooms;
-  const totalMattresses = splitPersonsAcrossRooms(adults + childrenCount, roomsUsed)
+  const autoMattresses = splitPersonsAcrossRooms(adults + childrenCount, roomsUsed)
     .reduce((sum, headcount) => sum + roomExtraBedsUsed(headcount, roomFields), 0);
+  const totalMattresses = data.manualExtraBeds ?? autoMattresses;
 
   return (
     <div className="space-y-2">
@@ -887,23 +888,41 @@ function RoomCapacitySummary({ data, adults, childrenCount, onChange }: {
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
-        <Input
-          type="number"
-          min={1}
-          value={data.roomsCount ?? ""}
-          onChange={(e) => onChange({
-            ...data,
-            roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-          })}
-          placeholder="Auto"
-          className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-        <p className="text-[10px] text-dashboard-base-content/40">
-          Leave blank to auto-compute from traveller count
-        </p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
+          <Input
+            type="number"
+            min={1}
+            value={data.roomsCount ?? ""}
+            onChange={(e) => onChange({
+              ...data,
+              roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+            })}
+            placeholder="Auto"
+            className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] text-dashboard-base-content/60 shrink-0 flex items-center gap-1">
+            <BedDouble size={11} /> Mattresses needed
+          </label>
+          <Input
+            type="number"
+            min={0}
+            value={data.manualExtraBeds ?? ""}
+            onChange={(e) => onChange({
+              ...data,
+              manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
+            })}
+            placeholder={String(autoMattresses)}
+            className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+          />
+        </div>
       </div>
+      <p className="text-[10px] text-dashboard-base-content/40">
+        Leave either blank to auto-compute from traveller count and room capacity
+      </p>
 
       {hasCapacityData && (
         <p className="flex items-center gap-1.5 text-xs font-medium text-dashboard-primary">
@@ -2733,11 +2752,11 @@ export default function PackageBuilderDetailPage() {
   // those three inputs change — the sales exec still applies it manually via
   // the "Use this price" button so an already-typed price isn't clobbered.
   const roomPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}:${it.hotelPriceOverride ?? ""}`)
+    .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${it.manualExtraBeds ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}:${it.hotelPriceOverride ?? ""}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
-      day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount, extraRooms: it.extraRooms,
+      day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount, manualExtraBeds: it.manualExtraBeds, extraRooms: it.extraRooms,
       manualHotelPricePerNight: it.manualHotelPricePerNight,
       hotelPriceOverride: it.hotelPriceOverride,
       ...splitManualHotelName(it.accommodation),
@@ -3095,6 +3114,7 @@ export default function PackageBuilderDetailPage() {
       const hotelChanged = !existing
         || existing.roomPricingId !== day.roomPricingId
         || existing.roomsCount !== day.roomsCount
+        || existing.manualExtraBeds !== day.manualExtraBeds
         || existing.manualHotelPricePerNight !== day.manualHotelPricePerNight
         || existing.accommodation !== day.accommodation
         || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(day.extraRooms ?? []);
