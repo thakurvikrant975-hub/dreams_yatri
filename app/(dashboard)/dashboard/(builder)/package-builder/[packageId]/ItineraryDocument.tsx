@@ -598,6 +598,32 @@ function DayNote({ day }: { day: DayItinerary }) {
   );
 }
 
+/** A day's running cost, shown beside its number. */
+function DayCostChip({ day }: { day: number }) {
+  const builder = useOptionalBuilder();
+  if (!builder?.canEdit) return null;
+  const cost = builder.dayCosts.get(day);
+  // No entry means nothing on this day is priced yet — better to show nothing
+  // than a confident ₹0.
+  if (!cost || cost.total <= 0) return null;
+
+  return (
+    <span
+      className="builder-only no-print shrink-0 self-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
+      style={{
+        backgroundColor: cost.overridden ? "#FDF4E7" : DOC.paper,
+        border: `1px solid ${cost.overridden ? "#F2DEBE" : DOC.rule}`,
+        color: cost.overridden ? "#8A5A16" : DOC.inkSoft,
+      }}
+      title={cost.overridden
+        ? "Corrected by costing during review"
+        : `Stay ₹${cost.hotel.toLocaleString("en-IN")} · Transport ₹${cost.cab.toLocaleString("en-IN")}`}
+    >
+      ₹{cost.total.toLocaleString("en-IN")}
+    </span>
+  );
+}
+
 function DaySubHead({ icon: Icon, label, meta, onEdit }: {
   icon: React.ElementType;
   label: string;
@@ -1441,6 +1467,12 @@ function DayCardPreview({
             Day {day.day}{checkInDate && ` · ${formatShortDate(checkInDate)}`}
           </p>
         </div>
+
+        {/* What this day currently costs. Builder-only and never on the
+            client's copy — the point is seeing a hotel swap move the number
+            where the swap was made, rather than on another screen after the
+            fact. */}
+        <DayCostChip day={day.day} />
 
         {/* One menu for everything this day can gain or lose — replaces the
             three separate dashed "Add …" rows, which appeared and vanished

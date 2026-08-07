@@ -134,6 +134,17 @@ export type DrawerTarget =
 // Context
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** What a single day currently costs, and whether costing hand-corrected it.
+ * Builder-only — the client's document never shows internal cost. */
+export type DayCost = {
+  hotel: number;
+  cab: number;
+  total: number;
+  /** Either side was overridden by costing during review, so the number is a
+   * correction rather than something the exec's own choices produced. */
+  overridden: boolean;
+};
+
 type BuilderContextValue = {
   form: PackageForm;
   setForm: SetPackageForm;
@@ -155,6 +166,10 @@ type BuilderContextValue = {
   addDayAfter: (day: number) => void;
   /** Deletes a day and everything on it, renumbering the rest. */
   removeDay: (day: number) => void;
+  /** Per-day cost, keyed by day number. Empty while pricing is recomputing or
+   * when nothing on the trip is priced yet — a day with no entry simply shows
+   * no cost rather than a misleading zero. */
+  dayCosts: Map<number, DayCost>;
 };
 
 /** The one way a day changes.
@@ -179,11 +194,12 @@ function replaceDay(
 const BuilderContext = createContext<BuilderContextValue | null>(null);
 
 export function PackageBuilderProvider({
-  form, setForm, canEdit, children,
+  form, setForm, canEdit, dayCosts, children,
 }: {
   form: PackageForm;
   setForm: SetPackageForm;
   canEdit: boolean;
+  dayCosts: Map<number, DayCost>;
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
@@ -192,6 +208,7 @@ export function PackageBuilderProvider({
     form,
     setForm,
     canEdit,
+    dayCosts,
     drawer,
     openDrawer: (target) => setDrawer(target),
     closeDrawer: () => setDrawer(null),
@@ -199,7 +216,7 @@ export function PackageBuilderProvider({
     replaceDay: (day, fn) => setForm((f) => replaceDay(f, day, fn)),
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
-  }), [form, setForm, canEdit, drawer]);
+  }), [form, setForm, canEdit, dayCosts, drawer]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }

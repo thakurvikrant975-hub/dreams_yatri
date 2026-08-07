@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useTransition } from "react";
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -77,7 +77,7 @@ import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
-import { PackageBuilderProvider, type PackageForm } from "./builder-context";
+import { PackageBuilderProvider, type PackageForm, type DayCost } from "./builder-context";
 import { useUndoableState } from "./use-undoable-state";
 import { applyHotelRoomSelection, emptyDay, emptyTicket, computeDurationText, TICKET_TYPE_LABELS } from "./day-mutations";
 import { geocodeCity } from "./geocode-city";
@@ -2899,6 +2899,27 @@ export default function PackageBuilderDetailPage() {
   // day they're assigned to (season/weekday-weekend aware), PER_KM cabs by
   // that day's transportDistanceKm, so a multi-day cab hire naturally sums
   // across however many days it was applied to.
+  // Per-day cost for the preview's own cost chips — folded together from the
+  // two pricing results the effects above already compute, so this adds no
+  // work and can never disagree with the breakdown they feed.
+  const dayCosts = useMemo(() => {
+    const map = new Map<number, DayCost>();
+    const put = (day: number, patch: Partial<DayCost>) => {
+      const cur = map.get(day) ?? { hotel: 0, cab: 0, total: 0, overridden: false };
+      const next = { ...cur, ...patch };
+      next.total = next.hotel + next.cab;
+      map.set(day, next);
+    };
+    for (const d of hotelPricing?.days ?? []) {
+      put(d.day, { hotel: d.total, overridden: !!d.overridden });
+    }
+    for (const d of cabPricing?.days ?? []) {
+      const cur = map.get(d.day);
+      put(d.day, { cab: d.total, overridden: (cur?.overridden ?? false) || !!d.overridden });
+    }
+    return map;
+  }, [hotelPricing, cabPricing]);
+
   const cabPricingKey = form.itineraries
     .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}:${it.cabPriceOverride ?? ""}`)
     .join("|");
@@ -3905,7 +3926,7 @@ Rules:
     // having it threaded down as props — which is what lets the preview
     // document on the left edit the itinerary directly. canEdit carries the
     // same lock the right-hand panel has always honoured, from one place.
-    <PackageBuilderProvider form={form} setForm={setForm} canEdit={!isLocked}>
+    <PackageBuilderProvider form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}>
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
     <BuilderDrawer />
@@ -4043,6 +4064,28 @@ Rules:
                   {savedOk ? "Saved!" : "Save Draft"}
                 </span>
               </Button>
+            )}
+
+            {/* Running total, always visible. The breakdown still lives on the
+                Pricing tab; what matters here is that the number moves while
+                you work rather than only when you go looking for it. */}
+            {(hotelPricing || cabPricing) && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("pricing")}
+                title="Open the full pricing breakdown"
+                className="hidden md:flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-dashboard-base-300 hover:bg-dashboard-base-200 transition-colors"
+              >
+                <span className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wider">
+                  Total
+                </span>
+                <span className="text-xs font-bold tabular-nums text-dashboard-base-content">
+                  ₹{computeFinalPricing().finalPrice.toLocaleString("en-IN")}
+                </span>
+                {computingPrice || computingCabPrice ? (
+                  <Loader2 size={11} className="animate-spin text-dashboard-base-content/40" />
+                ) : null}
+              </button>
             )}
 
             {/* Undo / redo. Hidden once the package is locked for costing
