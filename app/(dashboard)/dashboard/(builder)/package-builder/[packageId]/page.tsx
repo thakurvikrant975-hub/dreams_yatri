@@ -3158,6 +3158,19 @@ export default function PackageBuilderDetailPage() {
   }
 
   // ── Save ───────────────────────────────────────────────────────────────────
+  // A blocked re-request (see saveCustomPackage's staleHotelRequestDays) must
+  // never be silent — this tab's copy of the day predates a fill that
+  // happened elsewhere, so the request didn't take; warn and point at a
+  // reload rather than let the exec believe it went through.
+  function warnStaleHotelRequests(days: number[] | undefined) {
+    if (!days?.length) return;
+    const list = days.join(", ");
+    toast.warning(
+      `Day ${list} was filled by the hotel team while you had this package open — your re-request didn't go through.`,
+      { description: "Reload the page to see the filled hotel, then request again if it's still not right.", duration: 12000 },
+    );
+  }
+
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
       const result = await saveCustomPackage({
@@ -3173,6 +3186,7 @@ export default function PackageBuilderDetailPage() {
       if (result.success) {
         setSavedOk(true);
         setTimeout(() => setSavedOk(false), 3000);
+        warnStaleHotelRequests(result.staleHotelRequestDays);
       } else {
         toast.error(result.error ?? "Failed to save");
       }
@@ -3224,6 +3238,7 @@ export default function PackageBuilderDetailPage() {
         toast.error(result.error ?? "Failed to save");
         return;
       }
+      warnStaleHotelRequests(result.staleHotelRequestDays);
 
       const result2 = await markPackageReady(packageId);
       if (result2.success) {

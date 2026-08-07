@@ -1659,7 +1659,14 @@ export async function getQueryLeadInfo(queryId: string): Promise<QueryDetail | n
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Save (create or update) a custom package with itineraries
 // ─────────────────────────────────────────────────────────────────────────────
-export async function saveCustomPackage(input: PackageInput): Promise<{ id: string; success: boolean; error?: string }> {
+export async function saveCustomPackage(input: PackageInput): Promise<{
+  id: string; success: boolean; error?: string;
+  /** Day numbers where a hotel-team re-request got blocked because this
+   * save's copy of the package predates a fill that happened elsewhere in
+   * the meantime — see the staleResurrection guard below. Present only when
+   * non-empty; the caller should warn the exec to refresh and retry. */
+  staleHotelRequestDays?: number[];
+}> {
   try {
     const {
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
@@ -1913,6 +1920,14 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       where: { customPackageId: pkg.id },
     });
 
+    // Days where a client-requested `hotelPending: true` got blocked by the
+    // staleResurrection guard below — surfaced back to the caller (see the
+    // return statement) so a blocked re-request is never silent. This is
+    // exactly the scenario the guard exists for (a stale, pre-fill tab
+    // saving over a fill that already happened) — rare, but when it does
+    // happen the exec needs to know their request didn't take, not just see
+    // it quietly vanish, so they know to refresh and try again.
+    const staleHotelRequestDays: number[] = [];
     if (itineraries.length > 0) {
       await db.$transaction(
         itineraries.map((it) => {
@@ -1931,6 +1946,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
           const clientSawThisFill = alreadyFilled && it.hotelFilledAt != null
             && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime();
           const staleResurrection = alreadyFilled && !clientSawThisFill;
+          if (it.hotelPending && staleResurrection) staleHotelRequestDays.push(it.day);
           const hotelPending = it.hotelPending && !staleResurrection;
           const hotelRequestedAt = hotelPending
             ? (existing?.hotelPending ? existing.hotelRequestedAt : new Date())
@@ -2066,7 +2082,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
 
     revalidatePath("/dashboard/package-builder");
 
-    return { id: pkg.id, success: true };
+    return {
+      id: pkg.id, success: true,
+      ...(staleHotelRequestDays.length > 0 ? { staleHotelRequestDays } : {}),
+    };
   } catch (err) {
     console.error("[saveCustomPackage]", err);
     return { id: "", success: false, error: "Failed to save package" };
