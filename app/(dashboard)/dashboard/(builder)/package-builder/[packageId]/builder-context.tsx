@@ -246,7 +246,7 @@ export function fieldKey(f: EditableField): string {
 }
 
 export type EditableField =
-  | { scope: "package"; key: "title" | "description" }
+  | { scope: "package"; key: "title" | "description" | "termsNotes" }
   | { scope: "day"; day: number; key: "title" | "description" | "notes" | "notesTitle" }
   | { scope: "activity"; day: number; index: number; key: "title" | "description" };
 
@@ -388,13 +388,20 @@ export function deleteDay(form: PackageForm, day: number): PackageForm {
 // can't be mis-attributed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type PolicyListKey = "inclusions" | "exclusions";
+export type PolicyListKey =
+  | "inclusions" | "exclusions"
+  | "termsConditions" | "paymentPolicy" | "amendmentPolicy" | "travelBenefits";
 
 /** How many standard lines survive costing's removals — everything at or past
  * this index in the merged list is one of this package's own additions. */
 export function standardCount(form: PackageForm, key: PolicyListKey): number {
-  const removed = key === "inclusions" ? form.removedInclusions : form.removedExclusions;
-  return form[key].filter((i) => !removed.includes(i)).length;
+  // Only inclusions and exclusions can be vetoed by costing; the other four
+  // standard lists merge into the document whole (see previewForm), so their
+  // boundary is simply how many standard lines there are.
+  const removed = key === "inclusions" ? form.removedInclusions
+    : key === "exclusions" ? form.removedExclusions
+    : null;
+  return removed ? form[key].filter((i) => !removed.includes(i)).length : form[key].length;
 }
 
 export function addExtraPolicyItem(form: PackageForm, key: PolicyListKey, value: string): PackageForm {

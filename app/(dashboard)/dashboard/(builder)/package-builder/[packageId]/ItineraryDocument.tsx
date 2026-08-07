@@ -24,7 +24,7 @@ import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { EditableText } from "./EditableText";
-import { useOptionalBuilder } from "./builder-context";
+import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu } from "./DayActionsMenu";
 
@@ -476,22 +476,47 @@ function SectionHeader({
  * there was no hierarchy left to read the page by. They now share one quiet
  * treatment — a muted rule and a plain list — which buys the itinerary back
  * its prominence for free. */
-function PolicyBlock({ label, items }: { label: string; items: string[] }) {
-  if (items.length === 0) return null;
+function PolicyBlock({ label, items, listKey }: {
+  label: string;
+  items: string[];
+  /** When given, this package's own additions to the list become editable in
+   * place and an "Add" affordance appears — same locked-standard / editable-
+   * custom model as inclusions. Omitted for custom policy sections, which have
+   * no extraPolicyItems slot to write into and stay read-only. */
+  listKey?: PolicyListKey;
+}) {
+  const builder = useOptionalBuilder();
+  // A section with nothing in it still needs a way in while editing.
+  if (items.length === 0 && !(listKey && builder?.canEdit)) return null;
   return (
     <div className="space-y-2.5" style={{ breakInside: "avoid" }}>
       <SectionHeader label={label} tone="muted" />
-      <ul className="space-y-1.5 text-[11px] pl-0.5" style={{ color: DOC.inkSoft }}>
-        {items.map((t) => (
-          <li key={t} className="flex items-start gap-2">
+      {listKey ? (
+        <EditablePolicyList
+          items={items}
+          listKey={listKey}
+          itemClassName="text-[11px] pl-0.5 !p-0 space-y-1.5"
+          style={{ color: DOC.inkSoft }}
+          marker={() => (
             <span
               className="mt-1.5 size-0.75 rounded-full shrink-0"
               style={{ backgroundColor: DOC.inkMuted }}
             />
-            <span className="leading-relaxed">{t}</span>
-          </li>
-        ))}
-      </ul>
+          )}
+        />
+      ) : (
+        <ul className="space-y-1.5 text-[11px] pl-0.5" style={{ color: DOC.inkSoft }}>
+          {items.map((t) => (
+            <li key={t} className="flex items-start gap-2">
+              <span
+                className="mt-1.5 size-0.75 rounded-full shrink-0"
+                style={{ backgroundColor: DOC.inkMuted }}
+              />
+              <span className="leading-relaxed">{t}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -2152,6 +2177,9 @@ export function ItineraryDocument({
   // Route map legs derived straight from the ticket list — see the module
   // comment on PreviewData.tickets for why these aren't separate fields.
   const transport = deriveTransportFields(form.tickets);
+  // Sections that render nothing when empty still need to exist while editing,
+  // or there's no way to add the first line.
+  const builderCanEdit = !!useOptionalBuilder()?.canEdit;
 
   return (
     <div>
@@ -2288,9 +2316,14 @@ export function ItineraryDocument({
             </div>
           )}
 
-          {form.description && (
-            <p className="text-sm text-neutral-600 leading-relaxed">{form.description}</p>
-          )}
+          <EditableText
+            as="p"
+            multiline
+            value={form.description}
+            field={{ scope: "package", key: "description" }}
+            placeholder="Describe this package for the client — click to add…"
+            className="block text-sm text-neutral-600 leading-relaxed"
+          />
 
           <TicketsSection tickets={form.tickets} />
 
@@ -2424,7 +2457,7 @@ export function ItineraryDocument({
           {/* "Why book with us" stays a real card — it's the one marketing
               block here, and it earns colour. Everything below it is fine
               print and shares the quiet PolicyBlock treatment. */}
-          {form.travelBenefits.length > 0 && (
+          {(form.travelBenefits.length > 0 || builderCanEdit) && (
             <div
               className="rounded-2xl overflow-hidden"
               style={{
@@ -2439,36 +2472,49 @@ export function ItineraryDocument({
                   Why book with us
                 </h3>
               </div>
-              <ul
-                className="px-4 pb-3.5 grid grid-cols-2 gap-x-5 gap-y-1.5 text-[11px]"
+              <EditablePolicyList
+                items={form.travelBenefits}
+                listKey="travelBenefits"
+                itemClassName="px-4 pb-3.5 !p-0 !px-4 !pb-3.5 text-[11px] space-y-1.5"
                 style={{ color: DOC.inkSoft }}
-              >
-                {form.travelBenefits.map((b) => (
-                  <li key={b} className="flex items-start gap-1.5">
-                    <span
-                      className="mt-1.5 size-0.75 rounded-full shrink-0"
-                      style={{ backgroundColor: DOC.accent }}
-                    />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
+                marker={() => (
+                  <span
+                    className="mt-1.5 size-0.75 rounded-full shrink-0"
+                    style={{ backgroundColor: DOC.accent }}
+                  />
+                )}
+              />
             </div>
           )}
 
-          {(form.termsConditions.length > 0 || form.paymentPolicy.length > 0 || form.amendmentPolicy.length > 0) && (
-            <div className="flex flex-col gap-5" style={{ breakInside: "avoid" }}>
-              <PolicyBlock label="Terms & Conditions" items={form.termsConditions} />
-              <PolicyBlock label="Payment Policy" items={form.paymentPolicy} />
-              <PolicyBlock label="Amendment Policy" items={form.amendmentPolicy} />
-            </div>
-          )}
+          {/* No outer emptiness check: each block decides for itself, so a
+              package with no payment policy yet still offers a way to add one
+              while editing and still renders nothing for the client. */}
+          <div className="flex flex-col gap-5" style={{ breakInside: "avoid" }}>
+            <PolicyBlock label="Terms & Conditions" items={form.termsConditions} listKey="termsConditions" />
+            <PolicyBlock label="Payment Policy" items={form.paymentPolicy} listKey="paymentPolicy" />
+            <PolicyBlock label="Amendment Policy" items={form.amendmentPolicy} listKey="amendmentPolicy" />
+          </div>
 
           {(form.customPolicySections ?? []).filter((s) => s.items.length > 0).map((section) => (
             <PolicyBlock key={section.id} label={section.title} items={section.items} />
           ))}
 
-          {form.termsNotes && <TermsAndConditions text={form.termsNotes} />}
+          {/* Free text rather than a list, so it edits in place. Hidden
+              entirely on the client's copy when empty. */}
+          {form.termsNotes.trim()
+            ? <TermsAndConditions text={form.termsNotes} />
+            : (
+              <EditableText
+                as="p"
+                multiline
+                value={form.termsNotes}
+                field={{ scope: "package", key: "termsNotes" }}
+                placeholder="Additional terms or notes for this package — click to add…"
+                className="block text-[11px] leading-relaxed"
+                style={{ color: DOC.inkSoft }}
+              />
+            )}
 
           <div className="h-2" />
         </main>
