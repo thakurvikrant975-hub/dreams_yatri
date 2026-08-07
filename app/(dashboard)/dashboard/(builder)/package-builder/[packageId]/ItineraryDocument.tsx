@@ -18,11 +18,50 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { EditableText } from "./EditableText";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
 // it's a plain function server components need too (see hotel-requests).
 export { deriveDayLocations };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Document design tokens
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The printed document's palette, as literal hex rather than Tailwind theme
+ * classes. Two reasons this can't just use `bg-primary-600` and friends:
+ *
+ *  1. html2canvas-pro (the PDF export path) can't reliably resolve this app's
+ *     oklch() theme tokens — the same limitation already documented on
+ *     SectionHeader's icon colour below, which this centralises.
+ *  2. The document is a *printed* artefact, not a screen surface. It wants a
+ *     warm paper ground rather than the UI's pure #fff, so it deliberately
+ *     doesn't inherit the dashboard's neutral ramp.
+ *
+ * `accent` is this app's established rgb fallback for --color-primary-600
+ * (see the .prose-editor/.prose-article rules in globals.css). */
+const DOC = {
+  /** Warm off-white page ground — reads as paper stock, not screen. */
+  paper: "#FDFBF7",
+  /** Pure white, reserved for cards that should lift off the paper. */
+  card: "#FFFFFF",
+  ink: "#191817",
+  inkSoft: "#57534E",
+  inkMuted: "#8C857D",
+  /** Warm hairline, tuned to sit on `paper` without going grey-blue. */
+  rule: "#E9E3DA",
+  accent: "#c0392b",
+  accentSoft: "#FBF1EF",
+  /** Secondary accent for the "included / confirmed" tone. */
+  positive: "#059669",
+} as const;
+
+/** Poppins (--font-heading, see globals.css) — the brand display face. The
+ * document previously used none of it, so every heading rendered in the body
+ * Inter and the whole artefact read flatter and more off-brand than the
+ * website's own itinerary, which uses font-heading throughout. */
+const DISPLAY = "font-heading";
 
 /** Identifies exactly which image a click on an edit button refers to, so
  * one onImageChange callback (threaded down from page.tsx) can cover every
@@ -315,36 +354,132 @@ export interface PreviewData {
 /** Icon-badge + bold label + trailing rule — the section-opener used
  * throughout the document so every part of the trip reads as one
  * consistent, edited publication rather than a stack of unrelated boxes. */
+/** Section rule. `tone` sets the weight in the page's hierarchy:
+ *
+ *   primary / emerald — content sections (itinerary, inclusions). Full weight.
+ *   muted             — boilerplate (terms, policies). Deliberately recessive:
+ *                       no icon badge, smaller, grey. Previously every section
+ *                       got the identical badge + rule, so the terms block
+ *                       shouted as loudly as the day-by-day itinerary and the
+ *                       document had no hierarchy to read by.
+ *
+ * Icon colours are baked hex, not text-* classes: html2canvas-pro's PDF
+ * capture doesn't reliably resolve currentColor for an inline SVG's *stroke*
+ * when the source is an oklch() theme token (globals.css) — the glyph comes
+ * out blank. Background-colour resolves fine either way. See DOC above. */
 function SectionHeader({
   icon: Icon, label, tone = "primary",
 }: {
-  icon: React.ElementType;
+  /** Not rendered by the `muted` tone, which is deliberately badge-less. */
+  icon?: React.ElementType;
   label: string;
-  tone?: "primary" | "emerald";
+  tone?: "primary" | "emerald" | "muted";
 }) {
-  const badge = tone === "emerald" ? "bg-emerald-100" : "bg-primary-100";
-  const rule = tone === "emerald" ? "bg-emerald-100" : "bg-primary-100";
-  // Explicit hex instead of the text-primary-600/text-emerald-600 class:
-  // html2canvas-pro's PDF-export capture doesn't reliably resolve
-  // currentColor for an inline SVG's stroke when the source color is an
-  // oklch() token (this app's Tailwind v4 theme, globals.css) — the badge's
-  // own background-color renders fine either way, only the icon glyph goes
-  // blank. Baking the color directly into the icon's stroke attribute
-  // sidesteps that CSS-resolution step entirely. #c0392b is this app's own
-  // already-established rgb fallback for --color-primary-600 (see the
-  // .prose-editor/.prose-article var(..., #c0392b) rules in globals.css);
-  // #059669 is Tailwind's stable published emerald-600.
-  const iconColor = tone === "emerald" ? "#059669" : "#c0392b";
+  if (tone === "muted" || !Icon) {
+    return (
+      <div className="flex items-center gap-2.5" style={{ breakAfter: "avoid" }}>
+        <h2
+          className="text-[10px] font-semibold uppercase tracking-[0.16em] whitespace-nowrap"
+          style={{ color: DOC.inkMuted }}
+        >
+          {label}
+        </h2>
+        <span className="h-px flex-1" style={{ backgroundColor: DOC.rule }} />
+      </div>
+    );
+  }
+
+  const iconColor = tone === "emerald" ? DOC.positive : DOC.accent;
+  const badgeBg = tone === "emerald" ? "#E8F6F1" : DOC.accentSoft;
   return (
     <div className="flex items-center gap-2.5" style={{ breakAfter: "avoid" }}>
-      <span className={`flex items-center justify-center size-7 rounded-xl shrink-0 ${badge}`}>
+      <span
+        className="flex items-center justify-center size-7 rounded-full shrink-0"
+        style={{ backgroundColor: badgeBg }}
+      >
         <Icon size={14} color={iconColor} />
       </span>
-      <h2 className="text-[15px] font-extrabold text-neutral-900 tracking-tight whitespace-nowrap">{label}</h2>
-      <span className={`h-px flex-1 ${rule}`} />
+      <h2
+        className={cn(DISPLAY, "text-[16px] font-semibold whitespace-nowrap")}
+        style={{ color: DOC.ink, letterSpacing: "-0.01em" }}
+      >
+        {label}
+      </h2>
+      <span className="h-px flex-1" style={{ backgroundColor: DOC.rule }} />
     </div>
   );
 }
+
+/** Fine print — terms, payment/amendment policy, custom policy sections.
+ *
+ * These were previously five separately-coloured cards (blue, amber, purple,
+ * teal, slate), each with a filled icon badge and an uppercase heading. That
+ * pastel rainbow was most of why the document read as generic: it gave every
+ * boilerplate block the same visual shout as the day-by-day itinerary, so
+ * there was no hierarchy left to read the page by. They now share one quiet
+ * treatment — a muted rule and a plain list — which buys the itinerary back
+ * its prominence for free. */
+function PolicyBlock({ label, items }: { label: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="space-y-2.5" style={{ breakInside: "avoid" }}>
+      <SectionHeader label={label} tone="muted" />
+      <ul className="space-y-1.5 text-[11px] pl-0.5" style={{ color: DOC.inkSoft }}>
+        {items.map((t) => (
+          <li key={t} className="flex items-start gap-2">
+            <span
+              className="mt-1.5 size-0.75 rounded-full shrink-0"
+              style={{ backgroundColor: DOC.inkMuted }}
+            />
+            <span className="leading-relaxed">{t}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Section marker inside a day — Stay / Transport / Meals / Experiences.
+ *
+ * These used to be bordered, tinted sub-cards. A box inside the day's own box
+ * gave every page a double frame, and the tints fought the day card's ground —
+ * between them that nesting was most of what made the document feel boxy.
+ *
+ * The marker does the separating instead: an icon, a letterspaced label, and a
+ * hairline running out to the edge, with the content simply indented beneath
+ * it. All four share the identical lockup, so what tells them apart is the
+ * icon and the word — the actual information — rather than a differently
+ * coloured frame drawn around each one. Consistency is what makes them
+ * scannable; four different box treatments is what made them noise. */
+function DaySubHead({ icon: Icon, label, meta }: {
+  icon: React.ElementType;
+  label: string;
+  /** Optional inline detail (distance, drive time, route) shown after the
+   * label — it rides on the same line rather than earning its own row. */
+  meta?: string | null;
+}) {
+  return (
+    <div className="flex items-center gap-2" style={{ breakAfter: "avoid" }}>
+      <Icon size={11} color={DOC.accent} className="shrink-0" />
+      <span
+        className="text-[9.5px] font-semibold uppercase tracking-[0.14em] shrink-0"
+        style={{ color: DOC.accent }}
+      >
+        {label}
+      </span>
+      {meta && (
+        <span className="text-[10px] truncate min-w-0" style={{ color: DOC.inkMuted }}>
+          {meta}
+        </span>
+      )}
+      <span className="h-px flex-1" style={{ backgroundColor: DOC.rule }} />
+    </div>
+  );
+}
+
+/** Indent that aligns a sub-section's content under its DaySubHead label —
+ * the 11px icon plus the 8px gap it sits in. */
+const SUBHEAD_INDENT = "pl-[19px]";
 
 function ActivityRow({
   activity, dayNumber, activityIndex, onImageChange, onCaptionChange,
@@ -374,9 +509,35 @@ function ActivityRow({
           <Sparkles size={11} />
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-neutral-800">{activity.title}</p>
-          {activity.description && (
-            <p className="text-xs text-neutral-500 mt-0.5">{activity.description}</p>
+          {/* Only addressable for editing when this row knows where it lives —
+              the same dayNumber/activityIndex pair the photo editor already
+              requires. Without them (any caller that renders an activity
+              without its position, e.g. a summary) it stays plain text. */}
+          {dayNumber != null && activityIndex != null ? (
+            <>
+              <EditableText
+                as="p"
+                value={activity.title}
+                field={{ scope: "activity", day: dayNumber, index: activityIndex, key: "title" }}
+                placeholder="Activity name…"
+                className="block text-xs font-semibold text-neutral-800"
+              />
+              <EditableText
+                as="p"
+                multiline
+                value={activity.description}
+                field={{ scope: "activity", day: dayNumber, index: activityIndex, key: "description" }}
+                placeholder="Describe this experience…"
+                className="block text-xs text-neutral-500 mt-0.5"
+              />
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-semibold text-neutral-800">{activity.title}</p>
+              {activity.description && (
+                <p className="text-xs text-neutral-500 mt-0.5">{activity.description}</p>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -712,9 +873,13 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
   );
 }
 
-/** Same light-header-strip card language as the Stay/Transport sub-cards
- * inside each day (icon badge + tinted header, not a heavy gradient) so a
- * ticket reads as part of the same document instead of a bolted-on style.
+/** A ticket stays a real bordered card, unlike the day's Stay/Transport/
+ * Experiences sections (see DaySubHead), which shed theirs. The distinction is
+ * deliberate: those are facets of one day and belong to the day card holding
+ * them, whereas a ticket is a discrete object — one leg, one carrier, one
+ * date — that the client reads and matches against a real boarding pass. It
+ * also sits at the top level of the document rather than nested inside another
+ * card, so it isn't creating the double frame the day sections were.
  * Fare is deliberately never shown here — it's priced into the package total
  * but not itemized per-leg on the client-facing document. */
 const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
@@ -913,47 +1078,76 @@ function DayCardPreview({
 
   return (
     <div
-      className="rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm"
+      className="rounded-2xl overflow-hidden"
+      style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
     >
-      {/* Day header — numbered badge + title. Deliberately NOT wrapping the
-          whole card in breakInside:avoid — a day with several activities and
-          photos routinely runs taller than one PDF page, and forcing the
-          entire card onto a fresh page just to avoid a mid-card split leaves
-          a large blank gap at the bottom of the previous page. Instead, only
-          the Hotel/Transport/Activity sub-cards below are individually
-          protected, so a tall day can still split page-to-page at a clean
-          boundary between them. */}
-      <div className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-100 bg-linear-to-r from-primary-50/70 to-transparent">
-        <span className="shrink-0 flex items-center justify-center size-9 rounded-xl bg-linear-to-br from-primary-500 to-primary-700 text-white text-sm font-extrabold shadow-sm">
-          {day.day}
+      {/* Day header — an oversized numeral rather than a small filled badge.
+          Paging through the document, those numerals become the rhythm: they
+          are the one recurring element large enough to navigate by, which is
+          what the old 9px uppercase "DAY 3" eyebrow could never be.
+
+          Deliberately NOT wrapping the whole card in breakInside:avoid — a day
+          with several activities and photos routinely runs taller than one PDF
+          page, and forcing the entire card onto a fresh page just to avoid a
+          mid-card split leaves a large blank gap at the bottom of the previous
+          page. Instead, only the Hotel/Transport/Activity sub-cards below are
+          individually protected, so a tall day can still split page-to-page at
+          a clean boundary between them. */}
+      <div
+        className="flex items-baseline gap-3.5 px-4 pt-3.5 pb-3"
+        style={{ borderBottom: `1px solid ${DOC.rule}` }}
+      >
+        <span
+          className={cn(DISPLAY, "shrink-0 font-bold leading-none")}
+          style={{
+            fontSize: "30px",
+            color: DOC.accent,
+            // Optical alignment: the numeral's cap-height sits slightly above
+            // the title's baseline on `items-baseline` alone.
+            transform: "translateY(1px)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {String(day.day).padStart(2, "0")}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-primary-500 leading-none mb-0.5">
+          {/* Editable in the builder, plain text everywhere else — see
+              EditableText. `truncate` is dropped while editing so a long title
+              stays readable as it's typed. */}
+          <EditableText
+            as="p"
+            value={day.title}
+            field={{ scope: "day", day: day.day, key: "title" }}
+            placeholder={`Day ${day.day}`}
+            fallback={`Day ${day.day}`}
+            className={cn(DISPLAY, "block text-[15px] font-semibold leading-tight")}
+            style={{ color: DOC.ink, letterSpacing: "-0.01em" }}
+          />
+          <p className="text-[10.5px] mt-0.5" style={{ color: DOC.inkMuted }}>
             Day {day.day}{checkInDate && ` · ${formatShortDate(checkInDate)}`}
-          </p>
-          <p className="text-sm font-bold text-neutral-800 truncate leading-tight">
-            {day.title || `Day ${day.day}`}
           </p>
         </div>
       </div>
 
       <div className="px-3.5 py-3 space-y-3">
-        {day.description && (
-          <p className="text-xs text-neutral-600 leading-relaxed">{day.description}</p>
-        )}
+        {/* Rendered even when empty in the builder, so there's something to
+            click; still hidden entirely on the client-facing document. */}
+        <EditableText
+          as="p"
+          multiline
+          value={day.description}
+          field={{ scope: "day", day: day.day, key: "description" }}
+          placeholder="Add a description for this day…"
+          className="block text-xs text-neutral-600 leading-relaxed"
+        />
 
         {/* Hotel info */}
         {hasHotel && (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
-            <div className="flex items-center gap-2 px-3 py-2 bg-primary-50/70 border-b border-primary-100">
-              <span className="flex items-center justify-center size-5 rounded-lg bg-primary-100 shrink-0">
-                <Hotel size={11} className="text-primary-600" />
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-primary-700">Stay</p>
-            </div>
-            <div className="flex gap-3 p-3">
+          <div className="space-y-2" style={{ breakInside: "avoid" }}>
+            <DaySubHead icon={Hotel} label="Stay" />
+            <div className={cn("flex gap-3", SUBHEAD_INDENT)}>
               <div className="flex-1 min-w-0 space-y-1.5">
-                <p className="text-xs font-bold text-neutral-800">
+                <p className={cn(DISPLAY, "text-[12.5px] font-semibold")} style={{ color: DOC.ink }}>
                   {day.accommodation || "Hotel (TBD)"}
                 </p>
 
@@ -976,7 +1170,7 @@ function DayCardPreview({
                       <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn ? formatTime12h(day.hotelCheckIn) : "—"}</span>
                       {checkInDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkInDate)}</span>}
                     </div>
-                    <div className="flex-1 border-t border-dashed border-neutral-300 self-center" />
+                    <div className="flex-1 self-center" style={{ borderTop: `1px dashed ${DOC.rule}` }} />
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogOut size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-out</span>
@@ -997,7 +1191,7 @@ function DayCardPreview({
                 )}
 
                 {extraRooms.length > 0 && (
-                  <div className="pt-1.5 border-t border-neutral-100 space-y-1.5">
+                  <div className="pt-1.5 space-y-1.5" style={{ borderTop: `1px solid ${DOC.rule}` }}>
                     {extraRooms.map((r, i) => (
                       <div key={i} className="flex items-center gap-2">
                         {r.thumbnail ? (
@@ -1072,24 +1266,18 @@ function DayCardPreview({
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
-            <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border-b border-neutral-100">
-              <span className="flex items-center justify-center size-5 rounded-lg bg-neutral-200/70 shrink-0">
-                <Car size={11} className="text-neutral-600" />
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">Transport</p>
-              {(day.transportDistanceKm || day.transportTravelTime || (day.transportPickup && day.transportDrop)) && (
-                <span className="text-[10px] text-neutral-400 truncate">
-                  · {[
-                    day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
-                    day.transportTravelTime || null,
-                    day.transportPickup && day.transportDrop ? `${day.transportPickup} → ${day.transportDrop}` : null,
-                  ].filter(Boolean).join(" · ")}
-                </span>
-              )}
-            </div>
+          <div className="space-y-2" style={{ breakInside: "avoid" }}>
+            <DaySubHead
+              icon={Car}
+              label="Transport"
+              meta={[
+                day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
+                day.transportTravelTime || null,
+                day.transportPickup && day.transportDrop ? `${day.transportPickup} → ${day.transportDrop}` : null,
+              ].filter(Boolean).join(" · ") || null}
+            />
 
-            <div className="flex gap-3 p-3">
+            <div className={cn("flex gap-3", SUBHEAD_INDENT)}>
               <div className="flex-1 min-w-0 space-y-2">
                 {day.transport && (
                   <p className="text-sm font-semibold text-neutral-800">
@@ -1127,7 +1315,7 @@ function DayCardPreview({
                 )}
 
                 {extraCabs.length > 0 && (
-                  <div className="pt-1.5 border-t border-neutral-100 space-y-1.5">
+                  <div className="pt-1.5 space-y-1.5" style={{ borderTop: `1px solid ${DOC.rule}` }}>
                     {extraCabs.map((c, i) => (
                       <div key={i} className="flex items-center gap-2">
                         {c.thumbnail ? (
@@ -1183,15 +1371,17 @@ function DayCardPreview({
         {/* Meals — shifted so breakfast shows on the day it's actually eaten
             (the morning of checkout), not the day the hotel was checked into. */}
         {(shiftedMeals ?? day.meals).length > 0 && (
-          <div className="space-y-1.5" style={{ breakInside: "avoid" }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Meals</p>
-            <MealsRow meals={shiftedMeals ?? day.meals} />
+          <div className="space-y-2" style={{ breakInside: "avoid" }}>
+            <DaySubHead icon={Utensils} label="Meals" />
+            <div className={SUBHEAD_INDENT}>
+              <MealsRow meals={shiftedMeals ?? day.meals} />
+            </div>
           </div>
         )}
 
         {/* Activities */}
         {activities.length > 0 && (
-          <div className="space-y-2.5 pt-2.5 border-t border-neutral-100">
+          <div className="space-y-2.5">
             {activities.map(({ a, originalIndex }, idx) => {
               const row = (
                 <ActivityRow
@@ -1216,18 +1406,25 @@ function DayCardPreview({
               if (idx === 0) {
                 return (
                   <div key={originalIndex} className="space-y-2.5" style={{ breakInside: "avoid" }}>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Experiences</p>
-                    {row}
+                    <DaySubHead icon={Sparkles} label="Experiences" />
+                    <div className={SUBHEAD_INDENT}>{row}</div>
                   </div>
                 );
               }
-              return row;
+              // Every later activity carries the same indent, so the whole
+              // list stays aligned under the Experiences label above it.
+              return <div key={originalIndex} className={SUBHEAD_INDENT}>{row}</div>;
             })}
           </div>
         )}
 
         {day.notes && (
-          <p className="text-[11px] text-neutral-400 italic border-t border-neutral-100 pt-2.5">{day.notes}</p>
+          <p
+            className="text-[11px] italic pt-2.5"
+            style={{ color: DOC.inkMuted, borderTop: `1px solid ${DOC.rule}` }}
+          >
+            {day.notes}
+          </p>
         )}
       </div>
     </div>
@@ -1373,14 +1570,26 @@ function HeroCover({
       )}
 
       <div className="absolute inset-x-0 bottom-0 px-[10mm] pb-[15mm]">
+        {/* Eyebrow: a hairline plus plain small caps rather than a filled
+            pill. The pill competed with the title for attention; a rule
+            leads the eye into it instead. */}
         {form.totalDays > 0 && (
-          <span className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm border border-white/25 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-3">
-            <Compass size={11} /> {form.totalDays} Day Journey
-          </span>
+          <div className="flex items-center gap-2.5 mb-3">
+            <span className="h-px w-7 bg-white/50" />
+            <span className="inline-flex items-center gap-1.5 text-white/90 text-[10px] font-semibold tracking-[0.18em] uppercase">
+              <Compass size={11} /> {form.totalDays} Day Journey
+            </span>
+          </div>
         )}
-        <h1 className="text-[30px] leading-[1.15] font-extrabold text-white" style={{ maxWidth: "150mm" }}>
-          {form.title || "Untitled Package"}
-        </h1>
+        <EditableText
+          as="h1"
+          value={form.title}
+          field={{ scope: "package", key: "title" }}
+          placeholder="Name this package…"
+          fallback="Untitled Package"
+          className={cn(DISPLAY, "block text-[34px] leading-[1.08] font-bold text-white")}
+          style={{ maxWidth: "150mm", letterSpacing: "-0.02em", textWrap: "balance" }}
+        />
 
         {routeSteps.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1 mt-3" style={{ maxWidth: "175mm" }}>
@@ -1413,24 +1622,37 @@ function HeroCover({
         )}
       </div>
 
-      {/* Wave transition into the white body below */}
+      {/* Wave transition into the body below — filled with the paper tone,
+          not white, or it leaves a pale seam across the hero's bottom edge. */}
       <svg
         viewBox="0 0 1440 74" preserveAspectRatio="none"
-        className="absolute -bottom-px left-0 w-full text-white" style={{ height: "20px" }}
+        className="absolute -bottom-px left-0 w-full" style={{ height: "20px" }}
       >
-        <path fill="currentColor" d="M0,32 C240,74 480,0 720,26 C960,52 1200,74 1440,32 L1440,74 L0,74 Z" />
+        <path fill={DOC.paper} d="M0,32 C240,74 480,0 720,26 C960,52 1200,74 1440,32 L1440,74 L0,74 Z" />
       </svg>
     </div>
   );
 }
 
+/** One cell of the trip-stats strip. Label is sentence case, not the 9px bold
+ * uppercase the document used to put on every micro-label — at this size
+ * uppercase costs legibility and reads as dashboard chrome. The value carries
+ * the emphasis instead, in the display face. */
 function StatCell({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
-    <div className="p-3.5 flex flex-col justify-center min-w-0">
-      <p className="text-neutral-400 flex items-center gap-1 mb-1 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap">
-        <Icon size={10} /> {label}
+    <div className="px-4 py-3.5 flex flex-col justify-center min-w-0">
+      <p
+        className="flex items-center gap-1.5 mb-1 text-[10px] font-medium whitespace-nowrap"
+        style={{ color: DOC.inkMuted }}
+      >
+        <Icon size={10} color={DOC.inkMuted} /> {label}
       </p>
-      <p className="font-bold text-neutral-800 text-[13px] leading-tight truncate">{value}</p>
+      <p
+        className={cn(DISPLAY, "font-semibold text-[13.5px] leading-tight truncate")}
+        style={{ color: DOC.ink }}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -1507,6 +1729,17 @@ const PRINT_STYLES = `
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* Builder-only chrome — empty-field placeholders and any other affordance
+     that exists purely to make the preview editable.
+
+     Deliberately OUTSIDE the @media print block below. The PDF export path
+     (pdfExport.ts) rasterises the live screen DOM through html2canvas, which
+     never evaluates print media, so a rule hidden in @media print would not
+     apply and this content would land in the client's PDF. The exporter sets
+     data-exporting on the root for the duration of the capture instead.
+     Browser print (Cmd-P) is covered by the .no-print rule further down. */
+  .itinerary-print-area[data-exporting] .builder-only { display: none !important; }
   @media print {
     body * { visibility: hidden; }
     .itinerary-print-area, .itinerary-print-area * { visibility: visible; }
@@ -1605,17 +1838,31 @@ export function ItineraryDocument({
       {/* ── A4 page ─────────────────────────────────────────────────────────── */}
       <div
         className={cn(
-          "itinerary-print-area mx-auto bg-white overflow-hidden",
+          "itinerary-print-area mx-auto overflow-hidden",
           variant === "flat" ? "border border-neutral-200" : "rounded-lg shadow-xl",
         )}
-        style={{ width: "210mm", minHeight: "297mm" }}
+        style={{ width: "210mm", minHeight: "297mm", backgroundColor: DOC.paper }}
       >
-        {/* ── Header ────────────────────────────────────────────────────────── */}
-        <header className="flex items-center justify-between px-[10mm] py-4">
+        {/* ── Masthead ──────────────────────────────────────────────────────
+            Logo left, contact right, closed by a hairline. The rule matters:
+            it gives the page a top edge to hang from, so the hero below reads
+            as a plate set into the document rather than as the page itself. */}
+        <header
+          className="flex items-end justify-between px-[10mm] pt-5 pb-3.5"
+          style={{ borderBottom: `1px solid ${DOC.rule}` }}
+        >
+          {/* Colour via className, not style: DyLogo forwards only className,
+              and its mask is painted with bg-current — a background-color,
+              which html2canvas-pro resolves from oklch just fine (it's the
+              inline-SVG *stroke* that doesn't, see SectionHeader). */}
           <DyLogo className="h-7 text-primary-600" />
-          <div className="text-right text-[11px] text-neutral-500 space-y-0.5">
-            <p className="flex items-center justify-end gap-1.5"><Phone size={10} className="text-primary-500" /> {form.companySettings?.phone ?? COMPANY_PHONE}</p>
-            <p className="flex items-center justify-end gap-1.5"><Mail size={10} className="text-primary-500" /> {form.companySettings?.email ?? COMPANY_EMAIL}</p>
+          <div className="text-right text-[10.5px] space-y-0.5" style={{ color: DOC.inkSoft }}>
+            <p className="flex items-center justify-end gap-1.5">
+              <Phone size={10} color={DOC.accent} /> {form.companySettings?.phone ?? COMPANY_PHONE}
+            </p>
+            <p className="flex items-center justify-end gap-1.5">
+              <Mail size={10} color={DOC.accent} /> {form.companySettings?.email ?? COMPANY_EMAIL}
+            </p>
           </div>
         </header>
 
@@ -1630,17 +1877,31 @@ export function ItineraryDocument({
         {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
         <div className="relative z-10 px-[10mm]" style={{ marginTop: "-13mm" }}>
           <div
-            className="bg-white rounded-2xl  border-neutral-100 grid grid-cols-4 divide-x divide-neutral-100 overflow-hidden"
-            style={{ boxShadow: "0 10px 30px -8px rgba(0,0,0,0.18)", breakInside: "avoid" }}
+            className="rounded-2xl grid grid-cols-4 overflow-hidden"
+            style={{
+              backgroundColor: DOC.card,
+              // Softer, warmer lift than the old near-black shadow — on a
+              // paper ground a cool grey shadow reads as a screen artefact.
+              boxShadow: "0 12px 32px -10px rgba(80,60,40,0.22)",
+              border: `1px solid ${DOC.rule}`,
+              breakInside: "avoid",
+            }}
           >
-            <StatCell icon={Calendar} label="Travel Date" value={travelDateStr} />
+            <StatCell icon={Calendar} label="Travel date" value={travelDateStr} />
             <StatCell icon={Moon} label="Duration" value={durationLabel} />
             <StatCell icon={Users} label="Travellers" value={paxLine} />
-            <div className="p-3.5 bg-linear-to-br from-primary-500 to-primary-600 flex flex-col justify-center min-w-0">
-              <p className="text-white/75 flex items-center gap-1 mb-1 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap">
-                <IndianRupee size={10} /> Total Price
+            {/* Price is the one cell that inverts — it's the number the client
+                is looking for, and it anchors the strip's right edge. */}
+            <div
+              className="px-4 py-3.5 flex flex-col justify-center min-w-0"
+              style={{ backgroundColor: DOC.accent }}
+            >
+              <p className="flex items-center gap-1.5 mb-1 text-[10px] font-medium text-white/80 whitespace-nowrap">
+                <IndianRupee size={10} color="#ffffff" /> Total price
               </p>
-              <p className="font-extrabold text-white text-[13px] leading-tight truncate">{priceStr}</p>
+              <p className={cn(DISPLAY, "font-bold text-white text-[14px] leading-tight truncate")}>
+                {priceStr}
+              </p>
             </div>
           </div>
         </div>
@@ -1750,59 +2011,86 @@ export function ItineraryDocument({
             trainTo={transport.trainTo}
           />
 
-          <div className="rounded-2xl overflow-hidden" style={{ breakInside: "avoid", boxShadow: "0 12px 28px -10px rgba(0,0,0,0.35)" }}>
-            <div className="bg-linear-to-br from-neutral-900 via-neutral-950 to-neutral-950 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="flex items-center justify-center size-6 rounded-xl bg-primary-500/20 text-primary-400 shrink-0">
-                  <IndianRupee size={14} />
-                </span>
-                <h2 className="text-[11px] font-extrabold text-white uppercase tracking-wide">Price Summary</h2>
+          {/* Price summary — the document's second focal point after the hero,
+              so it gets real scale (26px display) rather than the 17px it had.
+              Warm near-black instead of neutral-950: a cool grey-blue block on
+              a warm paper ground reads as pasted-in from another document. */}
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{ breakInside: "avoid", boxShadow: "0 14px 32px -12px rgba(60,40,25,0.45)" }}
+          >
+            <div className="p-5" style={{ backgroundColor: "#1C1A18" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <IndianRupee size={13} color="#E8A598" />
+                <h2
+                  className="text-[9.5px] font-semibold uppercase tracking-[0.16em]"
+                  style={{ color: "#E8A598" }}
+                >
+                  Price Summary
+                </h2>
               </div>
 
-              <div className="flex flex-wrap items-end justify-between gap-1">
+              <div className="flex flex-wrap items-end justify-between gap-2">
                 <div className="space-y-1">
-                  <p className="text-sm text-white/90 font-medium">{paxLine}</p>
-                  {perPersonStr && <p className="text-xs text-white/60">{perPersonStr}</p>}
+                  <p className="text-[13px] text-white/90 font-medium">{paxLine}</p>
+                  {perPersonStr && <p className="text-[11.5px] text-white/55">{perPersonStr}</p>}
                   {form.infants > 0 && (
-                    <p className="text-[10px] text-white/50">Infant charges as applicable / on request</p>
+                    <p className="text-[10px] text-white/45">Infant charges as applicable / on request</p>
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] text-white/60 uppercase tracking-widest font-bold mb-0.5">Total Package Price</p>
-                  <p className="text-[17px] font-extrabold text-white leading-none">{priceStr}</p>
+                  <p className="text-[10px] text-white/55 mb-1">Total package price</p>
+                  <p
+                    className={cn(DISPLAY, "font-bold text-white leading-none")}
+                    style={{ fontSize: "26px", letterSpacing: "-0.02em" }}
+                  >
+                    {priceStr}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
-            <div className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50/70 border-b border-emerald-100">
-                <span className="flex items-center justify-center size-6 rounded-lg bg-emerald-100 shrink-0">
-                  <CheckCircle size={13} className="text-emerald-600" />
-                </span>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-emerald-700">Inclusions</h3>
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
+            >
+              <div
+                className="flex items-center gap-2 px-4 py-3"
+                style={{ backgroundColor: "#F0F8F5", borderBottom: `1px solid ${DOC.rule}` }}
+              >
+                <CheckCircle size={13} color={DOC.positive} />
+                <h3 className={cn(DISPLAY, "text-[13px] font-semibold")} style={{ color: "#0B6B4F" }}>
+                  Inclusions
+                </h3>
               </div>
-              <ul className="p-4 space-y-2 text-xs text-neutral-600">
+              <ul className="p-4 space-y-2 text-[11.5px]" style={{ color: DOC.inkSoft }}>
                 {form.inclusions.map((i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <CheckCircle size={12} className="text-emerald-500 shrink-0 mt-0.5" />
+                    <CheckCircle size={12} color={DOC.positive} className="shrink-0 mt-0.5" />
                     <span>{i}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-primary-50/70 border-b border-primary-100">
-                <span className="flex items-center justify-center size-6 rounded-lg bg-primary-100 shrink-0">
-                  <XCircle size={13} className="text-primary-600" />
-                </span>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-primary-700">Exclusions</h3>
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
+            >
+              <div
+                className="flex items-center gap-2 px-4 py-3"
+                style={{ backgroundColor: DOC.accentSoft, borderBottom: `1px solid ${DOC.rule}` }}
+              >
+                <XCircle size={13} color={DOC.accent} />
+                <h3 className={cn(DISPLAY, "text-[13px] font-semibold")} style={{ color: DOC.accent }}>
+                  Exclusions
+                </h3>
               </div>
-              <ul className="p-4 space-y-2 text-xs text-neutral-600">
+              <ul className="p-4 space-y-2 text-[11.5px]" style={{ color: DOC.inkSoft }}>
                 {form.exclusions.map((i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <XCircle size={12} className="text-primary-400 shrink-0 mt-0.5" />
+                    <XCircle size={12} color="#D98B7F" className="shrink-0 mt-0.5" />
                     <span>{i}</span>
                   </li>
                 ))}
@@ -1810,77 +2098,34 @@ export function ItineraryDocument({
             </div>
           </div>
 
-          {(form.termsConditions.length > 0 || form.paymentPolicy.length > 0 || form.amendmentPolicy.length > 0) && (
-            <div className="gap-4 flex flex-col" style={{ breakInside: "avoid" }}>
-              {form.termsConditions.length > 0 && (
-                <div className="rounded-2xl border border-blue-100 bg-white overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-3 bg-blue-50/70 border-b border-blue-100">
-                    <span className="flex items-center justify-center size-6 rounded-lg bg-blue-100 shrink-0">
-                      <Info size={13} className="text-blue-600" />
-                    </span>
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-blue-700">Terms & Conditions</h3>
-                  </div>
-                  <ul className="p-4 space-y-2 text-xs text-neutral-600">
-                    {form.termsConditions.map((t) => (
-                      <li key={t} className="flex items-start gap-2">
-                        <span className="mt-1.5 size-1 rounded-full bg-blue-400 shrink-0" />
-                        <span>{t}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {form.paymentPolicy.length > 0 && (
-                <div className="rounded-2xl border border-amber-100 bg-white overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-3 bg-amber-50/70 border-b border-amber-100">
-                    <span className="flex items-center justify-center size-6 rounded-lg bg-amber-100 shrink-0">
-                      <IndianRupee size={13} className="text-amber-600" />
-                    </span>
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-amber-700">Payment Policy</h3>
-                  </div>
-                  <ul className="p-4 space-y-2 text-xs text-neutral-600">
-                    {form.paymentPolicy.map((t) => (
-                      <li key={t} className="flex items-start gap-2">
-                        <span className="mt-1.5 size-1 rounded-full bg-amber-400 shrink-0" />
-                        <span>{t}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {form.amendmentPolicy.length > 0 && (
-                <div className="rounded-2xl border border-purple-100 bg-white overflow-hidden col-span-2">
-                  <div className="flex items-center gap-2 px-4 py-3 bg-purple-50/70 border-b border-purple-100">
-                    <span className="flex items-center justify-center size-6 rounded-lg bg-purple-100 shrink-0">
-                      <Calendar size={13} className="text-purple-600" />
-                    </span>
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-purple-700">Amendment Policy</h3>
-                  </div>
-                  <ul className="p-4 grid gap-x-4 gap-y-2 text-xs text-neutral-600">
-                    {form.amendmentPolicy.map((t) => (
-                      <li key={t} className="flex items-start gap-2">
-                        <span className="mt-1.5 size-1 rounded-full bg-purple-400 shrink-0" />
-                        <span>{t}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* "Why book with us" stays a real card — it's the one marketing
+              block here, and it earns colour. Everything below it is fine
+              print and shares the quiet PolicyBlock treatment. */}
           {form.travelBenefits.length > 0 && (
-            <div className="rounded-2xl border border-teal-100 bg-white overflow-hidden" style={{ breakInside: "avoid" }}>
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-teal-50/70 border-b border-teal-100">
-                <span className="flex items-center justify-center size-6 rounded-lg bg-teal-100 shrink-0">
-                  <Sparkles size={12} className="text-teal-600" />
-                </span>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-teal-700">Why Book With Us</h3>
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                backgroundColor: DOC.accentSoft,
+                border: `1px solid ${DOC.rule}`,
+                breakInside: "avoid",
+              }}
+            >
+              <div className="flex items-center gap-2 px-4 pt-3.5 pb-2">
+                <Sparkles size={13} color={DOC.accent} />
+                <h3 className={cn(DISPLAY, "text-[13px] font-semibold")} style={{ color: DOC.ink }}>
+                  Why book with us
+                </h3>
               </div>
-              <ul className="p-3.5 grid gap-x-4 gap-y-1.5 text-[11px] text-neutral-600">
+              <ul
+                className="px-4 pb-3.5 grid grid-cols-2 gap-x-5 gap-y-1.5 text-[11px]"
+                style={{ color: DOC.inkSoft }}
+              >
                 {form.travelBenefits.map((b) => (
                   <li key={b} className="flex items-start gap-1.5">
-                    <span className="mt-1.5 size-1 rounded-full bg-teal-400 shrink-0" />
+                    <span
+                      className="mt-1.5 size-0.75 rounded-full shrink-0"
+                      style={{ backgroundColor: DOC.accent }}
+                    />
                     <span>{b}</span>
                   </li>
                 ))}
@@ -1888,27 +2133,16 @@ export function ItineraryDocument({
             </div>
           )}
 
-          {(form.customPolicySections ?? []).filter((s) => s.items.length > 0).map((section) => (
-            <div
-              key={section.id}
-              className="rounded-2xl border border-slate-200 bg-white overflow-hidden"
-              style={{ breakInside: "avoid" }}
-            >
-              <div className="flex items-center gap-2 px-4 py-3 bg-slate-50/70 border-b border-slate-100">
-                <span className="flex items-center justify-center size-6 rounded-lg bg-slate-100 shrink-0">
-                  <Info size={13} className="text-slate-600" />
-                </span>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">{section.title}</h3>
-              </div>
-              <ul className="p-4 space-y-2 text-xs text-neutral-600">
-                {section.items.map((t) => (
-                  <li key={t} className="flex items-start gap-2">
-                    <span className="mt-1.5 size-1 rounded-full bg-slate-400 shrink-0" />
-                    <span>{t}</span>
-                  </li>
-                ))}
-              </ul>
+          {(form.termsConditions.length > 0 || form.paymentPolicy.length > 0 || form.amendmentPolicy.length > 0) && (
+            <div className="flex flex-col gap-5" style={{ breakInside: "avoid" }}>
+              <PolicyBlock label="Terms & Conditions" items={form.termsConditions} />
+              <PolicyBlock label="Payment Policy" items={form.paymentPolicy} />
+              <PolicyBlock label="Amendment Policy" items={form.amendmentPolicy} />
             </div>
+          )}
+
+          {(form.customPolicySections ?? []).filter((s) => s.items.length > 0).map((section) => (
+            <PolicyBlock key={section.id} label={section.title} items={section.items} />
           ))}
 
           {form.termsNotes && <TermsAndConditions text={form.termsNotes} />}

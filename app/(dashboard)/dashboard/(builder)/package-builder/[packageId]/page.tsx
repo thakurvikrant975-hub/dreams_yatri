@@ -75,7 +75,9 @@ import { validateItineraryRequiredFields } from "./pdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
-import { getItinerarySettings, type ItinerarySettings, type PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
+import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
+import { PackageBuilderProvider, type PackageForm } from "./builder-context";
+import { applyHotelRoomSelection } from "./day-mutations";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -1130,39 +1132,10 @@ function DayCard({
   }
 
   function handleHotelRoomSelect(raw: HotelRoomResult) {
-    // Fetch which meals this room's plan actually covers instead of leaving
-    // the exec to toggle them by hand — falls back to whatever was already
-    // set if the plan has no structured meals configured (e.g. room-only).
-    const hotelMeals = raw.coveredMeals.map((k) => MEAL_KEY_LABELS[k]).filter((v): v is string => !!v);
-    onChange({
-      ...data,
-      accommodation: `${raw.hotelName} — ${raw.roomName}`,
-      accommodationPhoto: raw.hotelPhoto ?? data.accommodationPhoto,
-      accommodationRoomPhotos: raw.roomPhotos.length > 0 ? raw.roomPhotos : data.accommodationRoomPhotos,
-      accommodationLocation: raw.location ?? data.accommodationLocation,
-      accommodationRoomSpecs: raw.roomSpecs ?? data.accommodationRoomSpecs,
-      accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
-      // Occupancy caps snapshotted straight from the picked room — feeds the
-      // "rooms & mattresses needed for this party" readout below. A manual
-      // mattress count from before (if this day was previously hand-typed)
-      // no longer means anything once a real catalog room is behind it.
-      accommodationMaxAdults: raw.maxAdults,
-      accommodationMaxChildren: raw.maxChildren,
-      accommodationExtraBedCapacity: raw.extraBedCapacity,
-      manualExtraBeds: null,
-      hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
-      meals: hotelMeals.length > 0 ? hotelMeals : data.meals,
-      // The hotel's own check-in/check-out policy — previously never fetched
-      // at all, so this always stayed blank unless typed in by hand. Stored
-      // as 24h "HH:MM" on the hotel record (<input type="time">) — converted
-      // to "2:00 PM" here so it reads the same as a hand-typed value both in
-      // this field and in the document.
-      hotelCheckIn: raw.checkInTime ? formatTime12h(raw.checkInTime) : data.hotelCheckIn,
-      hotelCheckOut: raw.checkOutTime ? formatTime12h(raw.checkOutTime) : data.hotelCheckOut,
-      // Links this night to the real hotel_room_pricing row so the package
-      // price can be computed from its actual date/occupancy-aware rate.
-      roomPricingId: raw.id,
-    });
+    // The snapshot itself lives in day-mutations.ts so the preview's hotel
+    // drawer applies byte-identical state — see the note there on why a second
+    // copy of this would surface as a wrong price rather than as an error.
+    onChange(applyHotelRoomSelection(data, raw));
     if (totalDays > 1) {
       setLastRoom(raw);
       setShowRoomApplyPrompt(true);
@@ -2102,64 +2075,11 @@ function DayCard({
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Form State Type
+//
+// Lives in builder-context.tsx so the preview's inline editors and the task
+// drawers can share it without importing from this page module. The shape is
+// unchanged — see the note there on why this stays a plain useState pair.
 // ─────────────────────────────────────────────────────────────────────────────
-interface PackageForm {
-  title: string;
-  description: string;
-  coverImage: string;
-  /** Vertical focal point for the cover image's object-position (0 = top,
-   * 50 = center, 100 = bottom) — lets an awkwardly-cropped photo be
-   * re-centered without re-uploading it. */
-  coverImagePosition: number;
-  destination: string;
-  startingPoint: string;
-  totalDays: number;
-  totalNights: number;
-  travelDate: string;
-  adults: number;
-  children: number;
-  infants: number;
-  /** Index-aligned with children/infants above — see the schema comment on
-   * custom_packages.childrenAges. Resized (padded/truncated) automatically
-   * whenever the count input changes, see the Travellers section handler. */
-  childrenAges: number[];
-  infantAges: number[];
-  pricePerPerson: string;
-  totalPrice: string;
-  marginPercentage: string;
-  gstPercentage: string;
-  currency: string;
-  inclusions: string[];
-  exclusions: string[];
-  /** Read-only — costing's per-package removals of standard/added inclusion
-   * and exclusion lines (see custom_packages.removedInclusions), hydrated
-   * from the saved package and applied when building previewForm below.
-   * Never sent back by saveCustomPackage. */
-  removedInclusions: string[];
-  removedExclusions: string[];
-  termsNotes: string;
-  termsConditions: string[];
-  paymentPolicy: string[];
-  amendmentPolicy: string[];
-  travelBenefits: string[];
-  customPolicySections: PolicySection[];
-  /** Per-package additions to the six standard lists above — anyone
-   * (including a Sales Executive, who can't touch the standard lists
-   * themselves) can add/remove these. See ExtraPolicyItems. */
-  extraPolicyItems: ExtraPolicyItems;
-  stops: StopInput[];
-  itineraries: DayItinerary[];
-  /** Each row is one flight or train leg (onward, return, connecting…) —
-   * flightsIncluded/flightFrom/etc are derived from this list at save/preview
-   * time (see deriveTransportFields) instead of being separately toggled. */
-  tickets: TicketInput[];
-  /** Priced add-ons — honeymoon kit, permits, etc. Subtotal (price × qty)
-   * feeds into computeFinalPricing at the standard (25% default) margin. */
-  addOns: AddonInput[];
-  execName: string;
-  execEmail: string;
-  execDesignation: string;
-}
 
 /** Keeps a children/infants ages array in sync with a changed traveller
  * count — grows with 0-filled slots, shrinks by dropping the trailing ones. */
@@ -3725,6 +3645,11 @@ Rules:
     // Print already strips this via the `.print-reset` @media print rule in
     // ItineraryDocument's PRINT_STYLES (height: auto !important etc.), so
     // PDF export/print still gets the full, unclipped document.
+    // Everything below can reach form state through useBuilder() instead of
+    // having it threaded down as props — which is what lets the preview
+    // document on the left edit the itinerary directly. canEdit carries the
+    // same lock the right-hand panel has always honoured, from one place.
+    <PackageBuilderProvider form={form} setForm={setForm} canEdit={!isLocked}>
     <div className="print-reset h-screen overflow-hidden flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
@@ -5210,6 +5135,7 @@ Rules:
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </PackageBuilderProvider>
   );
 }
 
