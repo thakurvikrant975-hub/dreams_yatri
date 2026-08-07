@@ -78,6 +78,8 @@ import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { PackageBuilderProvider, type PackageForm } from "./builder-context";
 import { applyHotelRoomSelection } from "./day-mutations";
+import { geocodeCity } from "./geocode-city";
+import { BuilderDrawer } from "./BuilderDrawer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -144,33 +146,6 @@ const TRIP_TYPE_LABELS: Record<string, string> = {
   ADVENTURE: "Adventure", PILGRIMAGE: "Pilgrimage / Religious",
   BUSINESS: "Business", CORPORATE: "Corporate / MICE", OTHER: "Other",
 };
-
-// Geocodes the day's search-city text (Mapbox, India-scoped) so hotel search
-// results can show "X km from {city}" — cached in module scope, same pattern
-// as ItineraryMap.tsx, since the same city gets searched repeatedly across days.
-const cityGeocodeCache = new Map<string, { lat: number; lng: number } | null>();
-async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
-  const key = query.trim().toLowerCase();
-  if (!key) return null;
-  if (cityGeocodeCache.has(key)) return cityGeocodeCache.get(key) ?? null;
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  if (!token) return null;
-  try {
-    const res = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-      `?access_token=${token}&limit=1&country=IN&proximity=78.9629,20.5937`,
-    );
-    if (!res.ok) { cityGeocodeCache.set(key, null); return null; }
-    const data = await res.json();
-    const center = data.features?.[0]?.center as [number, number] | undefined; // [lng, lat]
-    const result = center ? { lat: center[1], lng: center[0] } : null;
-    cityGeocodeCache.set(key, result);
-    return result;
-  } catch {
-    cityGeocodeCache.set(key, null);
-    return null;
-  }
-}
 
 const DEFAULT_INCLUSIONS = [
   "Accommodation as per itinerary",
@@ -3650,6 +3625,9 @@ Rules:
     // document on the left edit the itinerary directly. canEdit carries the
     // same lock the right-hand panel has always honoured, from one place.
     <PackageBuilderProvider form={form} setForm={setForm} canEdit={!isLocked}>
+    {/* Mounted once; what it shows is driven by the context's drawer target,
+        so a clickable hotel in the preview doesn't need to own this UI. */}
+    <BuilderDrawer />
     <div className="print-reset h-screen overflow-hidden flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}

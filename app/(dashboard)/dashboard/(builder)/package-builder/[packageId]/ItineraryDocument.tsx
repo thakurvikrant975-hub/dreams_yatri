@@ -19,6 +19,7 @@ import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { EditableText } from "./EditableText";
+import { useOptionalBuilder } from "./builder-context";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
@@ -451,15 +452,19 @@ function PolicyBlock({ label, items }: { label: string; items: string[] }) {
  * icon and the word — the actual information — rather than a differently
  * coloured frame drawn around each one. Consistency is what makes them
  * scannable; four different box treatments is what made them noise. */
-function DaySubHead({ icon: Icon, label, meta }: {
+function DaySubHead({ icon: Icon, label, meta, onEdit }: {
   icon: React.ElementType;
   label: string;
   /** Optional inline detail (distance, drive time, route) shown after the
    * label — it rides on the same line rather than earning its own row. */
   meta?: string | null;
+  /** When supplied, the marker becomes the way into this section's task
+   * drawer. Only ever passed inside the builder — the client-facing document
+   * gets the plain, non-interactive marker. */
+  onEdit?: () => void;
 }) {
-  return (
-    <div className="flex items-center gap-2" style={{ breakAfter: "avoid" }}>
+  const inner = (
+    <>
       <Icon size={11} color={DOC.accent} className="shrink-0" />
       <span
         className="text-[9.5px] font-semibold uppercase tracking-[0.14em] shrink-0"
@@ -473,7 +478,36 @@ function DaySubHead({ icon: Icon, label, meta }: {
         </span>
       )}
       <span className="h-px flex-1" style={{ backgroundColor: DOC.rule }} />
-    </div>
+      {onEdit && (
+        // builder-only: real rendered text, so it would otherwise be baked
+        // into the exported PDF (html2canvas rasterises the screen DOM — see
+        // the data-exporting rule in PRINT_STYLES).
+        <span
+          className="builder-only no-print text-[9px] font-semibold uppercase tracking-widest shrink-0 opacity-0 group-hover/sub:opacity-100 transition-opacity"
+          style={{ color: DOC.accent }}
+        >
+          Edit
+        </span>
+      )}
+    </>
+  );
+
+  if (!onEdit) {
+    return (
+      <div className="flex items-center gap-2" style={{ breakAfter: "avoid" }}>{inner}</div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      title={`Edit ${label.toLowerCase()}`}
+      className="group/sub flex w-full items-center gap-2 text-left rounded-[3px] hover:bg-dashboard-primary/6 focus-visible:outline-2 focus-visible:outline-dashboard-primary/60"
+      style={{ breakAfter: "avoid" }}
+    >
+      {inner}
+    </button>
   );
 }
 
@@ -1060,6 +1094,10 @@ function DayCardPreview({
    * just this day's, shown right below the Hotel section. */
   addOns?: AddonInput[];
 }) {
+  // Null on the public client-facing page, which renders this same component
+  // without a builder around it — that's what keeps every edit affordance
+  // below out of the client's copy.
+  const builder = useOptionalBuilder();
   // Keeps each activity's original index (for onImageChange targeting) even
   // though blank ones are filtered out of what's actually rendered.
   const activities = day.activities
@@ -1141,10 +1179,34 @@ function DayCardPreview({
           className="block text-xs text-neutral-600 leading-relaxed"
         />
 
+        {/* A day with no stay yet. Only ever rendered in the builder, where a
+            blank gap is a dead end — the client's copy simply omits the
+            section, exactly as before. */}
+        {!hasHotel && builder?.canEdit && (
+          <button
+            type="button"
+            onClick={() => builder.openDrawer({ kind: "hotel-replace", day: day.day })}
+            className="builder-only no-print w-full flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left transition-colors hover:bg-dashboard-primary/6"
+            style={{ borderColor: DOC.rule }}
+          >
+            <Hotel size={12} color={DOC.accent} className="shrink-0" />
+            <span className="text-[11px] font-medium" style={{ color: DOC.accent }}>
+              Add a stay for this day
+            </span>
+          </button>
+        )}
+
         {/* Hotel info */}
         {hasHotel && (
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
-            <DaySubHead icon={Hotel} label="Stay" />
+            <DaySubHead
+              icon={Hotel}
+              label="Stay"
+              // canEdit, not merely "is there a builder" — a package locked
+              // for costing review must not offer the affordance at all,
+              // rather than offering one that silently does nothing.
+              onEdit={builder?.canEdit ? () => builder.openDrawer({ kind: "hotel-edit", day: day.day }) : undefined}
+            />
             <div className={cn("flex gap-3", SUBHEAD_INDENT)}>
               <div className="flex-1 min-w-0 space-y-1.5">
                 <p className={cn(DISPLAY, "text-[12.5px] font-semibold")} style={{ color: DOC.ink }}>
