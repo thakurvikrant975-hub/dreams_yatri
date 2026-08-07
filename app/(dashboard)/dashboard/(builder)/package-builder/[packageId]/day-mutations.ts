@@ -202,3 +202,45 @@ export function moveActivity(day: DayItinerary, index: number, delta: number): D
   next.splice(to, 0, moved);
   return { ...day, activities: next };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Costing overrides
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Drops a costing correction that no longer describes what's selected.
+ *
+ * hotelPriceOverride/cabPriceOverride are corrections costing applied to a
+ * SPECIFIC hotel or cab during review. saveCustomPackage already invalidates
+ * them server-side once the selection changes (hotelSelectionChanged /
+ * cabSelectionChanged in package-builder/action.ts) — but that only lands after
+ * a save round-trips and the form is refreshed, which plain "Save Draft" never
+ * does. Until then the live preview would keep pricing off the stale override,
+ * so swapping a hotel right after a costing rejection would silently show the
+ * old corrected price.
+ *
+ * The right-hand panel has always mirrored that invalidation client-side. This
+ * is the same predicate, extracted so every edit surface gets it — a drawer
+ * that wrote the day directly would otherwise reintroduce exactly the bug the
+ * panel already guards against.
+ */
+export function invalidateStaleOverrides(prev: DayItinerary, next: DayItinerary): DayItinerary {
+  const hotelChanged =
+    prev.roomPricingId !== next.roomPricingId
+    || prev.roomsCount !== next.roomsCount
+    || prev.manualHotelPricePerNight !== next.manualHotelPricePerNight
+    || prev.accommodation !== next.accommodation
+    || JSON.stringify(prev.extraRooms ?? []) !== JSON.stringify(next.extraRooms ?? []);
+  const cabChanged =
+    prev.cabPricingId !== next.cabPricingId
+    || prev.transportDistanceKm !== next.transportDistanceKm
+    || prev.cabQuantity !== next.cabQuantity
+    || JSON.stringify(prev.extraCabs ?? []) !== JSON.stringify(next.extraCabs ?? []);
+
+  if (!hotelChanged && !cabChanged) return next;
+  return {
+    ...next,
+    hotelPriceOverride: hotelChanged ? null : next.hotelPriceOverride,
+    cabPriceOverride: cabChanged ? null : next.cabPriceOverride,
+  };
+}

@@ -34,7 +34,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function TransferView({ day }: { day: number }) {
-  const { form, setForm, updateDay, closeDrawer } = useBuilder();
+  const { form, replaceDay, updateDay, closeDrawer } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
   const derivedCity = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
@@ -70,18 +70,12 @@ export function TransferView({ day }: { day: number }) {
   if (!itin) return null;
 
   function pick(hit: AnyVehicleHit) {
-    setForm((f) => ({
-      ...f,
-      itineraries: f.itineraries.map((it) => (it.day === day ? applyVehicleSelection(it, hit) : it)),
-    }));
+    replaceDay(day, (it) => applyVehicleSelection(it, hit));
     toast.success(`Day ${day}: ${isPricedVehicle(hit) ? hit.vehicleName : hit.name}`);
   }
 
   function removeVehicle() {
-    setForm((f) => ({
-      ...f,
-      itineraries: f.itineraries.map((it) => (it.day === day ? clearVehicleSelection(it) : it)),
-    }));
+    replaceDay(day, clearVehicleSelection);
     toast.success(`Day ${day}: transport removed`);
     closeDrawer();
   }
@@ -222,7 +216,7 @@ export function TransferView({ day }: { day: number }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ActivitiesView({ day }: { day: number }) {
-  const { form, setForm } = useBuilder();
+  const { form, replaceDay } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
   if (!itin) return null;
 
@@ -230,10 +224,7 @@ export function ActivitiesView({ day }: { day: number }) {
   // guard above narrows the value, but not the type this closure is
   // declared with, which would still include undefined.
   function mutate(fn: (d: DayItinerary) => DayItinerary) {
-    setForm((f) => ({
-      ...f,
-      itineraries: f.itineraries.map((it) => (it.day === day ? fn(it) : it)),
-    }));
+    replaceDay(day, fn);
   }
 
   return (

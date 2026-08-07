@@ -31,6 +31,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import type {
   StopInput, DayItinerary, TicketInput, AddonInput, ExtraPolicyItems,
 } from "../action";
+import { invalidateStaleOverrides } from "./day-mutations";
 import type { PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -133,12 +134,32 @@ type BuilderContextValue = {
   drawer: DrawerTarget | null;
   openDrawer: (target: DrawerTarget) => void;
   closeDrawer: () => void;
-  /** Replaces one day in `form.itineraries`, matched by its `day` number.
-   * Every day-level edit surface goes through this rather than reaching into
-   * the array itself, so the update shape stays identical no matter which
-   * control made it. */
+  /** Patches one day in `form.itineraries`, matched by its `day` number. */
   updateDay: (day: number, patch: Partial<DayItinerary>) => void;
+  /** Same, for an edit that needs the previous day to compute the next one
+   * (picking a hotel, reordering activities). Both go through replaceDay
+   * below, so no edit surface can skip the override invalidation. */
+  replaceDay: (day: number, fn: (day: DayItinerary) => DayItinerary) => void;
 };
+
+/** The one way a day changes.
+ *
+ * Applies the caller's edit, then drops any costing correction that no longer
+ * matches what's selected — see invalidateStaleOverrides. Keeping that here
+ * rather than at each call site is the difference between "every surface
+ * invalidates" and "every surface remembers to invalidate". */
+function replaceDay(
+  form: PackageForm,
+  day: number,
+  fn: (day: DayItinerary) => DayItinerary,
+): PackageForm {
+  return {
+    ...form,
+    itineraries: form.itineraries.map((it) =>
+      it.day === day ? invalidateStaleOverrides(it, fn(it)) : it,
+    ),
+  };
+}
 
 const BuilderContext = createContext<BuilderContextValue | null>(null);
 
@@ -159,10 +180,8 @@ export function PackageBuilderProvider({
     drawer,
     openDrawer: (target) => setDrawer(target),
     closeDrawer: () => setDrawer(null),
-    updateDay: (day, patch) => setForm((f) => ({
-      ...f,
-      itineraries: f.itineraries.map((it) => (it.day === day ? { ...it, ...patch } : it)),
-    })),
+    updateDay: (day, patch) => setForm((f) => replaceDay(f, day, (it) => ({ ...it, ...patch }))),
+    replaceDay: (day, fn) => setForm((f) => replaceDay(f, day, fn)),
   }), [form, setForm, canEdit, drawer]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;

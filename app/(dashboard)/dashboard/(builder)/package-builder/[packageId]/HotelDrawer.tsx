@@ -26,14 +26,14 @@ import { geocodeCity } from "./geocode-city";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { useBuilder } from "./builder-context";
-import { applyHotelRoomSelection, clearHotelSelection } from "./day-mutations";
+import { applyHotelRoomSelection, clearHotelSelection, invalidateStaleOverrides } from "./day-mutations";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Replace
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HotelReplaceView({ day }: { day: number }) {
-  const { form, setForm, openDrawer, closeDrawer } = useBuilder();
+  const { form, setForm, replaceDay, openDrawer, closeDrawer } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
   // The stop this day is assigned to by the route builder — the default search
@@ -80,10 +80,7 @@ export function HotelReplaceView({ day }: { day: number }) {
   if (!itin) return null;
 
   function pick(room: HotelRoomResult) {
-    setForm((f) => ({
-      ...f,
-      itineraries: f.itineraries.map((it) => (it.day === day ? applyHotelRoomSelection(it, room) : it)),
-    }));
+    replaceDay(day, (it) => applyHotelRoomSelection(it, room));
     toast.success(`Day ${day}: ${room.hotelName}`);
     // Straight into the details view — picking a property is almost always
     // followed by setting how many rooms of it are needed.
@@ -107,7 +104,11 @@ export function HotelReplaceView({ day }: { day: number }) {
     }
     setForm((f) => ({
       ...f,
-      itineraries: f.itineraries.map((it) => applyHotelRoomSelection(it, source)),
+      // Every day changes here, so this can't go through replaceDay(day, …) —
+      // the invalidation is applied per day instead, for the same reason.
+      itineraries: f.itineraries.map((it) =>
+        invalidateStaleOverrides(it, applyHotelRoomSelection(it, source)),
+      ),
     }));
     toast.success(`Applied to all ${form.itineraries.length} days`);
     closeDrawer();
@@ -220,7 +221,7 @@ export function HotelReplaceView({ day }: { day: number }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HotelEditView({ day }: { day: number }) {
-  const { form, setForm, updateDay, openDrawer, closeDrawer } = useBuilder();
+  const { form, replaceDay, updateDay, openDrawer, closeDrawer } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
   if (!itin) return null;
 
@@ -233,10 +234,7 @@ export function HotelEditView({ day }: { day: number }) {
   }, itin.roomsCount);
 
   function removeHotel() {
-    setForm((f) => ({
-      ...f,
-      itineraries: f.itineraries.map((it) => (it.day === day ? clearHotelSelection(it) : it)),
-    }));
+    replaceDay(day, clearHotelSelection);
     toast.success(`Day ${day}: stay removed`);
     closeDrawer();
   }
