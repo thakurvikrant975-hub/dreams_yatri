@@ -20,6 +20,7 @@ import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { EditableText } from "./EditableText";
 import { useOptionalBuilder } from "./builder-context";
+import { EditablePolicyList } from "./EditablePolicyList";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
@@ -2163,14 +2164,13 @@ export function ItineraryDocument({
                   Inclusions
                 </h3>
               </div>
-              <ul className="p-4 space-y-2 text-[11.5px]" style={{ color: DOC.inkSoft }}>
-                {form.inclusions.map((i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <CheckCircle size={12} color={DOC.positive} className="shrink-0 mt-0.5" />
-                    <span>{i}</span>
-                  </li>
-                ))}
-              </ul>
+              <EditablePolicyList
+                items={form.inclusions}
+                listKey="inclusions"
+                itemClassName="text-[11.5px]"
+                style={{ color: DOC.inkSoft }}
+                marker={() => <CheckCircle size={12} color={DOC.positive} className="shrink-0 mt-0.5" />}
+              />
             </div>
             <div
               className="rounded-2xl overflow-hidden"
@@ -2185,14 +2185,13 @@ export function ItineraryDocument({
                   Exclusions
                 </h3>
               </div>
-              <ul className="p-4 space-y-2 text-[11.5px]" style={{ color: DOC.inkSoft }}>
-                {form.exclusions.map((i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <XCircle size={12} color="#D98B7F" className="shrink-0 mt-0.5" />
-                    <span>{i}</span>
-                  </li>
-                ))}
-              </ul>
+              <EditablePolicyList
+                items={form.exclusions}
+                listKey="exclusions"
+                itemClassName="text-[11.5px]"
+                style={{ color: DOC.inkSoft }}
+                marker={() => <XCircle size={12} color="#D98B7F" className="shrink-0 mt-0.5" />}
+              />
             </div>
           </div>
 

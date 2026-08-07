@@ -261,6 +261,74 @@ export function useCanEdit(): boolean {
   return useBuilder().canEdit;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Inclusions / exclusions
+//
+// Three lists per section, and only one of them is the exec's to change:
+//
+//   form.inclusions          company-wide standard content, owned by
+//                            /dashboard/itinerary-settings. Read-only here.
+//   form.extraPolicyItems.*  this package's own additions. Fully editable.
+//   form.removedInclusions   costing's per-package vetoes, written ONLY by
+//                            verify-packages and never sent back by
+//                            saveCustomPackage. Read-only here, deliberately.
+//
+// The document renders one merged list (see previewForm), built as
+// [...standard, ...extra] with removals filtered out of both. Because that
+// order is stable, a line's index alone says which list it came from — no
+// string matching, so a custom line that happens to duplicate a standard one
+// can't be mis-attributed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PolicyListKey = "inclusions" | "exclusions";
+
+/** How many standard lines survive costing's removals — everything at or past
+ * this index in the merged list is one of this package's own additions. */
+export function standardCount(form: PackageForm, key: PolicyListKey): number {
+  const removed = key === "inclusions" ? form.removedInclusions : form.removedExclusions;
+  return form[key].filter((i) => !removed.includes(i)).length;
+}
+
+export function addExtraPolicyItem(form: PackageForm, key: PolicyListKey, value: string): PackageForm {
+  const next = value.trim();
+  if (!next) return form;
+  return {
+    ...form,
+    extraPolicyItems: {
+      ...form.extraPolicyItems,
+      [key]: [...form.extraPolicyItems[key], next],
+    },
+  };
+}
+
+export function updateExtraPolicyItem(
+  form: PackageForm, key: PolicyListKey, index: number, value: string,
+): PackageForm {
+  const next = value.trim();
+  // An emptied line is a removal — leaving a blank bullet on a client-facing
+  // document is never what someone meant by clearing the text.
+  if (!next) return removeExtraPolicyItem(form, key, index);
+  return {
+    ...form,
+    extraPolicyItems: {
+      ...form.extraPolicyItems,
+      [key]: form.extraPolicyItems[key].map((v, i) => (i === index ? next : v)),
+    },
+  };
+}
+
+export function removeExtraPolicyItem(
+  form: PackageForm, key: PolicyListKey, index: number,
+): PackageForm {
+  return {
+    ...form,
+    extraPolicyItems: {
+      ...form.extraPolicyItems,
+      [key]: form.extraPolicyItems[key].filter((_, i) => i !== index),
+    },
+  };
+}
+
 /** Read one day out of form state by its day number. */
 export function useDay(day: number): DayItinerary | undefined {
   const { form } = useBuilder();
