@@ -18,7 +18,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/sheet";
 import { useBuilder, type DrawerTarget } from "./builder-context";
-import { HotelReplaceView, HotelEditView } from "./HotelDrawer";
+import { HotelReplaceView, HotelEditView, HotelRequestView } from "./HotelDrawer";
 import { TransferView, ActivitiesView } from "./DayDrawers";
 import { MealsView, AddonsView, TicketsView } from "./ExtrasDrawers";
 
@@ -66,6 +66,11 @@ function headingFor(target: DrawerTarget): { title: string; description: string 
         title: "Flights, trains & helicopters",
         description: "Every leg of the journey. The route map on the itinerary is built from these.",
       };
+    case "hotel-request":
+      return {
+        title: `Day ${target.day} — request a hotel`,
+        description: "Hand this day to the hotel team. It blocks costing review until they fill it in.",
+      };
   }
 }
 
@@ -78,6 +83,7 @@ function bodyFor(target: DrawerTarget) {
     case "meals-edit": return <MealsView day={target.day} />;
     case "addons-edit": return <AddonsView day={target.day} />;
     case "tickets-edit": return <TicketsView />;
+    case "hotel-request": return <HotelRequestView day={target.day} />;
   }
 }
 

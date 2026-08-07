@@ -30,13 +30,15 @@ import { useBuilder } from "./builder-context";
 
 const CONFIRM_WORD = "delete";
 
-export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasMeals, hasAddons }: {
+export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasMeals, hasAddons, isPending }: {
   day: number;
   hasStay: boolean;
   hasTransport: boolean;
   hasActivities: boolean;
   hasMeals: boolean;
   hasAddons: boolean;
+  /** Awaiting the hotel team — the stay row points at the request. */
+  isPending: boolean;
 }) {
   const { openDrawer, addDayAfter, removeDay, form } = useBuilder();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -72,8 +74,14 @@ export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasM
           {/* Already-present pieces are offered as "Edit" rather than hidden:
               a menu whose contents change shape as a day fills up is harder to
               build a habit around than one that always has the same rows. */}
-          <DropdownMenuItem onSelect={() => openDrawer({ kind: hasStay ? "hotel-edit" : "hotel-replace", day })}>
-            <Hotel size={13} /> {hasStay ? "Edit stay" : "Stay"}
+          <DropdownMenuItem
+            onSelect={() => openDrawer(
+              isPending
+                ? { kind: "hotel-request", day }
+                : { kind: hasStay ? "hotel-edit" : "hotel-replace", day },
+            )}
+          >
+            <Hotel size={13} /> {isPending ? "Hotel request" : hasStay ? "Edit stay" : "Stay"}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => openDrawer({ kind: "transfer-edit", day })}>
             <Car size={13} /> {hasTransport ? "Edit transport" : "Transport"}

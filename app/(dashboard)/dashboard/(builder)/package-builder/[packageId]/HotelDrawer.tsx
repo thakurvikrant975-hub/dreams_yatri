@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, CopyIcon } from "lucide-react";
+import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, CopyIcon, Clock, Send } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -23,10 +23,14 @@ import {
   searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult,
 } from "../action";
 import { geocodeCity } from "./geocode-city";
+import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { useBuilder } from "./builder-context";
-import { applyHotelRoomSelection, clearHotelSelection, invalidateStaleOverrides } from "./day-mutations";
+import {
+  applyHotelRoomSelection, clearHotelSelection, invalidateStaleOverrides,
+  beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
+} from "./day-mutations";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Replace
@@ -135,6 +139,19 @@ export function HotelReplaceView({ day }: { day: number }) {
         </label>
       </div>
 
+      {/* The escape hatch this view exists to offer: nothing in the catalog
+          fits, so hand the day over instead of leaving it empty. */}
+      <button
+        type="button"
+        onClick={() => {
+          replaceDay(day, beginHotelRequest);
+          openDrawer({ kind: "hotel-request", day });
+        }}
+        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100"
+      >
+        <Clock size={12} /> Can&apos;t find one? Request from the hotel team
+      </button>
+
       {itin.roomPricingId != null && form.itineraries.length > 1 && (
         <button
           type="button"
@@ -239,6 +256,12 @@ export function HotelEditView({ day }: { day: number }) {
     closeDrawer();
   }
 
+  if (itin.hotelPending) {
+    // A day awaiting the team has no room to show details for — send the
+    // exec straight to the request itself.
+    return <HotelRequestView day={day} />;
+  }
+
   return (
     <div className="p-5 space-y-5">
       <div className="rounded-xl border border-dashboard-base-300 p-3">
@@ -328,6 +351,178 @@ export function HotelEditView({ day }: { day: number }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Add Hotels by Team" request
+//
+// Restores the flow the right-hand panel already has: when nothing in the
+// catalog fits, hand the day to the hotel team instead of leaving it blank.
+// Same three states as the panel — compose, submitted (locked), editing — and
+// the same fields, because the hotel team's fill page reads them back and
+// prefills from them (see FillHotelForm).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function HotelRequestView({ day }: { day: number }) {
+  const { form, replaceDay, openDrawer, closeDrawer } = useBuilder();
+  const itin = form.itineraries.find((it) => it.day === day);
+
+  const [mealTypes, setMealTypes] = useState<{ id: number; name: string }[]>([]);
+  // Composing means "form open". A submitted request re-opens the form via
+  // Edit; hotelPending stays true throughout that, so it can't be inferred
+  // from the day alone.
+  const [composing, setComposing] = useState(!itin?.hotelPending);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMealTypes().then((rows) => { if (!cancelled) setMealTypes(rows); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!itin) return null;
+
+  function submit() {
+    replaceDay(day, submitHotelRequest);
+    setComposing(false);
+    toast.success(`Day ${day} sent to the hotel team`);
+  }
+
+  function withdraw() {
+    replaceDay(day, cancelHotelRequest);
+    toast.success(`Day ${day}: request withdrawn`);
+    openDrawer({ kind: "hotel-replace", day });
+  }
+
+  // ── Submitted, not being edited ──────────────────────────────────────────
+  if (itin.hotelPending && !composing) {
+    const chips = [
+      itin.hotelRequestType ? (STAY_TYPE_LABELS[itin.hotelRequestType] ?? itin.hotelRequestType) : null,
+      itin.roomsCount != null ? `${itin.roomsCount} room${itin.roomsCount !== 1 ? "s" : ""}` : null,
+      (itin.manualExtraBeds ?? 0) > 0
+        ? `${itin.manualExtraBeds} mattress${itin.manualExtraBeds !== 1 ? "es" : ""}` : null,
+      itin.hotelMealPlan || null,
+    ].filter((v): v is string => !!v);
+
+    return (
+      <div className="p-5 space-y-4">
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2.5">
+          <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
+            <Clock size={14} /> Pending — awaiting hotel team
+          </div>
+          {chips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {chips.map((c) => (
+                <span key={c} className="inline-flex items-center rounded-full bg-white border border-amber-300 text-amber-800 text-[11px] font-medium px-2 py-0.5">
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
+          {itin.hotelPendingNote && (
+            <p className="text-[11px] text-amber-800/90 bg-white/70 border border-amber-200 rounded-md px-2 py-1.5">
+              &quot;{itin.hotelPendingNote}&quot;
+            </p>
+          )}
+          <p className="text-[11px] text-amber-700/80">
+            This day is in the hotel team&apos;s queue. Submitting for costing review is
+            blocked until they fill it in.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Button type="button" variant="outline" className="h-9 text-xs" onClick={() => setComposing(true)}>
+            Edit request
+          </Button>
+          <Button
+            type="button" variant="ghost"
+            className="h-9 text-xs text-dashboard-error hover:text-dashboard-error"
+            onClick={withdraw}
+          >
+            Withdraw — search for a hotel instead
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Compose / edit ───────────────────────────────────────────────────────
+  return (
+    <div className="p-5 space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <label className="space-y-1">
+          <span className="text-[11px] text-dashboard-base-content/60">Hotel type</span>
+          <select
+            value={itin.hotelRequestType ?? ""}
+            onChange={(e) => replaceDay(day, (d) => ({ ...d, hotelRequestType: e.target.value || null }))}
+            className="w-full text-sm h-9 rounded-md border border-dashboard-base-300 bg-transparent px-2"
+          >
+            <option value="">Any</option>
+            {Object.entries(STAY_TYPE_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[11px] text-dashboard-base-content/60">Meal plan</span>
+          <select
+            value={itin.hotelMealPlan}
+            onChange={(e) => replaceDay(day, (d) => ({ ...d, hotelMealPlan: e.target.value }))}
+            className="w-full text-sm h-9 rounded-md border border-dashboard-base-300 bg-transparent px-2"
+          >
+            <option value="">Any</option>
+            {mealTypes.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[11px] text-dashboard-base-content/60">Rooms needed</span>
+          <Input
+            type="number" min={1}
+            value={itin.roomsCount ?? ""}
+            onChange={(e) => replaceDay(day, (d) => ({
+              ...d, roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+            }))}
+            placeholder="1" className="h-9 text-sm"
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1">
+            <BedDouble size={11} /> Mattresses needed
+          </span>
+          <Input
+            type="number" min={0}
+            value={itin.manualExtraBeds ?? ""}
+            onChange={(e) => replaceDay(day, (d) => ({
+              ...d, manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
+            }))}
+            placeholder="0" className="h-9 text-sm"
+          />
+        </label>
+      </div>
+
+      <label className="space-y-1 block">
+        <span className="text-[11px] text-dashboard-base-content/60">Request message</span>
+        <textarea
+          value={itin.hotelPendingNote}
+          onChange={(e) => replaceDay(day, (d) => ({ ...d, hotelPendingNote: e.target.value }))}
+          placeholder="Budget, why nothing fit, preferred area, special requirements…"
+          rows={3}
+          className="w-full rounded-md border border-dashboard-base-300 px-3 py-2 text-xs resize-y focus-visible:outline-2 focus-visible:outline-dashboard-primary/40"
+        />
+      </label>
+
+      <div className="flex items-center gap-2">
+        <Button type="button" className="h-9 text-xs gap-1.5 flex-1" onClick={submit}>
+          <Send size={12} /> {itin.hotelPending ? "Update request" : "Send to hotel team"}
+        </Button>
+        <Button
+          type="button" variant="ghost" className="h-9 text-xs"
+          onClick={() => (itin.hotelPending ? setComposing(false) : closeDrawer())}
+        >
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }

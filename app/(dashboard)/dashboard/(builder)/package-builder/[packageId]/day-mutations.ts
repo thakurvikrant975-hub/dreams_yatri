@@ -314,3 +314,61 @@ export function computeDurationText(departureTime: string, arrivalTime: string):
 export const emptyAddon = (day: number | null = null): AddonInput => ({
   name: "", price: null, quantity: 1, notes: "", day,
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Add Hotels by Team" request
+//
+// When an exec can't find a suitable hotel in the catalog, the day is handed
+// to the hotel team instead: hotelPending flags it into their queue
+// (/dashboard/hotel-requests) and blocks the package from going to costing
+// review until they fill it in.
+//
+// The request reuses roomsCount / manualExtraBeds / hotelMealPlan rather than
+// having its own columns — see the 20260806150000_add_hotel_request_type
+// migration note. That means starting a request and picking a hotel write to
+// overlapping fields, which is exactly why both live here rather than being
+// spelled out at each call site.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Property types an exec can ask the team for. Mirrors STAY_LABELS in
+ * page.tsx, which stays there because the right panel renders the same list. */
+export const STAY_TYPE_LABELS: Record<string, string> = {
+  STAR_3: "3★ Hotel", STAR_4: "4★ Hotel", STAR_5: "5★ Hotel",
+  BOUTIQUE: "Boutique", HOMESTAY: "Homestay",
+  RESORT: "Resort", CAMP: "Camp", BUDGET: "Budget",
+};
+
+/**
+ * Clears the day's catalog hotel so a request can be composed against it.
+ *
+ * A request and a picked room are mutually exclusive: the pricing engine takes
+ * the manual branch for a day with no roomPricingId, so leaving a stale room
+ * behind would keep charging for a hotel the exec has just said they couldn't
+ * find. Does NOT set hotelPending — the day only enters the team's queue on
+ * submit, so an abandoned form leaves nothing behind.
+ */
+export function beginHotelRequest(day: DayItinerary): DayItinerary {
+  return {
+    ...clearHotelSelection(day),
+    manualExtraBeds: null,
+    manualHotelPricePerNight: null,
+    manualExtraBedRate: null,
+    hotelRequestType: null,
+    hotelPendingNote: "",
+  };
+}
+
+/** Puts the day into the hotel team's queue. */
+export function submitHotelRequest(day: DayItinerary): DayItinerary {
+  return { ...day, hotelPending: true };
+}
+
+/** Withdraws the request — the exec would rather search again after all. */
+export function cancelHotelRequest(day: DayItinerary): DayItinerary {
+  return {
+    ...day,
+    hotelPending: false,
+    hotelPendingNote: "",
+    hotelRequestType: null,
+  };
+}

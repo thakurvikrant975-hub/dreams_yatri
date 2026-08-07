@@ -124,7 +124,9 @@ export type DrawerTarget =
    * day's stay); null is a package-level add-on. */
   | { kind: "addons-edit"; day: number | null }
   /** Flight / train / helicopter legs — package-level, never day-scoped. */
-  | { kind: "tickets-edit" };
+  | { kind: "tickets-edit" }
+  /** Ask the hotel team to source a stay for this day. */
+  | { kind: "hotel-request"; day: number };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context

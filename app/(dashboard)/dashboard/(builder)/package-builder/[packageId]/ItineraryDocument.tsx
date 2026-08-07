@@ -1220,6 +1220,7 @@ function DayCardPreview({
               hasActivities={activities.length > 0}
               hasMeals={(shiftedMeals ?? day.meals).length > 0}
               hasAddons={(addOns ?? []).some((a) => a.day === day.day)}
+              isPending={!!day.hotelPending}
             />
           </div>
         )}
@@ -1250,7 +1251,13 @@ function DayCardPreview({
               // canEdit, not merely "is there a builder" — a package locked
               // for costing review must not offer the affordance at all,
               // rather than offering one that silently does nothing.
-              onEdit={builder?.canEdit ? () => builder.openDrawer({ kind: "hotel-edit", day: day.day }) : undefined}
+              onEdit={builder?.canEdit
+                ? () => builder.openDrawer(
+                    day.hotelPending
+                      ? { kind: "hotel-request", day: day.day }
+                      : { kind: "hotel-edit", day: day.day },
+                  )
+                : undefined}
             />
             <div className={cn("flex gap-3", SUBHEAD_INDENT)}>
               <div className="flex-1 min-w-0 space-y-1.5">
