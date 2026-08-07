@@ -87,7 +87,7 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                                 requestedRooms={it.roomsCount}
                                 requestedMattresses={it.manualExtraBeds}
                                 requestedMealPlan={it.hotelMealPlan}
-                                mealTypeOptions={mealTypes.map((m) => m.name)}
+                                mealTypes={mealTypes}
                             />
                         );
                     })}

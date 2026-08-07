@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { cn } from "@/app/lib/utils";
 import { fillPendingHotel } from "../actions";
 
 // Mirrors STAY_LABELS in package-builder/[packageId]/page.tsx — the exec's
@@ -16,9 +17,19 @@ const STAY_LABELS: Record<string, string> = {
     RESORT: "Resort", CAMP: "Camp", BUDGET: "Budget",
 };
 
+// Mirrors MEAL_OPTIONS/MEAL_KEY_LABELS in package-builder/[packageId]/page.tsx
+// — same meal categories, same lowercase covered_meals keys from meal_types,
+// so a plan picked here lights up the same chips a catalog room would.
+const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner", "Tea & Snacks"];
+const MEAL_KEY_LABELS: Record<string, string> = {
+    breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
+};
+
+type MealType = { id: number; name: string; covered_meals: string[] };
+
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
-    requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypeOptions,
+    requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypes,
 }: {
     packageId: string;
     day: number;
@@ -34,9 +45,10 @@ export function FillHotelForm({
     requestedRooms?: number | null;
     requestedMattresses?: number | null;
     requestedMealPlan?: string | null;
-    /** Names configured at /dashboard/hotels/meal-types, offered as
-     * suggestions on the Meal Plan field below. */
-    mealTypeOptions: string[];
+    /** Plans configured at /dashboard/hotels/meal-types — picking one below
+     * auto-checks its covered_meals as Breakfast/Lunch/Dinner chips, same as
+     * picking a catalog room does in the main builder. */
+    mealTypes: MealType[];
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -50,8 +62,20 @@ export function FillHotelForm({
     const [checkIn, setCheckIn] = useState("");
     const [checkOut, setCheckOut] = useState("");
     const [mealPlan, setMealPlan] = useState(requestedMealPlan ?? "");
+    const requestedPlanMatch = mealTypes.find((m) => m.name === requestedMealPlan);
+    const [meals, setMeals] = useState<string[]>(
+        requestedPlanMatch ? requestedPlanMatch.covered_meals.map((k) => MEAL_KEY_LABELS[k] ?? k) : [],
+    );
     const [done, setDone] = useState(false);
-    const mealPlanListId = `meal-plan-options-day-${day}`;
+
+    function toggleMeal(m: string) {
+        setMeals((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
+    }
+
+    function selectMealPlan(plan: MealType) {
+        setMealPlan(plan.name);
+        setMeals(plan.covered_meals.map((k) => MEAL_KEY_LABELS[k] ?? k));
+    }
 
     function handleSubmit() {
         startTransition(async () => {
@@ -66,6 +90,7 @@ export function FillHotelForm({
                 checkIn,
                 checkOut,
                 mealPlan,
+                meals,
             });
             if (result.success) {
                 setDone(true);
@@ -207,20 +232,49 @@ export function FillHotelForm({
                         className="text-sm h-9"
                     />
                 </div>
-                <div>
-                    <label className="text-[11px] text-dashboard-neutral mb-1 block">Meal Plan</label>
-                    <Input
-                        value={mealPlan}
-                        onChange={(e) => setMealPlan(e.target.value)}
-                        placeholder="MAP - Breakfast & Dinner"
-                        list={mealTypeOptions.length > 0 ? mealPlanListId : undefined}
-                        className="text-sm h-9"
-                    />
-                    {mealTypeOptions.length > 0 && (
-                        <datalist id={mealPlanListId}>
-                            {mealTypeOptions.map((name) => <option key={name} value={name} />)}
-                        </datalist>
+                <div className="col-span-2 space-y-2">
+                    {mealTypes.length > 0 && (
+                        <div>
+                            <label className="text-[11px] text-dashboard-neutral mb-1 block">Meal Plan</label>
+                            <div className="flex flex-wrap gap-1.5">
+                                {mealTypes.map((m) => (
+                                    <button
+                                        key={m.id}
+                                        type="button"
+                                        onClick={() => selectMealPlan(m)}
+                                        className={cn(
+                                            "px-2.5 py-1 rounded-md border text-xs font-medium transition-colors",
+                                            mealPlan === m.name
+                                                ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
+                                                : "bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200",
+                                        )}
+                                    >
+                                        {m.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     )}
+                    <div>
+                        <label className="text-[11px] text-dashboard-neutral mb-1 block">Meals Included</label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {MEAL_OPTIONS.map((m) => (
+                                <button
+                                    key={m}
+                                    type="button"
+                                    onClick={() => toggleMeal(m)}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-md border text-xs font-medium transition-colors",
+                                        meals.includes(m)
+                                            ? "bg-emerald-600 text-white border-emerald-600"
+                                            : "bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200",
+                                    )}
+                                >
+                                    {m}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">

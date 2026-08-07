@@ -41,6 +41,11 @@ export type FillHotelInput = {
     checkIn?: string;
     checkOut?: string;
     mealPlan?: string;
+    /** Which meals are included (Breakfast/Lunch/Dinner/Tea & Snacks) — feeds
+     * custom_itineraries.meals, the field the Day-wise Summary table and PDF
+     * preview actually read (hotelMealPlan above is a separate free-text
+     * label, not rendered anywhere in the itinerary document). */
+    meals?: string[];
 };
 
 export async function fillPendingHotel(
@@ -71,6 +76,7 @@ export async function fillPendingHotel(
             hotelCheckIn: input.checkIn?.trim() || null,
             hotelCheckOut: input.checkOut?.trim() || null,
             hotelMealPlan: input.mealPlan?.trim() || null,
+            meals: input.meals ?? [],
             roomsCount: Math.max(1, Math.round(input.roomsCount) || 1),
             manualExtraBeds: Math.max(0, Math.round(input.extraBeds ?? 0)),
             manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
