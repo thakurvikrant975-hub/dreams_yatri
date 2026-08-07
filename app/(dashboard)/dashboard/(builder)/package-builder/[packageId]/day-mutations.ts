@@ -68,6 +68,11 @@ export function applyHotelRoomSelection(
     accommodationMaxChildren: raw.maxChildren,
     accommodationExtraBedCapacity: raw.extraBedCapacity,
     manualExtraBeds: null,
+    // A day that was hand-typed before now has a real catalog rate behind it —
+    // leaving the manual price/rate set would double-count it against the
+    // room's own rate in computeBuilderHotelPricing's manual branch.
+    manualHotelPricePerNight: null,
+    manualExtraBedRate: null,
     hotelMealPlan: raw.mealPlanName ?? day.hotelMealPlan,
     meals: hotelMeals.length > 0 ? hotelMeals : day.meals,
     // The hotel's own check-in/check-out policy. Stored as 24h "HH:MM" on the
@@ -260,7 +265,7 @@ export const emptyDay = (day: number): DayItinerary => ({
   accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
   roomPricingId: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-  hotelPending: false, hotelPendingNote: "", manualHotelPricePerNight: null,
+  hotelPending: false, hotelPendingNote: "", hotelRequestType: null, manualHotelPricePerNight: null,
   hotelFilledAt: null, hotelFilledByName: null,
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,

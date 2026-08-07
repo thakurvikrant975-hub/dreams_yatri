@@ -1227,17 +1227,28 @@ export async function computeBuilderHotelPricing(input: {
      * occupancy split) is skipped, since a manual room count means the
      * occupancy-per-room assumption no longer holds. */
     roomsCount?: number | null;
+    /** Overrides the auto-computed mattress/extra-bed count for roomPricingId
+     * — set when the exec knows exactly how many extra mattresses the hotel
+     * needs to provide (most useful alongside a manual roomsCount, where the
+     * occupancy-per-room split that the auto count relies on no longer
+     * applies). Null/undefined keeps the auto-computed behavior. */
+    manualExtraBeds?: number | null;
     /** Additional, different room types booked for the same night (e.g. one
      * couple in a Deluxe Room, another in a Suite) — each priced at
      * quantity × that room's own base per-night rate. No occupancy/mattress
      * logic applies here — quantity is exactly what the exec asked for. */
     extraRooms?: { roomPricingId: number; quantity: number }[];
-    /** Hotel-team fulfillment (see /dashboard/hotel-requests): when the exec
-     * couldn't find a catalog hotel and the team filled one in manually,
-     * roomPricingId stays null and pricing comes from these three instead —
-     * no hotel_room_pricing lookup, no occupancy/mattress math, just
-     * roomsCount (or 1) × pricePerNight. */
+    /** A hand-typed hotel (exec types the name directly in the builder) or
+     * hotel-team fulfillment (see /dashboard/hotel-requests): when there's no
+     * catalog room behind the day, roomPricingId stays null and pricing comes
+     * from these instead — no hotel_room_pricing lookup, just
+     * roomsCount (or 1) × pricePerNight, plus manualExtraBeds ×
+     * manualExtraBedRate for any mattresses. */
     manualHotelPricePerNight?: number | null;
+    /** Per-mattress rate for manualExtraBeds above — the manual counterpart
+     * to a catalog room's extra_bed_rate. Null/0 means mattresses are free
+     * (or simply not costed), matching the field's optional nature. */
+    manualExtraBedRate?: number | null;
     manualHotelName?: string | null;
     manualRoomName?: string | null;
     /** Costing's flat correction for this day's TOTAL hotel cost (see
@@ -1332,10 +1343,20 @@ export async function computeBuilderHotelPricing(input: {
         // finished package charges. An exec-typed roomsCount used to zero the
         // mattress count outright, silently dropping the extra-bed cost from
         // every hand-adjusted package; it now only sets the room count and the
-        // mattresses are still derived from the resulting split.
-        const { rooms: roomsNeeded, perRoomHeadcount, mattresses } =
+        // mattresses are still derived from the resulting split — unless the
+        // exec also gave an explicit mattress count (manualExtraBeds), which
+        // wins outright since it's a direct statement of what the hotel needs
+        // to provide.
+        const { rooms: roomsNeeded, perRoomHeadcount, mattresses: autoMattresses } =
           planRoomOccupancy(adults, children, rp.room, d.roomsCount);
-        const extraBedRate = rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
+        const mattresses = d.manualExtraBeds != null ? Math.max(0, d.manualExtraBeds) : autoMattresses;
+        // The catalog room's own extra_bed_rate is often left unconfigured
+        // (0/null) for rooms that were never expected to need one — when the
+        // exec manually types a mattress price, that wins outright instead
+        // of silently pricing the mattresses at ₹0.
+        const extraBedRate = d.manualExtraBedRate != null
+          ? d.manualExtraBedRate
+          : rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
 
         const { basePrice, occPrices } = resolveHotelSeasonPricing(rp, dayDate);
         // Each room is priced at ITS OWN occupancy tier, matching the stay
@@ -1370,10 +1391,15 @@ export async function computeBuilderHotelPricing(input: {
         });
       }
     } else if (d.manualHotelPricePerNight != null) {
-      // Hotel-team fulfillment — no catalog room, no occupancy/mattress
-      // math, just the flat price and room count the team entered.
+      // Hand-typed (exec) or hotel-team-filled — no catalog room, so no
+      // occupancy math, just the flat per-room price and room count entered
+      // directly. Mattresses/extra beds still get their own line — the exec
+      // or hotel team enters manualExtraBeds + manualExtraBedRate the same
+      // way a catalog room's own extra_bed_rate charges for them.
       const roomsNeeded = d.roomsCount && d.roomsCount > 0 ? d.roomsCount : 1;
-      const total = roomsNeeded * d.manualHotelPricePerNight;
+      const mattresses = Math.max(0, d.manualExtraBeds ?? 0);
+      const extraBedRate = d.manualExtraBedRate ?? 0;
+      const total = roomsNeeded * d.manualHotelPricePerNight + mattresses * extraBedRate;
       hotelSubtotal += total;
 
       lines.push({
@@ -1383,8 +1409,8 @@ export async function computeBuilderHotelPricing(input: {
         planName: null,
         pricePerRoom: d.manualHotelPricePerNight,
         roomsNeeded,
-        mattresses: 0,
-        extraBedRate: 0,
+        mattresses,
+        extraBedRate,
         total,
       });
     }

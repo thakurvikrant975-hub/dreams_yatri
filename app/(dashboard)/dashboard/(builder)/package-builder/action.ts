@@ -705,10 +705,16 @@ export interface DayItinerary {
    * roomPricingId etc. above stay empty while true. Blocks markPackageReady. */
   hotelPending:       boolean;
   hotelPendingNote:   string;
-  /** B2B price/night the hotel team entered when fulfilling a pending
-   * request — feeds computeBuilderHotelPricing's manual-price branch since
-   * roomPricingId stays null for these days. */
+  /** Property type requested (e.g. "RESORT", "STAR_4" — same keys as
+   * stayPreference), shown to the hotel team on /dashboard/hotel-requests.
+   * Same lifecycle as hotelPendingNote — only meaningful while pending. */
+  hotelRequestType?:  string | null;
+  /** B2B price/night the hotel team entered — or the exec typed directly for
+   * a hand-entered hotel — feeds computeBuilderHotelPricing's manual-price
+   * branch since roomPricingId stays null for these days. */
   manualHotelPricePerNight: number | null;
+  /** Per-mattress rate for manualExtraBeds above, same manual-price branch. */
+  manualExtraBedRate?: number | null;
   /** Read-only — who/when the hotel team filled this day in, for display
    * only (not written back by saveCustomPackage). */
   hotelFilledAt?:     Date | null;
@@ -929,7 +935,13 @@ export async function copyPackageIntoDraft(
   // site (see CreatePackageDialog/searchPackageLibraryForTemplate) is still
   // a perfectly valid template to reuse internally, it just shouldn't be
   // reachable on the live site.
-  const data = await fetchPackagePageData(packageSlug, durationSlug, routeSlug, staySlug, { includeInactive: true });
+  // allowMissingStay: a package with no stay categories configured at all
+  // (a real data gap on several catalog packages, e.g. most Jammu & Kashmir
+  // ones) has no hotel/pricing to key off, but its route/itinerary/
+  // activities/policies are still perfectly valid to copy — previously this
+  // returned null here, so "Use Template" silently produced a completely
+  // empty draft with no error shown (see CreatePackageDialog/UsePackageDialog).
+  const data = await fetchPackagePageData(packageSlug, durationSlug, routeSlug, staySlug, { includeInactive: true, allowMissingStay: true });
   if (!data) return null;
 
   const stops: StopInput[] = (data.selectedRoute?.stops ?? []).map((s) => ({
@@ -1111,7 +1123,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           manualExtraBeds: true,
           roomPricingId: true, roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
-          hotelPending: true, hotelPendingNote: true, manualHotelPricePerNight: true,
+          hotelPending: true, hotelPendingNote: true, hotelRequestType: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
           hotelFilledAt: true, hotelFilledByName: true,
           hotelPriceOverride: true, cabPriceOverride: true,
           transport: true, transportPhoto: true, transportVehicleType: true,
@@ -1147,6 +1159,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       hotelCheckIn: n.hotelCheckIn, hotelCheckOut: n.hotelCheckOut, hotelMealPlan: n.hotelMealPlan,
       hotelPending: n.hotelPending, hotelPendingNote: n.hotelPendingNote,
       manualHotelPricePerNight: n.manualHotelPricePerNight,
+      manualExtraBedRate: n.manualExtraBedRate,
       hotelFilledAt: null, hotelFilledByName: null,
       hotelPriceOverride: null, cabPriceOverride: null,
       transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
@@ -1316,8 +1329,9 @@ function normalizeItinerary(it: {
   roomsCount: number | null;
   extraRooms: Prisma.JsonValue;
   hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
-  hotelPending: boolean; hotelPendingNote: string | null;
+  hotelPending: boolean; hotelPendingNote: string | null; hotelRequestType: string | null;
   manualHotelPricePerNight: number | null;
+  manualExtraBedRate: number | null;
   hotelFilledAt: Date | null; hotelFilledByName: string | null;
   hotelPriceOverride: number | null; cabPriceOverride: number | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
@@ -1355,7 +1369,9 @@ function normalizeItinerary(it: {
     hotelMealPlan:             it.hotelMealPlan ?? "",
     hotelPending:              it.hotelPending,
     hotelPendingNote:          it.hotelPendingNote ?? "",
+    hotelRequestType:          it.hotelRequestType ?? null,
     manualHotelPricePerNight:  it.manualHotelPricePerNight ?? null,
+    manualExtraBedRate:        it.manualExtraBedRate ?? null,
     hotelFilledAt:             it.hotelFilledAt,
     hotelFilledByName:         it.hotelFilledByName,
     hotelPriceOverride:        it.hotelPriceOverride ?? null,
@@ -1551,7 +1567,9 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           hotelMealPlan:      true,
           hotelPending:       true,
           hotelPendingNote:   true,
+          hotelRequestType:   true,
           manualHotelPricePerNight: true,
+          manualExtraBedRate: true,
           hotelFilledAt:      true,
           hotelFilledByName:  true,
           hotelPriceOverride: true,
@@ -1857,7 +1875,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       select: {
         day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
         hotelPriceOverride: true, cabPriceOverride: true,
-        roomPricingId: true, roomsCount: true, extraRooms: true, manualHotelPricePerNight: true, accommodation: true,
+        roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
       },
     });
@@ -1879,7 +1897,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       !existing
       || existing.roomPricingId !== (it.roomPricingId ?? null)
       || existing.roomsCount !== (it.roomsCount ?? null)
+      || existing.manualExtraBeds !== (it.manualExtraBeds ?? null)
       || existing.manualHotelPricePerNight !== (it.manualHotelPricePerNight ?? null)
+      || existing.manualExtraBedRate !== (it.manualExtraBedRate ?? null)
       || existing.accommodation !== (it.accommodation || null)
       || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(filteredExtraRooms(it));
     const cabSelectionChanged = (existing: typeof existingHotelState[number] | undefined, it: (typeof itineraries)[number]) =>
@@ -1924,11 +1944,13 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               roomsCount:         it.roomsCount ?? null,
               hotelPending,
               hotelPendingNote:   hotelPending ? (it.hotelPendingNote || null) : null,
+              hotelRequestType:   hotelPending ? (it.hotelRequestType || null) : null,
               hotelRequestedAt,
               hotelFilledAt:      existing?.hotelFilledAt ?? null,
               hotelFilledById:    existing?.hotelFilledById ?? null,
               hotelFilledByName:  existing?.hotelFilledByName ?? null,
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
+              manualExtraBedRate: it.manualExtraBedRate ?? null,
               // Costing-only corrections — never sourced from the exec's own
               // form (it doesn't expose them). Carried forward as-is unless
               // this save actually changed the hotel/cab it was priced
@@ -2093,6 +2115,8 @@ export async function sendPackageToClient(packageId: string): Promise<{
           day:           it.day,
           roomPricingId: it.roomPricingId,
           roomsCount:    it.roomsCount,
+          manualExtraBeds: it.manualExtraBeds,
+          manualExtraBedRate: it.manualExtraBedRate,
           extraRooms:    parseRoomSelections(it.extraRooms),
           manualHotelPricePerNight: it.manualHotelPricePerNight,
           hotelPriceOverride: it.hotelPriceOverride,

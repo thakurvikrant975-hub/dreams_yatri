@@ -386,9 +386,9 @@ export async function fetchPackagePageData(
    *  has been switched off for the public site (see copyPackageIntoDraft/
    *  getPackageVariantOptions). Public website call sites must never pass
    *  this: an inactive package should stay completely unreachable there. */
-  opts: { includeInactive?: boolean } = {},
+  opts: { includeInactive?: boolean; allowMissingStay?: boolean } = {},
 ): Promise<PackagePageData | null> {
-  const { includeInactive = false } = opts;
+  const { includeInactive = false, allowMissingStay = false } = opts;
 
   // ── Step 1: parallel fetch — package basics + current duration ─────────────
   const [pkg, currentDuration] = await Promise.all([
@@ -521,7 +521,14 @@ export async function fetchPackagePageData(
     pkg.stay_categories[0] ??
     null;
 
-  if (!selectedRoute || !selectedStay) return null;
+  // A package with no stay categories configured at all (a real data gap —
+  // seen on most Jammu & Kashmir packages, e.g.) has no hotel/pricing to key
+  // off, but its route/itinerary/activities/policies are still perfectly
+  // valid to copy. The public website (which never sets allowMissingStay)
+  // keeps 404ing on these exactly as before — this only relaxes the guard
+  // for copyPackageIntoDraft, where returning null here previously meant the
+  // "Use Template" flow silently produced a completely empty draft.
+  if (!selectedRoute || (!selectedStay && !allowMissingStay)) return null;
 
   // ── Step 3: parallel fetch — itinerary + pricing config + cab types ────────
   const [itineraries, pricingConfig, rawCabTypes, recentEnquiryCount] = await Promise.all([
@@ -540,7 +547,10 @@ export async function fetchPackagePageData(
         meals: true,
         excluded_meals: true,
         itineraryStays: {
-          where: { stay_category_id: selectedStay.id },
+          // No real stay category id can ever be -1 — forces an empty match
+          // (day.hotel stays null) when selectedStay is null, rather than a
+          // Prisma type error from passing an id-less filter.
+          where: { stay_category_id: selectedStay?.id ?? -1 },
           take: 1,
           select: {
             id: true,
@@ -632,7 +642,7 @@ export async function fetchPackagePageData(
       },
     }),
 
-    db.package_pricing.findUnique({
+    selectedStay ? db.package_pricing.findUnique({
       where: {
         package_id_duration_id_stay_category_id: {
           package_id: pkg.id,
@@ -641,7 +651,7 @@ export async function fetchPackagePageData(
         },
       },
       select: { margin_percentage: true, gst_percentage: true },
-    }),
+    }) : Promise.resolve(null),
 
     // ── Active cab types for this package + duration ─────────────────────────
     db.package_cab_types.findMany({

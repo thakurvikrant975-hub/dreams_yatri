@@ -151,11 +151,12 @@ export type RoomOccupancyPlan = {
  *  mattress cost to zero.
  *
  *  `roomsOverride` is the exec's explicit "Rooms needed" entry. It sets the
- *  room count, but mattresses are still computed from the resulting split —
- *  overriding how many rooms to book says nothing about the party no longer
- *  needing mattresses in them, and treating it as "no mattresses" was
- *  under-charging every hand-adjusted package. It is floored at the derived
- *  minimum so an override can never book fewer rooms than the party fits in. */
+ *  room count outright — including below the auto-derived count, e.g. when
+ *  the exec knows a family will actually share fewer rooms than the pure
+ *  occupancy math implies — but mattresses are still computed from the
+ *  resulting split — overriding how many rooms to book says nothing about
+ *  the party no longer needing mattresses in them, and treating it as "no
+ *  mattresses" was under-charging every hand-adjusted package. */
 export function planRoomOccupancy(
   adults: number,
   children: number,
@@ -165,7 +166,7 @@ export function planRoomOccupancy(
   const persons = Math.max(Math.max(0, Math.floor(adults)) + Math.max(0, Math.floor(children)), 1);
   const derived = roomsNeededFor(adults, children, r);
   const rooms = roomsOverride != null && roomsOverride > 0
-    ? Math.max(Math.floor(roomsOverride), derived)
+    ? Math.floor(roomsOverride)
     : derived;
   const perRoomHeadcount = splitPersonsAcrossRooms(persons, rooms);
   const mattresses = perRoomHeadcount.reduce(

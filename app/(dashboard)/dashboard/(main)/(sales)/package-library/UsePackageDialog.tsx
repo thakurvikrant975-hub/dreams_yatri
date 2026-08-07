@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Sparkles, Loader2, Search, MapPin, Phone } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -79,9 +80,14 @@ export function UsePackageDialog({ pkg, pendingQueries, children }: {
         setApplying(true);
         try {
             const payload = await copyPackageIntoDraft(pkg.slug, durationSlug, routeSlug, staySlug);
-            if (payload) {
-                sessionStorage.setItem(`pkgCopyPayload:${selectedQueryId}`, JSON.stringify(payload));
+            // See CreatePackageDialog's handleUseTemplate for why this can't
+            // just silently proceed — a null payload used to still navigate
+            // to a completely empty draft with no indication of failure.
+            if (!payload) {
+                toast.error(`Couldn't load "${pkg.title}" as a template — try again.`);
+                return;
             }
+            sessionStorage.setItem(`pkgCopyPayload:${selectedQueryId}`, JSON.stringify(payload));
             router.push(`/dashboard/package-builder/${selectedQueryId}`);
         } finally {
             setApplying(false);
