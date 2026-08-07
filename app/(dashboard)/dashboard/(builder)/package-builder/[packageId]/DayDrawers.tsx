@@ -23,10 +23,13 @@ import {
   searchVehiclesForBuilder, searchCabsForBuilder, type DayItinerary,
 } from "../action";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
+import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
+import { TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { useBuilder } from "./builder-context";
 import {
   applyVehicleSelection, clearVehicleSelection, isPricedVehicle, type AnyVehicleHit,
   addActivity, updateActivity, removeActivity, moveActivity,
+  addExtraCab, updateExtraCab, removeExtraCab,
 } from "./day-mutations";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,14 +116,34 @@ export function TransferView({ day }: { day: number }) {
       <div className="space-y-3">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">Route</p>
         <div className="grid grid-cols-2 gap-3">
-          <label className="space-y-1">
+          <div className="space-y-1 col-span-2">
             <span className="text-[11px] text-dashboard-base-content/60">Pickup</span>
-            <Input
-              value={itin.transportPickup}
-              onChange={(e) => updateDay(day, { transportPickup: e.target.value })}
-              placeholder="From" className="h-9 text-sm"
+            {/* A searching control, not a text box. transportPickupLat/Lng are
+                written nowhere else in the app, and both the cab rate search
+                and the route map read them — a plain input would leave the
+                name updating while the coordinates silently went stale. */}
+            <LocationSearchSelect
+              value={itin.transportPickup
+                ? {
+                    id: "pickup", name: itin.transportPickup, type: "AREA",
+                    breadcrumb: itin.transportPickup, slug: "",
+                    latitude: itin.transportPickupLat, longitude: itin.transportPickupLng,
+                  }
+                : null}
+              onChange={(loc: LocationValue | null) => updateDay(day, {
+                transportPickup:    loc?.name ?? "",
+                transportPickupLat: loc?.latitude ?? null,
+                transportPickupLng: loc?.longitude ?? null,
+              })}
+              types={TRANSFER_TYPES}
+              placeholder="Search a pickup location…"
             />
-          </label>
+            {itin.transportPickupLat != null && (
+              <span className="text-[10px] text-dashboard-base-content/45">
+                Located — cab rates below are matched against this exact point.
+              </span>
+            )}
+          </div>
           <label className="space-y-1">
             <span className="text-[11px] text-dashboard-base-content/60">Drop</span>
             <Input
@@ -142,6 +165,17 @@ export function TransferView({ day }: { day: number }) {
             <span className="text-[10px] text-dashboard-base-content/45">Per-km rates price off this.</span>
           </label>
           <label className="space-y-1">
+            <span className="text-[11px] text-dashboard-base-content/60">Vehicles of this type</span>
+            <Input
+              type="number" min={1}
+              value={itin.cabQuantity ?? ""}
+              onChange={(e) => updateDay(day, {
+                cabQuantity: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+              })}
+              placeholder="1" className="h-9 text-sm"
+            />
+          </label>
+          <label className="space-y-1">
             <span className="text-[11px] text-dashboard-base-content/60">Drive time</span>
             <Input
               value={itin.transportTravelTime}
@@ -151,6 +185,41 @@ export function TransferView({ day }: { day: number }) {
           </label>
         </div>
       </div>
+
+      {(itin.extraCabs ?? []).length > 0 && (
+        <div className="space-y-2">
+          <label className="text-[11px] font-medium text-dashboard-base-content/60">
+            Other vehicles this day
+          </label>
+          {(itin.extraCabs ?? []).map((c, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg border border-dashboard-base-300 p-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{c.label}</p>
+                <p className="text-[10px] text-dashboard-base-content/50">
+                  {c.vehicleType}{c.seats != null && ` · ${c.seats} seats`}
+                  {c.cabPricingId == null && " · no rate"}
+                </p>
+              </div>
+              <Input
+                type="number" min={1}
+                value={c.quantity}
+                onChange={(e) => replaceDay(day, (d) =>
+                  updateExtraCab(d, i, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                className="h-8 w-16 text-sm shrink-0"
+                aria-label="Vehicles of this type"
+              />
+              <Button
+                type="button" size="sm" variant="ghost"
+                className="h-8 w-8 p-0 shrink-0 text-dashboard-error hover:text-dashboard-error"
+                onClick={() => replaceDay(day, (d) => removeExtraCab(d, i))}
+                aria-label="Remove this vehicle"
+              >
+                <Trash2 size={13} />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-2">
         <div className="relative">
@@ -202,6 +271,25 @@ export function TransferView({ day }: { day: number }) {
                   <p className="text-sm font-bold tabular-nums">₹{hit.price.toLocaleString("en-IN")}</p>
                   <p className="text-[10px] text-dashboard-base-content/50">{hit.pricingType.toLowerCase().replace("_", " ")}</p>
                 </div>
+              )}
+              {/* A day can need two vehicle types at once, so a result is not
+                  only "replace what's there" — see addExtraCab. */}
+              {itin.transport && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); replaceDay(day, (d) => addExtraCab(d, hit)); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault(); e.stopPropagation();
+                      replaceDay(day, (d) => addExtraCab(d, hit));
+                    }
+                  }}
+                  title="Add alongside the current vehicle"
+                  className="shrink-0 rounded-md border border-dashed border-dashboard-base-300 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-dashboard-base-content/60 hover:bg-dashboard-base-200"
+                >
+                  + Also
+                </span>
               )}
             </button>
           );

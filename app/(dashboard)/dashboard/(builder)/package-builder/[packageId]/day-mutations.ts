@@ -13,7 +13,7 @@
 // bug impossible instead of merely unlikely.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { RoomSelection } from "../room-cab-selections";
+import type { RoomSelection, CabSelection } from "../room-cab-selections";
 import type {
   DayItinerary, HotelRoomResult, VehicleResult, CabPricingResult, ActivityInput,
   TicketInput, AddonInput,
@@ -428,4 +428,43 @@ export function beginManualHotel(day: DayItinerary): DayItinerary {
     hotelPendingNote: "",
     hotelRequestType: null,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Extra cabs
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A second vehicle type for the same day — one Sedan plus one SUV. Mirrors
+ * addExtraRoom, including the cabPricingId rule: a fleet-catalog pick has no
+ * rate to reference, so it stays null and contributes nothing to the total. */
+export function addExtraCab(day: DayItinerary, hit: AnyVehicleHit): DayItinerary {
+  const priced = isPricedVehicle(hit);
+  const type = priced ? hit.vehicleType : hit.type;
+  return {
+    ...day,
+    extraCabs: [
+      ...(day.extraCabs ?? []),
+      {
+        cabPricingId: priced ? hit.id : null,
+        label: priced ? hit.vehicleName : hit.name,
+        quantity: 1,
+        vehicleType: CAB_LABELS[type] ?? type,
+        seats: hit.passengerCapacity,
+        thumbnail: hit.thumbnail ?? null,
+      },
+    ],
+  };
+}
+
+export function updateExtraCab(
+  day: DayItinerary, index: number, patch: Partial<CabSelection>,
+): DayItinerary {
+  return {
+    ...day,
+    extraCabs: (day.extraCabs ?? []).map((c, i) => (i === index ? { ...c, ...patch } : c)),
+  };
+}
+
+export function removeExtraCab(day: DayItinerary, index: number): DayItinerary {
+  return { ...day, extraCabs: (day.extraCabs ?? []).filter((_, i) => i !== index) };
 }
