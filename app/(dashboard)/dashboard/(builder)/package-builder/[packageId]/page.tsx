@@ -38,7 +38,7 @@ import {
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
 import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
-import { ROUTE_STOP_TYPES, TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
+import { TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { cn } from "@/app/lib/utils";
 import {
   getPackageDetail,
@@ -78,6 +78,8 @@ import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { PackageBuilderProvider, type PackageForm, type DayCost } from "./builder-context";
+import { RouteStopsEditor } from "./RouteStopsEditor";
+import { TripSetupPanel } from "./TripSetupPanel";
 import { useUndoableState } from "./use-undoable-state";
 import { applyHotelRoomSelection, emptyDay, emptyTicket, computeDurationText, TICKET_TYPE_LABELS } from "./day-mutations";
 import { geocodeCity } from "./geocode-city";
@@ -638,118 +640,6 @@ function ActivityListEditor({ activities, location, onChange }: {
 // RouteStopsEditor — destination + nights per stop, like the packages route
 // builder. The parent recalculates total nights/days/destination from these.
 // ─────────────────────────────────────────────────────────────────────────────
-function RouteStopsEditor({ stops, onChange }: {
-  stops: StopInput[];
-  onChange: (v: StopInput[]) => void;
-}) {
-  // Per-row toggle: pick from the real locations catalog (default) vs a
-  // plain free-text field, for places not in the catalog yet.
-  const [manualRows, setManualRows] = useState<Set<number>>(new Set());
-
-  function addStop() {
-    onChange([...stops, { name: "", nights: 1 }]);
-  }
-  function updateStop(idx: number, patch: Partial<StopInput>) {
-    onChange(stops.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
-  }
-  function removeStop(idx: number) {
-    onChange(stops.filter((_, i) => i !== idx));
-    setManualRows((prev) => {
-      const next = new Set<number>();
-      prev.forEach((i) => { if (i < idx) next.add(i); else if (i > idx) next.add(i - 1); });
-      return next;
-    });
-  }
-  function toggleManualRow(idx: number) {
-    setManualRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx); else next.add(idx);
-      return next;
-    });
-  }
-
-  const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1">
-          <MapPin size={11} /> Route (Destinations & Nights)
-        </label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addStop}
-          className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
-        >
-          <Plus size={11} /> Add Stop
-        </Button>
-      </div>
-
-      <div className="space-y-2">
-        {stops.map((stop, idx) => {
-          const isManual = manualRows.has(idx);
-          return (
-            <div key={idx} className="flex items-center gap-2">
-              <span className="shrink-0 text-xs font-semibold text-dashboard-base-content/40 w-4 text-center">{idx + 1}</span>
-              <div className="flex-1 min-w-0">
-                {isManual ? (
-                  <Input
-                    value={stop.name}
-                    onChange={(e) => updateStop(idx, { name: e.target.value })}
-                    placeholder="Type a destination name…"
-                    className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                ) : (
-                  <LocationSearchSelect
-                    value={stop.name ? { id: `stop-${idx}`, name: stop.name, type: "CITY", breadcrumb: stop.name, slug: "" } : null}
-                    onChange={(loc: LocationValue | null) => updateStop(idx, { name: loc?.name ?? "" })}
-                    types={ROUTE_STOP_TYPES}
-                    placeholder="Search a location…"
-                  />
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleManualRow(idx)}
-                title={isManual ? "Choose from locations" : "Can't find it? Type it instead"}
-                className="p-1.5 rounded hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0"
-              >
-                {isManual ? <MapPin size={12} /> : <Pencil size={12} />}
-              </button>
-              <Input
-                type="number" min={0}
-                value={stop.nights}
-                onChange={(e) => updateStop(idx, { nights: +e.target.value })}
-                className="text-sm h-8 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <span className="text-[11px] text-dashboard-base-content/50 shrink-0 w-2">N</span>
-              <button
-                onClick={() => removeStop(idx)}
-                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          );
-        })}
-        {stops.length === 0 && (
-          <p className="text-xs text-dashboard-base-content/40 italic">
-            No stops added — Duration & Destination(s) below stay manually editable.
-          </p>
-        )}
-      </div>
-
-      {stops.length > 0 && (
-        <p className="text-[11px] text-dashboard-base-content/50 mt-1.5">
-          Auto duration: <span className="font-semibold text-dashboard-base-content">{totalNights + 1}D / {totalNights}N</span> — syncs Duration & Destination(s) below
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // DaySectionCard — a colored container for one part of a day (Hotel /
 // Transport / Meals / Activities) so the sidebar reads at a glance instead of
@@ -2585,6 +2475,9 @@ export default function PackageBuilderDetailPage() {
     addOns: [],
     execName: "", execEmail: "", execDesignation: "",
   });
+  // Stable across renders, unlike `history` itself (which re-memoises as
+  // canUndo/canRedo flip) — safe to depend on from the load effects below.
+  const { reset: resetForm } = history;
 
   // Drag-to-reorder day cards — same dnd-kit pattern as ActivityListEditor's
   // dndIds above: a stable id per row, tracked separately from the day data
@@ -2649,7 +2542,7 @@ export default function PackageBuilderDetailPage() {
     getItinerarySettings().then((settings) => {
       if (cancelled) return;
       setItinerarySettings(settings);
-      history.reset((f) => ({
+      resetForm((f) => ({
         ...f,
         inclusions: settings.inclusions,
         exclusions: settings.exclusions,
@@ -2661,7 +2554,7 @@ export default function PackageBuilderDetailPage() {
       }));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [resetForm]);
 
   // ── Load package ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2700,7 +2593,7 @@ export default function PackageBuilderDetailPage() {
       const t = r?.travellers;
       const tr = r?.transport;
 
-      history.reset((f) => ({
+      resetForm((f) => ({
         ...f,
         title: `${j?.destinations?.[0] ?? data.destination ?? "Custom"} Tour Package`,
         destination: j?.destinations?.join(", ") ?? data.destination ?? "",
@@ -2731,7 +2624,7 @@ export default function PackageBuilderDetailPage() {
 
       if (data.customPackage) {
         const cp = data.customPackage;
-        history.reset((f) => ({
+        resetForm((f) => ({
           ...f,
           title: cp.title,
           description: cp.description ?? "",
@@ -2848,7 +2741,7 @@ export default function PackageBuilderDetailPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [packageId, fromQueryId]);
+  }, [packageId, fromQueryId, resetForm, setForm]);
 
   // ── Auto-calc total price ──────────────────────────────────────────────────
   useEffect(() => {
@@ -2856,7 +2749,7 @@ export default function PackageBuilderDetailPage() {
     if (!isNaN(pp)) {
       setForm((f) => ({ ...f, totalPrice: String(pp * (f.adults + f.children)) }));
     }
-  }, [form.pricePerPerson, form.adults, form.children]);
+  }, [form.pricePerPerson, form.adults, form.children, setForm]);
 
   // ── Auto-price from travel date + hotel selected + pax counts ──────────────
   // Recomputes the real hotel cost (season/occupancy-aware) whenever any of
@@ -4270,8 +4163,11 @@ Rules:
               <fieldset disabled={isLocked} className="contents">
 
               {/* ── Tab: Client Info ─────────────────────────────────────────────── */}
-              <TabsContent value="client" className="space-y-3">
+              <TabsContent value="client" className="space-y-4">
                 <ClientDetailsSidebar query={query} j={j} t={t} b={b} s={s} tr={tr} ac={ac} />
+                {/* The other half of what the panel keeps — see TripSetupPanel
+                    for why these specific fields don't belong in the preview. */}
+                <TripSetupPanel />
               </TabsContent>
 
               {/* ── Tab: Package Details ─────────────────────────────────────────── */}
