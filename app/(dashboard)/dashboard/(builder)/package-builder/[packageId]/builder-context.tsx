@@ -31,7 +31,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import type {
   StopInput, DayItinerary, TicketInput, AddonInput, ExtraPolicyItems,
 } from "../action";
-import { invalidateStaleOverrides } from "./day-mutations";
+import { invalidateStaleOverrides, emptyDay } from "./day-mutations";
 import type { PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,6 +140,10 @@ type BuilderContextValue = {
    * (picking a hotel, reordering activities). Both go through replaceDay
    * below, so no edit surface can skip the override invalidation. */
   replaceDay: (day: number, fn: (day: DayItinerary) => DayItinerary) => void;
+  /** Inserts a blank day after this one, renumbering the rest. */
+  addDayAfter: (day: number) => void;
+  /** Deletes a day and everything on it, renumbering the rest. */
+  removeDay: (day: number) => void;
 };
 
 /** The one way a day changes.
@@ -182,6 +186,8 @@ export function PackageBuilderProvider({
     closeDrawer: () => setDrawer(null),
     updateDay: (day, patch) => setForm((f) => replaceDay(f, day, (it) => ({ ...it, ...patch }))),
     replaceDay: (day, fn) => setForm((f) => replaceDay(f, day, fn)),
+    addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
+    removeDay: (day) => setForm((f) => deleteDay(f, day)),
   }), [form, setForm, canEdit, drawer]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
@@ -278,6 +284,68 @@ export function applyFieldEdit(
  * than by adding more name comparisons at each call site. */
 export function useCanEdit(): boolean {
   return useBuilder().canEdit;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Adding and removing days
+//
+// Day numbers are positional: itineraries[i].day is always i + 1, and adding
+// or removing one renumbers everything after it. Two things have to move with
+// that renumber or they silently attach to the wrong content:
+//
+//   totalDays / totalNights  — denormalised onto the package.
+//   form.addOns              — keyed by day NUMBER, not by array position, so
+//                              they are the piece of "the whole day" that does
+//                              NOT travel inside the DayItinerary object. The
+//                              drag-reorder handler in page.tsx already remaps
+//                              them for exactly this reason; its removeDay
+//                              does not, which is a live bug — an add-on on a
+//                              later day currently shifts onto its neighbour
+//                              when a day is deleted.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Renumbers days to 1..n and rebases add-ons through `mapDay`, which returns
+ * the new day number for an old one, or null to drop the add-on entirely. */
+function renumber(
+  form: PackageForm,
+  days: DayItinerary[],
+  mapDay: (oldDay: number) => number | null,
+): PackageForm {
+  const itineraries = days.map((d, i) => ({ ...d, day: i + 1 }));
+  const addOns = form.addOns
+    .map((a) => {
+      if (a.day == null) return a;
+      const next = mapDay(a.day);
+      return next == null ? null : { ...a, day: next };
+    })
+    .filter((a): a is NonNullable<typeof a> => a !== null);
+  return {
+    ...form,
+    itineraries,
+    addOns,
+    totalDays: itineraries.length,
+    totalNights: Math.max(0, itineraries.length - 1),
+  };
+}
+
+/** Inserts a blank day immediately after `afterDay`. */
+export function insertDayAfter(form: PackageForm, afterDay: number): PackageForm {
+  const idx = form.itineraries.findIndex((it) => it.day === afterDay);
+  if (idx === -1) return form;
+  const days = [...form.itineraries];
+  // Numbered afterDay + 1 only as a placeholder — renumber sets the real value.
+  days.splice(idx + 1, 0, emptyDay(afterDay + 1));
+  return renumber(form, days, (d) => (d > afterDay ? d + 1 : d));
+}
+
+/** Deletes a day, with everything on it. Refuses to remove the last one — a
+ * package with zero days has no coherent state for the rest of the builder. */
+export function deleteDay(form: PackageForm, day: number): PackageForm {
+  if (form.itineraries.length <= 1) return form;
+  const days = form.itineraries.filter((it) => it.day !== day);
+  if (days.length === form.itineraries.length) return form;
+  // Add-ons attached to the deleted day go with it; later ones shift down.
+  return renumber(form, days, (d) => (d === day ? null : d > day ? d - 1 : d));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

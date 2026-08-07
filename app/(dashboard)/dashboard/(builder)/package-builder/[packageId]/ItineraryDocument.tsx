@@ -21,6 +21,7 @@ import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { EditableText } from "./EditableText";
 import { useOptionalBuilder } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
+import { DayActionsMenu } from "./DayActionsMenu";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
@@ -1166,6 +1167,21 @@ function DayCardPreview({
             Day {day.day}{checkInDate && ` · ${formatShortDate(checkInDate)}`}
           </p>
         </div>
+
+        {/* One menu for everything this day can gain or lose — replaces the
+            three separate dashed "Add …" rows, which appeared and vanished
+            depending on what the day already had and pushed the document's
+            own layout around as it filled up. */}
+        {builder?.canEdit && (
+          <div className="shrink-0 self-center">
+            <DayActionsMenu
+              day={day.day}
+              hasStay={!!hasHotel}
+              hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
+              hasActivities={activities.length > 0}
+            />
+          </div>
+        )}
       </div>
 
       <div className="px-3.5 py-3 space-y-3">
@@ -1183,19 +1199,6 @@ function DayCardPreview({
         {/* A day with no stay yet. Only ever rendered in the builder, where a
             blank gap is a dead end — the client's copy simply omits the
             section, exactly as before. */}
-        {!hasHotel && builder?.canEdit && (
-          <button
-            type="button"
-            onClick={() => builder.openDrawer({ kind: "hotel-replace", day: day.day })}
-            className="builder-only no-print w-full flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left transition-colors hover:bg-dashboard-primary/6"
-            style={{ borderColor: DOC.rule }}
-          >
-            <Hotel size={12} color={DOC.accent} className="shrink-0" />
-            <span className="text-[11px] font-medium" style={{ color: DOC.accent }}>
-              Add a stay for this day
-            </span>
-          </button>
-        )}
 
         {/* Hotel info */}
         {hasHotel && (
@@ -1330,19 +1333,6 @@ function DayCardPreview({
         {/* Add-affordances for an empty day. Builder-only in every sense:
             gated on canEdit, marked builder-only so they can't reach the PDF,
             and absent entirely from the client-facing document. */}
-        {!(day.transport || day.transportPickup || day.transportDrop) && builder?.canEdit && (
-          <button
-            type="button"
-            onClick={() => builder.openDrawer({ kind: "transfer-edit", day: day.day })}
-            className="builder-only no-print w-full flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left transition-colors hover:bg-dashboard-primary/6"
-            style={{ borderColor: DOC.rule }}
-          >
-            <Car size={12} color={DOC.accent} className="shrink-0" />
-            <span className="text-[11px] font-medium" style={{ color: DOC.accent }}>
-              Add transport for this day
-            </span>
-          </button>
-        )}
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
@@ -1461,19 +1451,6 @@ function DayCardPreview({
         )}
 
         {/* Activities */}
-        {activities.length === 0 && builder?.canEdit && (
-          <button
-            type="button"
-            onClick={() => builder.openDrawer({ kind: "activities-edit", day: day.day })}
-            className="builder-only no-print w-full flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left transition-colors hover:bg-dashboard-primary/6"
-            style={{ borderColor: DOC.rule }}
-          >
-            <Sparkles size={12} color={DOC.accent} className="shrink-0" />
-            <span className="text-[11px] font-medium" style={{ color: DOC.accent }}>
-              Add experiences for this day
-            </span>
-          </button>
-        )}
 
         {activities.length > 0 && (
           <div className="space-y-2.5">

@@ -77,7 +77,7 @@ import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { PackageBuilderProvider, type PackageForm } from "./builder-context";
-import { applyHotelRoomSelection } from "./day-mutations";
+import { applyHotelRoomSelection, emptyDay } from "./day-mutations";
 import { geocodeCity } from "./geocode-city";
 import { BuilderDrawer } from "./BuilderDrawer";
 
@@ -2100,21 +2100,6 @@ function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
   if (value && typeof value === "object") return Object.values(value).some(looksLikeMarkdownLinkCorruption);
   return false;
 }
-
-const emptyDay = (day: number): DayItinerary => ({
-  day, title: "", description: "", activities: [],
-  meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
-  accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
-  roomPricingId: null,
-  hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-  hotelPending: false, hotelPendingNote: "", manualHotelPricePerNight: null,
-  hotelFilledAt: null, hotelFilledByName: null,
-  transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
-  transportPickup: "", transportPickupLat: null, transportPickupLng: null,
-  transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
-  cabPricingId: null,
-  notes: "",
-});
 
 const emptyTicket = (type: TicketInput["type"]): TicketInput => ({
   type, provider: "", ticketNumber: "",

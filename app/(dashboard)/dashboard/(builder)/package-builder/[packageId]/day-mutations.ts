@@ -244,3 +244,26 @@ export function invalidateStaleOverrides(prev: DayItinerary, next: DayItinerary)
     cabPriceOverride: cabChanged ? null : next.cabPriceOverride,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Blank day
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A fresh, empty day. Shared with page.tsx so inserting a day from the
+ * preview produces exactly the same shape as the right panel's "Add day" —
+ * a field missing here would read as undefined rather than as its empty
+ * value, and only show up much later as a save or render oddity. */
+export const emptyDay = (day: number): DayItinerary => ({
+  day, title: "", description: "", activities: [],
+  meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+  accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+  roomPricingId: null,
+  hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+  hotelPending: false, hotelPendingNote: "", manualHotelPricePerNight: null,
+  hotelFilledAt: null, hotelFilledByName: null,
+  transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
+  transportPickup: "", transportPickupLat: null, transportPickupLng: null,
+  transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
+  cabPricingId: null,
+  notes: "",
+});
