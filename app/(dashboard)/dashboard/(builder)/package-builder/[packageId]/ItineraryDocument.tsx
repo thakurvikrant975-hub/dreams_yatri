@@ -1418,6 +1418,8 @@ function DayCardPreview({
 
   return (
     <div
+      // Scroll target for the day rail — see jumpToDay in DayLayersRail.
+      id={`builder-day-${day.day}`}
       className="rounded-2xl overflow-hidden"
       style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
     >

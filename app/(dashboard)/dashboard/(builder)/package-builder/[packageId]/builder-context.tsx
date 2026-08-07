@@ -166,6 +166,8 @@ type BuilderContextValue = {
   addDayAfter: (day: number) => void;
   /** Deletes a day and everything on it, renumbering the rest. */
   removeDay: (day: number) => void;
+  /** Moves a day to a new position (0-based), renumbering the rest. */
+  moveDay: (from: number, to: number) => void;
   /** Per-day cost, keyed by day number. Empty while pricing is recomputing or
    * when nothing on the trip is priced yet — a day with no entry simply shows
    * no cost rather than a misleading zero. */
@@ -216,6 +218,7 @@ export function PackageBuilderProvider({
     replaceDay: (day, fn) => setForm((f) => replaceDay(f, day, fn)),
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
+    moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),
   }), [form, setForm, canEdit, dayCosts, drawer]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
@@ -374,6 +377,22 @@ export function insertDayAfter(form: PackageForm, afterDay: number): PackageForm
   // Numbered afterDay + 1 only as a placeholder — renumber sets the real value.
   days.splice(idx + 1, 0, emptyDay(afterDay + 1));
   return renumber(form, days, (d) => (d > afterDay ? d + 1 : d));
+}
+
+/** Moves a day from one position to another, 0-based.
+ *
+ * Uses the same renumber as insert/delete, so add-ons follow their day rather
+ * than staying pinned to a position — the trap the drag handler in page.tsx
+ * already guards against and its removeDay did not. */
+export function reorderDays(form: PackageForm, from: number, to: number): PackageForm {
+  const n = form.itineraries.length;
+  if (from === to || from < 0 || to < 0 || from >= n || to >= n) return form;
+  const days = [...form.itineraries];
+  const [moved] = days.splice(from, 1);
+  days.splice(to, 0, moved);
+  // Old day number → new one, read off the reordered list before renumbering.
+  const mapping = new Map(days.map((d, i) => [d.day, i + 1]));
+  return renumber(form, days, (d) => mapping.get(d) ?? d);
 }
 
 /** Deletes a day, with everything on it. Refuses to remove the last one — a

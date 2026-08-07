@@ -77,9 +77,10 @@ import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
-import { PackageBuilderProvider, type PackageForm, type DayCost } from "./builder-context";
+import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
 import { RouteStopsEditor } from "./RouteStopsEditor";
 import { TripSetupPanel } from "./TripSetupPanel";
+import { DayLayersRail } from "./DayLayersRail";
 import { useUndoableState } from "./use-undoable-state";
 import { applyHotelRoomSelection, emptyDay, emptyTicket, computeDurationText, TICKET_TYPE_LABELS } from "./day-mutations";
 import { geocodeCity } from "./geocode-city";
@@ -3152,15 +3153,10 @@ export default function PackageBuilderDetailPage() {
     const oldIndex = dayDndIds.indexOf(String(active.id));
     const newIndex = dayDndIds.indexOf(String(over.id));
     if (oldIndex === -1 || newIndex === -1) return;
-    setForm((f) => {
-      const reorderedRaw = arrayMove(f.itineraries, oldIndex, newIndex);
-      const dayNumberMap = new Map(reorderedRaw.map((d, i) => [d.day, i + 1]));
-      const itineraries = reorderedRaw.map((d, i) => ({ ...d, day: i + 1 }));
-      const addOns = f.addOns.map((a) => (
-        a.day != null && dayNumberMap.has(a.day) ? { ...a, day: dayNumberMap.get(a.day)! } : a
-      ));
-      return { ...f, itineraries, addOns };
-    });
+    // Shared with the day rail (reorderDays in builder-context) rather than
+    // reimplemented — the add-on remap below is the part that has to match, and
+    // two copies of it is exactly how the removeDay bug happened.
+    setForm((f) => reorderDays(f, oldIndex, newIndex));
     setDayDndIds((ids) => arrayMove(ids, oldIndex, newIndex));
   }
 
@@ -4039,6 +4035,12 @@ Rules:
           aside and centering the whole pair turns that into a normal, even
           page margin instead. */}
       <div className="print-reset flex justify-center relative h-[calc(100vh-3.5rem)]">
+        {/* Day rail — structure and navigation for the preview beside it.
+            Desktop only: on a narrow screen the preview already takes the whole
+            viewport and a third column would leave nothing for it. */}
+        <div className="no-print hidden lg:flex">
+          <DayLayersRail />
+        </div>
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="print-reset hidden lg:block flex-1 max-w-[880px] border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
