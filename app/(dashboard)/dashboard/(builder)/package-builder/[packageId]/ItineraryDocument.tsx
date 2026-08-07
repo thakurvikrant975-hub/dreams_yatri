@@ -7,6 +7,7 @@ import {
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
+  StickyNote, AlertTriangle, AlertOctagon,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
@@ -59,6 +60,41 @@ const DOC = {
   /** Secondary accent for the "included / confirmed" tone. */
   positive: "#059669",
 } as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Day note tones
+//
+// Same vocabulary as itinerary_notes.type in the admin catalog (see
+// NOTE_STYLES in the website's Itnary.tsx) rather than a second set of names
+// for the same idea — a note written in one system reads the same in the other.
+//
+// Literal hex for the same reason as DOC above: html2canvas-pro can't resolve
+// the app's oklch theme tokens, and a note whose whole job is to signal
+// severity by colour would export as a grey box. Tuned to sit on the warm
+// paper ground rather than reusing the dashboard's cooler semantic ramp.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type NoteTone = "neutral" | "info" | "success" | "warning" | "error";
+
+export const NOTE_TONES: Record<NoteTone, {
+  label: string; bg: string; border: string; ink: string; icon: string;
+}> = {
+  neutral: { label: "Note",    bg: "#F6F3EE", border: "#E4DDD2", ink: "#57534E", icon: "#8C857D" },
+  info:    { label: "Info",    bg: "#EEF4FC", border: "#CBDDF5", ink: "#1E4E8C", icon: "#2F6FBF" },
+  success: { label: "Good",    bg: "#ECF7F1", border: "#C6E6D6", ink: "#12634A", icon: "#0F8A5F" },
+  warning: { label: "Heads up",bg: "#FDF4E7", border: "#F2DEBE", ink: "#8A5A16", icon: "#C07E1E" },
+  error:   { label: "Important", bg: "#FDEEEC", border: "#F5CFC9", ink: "#9B2C1E", icon: "#C0392B" },
+};
+
+const NOTE_TONE_ICONS: Record<NoteTone, React.ElementType> = {
+  neutral: StickyNote, info: Info, success: CheckCircle, warning: AlertTriangle, error: AlertOctagon,
+};
+
+/** Falls back to neutral for an unknown or absent value, so an older note (or
+ * one written by another system) never renders as a broken box. */
+export function noteTone(raw: string | null | undefined): NoteTone {
+  return raw && raw in NOTE_TONES ? (raw as NoteTone) : "neutral";
+}
 
 /** Poppins (--font-heading, see globals.css) — the brand display face. The
  * document previously used none of it, so every heading rendered in the body
@@ -468,6 +504,79 @@ function PolicyBlock({ label, items }: { label: string; items: string[] }) {
  * icon and the word — the actual information — rather than a differently
  * coloured frame drawn around each one. Consistency is what makes them
  * scannable; four different box treatments is what made them noise. */
+/** The day's note, as a toned callout.
+ *
+ * In the builder it always renders (so an empty one is findable and its tone
+ * is switchable); on the client's document and in exports it appears only when
+ * there is actually something to say. */
+function DayNote({ day }: { day: DayItinerary }) {
+  const builder = useOptionalBuilder();
+  const canEdit = !!builder?.canEdit;
+  const hasNote = !!day.notes.trim();
+  if (!hasNote && !canEdit) return null;
+
+  const tone = noteTone(day.notesType);
+  const t = NOTE_TONES[tone];
+  const Icon = NOTE_TONE_ICONS[tone];
+
+  return (
+    <div
+      className={cn("rounded-lg px-3 py-2.5", !hasNote && "builder-only no-print")}
+      style={{ backgroundColor: t.bg, border: `1px solid ${t.border}` }}
+    >
+      <div className="flex items-start gap-2">
+        <Icon size={13} color={t.icon} className="shrink-0 mt-px" />
+        <div className="flex-1 min-w-0">
+          <p
+            className="text-[9px] font-semibold uppercase tracking-[0.13em] mb-0.5"
+            style={{ color: t.icon }}
+          >
+            {t.label}
+          </p>
+          <EditableText
+            as="p"
+            multiline
+            value={day.notes}
+            field={{ scope: "day", day: day.day, key: "notes" }}
+            placeholder="Note for this day — click to add…"
+            className="block text-[11px] leading-relaxed"
+            style={{ color: t.ink }}
+          />
+        </div>
+      </div>
+
+      {/* Tone switcher — builder-only, and only once there's a note worth
+          toning. Swatches rather than a dropdown: five options, and the whole
+          point of the choice is what it looks like. */}
+      {canEdit && hasNote && (
+        <div className="builder-only no-print flex items-center gap-1 mt-2 pl-[21px]">
+          {(Object.keys(NOTE_TONES) as NoteTone[]).map((key) => {
+            const opt = NOTE_TONES[key];
+            const active = key === tone;
+            return (
+              <button
+                key={key}
+                type="button"
+                title={opt.label}
+                aria-label={`Set note tone: ${opt.label}`}
+                aria-pressed={active}
+                onClick={() => builder!.updateDay(day.day, { notesType: key })}
+                className="size-4 rounded-full transition-transform hover:scale-110"
+                style={{
+                  backgroundColor: opt.icon,
+                  outline: active ? `2px solid ${opt.icon}` : "none",
+                  outlineOffset: "1.5px",
+                  opacity: active ? 1 : 0.45,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DaySubHead({ icon: Icon, label, meta, onEdit }: {
   icon: React.ElementType;
   label: string;
@@ -1548,28 +1657,11 @@ function DayCardPreview({
         )}
 
         {/* Client-facing copy, not an internal remark — it already rendered on
-            the sent document and in the PDF, so it edits in place like the
-            day description rather than hiding in a drawer. The rule above it
-            is drawn only when there's something to separate, so an empty
-            builder placeholder doesn't leave a stray line on the page. */}
-        {(day.notes.trim() || builder?.canEdit) && (
-          <div
-            // With no note yet, the whole block is builder chrome — marked so
-            // it takes no space in an export, not just so its text is hidden.
-            className={cn("pt-2.5", !day.notes.trim() && "builder-only no-print")}
-            style={day.notes.trim() ? { borderTop: `1px solid ${DOC.rule}` } : undefined}
-          >
-            <EditableText
-              as="p"
-              multiline
-              value={day.notes}
-              field={{ scope: "day", day: day.day, key: "notes" }}
-              placeholder="Note for this day — click to add…"
-              className="block text-[11px] italic"
-              style={{ color: DOC.inkMuted }}
-            />
-          </div>
-        )}
+            the sent document and in the PDF. A tone turns it from a stray
+            italic line into a real callout, which is the point: a note saying
+            "carry photo ID" and one saying "upgrade confirmed" should not look
+            identical on the client's copy. */}
+        <DayNote day={day} />
       </div>
     </div>
   );

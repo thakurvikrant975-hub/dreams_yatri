@@ -753,6 +753,9 @@ export interface DayItinerary {
   /** Additional, different cabs for the same day — see CabSelection. */
   extraCabs?:         CabSelection[];
   notes:              string;
+  /** Tone for the note above — warning | info | error | success | neutral.
+   * Null/absent reads as neutral. Same vocabulary as itinerary_notes.type. */
+  notesType?:         string | null;
 }
 
 /** Per-package additions to the six standard lists — see
@@ -1130,7 +1133,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           transportSeats: true, transportPickup: true,
           transportPickupLat: true, transportPickupLng: true,
           transportDrop: true, transportDistanceKm: true, transportTravelTime: true,
-          cabPricingId: true, cabQuantity: true, extraCabs: true, notes: true,
+          cabPricingId: true, cabQuantity: true, extraCabs: true, notes: true, notesType: true,
           activities: {
             orderBy: { sortOrder: "asc" },
             select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
@@ -1166,7 +1169,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       transportSeats: n.transportSeats, transportPickup: n.transportPickup,
       transportPickupLat: n.transportPickupLat, transportPickupLng: n.transportPickupLng,
       transportDrop: n.transportDrop, transportDistanceKm: n.transportDistanceKm, transportTravelTime: n.transportTravelTime,
-      cabPricingId: n.cabPricingId, cabQuantity: n.cabQuantity, extraCabs: n.extraCabs, notes: n.notes,
+      cabPricingId: n.cabPricingId, cabQuantity: n.cabQuantity, extraCabs: n.extraCabs, notes: n.notes, notesType: n.notesType,
     };
   });
 
@@ -1338,7 +1341,7 @@ function normalizeItinerary(it: {
   transportSeats: number | null; transportPickup: string | null;
   transportPickupLat: number | null; transportPickupLng: number | null;
   transportDrop: string | null;
-  transportDistanceKm: number | null; transportTravelTime: string | null; notes: string | null;
+  transportDistanceKm: number | null; transportTravelTime: string | null; notes: string | null; notesType: string | null;
   cabPricingId: number | null;
   cabQuantity: number | null;
   extraCabs: Prisma.JsonValue;
@@ -1390,6 +1393,7 @@ function normalizeItinerary(it: {
     cabQuantity:               it.cabQuantity ?? null,
     extraCabs:                 parseCabSelections(it.extraCabs),
     notes:                     it.notes ?? "",
+    notesType:                 it.notesType ?? null,
   };
 }
 
@@ -1588,6 +1592,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           cabQuantity:        true,
           extraCabs:          true,
           notes:              true,
+          notesType:          true,
           activities: {
             orderBy: { sortOrder: "asc" },
             select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
@@ -1979,6 +1984,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               // Same "drop unfinished rows" filter as extraRooms above.
               extraCabs:          (it.extraCabs ?? []).filter((c) => c.label.trim()) as unknown as Prisma.InputJsonValue,
               notes:              it.notes || null,
+              notesType:          it.notesType || null,
               activities: {
                 create: it.activities
                   .filter((a) => a.title.trim())

@@ -271,7 +271,7 @@ export const emptyDay = (day: number): DayItinerary => ({
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,
   transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
   cabPricingId: null,
-  notes: "",
+  notes: "", notesType: null,
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

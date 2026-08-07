@@ -62,6 +62,7 @@ export async function getSharedPackage(packageId: string) {
           // base beds alone and over-reports the room count to the client.
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
           roomsCount: true, extraRooms: true,
+          notesType: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           transport: true, transportPhoto: true, transportVehicleType: true, transportSeats: true,
           transportPickup: true, transportDrop: true, transportDistanceKm: true, transportTravelTime: true, notes: true,
@@ -167,6 +168,7 @@ export async function getSharedPackage(packageId: string) {
       accommodationRoomPhotos:   it.accommodationRoomPhotos,
       accommodationLocation:     it.accommodationLocation ?? "",
       accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
+      notesType:                 it.notesType ?? null,
       accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
       accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
       accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
