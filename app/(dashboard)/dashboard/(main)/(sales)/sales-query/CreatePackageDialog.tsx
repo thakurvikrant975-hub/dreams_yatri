@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { toast } from "sonner";
 import {
     Package, Search, MapPin, Route, BedDouble, CalendarDays, Loader2, Sparkles, ArrowRight, IndianRupee,
     Users, Calendar, Plus, X, Copy, FileStack,
@@ -227,10 +228,16 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
         setApplyingSlug(pkg.slug);
         try {
             const payload = await copyPackageIntoDraft(pkg.slug, pkg.durationSlug ?? "", pkg.routeSlug ?? "", "");
-            const targetId = packageId ?? newPackageId();
-            if (payload) {
-                sessionStorage.setItem(`pkgCopyPayload:${targetId}`, JSON.stringify(payload));
+            // A null payload means the template's package/duration/route
+            // couldn't be resolved at all (e.g. slug mismatch) — previously
+            // this silently navigated to a completely empty draft with no
+            // indication anything went wrong. Stay put and say so instead.
+            if (!payload) {
+                toast.error(`Couldn't load "${pkg.title}" as a template — try again or pick a different package.`);
+                return;
             }
+            const targetId = packageId ?? newPackageId();
+            sessionStorage.setItem(`pkgCopyPayload:${targetId}`, JSON.stringify(payload));
             setOpen(false);
             // Hard navigation (not router.push) — this dialog can be opened from
             // the builder page itself to swap an already-copied template, and a
@@ -246,10 +253,12 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
         setApplyingDuplicateId(pkg.id);
         try {
             const payload = await duplicateCustomPackageIntoDraft(pkg.id);
-            const targetId = packageId ?? newPackageId();
-            if (payload) {
-                sessionStorage.setItem(`pkgCopyPayload:${targetId}`, JSON.stringify(payload));
+            if (!payload) {
+                toast.error(`Couldn't load "${pkg.title}" to duplicate — try again.`);
+                return;
             }
+            const targetId = packageId ?? newPackageId();
+            sessionStorage.setItem(`pkgCopyPayload:${targetId}`, JSON.stringify(payload));
             setOpen(false);
             // Hard navigation — same reasoning as handleUseTemplate above.
             window.location.href = targetUrl(targetId);

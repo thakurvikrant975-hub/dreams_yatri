@@ -935,7 +935,13 @@ export async function copyPackageIntoDraft(
   // site (see CreatePackageDialog/searchPackageLibraryForTemplate) is still
   // a perfectly valid template to reuse internally, it just shouldn't be
   // reachable on the live site.
-  const data = await fetchPackagePageData(packageSlug, durationSlug, routeSlug, staySlug, { includeInactive: true });
+  // allowMissingStay: a package with no stay categories configured at all
+  // (a real data gap on several catalog packages, e.g. most Jammu & Kashmir
+  // ones) has no hotel/pricing to key off, but its route/itinerary/
+  // activities/policies are still perfectly valid to copy — previously this
+  // returned null here, so "Use Template" silently produced a completely
+  // empty draft with no error shown (see CreatePackageDialog/UsePackageDialog).
+  const data = await fetchPackagePageData(packageSlug, durationSlug, routeSlug, staySlug, { includeInactive: true, allowMissingStay: true });
   if (!data) return null;
 
   const stops: StopInput[] = (data.selectedRoute?.stops ?? []).map((s) => ({
