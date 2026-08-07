@@ -7,7 +7,7 @@ import {
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
-  StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus,
+  StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus, Lock,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -481,8 +481,13 @@ function PolicyBlock({ label, items, listKey }: {
   items: string[];
   /** When given, this package's own additions to the list become editable in
    * place and an "Add" affordance appears — same locked-standard / editable-
-   * custom model as inclusions. Omitted for custom policy sections, which have
-   * no extraPolicyItems slot to write into and stay read-only. */
+   * custom model as inclusions.
+   *
+   * Omitted for custom policy sections, and that is not an oversight:
+   * ExtraPolicyItems has exactly six keys with no slot for them, and
+   * saveCustomPackage re-sources customPolicySections from itinerary settings
+   * on every save. Editing one here would appear to work and then be silently
+   * discarded, so the section says it's company-wide instead. */
   listKey?: PolicyListKey;
 }) {
   const builder = useOptionalBuilder();
@@ -490,7 +495,20 @@ function PolicyBlock({ label, items, listKey }: {
   if (items.length === 0 && !(listKey && builder?.canEdit)) return null;
   return (
     <div className="space-y-2.5" style={{ breakInside: "avoid" }}>
-      <SectionHeader label={label} tone="muted" />
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <SectionHeader label={label} tone="muted" />
+        </div>
+        {!listKey && builder?.canEdit && (
+          <span
+            title="Company-wide content — edited in Itinerary Settings"
+            className="builder-only no-print shrink-0 flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider"
+            style={{ color: DOC.inkMuted }}
+          >
+            <Lock size={9} /> Company-wide
+          </span>
+        )}
+      </div>
       {listKey ? (
         <EditablePolicyList
           items={items}
