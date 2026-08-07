@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { Plus, Hotel, Car, Sparkles, CalendarPlus, Trash2, ChevronDown } from "lucide-react";
+import { Plus, Hotel, Car, Sparkles, CalendarPlus, Trash2, ChevronDown, Utensils, Gift } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -30,11 +30,13 @@ import { useBuilder } from "./builder-context";
 
 const CONFIRM_WORD = "delete";
 
-export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities }: {
+export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasMeals, hasAddons }: {
   day: number;
   hasStay: boolean;
   hasTransport: boolean;
   hasActivities: boolean;
+  hasMeals: boolean;
+  hasAddons: boolean;
 }) {
   const { openDrawer, addDayAfter, removeDay, form } = useBuilder();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -78,6 +80,12 @@ export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities }: {
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => openDrawer({ kind: "activities-edit", day })}>
             <Sparkles size={13} /> {hasActivities ? "Edit experiences" : "Experiences"}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => openDrawer({ kind: "meals-edit", day })}>
+            <Utensils size={13} /> {hasMeals ? "Edit meals" : "Meals"}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => openDrawer({ kind: "addons-edit", day })}>
+            <Gift size={13} /> {hasAddons ? "Edit add-ons" : "Add-on"}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />

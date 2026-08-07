@@ -15,6 +15,7 @@
 
 import type {
   DayItinerary, HotelRoomResult, VehicleResult, CabPricingResult, ActivityInput,
+  TicketInput, AddonInput,
 } from "../action";
 import { formatTime12h } from "./ItineraryDocument";
 
@@ -266,4 +267,45 @@ export const emptyDay = (day: number): DayItinerary => ({
   transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
   cabPricingId: null,
   notes: "",
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tickets and add-ons
+//
+// Package-level rather than day-level (a return flight belongs to the trip,
+// not to a day), but they live here for the same reason everything else does:
+// one definition, shared by the right-hand panel and the preview's drawers.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const emptyTicket = (type: TicketInput["type"]): TicketInput => ({
+  type, provider: "", ticketNumber: "",
+  fromPlace: "", toPlace: "", travelDate: "", departureTime: "", arrivalTime: "", durationText: "",
+  adults: 0, children: 0, infants: 0, ticketCount: 1,
+  fare: null, notes: "",
+});
+
+export const TICKET_TYPE_LABELS: Record<TicketInput["type"], string> = {
+  FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter",
+};
+
+/** Journey length from the two times — derived, never typed. Wraps past
+ * midnight (a 23:30 → 01:10 leg is 1h 40m, not negative). */
+export function computeDurationText(departureTime: string, arrivalTime: string): string {
+  if (!departureTime || !arrivalTime) return "";
+  const [dh, dm] = departureTime.split(":").map(Number);
+  const [ah, am] = arrivalTime.split(":").map(Number);
+  if ([dh, dm, ah, am].some((n) => Number.isNaN(n))) return "";
+  let diff = (ah * 60 + am) - (dh * 60 + dm);
+  if (diff < 0) diff += 24 * 60;
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  if (hours === 0) return `${mins}m`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+}
+
+/** A blank add-on. `day` null means it belongs to the package as a whole
+ * rather than to one day — see AddonInput.day. */
+export const emptyAddon = (day: number | null = null): AddonInput => ({
+  name: "", price: null, quantity: 1, notes: "", day,
 });

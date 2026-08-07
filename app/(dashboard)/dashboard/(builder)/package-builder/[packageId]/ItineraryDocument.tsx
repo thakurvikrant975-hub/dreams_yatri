@@ -6,7 +6,7 @@ import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
-  Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift,
+  Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
@@ -371,12 +371,16 @@ export interface PreviewData {
  * when the source is an oklch() theme token (globals.css) — the glyph comes
  * out blank. Background-colour resolves fine either way. See DOC above. */
 function SectionHeader({
-  icon: Icon, label, tone = "primary",
+  icon: Icon, label, tone = "primary", onAdd, addLabel = "Edit",
 }: {
   /** Not rendered by the `muted` tone, which is deliberately badge-less. */
   icon?: React.ElementType;
   label: string;
   tone?: "primary" | "emerald" | "muted";
+  /** Builder-only route into this section's drawer. Absent on the
+   * client-facing document and in exports. */
+  onAdd?: () => void;
+  addLabel?: string;
 }) {
   if (tone === "muted" || !Icon) {
     return (
@@ -409,6 +413,16 @@ function SectionHeader({
         {label}
       </h2>
       <span className="h-px flex-1" style={{ backgroundColor: DOC.rule }} />
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="builder-only no-print shrink-0 flex items-center gap-1 rounded-md border border-dashed border-dashboard-base-300 px-2 py-0.5 text-[10px] font-medium transition-colors hover:bg-dashboard-primary/6"
+          style={{ color: DOC.accent }}
+        >
+          <Plus size={10} /> {addLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -988,16 +1002,30 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
 /** Flight and train legs get their own labeled sections (never merged) so a
  * trip with both reads as two distinct groups, not one mixed list. */
 export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
+  const builder = useOptionalBuilder();
+  const onAddTickets = builder?.canEdit
+    ? () => builder.openDrawer({ kind: "tickets-edit" })
+    : undefined;
   const flights = tickets.filter((t) => t.type === "FLIGHT");
   const trains = tickets.filter((t) => t.type === "TRAIN");
   const helicopters = tickets.filter((t) => t.type === "HELICOPTER");
-  if (flights.length === 0 && trains.length === 0 && helicopters.length === 0) return null;
+  const empty = flights.length === 0 && trains.length === 0 && helicopters.length === 0;
+  // With no legs at all the section would vanish, taking the only way to add
+  // the first one with it — so the builder keeps a bare header. The
+  // client-facing document still renders nothing.
+  if (empty) {
+    return onAddTickets ? (
+      <div className="builder-only no-print space-y-3">
+        <SectionHeader icon={Plane} label="Flights, Trains & Helicopters" onAdd={onAddTickets} addLabel="Add" />
+      </div>
+    ) : null;
+  }
 
   return (
     <>
       {flights.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={Plane} label="Flight Details" />
+          <SectionHeader icon={Plane} label="Flight Details" onAdd={onAddTickets} />
           <div className="grid gap-3">
             {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
@@ -1005,7 +1033,7 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       )}
       {trains.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={TrainFront} label="Train Details" />
+          <SectionHeader icon={TrainFront} label="Train Details" onAdd={onAddTickets} />
           <div className="grid gap-3">
             {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
@@ -1013,7 +1041,7 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       )}
       {helicopters.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={Helicopter} label="Helicopter Details" />
+          <SectionHeader icon={Helicopter} label="Helicopter Details" onAdd={onAddTickets} />
           <div className="grid gap-3">
             {helicopters.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
@@ -1048,12 +1076,23 @@ function AddonCard({ addon }: { addon: AddonInput }) {
  * than a specific day's hotel, so they aren't tied to any one Day card and
  * are shown here instead, up top with Flight/Train details. */
 export function AddonsSection({ addOns }: { addOns?: AddonInput[] }) {
+  const builder = useOptionalBuilder();
+  const onAddAddons = builder?.canEdit
+    ? () => builder.openDrawer({ kind: "addons-edit", day: null })
+    : undefined;
   const items = (addOns ?? []).filter((a) => a.name.trim() && a.day == null);
-  if (items.length === 0) return null;
+  // Same reasoning as TicketsSection above.
+  if (items.length === 0) {
+    return onAddAddons ? (
+      <div className="builder-only no-print space-y-3">
+        <SectionHeader icon={Gift} label="Add-ons Included" onAdd={onAddAddons} addLabel="Add" />
+      </div>
+    ) : null;
+  }
 
   return (
     <div className="space-y-3" style={{ breakInside: "avoid" }}>
-      <SectionHeader icon={Gift} label="Add-ons Included" />
+      <SectionHeader icon={Gift} label="Add-ons Included" onAdd={onAddAddons} />
       <div className="grid grid-cols-2 gap-3">
         {items.map((a, i) => <AddonCard key={i} addon={a} />)}
       </div>
@@ -1179,6 +1218,8 @@ function DayCardPreview({
               hasStay={!!hasHotel}
               hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
               hasActivities={activities.length > 0}
+              hasMeals={(shiftedMeals ?? day.meals).length > 0}
+              hasAddons={(addOns ?? []).some((a) => a.day === day.day)}
             />
           </div>
         )}
@@ -1443,7 +1484,11 @@ function DayCardPreview({
             (the morning of checkout), not the day the hotel was checked into. */}
         {(shiftedMeals ?? day.meals).length > 0 && (
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
-            <DaySubHead icon={Utensils} label="Meals" />
+            <DaySubHead
+              icon={Utensils}
+              label="Meals"
+              onEdit={builder?.canEdit ? () => builder.openDrawer({ kind: "meals-edit", day: day.day }) : undefined}
+            />
             <div className={SUBHEAD_INDENT}>
               <MealsRow meals={shiftedMeals ?? day.meals} />
             </div>

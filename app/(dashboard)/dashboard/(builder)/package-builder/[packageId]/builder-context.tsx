@@ -117,7 +117,14 @@ export type DrawerTarget =
   /** Choose the vehicle covering this day, and the route it covers. */
   | { kind: "transfer-edit"; day: number }
   /** Add, reorder, edit and remove the day's experiences. */
-  | { kind: "activities-edit"; day: number };
+  | { kind: "activities-edit"; day: number }
+  /** Which meals this day includes. */
+  | { kind: "meals-edit"; day: number }
+  /** Priced add-ons. `day` scopes them to one day (they render under that
+   * day's stay); null is a package-level add-on. */
+  | { kind: "addons-edit"; day: number | null }
+  /** Flight / train / helicopter legs — package-level, never day-scoped. */
+  | { kind: "tickets-edit" };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context

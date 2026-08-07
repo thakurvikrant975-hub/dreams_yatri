@@ -77,7 +77,7 @@ import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { PackageBuilderProvider, type PackageForm } from "./builder-context";
-import { applyHotelRoomSelection, emptyDay } from "./day-mutations";
+import { applyHotelRoomSelection, emptyDay, emptyTicket, computeDurationText } from "./day-mutations";
 import { geocodeCity } from "./geocode-city";
 import { BuilderDrawer } from "./BuilderDrawer";
 
@@ -2101,13 +2101,6 @@ function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
   return false;
 }
 
-const emptyTicket = (type: TicketInput["type"]): TicketInput => ({
-  type, provider: "", ticketNumber: "",
-  fromPlace: "", toPlace: "", travelDate: "", departureTime: "", arrivalTime: "", durationText: "",
-  adults: 0, children: 0, infants: 0, ticketCount: 1,
-  fare: null, notes: "",
-});
-
 const TICKET_TYPE_LABELS: Record<TicketInput["type"], string> = {
   FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter",
 };
@@ -2127,20 +2120,6 @@ const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
 
 /** "14:30", "09:05" (24h, matches <input type="time">) → minutes-since-midnight,
  * assuming arrival is the next day when it's earlier than departure. */
-function computeDurationText(departureTime: string, arrivalTime: string): string {
-  if (!departureTime || !arrivalTime) return "";
-  const [dh, dm] = departureTime.split(":").map(Number);
-  const [ah, am] = arrivalTime.split(":").map(Number);
-  if ([dh, dm, ah, am].some((n) => Number.isNaN(n))) return "";
-  let diff = (ah * 60 + am) - (dh * 60 + dm);
-  if (diff < 0) diff += 24 * 60;
-  const hours = Math.floor(diff / 60);
-  const mins = diff % 60;
-  if (hours === 0) return `${mins}m`;
-  if (mins === 0) return `${hours}h`;
-  return `${hours}h ${mins}m`;
-}
-
 /** One flight or train leg — every field the exec would need for a ticket
  * confirmation (pax breakdown, travel date, times, auto-computed journey
  * length, fare). Journey length is derived, not typed. */
