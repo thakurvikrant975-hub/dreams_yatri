@@ -17,8 +17,45 @@
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/sheet";
-import { useBuilder } from "./builder-context";
-import { HotelDrawerBody, hotelDrawerHeading } from "./HotelDrawer";
+import { useBuilder, type DrawerTarget } from "./builder-context";
+import { HotelReplaceView, HotelEditView } from "./HotelDrawer";
+import { TransferView, ActivitiesView } from "./DayDrawers";
+
+/** Header copy per target. Exhaustive over DrawerTarget — adding a drawer kind
+ * without a heading is a compile error rather than a blank title bar. */
+function headingFor(target: DrawerTarget): { title: string; description: string } {
+  switch (target.kind) {
+    case "hotel-replace":
+      return {
+        title: `Day ${target.day} — choose a stay`,
+        description: "Properties near this day's stop. Picking one prices the night from its real rate.",
+      };
+    case "hotel-edit":
+      return {
+        title: `Day ${target.day} — stay details`,
+        description: "What this night includes. Room capacity and rates come from the catalog and aren't editable here.",
+      };
+    case "transfer-edit":
+      return {
+        title: `Day ${target.day} — transport`,
+        description: "The vehicle covering this day, and the route it runs. Only a rated vehicle is costed into the package.",
+      };
+    case "activities-edit":
+      return {
+        title: `Day ${target.day} — experiences`,
+        description: "What the client actually does today, in the order they'll do it.",
+      };
+  }
+}
+
+function bodyFor(target: DrawerTarget) {
+  switch (target.kind) {
+    case "hotel-replace": return <HotelReplaceView day={target.day} />;
+    case "hotel-edit": return <HotelEditView day={target.day} />;
+    case "transfer-edit": return <TransferView day={target.day} />;
+    case "activities-edit": return <ActivitiesView day={target.day} />;
+  }
+}
 
 export function BuilderDrawer() {
   const { drawer, closeDrawer, canEdit } = useBuilder();
@@ -27,7 +64,7 @@ export function BuilderDrawer() {
   // drawer should never be reachable — belt-and-braces against a stray open()
   // slipping past the affordance-level check.
   const open = !!drawer && canEdit;
-  const heading = drawer ? hotelDrawerHeading(drawer) : null;
+  const heading = drawer ? headingFor(drawer) : null;
 
   return (
     <Sheet open={open} onOpenChange={(next) => { if (!next) closeDrawer(); }}>
@@ -44,7 +81,7 @@ export function BuilderDrawer() {
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto">
-          {drawer && <HotelDrawerBody target={drawer} />}
+          {drawer && bodyFor(drawer)}
         </div>
       </SheetContent>
     </Sheet>

@@ -112,7 +112,11 @@ export type DrawerTarget =
   | { kind: "hotel-replace"; day: number }
   /** Edit what an exec is allowed to change about the picked room — rooms
    * needed, meal plan, check-in/out — never catalog data. */
-  | { kind: "hotel-edit"; day: number };
+  | { kind: "hotel-edit"; day: number }
+  /** Choose the vehicle covering this day, and the route it covers. */
+  | { kind: "transfer-edit"; day: number }
+  /** Add, reorder, edit and remove the day's experiences. */
+  | { kind: "activities-edit"; day: number };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context

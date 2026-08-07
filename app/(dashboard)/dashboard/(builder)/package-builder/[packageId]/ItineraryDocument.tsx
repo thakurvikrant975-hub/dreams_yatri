@@ -1326,12 +1326,30 @@ function DayCardPreview({
 
         <DayAddonsSection addOns={addOns ?? []} day={day.day} />
 
+        {/* Add-affordances for an empty day. Builder-only in every sense:
+            gated on canEdit, marked builder-only so they can't reach the PDF,
+            and absent entirely from the client-facing document. */}
+        {!(day.transport || day.transportPickup || day.transportDrop) && builder?.canEdit && (
+          <button
+            type="button"
+            onClick={() => builder.openDrawer({ kind: "transfer-edit", day: day.day })}
+            className="builder-only no-print w-full flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left transition-colors hover:bg-dashboard-primary/6"
+            style={{ borderColor: DOC.rule }}
+          >
+            <Car size={12} color={DOC.accent} className="shrink-0" />
+            <span className="text-[11px] font-medium" style={{ color: DOC.accent }}>
+              Add transport for this day
+            </span>
+          </button>
+        )}
+
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
             <DaySubHead
               icon={Car}
               label="Transport"
+              onEdit={builder?.canEdit ? () => builder.openDrawer({ kind: "transfer-edit", day: day.day }) : undefined}
               meta={[
                 day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
                 day.transportTravelTime || null,
@@ -1442,6 +1460,20 @@ function DayCardPreview({
         )}
 
         {/* Activities */}
+        {activities.length === 0 && builder?.canEdit && (
+          <button
+            type="button"
+            onClick={() => builder.openDrawer({ kind: "activities-edit", day: day.day })}
+            className="builder-only no-print w-full flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left transition-colors hover:bg-dashboard-primary/6"
+            style={{ borderColor: DOC.rule }}
+          >
+            <Sparkles size={12} color={DOC.accent} className="shrink-0" />
+            <span className="text-[11px] font-medium" style={{ color: DOC.accent }}>
+              Add experiences for this day
+            </span>
+          </button>
+        )}
+
         {activities.length > 0 && (
           <div className="space-y-2.5">
             {activities.map(({ a, originalIndex }, idx) => {
@@ -1468,7 +1500,11 @@ function DayCardPreview({
               if (idx === 0) {
                 return (
                   <div key={originalIndex} className="space-y-2.5" style={{ breakInside: "avoid" }}>
-                    <DaySubHead icon={Sparkles} label="Experiences" />
+                    <DaySubHead
+                      icon={Sparkles}
+                      label="Experiences"
+                      onEdit={builder?.canEdit ? () => builder.openDrawer({ kind: "activities-edit", day: day.day }) : undefined}
+                    />
                     <div className={SUBHEAD_INDENT}>{row}</div>
                   </div>
                 );

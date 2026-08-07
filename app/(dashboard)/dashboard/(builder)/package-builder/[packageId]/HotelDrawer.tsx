@@ -25,38 +25,14 @@ import {
 import { geocodeCity } from "./geocode-city";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
-import { useBuilder, type DrawerTarget } from "./builder-context";
+import { useBuilder } from "./builder-context";
 import { applyHotelRoomSelection, clearHotelSelection } from "./day-mutations";
-
-/** Header copy for each target — lives here rather than in BuilderDrawer so
- * the drawer shell stays agnostic about what it's hosting. */
-export function hotelDrawerHeading(target: DrawerTarget): { title: string; description: string } {
-  switch (target.kind) {
-    case "hotel-replace":
-      return {
-        title: `Day ${target.day} — choose a stay`,
-        description: "Properties near this day's stop. Picking one prices the night from its real rate.",
-      };
-    case "hotel-edit":
-      return {
-        title: `Day ${target.day} — stay details`,
-        description: "What this night includes. Room capacity and rates come from the catalog and aren't editable here.",
-      };
-  }
-}
-
-export function HotelDrawerBody({ target }: { target: DrawerTarget }) {
-  switch (target.kind) {
-    case "hotel-replace": return <ReplaceView day={target.day} />;
-    case "hotel-edit": return <EditView day={target.day} />;
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Replace
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ReplaceView({ day }: { day: number }) {
+export function HotelReplaceView({ day }: { day: number }) {
   const { form, setForm, openDrawer, closeDrawer } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
@@ -243,7 +219,7 @@ function ReplaceView({ day }: { day: number }) {
 // Edit
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EditView({ day }: { day: number }) {
+export function HotelEditView({ day }: { day: number }) {
   const { form, setForm, updateDay, openDrawer, closeDrawer } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
   if (!itin) return null;

@@ -13,8 +13,16 @@
 // bug impossible instead of merely unlikely.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { DayItinerary, HotelRoomResult } from "../action";
+import type {
+  DayItinerary, HotelRoomResult, VehicleResult, CabPricingResult, ActivityInput,
+} from "../action";
 import { formatTime12h } from "./ItineraryDocument";
+
+/** Vehicle enum → display label. Mirrors CAB_LABELS in page.tsx, which stays
+ * there because the right panel uses it for its own cab chips too. */
+const CAB_LABELS: Record<string, string> = {
+  SEDAN: "Sedan", SUV: "SUV", TEMPO: "Tempo Traveller", BUS: "Bus",
+};
 
 /** Structured meal keys on a room's plan → the document's display labels.
  * Mirrors MEAL_KEY_LABELS in page.tsx, which stays there because the right
@@ -96,4 +104,101 @@ export function clearHotelSelection(day: DayItinerary): DayItinerary {
     roomsCount: null,
     extraRooms: [],
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transfer
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A search hit from either cab source: `cab_pricing` (a real, bookable rate —
+ * has vehicleName) or the unscoped `vehicles` fleet catalog (no rate yet). */
+export type AnyVehicleHit = VehicleResult | CabPricingResult;
+
+/** True for a priced `cab_pricing` row rather than a bare fleet vehicle. Only
+ * the priced kind carries a cabPricingId, and only a day with one contributes
+ * to the cab subtotal — see computeBuilderCabPricing. */
+export function isPricedVehicle(hit: AnyVehicleHit): hit is CabPricingResult {
+  return "vehicleName" in hit;
+}
+
+/**
+ * Applies a vehicle choice to a day.
+ *
+ * Mirrors the right-hand panel's handleVehicleSelect exactly, including the
+ * cabPricingId rule above — picking from the fleet catalog deliberately leaves
+ * it null so an unpriced vehicle can be shown on the itinerary without
+ * silently contributing ₹0 to a costed total.
+ */
+export function applyVehicleSelection(day: DayItinerary, hit: AnyVehicleHit): DayItinerary {
+  const priced = isPricedVehicle(hit);
+  const name = priced ? hit.vehicleName : hit.name;
+  const type = priced ? hit.vehicleType : hit.type;
+  return {
+    ...day,
+    transport: name,
+    transportPhoto: hit.thumbnail ?? day.transportPhoto,
+    transportVehicleType: CAB_LABELS[type] ?? type,
+    transportSeats: hit.passengerCapacity,
+    cabPricingId: priced ? hit.id : null,
+  };
+}
+
+/**
+ * Clears the day's vehicle.
+ *
+ * Zeroes cabPricingId so a removed vehicle stops contributing to the price.
+ * Pickup/drop/distance/travel-time are deliberately left alone — those
+ * describe the route, not which vehicle covers it, and an exec swapping cabs
+ * should not have to retype them.
+ */
+export function clearVehicleSelection(day: DayItinerary): DayItinerary {
+  return {
+    ...day,
+    transport: "",
+    transportPhoto: "",
+    transportVehicleType: "",
+    transportSeats: null,
+    cabPricingId: null,
+    cabQuantity: null,
+    extraCabs: [],
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Activities
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EMPTY_ACTIVITY: ActivityInput = {
+  title: "", description: "", photo: "", photos: [], photoLabels: [],
+};
+
+export function addActivity(day: DayItinerary, title = ""): DayItinerary {
+  return { ...day, activities: [...day.activities, { ...EMPTY_ACTIVITY, title }] };
+}
+
+export function updateActivity(
+  day: DayItinerary,
+  index: number,
+  patch: Partial<ActivityInput>,
+): DayItinerary {
+  return {
+    ...day,
+    activities: day.activities.map((a, i) => (i === index ? { ...a, ...patch } : a)),
+  };
+}
+
+export function removeActivity(day: DayItinerary, index: number): DayItinerary {
+  return { ...day, activities: day.activities.filter((_, i) => i !== index) };
+}
+
+/** Moves one activity by `delta` positions, clamped to the list. Returns the
+ * day unchanged when the move would fall off either end, so a caller can wire
+ * up/down buttons without guarding the boundaries itself. */
+export function moveActivity(day: DayItinerary, index: number, delta: number): DayItinerary {
+  const to = index + delta;
+  if (to < 0 || to >= day.activities.length) return day;
+  const next = [...day.activities];
+  const [moved] = next.splice(index, 1);
+  next.splice(to, 0, moved);
+  return { ...day, activities: next };
 }
