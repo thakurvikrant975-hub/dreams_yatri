@@ -7,7 +7,7 @@ import {
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
-  StickyNote, AlertTriangle, AlertOctagon, ChevronDown,
+  StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -1200,6 +1200,37 @@ export function AddonsSection({ addOns }: { addOns?: AddonInput[] }) {
   );
 }
 
+/** The shared look for a full-width "add something" control in the document.
+ * Both users of it are builder-only and sit in the document's own flow, so
+ * they read as part of the page rather than as toolbar chrome bolted on. */
+const ADD_CONTROL_CLASS =
+  "builder-only no-print w-full flex items-center justify-center gap-1.5 rounded-lg " +
+  "border border-dashed px-3 py-2.5 text-[11px] font-medium transition-colors " +
+  "hover:bg-dashboard-primary/6";
+
+/** Appends a day to the end of the itinerary.
+ *
+ * The per-day menu can already insert after any given day, but appending is
+ * the common case by far and having to open day N's menu to get day N+1 reads
+ * backwards — the action belongs at the end of the list, where the new day
+ * will actually appear. */
+function AddDayButton() {
+  const builder = useOptionalBuilder();
+  if (!builder?.canEdit) return null;
+  const lastDay = builder.form.itineraries.length;
+
+  return (
+    <button
+      type="button"
+      onClick={() => builder.addDayAfter(lastDay)}
+      className={ADD_CONTROL_CLASS}
+      style={{ borderColor: DOC.rule, color: DOC.accent }}
+    >
+      <CalendarPlus size={12} /> Add day {lastDay + 1}
+    </button>
+  );
+}
+
 /** One control for everything the package as a whole can gain: a flight, a
  * train, a helicopter leg, or an add-on.
  *
@@ -1228,7 +1259,7 @@ function PackageAddMenu() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="builder-only no-print w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-2.5 text-[11px] font-medium transition-colors hover:bg-dashboard-primary/6"
+          className={ADD_CONTROL_CLASS}
           style={{ borderColor: DOC.rule, color: DOC.accent }}
         >
           <Plus size={12} /> Add flight, train, helicopter or add-on
@@ -2290,6 +2321,7 @@ export function ItineraryDocument({
                   addOns={form.addOns}
                 />
               ))}
+              <AddDayButton />
             </div>
           </div>
 
