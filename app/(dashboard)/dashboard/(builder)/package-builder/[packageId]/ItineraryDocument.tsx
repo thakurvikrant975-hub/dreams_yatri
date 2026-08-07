@@ -1539,13 +1539,28 @@ function DayCardPreview({
           </div>
         )}
 
-        {day.notes && (
-          <p
-            className="text-[11px] italic pt-2.5"
-            style={{ color: DOC.inkMuted, borderTop: `1px solid ${DOC.rule}` }}
+        {/* Client-facing copy, not an internal remark — it already rendered on
+            the sent document and in the PDF, so it edits in place like the
+            day description rather than hiding in a drawer. The rule above it
+            is drawn only when there's something to separate, so an empty
+            builder placeholder doesn't leave a stray line on the page. */}
+        {(day.notes.trim() || builder?.canEdit) && (
+          <div
+            // With no note yet, the whole block is builder chrome — marked so
+            // it takes no space in an export, not just so its text is hidden.
+            className={cn("pt-2.5", !day.notes.trim() && "builder-only no-print")}
+            style={day.notes.trim() ? { borderTop: `1px solid ${DOC.rule}` } : undefined}
           >
-            {day.notes}
-          </p>
+            <EditableText
+              as="p"
+              multiline
+              value={day.notes}
+              field={{ scope: "day", day: day.day, key: "notes" }}
+              placeholder="Add a note for this day…"
+              className="block text-[11px] italic"
+              style={{ color: DOC.inkMuted }}
+            />
+          </div>
         )}
       </div>
     </div>
