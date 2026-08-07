@@ -1350,7 +1350,13 @@ export async function computeBuilderHotelPricing(input: {
         const { rooms: roomsNeeded, perRoomHeadcount, mattresses: autoMattresses } =
           planRoomOccupancy(adults, children, rp.room, d.roomsCount);
         const mattresses = d.manualExtraBeds != null ? Math.max(0, d.manualExtraBeds) : autoMattresses;
-        const extraBedRate = rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
+        // The catalog room's own extra_bed_rate is often left unconfigured
+        // (0/null) for rooms that were never expected to need one — when the
+        // exec manually types a mattress price, that wins outright instead
+        // of silently pricing the mattresses at ₹0.
+        const extraBedRate = d.manualExtraBedRate != null
+          ? d.manualExtraBedRate
+          : rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
 
         const { basePrice, occPrices } = resolveHotelSeasonPricing(rp, dayDate);
         // Each room is priced at ITS OWN occupancy tier, matching the stay

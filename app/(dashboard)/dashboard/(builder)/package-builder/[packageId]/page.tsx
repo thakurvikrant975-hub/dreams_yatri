@@ -924,9 +924,25 @@ function RoomCapacitySummary({ data, adults, childrenCount, onChange }: {
             className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
           />
         </div>
+        {totalMattresses > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Price / mattress (₹)</label>
+            <Input
+              type="number"
+              min={0}
+              value={data.manualExtraBedRate ?? ""}
+              onChange={(e) => onChange({
+                ...data,
+                manualExtraBedRate: e.target.value ? Math.max(0, parseFloat(e.target.value)) : null,
+              })}
+              placeholder="Catalog rate"
+              className="text-sm h-8 w-24 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+          </div>
+        )}
       </div>
       <p className="text-[10px] text-dashboard-base-content/40">
-        Leave either blank to auto-compute from traveller count and room capacity
+        Leave rooms/mattresses blank to auto-compute; mattress price defaults to the room&apos;s catalog rate (often ₹0) unless overridden here.
       </p>
 
       {hasCapacityData && (
