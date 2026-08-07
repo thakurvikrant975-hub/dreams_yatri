@@ -2978,8 +2978,9 @@ export default function PackageBuilderDetailPage() {
 
   // ── Auto-price from travel date + hotel selected + pax counts ──────────────
   // Recomputes the real hotel cost (season/occupancy-aware) whenever any of
-  // those three inputs change — the sales exec still applies it manually via
-  // the "Use this price" button so an already-typed price isn't clobbered.
+  // those three inputs change. `form.pricePerPerson`/`totalPrice` themselves
+  // get kept in sync with this automatically (see the pricing-sync effect
+  // below, near `isLocked`) — no manual "apply" step needed anymore.
   const roomPricingKey = form.itineraries
     .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${it.manualExtraBeds ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}:${it.manualExtraBedRate ?? ""}:${it.hotelPriceOverride ?? ""}`)
     .join("|");
@@ -3044,6 +3045,30 @@ export default function PackageBuilderDetailPage() {
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.travelDate, cabPricingKey]);
+
+  // ── Keep the saved price synced to the live computation ────────────────────
+  // Mirrors `form.pricePerPerson` (and, via the totalPrice-derivation effect
+  // above, `form.totalPrice`) to the live computed price whenever any pricing
+  // input changes, instead of requiring an explicit "Use ₹X as Price Per
+  // Person" click after every edit. This is what used to go stale: an exec
+  // would fix a hotel/cab price after a costing rejection, forget to
+  // re-apply, and resubmit with the old total still saved — the preview/PDF
+  // then showed a different number than the live Pricing tab. Never runs
+  // once the package is locked for review (READY) or already sent (SENT), so
+  // an approved/quoted price never silently drifts if catalog rates change
+  // later — checked inline off `query` rather than the `isLocked`/`pkgSent`/
+  // `packageEditable` variables below since this has to run before the
+  // loading/not-found early returns (rules-of-hooks), before those are
+  // declared.
+  useEffect(() => {
+    const status = query?.customPackage?.status;
+    if (status === "READY" || status === "SENT") return;
+    const { finalPrice, perPerson } = computeFinalPricing();
+    if (finalPrice <= 0) return;
+    const next = String(perPerson);
+    setForm((f) => (f.pricePerPerson === next ? f : { ...f, pricePerPerson: next }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage, form.tickets, form.addOns, form.adults, form.children, query?.customPackage?.status]);
 
   // ── Resolve real destination photos for the preview's "Places" strip ───────
   const stopNamesKey = form.stops.map((s) => s.name.trim()).filter(Boolean).join("|");
@@ -3906,6 +3931,14 @@ Rules:
   const isLocked = query.customPackage?.status === "READY";
   const pkgVerified = query.customPackage?.verified ?? false;
   const pkgSent = query.customPackage?.status === "SENT";
+  // While the exec can still actually change hotel/cab/margin/GST inputs
+  // (i.e. never during READY — locked for costing review — or SENT — already
+  // quoted to the client). Reused below both by the pricing-sync effect
+  // (near the cab-pricing effect above — has to run before the loading/
+  // not-found early returns, so it re-derives this same condition inline
+  // from `query?.customPackage?.status` there instead of from this variable)
+  // and to decide what the preview should show.
+  const packageEditable = !isLocked && !pkgSent;
 
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const shiftedMeals = computeShiftedMeals(form.itineraries);
@@ -3923,18 +3956,23 @@ Rules:
     activities: dayFlags.filter((f) => f.activities).length,
   };
 
-  // The live preview should never show "To be confirmed" once there's a real
-  // hotel/cab cost to calculate from — falls back to the computed (margin +
-  // GST inclusive) price for display only, per field, without touching
-  // `form` itself so a manually-typed price (or an intentionally blank one
-  // before any inventory is picked) is never clobbered.
+  // While editable, the preview shows the live computed price directly
+  // (rather than waiting a render cycle for the sync effect above to write
+  // it into `form`) so it never lags a hotel/cab/margin/GST edit — this is
+  // the same number the Pricing tab shows. Once locked for review or sent,
+  // it shows the saved/approved snapshot instead (falling back to computed
+  // only if that snapshot is somehow empty), so an approved price stays
+  // frozen even if catalog rates move afterward.
   const computedPricingForPreview = computeFinalPricing();
+  const liveComputedPrice = computedPricingForPreview.finalPrice > 0;
   const previewForm: PreviewData = {
     ...form,
-    pricePerPerson: form.pricePerPerson || (computedPricingForPreview.finalPrice > 0
-      ? String(computedPricingForPreview.perPerson) : form.pricePerPerson),
-    totalPrice: form.totalPrice || (computedPricingForPreview.finalPrice > 0
-      ? String(computedPricingForPreview.finalPrice) : form.totalPrice),
+    pricePerPerson: packageEditable && liveComputedPrice
+      ? String(computedPricingForPreview.perPerson)
+      : form.pricePerPerson || (liveComputedPrice ? String(computedPricingForPreview.perPerson) : form.pricePerPerson),
+    totalPrice: packageEditable && liveComputedPrice
+      ? String(computedPricingForPreview.finalPrice)
+      : form.totalPrice || (liveComputedPrice ? String(computedPricingForPreview.finalPrice) : form.totalPrice),
     // The document only knows one flat list per section — merge this
     // package's additions in here rather than teaching it about the
     // global/extra split, since that distinction only matters for editing.
