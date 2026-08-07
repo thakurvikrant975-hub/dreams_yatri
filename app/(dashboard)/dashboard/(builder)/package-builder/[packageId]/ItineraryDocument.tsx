@@ -7,8 +7,12 @@ import {
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
-  StickyNote, AlertTriangle, AlertOctagon,
+  StickyNote, AlertTriangle, AlertOctagon, ChevronDown,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel,
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
@@ -1048,7 +1052,12 @@ const TICKET_PROVIDER_FALLBACKS: Record<TicketInput["type"], string> = {
   FLIGHT: "Airline TBD", TRAIN: "Train TBD", HELICOPTER: "Operator TBD",
 };
 
+const TICKET_TYPE_LABEL: Record<TicketInput["type"], string> = {
+  FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter",
+};
+
 function TicketCard({ ticket }: { ticket: TicketInput }) {
+  const builder = useOptionalBuilder();
   const Icon = TICKET_TYPE_ICONS[ticket.type];
   const paxLine = [
     ticket.adults ? `${ticket.adults} Adult${ticket.adults !== 1 ? "s" : ""}` : null,
@@ -1071,9 +1080,17 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
             {ticket.ticketNumber && <span className="font-normal text-neutral-500"> · {ticket.ticketNumber}</span>}
           </p>
         </div>
-        {ticket.travelDate && (
-          <span className="text-[10px] font-semibold text-primary-700 shrink-0">{formatTicketDate(ticket.travelDate)}</span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {ticket.travelDate && (
+            <span className="text-[10px] font-semibold text-primary-700">{formatTicketDate(ticket.travelDate)}</span>
+          )}
+          {builder?.canEdit && (
+            <CardEditButton
+              label={`Edit ${TICKET_TYPE_LABEL[ticket.type].toLowerCase()} leg`}
+              onEdit={() => builder.openDrawer({ kind: "tickets-edit" })}
+            />
+          )}
+        </div>
       </div>
 
       {/* Route */}
@@ -1111,30 +1128,16 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
 /** Flight and train legs get their own labeled sections (never merged) so a
  * trip with both reads as two distinct groups, not one mixed list. */
 export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
-  const builder = useOptionalBuilder();
-  const onAddTickets = builder?.canEdit
-    ? () => builder.openDrawer({ kind: "tickets-edit" })
-    : undefined;
   const flights = tickets.filter((t) => t.type === "FLIGHT");
   const trains = tickets.filter((t) => t.type === "TRAIN");
   const helicopters = tickets.filter((t) => t.type === "HELICOPTER");
-  const empty = flights.length === 0 && trains.length === 0 && helicopters.length === 0;
-  // With no legs at all the section would vanish, taking the only way to add
-  // the first one with it — so the builder keeps a bare header. The
-  // client-facing document still renders nothing.
-  if (empty) {
-    return onAddTickets ? (
-      <div className="builder-only no-print space-y-3">
-        <SectionHeader icon={Plane} label="Flights, Trains & Helicopters" onAdd={onAddTickets} addLabel="Add" />
-      </div>
-    ) : null;
-  }
+  if (flights.length === 0 && trains.length === 0 && helicopters.length === 0) return null;
 
   return (
     <>
       {flights.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={Plane} label="Flight Details" onAdd={onAddTickets} />
+          <SectionHeader icon={Plane} label="Flight Details" />
           <div className="grid gap-3">
             {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
@@ -1142,7 +1145,7 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       )}
       {trains.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={TrainFront} label="Train Details" onAdd={onAddTickets} />
+          <SectionHeader icon={TrainFront} label="Train Details" />
           <div className="grid gap-3">
             {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
@@ -1150,7 +1153,7 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
       )}
       {helicopters.length > 0 && (
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={Helicopter} label="Helicopter Details" onAdd={onAddTickets} />
+          <SectionHeader icon={Helicopter} label="Helicopter Details" />
           <div className="grid gap-3">
             {helicopters.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
@@ -1164,15 +1167,22 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
  * (same convention as TicketCard hiding fare), since the cost is already
  * folded into the package total the client sees on the Price Summary card. */
 function AddonCard({ addon }: { addon: AddonInput }) {
+  const builder = useOptionalBuilder();
   return (
     <div className="rounded-xl border border-rose-100 bg-white overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-rose-50/70 border-b border-rose-100">
         <span className="flex items-center justify-center size-5 rounded-lg bg-rose-100 shrink-0">
           <Gift size={11} className="text-rose-600" />
         </span>
-        <p className="text-xs font-semibold text-neutral-800 truncate">
+        <p className="text-xs font-semibold text-neutral-800 truncate flex-1">
           {addon.name}{addon.quantity > 1 ? ` × ${addon.quantity}` : ""}
         </p>
+        {builder?.canEdit && (
+          <CardEditButton
+            label={`Edit add-on: ${addon.name}`}
+            onEdit={() => builder.openDrawer({ kind: "addons-edit", day: addon.day ?? null })}
+          />
+        )}
       </div>
       {addon.notes && (
         <p className="p-3 text-[11px] text-neutral-500 leading-relaxed">{addon.notes}</p>
@@ -1185,27 +1195,80 @@ function AddonCard({ addon }: { addon: AddonInput }) {
  * than a specific day's hotel, so they aren't tied to any one Day card and
  * are shown here instead, up top with Flight/Train details. */
 export function AddonsSection({ addOns }: { addOns?: AddonInput[] }) {
-  const builder = useOptionalBuilder();
-  const onAddAddons = builder?.canEdit
-    ? () => builder.openDrawer({ kind: "addons-edit", day: null })
-    : undefined;
   const items = (addOns ?? []).filter((a) => a.name.trim() && a.day == null);
-  // Same reasoning as TicketsSection above.
-  if (items.length === 0) {
-    return onAddAddons ? (
-      <div className="builder-only no-print space-y-3">
-        <SectionHeader icon={Gift} label="Add-ons Included" onAdd={onAddAddons} addLabel="Add" />
-      </div>
-    ) : null;
-  }
+  if (items.length === 0) return null;
 
   return (
     <div className="space-y-3" style={{ breakInside: "avoid" }}>
-      <SectionHeader icon={Gift} label="Add-ons Included" onAdd={onAddAddons} />
+      <SectionHeader icon={Gift} label="Add-ons Included" />
       <div className="grid grid-cols-2 gap-3">
         {items.map((a, i) => <AddonCard key={i} addon={a} />)}
       </div>
     </div>
+  );
+}
+
+/** One control for everything the package as a whole can gain: a flight, a
+ * train, a helicopter leg, or an add-on.
+ *
+ * Replaces four separate per-section buttons. Those only appeared next to
+ * sections that already existed, so with an empty package there was nothing to
+ * click until a section was conjured into being just to host its own button —
+ * and the buttons themselves drifted around the page as sections came and
+ * went. One full-width control sits in a fixed place whether the package has
+ * nothing in it or everything.
+ *
+ * The tickets drawer handles all three leg types, so the first three options
+ * differ only in which type they pre-create. */
+function PackageAddMenu() {
+  const builder = useOptionalBuilder();
+  if (!builder?.canEdit) return null;
+
+  const items: { icon: React.ElementType; label: string; onSelect: () => void }[] = [
+    { icon: Plane, label: "Flight", onSelect: () => builder.openDrawer({ kind: "tickets-edit" }) },
+    { icon: TrainFront, label: "Train", onSelect: () => builder.openDrawer({ kind: "tickets-edit" }) },
+    { icon: Helicopter, label: "Helicopter", onSelect: () => builder.openDrawer({ kind: "tickets-edit" }) },
+    { icon: Gift, label: "Add-on", onSelect: () => builder.openDrawer({ kind: "addons-edit", day: null }) },
+  ];
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="builder-only no-print w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-2.5 text-[11px] font-medium transition-colors hover:bg-dashboard-primary/6"
+          style={{ borderColor: DOC.rule, color: DOC.accent }}
+        >
+          <Plus size={12} /> Add flight, train, helicopter or add-on
+          <ChevronDown size={11} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="w-56">
+        <DropdownMenuLabel className="text-[11px]">Add to this package</DropdownMenuLabel>
+        {items.map(({ icon: Icon, label, onSelect }) => (
+          <DropdownMenuItem key={label} onSelect={onSelect}>
+            <Icon size={13} /> {label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Opens the drawer that owns an already-created element. Sits on the card
+ * itself, so the way to change a ticket is to click the ticket. */
+function CardEditButton({ onEdit, label }: { onEdit: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      aria-label={label}
+      title={label}
+      className="builder-only no-print shrink-0 flex items-center gap-1 rounded-md border border-dashed px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider transition-colors hover:bg-dashboard-primary/6"
+      style={{ borderColor: DOC.rule, color: DOC.accent }}
+    >
+      <Pencil size={9} /> Edit
+    </button>
   );
 }
 
@@ -2209,6 +2272,8 @@ export function ItineraryDocument({
           <TicketsSection tickets={form.tickets} />
 
           <AddonsSection addOns={form.addOns} />
+
+          <PackageAddMenu />
 
           <PlacesToVisit form={form} onImageChange={onImageChange} />
 
