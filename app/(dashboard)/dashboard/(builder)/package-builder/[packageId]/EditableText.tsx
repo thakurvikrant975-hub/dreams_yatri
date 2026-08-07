@@ -132,7 +132,8 @@ export function EditableText({
     <Tag
       role="button"
       tabIndex={0}
-      // How requestFieldFocus finds this editor — see builder-context.
+      // Stable hook for targeting a specific inline editor — used by e2e
+      // tests; see fieldKey in builder-context.
       data-field={fieldKey(field)}
       onClick={() => setEditing(true)}
       onKeyDown={(e: React.KeyboardEvent) => {

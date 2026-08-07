@@ -510,14 +510,21 @@ function PolicyBlock({ label, items }: { label: string; items: string[] }) {
  * scannable; four different box treatments is what made them noise. */
 /** The day's note, as a toned callout.
  *
- * In the builder it always renders (so an empty one is findable and its tone
- * is switchable); on the client's document and in exports it appears only when
- * there is actually something to say. */
+ * Absent by default: a day with nothing to say renders nothing at all, in the
+ * builder as well as on the client's copy. Previously the builder kept an
+ * empty placeholder alive so the note was findable, which meant every day
+ * carried a stray italic line whether it had a note or not. The way in is now
+ * the day menu (see DayActionsMenu → Note), which is also where the title and
+ * tone are set.
+ *
+ * Once a note exists, its title and body are editable in place through the
+ * same fields the drawer writes. */
 function DayNote({ day }: { day: DayItinerary }) {
   const builder = useOptionalBuilder();
   const canEdit = !!builder?.canEdit;
-  const hasNote = !!day.notes.trim();
-  if (!hasNote && !canEdit) return null;
+  const title = (day.notesTitle ?? "").trim();
+  const body = day.notes.trim();
+  if (!title && !body) return null;
 
   const tone = noteTone(day.notesType);
   const t = NOTE_TONES[tone];
@@ -525,58 +532,43 @@ function DayNote({ day }: { day: DayItinerary }) {
 
   return (
     <div
-      className={cn("rounded-lg px-3 py-2.5", !hasNote && "builder-only no-print")}
-      style={{ backgroundColor: t.bg, border: `1px solid ${t.border}` }}
+      className="rounded-lg px-3 py-2.5"
+      style={{ backgroundColor: t.bg, border: `1px solid ${t.border}`, breakInside: "avoid" }}
     >
       <div className="flex items-start gap-2">
         <Icon size={13} color={t.icon} className="shrink-0 mt-px" />
         <div className="flex-1 min-w-0">
-          <p
-            className="text-[9px] font-semibold uppercase tracking-[0.13em] mb-0.5"
-            style={{ color: t.icon }}
-          >
-            {t.label}
-          </p>
+          <div className="flex items-center gap-2">
+            {/* Falls back to the tone's own label, so a note is never headless
+                — and an exec who wants no heading of their own gets a sensible
+                one for free. */}
+            <EditableText
+              as="p"
+              value={day.notesTitle ?? ""}
+              field={{ scope: "day", day: day.day, key: "notesTitle" }}
+              placeholder={t.label}
+              fallback={t.label}
+              className="block text-[9px] font-semibold uppercase tracking-[0.13em]"
+              style={{ color: t.icon }}
+            />
+            {canEdit && (
+              <CardEditButton
+                label={`Edit note for day ${day.day}`}
+                onEdit={() => builder!.openDrawer({ kind: "note-edit", day: day.day })}
+              />
+            )}
+          </div>
           <EditableText
             as="p"
             multiline
             value={day.notes}
             field={{ scope: "day", day: day.day, key: "notes" }}
-            placeholder="Note for this day — click to add…"
-            className="block text-[11px] leading-relaxed"
+            placeholder="Add the note…"
+            className="block text-[11px] leading-relaxed mt-0.5"
             style={{ color: t.ink }}
           />
         </div>
       </div>
-
-      {/* Tone switcher — builder-only, and only once there's a note worth
-          toning. Swatches rather than a dropdown: five options, and the whole
-          point of the choice is what it looks like. */}
-      {canEdit && hasNote && (
-        <div className="builder-only no-print flex items-center gap-1 mt-2 pl-[21px]">
-          {(Object.keys(NOTE_TONES) as NoteTone[]).map((key) => {
-            const opt = NOTE_TONES[key];
-            const active = key === tone;
-            return (
-              <button
-                key={key}
-                type="button"
-                title={opt.label}
-                aria-label={`Set note tone: ${opt.label}`}
-                aria-pressed={active}
-                onClick={() => builder!.updateDay(day.day, { notesType: key })}
-                className="size-4 rounded-full transition-transform hover:scale-110"
-                style={{
-                  backgroundColor: opt.icon,
-                  outline: active ? `2px solid ${opt.icon}` : "none",
-                  outlineOffset: "1.5px",
-                  opacity: active ? 1 : 0.45,
-                }}
-              />
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

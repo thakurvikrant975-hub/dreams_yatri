@@ -126,7 +126,9 @@ export type DrawerTarget =
   /** Flight / train / helicopter legs — package-level, never day-scoped. */
   | { kind: "tickets-edit" }
   /** Ask the hotel team to source a stay for this day. */
-  | { kind: "hotel-request"; day: number };
+  | { kind: "hotel-request"; day: number }
+  /** The day's note — title, body and tone. */
+  | { kind: "note-edit"; day: number };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context
@@ -153,16 +155,6 @@ type BuilderContextValue = {
   addDayAfter: (day: number) => void;
   /** Deletes a day and everything on it, renumbering the rest. */
   removeDay: (day: number) => void;
-  /** Scrolls to the inline editor for this field and opens it. Lets a menu
-   * item drive an editor living elsewhere in the document — a text field
-   * doesn't need a drawer, it just needs to be findable.
-   *
-   * Reaches for the DOM rather than routing a "focus request" through state.
-   * The editor already opens on click and tags itself with data-field, so this
-   * is one query and one click; the state version needed a flag written during
-   * render and cleared from an effect, which is both more code and the kind of
-   * thing React's lint rules (correctly) push back on. */
-  requestFieldFocus: (field: EditableField) => void;
 };
 
 /** The one way a day changes.
@@ -207,12 +199,6 @@ export function PackageBuilderProvider({
     replaceDay: (day, fn) => setForm((f) => replaceDay(f, day, fn)),
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
-    requestFieldFocus: (field) => {
-      const el = document.querySelector<HTMLElement>(`[data-field="${fieldKey(field)}"]`);
-      if (!el) return;
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-      el.click();
-    },
   }), [form, setForm, canEdit, drawer]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
@@ -261,7 +247,7 @@ export function fieldKey(f: EditableField): string {
 
 export type EditableField =
   | { scope: "package"; key: "title" | "description" }
-  | { scope: "day"; day: number; key: "title" | "description" | "notes" }
+  | { scope: "day"; day: number; key: "title" | "description" | "notes" | "notesTitle" }
   | { scope: "activity"; day: number; index: number; key: "title" | "description" };
 
 /** The one place a text edit turns into new form state.

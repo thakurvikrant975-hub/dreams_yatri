@@ -20,6 +20,7 @@ import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import type { TicketInput, AddonInput } from "../action";
 import { useBuilder } from "./builder-context";
+import { NOTE_TONES, noteTone, type NoteTone } from "./ItineraryDocument";
 import {
   emptyTicket, emptyAddon, computeDurationText, TICKET_TYPE_LABELS,
 } from "./day-mutations";
@@ -290,6 +291,99 @@ export function TicketsView() {
         The client sees the leg and its times; the fare stays internal and is priced
         into the package total.
       </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Day note
+//
+// A note is optional and absent by default — a day with nothing to say should
+// show nothing at all, on the client's copy AND in the builder. That's why
+// this is a drawer rather than an always-present inline placeholder: there is
+// no note to click until one exists, so the way in has to live in the day menu.
+//
+// Once a note exists it's also editable inline in the document, through the
+// same fields. Both routes write via applyFieldEdit / updateDay.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function NoteView({ day }: { day: number }) {
+  const { form, updateDay, closeDrawer } = useBuilder();
+  const itin = form.itineraries.find((it) => it.day === day);
+  if (!itin) return null;
+
+  const tone = noteTone(itin.notesType);
+  const hasNote = !!(itin.notes.trim() || (itin.notesTitle ?? "").trim());
+
+  function clear() {
+    updateDay(day, { notes: "", notesTitle: null, notesType: null });
+    closeDrawer();
+  }
+
+  return (
+    <div className="p-5 space-y-4">
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-medium text-dashboard-base-content/60">Title</label>
+        <Input
+          value={itin.notesTitle ?? ""}
+          onChange={(e) => updateDay(day, { notesTitle: e.target.value || null })}
+          placeholder={NOTE_TONES[tone].label}
+          className="h-9 text-sm"
+        />
+        <p className="text-[11px] text-dashboard-base-content/45">
+          Left blank, the note is headed &quot;{NOTE_TONES[tone].label}&quot; after its tone.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-medium text-dashboard-base-content/60">Note</label>
+        <textarea
+          value={itin.notes}
+          onChange={(e) => updateDay(day, { notes: e.target.value })}
+          placeholder="e.g. Carry photo ID — permits are checked at the Rohtang barrier."
+          rows={4}
+          className="w-full rounded-md border border-dashboard-base-300 px-3 py-2 text-xs resize-y focus-visible:outline-2 focus-visible:outline-dashboard-primary/40"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-medium text-dashboard-base-content/60">Tone</label>
+        <div className="grid grid-cols-5 gap-1.5">
+          {(Object.keys(NOTE_TONES) as NoteTone[]).map((key) => {
+            const opt = NOTE_TONES[key];
+            const active = key === tone;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => updateDay(day, { notesType: key })}
+                aria-pressed={active}
+                className={cn(
+                  "rounded-lg px-2 py-2 text-[10px] font-semibold transition-transform",
+                  active ? "scale-[1.03]" : "opacity-60 hover:opacity-100",
+                )}
+                style={{
+                  backgroundColor: opt.bg,
+                  border: `1px solid ${active ? opt.icon : opt.border}`,
+                  color: opt.ink,
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {hasNote && (
+        <Button
+          type="button" variant="ghost"
+          className="h-9 text-xs text-dashboard-error hover:text-dashboard-error"
+          onClick={clear}
+        >
+          <Trash2 size={12} /> Remove this note
+        </Button>
+      )}
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasM
   /** Awaiting the hotel team — the stay row points at the request. */
   isPending: boolean;
 }) {
-  const { openDrawer, addDayAfter, removeDay, requestFieldFocus, form } = useBuilder();
+  const { openDrawer, addDayAfter, removeDay, form } = useBuilder();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState("");
 
@@ -96,10 +96,9 @@ export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasM
           <DropdownMenuItem onSelect={() => openDrawer({ kind: "addons-edit", day })}>
             <Gift size={13} /> {hasAddons ? "Edit add-ons" : "Add-on"}
           </DropdownMenuItem>
-          {/* A note is plain text, so it opens the inline editor in the
-              document rather than a drawer — a drawer for one textarea would
-              be more chrome than the thing it edits. */}
-          <DropdownMenuItem onSelect={() => requestFieldFocus({ scope: "day", day, key: "notes" })}>
+          {/* A note is absent by default, so there's nothing in the document
+              to click until one exists — the way in has to be here. */}
+          <DropdownMenuItem onSelect={() => openDrawer({ kind: "note-edit", day })}>
             <StickyNote size={13} /> {hasNote ? "Edit note" : "Note"}
           </DropdownMenuItem>
 

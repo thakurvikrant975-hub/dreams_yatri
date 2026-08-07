@@ -3083,6 +3083,9 @@ model custom_itineraries {
    */
   transportTravelTime       String?
   notes                     String?
+  /** Optional heading for `notes`. Falls back to the tone's own label when
+   * empty, so a note never renders headless. */
+  notesTitle                String?
   /** Tone for `notes` — mirrors itinerary_notes.type in the admin catalog
    * (warning | info | error | success | neutral) so both note systems speak
    * the same vocabulary. Null reads as neutral. */
