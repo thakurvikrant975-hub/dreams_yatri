@@ -239,6 +239,8 @@ export function HotelReplaceView({ day }: { day: number }) {
 
 export function HotelEditView({ day }: { day: number }) {
   const { form, replaceDay, updateDay, openDrawer, closeDrawer } = useBuilder();
+  // Declared before the early return below — hooks can't sit behind a guard.
+  const [requesting, setRequesting] = useState(false);
   const itin = form.itineraries.find((it) => it.day === day);
   if (!itin) return null;
 
@@ -292,6 +294,48 @@ export function HotelEditView({ day }: { day: number }) {
             >
               <Trash2 size={12} /> Remove
             </Button>
+          )}
+        </div>
+
+        {/* Also reachable with a room already chosen, not just from the search
+            view: an exec often only decides the catalog has nothing suitable
+            after looking at what they picked. Handing the day over replaces
+            that room — a request and a booked room are mutually exclusive and
+            share columns — so this asks first rather than discarding the
+            selection on a single click. */}
+        <div className="mt-2 pt-2 border-t border-dashboard-base-300">
+          {requesting ? (
+            <div className="space-y-2">
+              <p className="text-[11px] text-amber-800">
+                {hasCatalogRoom
+                  ? `This clears ${itin.accommodation || "the chosen room"} for day ${day} and puts it in the hotel team's queue.`
+                  : `Day ${day} goes into the hotel team's queue.`}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button" size="sm"
+                  className="h-8 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => {
+                    replaceDay(day, beginHotelRequest);
+                    openDrawer({ kind: "hotel-request", day });
+                  }}
+                >
+                  <Clock size={12} /> Yes, request from team
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className="h-8 text-xs"
+                  onClick={() => setRequesting(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRequesting(true)}
+              className="flex items-center gap-1.5 text-[11px] font-medium text-amber-800 hover:underline"
+            >
+              <Clock size={11} /> Can&apos;t find a suitable one? Request from the hotel team
+            </button>
           )}
         </div>
       </div>
