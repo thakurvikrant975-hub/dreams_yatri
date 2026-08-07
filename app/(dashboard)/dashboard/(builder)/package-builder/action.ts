@@ -1918,8 +1918,20 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         itineraries.map((it) => {
           const existing = existingByDay.get(it.day);
           const alreadyFilled = !!existing?.hotelFilledAt;
-          // Can't resurrect "pending" on a day the hotel team already filled.
-          const hotelPending = it.hotelPending && !alreadyFilled;
+          // Distinguishes a genuine re-request (exec saw the filled hotel —
+          // e.g. via the "Filled by X" line, which is sourced from this same
+          // hotelFilledAt — and clicked "Add Hotels by Team" again because it
+          // wasn't right) from the stale-tab race this guard exists to catch:
+          // the hotel team fills a day in a separate tab/page while the exec
+          // still has an older, pre-fill copy of this form open and saves for
+          // an unrelated reason. The client's own hotelFilledAt (read-only,
+          // loaded at page-open time — see the DayItinerary comment above)
+          // only matches the DB's current one if the exec's snapshot already
+          // knew about this exact fill, which a stale tab's never would.
+          const clientSawThisFill = alreadyFilled && it.hotelFilledAt != null
+            && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime();
+          const staleResurrection = alreadyFilled && !clientSawThisFill;
+          const hotelPending = it.hotelPending && !staleResurrection;
           const hotelRequestedAt = hotelPending
             ? (existing?.hotelPending ? existing.hotelRequestedAt : new Date())
             : (existing?.hotelRequestedAt ?? null);
@@ -1946,9 +1958,15 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               hotelPendingNote:   hotelPending ? (it.hotelPendingNote || null) : null,
               hotelRequestType:   hotelPending ? (it.hotelRequestType || null) : null,
               hotelRequestedAt,
-              hotelFilledAt:      existing?.hotelFilledAt ?? null,
-              hotelFilledById:    existing?.hotelFilledById ?? null,
-              hotelFilledByName:  existing?.hotelFilledByName ?? null,
+              // A day going pending again — whether this is its first-ever
+              // request or a re-request after a fill — starts a fresh
+              // fulfillment cycle, so any previous fill's provenance no
+              // longer applies and must be cleared (otherwise the very next
+              // save would immediately re-trigger the staleResurrection
+              // guard above against the fill this request is superseding).
+              hotelFilledAt:      hotelPending ? null : (existing?.hotelFilledAt ?? null),
+              hotelFilledById:    hotelPending ? null : (existing?.hotelFilledById ?? null),
+              hotelFilledByName:  hotelPending ? null : (existing?.hotelFilledByName ?? null),
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
               manualExtraBedRate: it.manualExtraBedRate ?? null,
               // Costing-only corrections — never sourced from the exec's own
