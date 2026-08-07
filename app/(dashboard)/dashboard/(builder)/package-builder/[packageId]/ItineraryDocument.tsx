@@ -1073,14 +1073,21 @@ const TICKET_TYPE_LABEL: Record<TicketInput["type"], string> = {
   FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter",
 };
 
-function TicketCard({ ticket }: { ticket: TicketInput }) {
+function TicketCard({ ticket, packagePax }: { ticket: TicketInput; packagePax?: PackagePax }) {
   const builder = useOptionalBuilder();
   const Icon = TICKET_TYPE_ICONS[ticket.type];
-  const paxLine = [
-    ticket.adults ? `${ticket.adults} Adult${ticket.adults !== 1 ? "s" : ""}` : null,
-    ticket.children ? `${ticket.children} Child${ticket.children !== 1 ? "ren" : ""}` : null,
-    ticket.infants ? `${ticket.infants} Infant${ticket.infants !== 1 ? "s" : ""}` : null,
-  ].filter(Boolean).join(", ");
+  // A leg with no pax of its own carries the whole party — which is nearly
+  // every leg — so it shows the package's travellers rather than nothing at
+  // all. Zeroes are the "not specified" sentinel emptyTicket already writes,
+  // so this needs no migration and reads correctly for existing tickets.
+  const pax = (ticket.adults || ticket.children || ticket.infants)
+    ? { adults: ticket.adults, children: ticket.children, infants: ticket.infants }
+    : packagePax;
+  const paxLine = pax ? [
+    pax.adults ? `${pax.adults} Adult${pax.adults !== 1 ? "s" : ""}` : null,
+    pax.children ? `${pax.children} Child${pax.children !== 1 ? "ren" : ""}` : null,
+    pax.infants ? `${pax.infants} Infant${pax.infants !== 1 ? "s" : ""}` : null,
+  ].filter(Boolean).join(", ") : "";
   const ticketsLabel = ticket.ticketCount > 0 ? `${ticket.ticketCount} Ticket${ticket.ticketCount !== 1 ? "s" : ""}` : null;
   const footerLine = [paxLine, ticketsLabel].filter(Boolean).join(" · ");
 
@@ -1144,7 +1151,15 @@ function TicketCard({ ticket }: { ticket: TicketInput }) {
 
 /** Flight and train legs get their own labeled sections (never merged) so a
  * trip with both reads as two distinct groups, not one mixed list. */
-export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
+/** Travellers on the package as a whole — the fallback for a leg that doesn't
+ * name its own. Passed rather than read from context because this section also
+ * renders on the public client-facing page, where there is no builder. */
+export type PackagePax = { adults: number; children: number; infants: number };
+
+export function TicketsSection({ tickets, packagePax }: {
+  tickets: TicketInput[];
+  packagePax?: PackagePax;
+}) {
   const flights = tickets.filter((t) => t.type === "FLIGHT");
   const trains = tickets.filter((t) => t.type === "TRAIN");
   const helicopters = tickets.filter((t) => t.type === "HELICOPTER");
@@ -1156,7 +1171,7 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={Plane} label="Flight Details" />
           <div className="grid gap-3">
-            {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
+            {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
           </div>
         </div>
       )}
@@ -1164,7 +1179,7 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={TrainFront} label="Train Details" />
           <div className="grid gap-3">
-            {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
+            {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
           </div>
         </div>
       )}
@@ -1172,7 +1187,7 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
         <div className="space-y-3" style={{ breakInside: "avoid" }}>
           <SectionHeader icon={Helicopter} label="Helicopter Details" />
           <div className="grid gap-3">
-            {helicopters.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
+            {helicopters.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
           </div>
         </div>
       )}
@@ -2325,7 +2340,10 @@ export function ItineraryDocument({
             className="block text-sm text-neutral-600 leading-relaxed"
           />
 
-          <TicketsSection tickets={form.tickets} />
+          <TicketsSection
+            tickets={form.tickets}
+            packagePax={{ adults: form.adults, children: form.children, infants: form.infants }}
+          />
 
           <AddonsSection addOns={form.addOns} />
 

@@ -131,7 +131,12 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
         <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} stops={form.stops} />
       </div>
 
-      {form.tickets.length > 0 && <TicketsSection tickets={form.tickets} />}
+      {form.tickets.length > 0 && (
+        <TicketsSection
+          tickets={form.tickets}
+          packagePax={{ adults: form.adults, children: form.children, infants: form.infants }}
+        />
+      )}
 
       <div className="space-y-3">
         <div className="flex items-center gap-2">

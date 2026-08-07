@@ -258,6 +258,23 @@ export function TicketsView() {
             </label>
           </div>
 
+          {/* Nearly every leg carries the whole party, so that's the default and
+              the fields stay out of the way until a leg genuinely differs.
+              Zeroes are the "not specified" sentinel emptyTicket already
+              writes, so "everyone" needs no extra column to represent. */}
+          <TicketPax
+            ticket={t}
+            packagePax={{ adults: form.adults, children: form.children, infants: form.infants }}
+            onChange={(next) => patch(i, next)}
+          />
+
+          <Input
+            value={t.notes}
+            onChange={(e) => patch(i, { notes: e.target.value })}
+            placeholder="Note for this leg — baggage, terminal, meal preference…"
+            className="h-8 text-xs"
+          />
+
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] text-dashboard-base-content/50">
               {t.durationText ? `Journey ${t.durationText}` : "Journey length fills in from the times"}
@@ -384,6 +401,74 @@ export function NoteView({ day }: { day: number }) {
           <Trash2 size={12} /> Remove this note
         </Button>
       )}
+    </div>
+  );
+}
+
+/** Who's on a leg.
+ *
+ * Almost every leg carries the whole party, so asking for a breakdown per leg
+ * is three inputs of pure tax for the common case. This shows the package's
+ * travellers as the default and only reveals the fields when someone says this
+ * leg differs — the same shape TicketCard reads when rendering.
+ */
+function TicketPax({ ticket, packagePax, onChange }: {
+  ticket: TicketInput;
+  packagePax: { adults: number; children: number; infants: number };
+  onChange: (next: Partial<TicketInput>) => void;
+}) {
+  const custom = !!(ticket.adults || ticket.children || ticket.infants);
+
+  const packageLine = [
+    packagePax.adults ? `${packagePax.adults} adult${packagePax.adults !== 1 ? "s" : ""}` : null,
+    packagePax.children ? `${packagePax.children} child${packagePax.children !== 1 ? "ren" : ""}` : null,
+    packagePax.infants ? `${packagePax.infants} infant${packagePax.infants !== 1 ? "s" : ""}` : null,
+  ].filter(Boolean).join(", ");
+
+  if (!custom) {
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-md bg-dashboard-base-200/50 px-2.5 py-1.5">
+        <span className="text-[11px] text-dashboard-base-content/70">
+          All travellers{packageLine ? ` · ${packageLine}` : ""}
+        </span>
+        <button
+          type="button"
+          // Seeds from the package so the exec adjusts down from the real
+          // party rather than typing it out from zero.
+          onClick={() => onChange({ ...packagePax })}
+          className="text-[10px] font-medium text-dashboard-primary hover:underline shrink-0"
+        >
+          Only some
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-md bg-dashboard-base-200/50 px-2.5 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-dashboard-base-content/70">Travellers on this leg</span>
+        <button
+          type="button"
+          onClick={() => onChange({ adults: 0, children: 0, infants: 0 })}
+          className="text-[10px] font-medium text-dashboard-primary hover:underline shrink-0"
+        >
+          All travellers
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {(["adults", "children", "infants"] as const).map((k) => (
+          <label key={k} className="space-y-0.5">
+            <span className="text-[10px] text-dashboard-base-content/55 capitalize">{k}</span>
+            <Input
+              type="number" min={0}
+              value={ticket[k]}
+              onChange={(e) => onChange({ [k]: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+              className="h-8 text-sm"
+            />
+          </label>
+        ))}
+      </div>
     </div>
   );
 }
