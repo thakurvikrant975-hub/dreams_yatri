@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, CopyIcon, Clock, Send, Plus, PencilLine } from "lucide-react";
+import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, PencilLine } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -27,6 +27,7 @@ import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions"
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { useBuilder } from "./builder-context";
+import { ApplyToDays } from "./ApplyToDays";
 import {
   applyHotelRoomSelection, clearHotelSelection, invalidateStaleOverrides,
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
@@ -38,7 +39,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HotelReplaceView({ day }: { day: number }) {
-  const { form, setForm, replaceDay, openDrawer, closeDrawer } = useBuilder();
+  const { form, setForm, replaceDay, openDrawer } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
   // The stop this day is assigned to by the route builder — the default search
@@ -92,32 +93,36 @@ export function HotelReplaceView({ day }: { day: number }) {
     openDrawer({ kind: "hotel-edit", day });
   }
 
-  /** Applies the currently-picked room to every day, for a multi-night stay in
-   * one place. Mirrors the right panel's "All days" action.
+  /** Copies this day's room onto the chosen days — a stay usually spans a
+   * stretch rather than the whole trip, which is why this takes a selection.
    *
    * Re-fetches the room by id rather than looking for it in `results`: the
    * current pick is frequently NOT in the visible list (different city typed
-   * into the search, or simply further down than this page of results), and
-   * failing in that case would make the action look broken at random. */
-  async function applyToAllDays() {
+   * into the search, or simply further down this page of results), and failing
+   * in that case would make the action look broken at random. */
+  async function applyToDays(days: number[]) {
     const current = itin?.roomPricingId;
     if (current == null) return;
     const source = await getHotelRoomByIdForBuilder(current, coords);
     if (!source) {
-      toast.error("Couldn't load that room. Pick it again to apply it everywhere.");
+      toast.error("Couldn't load that room. Pick it again to apply it elsewhere.");
       return;
     }
+    const target = new Set(days);
     setForm((f) => ({
       ...f,
-      // Every day changes here, so this can't go through replaceDay(day, …) —
-      // the invalidation is applied per day instead, for the same reason.
+      // Several days change at once, so this can't go through
+      // replaceDay(day, …) — the override invalidation is applied per day
+      // instead, for exactly the same reason it exists there.
       itineraries: f.itineraries.map((it) =>
-        invalidateStaleOverrides(it, applyHotelRoomSelection(it, source)),
+        target.has(it.day)
+          ? invalidateStaleOverrides(it, applyHotelRoomSelection(it, source))
+          : it,
       ),
     }));
-    toast.success(`Applied to all ${form.itineraries.length} days`);
-    closeDrawer();
+    toast.success(`Applied to ${days.length} day${days.length !== 1 ? "s" : ""}`);
   }
+
 
   return (
     <div className="p-5 space-y-4">
@@ -153,14 +158,13 @@ export function HotelReplaceView({ day }: { day: number }) {
         <Clock size={12} /> Can&apos;t find one? Request from the hotel team
       </button>
 
-      {itin.roomPricingId != null && form.itineraries.length > 1 && (
-        <button
-          type="button"
-          onClick={applyToAllDays}
-          className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-dashboard-base-300 py-2 text-xs font-medium text-dashboard-base-content/70 hover:bg-dashboard-base-200/50"
-        >
-          <CopyIcon size={12} /> Use this day&apos;s hotel for every day
-        </button>
+      {itin.roomPricingId != null && (
+        <ApplyToDays
+          sourceDay={day}
+          label="Use this day's hotel on other days"
+          confirmLabel="Apply"
+          onApply={applyToDays}
+        />
       )}
 
       {loading && (
@@ -239,7 +243,7 @@ export function HotelReplaceView({ day }: { day: number }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HotelEditView({ day }: { day: number }) {
-  const { form, replaceDay, updateDay, openDrawer, closeDrawer } = useBuilder();
+  const { form, setForm, replaceDay, updateDay, openDrawer, closeDrawer } = useBuilder();
   // Declared before the early return below — hooks can't sit behind a guard.
   const [requesting, setRequesting] = useState(false);
   const itin = form.itineraries.find((it) => it.day === day);
@@ -252,6 +256,17 @@ export function HotelEditView({ day }: { day: number }) {
     max_adults: itin.accommodationMaxAdults,
     max_children: itin.accommodationMaxChildren,
   }, itin.roomsCount);
+
+  function removeStayFromDays(days: number[]) {
+    const target = new Set(days);
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        target.has(it.day) ? invalidateStaleOverrides(it, clearHotelSelection(it)) : it,
+      ),
+    }));
+    toast.success(`Removed from ${days.length} day${days.length !== 1 ? "s" : ""}`);
+  }
 
   function removeHotel() {
     replaceDay(day, clearHotelSelection);
@@ -297,6 +312,18 @@ export function HotelEditView({ day }: { day: number }) {
             </Button>
           )}
         </div>
+
+        {hasCatalogRoom && (
+          <div className="mt-2">
+            <ApplyToDays
+              sourceDay={day}
+              label="Remove this stay from other days"
+              confirmLabel="Remove from"
+              tone="danger"
+              onApply={removeStayFromDays}
+            />
+          </div>
+        )}
 
         {/* Also reachable with a room already chosen, not just from the search
             view: an exec often only decides the catalog has nothing suitable

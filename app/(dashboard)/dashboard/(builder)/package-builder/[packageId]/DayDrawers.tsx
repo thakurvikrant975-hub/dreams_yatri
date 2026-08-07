@@ -26,6 +26,8 @@ import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
 import { TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { useBuilder } from "./builder-context";
+import { ApplyToDays } from "./ApplyToDays";
+import { invalidateStaleOverrides } from "./day-mutations";
 import {
   applyVehicleSelection, clearVehicleSelection, isPricedVehicle, type AnyVehicleHit,
   addActivity, updateActivity, removeActivity, moveActivity,
@@ -37,7 +39,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function TransferView({ day }: { day: number }) {
-  const { form, replaceDay, updateDay, closeDrawer } = useBuilder();
+  const { form, setForm, replaceDay, updateDay, closeDrawer } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
   const derivedCity = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
@@ -83,6 +85,42 @@ export function TransferView({ day }: { day: number }) {
     closeDrawer();
   }
 
+  /** Copies this day's vehicle onto the chosen days. The route fields are
+   * deliberately NOT copied — pickup, drop and distance describe each day's
+   * own journey, and stamping day 3's route across the trip would be wrong in
+   * a way that quietly mis-prices every per-km day. */
+  function applyVehicleToDays(days: number[]) {
+    if (!itin?.transport) return;
+    const source = itin;
+    const target = new Set(days);
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) => (target.has(it.day)
+        ? invalidateStaleOverrides(it, {
+            ...it,
+            transport: source.transport,
+            transportPhoto: source.transportPhoto,
+            transportVehicleType: source.transportVehicleType,
+            transportSeats: source.transportSeats,
+            cabPricingId: source.cabPricingId,
+            cabQuantity: source.cabQuantity,
+          })
+        : it)),
+    }));
+    toast.success(`Applied to ${days.length} day${days.length !== 1 ? "s" : ""}`);
+  }
+
+  function removeVehicleFromDays(days: number[]) {
+    const target = new Set(days);
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        target.has(it.day) ? invalidateStaleOverrides(it, clearVehicleSelection(it)) : it,
+      ),
+    }));
+    toast.success(`Removed from ${days.length} day${days.length !== 1 ? "s" : ""}`);
+  }
+
   return (
     <div className="p-5 space-y-5">
       {itin.transport && (
@@ -109,6 +147,24 @@ export function TransferView({ day }: { day: number }) {
               <Trash2 size={12} /> Remove
             </Button>
           </div>
+        </div>
+      )}
+
+      {itin.transport && (
+        <div className="space-y-2">
+          <ApplyToDays
+            sourceDay={day}
+            label="Use this vehicle on other days"
+            confirmLabel="Apply"
+            onApply={applyVehicleToDays}
+          />
+          <ApplyToDays
+            sourceDay={day}
+            label="Remove transport from other days"
+            confirmLabel="Remove from"
+            tone="danger"
+            onApply={removeVehicleFromDays}
+          />
         </div>
       )}
 
