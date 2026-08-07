@@ -18,10 +18,23 @@ function warnAboutFailedImages(imageWarnings: string[]) {
   );
 }
 
-/** "Romantic Kerala Honeymoon Package" → "romantic-kerala-honeymoon-package-itinerary.pdf" */
-function pdfFilename(title: string): string {
-  const slug = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  return `${slug || "itinerary"}-itinerary.pdf`;
+// Same light-touch capitalization as Addquerydialog's capitalizeWords —
+// only uppercases each word's first letter, so an acronym typed correctly
+// elsewhere in the name (e.g. "UAE", "GST") isn't mangled the way a full
+// Title Case pass would.
+function capitalizeWords(s: string): string {
+  return s.replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
+/** "priya sharma" + "romantic kerala honeymoon package" →
+ *  "Priya Sharma - Romantic Kerala Honeymoon Package.pdf" */
+function pdfFilename(clientName: string, title: string): string {
+  const client = capitalizeWords(clientName.trim().replace(/\s+/g, " "));
+  const pkg = capitalizeWords(title.trim().replace(/\s+/g, " "));
+  const base = [client, pkg].filter(Boolean).join(" - ") || "Itinerary";
+  // Strip characters illegal in filenames (Windows/macOS) without touching
+  // the readable spaces/hyphens the casing above relies on.
+  return `${base.replace(/[\\/:*?"<>|]/g, "")}.pdf`;
 }
 
 export function ItineraryPdfExport({ form }: { form: PreviewData }) {
@@ -75,7 +88,7 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
     const result = await generatePages();
     if (!result) return;
     const pdf = buildPdf(result);
-    pdf.save(pdfFilename(form.title));
+    pdf.save(pdfFilename(form.clientName, form.title));
   }
 
   return (
