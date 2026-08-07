@@ -1633,9 +1633,9 @@ function DayCard({
                   });
                   setHotelRequestComposing(true);
                 }}
-                className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-white cursor-pointer bg-red-500 px-2 py-1 rounded-lg"
               >
-                Can&apos;t find a hotel here? Add hotels by team
+                Request hotel
               </button>
             </div>
 

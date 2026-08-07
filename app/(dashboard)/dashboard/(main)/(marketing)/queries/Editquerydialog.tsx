@@ -271,7 +271,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                         {/* ── Destination ── */}
                         <div className="space-y-1.5">
                             <Label>
-                                Destination <span className="text-destructive">*</span>
+                                Destination <span className="text-muted-foreground text-xs font-normal">(optional)</span>
                             </Label>
                             <Select
                                 value={destValue}
@@ -284,7 +284,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                                             <Loader2 className="h-3 w-3 animate-spin" /> Loading…
                                         </span>
                                     ) : (
-                                        <SelectValue placeholder="Select destination" />
+                                        <SelectValue placeholder="Select destination (optional)" />
                                     )}
                                 </SelectTrigger>
                                 <SelectContent>

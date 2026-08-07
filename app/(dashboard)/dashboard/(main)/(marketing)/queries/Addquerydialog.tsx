@@ -225,7 +225,7 @@ export function AddQueryDialog() {
                         {/* Destination */}
                         <div className="space-y-1.5">
                             <Label className="text-xs font-medium text-dashboard-base-content/70">
-                                Destination <span className="text-dashboard-error">*</span>
+                                Destination <span className="text-dashboard-base-content/40">(optional)</span>
                             </Label>
                             <Select
                                 value={selectedDestId ? `${selectedDestId}::${selectedDestName}` : ""}
@@ -238,7 +238,7 @@ export function AddQueryDialog() {
                                             <Loader2 className="h-3 w-3 animate-spin" /> Loading...
                                         </span>
                                     ) : (
-                                        <SelectValue placeholder="Select destination" />
+                                        <SelectValue placeholder="Select destination (optional)" />
                                     )}
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-dashboard-base-300 bg-dashboard-base-100">
