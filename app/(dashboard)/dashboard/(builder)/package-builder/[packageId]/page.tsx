@@ -371,7 +371,7 @@ function ExtraPolicyItemsEditor({ items, onChange, placeholder }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // PhotoPreview — small thumbnail with a remove ("×") button, used for the
 // hotel/cab/activity picks below so a sales exec sees confirmation of what
-// was chosen instead of just text fields.
+// was chosen instead of just text fields.     
 // ─────────────────────────────────────────────────────────────────────────────
 function PhotoPreview({ src, alt, onRemove }: { src: string; alt: string; onRemove: () => void }) {
   return (
