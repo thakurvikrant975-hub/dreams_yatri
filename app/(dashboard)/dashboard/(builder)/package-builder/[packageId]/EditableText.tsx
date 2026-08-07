@@ -23,7 +23,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/app/lib/utils";
-import { useOptionalBuilder, applyFieldEdit, type EditableField } from "./builder-context";
+import { useOptionalBuilder, applyFieldEdit, fieldKey, type EditableField } from "./builder-context";
 
 export function EditableText({
   value, field, placeholder, fallback, className, style, multiline = false, as: Tag = "span",
@@ -132,6 +132,8 @@ export function EditableText({
     <Tag
       role="button"
       tabIndex={0}
+      // How requestFieldFocus finds this editor — see builder-context.
+      data-field={fieldKey(field)}
       onClick={() => setEditing(true)}
       onKeyDown={(e: React.KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditing(true); }

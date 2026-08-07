@@ -1220,6 +1220,7 @@ function DayCardPreview({
               hasActivities={activities.length > 0}
               hasMeals={(shiftedMeals ?? day.meals).length > 0}
               hasAddons={(addOns ?? []).some((a) => a.day === day.day)}
+              hasNote={!!day.notes.trim()}
               isPending={!!day.hotelPending}
             />
           </div>
@@ -1563,7 +1564,7 @@ function DayCardPreview({
               multiline
               value={day.notes}
               field={{ scope: "day", day: day.day, key: "notes" }}
-              placeholder="Add a note for this day…"
+              placeholder="Note for this day — click to add…"
               className="block text-[11px] italic"
               style={{ color: DOC.inkMuted }}
             />

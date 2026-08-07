@@ -153,6 +153,16 @@ type BuilderContextValue = {
   addDayAfter: (day: number) => void;
   /** Deletes a day and everything on it, renumbering the rest. */
   removeDay: (day: number) => void;
+  /** Scrolls to the inline editor for this field and opens it. Lets a menu
+   * item drive an editor living elsewhere in the document — a text field
+   * doesn't need a drawer, it just needs to be findable.
+   *
+   * Reaches for the DOM rather than routing a "focus request" through state.
+   * The editor already opens on click and tags itself with data-field, so this
+   * is one query and one click; the state version needed a flag written during
+   * render and cleared from an effect, which is both more code and the kind of
+   * thing React's lint rules (correctly) push back on. */
+  requestFieldFocus: (field: EditableField) => void;
 };
 
 /** The one way a day changes.
@@ -197,6 +207,12 @@ export function PackageBuilderProvider({
     replaceDay: (day, fn) => setForm((f) => replaceDay(f, day, fn)),
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
+    requestFieldFocus: (field) => {
+      const el = document.querySelector<HTMLElement>(`[data-field="${fieldKey(field)}"]`);
+      if (!el) return;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.click();
+    },
   }), [form, setForm, canEdit, drawer]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
@@ -233,6 +249,16 @@ export function useOptionalBuilder(): BuilderContextValue | null {
  * descriptor that names any editable node, so a single write path can serve
  * all of them rather than each field needing its own callback threaded down
  * from page.tsx. */
+/** Stable identity for a field, so a focus request can be matched against the
+ * editor that owns it without passing refs across the tree. */
+export function fieldKey(f: EditableField): string {
+  switch (f.scope) {
+    case "package": return `package:${f.key}`;
+    case "day": return `day:${f.day}:${f.key}`;
+    case "activity": return `activity:${f.day}:${f.index}:${f.key}`;
+  }
+}
+
 export type EditableField =
   | { scope: "package"; key: "title" | "description" }
   | { scope: "day"; day: number; key: "title" | "description" | "notes" }

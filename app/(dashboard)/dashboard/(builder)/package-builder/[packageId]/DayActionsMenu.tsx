@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { Plus, Hotel, Car, Sparkles, CalendarPlus, Trash2, ChevronDown, Utensils, Gift } from "lucide-react";
+import { Plus, Hotel, Car, Sparkles, CalendarPlus, Trash2, ChevronDown, Utensils, Gift, StickyNote } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -30,17 +30,18 @@ import { useBuilder } from "./builder-context";
 
 const CONFIRM_WORD = "delete";
 
-export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasMeals, hasAddons, isPending }: {
+export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasMeals, hasAddons, hasNote, isPending }: {
   day: number;
   hasStay: boolean;
   hasTransport: boolean;
   hasActivities: boolean;
   hasMeals: boolean;
   hasAddons: boolean;
+  hasNote: boolean;
   /** Awaiting the hotel team — the stay row points at the request. */
   isPending: boolean;
 }) {
-  const { openDrawer, addDayAfter, removeDay, form } = useBuilder();
+  const { openDrawer, addDayAfter, removeDay, requestFieldFocus, form } = useBuilder();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState("");
 
@@ -94,6 +95,12 @@ export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasM
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => openDrawer({ kind: "addons-edit", day })}>
             <Gift size={13} /> {hasAddons ? "Edit add-ons" : "Add-on"}
+          </DropdownMenuItem>
+          {/* A note is plain text, so it opens the inline editor in the
+              document rather than a drawer — a drawer for one textarea would
+              be more chrome than the thing it edits. */}
+          <DropdownMenuItem onSelect={() => requestFieldFocus({ scope: "day", day, key: "notes" })}>
+            <StickyNote size={13} /> {hasNote ? "Edit note" : "Note"}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
