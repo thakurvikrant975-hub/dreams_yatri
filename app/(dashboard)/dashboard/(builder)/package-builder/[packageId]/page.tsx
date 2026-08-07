@@ -19,7 +19,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble,
+  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -78,6 +78,7 @@ import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { PackageBuilderProvider, type PackageForm } from "./builder-context";
+import { useUndoableState } from "./use-undoable-state";
 import { applyHotelRoomSelection, emptyDay, emptyTicket, computeDurationText, TICKET_TYPE_LABELS } from "./day-mutations";
 import { geocodeCity } from "./geocode-city";
 import { BuilderDrawer } from "./BuilderDrawer";
@@ -2557,7 +2558,10 @@ export default function PackageBuilderDetailPage() {
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
   const [confirmShareOpen, setConfirmShareOpen] = useState(false);
 
-  const [form, setForm] = useState<PackageForm>({
+  // useState with history — see use-undoable-state.ts. Same signature, so
+  // every existing setForm call site below is unchanged and undo covers all
+  // of them rather than only the ones wired up deliberately.
+  const [form, setForm, history] = useUndoableState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
     adults: 1, children: 0, infants: 0, childrenAges: [], infantAges: [],
@@ -2595,6 +2599,29 @@ export default function PackageBuilderDetailPage() {
   }
   const daySensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  // ── Undo / redo shortcuts ───────────────────────────────────────────────────
+  // Skipped while focus is in a text field: the browser's own undo inside an
+  // <input> is what someone means by Cmd-Z mid-sentence, and hijacking it to
+  // roll back the whole package would be startling. EditableText commits on
+  // blur, so once they leave the field the package-level history has it.
+  // isLocked itself is derived much further down, after the data loads —
+  // read the same condition off `query` here rather than hoisting it.
+  const historyLocked = query?.customPackage?.status === "READY";
+  useEffect(() => {
+    if (historyLocked) return;
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      const el = document.activeElement;
+      const typing = el instanceof HTMLElement
+        && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (typing) return;
+      e.preventDefault();
+      if (e.shiftKey) history.redo(); else history.undo();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [historyLocked, history]);
+
   // ── Current user's role — gates editing of the standard content lists ──────
   useEffect(() => {
     let cancelled = false;
@@ -2622,7 +2649,7 @@ export default function PackageBuilderDetailPage() {
     getItinerarySettings().then((settings) => {
       if (cancelled) return;
       setItinerarySettings(settings);
-      setForm((f) => ({
+      history.reset((f) => ({
         ...f,
         inclusions: settings.inclusions,
         exclusions: settings.exclusions,
@@ -2673,7 +2700,7 @@ export default function PackageBuilderDetailPage() {
       const t = r?.travellers;
       const tr = r?.transport;
 
-      setForm((f) => ({
+      history.reset((f) => ({
         ...f,
         title: `${j?.destinations?.[0] ?? data.destination ?? "Custom"} Tour Package`,
         destination: j?.destinations?.join(", ") ?? data.destination ?? "",
@@ -2704,7 +2731,7 @@ export default function PackageBuilderDetailPage() {
 
       if (data.customPackage) {
         const cp = data.customPackage;
-        setForm((f) => ({
+        history.reset((f) => ({
           ...f,
           title: cp.title,
           description: cp.description ?? "",
@@ -3010,6 +3037,48 @@ export default function PackageBuilderDetailPage() {
   }
 
   // ── Mark ready for costing review ───────────────────────────────────────────
+  // ── Autosave ────────────────────────────────────────────────────────────────
+  // Deliberately conservative, because this writes real data:
+  //
+  //   • DRAFT only. A package under costing review (READY) or already SENT is
+  //     never touched — those are locked anyway, and silently rewriting one
+  //     mid-review is precisely the thing nobody would forgive.
+  //   • Never on load. It arms only after the first real edit, so opening a
+  //     package and closing it again writes nothing.
+  //   • Never changes status. It is exactly the "Save Draft" the exec already
+  //     presses, on a timer.
+  //
+  // Explicit Save Draft stays: autosave removes the tax of remembering it, not
+  // the ability to force one.
+  const AUTOSAVE_DELAY_MS = 3000;
+  const autosaveArmed = useRef(false);
+  const lastSavedSnapshot = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (loading || !query) return;
+    const status = query.customPackage?.status;
+    if (status && status !== "DRAFT") return;
+
+    const snapshot = JSON.stringify(form);
+    // First pass after load records the baseline without saving — this is what
+    // stops a freshly-opened package from writing itself back untouched.
+    if (!autosaveArmed.current) {
+      autosaveArmed.current = true;
+      lastSavedSnapshot.current = snapshot;
+      return;
+    }
+    if (snapshot === lastSavedSnapshot.current) return;
+
+    const timer = setTimeout(() => {
+      lastSavedSnapshot.current = snapshot;
+      handleSave("DRAFT");
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // handleSave is stable enough for this purpose and intentionally omitted —
+    // including it would re-arm the timer on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, loading, query]);
+
   // The ONLY way a package moves forward from the builder into review — no
   // direct "send to client" from here. This locks nothing and notifies no
   // one; it just hands the package to /dashboard/verify-packages, where
@@ -3974,6 +4043,33 @@ Rules:
                   {savedOk ? "Saved!" : "Save Draft"}
                 </span>
               </Button>
+            )}
+
+            {/* Undo / redo. Hidden once the package is locked for costing
+                review, where nothing is editable to undo in the first place. */}
+            {!isLocked && (
+              <div className="flex items-center gap-0.5">
+                <Button
+                  variant="ghost" size="sm"
+                  className="h-8 w-8 p-0 rounded-md"
+                  onClick={history.undo}
+                  disabled={!history.canUndo}
+                  title="Undo (⌘Z)"
+                  aria-label="Undo"
+                >
+                  <Undo2 size={14} />
+                </Button>
+                <Button
+                  variant="ghost" size="sm"
+                  className="h-8 w-8 p-0 rounded-md"
+                  onClick={history.redo}
+                  disabled={!history.canRedo}
+                  title="Redo (⌘⇧Z)"
+                  aria-label="Redo"
+                >
+                  <Redo2 size={14} />
+                </Button>
+              </div>
             )}
 
             <ItineraryPdfExport form={previewForm} />
