@@ -13,6 +13,7 @@
 // bug impossible instead of merely unlikely.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type { RoomSelection } from "../room-cab-selections";
 import type {
   DayItinerary, HotelRoomResult, VehicleResult, CabPricingResult, ActivityInput,
   TicketInput, AddonInput,
@@ -367,6 +368,62 @@ export function submitHotelRequest(day: DayItinerary): DayItinerary {
 export function cancelHotelRequest(day: DayItinerary): DayItinerary {
   return {
     ...day,
+    hotelPending: false,
+    hotelPendingNote: "",
+    hotelRequestType: null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Extra rooms and a hand-typed stay
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Adds a second (different) room type for the same night — e.g. one couple in
+ * a Deluxe, another in a Suite. Captured the same way the primary room is, so
+ * it renders and prices with the same fidelity rather than as a bare label. */
+export function addExtraRoom(day: DayItinerary, raw: HotelRoomResult): DayItinerary {
+  return {
+    ...day,
+    extraRooms: [
+      ...(day.extraRooms ?? []),
+      {
+        roomPricingId: raw.id,
+        label: `${raw.hotelName} — ${raw.roomName}`,
+        quantity: 1,
+        thumbnail: raw.thumbnail ?? null,
+        roomCapacity: raw.roomCapacity ?? null,
+        roomSpecs: raw.roomSpecs ?? null,
+      },
+    ],
+  };
+}
+
+export function updateExtraRoom(
+  day: DayItinerary, index: number, patch: Partial<RoomSelection>,
+): DayItinerary {
+  return {
+    ...day,
+    extraRooms: (day.extraRooms ?? []).map((r, i) => (i === index ? { ...r, ...patch } : r)),
+  };
+}
+
+export function removeExtraRoom(day: DayItinerary, index: number): DayItinerary {
+  return { ...day, extraRooms: (day.extraRooms ?? []).filter((_, i) => i !== index) };
+}
+
+/**
+ * Switches the day to a hand-typed stay.
+ *
+ * The third state a day's accommodation can be in, alongside a catalog room
+ * and a team request. Clears roomPricingId so the pricing engine takes its
+ * manual branch (computeBuilderHotelPricing prices these off
+ * manualHotelPricePerNight rather than a catalog rate), and drops the capacity
+ * snapshot with it — those caps described the catalog room, and leaving them
+ * would have planRoomOccupancy sizing a hotel nobody picked.
+ */
+export function beginManualHotel(day: DayItinerary): DayItinerary {
+  return {
+    ...clearHotelSelection(day),
     hotelPending: false,
     hotelPendingNote: "",
     hotelRequestType: null,

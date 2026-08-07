@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, CopyIcon, Clock, Send } from "lucide-react";
+import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, CopyIcon, Clock, Send, Plus, PencilLine } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -30,6 +30,7 @@ import { useBuilder } from "./builder-context";
 import {
   applyHotelRoomSelection, clearHotelSelection, invalidateStaleOverrides,
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
+  addExtraRoom, updateExtraRoom, removeExtraRoom, beginManualHotel,
 } from "./day-mutations";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -329,16 +330,117 @@ export function HotelEditView({ day }: { day: number }) {
               </div>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setRequesting(true)}
-              className="flex items-center gap-1.5 text-[11px] font-medium text-amber-800 hover:underline"
-            >
-              <Clock size={11} /> Can&apos;t find a suitable one? Request from the hotel team
-            </button>
+            <div className="flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={() => setRequesting(true)}
+                className="flex items-center gap-1.5 text-[11px] font-medium text-amber-800 hover:underline"
+              >
+                <Clock size={11} /> Can&apos;t find a suitable one? Request from the hotel team
+              </button>
+              {hasCatalogRoom && (
+                <button
+                  type="button"
+                  onClick={() => replaceDay(day, beginManualHotel)}
+                  className="flex items-center gap-1.5 text-[11px] font-medium text-dashboard-base-content/60 hover:text-dashboard-base-content hover:underline"
+                >
+                  <PencilLine size={11} /> Or enter a hotel by hand
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
+
+      {/* Hand-typed stay — the third state, alongside a catalog room and a team
+          request. Shown when there's no catalog room but the day still has, or
+          is being given, a hotel by name. The pricing engine takes its manual
+          branch for these (no roomPricingId), which is why the price and
+          mattress rate live here and nowhere else. */}
+      {!hasCatalogRoom && (
+        <div className="space-y-3 rounded-xl border border-dashed border-dashboard-base-300 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">
+            Hotel entered by hand
+          </p>
+          <div className="space-y-1.5">
+            <label className="text-[11px] text-dashboard-base-content/60">Hotel &amp; room</label>
+            <Input
+              value={itin.accommodation}
+              onChange={(e) => updateDay(day, { accommodation: e.target.value })}
+              placeholder="e.g. Snow Valley Resorts — Deluxe"
+              className="h-9 text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-dashboard-base-content/60">Location</label>
+              <Input
+                value={itin.accommodationLocation}
+                onChange={(e) => updateDay(day, { accommodationLocation: e.target.value })}
+                placeholder="City, State" className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-dashboard-base-content/60">Room specs</label>
+              <Input
+                value={itin.accommodationRoomSpecs}
+                onChange={(e) => updateDay(day, { accommodationRoomSpecs: e.target.value })}
+                placeholder="1 Double Bed | Mountain View" className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-dashboard-base-content/60">Rooms</label>
+              <Input
+                type="number" min={1}
+                value={itin.roomsCount ?? ""}
+                onChange={(e) => updateDay(day, {
+                  roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                })}
+                placeholder="1" className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1">
+                <BedDouble size={11} /> Mattresses
+              </label>
+              <Input
+                type="number" min={0}
+                value={itin.manualExtraBeds ?? ""}
+                onChange={(e) => updateDay(day, {
+                  manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
+                })}
+                placeholder="0" className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-dashboard-base-content/60">Price / night</label>
+              <Input
+                type="number" min={0}
+                value={itin.manualHotelPricePerNight ?? ""}
+                onChange={(e) => updateDay(day, {
+                  manualHotelPricePerNight: e.target.value ? parseFloat(e.target.value) : null,
+                })}
+                placeholder="0" className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-dashboard-base-content/60">Rate / mattress</label>
+              <Input
+                type="number" min={0}
+                value={itin.manualExtraBedRate ?? ""}
+                onChange={(e) => updateDay(day, {
+                  manualExtraBedRate: e.target.value ? parseFloat(e.target.value) : null,
+                })}
+                placeholder="0" className="h-9 text-sm"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-dashboard-base-content/45">
+            Priced from these figures rather than a catalog rate. Rooms × price, plus
+            mattresses × rate.
+          </p>
+        </div>
+      )}
 
       {hasCatalogRoom && (
         <>
@@ -372,6 +474,8 @@ export function HotelEditView({ day }: { day: number }) {
               className="h-9 text-sm"
             />
           </div>
+
+          <ExtraRoomsEditor day={day} />
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -567,6 +671,129 @@ export function HotelRequestView({ day }: { day: number }) {
           Cancel
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Extra rooms
+//
+// A night is really "these rooms", not "this room" — the split between the
+// primary roomPricingId and an extraRooms list is an artifact of how the old
+// panel was laid out, not of how a booking works. The drawer presents them as
+// one list, with the primary first and unremovable (removing it is "remove the
+// stay", which is a different action).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ExtraRoomsEditor({ day }: { day: number }) {
+  const { form, replaceDay } = useBuilder();
+  const itin = form.itineraries.find((it) => it.day === day);
+  const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<HotelRoomResult[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const city = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
+
+  useEffect(() => {
+    if (!adding) return;
+    let cancelled = false;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const rows = await searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc");
+        if (!cancelled) setResults(rows);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [adding, city, query]);
+
+  if (!itin) return null;
+  const extras = itin.extraRooms ?? [];
+
+  return (
+    <div className="space-y-2">
+      <label className="text-[11px] font-medium text-dashboard-base-content/60">
+        Other room types this night
+      </label>
+
+      {extras.length === 0 && !adding && (
+        <p className="text-[11px] text-dashboard-base-content/45">
+          Everyone is in the room above. Add another type if the party splits across
+          different rooms.
+        </p>
+      )}
+
+      {extras.map((r, i) => (
+        <div key={i} className="flex items-center gap-2 rounded-lg border border-dashboard-base-300 p-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium truncate">{r.label}</p>
+            {r.roomSpecs && (
+              <p className="text-[10px] text-dashboard-base-content/50 truncate">{r.roomSpecs}</p>
+            )}
+          </div>
+          <Input
+            type="number" min={1}
+            value={r.quantity}
+            onChange={(e) => replaceDay(day, (d) =>
+              updateExtraRoom(d, i, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+            className="h-8 w-16 text-sm shrink-0"
+            aria-label="Rooms of this type"
+          />
+          <Button
+            type="button" size="sm" variant="ghost"
+            className="h-8 w-8 p-0 shrink-0 text-dashboard-error hover:text-dashboard-error"
+            onClick={() => replaceDay(day, (d) => removeExtraRoom(d, i))}
+            aria-label="Remove this room type"
+          >
+            <Trash2 size={13} />
+          </Button>
+        </div>
+      ))}
+
+      {adding ? (
+        <div className="space-y-2 rounded-lg border border-dashboard-base-300 p-2">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={city ? `Another room near ${city}…` : "Search a room type…"}
+            className="h-8 text-sm"
+            autoFocus
+          />
+          {loading && (
+            <p className="text-[11px] text-dashboard-base-content/50 py-2 text-center">Searching…</p>
+          )}
+          <div className="max-h-56 overflow-y-auto space-y-1">
+            {!loading && results.map((room) => (
+              <button
+                key={room.id}
+                type="button"
+                onClick={() => {
+                  replaceDay(day, (d) => addExtraRoom(d, room));
+                  setAdding(false); setQuery("");
+                }}
+                className="w-full text-left rounded-md px-2 py-1.5 hover:bg-dashboard-base-200/60"
+              >
+                <p className="text-xs font-medium truncate">{room.hotelName} — {room.roomName}</p>
+                <p className="text-[10px] text-dashboard-base-content/50">
+                  ₹{room.pricePerNight.toLocaleString("en-IN")} / night
+                </p>
+              </button>
+            ))}
+          </div>
+          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs w-full"
+            onClick={() => { setAdding(false); setQuery(""); }}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <Button type="button" variant="outline" className="w-full h-8 text-xs border-dashed"
+          onClick={() => setAdding(true)}>
+          <Plus size={12} /> Add another room type
+        </Button>
+      )}
     </div>
   );
 }
