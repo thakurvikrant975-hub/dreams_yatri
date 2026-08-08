@@ -7,7 +7,7 @@ import {
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
-  StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus, Lock,
+  StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus, Lock, MoonStar,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -23,6 +23,7 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { continuesStayFrom } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
@@ -1396,9 +1397,12 @@ function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }
 }
 
 function DayCardPreview({
-  day, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals, addOns,
+  day, allDays, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals, addOns,
 }: {
   day: DayItinerary;
+  /** Every day, so this one can tell whether it continues a multi-night stay
+   * that began earlier — see continuesStayFrom. */
+  allDays: DayItinerary[];
   adults: number;
   childCount: number;
   travelDate: string;
@@ -1431,6 +1435,9 @@ function DayCardPreview({
   // One place each section's "open my drawer" lives, so the hover wrapper and
   // the marker's own Edit button can't drift to different targets.
   const canEditDoc = !!builder?.canEdit;
+  // Night 2+ of a multi-night stay — see stayRun/continuesStayFrom. Null when
+  // this day starts its stay, or has no catalog room at all.
+  const continuesFrom = continuesStayFrom(allDays, day.day);
   const stayEdit = canEditDoc
     ? () => builder!.openDrawer(day.hotelPending
         ? { kind: "hotel-request", day: day.day }
@@ -1536,6 +1543,26 @@ function DayCardPreview({
         {/* Hotel info */}
         {hasHotel && (
           <EditableSection onEdit={stayEdit}>
+          {continuesFrom != null ? (
+            // Night 2+ of the same stay: the client already read the hotel's
+            // details on the night it started, so repeating them is noise.
+            // One line saying where they are and that nothing has changed.
+            <div className="space-y-2" style={{ breakInside: "avoid" }}>
+              <DaySubHead icon={Hotel} label="Stay" onEdit={stayEdit} />
+              <div
+                className={cn("flex items-center gap-2 rounded-lg px-3 py-2", SUBHEAD_INDENT)}
+                style={{ backgroundColor: DOC.paper, border: `1px solid ${DOC.rule}` }}
+              >
+                <MoonStar size={12} color={DOC.accent} className="shrink-0" />
+                <p className="text-[11.5px] flex-1 min-w-0" style={{ color: DOC.inkSoft }}>
+                  <span className="font-semibold" style={{ color: DOC.ink }}>
+                    {day.accommodation}
+                  </span>
+                  {" — continuing from day "}{continuesFrom}
+                </p>
+              </div>
+            </div>
+          ) : (
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
             <DaySubHead
               icon={Hotel}
@@ -1660,6 +1687,7 @@ function DayCardPreview({
               )}
             </div>
           </div>
+          )}
           </EditableSection>
         )}
 
@@ -2432,6 +2460,7 @@ export function ItineraryDocument({
                 <DayCardPreview
                   key={d.day}
                   day={d}
+                  allDays={form.itineraries}
                   adults={form.adults}
                   childCount={form.children}
                   travelDate={form.travelDate}

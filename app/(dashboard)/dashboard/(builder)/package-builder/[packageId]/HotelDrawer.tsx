@@ -22,6 +22,10 @@ import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
 import {
   searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult,
 } from "../action";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 import { geocodeCity } from "./geocode-city";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
@@ -32,6 +36,7 @@ import {
   applyHotelRoomSelection, clearHotelSelection, invalidateStaleOverrides,
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
   addExtraRoom, updateExtraRoom, removeExtraRoom, beginManualHotel,
+  stayRun, validateStayAssignment,
 } from "./day-mutations";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,6 +52,10 @@ export function HotelReplaceView({ day }: { day: number }) {
   const derivedCity = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
   const [city, setCity] = useState(derivedCity);
   const [query, setQuery] = useState("");
+  /** Which of the two the single field is driving. Location is the default
+   * because a day already knows its stop — most searches are "what's near
+   * here", and reaching for a name is the exception. */
+  const [mode, setMode] = useState<"location" | "name">("location");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [results, setResults] = useState<HotelRoomResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -126,24 +135,47 @@ export function HotelReplaceView({ day }: { day: number }) {
 
   return (
     <div className="p-5 space-y-4">
-      <div className="grid grid-cols-2 gap-2">
-        <label className="space-y-1">
-          <span className="text-[11px] font-medium text-dashboard-base-content/60">Near</span>
-          <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" className="h-9 text-sm" />
-        </label>
-        <label className="space-y-1">
-          <span className="text-[11px] font-medium text-dashboard-base-content/60">Search</span>
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/40" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Hotel name…"
-              className="h-9 text-sm pl-7"
-            />
-          </div>
-        </label>
+      {/* One field, with the dropdown saying what it searches. Two side-by-side
+          inputs made you decide which box to type in before you'd decided what
+          you were looking for; this way the question comes first and there's
+          only ever one place to type. */}
+      <div className="flex items-stretch rounded-lg border border-dashboard-base-300 focus-within:ring-2 focus-within:ring-dashboard-primary/25 overflow-hidden">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-1 px-2.5 text-[11px] font-medium text-dashboard-base-content/70 bg-dashboard-base-200/60 border-r border-dashboard-base-300 hover:bg-dashboard-base-200 shrink-0"
+            >
+              {mode === "location" ? <MapPin size={12} /> : <Hotel size={12} />}
+              {mode === "location" ? "Location" : "Hotel name"}
+              <ChevronDown size={11} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuItem onSelect={() => setMode("location")}>
+              <MapPin size={13} /> Search by location
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setMode("name")}>
+              <Hotel size={13} /> Search by hotel name
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="relative flex-1 min-w-0">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/40" />
+          <input
+            value={mode === "location" ? city : query}
+            onChange={(e) => (mode === "location" ? setCity(e.target.value) : setQuery(e.target.value))}
+            placeholder={mode === "location" ? "City or area…" : "Hotel name…"}
+            className="w-full h-9 text-sm pl-7 pr-2 bg-transparent outline-none"
+          />
+        </div>
       </div>
+      {mode === "name" && city && (
+        <p className="text-[11px] text-dashboard-base-content/45 -mt-2">
+          Searching everywhere by name. Results still show distance from {city}.
+        </p>
+      )}
 
       {/* The escape hatch this view exists to offer: nothing in the catalog
           fits, so hand the day over instead of leaving it empty. */}
@@ -468,6 +500,8 @@ export function HotelEditView({ day }: { day: number }) {
           </p>
         </div>
       )}
+
+      {hasCatalogRoom && <StayNights day={day} />}
 
       {hasCatalogRoom && (
         <>
@@ -820,6 +854,123 @@ function ExtraRoomsEditor({ day }: { day: number }) {
           onClick={() => setAdding(true)}>
           <Plus size={12} /> Add another room type
         </Button>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Which nights this stay covers
+//
+// A package is normally a few consecutive nights per hotel, so this is the
+// control that turns "pick the same hotel three times" into one action. The run
+// is derived from the days rather than stored (see stayRun), so it stays
+// compatible with everything already saved and the pricing engine keeps
+// costing each night on its own date.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StayNights({ day }: { day: number }) {
+  const { form, setForm } = useBuilder();
+  const itin = form.itineraries.find((it) => it.day === day);
+  const [picked, setPicked] = useState<number[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (!itin) return null;
+
+  const run = stayRun(form.itineraries, day);
+  const selection = picked ?? run;
+
+  function toggle(d: number) {
+    setError(null);
+    setPicked((p) => {
+      const base = p ?? run;
+      return base.includes(d) ? base.filter((x) => x !== d) : [...base, d].sort((a, b) => a - b);
+    });
+  }
+
+  async function apply() {
+    const check = validateStayAssignment(form.itineraries, selection);
+    if (!check.ok) { setError(check.reason); return; }
+
+    const source = await getHotelRoomByIdForBuilder(itin!.roomPricingId!, null);
+    if (!source) { setError("Couldn't load this room. Pick it again."); return; }
+
+    const target = new Set(check.days);
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) => {
+        if (target.has(it.day)) {
+          return invalidateStaleOverrides(it, applyHotelRoomSelection(it, source));
+        }
+        // Dropped from the run — clear it, so unticking a night actually
+        // releases it rather than leaving the hotel silently attached.
+        if (run.includes(it.day)) {
+          return invalidateStaleOverrides(it, clearHotelSelection(it));
+        }
+        return it;
+      }),
+    }));
+    setPicked(null);
+    toast.success(
+      check.days.length === 1
+        ? `Day ${check.days[0]}`
+        : `Nights ${check.days[0]}–${check.days[check.days.length - 1]}`,
+    );
+  }
+
+  const dirty = picked !== null && picked.join() !== run.join();
+
+  return (
+    <div className="space-y-2 rounded-xl border border-dashboard-base-300 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-[11px] font-medium text-dashboard-base-content/60">
+          Nights at this hotel
+        </label>
+        <span className="text-[10px] text-dashboard-base-content/45">
+          {run.length} night{run.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {form.itineraries.map((it) => {
+          const on = selection.includes(it.day);
+          // A night already held by a DIFFERENT hotel — still selectable
+          // (re-assigning is how you fix a mistake), but marked so it's a
+          // deliberate act rather than an accident.
+          const takenByOther = !on && it.roomPricingId != null && !run.includes(it.day);
+          return (
+            <button
+              key={it.day}
+              type="button"
+              onClick={() => toggle(it.day)}
+              aria-pressed={on}
+              title={takenByOther ? `Day ${it.day} currently has another hotel` : undefined}
+              className={cn(
+                "rounded-md px-2 py-1 text-[11px] font-medium border transition-colors",
+                on
+                  ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
+                  : takenByOther
+                    ? "border-dashed border-amber-400/60 text-amber-700/80 hover:bg-amber-50"
+                    : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+              )}
+            >
+              {it.day}
+            </button>
+          );
+        })}
+      </div>
+
+      {error && <p className="text-[11px] text-dashboard-error">{error}</p>}
+
+      {dirty && (
+        <div className="flex gap-2">
+          <Button type="button" size="sm" className="h-8 text-xs flex-1" onClick={apply}>
+            Apply to {selection.length} night{selection.length !== 1 ? "s" : ""}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 text-xs"
+            onClick={() => { setPicked(null); setError(null); }}>
+            Reset
+          </Button>
+        </div>
       )}
     </div>
   );

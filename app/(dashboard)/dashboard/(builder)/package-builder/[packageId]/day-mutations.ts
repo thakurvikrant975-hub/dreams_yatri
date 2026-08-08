@@ -468,3 +468,83 @@ export function updateExtraCab(
 export function removeExtraCab(day: DayItinerary, index: number): DayItinerary {
   return { ...day, extraCabs: (day.extraCabs ?? []).filter((_, i) => i !== index) };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// One stay across several nights
+//
+// The normal shape of a package: 3 nights in Manali, then 2 in Srinagar. The
+// builder previously made you pick the same hotel once per day, which is both
+// tedious and how days drift apart — a re-pick on day 3 can land on a
+// different room type than day 2 without anything saying so.
+//
+// A stay is therefore a RUN of consecutive days sharing one roomPricingId.
+// Nothing new is stored: the run is derived from the days themselves, so this
+// stays compatible with every package already saved and with the pricing
+// engine, which still prices each night independently.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The consecutive days sharing this day's room, as day numbers. A day with no
+ * catalog room is a run of itself alone. */
+export function stayRun(days: DayItinerary[], day: number): number[] {
+  const idx = days.findIndex((d) => d.day === day);
+  if (idx === -1) return [];
+  const id = days[idx].roomPricingId;
+  if (id == null) return [days[idx].day];
+
+  let start = idx;
+  while (start > 0 && days[start - 1].roomPricingId === id) start--;
+  let end = idx;
+  while (end < days.length - 1 && days[end + 1].roomPricingId === id) end++;
+  return days.slice(start, end + 1).map((d) => d.day);
+}
+
+/** True when this day continues a stay that began earlier — the case that
+ * renders as a compact "already assigned from day N" card rather than a full
+ * hotel block. */
+export function continuesStayFrom(days: DayItinerary[], day: number): number | null {
+  const run = stayRun(days, day);
+  return run.length > 1 && run[0] !== day ? run[0] : null;
+}
+
+export type StayAssignment =
+  | { ok: true; days: number[] }
+  | { ok: false; reason: string };
+
+/**
+ * Checks a proposed run of nights for one hotel.
+ *
+ * Two rules, both about producing an itinerary a hotel could actually honour:
+ *
+ *   consecutive — a guest cannot stay Monday and Wednesday at one hotel while
+ *                 sleeping elsewhere on Tuesday and have it be one booking.
+ *                 Non-contiguous nights are two separate stays, and saying so
+ *                 is better than silently making a booking nobody can fulfil.
+ *   in range    — every night has to exist in the itinerary.
+ *
+ * Deliberately NOT a rule: overlapping another hotel's run. Re-assigning
+ * nights away from a previous hotel is the normal way to correct a mistake,
+ * and the days simply move.
+ */
+export function validateStayAssignment(
+  days: DayItinerary[],
+  wanted: number[],
+): StayAssignment {
+  const sorted = [...new Set(wanted)].sort((a, b) => a - b);
+  if (sorted.length === 0) return { ok: false, reason: "Pick at least one night." };
+
+  const known = new Set(days.map((d) => d.day));
+  const missing = sorted.filter((d) => !known.has(d));
+  if (missing.length > 0) {
+    return { ok: false, reason: `Day ${missing[0]} isn't in this itinerary.` };
+  }
+
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] !== sorted[i - 1] + 1) {
+      return {
+        ok: false,
+        reason: `Nights must run back to back — day ${sorted[i - 1]} and day ${sorted[i]} have a gap. Assign the second stretch separately.`,
+      };
+    }
+  }
+  return { ok: true, days: sorted };
+}
