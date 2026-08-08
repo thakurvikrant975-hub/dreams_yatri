@@ -1026,8 +1026,27 @@ function ManualHotelCapacityInputs({ data, onChange }: {
           />
         </div>
       )}
+      {(data.manualHotelPricePerNight ?? 0) > 0 && (
+        <p className="text-[11px] text-dashboard-base-content basis-full bg-dashboard-base-100 border border-dashboard-base-300 rounded-md px-2 py-1.5">
+          {(data.roomsCount ?? 1)} room{(data.roomsCount ?? 1) !== 1 ? "s" : ""} × ₹{(data.manualHotelPricePerNight ?? 0).toLocaleString("en-IN")}
+          {" = "}₹{((data.roomsCount ?? 1) * (data.manualHotelPricePerNight ?? 0)).toLocaleString("en-IN")}
+          {(data.manualExtraBeds ?? 0) > 0 && (
+            <>
+              {" + "}{data.manualExtraBeds} mattress{data.manualExtraBeds !== 1 ? "es" : ""} × ₹{(data.manualExtraBedRate ?? 0).toLocaleString("en-IN")}
+              {" = "}₹{((data.manualExtraBeds ?? 0) * (data.manualExtraBedRate ?? 0)).toLocaleString("en-IN")}
+            </>
+          )}
+          <span className="font-semibold">
+            {" → Total ₹"}
+            {(
+              (data.roomsCount ?? 1) * (data.manualHotelPricePerNight ?? 0)
+              + (data.manualExtraBeds ?? 0) * (data.manualExtraBedRate ?? 0)
+            ).toLocaleString("en-IN")}/night
+          </span>
+        </p>
+      )}
       <p className="text-[10px] text-dashboard-base-content/40 basis-full">
-        No catalog room selected — enter rooms, mattresses, and the price per night so this day prices correctly.
+        No catalog room selected — enter rooms, mattresses, and the price <strong>per room</strong> per night so this day prices correctly (the total above is what actually gets charged).
       </p>
     </div>
   );

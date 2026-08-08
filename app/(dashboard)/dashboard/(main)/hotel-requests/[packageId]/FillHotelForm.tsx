@@ -202,25 +202,53 @@ export function FillHotelForm({
                     />
                 </div>
                 <div>
-                    <label className="text-[11px] text-dashboard-neutral mb-1 block">B2B Price / Night (₹)</label>
+                    {/* Matches the exact label the main builder uses for the same
+                       field (manualHotelPricePerNight) — "B2B Price / Night" was
+                       read by hotel-team members as "the whole night's total",
+                       so they'd sum rooms + mattresses themselves and enter that
+                       combined figure here. The pricing engine always treats
+                       this as a PER-ROOM rate and multiplies by Rooms Needed —
+                       entering an already-summed total silently double-counted
+                       the room cost (e.g. 3 rooms @ ₹1000 + 2 mattresses @ ₹800
+                       = ₹4600 entered here → priced as 3 × ₹4600 = ₹13,800). */}
+                    <label className="text-[11px] text-dashboard-neutral mb-1 block">B2B Price / Room / Night (₹)</label>
                     <Input
                         type="number" min={0}
                         value={pricePerNight}
                         onChange={(e) => setPricePerNight(e.target.value)}
-                        placeholder="e.g. 4500"
+                        placeholder="e.g. 1000"
                         className="text-sm h-9"
                     />
                 </div>
                 {parseInt(extraBeds, 10) > 0 && (
                     <div>
-                        <label className="text-[11px] text-dashboard-neutral mb-1 block">Price / Mattress (₹)</label>
+                        <label className="text-[11px] text-dashboard-neutral mb-1 block">Price / Mattress / Night (₹)</label>
                         <Input
                             type="number" min={0}
                             value={extraBedRate}
                             onChange={(e) => setExtraBedRate(e.target.value)}
-                            placeholder="0"
+                            placeholder="e.g. 800"
                             className="text-sm h-9"
                         />
+                    </div>
+                )}
+                {parseFloat(pricePerNight) > 0 && (
+                    <div className="col-span-2 rounded-md border border-dashboard-base-300 bg-dashboard-base-200/40 px-2.5 py-2 text-xs text-dashboard-base-content">
+                        {(parseInt(roomsCount, 10) || 1)} room{(parseInt(roomsCount, 10) || 1) !== 1 ? "s" : ""} × ₹{(parseFloat(pricePerNight) || 0).toLocaleString("en-IN")}
+                        {" = "}₹{((parseInt(roomsCount, 10) || 1) * (parseFloat(pricePerNight) || 0)).toLocaleString("en-IN")}
+                        {parseInt(extraBeds, 10) > 0 && (
+                            <>
+                                {" + "}{parseInt(extraBeds, 10)} mattress{parseInt(extraBeds, 10) !== 1 ? "es" : ""} × ₹{(parseFloat(extraBedRate) || 0).toLocaleString("en-IN")}
+                                {" = "}₹{(parseInt(extraBeds, 10) * (parseFloat(extraBedRate) || 0)).toLocaleString("en-IN")}
+                            </>
+                        )}
+                        <span className="font-semibold">
+                            {" → Total ₹"}
+                            {(
+                                (parseInt(roomsCount, 10) || 1) * (parseFloat(pricePerNight) || 0)
+                                + parseInt(extraBeds, 10) * (parseFloat(extraBedRate) || 0)
+                            ).toLocaleString("en-IN")}/night
+                        </span>
                     </div>
                 )}
                 <div>
