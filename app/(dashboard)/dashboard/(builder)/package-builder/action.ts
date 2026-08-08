@@ -845,7 +845,7 @@ export interface AddonInput {
 
 export interface TicketInput {
   id?:            string;
-  type:           "FLIGHT" | "TRAIN" | "HELICOPTER";
+  type:           "FLIGHT" | "TRAIN" | "HELICOPTER" | "BUS" | "OTHER";
   provider:       string;
   ticketNumber:   string;
   fromPlace:      string;
@@ -1394,7 +1394,7 @@ function normalizeItinerary(it: {
 }
 
 function normalizeTicket(t: {
-  id: string; type: "FLIGHT" | "TRAIN" | "HELICOPTER"; provider: string | null; ticketNumber: string | null;
+  id: string; type: "FLIGHT" | "TRAIN" | "HELICOPTER" | "BUS" | "OTHER"; provider: string | null; ticketNumber: string | null;
   fromPlace: string | null; toPlace: string | null; travelDate: Date | null;
   departureTime: string | null; arrivalTime: string | null; durationText: string | null;
   adults: number; children: number; infants: number; ticketCount: number;
@@ -2256,10 +2256,15 @@ export async function sendPackageToClient(packageId: string): Promise<{
     const transportLine = [
       pkg.flightsIncluded ? "✈️ Flights included" : null,
       pkg.trainIncluded ? "🚆 Train included" : null,
-      // Helicopter legs don't get their own flightsIncluded-style persisted
-      // flag (see TicketLike in deriveTicketTransport.ts) — checked directly
-      // off the ticket list instead, same data this message already has.
+      // Helicopter/Bus/Other legs don't get their own flightsIncluded-style
+      // persisted flag (see TicketLike in deriveTicketTransport.ts) —
+      // checked directly off the ticket list instead, same data this
+      // message already has.
       pkg.tickets.some((t) => t.type === "HELICOPTER") ? "🚁 Helicopter included" : null,
+      pkg.tickets.some((t) => t.type === "BUS") ? "🚌 Bus included" : null,
+      pkg.tickets.some((t) => t.type === "OTHER")
+        ? `🎫 ${pkg.tickets.filter((t) => t.type === "OTHER").map((t) => t.provider).filter(Boolean).join(", ") || "Other transport"} included`
+        : null,
     ].filter(Boolean).join(" · ");
 
     const message = [

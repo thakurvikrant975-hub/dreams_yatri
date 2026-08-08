@@ -17,7 +17,7 @@ import {
   Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
-  Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, LogIn, LogOut,
+  Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble,
 } from "lucide-react";
@@ -2482,20 +2482,26 @@ const emptyTicket = (type: TicketInput["type"]): TicketInput => ({
 });
 
 const TICKET_TYPE_LABELS: Record<TicketInput["type"], string> = {
-  FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter",
+  FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter", BUS: "Bus", OTHER: "Other",
 };
 const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
-  FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
+  FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter, BUS: Bus, OTHER: Package,
 };
 const TICKET_PROVIDER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
   FLIGHT: "Airline, e.g. IndiGo",
   TRAIN: "Train name, e.g. Rajdhani Express",
   HELICOPTER: "Operator, e.g. Pawan Hans",
+  BUS: "Operator, e.g. VRL Travels",
+  // Doubles as this ticket's display name for OTHER — see TicketEditorCard's
+  // header below, which shows this text once typed instead of just "Other".
+  OTHER: "What is it? e.g. Ferry Transfer, Zipline",
 };
 const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
   FLIGHT: "Flight no., e.g. 6E-204",
   TRAIN: "Train no., e.g. 12951",
   HELICOPTER: "Flight/booking no.",
+  BUS: "Booking/seat no.",
+  OTHER: "Booking/reference no. (optional)",
 };
 
 /** "14:30", "09:05" (24h, matches <input type="time">) → minutes-since-midnight,
@@ -2547,7 +2553,8 @@ function TicketEditorCard({
     <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-3.5 space-y-3">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-bold text-dashboard-base-content">
-          <Icon size={13} className="text-dashboard-primary" /> {TICKET_TYPE_LABELS[ticket.type]}
+          <Icon size={13} className="text-dashboard-primary" />
+          {ticket.type === "OTHER" && ticket.provider ? ticket.provider : TICKET_TYPE_LABELS[ticket.type]}
         </span>
         <button
           type="button"
@@ -4866,9 +4873,9 @@ Rules:
                 <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                      <Plane size={15} className="text-dashboard-primary" /> Flight, Train & Helicopter Tickets
+                      <Plane size={15} className="text-dashboard-primary" /> Flight, Train, Helicopter, Bus & Other Tickets
                     </h2>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Button type="button" size="sm" variant="outline" onClick={() => addTicket("FLIGHT")}>
                         <Plus size={13} className="mr-1" /> <Plane size={12} className="mr-1" /> Add Flight
                       </Button>
@@ -4877,6 +4884,12 @@ Rules:
                       </Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => addTicket("HELICOPTER")}>
                         <Plus size={13} className="mr-1" /> <Helicopter size={12} className="mr-1" /> Add Helicopter
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("BUS")}>
+                        <Plus size={13} className="mr-1" /> <Bus size={12} className="mr-1" /> Add Bus
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("OTHER")}>
+                        <Plus size={13} className="mr-1" /> <Package size={12} className="mr-1" /> Add Other
                       </Button>
                     </div>
                   </div>

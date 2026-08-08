@@ -2942,6 +2942,12 @@ enum TicketType {
   FLIGHT
   TRAIN
   HELICOPTER
+  BUS
+  /** Anything else the exec needs to price as a ticket/transfer line item
+   * (ferry, zipline, cable car, private transfer, etc.) — the human-readable
+   * description lives in the ticket's own `provider` field, same as every
+   * other type. */
+  OTHER
 }
 
 model custom_itineraries {

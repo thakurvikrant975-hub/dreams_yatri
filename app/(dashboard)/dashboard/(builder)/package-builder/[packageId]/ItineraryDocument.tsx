@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
-  Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
+  Plane, TrainFront, Helicopter, Bus, Package, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift,
 } from "lucide-react";
 import {
@@ -718,10 +718,10 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
  * Fare is deliberately never shown here — it's priced into the package total
  * but not itemized per-leg on the client-facing document. */
 const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
-  FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
+  FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter, BUS: Bus, OTHER: Package,
 };
 const TICKET_PROVIDER_FALLBACKS: Record<TicketInput["type"], string> = {
-  FLIGHT: "Airline TBD", TRAIN: "Train TBD", HELICOPTER: "Operator TBD",
+  FLIGHT: "Airline TBD", TRAIN: "Train TBD", HELICOPTER: "Operator TBD", BUS: "Operator TBD", OTHER: "Details TBD",
 };
 
 function TicketCard({ ticket }: { ticket: TicketInput }) {
@@ -790,7 +790,9 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
   const flights = tickets.filter((t) => t.type === "FLIGHT");
   const trains = tickets.filter((t) => t.type === "TRAIN");
   const helicopters = tickets.filter((t) => t.type === "HELICOPTER");
-  if (flights.length === 0 && trains.length === 0 && helicopters.length === 0) return null;
+  const buses = tickets.filter((t) => t.type === "BUS");
+  const others = tickets.filter((t) => t.type === "OTHER");
+  if (flights.length === 0 && trains.length === 0 && helicopters.length === 0 && buses.length === 0 && others.length === 0) return null;
 
   return (
     <>
@@ -815,6 +817,22 @@ export function TicketsSection({ tickets }: { tickets: TicketInput[] }) {
           <SectionHeader icon={Helicopter} label="Helicopter Details" />
           <div className="grid gap-3">
             {helicopters.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
+          </div>
+        </div>
+      )}
+      {buses.length > 0 && (
+        <div className="space-y-3" style={{ breakInside: "avoid" }}>
+          <SectionHeader icon={Bus} label="Bus Details" />
+          <div className="grid gap-3">
+            {buses.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
+          </div>
+        </div>
+      )}
+      {others.length > 0 && (
+        <div className="space-y-3" style={{ breakInside: "avoid" }}>
+          <SectionHeader icon={Package} label="Other Transport" />
+          <div className="grid gap-3">
+            {others.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} />)}
           </div>
         </div>
       )}
