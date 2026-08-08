@@ -2994,14 +2994,6 @@ export default function PackageBuilderDetailPage() {
     return () => { cancelled = true; };
   }, [packageId, fromQueryId]);
 
-  // ── Auto-calc total price ──────────────────────────────────────────────────
-  useEffect(() => {
-    const pp = parseFloat(form.pricePerPerson);
-    if (!isNaN(pp)) {
-      setForm((f) => ({ ...f, totalPrice: String(pp * (f.adults + f.children)) }));
-    }
-  }, [form.pricePerPerson, form.adults, form.children]);
-
   // ── Auto-price from travel date + hotel selected + pax counts ──────────────
   // Recomputes the real hotel cost (season/occupancy-aware) whenever any of
   // those three inputs change. `form.pricePerPerson`/`totalPrice` themselves
@@ -3073,26 +3065,32 @@ export default function PackageBuilderDetailPage() {
   }, [form.travelDate, cabPricingKey]);
 
   // ── Keep the saved price synced to the live computation ────────────────────
-  // Mirrors `form.pricePerPerson` (and, via the totalPrice-derivation effect
-  // above, `form.totalPrice`) to the live computed price whenever any pricing
-  // input changes, instead of requiring an explicit "Use ₹X as Price Per
-  // Person" click after every edit. This is what used to go stale: an exec
-  // would fix a hotel/cab price after a costing rejection, forget to
-  // re-apply, and resubmit with the old total still saved — the preview/PDF
-  // then showed a different number than the live Pricing tab. Never runs
-  // once the package is locked for review (READY) or already sent (SENT), so
-  // an approved/quoted price never silently drifts if catalog rates change
-  // later — checked inline off `query` rather than the `isLocked`/`pkgSent`/
-  // `packageEditable` variables below since this has to run before the
-  // loading/not-found early returns (rules-of-hooks), before those are
-  // declared.
+  // Mirrors `form.pricePerPerson` and `form.totalPrice` to the live computed
+  // price whenever any pricing input changes, instead of requiring an
+  // explicit "Use ₹X as Price Per Person" click after every edit. This is
+  // what used to go stale: an exec would fix a hotel/cab price after a
+  // costing rejection, forget to re-apply, and resubmit with the old total
+  // still saved — the preview/PDF then showed a different number than the
+  // live Pricing tab. `totalPrice` is set to the exact `finalPrice` (not
+  // `perPerson * pax`) so it matches the Pricing tab's total to the rupee —
+  // multiplying the *rounded* per-person value back out by headcount used to
+  // drift the header/PDF total off the Pricing tab's exact total by up to
+  // `pax` rupees. Never runs once the package is locked for review (READY)
+  // or already sent (SENT), so an approved/quoted price never silently
+  // drifts if catalog rates change later — checked inline off `query` rather
+  // than the `isLocked`/`pkgSent`/`packageEditable` variables below since
+  // this has to run before the loading/not-found early returns (rules-of-
+  // hooks), before those are declared.
   useEffect(() => {
     const status = query?.customPackage?.status;
     if (status === "READY" || status === "SENT") return;
     const { finalPrice, perPerson } = computeFinalPricing();
     if (finalPrice <= 0) return;
-    const next = String(perPerson);
-    setForm((f) => (f.pricePerPerson === next ? f : { ...f, pricePerPerson: next }));
+    const nextPP = String(perPerson);
+    const nextTotal = String(finalPrice);
+    setForm((f) => (f.pricePerPerson === nextPP && f.totalPrice === nextTotal
+      ? f
+      : { ...f, pricePerPerson: nextPP, totalPrice: nextTotal }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage, form.tickets, form.addOns, form.adults, form.children, query?.customPackage?.status]);
 
@@ -3158,7 +3156,7 @@ export default function PackageBuilderDetailPage() {
   function applyComputedPricing() {
     const { finalPrice, perPerson } = computeFinalPricing();
     if (finalPrice <= 0) return;
-    setForm((f) => ({ ...f, pricePerPerson: String(perPerson) }));
+    setForm((f) => ({ ...f, pricePerPerson: String(perPerson), totalPrice: String(finalPrice) }));
   }
 
   // Re-syncs `query` AND the price fields inside `form` from a fresh fetch.
