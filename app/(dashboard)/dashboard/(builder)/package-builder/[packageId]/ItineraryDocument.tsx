@@ -8,7 +8,7 @@ import {
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
   StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus, Lock, MoonStar,
-  Bus, Ticket,
+  Bus, Ticket, Repeat, Trash2,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -24,7 +24,7 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
-import { continuesStayFrom } from "./day-mutations";
+import { continuesStayFrom, clearHotelSelection, clearVehicleSelection } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
@@ -179,7 +179,7 @@ function ImageEditButton({
         <button
           type="button"
           className={cn(
-            "no-print absolute z-20 flex items-center justify-center rounded-full bg-black/55 hover:bg-black/75 text-white opacity-0 group-hover:opacity-100 transition-opacity",
+            "no-print absolute z-20 flex items-center justify-center rounded-full bg-black/55 hover:bg-black/75 text-white opacity-0 group-hover/img:opacity-100 transition-opacity",
             className,
           )}
           aria-label={`Change ${dialogTitle.toLowerCase()}`}
@@ -619,24 +619,66 @@ function DayNote({ day }: { day: DayItinerary }) {
 }
 
 /** A day's running cost, shown beside its number. */
-/** Wraps an editable block in the day so it outlines on hover and reveals its
- * controls — the "this is editable, and here's how" affordance that a
- * document-as-editor needs and that a static document must not show.
+/** One control on a section's floating toolbar. */
+export type SectionAction = {
+  icon: React.ElementType;
+  /** Tooltip and accessible name — the buttons themselves are icon-only. */
+  label: string;
+  onClick: () => void;
+  tone?: "default" | "danger";
+};
+
+/** Wraps an editable block in the day so it outlines on hover and floats its
+ * controls above the top-right corner.
+ *
+ * The controls are deliberately DETACHED — absolutely positioned, on their own
+ * surface, above everything. This document is also the PDF, and a control that
+ * sits inline in the flow reads as part of the page you're about to send a
+ * client. Chrome should look like chrome.
  *
  * The outline is `outline`, not `border`: a border would shift the block's
  * layout by a pixel on hover, which on a paginated A4 document can push
  * content across a page boundary while you're pointing at it. */
-function EditableSection({ onEdit, children }: {
-  onEdit?: () => void;
+function EditableSection({ actions, children }: {
+  actions?: SectionAction[];
   children: React.ReactNode;
 }) {
-  if (!onEdit) return <>{children}</>;
+  if (!actions || actions.length === 0) return <>{children}</>;
   return (
     <div
       className="group/section relative -mx-1.5 px-1.5 py-1 rounded-lg transition-[outline-color] outline outline-2 outline-transparent hover:outline-dashboard-primary/25"
       style={{ breakInside: "avoid" }}
     >
       {children}
+
+      <div
+        className={cn(
+          "builder-only no-print absolute -top-2.5 right-1 z-30 flex items-center gap-0.5",
+          "rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-0.5",
+          "shadow-[0_2px_8px_rgba(0,0,0,0.10)]",
+          "opacity-0 pointer-events-none transition-opacity duration-[120ms]",
+          "group-hover/section:opacity-100 group-hover/section:pointer-events-auto",
+          "focus-within:opacity-100 focus-within:pointer-events-auto",
+        )}
+      >
+        {actions.map(({ icon: Icon, label, onClick, tone }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={onClick}
+            title={label}
+            aria-label={label}
+            className={cn(
+              "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms]",
+              tone === "danger"
+                ? "text-dashboard-error/70 hover:bg-dashboard-error/10 hover:text-dashboard-error"
+                : "text-dashboard-base-content/55 hover:bg-dashboard-base-200 hover:text-dashboard-base-content",
+            )}
+          >
+            <Icon size={13} />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -769,7 +811,7 @@ function ActivityRow({
           <p className="text-[9px] font-bold uppercase tracking-widest text-primary-600">Glimpses of the experience</p>
           <div className="grid grid-cols-3 gap-1.5">
             {slots.map((src, i) => (
-              <div key={i} className="group relative rounded-lg overflow-hidden">
+              <div key={i} className="group/img relative rounded-lg overflow-hidden">
                 {src ? (
                   <>
                     <SafeImg src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
@@ -1040,7 +1082,7 @@ function StopTile({
   }
   const showPhoto = img && !failed;
   return (
-    <div className="group relative flex-1 min-w-0">
+    <div className="group/img relative flex-1 min-w-0">
       {showPhoto ? (
         // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog/AI-sourced URL, not a static app asset
         <img src={img} alt={stop.name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
@@ -1474,26 +1516,66 @@ function DayCardPreview({
   const checkOutDate = dayCalendarDate(travelDate, day.day + 1);
   const mealText = mealIncludedText(day.hotelMealPlan);
   const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0 || !!onImageChange;
-  // One place each section's "open my drawer" lives, so the hover wrapper and
-  // the marker's own Edit button can't drift to different targets.
   const canEditDoc = !!builder?.canEdit;
+  // Per-section toolbars. Deletes don't confirm: undo covers them now (⌘Z),
+  // and a modal on every clear would cost more than the mistake does.
+  const stayActions: SectionAction[] | undefined = canEditDoc ? [
+    {
+      icon: Pencil, label: "Edit stay",
+      onClick: () => builder!.openDrawer(day.hotelPending
+        ? { kind: "hotel-request", day: day.day }
+        : { kind: "hotel-edit", day: day.day }),
+    },
+    {
+      icon: Repeat, label: "Replace hotel",
+      onClick: () => builder!.openDrawer({ kind: "hotel-replace", day: day.day }),
+    },
+    {
+      icon: Trash2, label: "Remove stay", tone: "danger",
+      onClick: () => builder!.replaceDay(day.day, clearHotelSelection),
+    },
+  ] : undefined;
+
+  const transportActions: SectionAction[] | undefined = canEditDoc ? [
+    {
+      icon: Pencil, label: "Edit transport",
+      onClick: () => builder!.openDrawer({ kind: "transfer-edit", day: day.day }),
+    },
+    {
+      icon: Trash2, label: "Remove transport", tone: "danger",
+      onClick: () => builder!.replaceDay(day.day, clearVehicleSelection),
+    },
+  ] : undefined;
+
+  const mealsActions: SectionAction[] | undefined = canEditDoc ? [
+    {
+      icon: Pencil, label: "Edit meals",
+      onClick: () => builder!.openDrawer({ kind: "meals-edit", day: day.day }),
+    },
+  ] : undefined;
+
+  const activitiesActions: SectionAction[] | undefined = canEditDoc ? [
+    {
+      icon: Pencil, label: "Edit experiences",
+      onClick: () => builder!.openDrawer({ kind: "activities-edit", day: day.day }),
+    },
+    {
+      // Clears what's there and reopens the picker — "replace these" rather
+      // than "add another", which Edit already does.
+      icon: Repeat, label: "Replace experiences",
+      onClick: () => {
+        builder!.replaceDay(day.day, (d) => ({ ...d, activities: [] }));
+        builder!.openDrawer({ kind: "activities-edit", day: day.day });
+      },
+    },
+    {
+      icon: Trash2, label: "Remove all experiences", tone: "danger",
+      onClick: () => builder!.replaceDay(day.day, (d) => ({ ...d, activities: [] })),
+    },
+  ] : undefined;
   // Night 2+ of a multi-night stay — see stayRun/continuesStayFrom. Null when
   // this day starts its stay, or has no catalog room at all.
   const continuesFrom = continuesStayFrom(allDays, day.day);
-  const stayEdit = canEditDoc
-    ? () => builder!.openDrawer(day.hotelPending
-        ? { kind: "hotel-request", day: day.day }
-        : { kind: "hotel-edit", day: day.day })
-    : undefined;
-  const transportEdit = canEditDoc
-    ? () => builder!.openDrawer({ kind: "transfer-edit", day: day.day })
-    : undefined;
-  const mealsEdit = canEditDoc
-    ? () => builder!.openDrawer({ kind: "meals-edit", day: day.day })
-    : undefined;
-  const activitiesEdit = canEditDoc
-    ? () => builder!.openDrawer({ kind: "activities-edit", day: day.day })
-    : undefined;
   const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
   const extraCabs = (day.extraCabs ?? []).filter((c) => c.label.trim());
 
@@ -1584,13 +1666,13 @@ function DayCardPreview({
 
         {/* Hotel info */}
         {hasHotel && (
-          <EditableSection onEdit={stayEdit}>
+          <EditableSection actions={stayActions}>
           {continuesFrom != null ? (
             // Night 2+ of the same stay: the client already read the hotel's
             // details on the night it started, so repeating them is noise.
             // One line saying where they are and that nothing has changed.
             <div className="space-y-2" style={{ breakInside: "avoid" }}>
-              <DaySubHead icon={Hotel} label="Stay" onEdit={stayEdit} />
+              <DaySubHead icon={Hotel} label="Stay" />
               <div
                 className={cn("flex items-center gap-2 rounded-lg px-3 py-2", SUBHEAD_INDENT)}
                 style={{ backgroundColor: DOC.paper, border: `1px solid ${DOC.rule}` }}
@@ -1612,7 +1694,6 @@ function DayCardPreview({
               // canEdit, not merely "is there a builder" — a package locked
               // for costing review must not offer the affordance at all,
               // rather than offering one that silently does nothing.
-              onEdit={stayEdit}
             />
             <div className={cn("flex gap-3", SUBHEAD_INDENT)}>
               <div className="flex-1 min-w-0 space-y-1.5">
@@ -1688,7 +1769,7 @@ function DayCardPreview({
               {hasPhotos && (
                 <div className="w-40 shrink-0 space-y-1">
                   {(day.accommodationPhoto || onImageChange) && (
-                    <div className="group relative">
+                    <div className="group/img relative">
                       {day.accommodationPhoto ? (
                         /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
                         <img src={day.accommodationPhoto} alt="Hotel" className="w-40 h-24 rounded-lg object-cover" />
@@ -1710,7 +1791,7 @@ function DayCardPreview({
                   {day.accommodationRoomPhotos.length > 0 && (
                     <div className="grid grid-cols-2 gap-1">
                       {day.accommodationRoomPhotos.slice(0, 2).map((src, i) => (
-                        <div key={i} className="group relative">
+                        <div key={i} className="group/img relative">
                           {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
                           <img src={src} alt={`Room ${i + 1}`} className="h-14 w-full rounded-md object-cover" />
                           {onImageChange && (
@@ -1741,12 +1822,11 @@ function DayCardPreview({
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
-          <EditableSection onEdit={transportEdit}>
+          <EditableSection actions={transportActions}>
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
             <DaySubHead
               icon={Car}
               label="Transport"
-              onEdit={transportEdit}
               meta={[
                 day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
                 day.transportTravelTime || null,
@@ -1815,7 +1895,7 @@ function DayCardPreview({
               </div>
 
               {(day.transportPhoto || onImageChange) && (
-                <div className="group relative rounded-lg overflow-hidden w-52 h-36 shrink-0">
+                <div className="group/img relative rounded-lg overflow-hidden w-52 h-36 shrink-0">
                   {day.transportPhoto ? (
                     <>
                       {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
@@ -1849,12 +1929,11 @@ function DayCardPreview({
         {/* Meals — shifted so breakfast shows on the day it's actually eaten
             (the morning of checkout), not the day the hotel was checked into. */}
         {(shiftedMeals ?? day.meals).length > 0 && (
-          <EditableSection onEdit={mealsEdit}>
+          <EditableSection actions={mealsActions}>
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
             <DaySubHead
               icon={Utensils}
               label="Meals"
-              onEdit={mealsEdit}
             />
             <div className={SUBHEAD_INDENT}>
               <MealsRow meals={shiftedMeals ?? day.meals} />
@@ -1890,12 +1969,11 @@ function DayCardPreview({
               // without forcing every activity onto one page together.
               if (idx === 0) {
                 return (
-                  <EditableSection key={originalIndex} onEdit={activitiesEdit}>
+                  <EditableSection key={originalIndex} actions={activitiesActions}>
                   <div className="space-y-2.5" style={{ breakInside: "avoid" }}>
                     <DaySubHead
                       icon={Sparkles}
                       label="Experiences"
-                      onEdit={activitiesEdit}
                     />
                     <div className={SUBHEAD_INDENT}>{row}</div>
                   </div>
