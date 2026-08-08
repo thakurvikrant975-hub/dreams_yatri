@@ -1168,7 +1168,7 @@ function TicketCard({ ticket, packagePax }: { ticket: TicketInput; packagePax?: 
           {builder?.canEdit && (
             <CardEditButton
               label={`Edit ${TICKET_TYPE_LABEL[ticket.type].toLowerCase()} leg`}
-              onEdit={() => builder.openDrawer({ kind: "tickets-edit" })}
+              onEdit={() => builder.openDrawer({ kind: "tickets-edit", type: ticket.type })}
             />
           )}
         </div>
@@ -1345,9 +1345,9 @@ function PackageAddMenu() {
   if (!builder?.canEdit) return null;
 
   const items: { icon: React.ElementType; label: string; onSelect: () => void }[] = [
-    { icon: Plane, label: "Flight", onSelect: () => builder.openDrawer({ kind: "tickets-edit" }) },
-    { icon: TrainFront, label: "Train", onSelect: () => builder.openDrawer({ kind: "tickets-edit" }) },
-    { icon: Helicopter, label: "Helicopter", onSelect: () => builder.openDrawer({ kind: "tickets-edit" }) },
+    { icon: Plane, label: "Flight", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "FLIGHT" }) },
+    { icon: TrainFront, label: "Train", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "TRAIN" }) },
+    { icon: Helicopter, label: "Helicopter", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "HELICOPTER" }) },
     { icon: Gift, label: "Add-on", onSelect: () => builder.openDrawer({ kind: "addons-edit", day: null }) },
     { icon: Compass, label: "Destination", onSelect: () => builder.openDrawer({ kind: "stops-edit" }) },
   ];

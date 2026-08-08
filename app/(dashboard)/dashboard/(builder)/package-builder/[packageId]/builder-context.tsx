@@ -123,8 +123,11 @@ export type DrawerTarget =
   /** Priced add-ons. `day` scopes them to one day (they render under that
    * day's stay); null is a package-level add-on. */
   | { kind: "addons-edit"; day: number | null }
-  /** Flight / train / helicopter legs — package-level, never day-scoped. */
-  | { kind: "tickets-edit" }
+  /** One ticket TYPE at a time — flight, train or helicopter. Package-level,
+   * never day-scoped. Split by type because a package with six flights and
+   * two train legs in one list is a scroll, and an exec editing a flight has
+   * no use for the trains. */
+  | { kind: "tickets-edit"; type: TicketInput["type"] }
   /** Ask the hotel team to source a stay for this day. */
   | { kind: "hotel-request"; day: number }
   /** The day's note — title, body and tone. */

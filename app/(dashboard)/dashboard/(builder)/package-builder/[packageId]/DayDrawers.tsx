@@ -20,7 +20,8 @@ import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
-  searchVehiclesForBuilder, searchCabsForBuilder, type DayItinerary,
+  searchVehiclesForBuilder, searchCabsForBuilder, searchActivitiesForBuilder,
+  type DayItinerary, type ActivityResult,
 } from "../action";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
@@ -361,6 +362,10 @@ export function TransferView({ day }: { day: number }) {
 
 export function ActivitiesView({ day }: { day: number }) {
   const { form, replaceDay } = useBuilder();
+  // Search first: the catalog write-up and photos are better than anything an
+  // exec would type under time pressure, and picking one fills both. Writing
+  // by hand stays a full peer for the many activities not in the catalog.
+  const [tab, setTab] = useState<"search" | "manual">("search");
   const itin = form.itineraries.find((it) => it.day === day);
   if (!itin) return null;
 
@@ -373,7 +378,27 @@ export function ActivitiesView({ day }: { day: number }) {
 
   return (
     <div className="p-5 space-y-3">
-      {itin.activities.length === 0 && (
+      <div className="flex rounded-lg bg-dashboard-base-200/60 p-0.5">
+        {(["search", "manual"] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setTab(k)}
+            className={cn(
+              "flex-1 rounded-md py-1.5 text-[11px] font-medium transition-colors",
+              tab === k
+                ? "bg-dashboard-base-100 text-dashboard-base-content shadow-sm"
+                : "text-dashboard-base-content/55 hover:text-dashboard-base-content/80",
+            )}
+          >
+            {k === "search" ? "From the catalog" : "Write your own"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "search" && <ActivitySearch day={day} />}
+
+      {itin.activities.length === 0 && tab === "manual" && (
         <p className="py-6 text-center text-sm text-dashboard-base-content/50">
           Nothing planned for this day yet.
         </p>
@@ -428,17 +453,110 @@ export function ActivitiesView({ day }: { day: number }) {
         </div>
       ))}
 
-      <Button
-        type="button" variant="outline"
-        className="w-full h-9 text-xs border-dashed"
-        onClick={() => mutate((d) => addActivity(d))}
-      >
-        <Plus size={13} /> Add an experience
-      </Button>
+      {tab === "manual" && (
+        <Button
+          type="button" variant="outline"
+          className="w-full h-9 text-xs border-dashed"
+          onClick={() => mutate((d) => addActivity(d))}
+        >
+          <Plus size={13} /> Add a blank experience
+        </Button>
+      )}
 
       <p className="text-[11px] text-dashboard-base-content/45 pt-1">
         Photos are added by clicking the activity&apos;s image tiles in the preview.
       </p>
+    </div>
+  );
+}
+
+/** Catalog activity search, scoped to the day's stop.
+ *
+ * Picking one fills the name, the catalog's own write-up and up to three
+ * photos in a single action — which is the whole reason to search rather than
+ * type: an exec under time pressure will not write the description, and a day
+ * with a bare activity name reads badly on the client's document. */
+function ActivitySearch({ day }: { day: number }) {
+  const { form, replaceDay } = useBuilder();
+  const city = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ActivityResult[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const reqRef = useRef(0);
+  useEffect(() => {
+    if (!city && !query.trim()) { setResults([]); return; }
+    const token = ++reqRef.current;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const rows = await searchActivitiesForBuilder(city, query);
+        if (token === reqRef.current) setResults(rows);
+      } catch {
+        if (token === reqRef.current) toast.error("Couldn't load activities.");
+      } finally {
+        if (token === reqRef.current) setLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [city, query]);
+
+  function pick(a: ActivityResult) {
+    replaceDay(day, (d) => ({
+      ...d,
+      activities: [...d.activities, {
+        title: a.name,
+        description: a.description ?? "",
+        photo: a.photos[0] ?? a.thumbnail ?? "",
+        photos: a.photos.slice(0, 3),
+        photoLabels: a.photoLabels.slice(0, 3),
+      }],
+    }));
+    toast.success(`Added ${a.name}`);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/40" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={city ? `Things to do near ${city}…` : "Search activities…"}
+          className="h-9 text-sm pl-7"
+        />
+      </div>
+
+      {loading && (
+        <p className="py-6 text-center text-sm text-dashboard-base-content/50">Searching…</p>
+      )}
+
+      {!loading && results.length === 0 && (
+        <p className="py-6 text-center text-sm text-dashboard-base-content/50">
+          {city || query ? "Nothing in the catalog matches — write your own instead." : "Enter a city to see activities."}
+        </p>
+      )}
+
+      <div className="space-y-1.5 max-h-72 overflow-y-auto">
+        {!loading && results.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => pick(a)}
+            className="w-full text-left rounded-xl border border-dashboard-base-300 p-2.5 hover:bg-dashboard-base-200/50 transition-colors"
+          >
+            <p className="text-xs font-semibold truncate">{a.name}</p>
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-dashboard-base-content/50">
+              {a.category && <span>{a.category}</span>}
+              {a.durationHours != null && <span>{a.durationHours}h</span>}
+              {a.photos.length > 0 && <span>{a.photos.length} photo{a.photos.length !== 1 ? "s" : ""}</span>}
+            </div>
+            {a.description && (
+              <p className="text-[10.5px] text-dashboard-base-content/55 mt-1 line-clamp-2">{a.description}</p>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

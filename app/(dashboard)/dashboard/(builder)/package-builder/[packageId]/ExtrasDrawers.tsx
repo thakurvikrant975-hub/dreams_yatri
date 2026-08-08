@@ -14,7 +14,7 @@
 //            (deriveTransportFields) rather than from any day.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Plus, Trash2, Plane, TrainFront, Gift, Utensils } from "lucide-react";
+import { Plus, Trash2, Gift, Utensils } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -178,10 +178,15 @@ export function AddonsView({ day }: { day: number | null }) {
 // Tickets
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TICKET_TYPES: TicketInput["type"][] = ["FLIGHT", "TRAIN", "HELICOPTER"];
-
-export function TicketsView() {
+export function TicketsView({ type }: { type: TicketInput["type"] }) {
   const { form, setForm } = useBuilder();
+
+  // Rows keep their index in the real tickets array — editing by filtered
+  // position would write to a leg of a different type.
+  const rows = form.tickets
+    .map((t, index) => ({ t, index }))
+    .filter(({ t }) => t.type === type);
+  const label = TICKET_TYPE_LABELS[type];
 
   function patch(index: number, next: Partial<TicketInput>) {
     setForm((f) => ({
@@ -205,18 +210,18 @@ export function TicketsView() {
 
   return (
     <div className="p-5 space-y-3">
-      {form.tickets.length === 0 && (
+      {rows.length === 0 && (
         <p className="py-6 text-center text-sm text-dashboard-base-content/50">
-          No flights, trains or helicopter legs yet.
+          No {label.toLowerCase()} legs yet.
         </p>
       )}
 
-      {form.tickets.map((t, i) => (
+      {rows.map(({ t, index: i }) => (
         <div key={i} className="rounded-xl border border-dashboard-base-300 p-3 space-y-2">
           <div className="flex items-center gap-2">
-            {t.type === "TRAIN" ? <TrainFront size={13} className="text-dashboard-primary shrink-0" />
-              : <Plane size={13} className="text-dashboard-primary shrink-0" />}
-            <span className="text-xs font-semibold flex-1">{TICKET_TYPE_LABELS[t.type]}</span>
+            <span className="text-xs font-semibold flex-1 text-dashboard-base-content/60">
+              {t.provider || t.fromPlace || `${label} leg`}
+            </span>
             <Button
               type="button" size="sm" variant="ghost"
               className="h-7 w-7 p-0 text-dashboard-error hover:text-dashboard-error"
@@ -293,17 +298,12 @@ export function TicketsView() {
         </div>
       ))}
 
-      <div className="grid grid-cols-3 gap-2 pt-1">
-        {TICKET_TYPES.map((type) => (
-          <Button
-            key={type}
-            type="button" variant="outline" className="h-9 text-xs border-dashed"
-            onClick={() => setForm((f) => ({ ...f, tickets: [...f.tickets, emptyTicket(type)] }))}
-          >
-            <Plus size={12} /> {TICKET_TYPE_LABELS[type]}
-          </Button>
-        ))}
-      </div>
+      <Button
+        type="button" variant="outline" className="w-full h-9 text-xs border-dashed"
+        onClick={() => setForm((f) => ({ ...f, tickets: [...f.tickets, emptyTicket(type)] }))}
+      >
+        <Plus size={12} /> Add another {label.toLowerCase()} leg
+      </Button>
 
       <p className="text-[11px] text-dashboard-base-content/45 pt-1">
         The client sees the leg and its times; the fare stays internal and is priced

@@ -18,6 +18,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/sheet";
 import { useBuilder, type DrawerTarget } from "./builder-context";
+import { TICKET_TYPE_LABELS } from "./day-mutations";
 import { HotelReplaceView, HotelEditView, HotelRequestView } from "./HotelDrawer";
 import { TransferView, ActivitiesView } from "./DayDrawers";
 import { MealsView, AddonsView, TicketsView, NoteView, StopsView } from "./ExtrasDrawers";
@@ -61,11 +62,13 @@ function headingFor(target: DrawerTarget): { title: string; description: string 
             title: `Day ${target.day} — add-ons`,
             description: "Extras for this day. They appear under the day's stay on the itinerary.",
           };
-    case "tickets-edit":
+    case "tickets-edit": {
+      const label = TICKET_TYPE_LABELS[target.type];
       return {
-        title: "Flights, trains & helicopters",
-        description: "Every leg of the journey. The route map on the itinerary is built from these.",
+        title: `${label} legs`,
+        description: `Every ${label.toLowerCase()} on this trip. The route map on the itinerary is built from these.`,
       };
+    }
     case "hotel-request":
       return {
         title: `Day ${target.day} — request a hotel`,
@@ -92,7 +95,7 @@ function bodyFor(target: DrawerTarget) {
     case "activities-edit": return <ActivitiesView day={target.day} />;
     case "meals-edit": return <MealsView day={target.day} />;
     case "addons-edit": return <AddonsView day={target.day} />;
-    case "tickets-edit": return <TicketsView />;
+    case "tickets-edit": return <TicketsView type={target.type} />;
     case "hotel-request": return <HotelRequestView day={target.day} />;
     case "note-edit": return <NoteView day={target.day} />;
     case "stops-edit": return <StopsView />;
