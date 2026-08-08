@@ -271,7 +271,8 @@ export const emptyDay = (day: number): DayItinerary => ({
   hotelFilledAt: null, hotelFilledByName: null,
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,
-  transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
+  transportDrop: "", transportDropLat: null, transportDropLng: null,
+  transportDistanceKm: null, transportTravelTime: "",
   cabPricingId: null,
   notes: "", notesType: null, notesTitle: null,
 });

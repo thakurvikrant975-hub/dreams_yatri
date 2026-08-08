@@ -738,6 +738,8 @@ export interface DayItinerary {
   transportPickupLat: number | null;
   transportPickupLng: number | null;
   transportDrop:      string;
+  transportDropLat:   number | null;
+  transportDropLng:   number | null;
   transportDistanceKm: number | null;
   /** Free-text estimate like "3h 15m" — typed by the exec or filled in by
    * the AI Itinerary Builder. */
@@ -1044,6 +1046,8 @@ export async function copyPackageIntoDraft(
       transportPickupLat: null,
       transportPickupLng: null,
       transportDrop:      transfer?.drop_name ?? "",
+      transportDropLat:   null,
+      transportDropLng:   null,
       transportDistanceKm: transfer?.distance_km ?? null,
       // The catalog itinerary_transfers model has no travel-time field to
       // copy from — left blank, same as the other transfer fields noted above.
@@ -1134,6 +1138,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           transport: true, transportPhoto: true, transportVehicleType: true,
           transportSeats: true, transportPickup: true,
           transportPickupLat: true, transportPickupLng: true,
+          transportDropLat: true, transportDropLng: true,
           transportDrop: true, transportDistanceKm: true, transportTravelTime: true,
           cabPricingId: true, cabQuantity: true, extraCabs: true, notes: true, notesType: true, notesTitle: true,
           activities: {
@@ -1170,6 +1175,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
       transportSeats: n.transportSeats, transportPickup: n.transportPickup,
       transportPickupLat: n.transportPickupLat, transportPickupLng: n.transportPickupLng,
+      transportDropLat: n.transportDropLat, transportDropLng: n.transportDropLng,
       transportDrop: n.transportDrop, transportDistanceKm: n.transportDistanceKm, transportTravelTime: n.transportTravelTime,
       cabPricingId: n.cabPricingId, cabQuantity: n.cabQuantity, extraCabs: n.extraCabs, notes: n.notes, notesType: n.notesType, notesTitle: n.notesTitle,
     };
@@ -1342,6 +1348,7 @@ function normalizeItinerary(it: {
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
   transportPickupLat: number | null; transportPickupLng: number | null;
+  transportDropLat: number | null; transportDropLng: number | null;
   transportDrop: string | null;
   transportDistanceKm: number | null; transportTravelTime: string | null; notes: string | null; notesType: string | null; notesTitle: string | null;
   cabPricingId: number | null;
@@ -1387,6 +1394,8 @@ function normalizeItinerary(it: {
     transportSeats:            it.transportSeats ?? null,
     transportPickup:           it.transportPickup ?? "",
     transportPickupLat:        it.transportPickupLat ?? null,
+    transportDropLat:          it.transportDropLat ?? null,
+    transportDropLng:          it.transportDropLng ?? null,
     transportPickupLng:        it.transportPickupLng ?? null,
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
@@ -1587,6 +1596,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           transportSeats:     true,
           transportPickup:    true,
           transportPickupLat: true,
+          transportDropLat:   true,
+          transportDropLng:   true,
           transportPickupLng: true,
           transportDrop:      true,
           transportDistanceKm: true,
@@ -1979,6 +1990,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               transportSeats:     it.transportSeats ?? null,
               transportPickup:    it.transportPickup || null,
               transportPickupLat: it.transportPickupLat ?? null,
+              transportDropLat:   it.transportDropLat ?? null,
+              transportDropLng:   it.transportDropLng ?? null,
               transportPickupLng: it.transportPickupLng ?? null,
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,

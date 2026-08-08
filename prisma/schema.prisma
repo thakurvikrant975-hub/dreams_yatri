@@ -3076,6 +3076,11 @@ model custom_itineraries {
   transportPickupLat        Float?
   transportPickupLng        Float?
   transportDrop             String?
+  /** Coordinates for transportDrop, the counterpart to transportPickupLat/Lng.
+   * Needed to route between the two — road distance and drive time are derived
+   * from a real routing call, not from the place names. */
+  transportDropLat          Float?
+  transportDropLng          Float?
   transportDistanceKm       Float?
   /**
    * Free-text estimate like "3h 15m" — typed by the exec or filled in by the

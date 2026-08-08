@@ -193,6 +193,8 @@ export async function getSharedPackage(packageId: string) {
       transportPickup:           it.transportPickup ?? "",
       transportPickupLat:        null,
       transportPickupLng:        null,
+      transportDropLat:          null,
+      transportDropLng:          null,
       transportDrop:             it.transportDrop ?? "",
       transportDistanceKm:       it.transportDistanceKm ?? null,
       transportTravelTime:       it.transportTravelTime ?? "",

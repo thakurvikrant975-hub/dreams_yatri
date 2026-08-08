@@ -28,6 +28,8 @@ import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/compone
 import { TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
+import { RouteMiniMap } from "./RouteMiniMap";
+import { routeBetween, type RouteEstimate } from "./route-directions";
 import { invalidateStaleOverrides } from "./day-mutations";
 import {
   applyVehicleSelection, clearVehicleSelection, isPricedVehicle, type AnyVehicleHit,
@@ -170,78 +172,21 @@ export function TransferView({ day }: { day: number }) {
       )}
 
       {/* Route — describes the journey, not the vehicle, so it survives a swap. */}
-      <div className="space-y-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">Route</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1 col-span-2">
-            <span className="text-[11px] text-dashboard-base-content/60">Pickup</span>
-            {/* A searching control, not a text box. transportPickupLat/Lng are
-                written nowhere else in the app, and both the cab rate search
-                and the route map read them — a plain input would leave the
-                name updating while the coordinates silently went stale. */}
-            <LocationSearchSelect
-              value={itin.transportPickup
-                ? {
-                    id: "pickup", name: itin.transportPickup, type: "AREA",
-                    breadcrumb: itin.transportPickup, slug: "",
-                    latitude: itin.transportPickupLat, longitude: itin.transportPickupLng,
-                  }
-                : null}
-              onChange={(loc: LocationValue | null) => updateDay(day, {
-                transportPickup:    loc?.name ?? "",
-                transportPickupLat: loc?.latitude ?? null,
-                transportPickupLng: loc?.longitude ?? null,
-              })}
-              types={TRANSFER_TYPES}
-              placeholder="Search a pickup location…"
-            />
-            {itin.transportPickupLat != null && (
-              <span className="text-[10px] text-dashboard-base-content/45">
-                Located — cab rates below are matched against this exact point.
-              </span>
-            )}
-          </div>
-          <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Drop</span>
-            <Input
-              value={itin.transportDrop}
-              onChange={(e) => updateDay(day, { transportDrop: e.target.value })}
-              placeholder="To" className="h-9 text-sm"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Distance (km)</span>
-            <Input
-              type="number" min={0}
-              value={itin.transportDistanceKm ?? ""}
-              onChange={(e) => updateDay(day, {
-                transportDistanceKm: e.target.value ? parseFloat(e.target.value) : null,
-              })}
-              placeholder="0" className="h-9 text-sm"
-            />
-            <span className="text-[10px] text-dashboard-base-content/45">Per-km rates price off this.</span>
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Vehicles of this type</span>
-            <Input
-              type="number" min={1}
-              value={itin.cabQuantity ?? ""}
-              onChange={(e) => updateDay(day, {
-                cabQuantity: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-              })}
-              placeholder="1" className="h-9 text-sm"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Drive time</span>
-            <Input
-              value={itin.transportTravelTime}
-              onChange={(e) => updateDay(day, { transportTravelTime: e.target.value })}
-              placeholder="e.g. 4h 30m" className="h-9 text-sm"
-            />
-          </label>
-        </div>
-      </div>
+      <RouteBlock day={day} />
+
+      {itin.transport && (
+        <label className="space-y-1 block">
+          <span className="text-[11px] text-dashboard-base-content/60">Vehicles of this type</span>
+          <Input
+            type="number" min={1}
+            value={itin.cabQuantity ?? ""}
+            onChange={(e) => updateDay(day, {
+              cabQuantity: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+            })}
+            placeholder="1" className="h-9 text-sm w-28"
+          />
+        </label>
+      )}
 
       {(itin.extraCabs ?? []).length > 0 && (
         <div className="space-y-2">
@@ -557,6 +502,205 @@ function ActivitySearch({ day }: { day: number }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The day's journey
+//
+// Two tabs, because both ways of getting these numbers are legitimate:
+//
+//   Search — pick real places, see them on a map, and let the routing API work
+//            out road distance and drive time.
+//   Manual — type all of it. Plenty of transfers don't route sensibly (a local
+//            sightseeing day, a ferry leg, a road the API doesn't know is
+//            shut), and the manual path is what everything already ran on.
+//
+// A computed estimate is never written straight into the day. It's shown with
+// an Apply next to it, because the exec knows things the routing engine does
+// not, and silently replacing a number they typed would be the worst outcome.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function RouteBlock({ day }: { day: number }) {
+  const { form, updateDay } = useBuilder();
+  const itin = form.itineraries.find((it) => it.day === day);
+  const [tab, setTab] = useState<"search" | "manual">("search");
+  const [estimate, setEstimate] = useState<RouteEstimate | null>(null);
+  const [routing, setRouting] = useState(false);
+
+  const from = itin?.transportPickupLat != null && itin.transportPickupLng != null
+    ? { lat: itin.transportPickupLat, lng: itin.transportPickupLng } : null;
+  const to = itin?.transportDropLat != null && itin.transportDropLng != null
+    ? { lat: itin.transportDropLat, lng: itin.transportDropLng } : null;
+
+  // Only routes with two real points, and debounced — Directions is metered,
+  // so a half-typed place name must never bill for a request.
+  useEffect(() => {
+    if (!from || !to) { setEstimate(null); return; }
+    let cancelled = false;
+    setRouting(true);
+    const timer = setTimeout(async () => {
+      const r = await routeBetween(from, to);
+      if (!cancelled) { setEstimate(r); setRouting(false); }
+    }, 500);
+    return () => { cancelled = true; clearTimeout(timer); setRouting(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from?.lat, from?.lng, to?.lat, to?.lng]);
+
+  if (!itin) return null;
+
+  const differs = estimate && (
+    itin.transportDistanceKm !== estimate.distanceKm ||
+    itin.transportTravelTime !== estimate.travelTime
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">
+          Journey
+        </p>
+        <div className="flex rounded-lg bg-dashboard-base-200/60 p-0.5">
+          {(["search", "manual"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTab(k)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
+                tab === k
+                  ? "bg-dashboard-base-100 text-dashboard-base-content shadow-sm"
+                  : "text-dashboard-base-content/55 hover:text-dashboard-base-content/80",
+              )}
+            >
+              {k === "search" ? "On the map" : "By hand"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "search" ? (
+        <>
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <span className="text-[11px] text-dashboard-base-content/60">Pickup</span>
+              <LocationSearchSelect
+                value={itin.transportPickup
+                  ? { id: "pickup", name: itin.transportPickup, type: "AREA", breadcrumb: itin.transportPickup, slug: "", latitude: itin.transportPickupLat, longitude: itin.transportPickupLng }
+                  : null}
+                onChange={(loc: LocationValue | null) => updateDay(day, {
+                  transportPickup: loc?.name ?? "",
+                  transportPickupLat: loc?.latitude ?? null,
+                  transportPickupLng: loc?.longitude ?? null,
+                })}
+                types={TRANSFER_TYPES}
+                placeholder="Search a pickup location…"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[11px] text-dashboard-base-content/60">Drop</span>
+              <LocationSearchSelect
+                value={itin.transportDrop
+                  ? { id: "drop", name: itin.transportDrop, type: "AREA", breadcrumb: itin.transportDrop, slug: "", latitude: itin.transportDropLat, longitude: itin.transportDropLng }
+                  : null}
+                onChange={(loc: LocationValue | null) => updateDay(day, {
+                  transportDrop: loc?.name ?? "",
+                  transportDropLat: loc?.latitude ?? null,
+                  transportDropLng: loc?.longitude ?? null,
+                })}
+                types={TRANSFER_TYPES}
+                placeholder="Search a drop location…"
+              />
+            </div>
+          </div>
+
+          <RouteMiniMap from={from} to={to} line={estimate?.geometry} />
+
+          {routing && (
+            <p className="text-[11px] text-dashboard-base-content/50 flex items-center gap-1.5">
+              <Loader2 size={11} className="animate-spin" /> Working out the drive…
+            </p>
+          )}
+
+          {estimate && (
+            <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-2">
+              <p className="text-[11px] text-dashboard-base-content/70">
+                By road: <span className="font-semibold text-dashboard-base-content">
+                  {estimate.distanceKm} km · {estimate.travelTime}
+                </span>
+              </p>
+              {differs ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button" size="sm" className="h-7 text-[11px]"
+                    onClick={() => updateDay(day, {
+                      transportDistanceKm: estimate.distanceKm,
+                      transportTravelTime: estimate.travelTime,
+                    })}
+                  >
+                    Use these
+                  </Button>
+                  <span className="text-[10.5px] text-dashboard-base-content/45">
+                    {itin.transportDistanceKm != null || itin.transportTravelTime
+                      ? "Your own figures are kept until you apply this."
+                      : "Nothing set yet for this day."}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-[10.5px] text-dashboard-base-content/45">
+                  Matches what&apos;s set for this day.
+                </p>
+              )}
+            </div>
+          )}
+
+          {!from || !to ? (
+            <p className="text-[11px] text-dashboard-base-content/45">
+              Pick both ends to see the route and its drive time.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <label className="space-y-1">
+            <span className="text-[11px] text-dashboard-base-content/60">Pickup</span>
+            <Input
+              value={itin.transportPickup}
+              onChange={(e) => updateDay(day, { transportPickup: e.target.value })}
+              placeholder="From" className="h-9 text-sm"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[11px] text-dashboard-base-content/60">Drop</span>
+            <Input
+              value={itin.transportDrop}
+              onChange={(e) => updateDay(day, { transportDrop: e.target.value })}
+              placeholder="To" className="h-9 text-sm"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[11px] text-dashboard-base-content/60">Distance (km)</span>
+            <Input
+              type="number" min={0}
+              value={itin.transportDistanceKm ?? ""}
+              onChange={(e) => updateDay(day, {
+                transportDistanceKm: e.target.value ? parseFloat(e.target.value) : null,
+              })}
+              placeholder="0" className="h-9 text-sm"
+            />
+            <span className="text-[10px] text-dashboard-base-content/45">Per-km rates price off this.</span>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[11px] text-dashboard-base-content/60">Drive time</span>
+            <Input
+              value={itin.transportTravelTime}
+              onChange={(e) => updateDay(day, { transportTravelTime: e.target.value })}
+              placeholder="e.g. 4h 30m" className="h-9 text-sm"
+            />
+          </label>
+        </div>
+      )}
     </div>
   );
 }
