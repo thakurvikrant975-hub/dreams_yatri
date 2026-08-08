@@ -141,7 +141,7 @@ export type DrawerTarget =
  * Both feed the same panel. The rail is "where do I go", the drawer is "change
  * this thing I'm looking at", and collapsing them into one surface is what
  * stops the builder having two competing places for controls to live. */
-export type PanelTab = "client" | "trip" | "stops" | "tickets" | "addons";
+export type PanelTab = "client" | "trip" | "stops" | "itinerary" | "tickets" | "addons";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context

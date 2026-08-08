@@ -65,7 +65,6 @@ import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
 import { TripSetupPanel } from "./TripSetupPanel";
-import { DayLayersRail } from "./DayLayersRail";
 import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
@@ -1942,13 +1941,6 @@ Rules:
           aside and centering the whole pair turns that into a normal, even
           page margin instead. */}
       <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
-        {/* Day rail — structure and navigation for the preview beside it.
-            Desktop only: on a narrow screen the preview already takes the whole
-            viewport and a third column would leave nothing for it. */}
-        <div className="no-print hidden lg:flex">
-          <DayLayersRail />
-        </div>
-
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
           <div className="print-reset px-6 py-8">

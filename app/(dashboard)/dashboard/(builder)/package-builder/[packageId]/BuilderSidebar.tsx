@@ -21,7 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  User, CalendarDays, MapPin, Plane, Gift, PanelRightClose, PanelRightOpen, ArrowLeft,
+  User, CalendarDays, MapPin, ListOrdered, Plane, Gift, PanelRightClose, PanelRightOpen, ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type PanelTab, type DrawerTarget } from "./builder-context";
@@ -29,11 +29,13 @@ import { HotelReplaceView, HotelEditView, HotelRequestView } from "./HotelDrawer
 import { TransferView, ActivitiesView } from "./DayDrawers";
 import { MealsView, AddonsView, TicketsView, NoteView, StopsView } from "./ExtrasDrawers";
 import { TICKET_TYPE_LABELS } from "./day-mutations";
+import { DayListPanel } from "./DayListPanel";
 
 const RAIL: { tab: PanelTab; icon: React.ElementType; label: string }[] = [
   { tab: "client", icon: User, label: "Client" },
   { tab: "trip", icon: CalendarDays, label: "Trip" },
   { tab: "stops", icon: MapPin, label: "Destinations" },
+  { tab: "itinerary", icon: ListOrdered, label: "Itinerary" },
   { tab: "tickets", icon: Plane, label: "Travel" },
   { tab: "addons", icon: Gift, label: "Add-ons" },
 ];
@@ -87,6 +89,7 @@ function headingForTab(tab: PanelTab): { title: string; description: string } {
     case "client": return { title: "Client", description: "Who this itinerary is for, and what they asked for." };
     case "trip": return { title: "Trip setup", description: "Dates, travellers and margin — what the whole document is built from." };
     case "stops": return { title: "Destinations", description: "Where the trip goes and how many nights at each." };
+    case "itinerary": return { title: "Itinerary", description: "Drag to reorder days. Dots show what each one is still missing." };
     case "tickets": return { title: "Travel", description: "Flights, trains, helicopters and other legs." };
     case "addons": return { title: "Add-ons", description: "Extras priced into the package." };
   }
@@ -109,6 +112,7 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
       case "client": return clientPanel;
       case "trip": return tripPanel;
       case "stops": return <StopsView />;
+      case "itinerary": return <DayListPanel />;
       case "tickets": return <TicketsView type="FLIGHT" />;
       case "addons": return <AddonsView day={null} />;
       default: return null;

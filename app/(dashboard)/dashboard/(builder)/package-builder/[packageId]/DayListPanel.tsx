@@ -1,7 +1,16 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Day rail — structure, navigation and readiness in one narrow column.
+// Day list — structure, navigation and readiness for the sidebar's Itinerary
+// section.
+//
+// This used to be a third column pinned to the LEFT of the preview, which put
+// the builder's controls on both edges of a document that wanted the width
+// more than either of them did. It now lives in the right-hand panel like
+// everything else; the document gained a sticky day-tab strip for the plain
+// "take me to day 6" case, so what's left here is the work that genuinely
+// needs a list: reordering, deleting, and seeing at a glance which days are
+// still missing something.
 //
 // Borrowed from the layers panel in Figma/Canva, and deliberately narrower in
 // scope than one. It lists DAYS only, not the document's sections: hero,
@@ -19,7 +28,6 @@
 //     checklist idea from the original plan, which had nowhere else to live.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState } from "react";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -29,9 +37,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, PanelLeftClose, PanelLeftOpen, Hotel, Car, Sparkles, Plus } from "lucide-react";
+import { GripVertical, Hotel, Car, Sparkles, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { useBuilder } from "./builder-context";
+import { Empty } from "./builder-ui";
 
 /** Scrolls the preview to a day. The document tags each card with this id. */
 function jumpToDay(day: number) {
@@ -53,9 +62,10 @@ function ReadyDot({ on, title, icon: Icon }: { on: boolean; title: string; icon:
   );
 }
 
-function DayRow({ id, index }: { id: string; index: number }) {
+/** Everything a row shows, minus the drag handle and delete — shared so the
+ * locked-for-review list is the same list, not a second one that can drift. */
+function DayRowContent({ index }: { index: number }) {
   const { form, dayCosts } = useBuilder();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const d = form.itineraries[index];
   if (!d) return null;
 
@@ -63,6 +73,48 @@ function DayRow({ id, index }: { id: string; index: number }) {
   const hasStay = !!d.accommodation || !!d.hotelPending;
   const hasCab = !!d.transport || d.cabPricingId != null;
   const hasActs = d.activities.some((a) => a.title.trim());
+
+  return (
+    <button
+      type="button"
+      onClick={() => jumpToDay(d.day)}
+      className="flex-1 min-w-0 text-left"
+    >
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-[11px] font-bold tabular-nums text-dashboard-primary shrink-0">
+          {String(d.day).padStart(2, "0")}
+        </span>
+        <span className="text-[11.5px] truncate text-dashboard-base-content/80">
+          {d.title || "Untitled day"}
+        </span>
+      </div>
+      <div className="flex items-center gap-0.5 mt-0.5">
+        <ReadyDot on={hasStay} icon={Hotel} title={hasStay ? "Stay set" : "No stay yet"} />
+        <ReadyDot on={hasCab} icon={Car} title={hasCab ? "Transport set" : "No transport yet"} />
+        <ReadyDot on={hasActs} icon={Sparkles} title={hasActs ? "Experiences added" : "No experiences yet"} />
+        {cost && cost.total > 0 && (
+          <span className="ml-auto text-[9.5px] tabular-nums text-dashboard-base-content/45">
+            ₹{cost.total.toLocaleString("en-IN")}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function StaticDayRow({ index }: { index: number }) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 hover:bg-dashboard-base-200/60">
+      <DayRowContent index={index} />
+    </div>
+  );
+}
+
+function DayRow({ id, index }: { id: string; index: number }) {
+  const { form, removeDay } = useBuilder();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const d = form.itineraries[index];
+  if (!d) return null;
 
   return (
     <div
@@ -83,37 +135,28 @@ function DayRow({ id, index }: { id: string; index: number }) {
         <GripVertical size={13} />
       </button>
 
-      <button
-        type="button"
-        onClick={() => jumpToDay(d.day)}
-        className="flex-1 min-w-0 text-left"
-      >
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[11px] font-bold tabular-nums text-dashboard-primary shrink-0">
-            {String(d.day).padStart(2, "0")}
-          </span>
-          <span className="text-[11px] truncate text-dashboard-base-content/80">
-            {d.title || "Untitled day"}
-          </span>
-        </div>
-        <div className="flex items-center gap-0.5 mt-0.5">
-          <ReadyDot on={hasStay} icon={Hotel} title={hasStay ? "Stay set" : "No stay yet"} />
-          <ReadyDot on={hasCab} icon={Car} title={hasCab ? "Transport set" : "No transport yet"} />
-          <ReadyDot on={hasActs} icon={Sparkles} title={hasActs ? "Experiences added" : "No experiences yet"} />
-          {cost && cost.total > 0 && (
-            <span className="ml-auto text-[9.5px] tabular-nums text-dashboard-base-content/45">
-              ₹{cost.total.toLocaleString("en-IN")}
-            </span>
-          )}
-        </div>
-      </button>
+      <DayRowContent index={index} />
+
+      {/* Hidden until hover: a delete sitting permanently beside every row in a
+          ten-row list is ten chances to lose a day's work by mis-aiming. The
+          last day has none — a package with no days can't be built at all. */}
+      {form.itineraries.length > 1 && (
+        <button
+          type="button"
+          onClick={() => removeDay(d.day)}
+          aria-label={`Delete day ${d.day}`}
+          title={`Delete day ${d.day}`}
+          className="shrink-0 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/30 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-red-50 hover:text-red-600"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
     </div>
   );
 }
 
-export function DayLayersRail() {
+export function DayListPanel() {
   const { form, canEdit, moveDay, addDayAfter } = useBuilder();
-  const [open, setOpen] = useState(true);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -131,58 +174,46 @@ export function DayLayersRail() {
     moveDay(ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
   }
 
-  if (!canEdit) return null;
+  const addDay = (
+    <button
+      type="button"
+      onClick={() => addDayAfter(form.itineraries.length)}
+      className="w-full flex items-center justify-center gap-1 rounded-lg border border-dashed border-dashboard-base-300 py-2 text-[11.5px] font-medium text-dashboard-base-content/60 hover:bg-dashboard-base-200/60"
+    >
+      <Plus size={12} /> Add day {form.itineraries.length + 1}
+    </button>
+  );
 
-  if (!open) {
+  // Locked for costing review: the list still reads — readiness and structure
+  // are exactly what someone reviewing wants — it just can't be rearranged.
+  if (!canEdit) {
     return (
-      <div className="no-print shrink-0 border-r border-dashboard-base-300 bg-dashboard-base-100 px-1 py-2">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          title="Show days"
-          aria-label="Show days"
-          className="flex items-center justify-center size-7 rounded-md text-dashboard-base-content/50 hover:bg-dashboard-base-200"
-        >
-          <PanelLeftOpen size={14} />
-        </button>
+      <div className="p-3 space-y-0.5">
+        {form.itineraries.map((d) => (
+          <StaticDayRow key={d.day} index={d.day - 1} />
+        ))}
+      </div>
+    );
+  }
+
+  if (form.itineraries.length === 0) {
+    return (
+      <div className="p-3">
+        <Empty action={addDay}>No days yet. Every itinerary starts with one.</Empty>
       </div>
     );
   }
 
   return (
-    <aside className="no-print shrink-0 w-52 border-r border-dashboard-base-300 bg-dashboard-base-100 flex flex-col">
-      <div className="flex items-center justify-between gap-1 px-2.5 py-2 border-b border-dashboard-base-300">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">
-          Days
-        </span>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          title="Hide days"
-          aria-label="Hide days"
-          className="flex items-center justify-center size-6 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-base-200"
-        >
-          <PanelLeftClose size={13} />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+    <div className="p-3 space-y-2">
+      <div className="space-y-0.5">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
             {ids.map((id, i) => <DayRow key={id} id={id} index={i} />)}
           </SortableContext>
         </DndContext>
       </div>
-
-      <div className="p-1.5 border-t border-dashboard-base-300">
-        <button
-          type="button"
-          onClick={() => addDayAfter(form.itineraries.length)}
-          className="w-full flex items-center justify-center gap-1 rounded-md border border-dashed border-dashboard-base-300 py-1.5 text-[11px] font-medium text-dashboard-base-content/60 hover:bg-dashboard-base-200/60"
-        >
-          <Plus size={11} /> Add day {form.itineraries.length + 1}
-        </button>
-      </div>
-    </aside>
+      {addDay}
+    </div>
   );
 }
