@@ -15,6 +15,7 @@
 
 import type { RoomSelection, CabSelection } from "../room-cab-selections";
 import type {
+  StopInput,
   DayItinerary, HotelRoomResult, VehicleResult, CabPricingResult, ActivityInput,
   TicketInput, AddonInput,
 } from "../action";
@@ -547,4 +548,23 @@ export function validateStayAssignment(
     }
   }
   return { ok: true, days: sorted };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Route stops
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Sum of stop nights → total nights/days + a joined destination string.
+ *
+ * Shared by Trip Setup and the destinations drawer: totalDays/totalNights are
+ * denormalised onto the package and the destination string is what the hero
+ * and the catalog show, so two copies of this would drift the moment one was
+ * touched. */
+export function recalcFromStops(stops: StopInput[]) {
+  const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
+  return {
+    totalNights,
+    totalDays: totalNights + 1,
+    destination: stops.map((s) => s.name).filter(Boolean).join(", "),
+  };
 }

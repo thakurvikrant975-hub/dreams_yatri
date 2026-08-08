@@ -25,23 +25,13 @@ import { CalendarDays, Users, MapPin, Percent, Baby } from "lucide-react";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { useBuilder, type PackageForm } from "./builder-context";
 import { RouteStopsEditor } from "./RouteStopsEditor";
-import type { StopInput } from "../action";
+import { recalcFromStops } from "./day-mutations";
 
 /** Keeps a children/infants ages array in sync with a changed traveller count —
  * grows with 0-filled slots, shrinks by dropping the trailing ones. */
 function resizeAges(ages: number[], count: number): number[] {
   if (count <= ages.length) return ages.slice(0, count);
   return [...ages, ...Array(count - ages.length).fill(0)];
-}
-
-/** Sum of stop nights → total nights/days + a joined destination string. */
-function recalcFromStops(stops: StopInput[]) {
-  const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
-  return {
-    totalNights,
-    totalDays: totalNights + 1,
-    destination: stops.map((s) => s.name).filter(Boolean).join(", "),
-  };
 }
 
 function Block({ icon: Icon, title, children }: {

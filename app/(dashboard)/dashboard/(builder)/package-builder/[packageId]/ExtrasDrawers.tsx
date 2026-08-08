@@ -22,8 +22,9 @@ import type { TicketInput, AddonInput } from "../action";
 import { useBuilder } from "./builder-context";
 import { NOTE_TONES, noteTone, type NoteTone } from "./ItineraryDocument";
 import {
-  emptyTicket, emptyAddon, computeDurationText, TICKET_TYPE_LABELS,
+  emptyTicket, emptyAddon, computeDurationText, TICKET_TYPE_LABELS, recalcFromStops,
 } from "./day-mutations";
+import { RouteStopsEditor } from "./RouteStopsEditor";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Meals
@@ -468,6 +469,39 @@ function TicketPax({ ticket, packagePax, onChange }: {
             />
           </label>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Destinations (route stops)
+//
+// The most load-bearing list in the builder despite looking like decoration:
+// deriveDayLocations turns these into the default search city for every hotel
+// and cab drawer, they set totalDays/totalNights, and they're what the "Places
+// You Gonna Visit" strip on the client's document is built from.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function StopsView() {
+  const { form, setForm } = useBuilder();
+
+  return (
+    <div className="p-5 space-y-4">
+      <RouteStopsEditor
+        stops={form.stops}
+        onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
+      />
+      <div className="rounded-lg bg-dashboard-base-200/50 px-3 py-2.5 space-y-1">
+        <p className="text-[11px] text-dashboard-base-content/70">
+          {form.totalDays} day{form.totalDays !== 1 ? "s" : ""} · {form.totalNights} night
+          {form.totalNights !== 1 ? "s" : ""}
+        </p>
+        <p className="text-[11px] text-dashboard-base-content/45">
+          Nights here set the trip length, and each day&apos;s hotel and cab search
+          defaults to the stop it falls under — so getting these right saves typing a
+          city on every day.
+        </p>
       </div>
     </div>
   );

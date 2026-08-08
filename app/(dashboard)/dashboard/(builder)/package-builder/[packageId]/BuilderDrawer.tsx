@@ -20,7 +20,7 @@ import {
 import { useBuilder, type DrawerTarget } from "./builder-context";
 import { HotelReplaceView, HotelEditView, HotelRequestView } from "./HotelDrawer";
 import { TransferView, ActivitiesView } from "./DayDrawers";
-import { MealsView, AddonsView, TicketsView, NoteView } from "./ExtrasDrawers";
+import { MealsView, AddonsView, TicketsView, NoteView, StopsView } from "./ExtrasDrawers";
 
 /** Header copy per target. Exhaustive over DrawerTarget — adding a drawer kind
  * without a heading is a compile error rather than a blank title bar. */
@@ -76,6 +76,11 @@ function headingFor(target: DrawerTarget): { title: string; description: string 
         title: `Day ${target.day} — note`,
         description: "A short call-out on the client's itinerary. Shown only when there's something to say.",
       };
+    case "stops-edit":
+      return {
+        title: "Destinations",
+        description: "Where the trip goes and how many nights at each. Sets the trip length and every day's default search area.",
+      };
   }
 }
 
@@ -90,6 +95,7 @@ function bodyFor(target: DrawerTarget) {
     case "tickets-edit": return <TicketsView />;
     case "hotel-request": return <HotelRequestView day={target.day} />;
     case "note-edit": return <NoteView day={target.day} />;
+    case "stops-edit": return <StopsView />;
   }
 }
 

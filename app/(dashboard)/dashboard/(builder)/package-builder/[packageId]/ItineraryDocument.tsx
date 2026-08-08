@@ -1065,7 +1065,22 @@ function StopTile({
 }
 
 function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChange?: OnImageChange }) {
-  if (form.stops.length === 0) return null;
+  const builder = useOptionalBuilder();
+  const onEditStops = builder?.canEdit
+    ? () => builder.openDrawer({ kind: "stops-edit" })
+    : undefined;
+
+  // With no stops the section vanished entirely, taking the only way to add
+  // the first one with it — the same trap tickets, add-ons and the policy
+  // lists each had. The builder keeps a header; the client's document still
+  // renders nothing.
+  if (form.stops.length === 0) {
+    return onEditStops ? (
+      <div className="builder-only no-print space-y-3">
+        <SectionHeader icon={Compass} label="Places You Gonna Visit" onAdd={onEditStops} addLabel="Add" />
+      </div>
+    ) : null;
+  }
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const packageFallback = form.coverImage
     || form.itineraries.find((d) => d.accommodationPhoto)?.accommodationPhoto
@@ -1073,7 +1088,7 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
 
   return (
     <div className="space-y-3" style={{ breakInside: "avoid" }}>
-      <SectionHeader icon={Compass} label="Places You Gonna Visit" />
+      <SectionHeader icon={Compass} label="Places You Gonna Visit" onAdd={onEditStops} />
       <div className="flex gap-[3px] rounded-2xl overflow-hidden" style={{ height: "40mm" }}>
         {form.stops.map((s, i) => {
           const dayNumbers = new Set(
@@ -1334,6 +1349,7 @@ function PackageAddMenu() {
     { icon: TrainFront, label: "Train", onSelect: () => builder.openDrawer({ kind: "tickets-edit" }) },
     { icon: Helicopter, label: "Helicopter", onSelect: () => builder.openDrawer({ kind: "tickets-edit" }) },
     { icon: Gift, label: "Add-on", onSelect: () => builder.openDrawer({ kind: "addons-edit", day: null }) },
+    { icon: Compass, label: "Destination", onSelect: () => builder.openDrawer({ kind: "stops-edit" }) },
   ];
 
   return (
@@ -1344,7 +1360,7 @@ function PackageAddMenu() {
           className={ADD_CONTROL_CLASS}
           style={{ borderColor: DOC.rule, color: DOC.accent }}
         >
-          <Plus size={12} /> Add flight, train, helicopter or add-on
+          <Plus size={12} /> Add a destination, flight, train, helicopter or add-on
           <ChevronDown size={11} />
         </button>
       </DropdownMenuTrigger>

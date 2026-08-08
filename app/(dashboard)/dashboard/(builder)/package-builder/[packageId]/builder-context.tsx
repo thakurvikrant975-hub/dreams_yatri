@@ -128,7 +128,9 @@ export type DrawerTarget =
   /** Ask the hotel team to source a stay for this day. */
   | { kind: "hotel-request"; day: number }
   /** The day's note — title, body and tone. */
-  | { kind: "note-edit"; day: number };
+  | { kind: "note-edit"; day: number }
+  /** Route stops — the destinations the trip visits, and nights at each. */
+  | { kind: "stops-edit" };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context
