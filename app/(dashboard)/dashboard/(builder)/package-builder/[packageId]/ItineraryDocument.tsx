@@ -26,7 +26,7 @@ import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { EditableText } from "./EditableText";
 import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
-import { DayActionsMenu } from "./DayActionsMenu";
+import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
@@ -617,28 +617,25 @@ function DayNote({ day }: { day: DayItinerary }) {
 }
 
 /** A day's running cost, shown beside its number. */
-function DayCostChip({ day }: { day: number }) {
-  const builder = useOptionalBuilder();
-  if (!builder?.canEdit) return null;
-  const cost = builder.dayCosts.get(day);
-  // No entry means nothing on this day is priced yet — better to show nothing
-  // than a confident ₹0.
-  if (!cost || cost.total <= 0) return null;
-
+/** Wraps an editable block in the day so it outlines on hover and reveals its
+ * controls — the "this is editable, and here's how" affordance that a
+ * document-as-editor needs and that a static document must not show.
+ *
+ * The outline is `outline`, not `border`: a border would shift the block's
+ * layout by a pixel on hover, which on a paginated A4 document can push
+ * content across a page boundary while you're pointing at it. */
+function EditableSection({ onEdit, children }: {
+  onEdit?: () => void;
+  children: React.ReactNode;
+}) {
+  if (!onEdit) return <>{children}</>;
   return (
-    <span
-      className="builder-only no-print shrink-0 self-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
-      style={{
-        backgroundColor: cost.overridden ? "#FDF4E7" : DOC.paper,
-        border: `1px solid ${cost.overridden ? "#F2DEBE" : DOC.rule}`,
-        color: cost.overridden ? "#8A5A16" : DOC.inkSoft,
-      }}
-      title={cost.overridden
-        ? "Corrected by costing during review"
-        : `Stay ₹${cost.hotel.toLocaleString("en-IN")} · Transport ₹${cost.cab.toLocaleString("en-IN")}`}
+    <div
+      className="group/section relative -mx-1.5 px-1.5 py-1 rounded-lg transition-[outline-color] outline outline-2 outline-transparent hover:outline-dashboard-primary/25"
+      style={{ breakInside: "avoid" }}
     >
-      ₹{cost.total.toLocaleString("en-IN")}
-    </span>
+      {children}
+    </div>
   );
 }
 
@@ -673,7 +670,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
         // into the exported PDF (html2canvas rasterises the screen DOM — see
         // the data-exporting rule in PRINT_STYLES).
         <span
-          className="builder-only no-print text-[9px] font-semibold uppercase tracking-widest shrink-0 opacity-0 group-hover/sub:opacity-100 transition-opacity"
+          className="builder-only no-print text-[9px] font-semibold uppercase tracking-widest shrink-0 opacity-0 group-hover/sub:opacity-100 group-hover/section:opacity-100 transition-opacity"
           style={{ color: DOC.accent }}
         >
           Edit
@@ -1431,6 +1428,23 @@ function DayCardPreview({
   const checkOutDate = dayCalendarDate(travelDate, day.day + 1);
   const mealText = mealIncludedText(day.hotelMealPlan);
   const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0 || !!onImageChange;
+  // One place each section's "open my drawer" lives, so the hover wrapper and
+  // the marker's own Edit button can't drift to different targets.
+  const canEditDoc = !!builder?.canEdit;
+  const stayEdit = canEditDoc
+    ? () => builder!.openDrawer(day.hotelPending
+        ? { kind: "hotel-request", day: day.day }
+        : { kind: "hotel-edit", day: day.day })
+    : undefined;
+  const transportEdit = canEditDoc
+    ? () => builder!.openDrawer({ kind: "transfer-edit", day: day.day })
+    : undefined;
+  const mealsEdit = canEditDoc
+    ? () => builder!.openDrawer({ kind: "meals-edit", day: day.day })
+    : undefined;
+  const activitiesEdit = canEditDoc
+    ? () => builder!.openDrawer({ kind: "activities-edit", day: day.day })
+    : undefined;
   const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
   const extraCabs = (day.extraCabs ?? []).filter((c) => c.label.trim());
 
@@ -1488,12 +1502,6 @@ function DayCardPreview({
           </p>
         </div>
 
-        {/* What this day currently costs. Builder-only and never on the
-            client's copy — the point is seeing a hotel swap move the number
-            where the swap was made, rather than on another screen after the
-            fact. */}
-        <DayCostChip day={day.day} />
-
         {/* One menu for everything this day can gain or lose — replaces the
             three separate dashed "Add …" rows, which appeared and vanished
             depending on what the day already had and pushed the document's
@@ -1502,13 +1510,8 @@ function DayCardPreview({
           <div className="shrink-0 self-center">
             <DayActionsMenu
               day={day.day}
-              hasStay={!!hasHotel}
-              hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
-              hasActivities={activities.length > 0}
-              hasMeals={(shiftedMeals ?? day.meals).length > 0}
               hasAddons={(addOns ?? []).some((a) => a.day === day.day)}
               hasNote={!!day.notes.trim()}
-              isPending={!!day.hotelPending}
             />
           </div>
         )}
@@ -1532,6 +1535,7 @@ function DayCardPreview({
 
         {/* Hotel info */}
         {hasHotel && (
+          <EditableSection onEdit={stayEdit}>
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
             <DaySubHead
               icon={Hotel}
@@ -1539,13 +1543,7 @@ function DayCardPreview({
               // canEdit, not merely "is there a builder" — a package locked
               // for costing review must not offer the affordance at all,
               // rather than offering one that silently does nothing.
-              onEdit={builder?.canEdit
-                ? () => builder.openDrawer(
-                    day.hotelPending
-                      ? { kind: "hotel-request", day: day.day }
-                      : { kind: "hotel-edit", day: day.day },
-                  )
-                : undefined}
+              onEdit={stayEdit}
             />
             <div className={cn("flex gap-3", SUBHEAD_INDENT)}>
               <div className="flex-1 min-w-0 space-y-1.5">
@@ -1662,6 +1660,7 @@ function DayCardPreview({
               )}
             </div>
           </div>
+          </EditableSection>
         )}
 
         <DayAddonsSection addOns={addOns ?? []} day={day.day} />
@@ -1672,11 +1671,12 @@ function DayCardPreview({
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
+          <EditableSection onEdit={transportEdit}>
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
             <DaySubHead
               icon={Car}
               label="Transport"
-              onEdit={builder?.canEdit ? () => builder.openDrawer({ kind: "transfer-edit", day: day.day }) : undefined}
+              onEdit={transportEdit}
               meta={[
                 day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
                 day.transportTravelTime || null,
@@ -1773,21 +1773,24 @@ function DayCardPreview({
               )}
             </div>
           </div>
+          </EditableSection>
         )}
 
         {/* Meals — shifted so breakfast shows on the day it's actually eaten
             (the morning of checkout), not the day the hotel was checked into. */}
         {(shiftedMeals ?? day.meals).length > 0 && (
+          <EditableSection onEdit={mealsEdit}>
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
             <DaySubHead
               icon={Utensils}
               label="Meals"
-              onEdit={builder?.canEdit ? () => builder.openDrawer({ kind: "meals-edit", day: day.day }) : undefined}
+              onEdit={mealsEdit}
             />
             <div className={SUBHEAD_INDENT}>
               <MealsRow meals={shiftedMeals ?? day.meals} />
             </div>
           </div>
+          </EditableSection>
         )}
 
         {/* Activities */}
@@ -1817,14 +1820,16 @@ function DayCardPreview({
               // without forcing every activity onto one page together.
               if (idx === 0) {
                 return (
-                  <div key={originalIndex} className="space-y-2.5" style={{ breakInside: "avoid" }}>
+                  <EditableSection key={originalIndex} onEdit={activitiesEdit}>
+                  <div className="space-y-2.5" style={{ breakInside: "avoid" }}>
                     <DaySubHead
                       icon={Sparkles}
                       label="Experiences"
-                      onEdit={builder?.canEdit ? () => builder.openDrawer({ kind: "activities-edit", day: day.day }) : undefined}
+                      onEdit={activitiesEdit}
                     />
                     <div className={SUBHEAD_INDENT}>{row}</div>
                   </div>
+                  </EditableSection>
                 );
               }
               // Every later activity carries the same indent, so the whole
@@ -1841,6 +1846,18 @@ function DayCardPreview({
             identical on the client's copy. */}
         <DayNote day={day} />
       </div>
+
+      {/* The day's own content, at the foot of the day — see DaySectionsBar. */}
+      {builder?.canEdit && (
+        <DaySectionsBar
+          day={day.day}
+          hasStay={!!hasHotel}
+          hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
+          hasActivities={activities.length > 0}
+          hasMeals={(shiftedMeals ?? day.meals).length > 0}
+          isPending={!!day.hotelPending}
+        />
+      )}
     </div>
   );
 }

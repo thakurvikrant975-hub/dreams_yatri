@@ -1,22 +1,25 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// One control per day, instead of three stacked "Add …" buttons.
+// Day-level actions, in the day's header.
 //
-// The three separate add-buttons only ever appeared for whichever pieces the
-// day was missing, so an empty day showed three dashed rows and a full day
-// showed none — the affordance moved around and took vertical space in the
-// document itself. A single menu keeps the preview looking like the document
-// it is, and gives day-level actions (add/delete) somewhere to live.
+// Deliberately only the things that act on the DAY: an add-on or a note (both
+// of which have nothing in the document to click until they exist), and adding
+// or deleting a day.
 //
-// Deleting asks for the word "delete" to be typed. That is deliberately more
-// friction than a normal confirm: a day carries its hotel, its transport, its
-// activities and its add-ons, none of it recoverable here — there is no undo
-// in the builder yet.
+// The day's CONTENT — stay, transport, experiences, meals — is reached from
+// DaySectionsBar at the foot of the day instead, where a reader arrives having
+// just seen what the day does and does not have. Mixing both in one header
+// menu made a nine-item list where the common cases were buried.
+//
+// Deleting asks for the word "delete" to be typed. A day carries its hotel,
+// transport, activities and add-ons; undo covers it now, but not after a
+// reload, so the friction stays.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { Plus, Hotel, Car, Sparkles, CalendarPlus, Trash2, ChevronDown, Utensils, Gift, StickyNote } from "lucide-react";
+import { CalendarPlus, Trash2, Gift, StickyNote, MoreHorizontal, Hotel, Car, Sparkles, Utensils } from "lucide-react";
+import { cn } from "@/app/lib/utils";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -30,16 +33,10 @@ import { useBuilder } from "./builder-context";
 
 const CONFIRM_WORD = "delete";
 
-export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasMeals, hasAddons, hasNote, isPending }: {
+export function DayActionsMenu({ day, hasAddons, hasNote }: {
   day: number;
-  hasStay: boolean;
-  hasTransport: boolean;
-  hasActivities: boolean;
-  hasMeals: boolean;
   hasAddons: boolean;
   hasNote: boolean;
-  /** Awaiting the hotel team — the stay row points at the request. */
-  isPending: boolean;
 }) {
   const { openDrawer, addDayAfter, removeDay, form } = useBuilder();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -64,42 +61,23 @@ export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasM
             // builder-only: real rendered chrome, and html2canvas rasterises
             // the screen DOM, so @media print alone would not keep it out of
             // an exported PDF.
-            className="builder-only no-print flex items-center gap-1 rounded-md border border-dashed border-dashboard-base-300 px-2 py-1 text-[10px] font-medium text-dashboard-base-content/60 hover:bg-dashboard-primary/6 hover:text-dashboard-primary transition-colors"
+            aria-label={`Day ${day} actions`}
+            className="builder-only no-print flex items-center justify-center size-7 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-primary/8 hover:text-dashboard-primary transition-colors"
           >
-            <Plus size={11} /> Add <ChevronDown size={10} />
+            <MoreHorizontal size={13} />
           </button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuLabel className="text-[11px]">Add to day {day}</DropdownMenuLabel>
-          {/* Already-present pieces are offered as "Edit" rather than hidden:
-              a menu whose contents change shape as a day fills up is harder to
-              build a habit around than one that always has the same rows. */}
-          <DropdownMenuItem
-            onSelect={() => openDrawer(
-              isPending
-                ? { kind: "hotel-request", day }
-                : { kind: hasStay ? "hotel-edit" : "hotel-replace", day },
-            )}
-          >
-            <Hotel size={13} /> {isPending ? "Hotel request" : hasStay ? "Edit stay" : "Stay"}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => openDrawer({ kind: "transfer-edit", day })}>
-            <Car size={13} /> {hasTransport ? "Edit transport" : "Transport"}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => openDrawer({ kind: "activities-edit", day })}>
-            <Sparkles size={13} /> {hasActivities ? "Edit experiences" : "Experiences"}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => openDrawer({ kind: "meals-edit", day })}>
-            <Utensils size={13} /> {hasMeals ? "Edit meals" : "Meals"}
-          </DropdownMenuItem>
+          <DropdownMenuLabel className="text-[11px]">Day {day}</DropdownMenuLabel>
+          {/* Both of these are invisible in the document until they exist, so
+              this menu is the only way in. Everything the day's sections cover
+              lives at the foot of the day instead — see DaySectionsBar. */}
           <DropdownMenuItem onSelect={() => openDrawer({ kind: "addons-edit", day })}>
-            <Gift size={13} /> {hasAddons ? "Edit add-ons" : "Add-on"}
+            <Gift size={13} /> {hasAddons ? "Edit add-ons" : "Add an add-on"}
           </DropdownMenuItem>
-          {/* A note is absent by default, so there's nothing in the document
-              to click until one exists — the way in has to be here. */}
           <DropdownMenuItem onSelect={() => openDrawer({ kind: "note-edit", day })}>
-            <StickyNote size={13} /> {hasNote ? "Edit note" : "Note"}
+            <StickyNote size={13} /> {hasNote ? "Edit note" : "Add a note"}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
@@ -161,5 +139,78 @@ export function DayActionsMenu({ day, hasStay, hasTransport, hasActivities, hasM
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The day's content, reached from the foot of the day.
+//
+// Placed at the end rather than in the header on purpose: by the time a reader
+// is here they have just seen what this day does and doesn't have, so "add
+// transport" lands as an answer to something they noticed rather than as a
+// menu item to hunt through. Same treatment as the "Add day" control below the
+// itinerary, so the two read as the same kind of thing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending }: {
+  day: number;
+  hasStay: boolean;
+  hasTransport: boolean;
+  hasActivities: boolean;
+  hasMeals: boolean;
+  /** Awaiting the hotel team — the stay entry points at the request instead. */
+  isPending: boolean;
+}) {
+  const { openDrawer } = useBuilder();
+
+  const items = [
+    {
+      icon: Hotel,
+      label: isPending ? "Hotel request" : hasStay ? "Stay" : "Add stay",
+      on: hasStay || isPending,
+      target: isPending
+        ? { kind: "hotel-request" as const, day }
+        : hasStay ? { kind: "hotel-edit" as const, day } : { kind: "hotel-replace" as const, day },
+    },
+    {
+      icon: Car,
+      label: hasTransport ? "Transport" : "Add transport",
+      on: hasTransport,
+      target: { kind: "transfer-edit" as const, day },
+    },
+    {
+      icon: Sparkles,
+      label: hasActivities ? "Experiences" : "Add experiences",
+      on: hasActivities,
+      target: { kind: "activities-edit" as const, day },
+    },
+    {
+      icon: Utensils,
+      label: hasMeals ? "Meals" : "Add meals",
+      on: hasMeals,
+      target: { kind: "meals-edit" as const, day },
+    },
+  ];
+
+  return (
+    <div className="builder-only no-print flex flex-wrap gap-1.5 px-3.5 pb-3">
+      {items.map(({ icon: Icon, label, on, target }) => (
+        <button
+          key={label}
+          type="button"
+          onClick={() => openDrawer(target)}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+            on
+              ? "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200/60"
+              // Nothing there yet — dashed, so an incomplete day reads as
+              // incomplete at a glance rather than looking the same as a full one.
+              : "border-dashed border-dashboard-primary/35 text-dashboard-primary/80 hover:bg-dashboard-primary/6",
+          )}
+        >
+          <Icon size={12} /> {label}
+        </button>
+      ))}
+    </div>
   );
 }
