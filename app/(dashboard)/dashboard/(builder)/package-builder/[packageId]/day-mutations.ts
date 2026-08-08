@@ -570,3 +570,22 @@ export function recalcFromStops(stops: StopInput[]) {
     destination: stops.map((s) => s.name).filter(Boolean).join(", "),
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Readiness
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The three things a day needs before it's worth showing anyone, as booleans.
+ *
+ * Here rather than in a component because two surfaces render it — the layers
+ * rail's icon dots and the Itinerary chips' micro-dots — and "day 4 has a cab"
+ * must not be able to mean two different things depending on which one you're
+ * looking at. A pending hotel request counts as a stay: the day is handled,
+ * it's just handled by someone else. */
+export function dayReadiness(day: DayItinerary) {
+  return {
+    stay: !!day.accommodation || !!day.hotelPending,
+    transport: !!day.transport || day.cabPricingId != null,
+    experiences: day.activities.some((a) => a.title.trim()),
+  };
+}

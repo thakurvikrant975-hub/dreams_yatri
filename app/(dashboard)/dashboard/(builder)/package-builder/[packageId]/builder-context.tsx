@@ -186,6 +186,14 @@ type BuilderContextValue = {
   removeDay: (day: number) => void;
   /** Moves a day to a new position (0-based), renumbering the rest. */
   moveDay: (from: number, to: number) => void;
+  /** The day the builder is currently working on. Shared rather than local to
+   * either surface, because the layers rail on the left and the Itinerary
+   * section on the right are two views of the same choice — if each kept its
+   * own, clicking day 5 in one would leave the other showing day 1's elements
+   * and there'd be no way to tell which was right. Always a real day number:
+   * see the clamp in useSelectedDay. */
+  selectedDay: number;
+  setSelectedDay: (day: number) => void;
   /** Per-day cost, keyed by day number. Empty while pricing is recomputing or
    * when nothing on the trip is priced yet — a day with no entry simply shows
    * no cost rather than a misleading zero. */
@@ -224,6 +232,14 @@ export function PackageBuilderProvider({
 }) {
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab | null>("client");
+  const [selectedDay, setSelectedDay] = useState(1);
+
+  // Days are renumbered on every insert, delete and reorder, so a stored day
+  // number goes stale on its own. Clamping here rather than at each reader
+  // means no surface can end up rendering a day that doesn't exist — deleting
+  // the day you were on lands you on the last one instead of on nothing.
+  const dayCount = form.itineraries.length;
+  const safeSelectedDay = dayCount === 0 ? 1 : Math.min(Math.max(selectedDay, 1), dayCount);
 
   const value = useMemo<BuilderContextValue>(() => ({
     form,
@@ -246,7 +262,9 @@ export function PackageBuilderProvider({
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
     moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),
-  }), [form, setForm, canEdit, dayCosts, drawer, panelTab]);
+    selectedDay: safeSelectedDay,
+    setSelectedDay,
+  }), [form, setForm, canEdit, dayCosts, drawer, panelTab, safeSelectedDay]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }

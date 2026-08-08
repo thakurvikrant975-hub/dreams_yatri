@@ -69,6 +69,7 @@ import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
 import { BuilderSidebar } from "./BuilderSidebar";
+import { DayLayersRail } from "./DayLayersRail";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -1941,6 +1942,13 @@ Rules:
           aside and centering the whole pair turns that into a normal, even
           page margin instead. */}
       <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
+        {/* Day layers — order and navigation for the preview beside it.
+            Desktop only: on a narrow screen the preview already takes the whole
+            viewport and a third column would leave nothing for it. */}
+        <div className="no-print hidden xl:flex">
+          <DayLayersRail />
+        </div>
+
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
           <div className="print-reset px-6 py-8">

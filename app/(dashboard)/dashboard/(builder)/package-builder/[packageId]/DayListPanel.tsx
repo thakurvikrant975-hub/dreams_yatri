@@ -22,7 +22,6 @@
 // "Transport — not added" in words, next to the control that fixes it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState } from "react";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -38,7 +37,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type DrawerTarget } from "./builder-context";
-import { clearHotelSelection, clearVehicleSelection, continuesStayFrom } from "./day-mutations";
+import { clearHotelSelection, clearVehicleSelection, continuesStayFrom, dayReadiness } from "./day-mutations";
 import { Empty, Group } from "./builder-ui";
 import type { DayItinerary } from "../action";
 
@@ -56,11 +55,8 @@ function jumpToDay(day: number) {
  * substitute for the elements list below — this is the "which day should I
  * look at" glance, that's the "what does it need" answer. */
 function ChipDots({ d }: { d: DayItinerary }) {
-  const on = [
-    !!d.accommodation || !!d.hotelPending,
-    !!d.transport || d.cabPricingId != null,
-    d.activities.some((a) => a.title.trim()),
-  ];
+  const r = dayReadiness(d);
+  const on = [r.stay, r.transport, r.experiences];
   return (
     <span className="flex items-center gap-[3px]">
       {on.map((v, i) => (
@@ -290,14 +286,9 @@ export function DayListPanel() {
   const builder = useBuilder();
   const { form, canEdit, moveDay, addDayAfter, removeDay, replaceDay, setForm } = builder;
 
+  const { selectedDay, setSelectedDay } = builder;
   const days = form.itineraries;
-  const [selectedDay, setSelectedDay] = useState(1);
-
-  // Days are renumbered on every insert, delete and reorder, so the selection
-  // has to be re-derived rather than trusted. Falling back to the last day
-  // means deleting the day you were on lands you somewhere real instead of on
-  // an empty elements list.
-  const current = days.find((d) => d.day === selectedDay) ?? days[days.length - 1];
+  const current = days.find((d) => d.day === selectedDay);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
