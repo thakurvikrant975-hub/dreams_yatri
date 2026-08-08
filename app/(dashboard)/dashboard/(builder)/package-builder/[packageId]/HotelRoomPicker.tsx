@@ -16,7 +16,7 @@ import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomR
 const HOTEL_CAT_LABEL: Record<string, string> = {
   hotel: "Hotel", resort: "Resort", homestay: "Homestay", apartment: "Apartment",
   villa: "Villa", guest_house: "Guest House", houseboat: "Houseboat", camp: "Camp",
-  glamping: "Glamping", treehouse: "Treehouse", jungle_lodge: "Jungle Lodge",
+  glamping: "Glamping", treehouse: "Treehouse", lodge: "Lodge", jungle_lodge: "Jungle Lodge",
   eco_lodge: "Eco Lodge", boutique_hotel: "Boutique", heritage_hotel: "Heritage",
   luxury_hotel: "Luxury", cottage: "Cottage", bungalow: "Bungalow", farm_stay: "Farm Stay",
 };

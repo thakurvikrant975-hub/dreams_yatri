@@ -26,6 +26,9 @@ export const CATEGORIES = [
   { id: 15, value: "camp",                  label: "Camp" },
   { id: 16, value: "glamping",              label: "Glamping" },
   { id: 17, value: "treehouse",             label: "Treehouse" },
+  // `id` is only local select state (the stored value is `value`), so new
+  // entries take the next free id and sit wherever they read best in the list.
+  { id: 30, value: "lodge",                 label: "Lodge" },
   { id: 18, value: "jungle_lodge",          label: "Jungle Lodge" },
   { id: 19, value: "eco_lodge",             label: "Eco Lodge" },
   { id: 20, value: "houseboat",             label: "Houseboat" },
