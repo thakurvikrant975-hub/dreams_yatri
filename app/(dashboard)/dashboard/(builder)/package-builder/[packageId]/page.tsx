@@ -16,7 +16,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2,
+  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Bus, Ticket,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
@@ -339,16 +339,21 @@ function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
 
 const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
   FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
+  BUS: Bus, OTHER: Ticket,
 };
 const TICKET_PROVIDER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
   FLIGHT: "Airline, e.g. IndiGo",
   TRAIN: "Train name, e.g. Rajdhani Express",
   HELICOPTER: "Operator, e.g. Pawan Hans",
+  BUS: "Operator, e.g. HRTC",
+  OTHER: "Operator",
 };
 const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
   FLIGHT: "Flight no., e.g. 6E-204",
   TRAIN: "Train no., e.g. 12951",
   HELICOPTER: "Flight/booking no.",
+  BUS: "Bus/booking no.",
+  OTHER: "Booking no.",
 };
 
 

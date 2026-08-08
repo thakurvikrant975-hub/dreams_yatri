@@ -294,6 +294,7 @@ export const emptyTicket = (type: TicketInput["type"]): TicketInput => ({
 
 export const TICKET_TYPE_LABELS: Record<TicketInput["type"], string> = {
   FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter",
+  BUS: "Bus", OTHER: "Other",
 };
 
 /** Journey length from the two times — derived, never typed. Wraps past

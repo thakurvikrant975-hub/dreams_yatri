@@ -2942,6 +2942,8 @@ enum TicketType {
   FLIGHT
   TRAIN
   HELICOPTER
+  BUS
+  OTHER
 }
 
 model custom_itineraries {

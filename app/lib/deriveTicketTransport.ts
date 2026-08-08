@@ -5,10 +5,11 @@
 // list, rather than a separately hand-maintained toggle that could drift.
 
 export type TicketLike = {
-  // Helicopter legs don't get their own flightsIncluded-style highlight
-  // fields (see custom_packages) — kept out of the flights/train buckets
-  // below on purpose, not overlooked.
-  type: "FLIGHT" | "TRAIN" | "HELICOPTER";
+  // Only FLIGHT and TRAIN have flightsIncluded-style highlight fields on
+  // custom_packages; helicopter, bus and other legs are deliberately kept out
+  // of those buckets below rather than overlooked. They still render as legs
+  // on the itinerary — this type only decides the route-map highlights.
+  type: "FLIGHT" | "TRAIN" | "HELICOPTER" | "BUS" | "OTHER";
   provider: string;
   ticketNumber: string;
   fromPlace: string;

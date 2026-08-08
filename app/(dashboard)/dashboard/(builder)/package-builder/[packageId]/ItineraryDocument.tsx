@@ -8,6 +8,7 @@ import {
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
   StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus, Lock, MoonStar,
+  Bus, Ticket,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -1121,13 +1122,16 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
  * but not itemized per-leg on the client-facing document. */
 const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
   FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
+  BUS: Bus, OTHER: Ticket,
 };
 const TICKET_PROVIDER_FALLBACKS: Record<TicketInput["type"], string> = {
   FLIGHT: "Airline TBD", TRAIN: "Train TBD", HELICOPTER: "Operator TBD",
+  BUS: "Operator TBD", OTHER: "Operator TBD",
 };
 
 const TICKET_TYPE_LABEL: Record<TicketInput["type"], string> = {
   FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter",
+  BUS: "Bus", OTHER: "Other",
 };
 
 function TicketCard({ ticket, packagePax }: { ticket: TicketInput; packagePax?: PackagePax }) {
@@ -1220,7 +1224,11 @@ export function TicketsSection({ tickets, packagePax }: {
   const flights = tickets.filter((t) => t.type === "FLIGHT");
   const trains = tickets.filter((t) => t.type === "TRAIN");
   const helicopters = tickets.filter((t) => t.type === "HELICOPTER");
-  if (flights.length === 0 && trains.length === 0 && helicopters.length === 0) return null;
+  const buses = tickets.filter((t) => t.type === "BUS");
+  const others = tickets.filter((t) => t.type === "OTHER");
+  if (flights.length + trains.length + helicopters.length + buses.length + others.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -1245,6 +1253,22 @@ export function TicketsSection({ tickets, packagePax }: {
           <SectionHeader icon={Helicopter} label="Helicopter Details" />
           <div className="grid gap-3">
             {helicopters.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
+          </div>
+        </div>
+      )}
+      {buses.length > 0 && (
+        <div className="space-y-3" style={{ breakInside: "avoid" }}>
+          <SectionHeader icon={Bus} label="Bus Details" />
+          <div className="grid gap-3">
+            {buses.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
+          </div>
+        </div>
+      )}
+      {others.length > 0 && (
+        <div className="space-y-3" style={{ breakInside: "avoid" }}>
+          <SectionHeader icon={Ticket} label="Other Transport" />
+          <div className="grid gap-3">
+            {others.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
           </div>
         </div>
       )}
@@ -1348,6 +1372,8 @@ function PackageAddMenu() {
     { icon: Plane, label: "Flight", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "FLIGHT" }) },
     { icon: TrainFront, label: "Train", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "TRAIN" }) },
     { icon: Helicopter, label: "Helicopter", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "HELICOPTER" }) },
+    { icon: Bus, label: "Bus", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "BUS" }) },
+    { icon: Ticket, label: "Other transport", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "OTHER" }) },
     { icon: Gift, label: "Add-on", onSelect: () => builder.openDrawer({ kind: "addons-edit", day: null }) },
     { icon: Compass, label: "Destination", onSelect: () => builder.openDrawer({ kind: "stops-edit" }) },
   ];

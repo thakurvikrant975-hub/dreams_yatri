@@ -852,7 +852,10 @@ export interface AddonInput {
 
 export interface TicketInput {
   id?:            string;
-  type:           "FLIGHT" | "TRAIN" | "HELICOPTER";
+  /** Mirrors the TicketType enum. BUS/OTHER were added to the database by
+   * another branch; the builder handles them so a package carrying one stays
+   * readable and editable here. */
+  type:           "FLIGHT" | "TRAIN" | "HELICOPTER" | "BUS" | "OTHER";
   provider:       string;
   ticketNumber:   string;
   fromPlace:      string;
@@ -1410,7 +1413,7 @@ function normalizeItinerary(it: {
 }
 
 function normalizeTicket(t: {
-  id: string; type: "FLIGHT" | "TRAIN" | "HELICOPTER"; provider: string | null; ticketNumber: string | null;
+  id: string; type: "FLIGHT" | "TRAIN" | "HELICOPTER" | "BUS" | "OTHER"; provider: string | null; ticketNumber: string | null;
   fromPlace: string | null; toPlace: string | null; travelDate: Date | null;
   departureTime: string | null; arrivalTime: string | null; durationText: string | null;
   adults: number; children: number; infants: number; ticketCount: number;
