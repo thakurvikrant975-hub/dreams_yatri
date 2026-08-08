@@ -16,7 +16,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, PencilLine } from "lucide-react";
-import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
@@ -32,6 +31,7 @@ import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
+import { Field, OptionRow, Chip, Empty } from "./builder-ui";
 import {
   applyHotelRoomSelection, clearHotelSelection, invalidateStaleOverrides,
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
@@ -206,9 +206,11 @@ export function HotelReplaceView({ day }: { day: number }) {
       )}
 
       {!loading && results.length === 0 && (
-        <p className="py-10 text-center text-sm text-dashboard-base-content/50">
-          {city || query ? "No stays match. Try a different city or name." : "Enter a city to see stays."}
-        </p>
+        <Empty>
+          {city || query
+            ? "Nothing matches. Try a different area or name — or hand the day to the hotel team."
+            : "Choose an area to see what's available."}
+        </Empty>
       )}
 
       <div className="space-y-2">
@@ -226,43 +228,38 @@ export function HotelReplaceView({ day }: { day: number }) {
           const nightly = room.pricePerNight * plan.rooms;
 
           return (
-            <button
+            <OptionRow
               key={room.id}
-              type="button"
+              selected={isCurrent}
               onClick={() => pick(room)}
-              className={cn(
-                "w-full text-left rounded-xl border p-3 transition-colors",
-                isCurrent
-                  ? "border-dashboard-primary bg-dashboard-primary/5"
-                  : "border-dashboard-base-300 hover:bg-dashboard-base-200/50",
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold truncate">{room.hotelName}</p>
-                    {isCurrent && <CheckIcon size={13} className="text-dashboard-primary shrink-0" />}
-                  </div>
-                  <p className="text-xs text-dashboard-base-content/60 truncate">{room.roomName}</p>
-                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-1 text-[11px] text-dashboard-base-content/50">
-                    {room.starRating && <span>{room.starRating}</span>}
-                    {room.distanceKm != null && (
-                      <span className="flex items-center gap-0.5">
-                        <MapPin size={9} /> {room.distanceKm.toFixed(1)} km
-                      </span>
-                    )}
+              title={
+                <span className="flex items-center gap-1.5">
+                  {room.hotelName}
+                  {isCurrent && <CheckIcon size={12} className="text-dashboard-primary shrink-0" />}
+                </span>
+              }
+              description={room.roomName}
+              meta={
+                <>
+                  {room.starRating && <span>{room.starRating}</span>}
+                  {room.distanceKm != null && (
                     <span className="flex items-center gap-0.5">
-                      <BedDouble size={9} /> {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
-                      {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
+                      <MapPin size={9} /> {room.distanceKm.toFixed(1)} km
                     </span>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-bold tabular-nums">₹{nightly.toLocaleString("en-IN")}</p>
+                  )}
+                  <span className="flex items-center gap-0.5">
+                    <BedDouble size={9} /> {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
+                    {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
+                  </span>
+                </>
+              }
+              trailing={
+                <>
+                  <p className="text-[13px] font-bold tabular-nums">₹{nightly.toLocaleString("en-IN")}</p>
                   <p className="text-[10px] text-dashboard-base-content/50">per night</p>
-                </div>
-              </div>
-            </button>
+                </>
+              }
+            />
           );
         })}
       </div>
@@ -421,34 +418,30 @@ export function HotelEditView({ day }: { day: number }) {
           <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">
             Hotel entered by hand
           </p>
-          <div className="space-y-1.5">
-            <label className="text-[11px] text-dashboard-base-content/60">Hotel &amp; room</label>
+          <Field label="Hotel &amp; room">
             <Input
               value={itin.accommodation}
               onChange={(e) => updateDay(day, { accommodation: e.target.value })}
               placeholder="e.g. Snow Valley Resorts — Deluxe"
               className="h-9 text-sm"
             />
-          </div>
+            </Field>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-[11px] text-dashboard-base-content/60">Location</label>
+            <Field label="Location">
               <Input
                 value={itin.accommodationLocation}
                 onChange={(e) => updateDay(day, { accommodationLocation: e.target.value })}
                 placeholder="City, State" className="h-9 text-sm"
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] text-dashboard-base-content/60">Room specs</label>
+            </Field>
+            <Field label="Room specs">
               <Input
                 value={itin.accommodationRoomSpecs}
                 onChange={(e) => updateDay(day, { accommodationRoomSpecs: e.target.value })}
                 placeholder="1 Double Bed | Mountain View" className="h-9 text-sm"
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] text-dashboard-base-content/60">Rooms</label>
+            </Field>
+            <Field label="Rooms">
               <Input
                 type="number" min={1}
                 value={itin.roomsCount ?? ""}
@@ -457,7 +450,7 @@ export function HotelEditView({ day }: { day: number }) {
                 })}
                 placeholder="1" className="h-9 text-sm"
               />
-            </div>
+            </Field>
             <div className="space-y-1.5">
               <label className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1">
                 <BedDouble size={11} /> Mattresses
@@ -471,8 +464,7 @@ export function HotelEditView({ day }: { day: number }) {
                 placeholder="0" className="h-9 text-sm"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] text-dashboard-base-content/60">Price / night</label>
+            <Field label="Price / night">
               <Input
                 type="number" min={0}
                 value={itin.manualHotelPricePerNight ?? ""}
@@ -481,9 +473,8 @@ export function HotelEditView({ day }: { day: number }) {
                 })}
                 placeholder="0" className="h-9 text-sm"
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] text-dashboard-base-content/60">Rate / mattress</label>
+            </Field>
+            <Field label="Rate / mattress">
               <Input
                 type="number" min={0}
                 value={itin.manualExtraBedRate ?? ""}
@@ -492,7 +483,7 @@ export function HotelEditView({ day }: { day: number }) {
                 })}
                 placeholder="0" className="h-9 text-sm"
               />
-            </div>
+            </Field>
           </div>
           <p className="text-[11px] text-dashboard-base-content/45">
             Priced from these figures rather than a catalog rate. Rooms × price, plus
@@ -505,8 +496,7 @@ export function HotelEditView({ day }: { day: number }) {
 
       {hasCatalogRoom && (
         <>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-dashboard-base-content/60">Rooms needed</label>
+          <Field label="Rooms needed">
             <Input
               type="number" min={1}
               value={itin.roomsCount ?? ""}
@@ -524,39 +514,36 @@ export function HotelEditView({ day }: { day: number }) {
                 {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
               </span>
             </p>
-          </div>
+            </Field>
 
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-dashboard-base-content/60">Meal plan</label>
+          <Field label="Meal plan">
             <Input
               value={itin.hotelMealPlan}
               onChange={(e) => updateDay(day, { hotelMealPlan: e.target.value })}
               placeholder="e.g. MAP — Breakfast &amp; Dinner"
               className="h-9 text-sm"
             />
-          </div>
+            </Field>
 
           <ExtraRoomsEditor day={day} />
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-dashboard-base-content/60">Check-in</label>
+            <Field label="Check-in">
               <Input
                 value={itin.hotelCheckIn}
                 onChange={(e) => updateDay(day, { hotelCheckIn: e.target.value })}
                 placeholder="2:00 PM"
                 className="h-9 text-sm"
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-dashboard-base-content/60">Check-out</label>
+            </Field>
+            <Field label="Check-out">
               <Input
                 value={itin.hotelCheckOut}
                 onChange={(e) => updateDay(day, { hotelCheckOut: e.target.value })}
                 placeholder="11:00 AM"
                 className="h-9 text-sm"
               />
-            </div>
+            </Field>
           </div>
         </>
       )}
@@ -938,23 +925,15 @@ function StayNights({ day }: { day: number }) {
           // deliberate act rather than an accident.
           const takenByOther = !on && it.roomPricingId != null && !run.includes(it.day);
           return (
-            <button
+            <Chip
               key={it.day}
-              type="button"
+              selected={on}
+              tone={takenByOther ? "warning" : "primary"}
               onClick={() => toggle(it.day)}
-              aria-pressed={on}
               title={takenByOther ? `Day ${it.day} currently has another hotel` : undefined}
-              className={cn(
-                "rounded-md px-2 py-1 text-[11px] font-medium border transition-colors",
-                on
-                  ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
-                  : takenByOther
-                    ? "border-dashed border-amber-400/60 text-amber-700/80 hover:bg-amber-50"
-                    : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
-              )}
             >
               {it.day}
-            </button>
+            </Chip>
           );
         })}
       </div>

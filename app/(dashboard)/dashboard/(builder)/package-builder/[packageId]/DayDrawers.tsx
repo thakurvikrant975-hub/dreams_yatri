@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import {
   Car, Loader2, Search, Trash2, Plus, ArrowUp, ArrowDown, Users, Sparkles,
 } from "lucide-react";
-import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
@@ -29,6 +28,7 @@ import { TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/
 import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
 import { RouteMiniMap } from "./RouteMiniMap";
+import { OptionRow, Segmented } from "./builder-ui";
 import { routeBetween, type RouteEstimate } from "./route-directions";
 import { invalidateStaleOverrides } from "./day-mutations";
 import {
@@ -250,50 +250,37 @@ export function TransferView({ day }: { day: number }) {
           const name = priced ? hit.vehicleName : hit.name;
           const isCurrent = priced && itin.cabPricingId === id;
           return (
-            <button
-              key={`${priced ? "p" : "v"}-${id}`}
-              type="button"
+            <div key={`${priced ? "p" : "v"}-${id}`} className="flex items-stretch gap-1.5">
+            <div className="flex-1 min-w-0">
+            <OptionRow
+              selected={isCurrent}
               onClick={() => pick(hit)}
-              className={cn(
-                "w-full text-left rounded-xl border p-3 transition-colors flex items-center gap-3",
-                isCurrent
-                  ? "border-dashboard-primary bg-dashboard-primary/5"
-                  : "border-dashboard-base-300 hover:bg-dashboard-base-200/50",
-              )}
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{name}</p>
-                <p className="text-[11px] text-dashboard-base-content/55 flex items-center gap-1.5">
+              title={name}
+              meta={
+                <span className="flex items-center gap-1">
                   <Users size={9} /> {hit.passengerCapacity} seats{hit.hasAc ? " · AC" : ""}
                   {!priced && " · no rate"}
-                </p>
-              </div>
-              {priced && (
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-bold tabular-nums">₹{hit.price.toLocaleString("en-IN")}</p>
-                  <p className="text-[10px] text-dashboard-base-content/50">{hit.pricingType.toLowerCase().replace("_", " ")}</p>
-                </div>
-              )}
-              {/* A day can need two vehicle types at once, so a result is not
-                  only "replace what's there" — see addExtraCab. */}
-              {itin.transport && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => { e.stopPropagation(); replaceDay(day, (d) => addExtraCab(d, hit)); }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault(); e.stopPropagation();
-                      replaceDay(day, (d) => addExtraCab(d, hit));
-                    }
-                  }}
-                  title="Add alongside the current vehicle"
-                  className="shrink-0 rounded-md border border-dashed border-dashboard-base-300 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-dashboard-base-content/60 hover:bg-dashboard-base-200"
-                >
-                  + Also
                 </span>
-              )}
-            </button>
+              }
+              trailing={priced ? (
+                <>
+                  <p className="text-[13px] font-bold tabular-nums">₹{hit.price.toLocaleString("en-IN")}</p>
+                  <p className="text-[10px] text-dashboard-base-content/50">{hit.pricingType.toLowerCase().replace("_", " ")}</p>
+                </>
+              ) : undefined}
+            />
+            </div>
+            {itin.transport && (
+              <button
+                type="button"
+                onClick={() => replaceDay(day, (d) => addExtraCab(d, hit))}
+                title="Add alongside the current vehicle"
+                className="shrink-0 self-center rounded-[7px] border border-dashed border-dashboard-base-300 px-2 py-1 text-[10px] font-medium text-dashboard-base-content/60 hover:bg-dashboard-base-200 transition-colors duration-[120ms]"
+              >
+                + Also
+              </button>
+            )}
+            </div>
           );
         })}
       </div>
@@ -323,23 +310,14 @@ export function ActivitiesView({ day }: { day: number }) {
 
   return (
     <div className="p-5 space-y-3">
-      <div className="flex rounded-lg bg-dashboard-base-200/60 p-0.5">
-        {(["search", "manual"] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => setTab(k)}
-            className={cn(
-              "flex-1 rounded-md py-1.5 text-[11px] font-medium transition-colors",
-              tab === k
-                ? "bg-dashboard-base-100 text-dashboard-base-content shadow-sm"
-                : "text-dashboard-base-content/55 hover:text-dashboard-base-content/80",
-            )}
-          >
-            {k === "search" ? "From the catalog" : "Write your own"}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "search", label: "From the catalog" },
+          { value: "manual", label: "Write your own" },
+        ]}
+      />
 
       {tab === "search" && <ActivitySearch day={day} />}
 
@@ -484,22 +462,19 @@ function ActivitySearch({ day }: { day: number }) {
 
       <div className="space-y-1.5 max-h-72 overflow-y-auto">
         {!loading && results.map((a) => (
-          <button
+          <OptionRow
             key={a.id}
-            type="button"
             onClick={() => pick(a)}
-            className="w-full text-left rounded-xl border border-dashboard-base-300 p-2.5 hover:bg-dashboard-base-200/50 transition-colors"
-          >
-            <p className="text-xs font-semibold truncate">{a.name}</p>
-            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-dashboard-base-content/50">
-              {a.category && <span>{a.category}</span>}
-              {a.durationHours != null && <span>{a.durationHours}h</span>}
-              {a.photos.length > 0 && <span>{a.photos.length} photo{a.photos.length !== 1 ? "s" : ""}</span>}
-            </div>
-            {a.description && (
-              <p className="text-[10.5px] text-dashboard-base-content/55 mt-1 line-clamp-2">{a.description}</p>
-            )}
-          </button>
+            title={a.name}
+            description={a.description ?? undefined}
+            meta={
+              <>
+                {a.category && <span>{a.category}</span>}
+                {a.durationHours != null && <span>{a.durationHours}h</span>}
+                {a.photos.length > 0 && <span>{a.photos.length} photo{a.photos.length !== 1 ? "s" : ""}</span>}
+              </>
+            }
+          />
         ))}
       </div>
     </div>
@@ -561,23 +536,15 @@ function RouteBlock({ day }: { day: number }) {
         <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">
           Journey
         </p>
-        <div className="flex rounded-lg bg-dashboard-base-200/60 p-0.5">
-          {(["search", "manual"] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setTab(k)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
-                tab === k
-                  ? "bg-dashboard-base-100 text-dashboard-base-content shadow-sm"
-                  : "text-dashboard-base-content/55 hover:text-dashboard-base-content/80",
-              )}
-            >
-              {k === "search" ? "On the map" : "By hand"}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          className="w-44"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "search", label: "On the map" },
+            { value: "manual", label: "By hand" },
+          ]}
+        />
       </div>
 
       {tab === "search" ? (

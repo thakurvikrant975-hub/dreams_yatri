@@ -118,14 +118,20 @@ export function BuilderDrawer() {
         // Wider than the default sheet: the replace view is a list of hotel
         // options with photos and prices, and squeezing that into a narrow
         // column is what makes people bounce back to the old panel.
-        className="no-print w-full sm:max-w-lg p-0 gap-0 flex flex-col"
+        className="no-print w-full sm:max-w-lg p-0 gap-0 flex flex-col bg-dashboard-base-100"
       >
-        <SheetHeader className="px-5 pt-5 pb-3 border-b border-dashboard-base-300">
-          <SheetTitle className="text-base">{heading?.title ?? ""}</SheetTitle>
-          <SheetDescription className="text-xs">{heading?.description ?? ""}</SheetDescription>
+        {/* The header stays put while the body scrolls — in a drawer this long
+            it's the only thing telling you which day you're editing. */}
+        <SheetHeader className="px-5 pt-5 pb-4 border-b border-dashboard-base-300 shrink-0 space-y-1">
+          <SheetTitle className="text-[15px] font-semibold tracking-[-0.01em]">
+            {heading?.title ?? ""}
+          </SheetTitle>
+          <SheetDescription className="text-[11.5px] leading-relaxed text-dashboard-base-content/55">
+            {heading?.description ?? ""}
+          </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {drawer && bodyFor(drawer)}
         </div>
       </SheetContent>
