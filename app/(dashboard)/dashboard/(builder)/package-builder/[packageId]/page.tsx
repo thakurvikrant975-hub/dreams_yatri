@@ -69,7 +69,7 @@ import { DayLayersRail } from "./DayLayersRail";
 import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
-import { BuilderDrawer } from "./BuilderDrawer";
+import { BuilderSidebar } from "./BuilderSidebar";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -1690,7 +1690,6 @@ Rules:
     <PackageBuilderProvider form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}>
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
-    <BuilderDrawer />
 
     {/* Unsaved work found from a previous session. Restored on click rather
         than automatically: the draft is only ever a few seconds ahead of the
@@ -1942,7 +1941,7 @@ Rules:
           bare aside background between it and the editor panel. Capping the
           aside and centering the whole pair turns that into a normal, even
           page margin instead. */}
-      <div className="print-reset flex justify-center relative h-[calc(100vh-3.5rem)]">
+      <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
         {/* Day rail — structure and navigation for the preview beside it.
             Desktop only: on a narrow screen the preview already takes the whole
             viewport and a third column would leave nothing for it. */}
@@ -1951,7 +1950,7 @@ Rules:
         </div>
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="print-reset hidden lg:block flex-1 max-w-[880px] border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
+        <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
           <div className="print-reset px-6 py-8">
             <ItineraryDocument
               form={previewForm}
@@ -1986,17 +1985,14 @@ Rules:
           </div>
         )}
 
-        {/* ── RIGHT: Client & Trip Setup ─────────────────────────────────────────
-            What's left of the editor panel. Day-by-day work now happens in the
-            preview and its drawers; what stays here is the package's own
-            parameters — who it's for, when, where, how many, at what margin —
-            which are what the document is generated FROM rather than anything
-            you can point at on it. */}
-        <main className="no-print w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
-          <div className="px-4 pt-5 pb-4">
-
-            <div className="flex flex-col gap-4">
-
+        {/* ── RIGHT: rail + panel ────────────────────────────────────────────────
+            One surface for everything that isn't the document: the rail's
+            persistent sections, and whichever contextual drawer the preview
+            has opened. See BuilderSidebar. */}
+        <BuilderSidebar
+          clientPanel={
+            <fieldset disabled={isLocked} className="contents">
+              <div className="p-4 space-y-4">
               {/* Awaiting-review / rejected banners — shown above the tab
                  panels so they're visible no matter which tab is open. */}
               {isLocked && (
@@ -2035,30 +2031,12 @@ Rules:
                 </div>
               )}
 
-              {/* Every tab's actual form fields live inside this fieldset —
-                 disabling it (native <fieldset disabled>) blocks every
-                 descendant input/select/textarea/button at once, including
-                 dialog TRIGGER buttons (HotelRoomPicker, image uploads,
-                 etc.) — their dialog content is portaled outside this DOM
-                 subtree, but since the trigger itself never becomes
-                 clickable, the dialog can never open. TabsList above stays
-                 outside this fieldset so switching tabs to LOOK at the
-                 (still fully visible) itinerary always works. */}
-              <fieldset disabled={isLocked} className="contents">
-
-              <div className="space-y-4">
                 <ClientDetailsSidebar query={query} j={j} t={t} b={b} s={s} tr={tr} ac={ac} />
-                {/* The other half of what the panel keeps — see TripSetupPanel
-                    for why these specific fields don't belong in the preview. */}
-                <TripSetupPanel
-                  computed={computeFinalPricing()}
-                  onApplyPrice={applyComputedPricing}
-                />
-              </div>
 
-              </fieldset>
-            </div>
-
+                {/* Save / Mark Ready / Share. In the Client tab because
+                    that's where an exec starts and finishes — the actions
+                    that move a package forward belong beside the lead it's
+                    for, not floating over the document. */}
             {/* Bottom action bar */}
             {pkgSent ? (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
@@ -2129,8 +2107,18 @@ Rules:
                 </Button>
               </div>
             )}
-          </div>
-        </main>
+              </div>
+            </fieldset>
+          }
+          tripPanel={
+            <fieldset disabled={isLocked} className="contents">
+              <TripSetupPanel
+                computed={computeFinalPricing()}
+                onApplyPrice={applyComputedPricing}
+              />
+            </fieldset>
+          }
+        />
       </div>
 
       <AlertDialog open={confirmReadyOpen} onOpenChange={setConfirmReadyOpen}>

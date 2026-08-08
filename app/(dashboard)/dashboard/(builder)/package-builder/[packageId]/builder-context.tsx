@@ -135,6 +135,14 @@ export type DrawerTarget =
   /** Route stops — the destinations the trip visits, and nights at each. */
   | { kind: "stops-edit" };
 
+/** The persistent sections on the sidebar rail — always reachable, unlike a
+ * DrawerTarget, which is opened by pointing at something in the document.
+ *
+ * Both feed the same panel. The rail is "where do I go", the drawer is "change
+ * this thing I'm looking at", and collapsing them into one surface is what
+ * stops the builder having two competing places for controls to live. */
+export type PanelTab = "client" | "trip" | "stops" | "tickets" | "addons";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Context
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,10 +165,15 @@ type BuilderContextValue = {
    * the viewer otherwise may not edit. Every edit surface must gate on this —
    * see useCanEdit. */
   canEdit: boolean;
-  /** Currently-open drawer, or null. */
+  /** Currently-open contextual drawer, or null. Takes over the panel while
+   * set, because it's always a response to something just clicked. */
   drawer: DrawerTarget | null;
   openDrawer: (target: DrawerTarget) => void;
   closeDrawer: () => void;
+  /** The rail section shown when no drawer is open. Null means the panel is
+   * collapsed to just the rail. */
+  panelTab: PanelTab | null;
+  setPanelTab: (tab: PanelTab | null) => void;
   /** Patches one day in `form.itineraries`, matched by its `day` number. */
   updateDay: (day: number, patch: Partial<DayItinerary>) => void;
   /** Same, for an edit that needs the previous day to compute the next one
@@ -210,6 +223,7 @@ export function PackageBuilderProvider({
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
+  const [panelTab, setPanelTab] = useState<PanelTab | null>("client");
 
   const value = useMemo<BuilderContextValue>(() => ({
     form,
@@ -219,12 +233,20 @@ export function PackageBuilderProvider({
     drawer,
     openDrawer: (target) => setDrawer(target),
     closeDrawer: () => setDrawer(null),
+    panelTab,
+    setPanelTab: (tab) => {
+      // Choosing a rail section dismisses whatever contextual drawer was open —
+      // they share one panel, and leaving the drawer underneath would make
+      // "back" ambiguous.
+      setDrawer(null);
+      setPanelTab(tab);
+    },
     updateDay: (day, patch) => setForm((f) => replaceDay(f, day, (it) => ({ ...it, ...patch }))),
     replaceDay: (day, fn) => setForm((f) => replaceDay(f, day, fn)),
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
     moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),
-  }), [form, setForm, canEdit, dayCosts, drawer]);
+  }), [form, setForm, canEdit, dayCosts, drawer, panelTab]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }
