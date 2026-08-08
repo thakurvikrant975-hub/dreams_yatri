@@ -2070,6 +2070,7 @@ const CATEGORY_MIGRATION_MAP: Record<string, { propertyCategory: PropertyCategor
   camp:                { propertyCategory: "HOTEL",          propertySubType: "CAMP" },
   glamping:            { propertyCategory: "HOTEL",          propertySubType: "LUXURY_CAMPS" },
   treehouse:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "TREEHOUSE" },
+  lodge:               { propertyCategory: "HOTEL",          propertySubType: "LODGE" },
   jungle_lodge:        { propertyCategory: "HOTEL",          propertySubType: "LODGE" },
   eco_lodge:           { propertyCategory: "HOTEL",          propertySubType: "LODGE" },
   houseboat:           { propertyCategory: "HOMESTAY_VILLA", propertySubType: "HOUSEBOAT" },
