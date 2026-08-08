@@ -1378,70 +1378,26 @@ const ADD_CONTROL_CLASS =
   "border border-dashed px-3 py-2.5 text-[11px] font-medium transition-colors " +
   "hover:bg-dashboard-primary/6";
 
-/** Scrolls the preview to a day. Every day card carries this id. */
-function jumpToDay(day: number) {
-  document.getElementById(`builder-day-${day}`)
-    ?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-/** A horizontal strip of day tabs above the detailed itinerary.
+/** Appends a day to the end of the itinerary.
  *
- * A ten-day package is a very long scroll, and the day you want is almost
- * never the one on screen. The Itinerary section of the sidebar can already
- * jump anywhere, but it costs a trip to the other edge of the window for what
- * is the single most repeated movement in the whole builder.
- *
- * One row that scrolls sideways rather than wrapping: a wrapping strip changes
- * height as days are added, which shifts the document under the pointer
- * mid-edit. Not sticky, though it wants to be — the A4 page wrapper is
- * `overflow-hidden`, which makes it the scroll container for anything sticky
- * inside it, and since that wrapper grows to fit its content there is no
- * scroll range to stick against. Swapping it for `overflow-clip` would fix
- * that, but this same DOM is what html2canvas rasterises for the PDF and it is
- * not worth risking the hero bleeding past the page edge in an export to save
- * a scroll. Persistent navigation lives in the sidebar's Itinerary section.
- *
- * Add day sits at the end of the same row because that is where the day it
- * creates will appear.
- */
-function DayTabStrip() {
+ * The per-day menu can already insert after any given day, but appending is
+ * the common case by far and having to open day N's menu to get day N+1 reads
+ * backwards — the action belongs at the end of the list, where the new day
+ * will actually appear. */
+function AddDayButton() {
   const builder = useOptionalBuilder();
   if (!builder?.canEdit) return null;
-
-  const days = builder.form.itineraries;
+  const lastDay = builder.form.itineraries.length;
 
   return (
-    <div className="builder-only no-print">
-      {/* scrollbar-none: the tabs are their own affordance — a permanent
-          scrollbar under a 28px-tall row reads as a rendering glitch. */}
-      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-        {days.map((d) => (
-          <button
-            key={d.day}
-            type="button"
-            onClick={() => jumpToDay(d.day)}
-            title={d.title || `Day ${d.day}`}
-            className="shrink-0 flex items-baseline gap-1.5 rounded-full border px-2.5 py-1 text-[10.5px] font-medium transition-colors hover:bg-dashboard-primary/6"
-            style={{ borderColor: DOC.rule, color: DOC.inkSoft }}
-          >
-            <span className="font-bold tabular-nums" style={{ color: DOC.accent }}>
-              {String(d.day).padStart(2, "0")}
-            </span>
-            <span className="max-w-[11ch] truncate">{d.title || "Untitled"}</span>
-          </button>
-        ))}
-
-        <button
-          type="button"
-          onClick={() => builder.addDayAfter(days.length)}
-          title={`Add day ${days.length + 1}`}
-          className="shrink-0 flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-[10.5px] font-medium transition-colors hover:bg-dashboard-primary/6"
-          style={{ borderColor: DOC.rule, color: DOC.accent }}
-        >
-          <CalendarPlus size={11} /> Add day {days.length + 1}
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={() => builder.addDayAfter(lastDay)}
+      className={ADD_CONTROL_CLASS}
+      style={{ borderColor: DOC.rule, color: DOC.accent }}
+    >
+      <CalendarPlus size={12} /> Add day {lastDay + 1}
+    </button>
   );
 }
 
@@ -1637,8 +1593,8 @@ function DayCardPreview({
 
   return (
     <div
-      // Scroll target for both day navigators — the tab strip above and the
-      // sidebar's Itinerary list. See jumpToDay in each.
+      // Scroll target for the sidebar's Itinerary section — see jumpToDay
+      // in DayListPanel.
       id={`builder-day-${day.day}`}
       className="rounded-2xl overflow-hidden"
       style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
@@ -2692,7 +2648,6 @@ export function ItineraryDocument({
 
           <div className="space-y-3">
             <SectionHeader icon={Milestone} label="Detailed Itinerary" />
-            <DayTabStrip />
             <div className="space-y-3">
               {form.itineraries.map((d, i) => (
                 <DayCardPreview
@@ -2708,6 +2663,7 @@ export function ItineraryDocument({
                   addOns={form.addOns}
                 />
               ))}
+              <AddDayButton />
             </div>
           </div>
 
