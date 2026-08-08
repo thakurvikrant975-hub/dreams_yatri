@@ -179,7 +179,14 @@ function ImageEditButton({
         <button
           type="button"
           className={cn(
-            "no-print absolute z-20 flex items-center justify-center rounded-full bg-black/55 hover:bg-black/75 text-white opacity-0 group-hover/img:opacity-100 transition-opacity",
+            "no-print absolute z-20 flex items-center justify-center rounded-full",
+            "bg-black/55 hover:bg-black/75 text-white transition-opacity duration-[120ms]",
+            // Visible on the image itself, AND whenever its section is hovered.
+            // Hovering "Stay" should reveal everything in that section you can
+            // change — its photos included — rather than making you discover
+            // each tile by sweeping the pointer across it.
+            "opacity-0 group-hover/img:opacity-100 group-hover/section:opacity-100",
+            "focus-visible:opacity-100",
             className,
           )}
           aria-label={`Change ${dialogTitle.toLowerCase()}`}
