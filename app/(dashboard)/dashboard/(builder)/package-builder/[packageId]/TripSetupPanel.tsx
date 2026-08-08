@@ -21,7 +21,9 @@
 // So this is the block that survives when the six tabs go.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { CalendarDays, Users, MapPin, Percent, Baby } from "lucide-react";
+import { CalendarDays, Users, MapPin, Percent, Baby, IndianRupee } from "lucide-react";
+import { cn } from "@/app/lib/utils";
+import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { useBuilder, type PackageForm } from "./builder-context";
 import { RouteStopsEditor } from "./RouteStopsEditor";
@@ -47,7 +49,15 @@ function Block({ icon: Icon, title, children }: {
   );
 }
 
-export function TripSetupPanel() {
+export function TripSetupPanel({ computed, onApplyPrice }: {
+  /** What the trip currently costs, all margins and tax applied. */
+  computed: { finalPrice: number; perPerson: number };
+  /** Writes perPerson into the package. Explicit rather than automatic: the
+   * exec is allowed to quote a number that isn't the computed one, and
+   * overwriting a deliberate figure every time a hotel changed would be
+   * worse than asking. */
+  onApplyPrice: () => void;
+}) {
   const { form, setForm, canEdit } = useBuilder();
 
   function field<K extends keyof PackageForm>(key: K) {
@@ -206,8 +216,39 @@ export function TripSetupPanel() {
           </label>
         </div>
         <p className="text-[11px] text-dashboard-base-content/45">
-          Applied on top of the hotel, cab, ticket and add-on costs. The running total
-          in the header reflects both.
+          Applied on top of the hotel, cab, ticket and add-on costs.
+        </p>
+      </Block>
+
+      <Block icon={IndianRupee} title="Package price">
+        <div className="rounded-[10px] border border-dashboard-base-300 p-3 space-y-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[11px] text-dashboard-base-content/60">Works out to</span>
+            <span className="text-sm font-bold tabular-nums">
+              ₹{computed.perPerson.toLocaleString("en-IN")}
+              <span className="text-[11px] font-normal text-dashboard-base-content/50"> / person</span>
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[11px] text-dashboard-base-content/60">Quoting</span>
+            <span className={cn(
+              "text-sm font-bold tabular-nums",
+              !form.pricePerPerson && "text-dashboard-base-content/35",
+            )}>
+              {form.pricePerPerson
+                ? `₹${Number(form.pricePerPerson).toLocaleString("en-IN")}`
+                : "not set"}
+            </span>
+          </div>
+          {computed.perPerson > 0 && String(computed.perPerson) !== form.pricePerPerson && (
+            <Button type="button" size="sm" className="w-full h-8 text-xs" onClick={onApplyPrice}>
+              Quote ₹{computed.perPerson.toLocaleString("en-IN")} per person
+            </Button>
+          )}
+        </div>
+        <p className="text-[11px] text-dashboard-base-content/45">
+          This is the figure the client sees and the one saved with the package —
+          set it before sending, or costing review has nothing to check.
         </p>
       </Block>
     </div>
