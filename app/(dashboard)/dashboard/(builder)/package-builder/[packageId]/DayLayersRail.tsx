@@ -121,7 +121,12 @@ function DayRow({ id, index }: { id: string; index: number }) {
 
 export function DayLayersRail() {
   const { form, canEdit, moveDay, addDayAfter, setSelectedDay } = useBuilder();
-  const [open, setOpen] = useState(true);
+  // Collapsed by default. The Itinerary section on the right lists the same
+  // days and is where the per-day work happens, so opening with both expanded
+  // spends 208px of document width on a second copy of information already on
+  // screen. Reordering is worth the column when you want it — it just isn't
+  // what most sessions start with.
+  const [open, setOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
