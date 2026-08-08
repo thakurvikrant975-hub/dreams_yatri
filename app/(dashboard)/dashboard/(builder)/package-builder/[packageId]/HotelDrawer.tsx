@@ -33,7 +33,7 @@ import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
 import { Field, OptionRow, Chip, Empty } from "./builder-ui";
 import {
-  applyHotelRoomSelection, clearHotelSelection, invalidateStaleOverrides,
+  applyHotelRoomSelection, removeStay, invalidateStaleOverrides,
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
   addExtraRoom, updateExtraRoom, removeExtraRoom, beginManualHotel,
   stayRun, validateStayAssignment,
@@ -291,14 +291,14 @@ export function HotelEditView({ day }: { day: number }) {
     setForm((f) => ({
       ...f,
       itineraries: f.itineraries.map((it) =>
-        target.has(it.day) ? invalidateStaleOverrides(it, clearHotelSelection(it)) : it,
+        target.has(it.day) ? invalidateStaleOverrides(it, removeStay(it)) : it,
       ),
     }));
     toast.success(`Removed from ${days.length} day${days.length !== 1 ? "s" : ""}`);
   }
 
   function removeHotel() {
-    replaceDay(day, clearHotelSelection);
+    replaceDay(day, removeStay);
     toast.success(`Day ${day}: stay removed`);
     closeDrawer();
   }
@@ -891,7 +891,7 @@ function StayNights({ day }: { day: number }) {
         // Dropped from the run — clear it, so unticking a night actually
         // releases it rather than leaving the hotel silently attached.
         if (run.includes(it.day)) {
-          return invalidateStaleOverrides(it, clearHotelSelection(it));
+          return invalidateStaleOverrides(it, removeStay(it));
         }
         return it;
       }),

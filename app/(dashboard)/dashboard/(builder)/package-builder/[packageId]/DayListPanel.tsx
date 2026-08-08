@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type DrawerTarget } from "./builder-context";
-import { clearHotelSelection, clearVehicleSelection, continuesStayFrom, dayReadiness } from "./day-mutations";
+import { removeStay, removeTransport, continuesStayFrom, dayReadiness } from "./day-mutations";
 import { Empty, Group } from "./builder-ui";
 import type { DayItinerary } from "../action";
 
@@ -228,12 +228,7 @@ function elementsFor(
       // happen on the day that started it.
       clear: continuedFrom
         ? undefined
-        : () => replaceDay(n, (it) => ({
-            ...clearHotelSelection(it),
-            hotelPending: false,
-            hotelPendingNote: "",
-            hotelRequestType: null,
-          })),
+        : () => replaceDay(n, removeStay),
       clearBlockedBy: continuedFrom
         ? `Part of a stay that starts on day ${continuedFrom} — remove it there`
         : undefined,
@@ -243,7 +238,7 @@ function elementsFor(
       label: "Transport",
       value: d.transport || null,
       open: { kind: "transfer-edit", day: n },
-      clear: () => replaceDay(n, clearVehicleSelection),
+      clear: () => replaceDay(n, removeTransport),
     },
     {
       icon: Sparkles,

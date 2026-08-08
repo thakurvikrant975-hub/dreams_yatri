@@ -32,7 +32,7 @@ import { OptionRow, Segmented } from "./builder-ui";
 import { routeBetween, type RouteEstimate } from "./route-directions";
 import { invalidateStaleOverrides } from "./day-mutations";
 import {
-  applyVehicleSelection, clearVehicleSelection, isPricedVehicle, type AnyVehicleHit,
+  applyVehicleSelection, removeTransport, isPricedVehicle, type AnyVehicleHit,
   addActivity, updateActivity, removeActivity, moveActivity,
   addExtraCab, updateExtraCab, removeExtraCab,
 } from "./day-mutations";
@@ -83,7 +83,7 @@ export function TransferView({ day }: { day: number }) {
   }
 
   function removeVehicle() {
-    replaceDay(day, clearVehicleSelection);
+    replaceDay(day, removeTransport);
     toast.success(`Day ${day}: transport removed`);
     closeDrawer();
   }
@@ -118,7 +118,7 @@ export function TransferView({ day }: { day: number }) {
     setForm((f) => ({
       ...f,
       itineraries: f.itineraries.map((it) =>
-        target.has(it.day) ? invalidateStaleOverrides(it, clearVehicleSelection(it)) : it,
+        target.has(it.day) ? invalidateStaleOverrides(it, removeTransport(it)) : it,
       ),
     }));
     toast.success(`Removed from ${days.length} day${days.length !== 1 ? "s" : ""}`);

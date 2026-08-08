@@ -89,13 +89,28 @@ export function applyHotelRoomSelection(
 }
 
 /**
- * Clears the day's hotel.
+ * Takes the stay off a day entirely.
+ *
+ * "Entirely" is the whole point, and is what this got wrong before: it used to
+ * clear the room but leave hotelCheckIn/hotelCheckOut behind, and the document
+ * decides whether to render a Stay section from
+ * `accommodation || hotelCheckIn || hotelCheckOut || hotelMealPlan`. So
+ * removing a hotel left an empty Stay heading with blank times under it, which
+ * reads as a bug and is one — the exec asked for it to be gone.
+ *
+ * The rule for anything added here later: if the document's `hasHotel` test
+ * looks at a field, this must clear it.
  *
  * Zeroes roomPricingId so a removed hotel stops contributing to the price, and
  * drops the capacity snapshot with it — leaving stale caps behind would let a
- * hand-typed replacement inherit the old room's occupancy limits.
+ * hand-typed replacement inherit the old room's occupancy limits. Costing's
+ * hotelPriceOverride is dropped by invalidateStaleOverrides, which every edit
+ * goes through via replaceDay.
+ *
+ * Cancels a pending hotel request too. A day awaiting the hotel team still
+ * renders a Stay section, so leaving the request would leave the section.
  */
-export function clearHotelSelection(day: DayItinerary): DayItinerary {
+export function removeStay(day: DayItinerary): DayItinerary {
   return {
     ...day,
     accommodation: "",
@@ -108,9 +123,30 @@ export function clearHotelSelection(day: DayItinerary): DayItinerary {
     accommodationMaxChildren: null,
     accommodationExtraBedCapacity: null,
     hotelMealPlan: "",
+    // The two the old version missed — the reason a removed stay stayed on
+    // screen as an empty section.
+    hotelCheckIn: "",
+    hotelCheckOut: "",
+    // The meals came from the room's plan (see applyHotelRoomSelection), so
+    // they go with it. Otherwise the client's document shows "Meals:
+    // Breakfast, Dinner" on a day with no hotel to serve them. Hand-set meals
+    // are lost with it, which undo covers and the Meals editor re-does in two
+    // clicks — a stale meal line reaching a sent PDF is the worse outcome.
+    meals: [],
     roomPricingId: null,
     roomsCount: null,
     extraRooms: [],
+    // A hand-typed stay's own numbers, which otherwise survive to be silently
+    // inherited by the next hotel picked for this day.
+    manualHotelPricePerNight: null,
+    manualExtraBeds: null,
+    manualExtraBedRate: null,
+    // Request state, and the hotel team's record of having filled it in.
+    hotelPending: false,
+    hotelPendingNote: "",
+    hotelRequestType: null,
+    hotelFilledAt: null,
+    hotelFilledByName: null,
   };
 }
 
@@ -152,14 +188,23 @@ export function applyVehicleSelection(day: DayItinerary, hit: AnyVehicleHit): Da
 }
 
 /**
- * Clears the day's vehicle.
+ * Takes the transport off a day entirely — vehicle and route both.
  *
- * Zeroes cabPricingId so a removed vehicle stops contributing to the price.
- * Pickup/drop/distance/travel-time are deliberately left alone — those
- * describe the route, not which vehicle covers it, and an exec swapping cabs
- * should not have to retype them.
+ * The route used to be left alone on the reasoning that pickup/drop/distance
+ * describe where the day goes rather than what covers it, and swapping cabs
+ * shouldn't cost a retype. But the document renders a Transport section from
+ * `transport || transportPickup || transportDrop`, so every caller of this is
+ * a "Remove transport" action that was leaving a routed-but-vehicleless
+ * section behind. Removing means removing.
+ *
+ * Swapping a vehicle doesn't come through here at all — applyVehicleSelection
+ * overwrites the vehicle fields and never touches the route, so the retype this
+ * was protecting against was never a real risk.
+ *
+ * Zeroes cabPricingId so a removed vehicle stops contributing to the price;
+ * cabPriceOverride is dropped by invalidateStaleOverrides via replaceDay.
  */
-export function clearVehicleSelection(day: DayItinerary): DayItinerary {
+export function removeTransport(day: DayItinerary): DayItinerary {
   return {
     ...day,
     transport: "",
@@ -169,6 +214,15 @@ export function clearVehicleSelection(day: DayItinerary): DayItinerary {
     cabPricingId: null,
     cabQuantity: null,
     extraCabs: [],
+    // The route, which the old version left behind.
+    transportPickup: "",
+    transportPickupLat: null,
+    transportPickupLng: null,
+    transportDrop: "",
+    transportDropLat: null,
+    transportDropLng: null,
+    transportDistanceKm: null,
+    transportTravelTime: "",
   };
 }
 
@@ -353,7 +407,7 @@ export const STAY_TYPE_LABELS: Record<string, string> = {
  */
 export function beginHotelRequest(day: DayItinerary): DayItinerary {
   return {
-    ...clearHotelSelection(day),
+    ...removeStay(day),
     manualExtraBeds: null,
     manualHotelPricePerNight: null,
     manualExtraBedRate: null,
@@ -426,7 +480,7 @@ export function removeExtraRoom(day: DayItinerary, index: number): DayItinerary 
  */
 export function beginManualHotel(day: DayItinerary): DayItinerary {
   return {
-    ...clearHotelSelection(day),
+    ...removeStay(day),
     hotelPending: false,
     hotelPendingNote: "",
     hotelRequestType: null,

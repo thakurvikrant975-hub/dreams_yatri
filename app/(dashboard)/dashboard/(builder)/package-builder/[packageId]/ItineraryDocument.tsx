@@ -24,7 +24,7 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
-import { continuesStayFrom, clearHotelSelection, clearVehicleSelection } from "./day-mutations";
+import { continuesStayFrom, removeStay, removeTransport } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
@@ -1540,7 +1540,7 @@ function DayCardPreview({
     },
     {
       icon: Trash2, label: "Remove stay", tone: "danger",
-      onClick: () => builder!.replaceDay(day.day, clearHotelSelection),
+      onClick: () => builder!.replaceDay(day.day, removeStay),
     },
   ] : undefined;
 
@@ -1551,7 +1551,7 @@ function DayCardPreview({
     },
     {
       icon: Trash2, label: "Remove transport", tone: "danger",
-      onClick: () => builder!.replaceDay(day.day, clearVehicleSelection),
+      onClick: () => builder!.replaceDay(day.day, removeTransport),
     },
   ] : undefined;
 
