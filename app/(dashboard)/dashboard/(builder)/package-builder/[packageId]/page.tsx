@@ -82,6 +82,7 @@ import { RouteStopsEditor } from "./RouteStopsEditor";
 import { TripSetupPanel } from "./TripSetupPanel";
 import { DayLayersRail } from "./DayLayersRail";
 import { useUndoableState } from "./use-undoable-state";
+import { useLocalDraft } from "./use-local-draft";
 import { applyHotelRoomSelection, emptyDay, emptyTicket, computeDurationText, TICKET_TYPE_LABELS } from "./day-mutations";
 import { geocodeCity } from "./geocode-city";
 import { BuilderDrawer } from "./BuilderDrawer";
@@ -2943,6 +2944,8 @@ export default function PackageBuilderDetailPage() {
         status,
       });
       if (result.success) {
+        // The server now has it, so the crash-recovery copy is redundant.
+        localDraft.clear();
         setSavedOk(true);
         setTimeout(() => setSavedOk(false), 3000);
       } else {
@@ -2965,6 +2968,16 @@ export default function PackageBuilderDetailPage() {
   //
   // Explicit Save Draft stays: autosave removes the tax of remembering it, not
   // the ability to force one.
+  // The other half of autosave: a localStorage copy written every ~800ms, so a
+  // crash, a closed laptop or a stray refresh can't lose the seconds between
+  // server saves. Cleared whenever a server save lands, which is what makes a
+  // draft's mere existence mean "there was unsaved work".
+  const localDraft = useLocalDraft<PackageForm>({
+    packageId,
+    form,
+    armed: !loading && !!query && query.customPackage?.status !== "READY",
+  });
+
   const AUTOSAVE_DELAY_MS = 3000;
   const autosaveArmed = useRef(false);
   const lastSavedSnapshot = useRef<string | null>(null);
@@ -3819,6 +3832,42 @@ Rules:
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
     <BuilderDrawer />
+
+    {/* Unsaved work found from a previous session. Restored on click rather
+        than automatically: the draft is only ever a few seconds ahead of the
+        server copy, so the cost of asking is one click, and the cost of
+        silently resurrecting edits somebody deliberately abandoned is worse.
+        Undo covers it either way once applied. */}
+    {localDraft.found && (
+      <div className="no-print fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 shadow-lg">
+        <AlertCircle size={15} className="text-amber-600 shrink-0" />
+        <p className="text-xs text-amber-900">
+          Unsaved changes from {new Date(localDraft.found.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })} were
+          recovered from this browser.
+        </p>
+        <Button
+          type="button" size="sm"
+          className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+          onClick={() => {
+            const recovered = localDraft.found!.form;
+            // Through setForm, not reset — restoring IS an edit, so undo can
+            // take you back to the server copy if it wasn't what you wanted.
+            setForm(() => recovered);
+            localDraft.dismiss();
+            toast.success("Unsaved changes restored");
+          }}
+        >
+          Restore
+        </Button>
+        <button
+          type="button"
+          onClick={localDraft.dismiss}
+          className="text-xs text-amber-800/70 hover:text-amber-900"
+        >
+          Discard
+        </button>
+      </div>
+    )}
     <div className="print-reset h-screen overflow-hidden flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
