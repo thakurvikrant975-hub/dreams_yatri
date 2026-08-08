@@ -141,7 +141,13 @@ export type DrawerTarget =
  * Both feed the same panel. The rail is "where do I go", the drawer is "change
  * this thing I'm looking at", and collapsing them into one surface is what
  * stops the builder having two competing places for controls to live. */
-export type PanelTab = "client" | "trip" | "stops" | "itinerary" | "tickets" | "addons";
+export type PanelTab =
+  // Package-level settings — what the document is built from.
+  | "client" | "trip" | "stops" | "itinerary" | "tickets" | "addons"
+  // Catalog suggestions, scoped to the trip's destinations. Distinct from the
+  // per-day drawers: these are browsed, then dragged onto whichever day they
+  // belong to, rather than opened for a day you already picked.
+  | "hotels" | "activities" | "cabs";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context

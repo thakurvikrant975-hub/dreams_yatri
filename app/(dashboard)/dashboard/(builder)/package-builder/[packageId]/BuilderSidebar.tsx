@@ -21,7 +21,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  User, CalendarDays, MapPin, ListOrdered, Plane, Gift, PanelRightClose, PanelRightOpen, ArrowLeft,
+  User, CalendarDays, MapPin, ListOrdered, Plane, Gift, Hotel, Sparkles, Car,
+  PanelRightClose, PanelRightOpen, ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type PanelTab, type DrawerTarget } from "./builder-context";
@@ -30,6 +31,7 @@ import { TransferView, ActivitiesView } from "./DayDrawers";
 import { MealsView, AddonsView, TicketsView, NoteView, StopsView } from "./ExtrasDrawers";
 import { TICKET_TYPE_LABELS } from "./day-mutations";
 import { DayListPanel } from "./DayListPanel";
+import { HotelSuggestionsView, ActivitySuggestionsView, CabSuggestionsView } from "./SuggestionsPanel";
 
 const RAIL: { tab: PanelTab; icon: React.ElementType; label: string }[] = [
   { tab: "client", icon: User, label: "Client" },
@@ -38,6 +40,15 @@ const RAIL: { tab: PanelTab; icon: React.ElementType; label: string }[] = [
   { tab: "itinerary", icon: ListOrdered, label: "Itinerary" },
   { tab: "tickets", icon: Plane, label: "Travel" },
   { tab: "addons", icon: Gift, label: "Add-ons" },
+];
+
+/** The catalog half of the rail, separated by a rule. These behave differently
+ * enough to earn the divider: everything above configures the package, and
+ * everything below is content you drag into a day. */
+const CATALOG_RAIL: { tab: PanelTab; icon: React.ElementType; label: string }[] = [
+  { tab: "hotels", icon: Hotel, label: "Hotels" },
+  { tab: "activities", icon: Sparkles, label: "Things" },
+  { tab: "cabs", icon: Car, label: "Cabs" },
 ];
 
 function headingForDrawer(target: DrawerTarget): { title: string; description: string } {
@@ -92,7 +103,38 @@ function headingForTab(tab: PanelTab): { title: string; description: string } {
     case "itinerary": return { title: "Itinerary", description: "Drag to reorder days. Dots show what each one is still missing." };
     case "tickets": return { title: "Travel", description: "Flights, trains, helicopters and other legs." };
     case "addons": return { title: "Add-ons", description: "Extras priced into the package." };
+    case "hotels": return { title: "Hotels", description: "Rooms priced for this trip's destinations. Drag one onto a day." };
+    case "activities": return { title: "Things to do", description: "Experiences from the catalog. Drag one onto a day." };
+    case "cabs": return { title: "Cabs", description: "Vehicles priced for this trip's destinations. Drag one onto a day." };
   }
+}
+
+function RailButton({ entry }: {
+  entry: { tab: PanelTab; icon: React.ElementType; label: string };
+}) {
+  const { drawer, panelTab, setPanelTab } = useBuilder();
+  const { tab, icon: Icon, label } = entry;
+  // A drawer suppresses the rail's active state: what's on screen is the
+  // drawer, and highlighting a section that isn't showing would be a lie about
+  // where you are.
+  const active = !drawer && panelTab === tab;
+
+  return (
+    <button
+      type="button"
+      onClick={() => setPanelTab(active ? null : tab)}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "w-[56px] flex flex-col items-center gap-1 rounded-lg py-2 transition-colors duration-[120ms]",
+        active
+          ? "bg-dashboard-primary/10 text-dashboard-primary"
+          : "text-dashboard-base-content/55 hover:bg-dashboard-base-300/60 hover:text-dashboard-base-content",
+      )}
+    >
+      <Icon size={17} />
+      <span className="text-[9.5px] font-medium leading-none">{label}</span>
+    </button>
+  );
 }
 
 export function BuilderSidebar({ clientPanel, tripPanel }: {
@@ -115,6 +157,9 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
       case "itinerary": return <DayListPanel />;
       case "tickets": return <TicketsView type="FLIGHT" />;
       case "addons": return <AddonsView day={null} />;
+      case "hotels": return <HotelSuggestionsView />;
+      case "activities": return <ActivitySuggestionsView />;
+      case "cabs": return <CabSuggestionsView />;
       default: return null;
     }
   }
@@ -167,29 +212,11 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
         aria-label="Builder sections"
         className="w-[68px] shrink-0 h-full flex flex-col items-center gap-1 border-l border-dashboard-base-300 bg-dashboard-base-200/60 py-3"
       >
-        {RAIL.map(({ tab, icon: Icon, label }) => {
-          // A drawer suppresses the rail's active state: what's on screen is
-          // the drawer, and highlighting a section that isn't showing would be
-          // a lie about where you are.
-          const active = !drawer && panelTab === tab;
-          return (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setPanelTab(active ? null : tab)}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "w-[56px] flex flex-col items-center gap-1 rounded-lg py-2 transition-colors duration-[120ms]",
-                active
-                  ? "bg-dashboard-primary/10 text-dashboard-primary"
-                  : "text-dashboard-base-content/55 hover:bg-dashboard-base-300/60 hover:text-dashboard-base-content",
-              )}
-            >
-              <Icon size={17} />
-              <span className="text-[9.5px] font-medium leading-none">{label}</span>
-            </button>
-          );
-        })}
+        {RAIL.map((entry) => <RailButton key={entry.tab} entry={entry} />)}
+
+        <span className="my-1 h-px w-8 bg-dashboard-base-300" />
+
+        {CATALOG_RAIL.map((entry) => <RailButton key={entry.tab} entry={entry} />)}
 
         {!open && (
           <button

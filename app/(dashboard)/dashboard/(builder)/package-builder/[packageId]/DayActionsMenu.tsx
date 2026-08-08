@@ -29,7 +29,8 @@ import {
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
-import { useBuilder } from "./builder-context";
+import { useBuilder, type DrawerTarget } from "./builder-context";
+import { DaySlot, type SlotKind } from "./builder-dnd";
 
 const CONFIRM_WORD = "delete";
 
@@ -163,7 +164,17 @@ export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasM
 }) {
   const { openDrawer } = useBuilder();
 
-  const items = [
+  // `accepts` is what makes an EMPTY day reachable by drag. The day's rendered
+  // sections are the natural drop targets, but a day with no stay has no stay
+  // section to aim at — so its "Add stay" button is the target instead, which
+  // is also where someone would already be pointing.
+  const items: {
+    icon: React.ElementType;
+    label: string;
+    on: boolean;
+    target: DrawerTarget;
+    accepts?: SlotKind;
+  }[] = [
     {
       icon: Hotel,
       label: isPending ? "Hotel request" : hasStay ? "Stay" : "Add stay",
@@ -171,18 +182,21 @@ export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasM
       target: isPending
         ? { kind: "hotel-request" as const, day }
         : hasStay ? { kind: "hotel-edit" as const, day } : { kind: "hotel-replace" as const, day },
+      accepts: "hotel",
     },
     {
       icon: Car,
       label: hasTransport ? "Transport" : "Add transport",
       on: hasTransport,
       target: { kind: "transfer-edit" as const, day },
+      accepts: "cab",
     },
     {
       icon: Sparkles,
       label: hasActivities ? "Experiences" : "Add experiences",
       on: hasActivities,
       target: { kind: "activities-edit" as const, day },
+      accepts: "activity",
     },
     {
       icon: Utensils,
@@ -194,23 +208,29 @@ export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasM
 
   return (
     <div className="builder-only no-print flex flex-wrap gap-1.5 px-3.5 pb-3">
-      {items.map(({ icon: Icon, label, on, target }) => (
-        <button
-          key={label}
-          type="button"
-          onClick={() => openDrawer(target)}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-            on
-              ? "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200/60"
-              // Nothing there yet — dashed, so an incomplete day reads as
-              // incomplete at a glance rather than looking the same as a full one.
-              : "border-dashed border-dashboard-primary/35 text-dashboard-primary/80 hover:bg-dashboard-primary/6",
-          )}
-        >
-          <Icon size={12} /> {label}
-        </button>
-      ))}
+      {items.map(({ icon: Icon, label, on, target, accepts }) => {
+        const button = (
+          <button
+            type="button"
+            onClick={() => openDrawer(target)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+              on
+                ? "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200/60"
+                // Nothing there yet — dashed, so an incomplete day reads as
+                // incomplete at a glance rather than looking the same as a full one.
+                : "border-dashed border-dashboard-primary/35 text-dashboard-primary/80 hover:bg-dashboard-primary/6",
+            )}
+          >
+            <Icon size={12} /> {label}
+          </button>
+        );
+        // Already on the day: the section itself is the drop target, and a
+        // second one down here would just be two places that do the same thing.
+        return accepts && !on
+          ? <DaySlot key={label} day={day} accepts={accepts}>{button}</DaySlot>
+          : <div key={label}>{button}</div>;
+      })}
     </div>
   );
 }

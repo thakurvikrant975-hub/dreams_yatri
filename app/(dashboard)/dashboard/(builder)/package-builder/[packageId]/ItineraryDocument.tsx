@@ -29,6 +29,7 @@ import { EditableText } from "./EditableText";
 import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
+import { DaySlot } from "./builder-dnd";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
@@ -1679,6 +1680,7 @@ function DayCardPreview({
 
         {/* Hotel info */}
         {hasHotel && (
+          <DaySlot day={day.day} accepts="hotel">
           <EditableSection actions={stayActions}>
           {continuesFrom != null ? (
             // Night 2+ of the same stay: the client already read the hotel's
@@ -1866,6 +1868,7 @@ function DayCardPreview({
           </div>
           )}
           </EditableSection>
+          </DaySlot>
         )}
 
         <DayAddonsSection addOns={addOns ?? []} day={day.day} />
@@ -1876,6 +1879,7 @@ function DayCardPreview({
 
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
+          <DaySlot day={day.day} accepts="cab">
           <EditableSection actions={transportActions}>
           <div className="space-y-2" style={{ breakInside: "avoid" }}>
             <DaySubHead
@@ -1997,6 +2001,7 @@ function DayCardPreview({
             </div>
           </div>
           </EditableSection>
+          </DaySlot>
         )}
 
         {/* Meals — shifted so breakfast shows on the day it's actually eaten
@@ -2018,6 +2023,7 @@ function DayCardPreview({
         {/* Activities */}
 
         {activities.length > 0 && (
+          <DaySlot day={day.day} accepts="activity">
           <div className="space-y-2.5">
             {activities.map(({ a, originalIndex }, idx) => {
               const row = (
@@ -2058,6 +2064,7 @@ function DayCardPreview({
               return <div key={originalIndex} className={SUBHEAD_INDENT}>{row}</div>;
             })}
           </div>
+          </DaySlot>
         )}
 
         {/* Client-facing copy, not an internal remark — it already rendered on
