@@ -27,6 +27,7 @@ import { useOptionalBuilder, applyFieldEdit, fieldKey, type EditableField } from
 
 export function EditableText({
   value, field, placeholder, fallback, className, style, multiline = false, as: Tag = "span",
+  readOnly, readOnlyReason,
 }: {
   value: string;
   field: EditableField;
@@ -48,6 +49,12 @@ export function EditableText({
   style?: React.CSSProperties;
   multiline?: boolean;
   as?: "span" | "p" | "h1" | "h2" | "h3" | "div";
+  /** Editable in principle, but not this value — a hotel's name and specs come
+   * from the catalog, and letting someone retype them here would silently
+   * desync the day from the room it's priced against. Renders as plain text
+   * with an explanation on hover rather than as a dead control. */
+  readOnly?: boolean;
+  readOnlyReason?: string;
 }) {
   const builder = useOptionalBuilder();
   const canEdit = !!builder?.canEdit;
@@ -78,13 +85,21 @@ export function EditableText({
     el.style.height = `${el.scrollHeight}px`;
   }, [editing, multiline, draft]);
 
-  if (!canEdit) {
+  if (!canEdit || readOnly) {
     // Exactly what the document rendered before any of this existed: real
     // text, a caller-supplied stand-in, or nothing at all — never an empty
     // element holding open space the content doesn't need.
     const shown = value.trim() || fallback?.trim() || "";
     if (!shown) return null;
-    return <Tag className={className} style={style}>{shown}</Tag>;
+    return (
+      <Tag
+        className={cn(className, readOnly && canEdit && "cursor-default")}
+        style={style}
+        title={readOnly && canEdit ? readOnlyReason : undefined}
+      >
+        {shown}
+      </Tag>
+    );
   }
 
   function commit() {

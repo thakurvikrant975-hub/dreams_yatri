@@ -1583,6 +1583,11 @@ function DayCardPreview({
   // Night 2+ of a multi-night stay — see stayRun/continuesStayFrom. Null when
   // this day starts its stay, or has no catalog room at all.
   const continuesFrom = continuesStayFrom(allDays, day.day);
+  // A catalog room owns its own name, location and specs; a hand-typed stay
+  // owns nothing but what was typed. Editing the former in the document would
+  // leave the day describing one hotel while priced against another.
+  const fromCatalog = day.roomPricingId != null;
+  const catalogLock = "From the hotel catalog — use Replace to pick a different room.";
   const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
   const extraCabs = (day.extraCabs ?? []).filter((c) => c.label.trim());
 
@@ -1705,12 +1710,26 @@ function DayCardPreview({
             <div className={cn("flex gap-3", SUBHEAD_INDENT)}>
               <div className="flex-1 min-w-0 space-y-1.5">
                 <p className={cn(DISPLAY, "text-[12.5px] font-semibold")} style={{ color: DOC.ink }}>
-                  {day.accommodation || "Hotel (TBD)"}
+                  <EditableText
+                    value={day.accommodation}
+                    field={{ scope: "day", day: day.day, key: "accommodation" }}
+                    placeholder="Name this hotel…"
+                    fallback="Hotel (TBD)"
+                    readOnly={fromCatalog}
+                    readOnlyReason={catalogLock}
+                  />
                 </p>
 
-                {day.accommodationLocation && (
+                {(day.accommodationLocation || (builder?.canEdit && !fromCatalog)) && (
                   <p className="text-[11px] text-neutral-500 flex items-center gap-1">
-                    <MapPin size={10} className="text-neutral-400 shrink-0" /> {day.accommodationLocation}
+                    <MapPin size={10} className="text-neutral-400 shrink-0" />
+                    <EditableText
+                      value={day.accommodationLocation}
+                      field={{ scope: "day", day: day.day, key: "accommodationLocation" }}
+                      placeholder="City, State"
+                      readOnly={fromCatalog}
+                      readOnlyReason={catalogLock}
+                    />
                   </p>
                 )}
 
@@ -1724,26 +1743,53 @@ function DayCardPreview({
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogIn size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-in</span>
-                      <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn ? formatTime12h(day.hotelCheckIn) : "—"}</span>
+                      <EditableText
+                        value={day.hotelCheckIn}
+                        field={{ scope: "day", day: day.day, key: "hotelCheckIn" }}
+                        placeholder="set"
+                        fallback="—"
+                        className="text-[11px] font-semibold text-neutral-700"
+                      />
                       {checkInDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkInDate)}</span>}
                     </div>
                     <div className="flex-1 self-center" style={{ borderTop: `1px dashed ${DOC.rule}` }} />
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogOut size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-out</span>
-                      <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckOut ? formatTime12h(day.hotelCheckOut) : "—"}</span>
+                      <EditableText
+                        value={day.hotelCheckOut}
+                        field={{ scope: "day", day: day.day, key: "hotelCheckOut" }}
+                        placeholder="set"
+                        fallback="—"
+                        className="text-[11px] font-semibold text-neutral-700"
+                      />
                       {checkOutDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkOutDate)}</span>}
                     </div>
                   </div>
                 )}
 
-                {day.accommodationRoomSpecs && (
-                  <p className="text-[11px] text-neutral-500">({day.accommodationRoomSpecs})</p>
+                {(day.accommodationRoomSpecs || (builder?.canEdit && !fromCatalog)) && (
+                  <p className="text-[11px] text-neutral-500">
+                    <EditableText
+                      value={day.accommodationRoomSpecs}
+                      field={{ scope: "day", day: day.day, key: "accommodationRoomSpecs" }}
+                      placeholder="Room details — bed type, view, size…"
+                      readOnly={fromCatalog}
+                      readOnlyReason={catalogLock}
+                    />
+                  </p>
                 )}
 
-                {mealText && (
+                {(mealText || builder?.canEdit) && (
                   <p className="text-[11px] text-neutral-500 flex items-center gap-1">
-                    <Utensils size={10} className="text-primary-400 shrink-0" /> {mealText}
+                    <Utensils size={10} className="text-primary-400 shrink-0" />
+                    {mealText ?? (
+                      <EditableText
+                        value={day.hotelMealPlan}
+                        field={{ scope: "day", day: day.day, key: "hotelMealPlan" }}
+                        placeholder="Meal plan — e.g. MAP, Breakfast & Dinner"
+                      />
+                    )}
                   </p>
                 )}
 
@@ -1852,7 +1898,7 @@ function DayCardPreview({
                   </p>
                 )}
 
-                {(day.transportPickup || day.transportDrop) && (
+                {(day.transportPickup || day.transportDrop || builder?.canEdit) && (
                   <div className="flex gap-2.5">
                     <div className="flex flex-col items-center">
                       <MapPin size={13} className="text-neutral-400 shrink-0" />
@@ -1861,18 +1907,37 @@ function DayCardPreview({
                     </div>
                     <div className="flex-1 min-w-0 flex flex-col justify-between text-xs py-0.5">
                       <p className="text-neutral-500">
-                        Pickup Point: <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
+                        Pickup Point:{" "}
+                        <EditableText
+                          value={day.transportPickup}
+                          field={{ scope: "day", day: day.day, key: "transportPickup" }}
+                          placeholder="set pickup"
+                          fallback="—"
+                          className="font-semibold text-neutral-800"
+                        />
                       </p>
-                      {(day.transportDistanceKm || day.transportTravelTime) && (
-                        <p className="text-[11px] text-neutral-400 py-1">
-                          {[
-                            day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
-                            day.transportTravelTime || null,
-                          ].filter(Boolean).join(" · ")}
-                        </p>
-                      )}
+                      <p className="text-[11px] text-neutral-400 py-1 flex items-center gap-1">
+                        <EditableText
+                          value={day.transportDistanceKm != null ? `${day.transportDistanceKm} km` : ""}
+                          field={{ scope: "day", day: day.day, key: "transportDistanceKm" }}
+                          placeholder="distance"
+                        />
+                        {day.transportDistanceKm != null && day.transportTravelTime && <span>·</span>}
+                        <EditableText
+                          value={day.transportTravelTime}
+                          field={{ scope: "day", day: day.day, key: "transportTravelTime" }}
+                          placeholder="drive time"
+                        />
+                      </p>
                       <p className="text-neutral-500">
-                        Drop Point: <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
+                        Drop Point:{" "}
+                        <EditableText
+                          value={day.transportDrop}
+                          field={{ scope: "day", day: day.day, key: "transportDrop" }}
+                          placeholder="set drop"
+                          fallback="—"
+                          className="font-semibold text-neutral-800"
+                        />
                       </p>
                     </div>
                   </div>

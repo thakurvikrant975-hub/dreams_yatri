@@ -270,9 +270,26 @@ export function fieldKey(f: EditableField): string {
   }
 }
 
+/** Day fields editable directly in the document.
+ *
+ * The transport and hotel entries are why this list is longer than "the text
+ * on a day": once a section is hoverable and outlined, an exec expects to click
+ * the drop point and change it, not to open a drawer to change one word. The
+ * drawers stay for the things that genuinely are decisions — picking a hotel,
+ * routing a drive — rather than for typing. */
+export type DayTextKey =
+  | "title" | "description" | "notes" | "notesTitle"
+  | "transportPickup" | "transportDrop" | "transportTravelTime"
+  | "transportDistanceKm"
+  | "accommodation" | "accommodationLocation" | "accommodationRoomSpecs"
+  | "hotelMealPlan" | "hotelCheckIn" | "hotelCheckOut";
+
+/** Written as numbers, not strings — see applyFieldEdit. */
+const NUMERIC_DAY_KEYS = new Set<DayTextKey>(["transportDistanceKm"]);
+
 export type EditableField =
   | { scope: "package"; key: "title" | "description" | "termsNotes" }
-  | { scope: "day"; day: number; key: "title" | "description" | "notes" | "notesTitle" }
+  | { scope: "day"; day: number; key: DayTextKey }
   | { scope: "activity"; day: number; index: number; key: "title" | "description" };
 
 /** The one place a text edit turns into new form state.
@@ -290,13 +307,20 @@ export function applyFieldEdit(
     case "package":
       return { ...form, [field.key]: value };
 
-    case "day":
+    case "day": {
+      // A numeric column must not receive "" or "12" — an empty distance is
+      // null (unknown), not zero, and the pricing engine multiplies by it.
+      const next: string | number | null = NUMERIC_DAY_KEYS.has(field.key)
+        ? (value.trim() === "" ? null : Number.parseFloat(value.replace(/[^\d.]/g, "")))
+        : value;
+      const clean = typeof next === "number" && Number.isNaN(next) ? null : next;
       return {
         ...form,
         itineraries: form.itineraries.map((it) =>
-          it.day === field.day ? { ...it, [field.key]: value } : it,
+          it.day === field.day ? { ...it, [field.key]: clean } : it,
         ),
       };
+    }
 
     case "activity":
       return {
