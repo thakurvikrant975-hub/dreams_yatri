@@ -36,6 +36,7 @@ import {
 import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 import { DaySlot } from "./builder-dnd";
+import { ticketGaps, addonGaps, stayGaps, transportGaps, type Gaps } from "./pricing-gaps";
 import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
 import { IconTip } from "./builder-ui";
 
@@ -682,6 +683,32 @@ function EditableSection({ actions, children }: {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Names what's missing on a section that the price silently ignores.
+ *
+ * Builder-only in every sense: gated on canEdit, marked builder-only so the
+ * PDF can't bake it in, and absent from the client's document entirely. It is
+ * an instruction to the exec, not information for the traveller.
+ *
+ * Amber rather than red. Nothing here is broken — the package saves, exports
+ * and sends. It's just priced as if this line were free, which is a thing to
+ * fix before quoting, not an error to block on.
+ */
+function GapBadge({ gaps }: { gaps: Gaps }) {
+  const builder = useOptionalBuilder();
+  if (!builder?.canEdit || gaps.length === 0) return null;
+  return (
+    <span
+      className="builder-only no-print inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap align-middle"
+      // Literal hex for the usual reason — see DOC. This one is belt and
+      // braces, since builder-only already keeps it out of the export.
+      style={{ backgroundColor: "#FDF4E7", color: "#8A5A16", border: "1px solid #F2DEBE" }}
+    >
+      <AlertTriangle size={9} /> {gaps.join(" · ")}
+    </span>
   );
 }
 
@@ -1429,6 +1456,7 @@ function TicketCard({ ticket, index, packagePax }: {
                 renders nothing for an empty value outside the builder, so a
                 bare "·" would be left hanging on the client's copy and in the
                 PDF; inside the builder the empty slot is the point. */}
+            <GapBadge gaps={ticketGaps(ticket)} />
             {(ticket.ticketNumber || canEditDoc) && (
               <span className="font-normal text-neutral-500 flex items-center gap-1">
                 <span aria-hidden>·</span>
@@ -1590,6 +1618,8 @@ function AddonCard({ addon, index }: {
           {/* Quantity is numeric and priced against, so it stays in the drawer
               — see AddonTextKey. */}
           {addon.quantity > 1 ? ` × ${addon.quantity}` : ""}
+          {" "}
+          <GapBadge gaps={addonGaps(addon)} />
         </p>
       </div>
       <EditableText
@@ -2034,6 +2064,7 @@ function DayCardPreview({
                     readOnlyReason={catalogLock}
                   />
                   <StayStars raw={day.accommodationStarRating} />
+                  <GapBadge gaps={stayGaps(day)} />
                 </p>
 
                 {(day.accommodationLocation || (builder?.canEdit && !fromCatalog)) && (
@@ -2213,6 +2244,8 @@ function DayCardPreview({
                     {day.transport}
                     {day.transportVehicleType && <span className="font-normal text-neutral-500"> · {day.transportVehicleType}</span>}
                     {day.transportSeats && <span className="font-normal text-neutral-500"> · {day.transportSeats} Seats</span>}
+                    {" "}
+                    <GapBadge gaps={transportGaps(day)} />
                   </p>
                 )}
 
