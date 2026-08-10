@@ -2958,6 +2958,12 @@ model custom_itineraries {
   accommodationRoomPhotos   String[]                      @default([])
   accommodationLocation     String?
   accommodationRoomSpecs    String?
+  /// Star rating snapshotted off the hotel at pick time (hotels.stay_type,
+  /// free text — "4 Star", sometimes "Boutique"). Denormalised for the same
+  /// reason as accommodationRoomSpecs above: the client-facing page and the
+  /// PDF render from this row alone and never see roomPricingId, so anything
+  /// the document displays has to live here rather than be joined back.
+  accommodationStarRating   String?
   accommodationRoomCapacity Int?
   /**
    * Room-level occupancy caps snapshotted from hotel_rooms at the moment a

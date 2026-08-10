@@ -57,7 +57,8 @@ export async function getSharedPackage(packageId: string) {
         select: {
           day: true, title: true, description: true, meals: true,
           accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
-          accommodationLocation: true, accommodationRoomSpecs: true, accommodationRoomCapacity: true,
+          accommodationLocation: true, accommodationRoomSpecs: true, accommodationStarRating: true,
+          accommodationRoomCapacity: true,
           // Needed by occupancyText — without the real caps it falls back to
           // base beds alone and over-reports the room count to the client.
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
@@ -169,6 +170,7 @@ export async function getSharedPackage(packageId: string) {
       accommodationRoomPhotos:   it.accommodationRoomPhotos,
       accommodationLocation:     it.accommodationLocation ?? "",
       accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
+      accommodationStarRating:   it.accommodationStarRating ?? "",
       notesType:                 it.notesType ?? null,
       notesTitle:                it.notesTitle ?? null,
       accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,

@@ -278,16 +278,17 @@ export function HotelReplaceView({ day }: { day: number }) {
  * The catalog stores it free-text on hotels.stay_type — "4 Star", "3-star",
  * sometimes something that isn't a rating at all ("Boutique"). A number gets
  * glyphs; anything else is shown as written rather than guessed at. */
-function StarRating({ raw }: { raw: string | null }) {
-  if (!raw) return null;
-  const n = Number.parseInt(raw, 10);
+function StarRating({ raw }: { raw: string }) {
+  const value = raw.trim();
+  if (!value) return null;
+  const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n < 1 || n > 7) {
     return (
-      <span className="text-[10.5px] font-medium text-dashboard-base-content/55">{raw}</span>
+      <span className="text-[10.5px] font-medium text-dashboard-base-content/55">{value}</span>
     );
   }
   return (
-    <span className="flex items-center gap-0.5" title={raw} aria-label={raw}>
+    <span className="flex items-center gap-0.5" title={value} aria-label={value}>
       {Array.from({ length: n }, (_, i) => (
         <Star key={i} size={10} className="text-amber-500" />
       ))}
@@ -316,32 +317,7 @@ export function HotelEditView({ day }: { day: number }) {
   const { form, setForm, replaceDay, updateDay, openDrawer, closeDrawer } = useBuilder();
   // Declared before the early return below — hooks can't sit behind a guard.
   const [requesting, setRequesting] = useState(false);
-  // The star rating isn't snapshotted onto the day (see applyHotelRoomSelection
-  // — it stores what pricing and the document need, and stars are neither), so
-  // it's read back from the room this day is priced against.
-  const [stars, setStars] = useState<string | null>(null);
   const itin = form.itineraries.find((it) => it.day === day);
-  const roomPricingId = itin?.roomPricingId ?? null;
-
-  // Clearing on a room change happens during render, not in the effect below:
-  // an effect would paint one frame showing the PREVIOUS hotel's stars beside
-  // the new hotel's name. Same changed-check shape EditableText uses.
-  const [starsFor, setStarsFor] = useState<number | null>(roomPricingId);
-  if (roomPricingId !== starsFor) {
-    setStarsFor(roomPricingId);
-    setStars(null);
-  }
-
-  useEffect(() => {
-    if (roomPricingId == null) return;
-    let cancelled = false;
-    getHotelRoomByIdForBuilder(roomPricingId, null)
-      .then((room) => { if (!cancelled) setStars(room?.starRating ?? null); })
-      // A missing rating is not worth a toast — the rest of the drawer works.
-      .catch(() => { if (!cancelled) setStars(null); });
-    return () => { cancelled = true; };
-  }, [roomPricingId]);
-
   if (!itin) return null;
 
   const hasCatalogRoom = itin.roomPricingId != null;
@@ -410,7 +386,7 @@ export function HotelEditView({ day }: { day: number }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold">{itin.accommodation}</p>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                  <StarRating raw={stars} />
+                  <StarRating raw={itin.accommodationStarRating} />
                   {itin.accommodationLocation && (
                     <span className="text-xs text-dashboard-base-content/60">
                       {itin.accommodationLocation}

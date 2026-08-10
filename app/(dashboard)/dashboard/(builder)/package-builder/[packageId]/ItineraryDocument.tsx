@@ -8,7 +8,7 @@ import {
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
   StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus, Lock, MoonStar,
-  Bus, Ticket, Repeat, Trash2, ArrowUp, ArrowDown,
+  Bus, Ticket, Repeat, Trash2, ArrowUp, ArrowDown, Star,
 } from "./builder-icons";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -685,12 +685,49 @@ function EditableSection({ actions, children }: {
   );
 }
 
-function DaySubHead({ icon: Icon, label, meta, onEdit }: {
+/** A hotel's star rating, for the document.
+ *
+ * Literal hex, not `text-amber-500`: Tailwind v4 emits oklch() and
+ * html2canvas-pro can't resolve it, so a themed colour exports as black. Same
+ * reason DOC exists.
+ *
+ * hotels.stay_type is free text. A number becomes glyphs; anything else
+ * ("Boutique", "Heritage") is shown as written rather than guessed at, and an
+ * empty value renders nothing — so a hand-typed stay stays clean.
+ */
+function StayStars({ raw }: { raw: string }) {
+  const value = raw.trim();
+  if (!value) return null;
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 7) {
+    return (
+      <span
+        className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em]"
+        style={{ color: DOC.inkMuted }}
+      >
+        {value}
+      </span>
+    );
+  }
+  return (
+    <span className="shrink-0 flex items-center gap-[1px]" title={value} aria-label={value}>
+      {Array.from({ length: n }, (_, i) => (
+        <Star key={i} size={9} color="#D6A32E" />
+      ))}
+    </span>
+  );
+}
+
+function DaySubHead({ icon: Icon, label, meta, trailing, onEdit }: {
   icon: React.ElementType;
   label: string;
   /** Optional inline detail (distance, drive time, route) shown after the
    * label — it rides on the same line rather than earning its own row. */
   meta?: string | null;
+  /** Right-aligned on the same line, past the rule. For a fact ABOUT the
+   * section rather than a detail within it — a hotel's star rating belongs to
+   * the property, not to this night. */
+  trailing?: React.ReactNode;
   /** When supplied, the marker becomes the way into this section's task
    * drawer. Only ever passed inside the builder — the client-facing document
    * gets the plain, non-interactive marker. */
@@ -711,6 +748,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
         </span>
       )}
       <span className="h-px flex-1" style={{ backgroundColor: DOC.rule }} />
+      {trailing}
       {onEdit && (
         // builder-only: real rendered text, so it would otherwise be baked
         // into the exported PDF (html2canvas rasterises the screen DOM — see
@@ -1862,7 +1900,11 @@ function DayCardPreview({
             // details on the night it started, so repeating them is noise.
             // One line saying where they are and that nothing has changed.
             <div className="space-y-2" style={{ breakInside: "avoid" }}>
-              <DaySubHead icon={Hotel} label="Stay" />
+              <DaySubHead
+                icon={Hotel}
+                label="Stay"
+                trailing={<StayStars raw={day.accommodationStarRating} />}
+              />
               <div
                 className={cn("flex items-center gap-2 rounded-lg px-3 py-2", SUBHEAD_INDENT)}
                 style={{ backgroundColor: DOC.paper, border: `1px solid ${DOC.rule}` }}
@@ -1881,6 +1923,7 @@ function DayCardPreview({
             <DaySubHead
               icon={Hotel}
               label="Stay"
+              trailing={<StayStars raw={day.accommodationStarRating} />}
               // canEdit, not merely "is there a builder" — a package locked
               // for costing review must not offer the affordance at all,
               // rather than offering one that silently does nothing.

@@ -58,6 +58,11 @@ export function applyHotelRoomSelection(
     accommodationRoomPhotos: raw.roomPhotos.length > 0 ? raw.roomPhotos : day.accommodationRoomPhotos,
     accommodationLocation: raw.location ?? day.accommodationLocation,
     accommodationRoomSpecs: raw.roomSpecs ?? day.accommodationRoomSpecs,
+    // Denormalised here rather than joined back at render time: the client's
+    // page and the PDF build from the day row alone and never see
+    // roomPricingId. Falls back to "" rather than the previous room's rating,
+    // which would leave a 5-star badge on a 3-star hotel.
+    accommodationStarRating: raw.starRating ?? "",
     accommodationRoomCapacity: raw.roomCapacity ?? day.accommodationRoomCapacity,
     // Occupancy caps snapshotted straight from the picked room — these feed
     // the "rooms & mattresses needed" readout AND the priced room count (see
@@ -118,6 +123,7 @@ export function removeStay(day: DayItinerary): DayItinerary {
     accommodationRoomPhotos: [],
     accommodationLocation: "",
     accommodationRoomSpecs: "",
+    accommodationStarRating: "",
     accommodationRoomCapacity: null,
     accommodationMaxAdults: null,
     accommodationMaxChildren: null,
@@ -335,6 +341,7 @@ export function invalidateStaleOverrides(prev: DayItinerary, next: DayItinerary)
 export const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
   meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+  accommodationStarRating: "",
   accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
   roomPricingId: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",

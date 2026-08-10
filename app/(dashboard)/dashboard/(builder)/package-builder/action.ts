@@ -668,6 +668,9 @@ export interface DayItinerary {
   accommodationRoomPhotos: string[];
   accommodationLocation: string;
   accommodationRoomSpecs: string;
+  /** Snapshotted off the hotel at pick time — see the schema note. Empty for
+   * a hand-typed stay or one chosen before this existed. */
+  accommodationStarRating: string;
   accommodationRoomCapacity: number | null;
   /** Occupancy caps snapshotted from the picked catalog room (see
    * HotelRoomResult) — max adults/children the room itself allows, and how
@@ -1028,6 +1031,7 @@ export async function copyPackageIntoDraft(
       accommodationRoomPhotos: rawRoomPhotos.map((u) => getThumbnailImage(u)),
       accommodationLocation: day.hotel?.location ?? "",
       accommodationRoomSpecs: roomSpecs,
+      accommodationStarRating: "",
       accommodationRoomCapacity: day.hotel?.room_capacity ?? null,
       roomPricingId:      roomPricingByDay.get(day.day) ?? null,
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
@@ -1130,7 +1134,8 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
         select: {
           id: true, day: true, title: true, description: true, meals: true,
           accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
-          accommodationLocation: true, accommodationRoomSpecs: true, accommodationRoomCapacity: true,
+          accommodationLocation: true, accommodationRoomSpecs: true, accommodationStarRating: true,
+          accommodationRoomCapacity: true,
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
           manualExtraBeds: true,
           roomPricingId: true, roomsCount: true, extraRooms: true,
@@ -1165,7 +1170,8 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       })),
       accommodation: n.accommodation, accommodationPhoto: n.accommodationPhoto,
       accommodationRoomPhotos: n.accommodationRoomPhotos, accommodationLocation: n.accommodationLocation,
-      accommodationRoomSpecs: n.accommodationRoomSpecs, accommodationRoomCapacity: n.accommodationRoomCapacity,
+      accommodationRoomSpecs: n.accommodationRoomSpecs, accommodationStarRating: n.accommodationStarRating,
+      accommodationRoomCapacity: n.accommodationRoomCapacity,
       accommodationMaxAdults: n.accommodationMaxAdults, accommodationMaxChildren: n.accommodationMaxChildren,
       accommodationExtraBedCapacity: n.accommodationExtraBedCapacity, manualExtraBeds: n.manualExtraBeds,
       roomPricingId: n.roomPricingId, roomsCount: n.roomsCount, extraRooms: n.extraRooms,
@@ -1336,7 +1342,8 @@ function normalizeActivity(a: {
 function normalizeItinerary(it: {
   id: string; day: number; title: string; description: string | null; meals: string[];
   accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
-  accommodationLocation: string | null; accommodationRoomSpecs: string | null; accommodationRoomCapacity: number | null;
+  accommodationLocation: string | null; accommodationRoomSpecs: string | null;
+  accommodationStarRating: string | null; accommodationRoomCapacity: number | null;
   accommodationMaxAdults: number | null; accommodationMaxChildren: number | null; accommodationExtraBedCapacity: number | null;
   manualExtraBeds: number | null;
   roomPricingId: number | null;
@@ -1371,6 +1378,7 @@ function normalizeItinerary(it: {
     accommodationRoomPhotos:   it.accommodationRoomPhotos ?? [],
     accommodationLocation:     it.accommodationLocation ?? "",
     accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
+    accommodationStarRating:   it.accommodationStarRating ?? "",
     accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
     accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
     accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
@@ -1573,6 +1581,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           accommodationRoomPhotos: true,
           accommodationLocation: true,
           accommodationRoomSpecs: true,
+          accommodationStarRating: true,
           accommodationRoomCapacity: true,
           accommodationMaxAdults: true,
           accommodationMaxChildren: true,
@@ -1958,6 +1967,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               accommodationRoomPhotos: it.accommodationRoomPhotos ?? [],
               accommodationLocation: it.accommodationLocation || null,
               accommodationRoomSpecs: it.accommodationRoomSpecs || null,
+              accommodationStarRating: it.accommodationStarRating || null,
               accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
               accommodationMaxAdults: it.accommodationMaxAdults ?? null,
               accommodationMaxChildren: it.accommodationMaxChildren ?? null,
