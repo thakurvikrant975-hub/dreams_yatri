@@ -265,6 +265,23 @@ export function moveActivity(day: DayItinerary, index: number, delta: number): D
   return { ...day, activities: next };
 }
 
+/** Moves the activity at `from` to sit at `to`, both absolute positions in
+ * day.activities.
+ *
+ * The document needs this rather than moveActivity's relative step because it
+ * renders a FILTERED list — blank-titled activities are hidden but still hold
+ * an index. Stepping by one raw position from a visible row can land on a
+ * hidden one, which reorders the array while changing nothing on screen. The
+ * caller works out the neighbouring VISIBLE row's index and passes it here. */
+export function moveActivityTo(day: DayItinerary, from: number, to: number): DayItinerary {
+  if (from === to || from < 0 || to < 0) return day;
+  if (from >= day.activities.length || to >= day.activities.length) return day;
+  const next = [...day.activities];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return { ...day, activities: next };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Costing overrides
 // ─────────────────────────────────────────────────────────────────────────────

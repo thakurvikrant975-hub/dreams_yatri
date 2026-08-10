@@ -25,7 +25,7 @@ import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import {
-  continuesStayFrom, removeStay, removeTransport, moveActivity, removeActivity,
+  continuesStayFrom, removeStay, removeTransport, moveActivityTo, removeActivity,
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
@@ -1441,32 +1441,6 @@ function DayCardPreview({
     },
   ] : undefined;
 
-  const activitiesActions: SectionAction[] | undefined = canEditDoc ? [
-    {
-      // First, and its own control rather than a mode of Edit: a day can hold
-      // any number of experiences, and with only "Edit" on the toolbar the
-      // section looked like a single filled slot.
-      icon: Plus, label: "Add another experience",
-      onClick: () => builder!.openDrawer({ kind: "activities-edit", day: day.day }),
-    },
-    {
-      icon: Pencil, label: "Edit experiences",
-      onClick: () => builder!.openDrawer({ kind: "activities-edit", day: day.day }),
-    },
-    {
-      // Clears what's there and reopens the picker — "replace these" rather
-      // than "add another", which Edit already does.
-      icon: Repeat, label: "Replace experiences",
-      onClick: () => {
-        builder!.replaceDay(day.day, (d) => ({ ...d, activities: [] }));
-        builder!.openDrawer({ kind: "activities-edit", day: day.day });
-      },
-    },
-    {
-      icon: Trash2, label: "Remove all experiences", tone: "danger",
-      onClick: () => builder!.replaceDay(day.day, (d) => ({ ...d, activities: [] })),
-    },
-  ] : undefined;
   /** Controls for one experience, as opposed to the list of them.
    *
    * Every row gets these, including the first. Before this only the first was
@@ -1478,24 +1452,33 @@ function DayCardPreview({
    * `index` is the position in day.activities, not in the filtered list: blank
    * activities are hidden from the document but still occupy an index, and
    * moving by the visible position would move the wrong one. */
-  const activityActions = (index: number): SectionAction[] | undefined => canEditDoc ? [
-    {
-      icon: Pencil, label: "Edit this experience",
-      onClick: () => builder!.openDrawer({ kind: "activities-edit", day: day.day }),
-    },
-    {
-      icon: ArrowUp, label: "Move up",
-      onClick: () => builder!.replaceDay(day.day, (d) => moveActivity(d, index, -1)),
-    },
-    {
-      icon: ArrowDown, label: "Move down",
-      onClick: () => builder!.replaceDay(day.day, (d) => moveActivity(d, index, 1)),
-    },
-    {
-      icon: Trash2, label: "Remove this experience", tone: "danger",
-      onClick: () => builder!.replaceDay(day.day, (d) => removeActivity(d, index)),
-    },
-  ] : undefined;
+  const activityActions = (index: number, visiblePos: number): SectionAction[] | undefined => {
+    if (!canEditDoc) return undefined;
+    // Neighbours in the VISIBLE list, so a move lands where the eye expects
+    // even with a blank activity sitting between two real ones.
+    const prev = activities[visiblePos - 1]?.originalIndex;
+    const next = activities[visiblePos + 1]?.originalIndex;
+    return [
+      {
+        icon: Pencil, label: "Edit this experience",
+        onClick: () => builder!.openDrawer({ kind: "activities-edit", day: day.day }),
+      },
+      // Omitted at the ends rather than shown dead. A button that is present,
+      // looks live and does nothing is worse than one that isn't there.
+      ...(prev != null ? [{
+        icon: ArrowUp, label: "Move up",
+        onClick: () => builder!.replaceDay(day.day, (d) => moveActivityTo(d, index, prev)),
+      }] : []),
+      ...(next != null ? [{
+        icon: ArrowDown, label: "Move down",
+        onClick: () => builder!.replaceDay(day.day, (d) => moveActivityTo(d, index, next)),
+      }] : []),
+      {
+        icon: Trash2, label: "Remove this experience", tone: "danger" as const,
+        onClick: () => builder!.replaceDay(day.day, (d) => removeActivity(d, index)),
+      },
+    ];
+  };
 
   // Night 2+ of a multi-night stay — see stayRun/continuesStayFrom. Null when
   // this day starts its stay, or has no catalog room at all.
@@ -1974,26 +1957,25 @@ function DayCardPreview({
               // holds the "Experiences" heading, so Add/Replace/Remove-all
               // belong there, while Move and Remove-this belong to the row.
               const item = (
-                <EditableSection actions={activityActions(originalIndex)}>
+                <EditableSection actions={activityActions(originalIndex, idx)}>
                   {row}
                 </EditableSection>
               );
               if (idx === 0) {
                 return (
-                  // The list-level toolbar hangs off the HEADING, not off the
-                  // heading-plus-first-row. Wrapping both would nest one
-                  // EditableSection inside another, and `group-hover/section`
-                  // matches any ancestor carrying that group — so hovering the
-                  // first experience fired both toolbars and drew both hover
-                  // outlines. Heading hover gives you the list; row hover gives
-                  // you the row.
+                  // The heading is a label, not a control. It used to carry a
+                  // floating add/edit/replace/remove-all toolbar, which put
+                  // four buttons over a hairline rule with nothing under them
+                  // — the things they acted on were the rows below, each of
+                  // which now carries its own. Everything that toolbar offered
+                  // is still reachable: add from the day's ⋯ menu, the
+                  // foot-of-day button and the sidebar's Itinerary row, and
+                  // remove-all from that row's clear button.
                   <div key={originalIndex} className="space-y-2.5" style={{ breakInside: "avoid" }}>
-                    <EditableSection actions={activitiesActions}>
-                      <DaySubHead
-                        icon={Sparkles}
-                        label="Experiences"
-                      />
-                    </EditableSection>
+                    <DaySubHead
+                      icon={Sparkles}
+                      label="Experiences"
+                    />
                     <div className={SUBHEAD_INDENT}>{item}</div>
                   </div>
                 );
