@@ -8,9 +8,11 @@
 // or deleting a day.
 //
 // The day's CONTENT — stay, transport, experiences, meals — is reached from
-// DaySectionsBar at the foot of the day instead, where a reader arrives having
-// just seen what the day does and does not have. Mixing both in one header
-// menu made a nine-item list where the common cases were buried.
+// DaySectionsBar at the foot of the day, where a reader arrives having just
+// seen what the day does and does not have. It's listed in this header menu
+// too. Two doors to the same room is fine and often better: the foot of the
+// day is where you notice something missing, the header is where you are when
+// you've scrolled to a day on purpose.
 //
 // Deleting asks for the word "delete" to be typed. A day carries its hotel,
 // transport, activities and add-ons; undo covers it now, but not after a
@@ -18,8 +20,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { CalendarPlus, Trash2, Gift, StickyNote, MoreHorizontal, Hotel, Car, Sparkles, Utensils } from "lucide-react";
-import { cn } from "@/app/lib/utils";
+import { CalendarPlus, Trash2, Gift, StickyNote, MoreHorizontal, Hotel, Car, Sparkles, Utensils, Plus, ChevronDown } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -30,14 +31,66 @@ import {
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { useBuilder, type DrawerTarget } from "./builder-context";
-import { DaySlot, type SlotKind } from "./builder-dnd";
+import { DaySlot } from "./builder-dnd";
+import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
 
 const CONFIRM_WORD = "delete";
 
-export function DayActionsMenu({ day, hasAddons, hasNote }: {
+/** Everything a day can gain, in the order the document renders it.
+ *
+ * One definition feeding both the header menu and the foot-of-day button, so
+ * the two doors can't come to offer different things. Labels flip between
+ * "Add X" and "X" on what the day already has — a menu that says "Add stay"
+ * next to a day that has one is lying about what clicking does. */
+function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending }: {
+  day: number;
+  hasStay: boolean;
+  hasTransport: boolean;
+  hasActivities: boolean;
+  hasMeals: boolean;
+  isPending: boolean;
+}): { icon: React.ElementType; label: string; on: boolean; target: DrawerTarget }[] {
+  return [
+    {
+      icon: Hotel,
+      label: isPending ? "Hotel request" : hasStay ? "Edit stay" : "Add stay",
+      on: hasStay || isPending,
+      target: isPending
+        ? { kind: "hotel-request", day }
+        : hasStay ? { kind: "hotel-edit", day } : { kind: "hotel-replace", day },
+    },
+    {
+      icon: Car,
+      label: hasTransport ? "Edit transport" : "Add transport",
+      on: hasTransport,
+      target: { kind: "transfer-edit", day },
+    },
+    {
+      icon: Sparkles,
+      label: hasActivities ? "Edit experiences" : "Add experiences",
+      on: hasActivities,
+      target: { kind: "activities-edit", day },
+    },
+    {
+      icon: Utensils,
+      label: hasMeals ? "Edit meals" : "Add meals",
+      on: hasMeals,
+      target: { kind: "meals-edit", day },
+    },
+  ];
+}
+
+export function DayActionsMenu({
+  day, hasAddons, hasNote, hasStay, hasTransport, hasActivities, hasMeals, isPending,
+}: {
   day: number;
   hasAddons: boolean;
   hasNote: boolean;
+  hasStay: boolean;
+  hasTransport: boolean;
+  hasActivities: boolean;
+  hasMeals: boolean;
+  isPending: boolean;
 }) {
   const { openDrawer, addDayAfter, removeDay, form } = useBuilder();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -71,9 +124,19 @@ export function DayActionsMenu({ day, hasAddons, hasNote }: {
 
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuLabel className="text-[11px]">Day {day}</DropdownMenuLabel>
-          {/* Both of these are invisible in the document until they exist, so
-              this menu is the only way in. Everything the day's sections cover
-              lives at the foot of the day instead — see DaySectionsBar. */}
+          {/* The same content list the foot-of-day button offers. Reachable
+              from both on purpose — this is where you are having scrolled to a
+              day deliberately, that is where you are having just read it. */}
+          {dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending })
+            .map(({ icon: Icon, label, target }) => (
+              <DropdownMenuItem key={label} onSelect={() => openDrawer(target)}>
+                <Icon size={13} /> {label}
+              </DropdownMenuItem>
+            ))}
+
+          <DropdownMenuSeparator />
+          {/* Neither of these renders in the document until it exists, so
+              there's nothing to click into them — a menu is the only way in. */}
           <DropdownMenuItem onSelect={() => openDrawer({ kind: "addons-edit", day })}>
             <Gift size={13} /> {hasAddons ? "Edit add-ons" : "Add an add-on"}
           </DropdownMenuItem>
@@ -149,8 +212,14 @@ export function DayActionsMenu({ day, hasAddons, hasNote }: {
 // Placed at the end rather than in the header on purpose: by the time a reader
 // is here they have just seen what this day does and doesn't have, so "add
 // transport" lands as an answer to something they noticed rather than as a
-// menu item to hunt through. Same treatment as the "Add day" control below the
-// itinerary, so the two read as the same kind of thing.
+// menu item to hunt through.
+//
+// One full-width control rather than the four chips this used to be. Four
+// buttons in a row implied four separate decisions, and a day with everything
+// already on it showed four controls that all meant "edit" — a row of chrome
+// as wide as the day it belonged to. It now reads as the same offer as the
+// package-level "Add a destination, flight, train…" menu, one altitude down,
+// which is what it always was.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending }: {
@@ -163,74 +232,59 @@ export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasM
   isPending: boolean;
 }) {
   const { openDrawer } = useBuilder();
+  const items = dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending });
 
-  // `accepts` is what makes an EMPTY day reachable by drag. The day's rendered
-  // sections are the natural drop targets, but a day with no stay has no stay
-  // section to aim at — so its "Add stay" button is the target instead, which
-  // is also where someone would already be pointing.
-  const items: {
-    icon: React.ElementType;
-    label: string;
-    on: boolean;
-    target: DrawerTarget;
-    accepts?: SlotKind;
-  }[] = [
-    {
-      icon: Hotel,
-      label: isPending ? "Hotel request" : hasStay ? "Stay" : "Add stay",
-      on: hasStay || isPending,
-      target: isPending
-        ? { kind: "hotel-request" as const, day }
-        : hasStay ? { kind: "hotel-edit" as const, day } : { kind: "hotel-replace" as const, day },
-      accepts: "hotel",
-    },
-    {
-      icon: Car,
-      label: hasTransport ? "Transport" : "Add transport",
-      on: hasTransport,
-      target: { kind: "transfer-edit" as const, day },
-      accepts: "cab",
-    },
-    {
-      icon: Sparkles,
-      label: hasActivities ? "Experiences" : "Add experiences",
-      on: hasActivities,
-      target: { kind: "activities-edit" as const, day },
-      accepts: "activity",
-    },
-    {
-      icon: Utensils,
-      label: hasMeals ? "Meals" : "Add meals",
-      on: hasMeals,
-      target: { kind: "meals-edit" as const, day },
-    },
-  ];
+  // What this day is still missing, named in the button itself. A generic "Add
+  // to this day" makes you open the menu to find out whether there's anything
+  // worth adding; this answers that before the click.
+  const missing = items.filter((i) => !i.on).map((i) => i.label.replace(/^Add /, ""));
+  const label = missing.length === 0
+    ? "Edit this day's stay, transport, experiences or meals"
+    : `Add ${humanList(missing)}`;
+
+  const control = (
+    <button
+      type="button"
+      className={ADD_CONTROL_CLASS}
+      style={{ borderColor: DOC.rule, color: DOC.accent }}
+    >
+      <Plus size={12} /> {label}
+      <ChevronDown size={11} />
+    </button>
+  );
 
   return (
-    <div className="builder-only no-print flex flex-wrap gap-1.5 px-3.5 pb-3">
-      {items.map(({ icon: Icon, label, on, target, accepts }) => {
-        const button = (
-          <button
-            type="button"
-            onClick={() => openDrawer(target)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-              on
-                ? "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200/60"
-                // Nothing there yet — dashed, so an incomplete day reads as
-                // incomplete at a glance rather than looking the same as a full one.
-                : "border-dashed border-dashboard-primary/35 text-dashboard-primary/80 hover:bg-dashboard-primary/6",
-            )}
-          >
-            <Icon size={12} /> {label}
-          </button>
-        );
-        // Already on the day: the section itself is the drop target, and a
-        // second one down here would just be two places that do the same thing.
-        return accepts && !on
-          ? <DaySlot key={label} day={day} accepts={accepts}>{button}</DaySlot>
-          : <div key={label}>{button}</div>;
-      })}
+    <div className="builder-only no-print px-3.5 pb-3">
+      {/* The drop target wraps the menu rather than being the menu's trigger.
+          DropdownMenuTrigger asChild clones its props onto whatever element it
+          is given, which for a DaySlot would be the wrapper div — leaving a
+          real button nested inside something claiming to be one.
+
+          This is the only drop target on a day with no sections rendered yet,
+          so it takes all three draggable kinds and lets the payload's MIME type
+          decide which it becomes. A day that already has a section gets its
+          highlight there too; this one stays live either way, since the section
+          may be scrolled out of view. */}
+      <DaySlot day={day} accepts={["hotel", "cab", "activity"]}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>{control}</DropdownMenuTrigger>
+        <DropdownMenuContent align="center" className="w-56">
+          <DropdownMenuLabel className="text-[11px]">Day {day}</DropdownMenuLabel>
+          {items.map(({ icon: Icon, label: itemLabel, target }) => (
+            <DropdownMenuItem key={itemLabel} onSelect={() => openDrawer(target)}>
+              <Icon size={13} /> {itemLabel}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      </DaySlot>
     </div>
   );
+}
+
+/** "stay, transport and meals" — an Oxford-comma-free list, because the button
+ * is chrome and reads better short. */
+function humanList(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }

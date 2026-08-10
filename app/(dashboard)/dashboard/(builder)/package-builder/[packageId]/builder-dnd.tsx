@@ -108,8 +108,14 @@ function labelFor(drag: CatalogDrag): string {
 // Drop target
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** What a slot on a day will take. One kind each — a day's stay section has no
- * meaning for an activity, and pretending otherwise would mean guessing. */
+/** What a slot on a day will take.
+ *
+ * A rendered section takes exactly one kind — a day's stay section has no
+ * meaning for an activity, and pretending otherwise would mean guessing. The
+ * day's single "Add to this day" control takes all three, because an empty day
+ * has no sections to aim at and that button is the only thing on screen to
+ * drop onto. Which one it becomes is read off the payload's MIME type, so it's
+ * still the drag that decides, not a guess. */
 export type SlotKind = DragKind;
 
 /**
@@ -120,7 +126,7 @@ export type SlotKind = DragKind;
  */
 export function DaySlot({ day, accepts, children, className }: {
   day: number;
-  accepts: SlotKind;
+  accepts: SlotKind | SlotKind[];
   children: React.ReactNode;
   className?: string;
 }) {
@@ -135,7 +141,7 @@ export function DaySlot({ day, accepts, children, className }: {
 
 function ActiveDaySlot({ day, accepts, children, className }: {
   day: number;
-  accepts: SlotKind;
+  accepts: SlotKind | SlotKind[];
   children: React.ReactNode;
   className?: string;
 }) {
@@ -143,19 +149,29 @@ function ActiveDaySlot({ day, accepts, children, className }: {
   const dragging = useActiveDragKind();
   const [over, setOver] = useState(false);
 
-  const armed = dragging === accepts;
+  const kinds = Array.isArray(accepts) ? accepts : [accepts];
+  // What this drag would actually become if dropped here. Null when the slot
+  // doesn't want it — which is also what keeps the highlight honest.
+  const landing = dragging && kinds.includes(dragging) ? dragging : null;
+  const armed = landing != null;
 
   // A stay that continues from an earlier day is one reservation. Dropping a
   // different hotel onto the middle of it would leave a run no hotel could
   // honour, so this slot declines rather than quietly splitting the booking.
-  const blocked = accepts === "hotel" ? continuesStayFrom(form.itineraries, day) : null;
+  const blocked = landing === "hotel" ? continuesStayFrom(form.itineraries, day) : null;
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setOver(false);
     setActiveKind(null);
 
-    const raw = e.dataTransfer.getData(MIME[accepts]);
+    // The payload's own MIME type says which kind arrived, so a multi-kind
+    // slot doesn't have to trust the hover state to still be current.
+    const list = Array.isArray(accepts) ? accepts : [accepts];
+    const arrived = list.find((k) => e.dataTransfer.types.includes(MIME[k]));
+    if (!arrived) return;
+
+    const raw = e.dataTransfer.getData(MIME[arrived]);
     if (!raw) return;
 
     let item: unknown;
@@ -168,10 +184,14 @@ function ActiveDaySlot({ day, accepts, children, className }: {
       return;
     }
 
-    switch (accepts) {
+    switch (arrived) {
       case "hotel": {
-        if (blocked) {
-          toast.error(`Day ${day}'s stay is part of a booking that starts on day ${blocked}. Change it there.`);
+        // Re-checked here rather than reused from `blocked` above: that's
+        // derived from the hover state, and a multi-kind slot may not have
+        // been hovering a hotel.
+        const run = continuesStayFrom(form.itineraries, day);
+        if (run) {
+          toast.error(`Day ${day}'s stay is part of a booking that starts on day ${run}. Change it there.`);
           return;
         }
         const room = item as HotelRoomResult;
@@ -203,7 +223,7 @@ function ActiveDaySlot({ day, accepts, children, className }: {
         break;
       }
     }
-  }, [accepts, blocked, day, replaceDay]);
+  }, [accepts, day, form.itineraries, replaceDay]);
 
   return (
     <div
@@ -211,7 +231,7 @@ function ActiveDaySlot({ day, accepts, children, className }: {
         // Only claim drags this slot can actually take. Not calling
         // preventDefault is what tells the browser "not a drop target here",
         // which is also what gives the cursor its no-entry badge.
-        if (!e.dataTransfer.types.includes(MIME[accepts])) return;
+        if (!kinds.some((k) => e.dataTransfer.types.includes(MIME[k]))) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = blocked ? "none" : "copy";
         if (!over) setOver(true);
@@ -244,7 +264,7 @@ function ActiveDaySlot({ day, accepts, children, className }: {
             blocked ? "bg-red-500" : "bg-dashboard-primary",
           )}
         >
-          {blocked ? `Starts on day ${blocked}` : DROP_LABEL[accepts](day)}
+          {blocked ? `Starts on day ${blocked}` : landing ? DROP_LABEL[landing](day) : ""}
         </span>
       )}
     </div>

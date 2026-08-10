@@ -30,43 +30,12 @@ import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 import { DaySlot } from "./builder-dnd";
+import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
 // it's a plain function server components need too (see hotel-requests).
 export { deriveDayLocations };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Document design tokens
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** The printed document's palette, as literal hex rather than Tailwind theme
- * classes. Two reasons this can't just use `bg-primary-600` and friends:
- *
- *  1. html2canvas-pro (the PDF export path) can't reliably resolve this app's
- *     oklch() theme tokens — the same limitation already documented on
- *     SectionHeader's icon colour below, which this centralises.
- *  2. The document is a *printed* artefact, not a screen surface. It wants a
- *     warm paper ground rather than the UI's pure #fff, so it deliberately
- *     doesn't inherit the dashboard's neutral ramp.
- *
- * `accent` is this app's established rgb fallback for --color-primary-600
- * (see the .prose-editor/.prose-article rules in globals.css). */
-const DOC = {
-  /** Warm off-white page ground — reads as paper stock, not screen. */
-  paper: "#FDFBF7",
-  /** Pure white, reserved for cards that should lift off the paper. */
-  card: "#FFFFFF",
-  ink: "#191817",
-  inkSoft: "#57534E",
-  inkMuted: "#8C857D",
-  /** Warm hairline, tuned to sit on `paper` without going grey-blue. */
-  rule: "#E9E3DA",
-  accent: "#c0392b",
-  accentSoft: "#FBF1EF",
-  /** Secondary accent for the "included / confirmed" tone. */
-  positive: "#059669",
-} as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Day note tones
@@ -1283,11 +1252,6 @@ export function AddonsSection({ addOns }: { addOns?: AddonInput[] }) {
 /** The shared look for a full-width "add something" control in the document.
  * Both users of it are builder-only and sit in the document's own flow, so
  * they read as part of the page rather than as toolbar chrome bolted on. */
-const ADD_CONTROL_CLASS =
-  "builder-only no-print w-full flex items-center justify-center gap-1.5 rounded-lg " +
-  "border border-dashed px-3 py-2.5 text-[11px] font-medium transition-colors " +
-  "hover:bg-dashboard-primary/6";
-
 /** Appends a day to the end of the itinerary.
  *
  * The per-day menu can already insert after any given day, but appending is
@@ -1566,6 +1530,11 @@ function DayCardPreview({
               day={day.day}
               hasAddons={(addOns ?? []).some((a) => a.day === day.day)}
               hasNote={!!day.notes.trim()}
+              hasStay={!!hasHotel}
+              hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
+              hasActivities={activities.length > 0}
+              hasMeals={(shiftedMeals ?? day.meals).length > 0}
+              isPending={!!day.hotelPending}
             />
           </div>
         )}
