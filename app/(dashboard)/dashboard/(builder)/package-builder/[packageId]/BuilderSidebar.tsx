@@ -223,7 +223,7 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
 
           <div className="flex-1 overflow-y-auto overscroll-contain">
             {/* Keyed on what's showing, so leaving a section that threw and
-                coming back gives a fresh attempt rather than the error you
+                coming back is a fresh attempt rather than the error you
                 already dismissed. */}
             <BuilderErrorBoundary key={drawer?.kind ?? panelTab ?? "none"} label="This panel">
               {body()}

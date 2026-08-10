@@ -1945,6 +1945,12 @@ Rules:
           bare aside background between it and the editor panel. Capping the
           aside and centering the whole pair turns that into a normal, even
           page margin instead. */}
+      {/* Outermost boundary. The two inside it cover the document and the
+          sidebar's panel body, but a throw in the rail, the layers column or
+          this row's own chrome would sail past both and unmount everything —
+          presenting as a blank page under a working header, which is exactly
+          how it looked. Nothing below here is allowed to do that silently. */}
+      <BuilderErrorBoundary label="The builder">
       <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
         {/* Day layers — order and navigation for the preview beside it.
             Desktop only: on a narrow screen the preview already takes the whole
@@ -2126,6 +2132,7 @@ Rules:
           }
         />
       </div>
+      </BuilderErrorBoundary>
 
       <AlertDialog open={confirmReadyOpen} onOpenChange={setConfirmReadyOpen}>
         <AlertDialogContent>
