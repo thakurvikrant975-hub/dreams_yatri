@@ -242,7 +242,16 @@ export async function searchHotelRoomsForBuilder(
               ],
             }
           : {
+              // Also matches the hotel's own name — a stop like "Cherrapunji"
+              // often has no hotel actually tagged with that exact city (the
+              // catalog uses the sub-locality instead, e.g. "Shella
+              // Bholaganj"), but a property literally named "... Cherrapunji"
+              // still exists and should show up by default rather than
+              // silently returning nothing until the exec types the same
+              // string manually (which already matched name — see the `q`
+              // branch above).
               OR: [
+                { name: { contains: city, mode: "insensitive" } },
                 { city: { contains: city, mode: "insensitive" } },
                 { destination: { name: { contains: city, mode: "insensitive" } } },
               ],
@@ -262,7 +271,44 @@ export async function searchHotelRoomsForBuilder(
     orderBy: HOTEL_SORT_ORDER_BY[sortBy ?? "name_asc"],
   });
 
-  return list.map((item) => mapHotelRoomRow(item, refCoords));
+  if (list.length > 0 || q || !refCoords) {
+    return list.map((item) => mapHotelRoomRow(item, refCoords));
+  }
+
+  // Nothing matched the stop's name by text (e.g. "Cherrapunji" isn't in any
+  // nearby hotel's own name/city/destination — the catalog tags them by
+  // sub-locality instead, like "Shella Bholaganj") — fall back to actual
+  // distance from the geocoded stop, same idea as searchCabsForBuilder's
+  // nearest-city fallback below. Real hotel coordinates (hotel.location,
+  // filled in via the location wizard) are what make this possible; a
+  // property genuinely close by should still surface by default instead of
+  // the exec having to already know its name or sub-locality to type it in.
+  const HOTEL_FALLBACK_RADIUS_KM = 25;
+  const nearby = await db.hotel_room_pricing.findMany({
+    where: {
+      is_active: true,
+      hotel: {
+        is_active: true,
+        location: { latitude: { not: null }, longitude: { not: null } },
+        ...(starFilter ? { stay_type: starFilter } : {}),
+        ...(categoryFilter ? { category: categoryFilter } : {}),
+      },
+      ...(noMealsOnly
+        ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
+        : mealFilter && mealFilter.length > 0
+          ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
+          : {}),
+    },
+    select: HOTEL_ROOM_SELECT,
+  });
+
+  const withDistance = nearby
+    .map((item) => mapHotelRoomRow(item, refCoords))
+    .filter((r): r is HotelRoomResult & { distanceKm: number } => r.distanceKm != null && r.distanceKm <= HOTEL_FALLBACK_RADIUS_KM)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  const start = (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE;
+  return withDistance.slice(start, start + HOTEL_SEARCH_PAGE_SIZE);
 }
 
 /** Looks up a single room by its `hotel_room_pricing` id — used by the hotel

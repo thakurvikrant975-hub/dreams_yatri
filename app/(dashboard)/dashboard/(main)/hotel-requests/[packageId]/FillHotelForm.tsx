@@ -284,7 +284,7 @@ export function FillHotelForm({
                         </div>
                         {roomPhotos.map((photo, i) => (
                             <div key={i}>
-                                <p className="text-[10px] text-dashboard-base-content/50 mb-1">Room {i + 1}</p>
+                                <p className="text-[10px] text-dashboard-base-content/50 mb-1">Room image {i + 1}</p>
                                 <ImageDropField value={photo} onChange={(url) => setRoomPhotoAt(i, url)} folder="hotels" compact />
                             </div>
                         ))}
