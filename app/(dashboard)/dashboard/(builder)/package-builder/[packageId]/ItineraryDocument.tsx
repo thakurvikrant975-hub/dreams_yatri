@@ -31,6 +31,7 @@ import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 import { DaySlot } from "./builder-dnd";
 import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
+import { IconTip } from "./builder-ui";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
@@ -478,13 +479,14 @@ function PolicyBlock({ label, items, listKey }: {
           <SectionHeader label={label} tone="muted" />
         </div>
         {!listKey && builder?.canEdit && (
+          <IconTip label="Company-wide content — edited in Itinerary Settings">
           <span
-            title="Company-wide content — edited in Itinerary Settings"
             className="builder-only no-print shrink-0 flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider"
             style={{ color: DOC.inkMuted }}
           >
             <Lock size={9} /> Company-wide
           </span>
+          </IconTip>
         )}
       </div>
       {listKey ? (
@@ -638,21 +640,21 @@ function EditableSection({ actions, children }: {
         )}
       >
         {actions.map(({ icon: Icon, label, onClick, tone }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={onClick}
-            title={label}
-            aria-label={label}
-            className={cn(
-              "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms]",
-              tone === "danger"
-                ? "text-dashboard-error/70 hover:bg-dashboard-error/10 hover:text-dashboard-error"
-                : "text-dashboard-base-content/55 hover:bg-dashboard-base-200 hover:text-dashboard-base-content",
-            )}
-          >
-            <Icon size={13} />
-          </button>
+          <IconTip key={label} label={label}>
+            <button
+              type="button"
+              onClick={onClick}
+              aria-label={label}
+              className={cn(
+                "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms]",
+                tone === "danger"
+                  ? "text-dashboard-error/70 hover:bg-dashboard-error/10 hover:text-dashboard-error"
+                  : "text-dashboard-base-content/55 hover:bg-dashboard-base-200 hover:text-dashboard-base-content",
+              )}
+            >
+              <Icon size={13} />
+            </button>
+          </IconTip>
         ))}
       </div>
     </div>
@@ -706,15 +708,16 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
   }
 
   return (
-    <button
-      type="button"
-      onClick={onEdit}
-      title={`Edit ${label.toLowerCase()}`}
-      className="group/sub flex w-full items-center gap-2 text-left rounded-[3px] hover:bg-dashboard-primary/6 focus-visible:outline-2 focus-visible:outline-dashboard-primary/60"
-      style={{ breakAfter: "avoid" }}
-    >
-      {inner}
-    </button>
+    <IconTip label={`Edit ${label.toLowerCase()}`}>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="group/sub flex w-full items-center gap-2 text-left rounded-[3px] hover:bg-dashboard-primary/6 focus-visible:outline-2 focus-visible:outline-dashboard-primary/60"
+        style={{ breakAfter: "avoid" }}
+      >
+        {inner}
+      </button>
+    </IconTip>
   );
 }
 
@@ -1329,16 +1332,17 @@ function PackageAddMenu() {
  * itself, so the way to change a ticket is to click the ticket. */
 function CardEditButton({ onEdit, label }: { onEdit: () => void; label: string }) {
   return (
-    <button
-      type="button"
-      onClick={onEdit}
-      aria-label={label}
-      title={label}
-      className="builder-only no-print shrink-0 flex items-center gap-1 rounded-md border border-dashed px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider transition-colors hover:bg-dashboard-primary/6"
-      style={{ borderColor: DOC.rule, color: DOC.accent }}
-    >
-      <Pencil size={9} /> Edit
-    </button>
+    <IconTip label={label}>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={label}
+        className="builder-only no-print shrink-0 flex items-center gap-1 rounded-md border border-dashed px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider transition-colors hover:bg-dashboard-primary/6"
+        style={{ borderColor: DOC.rule, color: DOC.accent }}
+      >
+        <Pencil size={9} /> Edit
+      </button>
+    </IconTip>
   );
 }
 

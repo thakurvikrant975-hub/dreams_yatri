@@ -49,6 +49,7 @@ import { useBuilder, type DrawerTarget } from "./builder-context";
 import { cn } from "@/app/lib/utils";
 import { DaySlot } from "./builder-dnd";
 import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
+import { IconTip } from "./builder-ui";
 
 const CONFIRM_WORD = "delete";
 
@@ -162,16 +163,17 @@ export function DayActionsMenu({
         )}
       >
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={`Day ${day} contents`}
-            title="Add or edit this day's contents"
-            className={TOOLBAR_BUTTON}
-          >
-            <MoreHorizontal size={13} />
-          </button>
-        </DropdownMenuTrigger>
+        <IconTip label="Add or edit this day's contents">
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Day ${day} contents`}
+              className={TOOLBAR_BUTTON}
+            >
+              <MoreHorizontal size={13} />
+            </button>
+          </DropdownMenuTrigger>
+        </IconTip>
 
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuLabel className="text-[11px]">Day {day}</DropdownMenuLabel>
@@ -200,31 +202,36 @@ export function DayActionsMenu({
       {/* Out of the menu and onto the toolbar: both act on the day as a unit
           rather than on its contents, both are frequent, and a one-click
           action doesn't belong two clicks deep just to keep a list tidy. */}
-      <button
-        type="button"
-        onClick={() => addDayAfter(day)}
-        aria-label={`Add a day below day ${day}`}
-        title="Add a day below"
-        className={TOOLBAR_BUTTON}
-      >
-        <CalendarPlus size={13} />
-      </button>
+      <IconTip label="Add a day below">
+        <button
+          type="button"
+          onClick={() => addDayAfter(day)}
+          aria-label={`Add a day below day ${day}`}
+          className={TOOLBAR_BUTTON}
+        >
+          <CalendarPlus size={13} />
+        </button>
+      </IconTip>
 
-      <button
-        type="button"
-        disabled={isLastDay}
-        onClick={() => { setTyped(""); setConfirmOpen(true); }}
-        aria-label={`Delete day ${day}`}
-        title={isLastDay ? "A package needs at least one day" : "Delete this day"}
-        className={cn(
-          "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms]",
-          isLastDay
-            ? "text-dashboard-base-content/20 cursor-not-allowed"
-            : "text-dashboard-error/70 hover:bg-dashboard-error/10 hover:text-dashboard-error",
-        )}
-      >
-        <Trash2 size={13} />
-      </button>
+      {/* aria-disabled rather than disabled: a disabled button takes no pointer
+          events, so its tooltip never opens — and the tooltip is the only thing
+          explaining WHY it's off, which is exactly when it's needed. */}
+      <IconTip label={isLastDay ? "A package needs at least one day" : "Delete this day"}>
+        <button
+          type="button"
+          aria-disabled={isLastDay}
+          onClick={() => { if (isLastDay) return; setTyped(""); setConfirmOpen(true); }}
+          aria-label={`Delete day ${day}`}
+          className={cn(
+            "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms]",
+            isLastDay
+              ? "text-dashboard-base-content/20 cursor-not-allowed"
+              : "text-dashboard-error/70 hover:bg-dashboard-error/10 hover:text-dashboard-error",
+          )}
+        >
+          <Trash2 size={13} />
+        </button>
+      </IconTip>
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={(o) => { setConfirmOpen(o); if (!o) setTyped(""); }}>

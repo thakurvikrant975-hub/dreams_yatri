@@ -26,6 +26,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { cn } from "@/app/lib/utils";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/tooltip";
 
 // ── Structure ───────────────────────────────────────────────────────────────
 
@@ -232,5 +235,39 @@ export function Empty({ children, action }: {
 export function Hint({ children }: { children: React.ReactNode }) {
   return (
     <p className="text-[11px] leading-relaxed text-dashboard-base-content/45">{children}</p>
+  );
+}
+
+// ── Tooltips ────────────────────────────────────────────────────────────────
+
+/**
+ * An instant tooltip for an icon-only control.
+ *
+ * The builder's floating toolbars are icon-only, so the label IS the
+ * affordance — you cannot tell Replace from Remove without it. Those were using
+ * the native `title` attribute, whose delay is set by the browser at roughly a
+ * second or two and is not adjustable from CSS or JS. Long enough that people
+ * clicked to find out what a button did instead of waiting, which for the
+ * delete buttons is the wrong way to learn.
+ *
+ * Carries its own Provider because there's no app-level one, and because this
+ * same document renders on the public site where a builder-supplied provider
+ * wouldn't exist. Providers are plain context — one per control costs nothing.
+ */
+export function IconTip({ label, side = "top", children }: {
+  label: string;
+  side?: "top" | "bottom" | "left" | "right";
+  /** The control itself. Must forward ref and props — Radix clones onto it. */
+  children: React.ReactNode;
+}) {
+  return (
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipContent side={side} sideOffset={6} className="rounded-md px-2 py-1 text-[11px]">
+          {label}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
