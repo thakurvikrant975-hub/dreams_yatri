@@ -128,7 +128,7 @@ function RailButton({ entry }: {
         "w-[56px] flex flex-col items-center gap-1 rounded-lg py-2 transition-colors duration-[120ms]",
         active
           ? "bg-dashboard-primary/10 text-dashboard-primary"
-          : "text-dashboard-base-content/55 hover:bg-dashboard-base-300/60 hover:text-dashboard-base-content",
+          : "text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/75",
       )}
     >
       <Icon size={17} />
@@ -177,7 +177,7 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
                   type="button"
                   onClick={closeDrawer}
                   aria-label="Back"
-                  className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/50 hover:bg-dashboard-base-200"
+                  className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
                 >
                   <ArrowLeft size={14} />
                 </button>
@@ -195,7 +195,7 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
                 onClick={() => { closeDrawer(); setPanelTab(null); }}
                 aria-label="Collapse panel"
                 title="Collapse panel"
-                className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-base-200"
+                className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/35 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
               >
                 <PanelRightClose size={14} />
               </button>
@@ -210,7 +210,7 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
 
       <nav
         aria-label="Builder sections"
-        className="w-[68px] shrink-0 h-full flex flex-col items-center gap-1 border-l border-dashboard-base-300 bg-dashboard-base-200/60 py-3"
+        className="w-[68px] shrink-0 h-full flex flex-col items-center gap-1 border-l border-dashboard-base-300 bg-dashboard-base-100 py-3"
       >
         {RAIL.map((entry) => <RailButton key={entry.tab} entry={entry} />)}
 
@@ -224,7 +224,7 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
             onClick={() => setPanelTab("client")}
             aria-label="Expand panel"
             title="Expand panel"
-            className="mt-auto flex items-center justify-center size-8 rounded-lg text-dashboard-base-content/40 hover:bg-dashboard-base-300/60"
+            className="mt-auto flex items-center justify-center size-8 rounded-lg text-dashboard-base-content/35 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
           >
             <PanelRightOpen size={15} />
           </button>
