@@ -8,7 +8,7 @@ import {
   Plane, TrainFront, Helicopter, Sparkles, Phone, Mail, Upload, Loader2, Pencil, Image as ImageIcon,
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
   StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus, Lock, MoonStar,
-  Bus, Ticket, Repeat, Trash2,
+  Bus, Ticket, Repeat, Trash2, ArrowUp, ArrowDown,
 } from "./builder-icons";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -24,7 +24,9 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
-import { continuesStayFrom, removeStay, removeTransport } from "./day-mutations";
+import {
+  continuesStayFrom, removeStay, removeTransport, moveActivity, removeActivity,
+} from "./day-mutations";
 import { EditableText } from "./EditableText";
 import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
@@ -1465,6 +1467,36 @@ function DayCardPreview({
       onClick: () => builder!.replaceDay(day.day, (d) => ({ ...d, activities: [] })),
     },
   ] : undefined;
+  /** Controls for one experience, as opposed to the list of them.
+   *
+   * Every row gets these, including the first. Before this only the first was
+   * wrapped in an EditableSection — it's the one paired with the "Experiences"
+   * heading — so a day with three experiences offered hover controls on one of
+   * them and nothing on the other two. Reordering and deleting a single
+   * experience had to go through the drawer.
+   *
+   * `index` is the position in day.activities, not in the filtered list: blank
+   * activities are hidden from the document but still occupy an index, and
+   * moving by the visible position would move the wrong one. */
+  const activityActions = (index: number): SectionAction[] | undefined => canEditDoc ? [
+    {
+      icon: Pencil, label: "Edit this experience",
+      onClick: () => builder!.openDrawer({ kind: "activities-edit", day: day.day }),
+    },
+    {
+      icon: ArrowUp, label: "Move up",
+      onClick: () => builder!.replaceDay(day.day, (d) => moveActivity(d, index, -1)),
+    },
+    {
+      icon: ArrowDown, label: "Move down",
+      onClick: () => builder!.replaceDay(day.day, (d) => moveActivity(d, index, 1)),
+    },
+    {
+      icon: Trash2, label: "Remove this experience", tone: "danger",
+      onClick: () => builder!.replaceDay(day.day, (d) => removeActivity(d, index)),
+    },
+  ] : undefined;
+
   // Night 2+ of a multi-night stay — see stayRun/continuesStayFrom. Null when
   // this day starts its stay, or has no catalog room at all.
   const continuesFrom = continuesStayFrom(allDays, day.day);
@@ -1937,22 +1969,38 @@ function DayCardPreview({
               // next one. Pairing it with just the FIRST activity (not the
               // whole list) keeps the heading attached to real content
               // without forcing every activity onto one page together.
+              // Item-level controls on every row, list-level controls on the
+              // list. The first row carries both: its outer section is what
+              // holds the "Experiences" heading, so Add/Replace/Remove-all
+              // belong there, while Move and Remove-this belong to the row.
+              const item = (
+                <EditableSection actions={activityActions(originalIndex)}>
+                  {row}
+                </EditableSection>
+              );
               if (idx === 0) {
                 return (
-                  <EditableSection key={originalIndex} actions={activitiesActions}>
-                  <div className="space-y-2.5" style={{ breakInside: "avoid" }}>
-                    <DaySubHead
-                      icon={Sparkles}
-                      label="Experiences"
-                    />
-                    <div className={SUBHEAD_INDENT}>{row}</div>
+                  // The list-level toolbar hangs off the HEADING, not off the
+                  // heading-plus-first-row. Wrapping both would nest one
+                  // EditableSection inside another, and `group-hover/section`
+                  // matches any ancestor carrying that group — so hovering the
+                  // first experience fired both toolbars and drew both hover
+                  // outlines. Heading hover gives you the list; row hover gives
+                  // you the row.
+                  <div key={originalIndex} className="space-y-2.5" style={{ breakInside: "avoid" }}>
+                    <EditableSection actions={activitiesActions}>
+                      <DaySubHead
+                        icon={Sparkles}
+                        label="Experiences"
+                      />
+                    </EditableSection>
+                    <div className={SUBHEAD_INDENT}>{item}</div>
                   </div>
-                  </EditableSection>
                 );
               }
               // Every later activity carries the same indent, so the whole
               // list stays aligned under the Experiences label above it.
-              return <div key={originalIndex} className={SUBHEAD_INDENT}>{row}</div>;
+              return <div key={originalIndex} className={SUBHEAD_INDENT}>{item}</div>;
             })}
           </div>
           </DaySlot>
