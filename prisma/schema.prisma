@@ -3047,6 +3047,14 @@ model custom_itineraries {
   hotelFilledById           String?
   hotelFilledByName         String?
   /**
+   * Internal note the hotel team adds when fulfilling a pending request
+   * (e.g. "confirmed by phone, no early check-in available") — shown to the
+   * sales exec in the builder's Hotel Info day card, but deliberately kept
+   * out of `notes` above (which IS rendered in the itinerary PDF) since this
+   * is ops-to-sales communication, not something meant for the client.
+   */
+  hotelFillNote             String?
+  /**
    * Set once PackageStatusNotifier's poller has surfaced the "hotel added
    * for <package>" toast to the exec for this fill — same one-shot pattern
    * as custom_packages.execNotifiedAt, kept as its own per-day field rather

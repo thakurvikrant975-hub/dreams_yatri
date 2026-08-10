@@ -46,6 +46,10 @@ export type FillHotelInput = {
      * preview actually read (hotelMealPlan above is a separate free-text
      * label, not rendered anywhere in the itinerary document). */
     meals?: string[];
+    /** Internal note for the sales exec (e.g. "confirmed by phone, no early
+     * check-in") — shown in the builder's Hotel Info card, never in the
+     * itinerary PDF. See custom_itineraries.hotelFillNote. */
+    note?: string;
 };
 
 export async function fillPendingHotel(
@@ -85,6 +89,7 @@ export async function fillPendingHotel(
             hotelFilledAt: new Date(),
             hotelFilledById: auth.member.id,
             hotelFilledByName: auth.member.name,
+            hotelFillNote: input.note?.trim() || null,
         },
     });
 

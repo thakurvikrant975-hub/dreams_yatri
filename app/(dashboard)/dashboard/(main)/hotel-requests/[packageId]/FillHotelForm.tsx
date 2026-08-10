@@ -3,11 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
 import { cn } from "@/app/lib/utils";
 import { fillPendingHotel } from "../actions";
+import { TimeSelect } from "./TimeSelect";
 
 // Mirrors STAY_LABELS in package-builder/[packageId]/page.tsx — the exec's
 // Hotel Type request is stored as one of these keys.
@@ -61,6 +63,7 @@ export function FillHotelForm({
     const [roomSpecs, setRoomSpecs] = useState("");
     const [checkIn, setCheckIn] = useState("");
     const [checkOut, setCheckOut] = useState("");
+    const [notes, setNotes] = useState("");
     const [mealPlan, setMealPlan] = useState(requestedMealPlan ?? "");
     const requestedPlanMatch = mealTypes.find((m) => m.name === requestedMealPlan);
     const [meals, setMeals] = useState<string[]>(
@@ -91,6 +94,7 @@ export function FillHotelForm({
                 checkOut,
                 mealPlan,
                 meals,
+                note: notes,
             });
             if (result.success) {
                 setDone(true);
@@ -308,22 +312,24 @@ export function FillHotelForm({
                     <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
                         <LogIn className="size-2.5" /> Check-In
                     </label>
-                    <Input
-                        value={checkIn}
-                        onChange={(e) => setCheckIn(e.target.value)}
-                        placeholder="2:00 PM"
-                        className="text-sm h-9"
-                    />
+                    <TimeSelect value={checkIn} onChange={setCheckIn} placeholder="Select check-in" />
                 </div>
                 <div>
                     <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
                         <LogOut className="size-2.5" /> Check-Out
                     </label>
-                    <Input
-                        value={checkOut}
-                        onChange={(e) => setCheckOut(e.target.value)}
-                        placeholder="11:00 AM"
-                        className="text-sm h-9"
+                    <TimeSelect value={checkOut} onChange={setCheckOut} placeholder="Select check-out" />
+                </div>
+                <div className="col-span-2">
+                    <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
+                        <StickyNote className="size-2.5" /> Notes for Sales Exec <span className="text-dashboard-base-content/40">(optional, internal only)</span>
+                    </label>
+                    <Textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="e.g. Confirmed by phone, no early check-in available"
+                        rows={2}
+                        className="text-sm resize-none"
                     />
                 </div>
             </div>

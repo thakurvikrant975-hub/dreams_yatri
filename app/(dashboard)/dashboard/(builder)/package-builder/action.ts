@@ -719,6 +719,10 @@ export interface DayItinerary {
    * only (not written back by saveCustomPackage). */
   hotelFilledAt?:     Date | null;
   hotelFilledByName?: string | null;
+  /** Read-only — the hotel team's internal note left when filling this day
+   * in, for display only (not written back by saveCustomPackage, and never
+   * included in the itinerary PDF — see ItineraryDocument.tsx). */
+  hotelFillNote?:     string | null;
   /** Read-only — costing's per-day price correction (see
    * /dashboard/verify-packages), set only from the review screen. Carried
    * forward untouched by saveCustomPackage; feeds computeBuilderHotelPricing/
@@ -1028,6 +1032,7 @@ export async function copyPackageIntoDraft(
       manualHotelPricePerNight: null,
       hotelFilledAt:      null,
       hotelFilledByName:  null,
+      hotelFillNote:      null,
       transport:          transfer?.vehicle_name ?? "",
       transportPhoto:     transfer?.vehicle_image_key ? getThumbnailImage(transfer.vehicle_image_key) : "",
       transportVehicleType: transfer?.vehicle_type ?? "",
@@ -1124,7 +1129,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           roomPricingId: true, roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           hotelPending: true, hotelPendingNote: true, hotelRequestType: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
-          hotelFilledAt: true, hotelFilledByName: true,
+          hotelFilledAt: true, hotelFilledByName: true, hotelFillNote: true,
           hotelPriceOverride: true, cabPriceOverride: true,
           transport: true, transportPhoto: true, transportVehicleType: true,
           transportSeats: true, transportPickup: true,
@@ -1160,7 +1165,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       hotelPending: n.hotelPending, hotelPendingNote: n.hotelPendingNote,
       manualHotelPricePerNight: n.manualHotelPricePerNight,
       manualExtraBedRate: n.manualExtraBedRate,
-      hotelFilledAt: null, hotelFilledByName: null,
+      hotelFilledAt: null, hotelFilledByName: null, hotelFillNote: null,
       hotelPriceOverride: null, cabPriceOverride: null,
       transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
       transportSeats: n.transportSeats, transportPickup: n.transportPickup,
@@ -1332,7 +1337,7 @@ function normalizeItinerary(it: {
   hotelPending: boolean; hotelPendingNote: string | null; hotelRequestType: string | null;
   manualHotelPricePerNight: number | null;
   manualExtraBedRate: number | null;
-  hotelFilledAt: Date | null; hotelFilledByName: string | null;
+  hotelFilledAt: Date | null; hotelFilledByName: string | null; hotelFillNote: string | null;
   hotelPriceOverride: number | null; cabPriceOverride: number | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
@@ -1374,6 +1379,7 @@ function normalizeItinerary(it: {
     manualExtraBedRate:        it.manualExtraBedRate ?? null,
     hotelFilledAt:             it.hotelFilledAt,
     hotelFilledByName:         it.hotelFilledByName,
+    hotelFillNote:             it.hotelFillNote,
     hotelPriceOverride:        it.hotelPriceOverride ?? null,
     cabPriceOverride:          it.cabPriceOverride ?? null,
     transport:                 it.transport ?? "",
@@ -1572,6 +1578,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           manualExtraBedRate: true,
           hotelFilledAt:      true,
           hotelFilledByName:  true,
+          hotelFillNote:      true,
           hotelPriceOverride: true,
           cabPriceOverride:   true,
           transport:          true,
@@ -1881,6 +1888,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       where: { customPackageId: pkg.id },
       select: {
         day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
+        hotelFillNote: true,
         hotelPriceOverride: true, cabPriceOverride: true,
         roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
@@ -1983,6 +1991,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               hotelFilledAt:      hotelPending ? null : (existing?.hotelFilledAt ?? null),
               hotelFilledById:    hotelPending ? null : (existing?.hotelFilledById ?? null),
               hotelFilledByName:  hotelPending ? null : (existing?.hotelFilledByName ?? null),
+              hotelFillNote:      hotelPending ? null : (existing?.hotelFillNote ?? null),
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
               manualExtraBedRate: it.manualExtraBedRate ?? null,
               // Costing-only corrections — never sourced from the exec's own

@@ -20,6 +20,7 @@ import {
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -1632,6 +1633,14 @@ function DayCard({
               <p className="text-[11px] text-emerald-700 flex items-center gap-1 -mt-1">
                 <CheckCircle size={11} /> Filled by {data.hotelFilledByName ?? "hotel team"} on {new Date(data.hotelFilledAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
                 {data.manualHotelPricePerNight != null && ` · ₹${data.manualHotelPricePerNight.toLocaleString("en-IN")}/night`}
+              </p>
+            )}
+            {data.hotelFillNote && (
+              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 flex items-start gap-1.5">
+                <StickyNote size={11} className="shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-medium">Note from hotel team:</span> {data.hotelFillNote}
+                </span>
               </p>
             )}
             <div>
