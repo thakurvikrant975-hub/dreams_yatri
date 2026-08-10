@@ -280,12 +280,12 @@ export function FillHotelForm({
                     <div className="grid grid-cols-4 gap-2">
                         <div>
                             <p className="text-[10px] text-dashboard-base-content/50 mb-1">Hotel</p>
-                            <ImageDropField value={hotelPhoto} onChange={setHotelPhoto} folder="hotels" />
+                            <ImageDropField value={hotelPhoto} onChange={setHotelPhoto} folder="hotels" compact />
                         </div>
                         {roomPhotos.map((photo, i) => (
                             <div key={i}>
                                 <p className="text-[10px] text-dashboard-base-content/50 mb-1">Room {i + 1}</p>
-                                <ImageDropField value={photo} onChange={(url) => setRoomPhotoAt(i, url)} folder="hotels" />
+                                <ImageDropField value={photo} onChange={(url) => setRoomPhotoAt(i, url)} folder="hotels" compact />
                             </div>
                         ))}
                     </div>

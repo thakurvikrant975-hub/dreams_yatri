@@ -16,7 +16,7 @@ const POSITION_STEP = 5;
  * appears once an image is set, for re-centering a photo that object-cover
  * crops awkwardly (e.g. a portrait shot in a wide banner). */
 export function ImageDropField({
-  value, onChange, position = 50, onPositionChange, folder = "packages", className,
+  value, onChange, position = 50, onPositionChange, folder = "packages", className, compact = false,
 }: {
   value: string;
   onChange: (url: string) => void;
@@ -24,6 +24,10 @@ export function ImageDropField({
   onPositionChange?: (position: number) => void;
   folder?: string;
   className?: string;
+  /** Shrinks the empty-state hint to an icon + one word — for small,
+   * multi-up slots (e.g. 4 side-by-side room-photo fields) where the full
+   * "Drag & drop an image, or click to browse" sentence doesn't fit. */
+  compact?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -77,7 +81,14 @@ export function ImageDropField({
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); uploadAndSet(e.dataTransfer.files); }}
         className={cn(
-          "relative rounded-xl border-2 border-dashed overflow-hidden transition-colors",
+          // w-full is load-bearing: without an explicit width, a narrow
+          // container (e.g. a 4-up grid of small slots) combined with
+          // min-h-24 forcing the height above what aspect-21/9 would derive
+          // from the available width makes the browser recompute WIDTH from
+          // that forced height via the ratio instead — the box ends up
+          // wider than its container and overflows into siblings. An
+          // explicit w-full keeps width pinned to the container regardless.
+          "relative w-full rounded-xl border-2 border-dashed overflow-hidden transition-colors",
           dragOver ? "border-dashboard-primary bg-dashboard-primary/5" : "border-dashboard-base-300",
           value ? "aspect-21/9" : "aspect-21/9 min-h-24",
         )}
@@ -118,12 +129,20 @@ export function ImageDropField({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="w-full h-full flex flex-col items-center justify-center gap-1.5 py-6 hover:bg-dashboard-primary/5 transition-colors disabled:opacity-50"
+            className={cn(
+              "w-full h-full flex flex-col items-center justify-center hover:bg-dashboard-primary/5 transition-colors disabled:opacity-50",
+              compact ? "gap-1 py-2" : "gap-1.5 py-6",
+            )}
           >
             {uploading ? (
               <>
-                <Loader2 size={18} className="animate-spin text-dashboard-base-content/40" />
-                <span className="text-xs text-dashboard-base-content/50">Uploading…</span>
+                <Loader2 size={compact ? 14 : 18} className="animate-spin text-dashboard-base-content/40" />
+                {!compact && <span className="text-xs text-dashboard-base-content/50">Uploading…</span>}
+              </>
+            ) : compact ? (
+              <>
+                <ImageIcon size={16} className="text-dashboard-base-content/30" />
+                <span className="text-[10px] text-dashboard-primary font-medium">Upload</span>
               </>
             ) : (
               <>
