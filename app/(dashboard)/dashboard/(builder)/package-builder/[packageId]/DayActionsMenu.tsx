@@ -61,9 +61,14 @@ const TOOLBAR_BUTTON =
 /** Everything a day can gain, in the order the document renders it.
  *
  * One definition feeding both the header menu and the foot-of-day button, so
- * the two doors can't come to offer different things. Labels flip between
- * "Add X" and "X" on what the day already has — a menu that says "Add stay"
- * next to a day that has one is lying about what clicking does. */
+ * the two doors can't come to offer different things.
+ *
+ * Labels flip on what the day already has, because a menu that says "Add stay"
+ * next to a day that has one is lying about what clicking does. But the flip
+ * isn't the same for every entry: a day has ONE stay, transport and meal plan,
+ * and any number of experiences. Treating experiences like the others left the
+ * only route to a second one labelled "Edit experiences", which reads as a
+ * dead end — nothing on screen suggested a day could have more than one. */
 function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending }: {
   day: number;
   hasStay: boolean;
@@ -71,7 +76,15 @@ function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, 
   hasActivities: boolean;
   hasMeals: boolean;
   isPending: boolean;
-}): { icon: React.ElementType; label: string; on: boolean; target: DrawerTarget }[] {
+}): {
+  icon: React.ElementType;
+  label: string;
+  on: boolean;
+  target: DrawerTarget;
+  /** More than one can sit on a day, so having one is not a reason to stop
+   * offering another. */
+  multiple?: boolean;
+}[] {
   return [
     {
       icon: Hotel,
@@ -89,9 +102,10 @@ function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, 
     },
     {
       icon: Sparkles,
-      label: hasActivities ? "Edit experiences" : "Add experiences",
+      label: hasActivities ? "Add another experience" : "Add an experience",
       on: hasActivities,
       target: { kind: "activities-edit", day },
+      multiple: true,
     },
     {
       icon: Utensils,
@@ -283,13 +297,18 @@ export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasM
   const { openDrawer } = useBuilder();
   const items = dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending });
 
-  // What this day is still missing, named in the button itself. A generic "Add
-  // to this day" makes you open the menu to find out whether there's anything
-  // worth adding; this answers that before the click.
-  const missing = items.filter((i) => !i.on).map((i) => i.label.replace(/^Add /, ""));
-  const label = missing.length === 0
+  // What this day still has room for, named in the button itself. A generic
+  // "Add to this day" makes you open the menu to find out whether there's
+  // anything worth adding; this answers that before the click.
+  //
+  // A repeatable slot always has room, so experiences stay in the offer no
+  // matter how many the day already has.
+  const open = items
+    .filter((i) => !i.on || i.multiple)
+    .map((i) => i.label.replace(/^Add (another |an |a )?/, ""));
+  const label = open.length === 0
     ? "Edit this day's stay, transport, experiences or meals"
-    : `Add ${humanList(missing)}`;
+    : `Add ${humanList(open)}`;
 
   const control = (
     <button

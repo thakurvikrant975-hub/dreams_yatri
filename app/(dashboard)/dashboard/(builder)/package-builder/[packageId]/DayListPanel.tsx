@@ -140,6 +140,9 @@ type Element = {
   /** Blocks removal with a reason, rather than silently doing something
    * surprising — a continued stay belongs to the day that booked it. */
   clearBlockedBy?: string;
+  /** Any number can sit on a day, so a filled row still offers "add", not just
+   * "open". Without this the row read as a single occupied slot. */
+  multiple?: boolean;
 };
 
 function ElementRow({ el, canEdit }: { el: Element; canEdit: boolean }) {
@@ -170,8 +173,9 @@ function ElementRow({ el, canEdit }: { el: Element; canEdit: boolean }) {
             {el.value ?? "Not added"}
           </span>
         </span>
-        {!filled && canEdit && <Plus size={12} className="shrink-0 text-dashboard-base-content/30" />}
-        {filled && <ChevronRight size={12} className="shrink-0 text-dashboard-base-content/25" />}
+        {canEdit && (!filled || el.multiple)
+          ? <Plus size={12} className="shrink-0 text-dashboard-base-content/30" />
+          : filled && <ChevronRight size={12} className="shrink-0 text-dashboard-base-content/25" />}
       </button>
 
       {/* Only ever shown for something that IS on the day — a clear button next
@@ -245,6 +249,7 @@ function elementsFor(
       label: "Experiences",
       value: acts.length ? acts.map((a) => a.title.trim()).join(", ") : null,
       open: { kind: "activities-edit", day: n },
+      multiple: true,
       clear: () => replaceDay(n, (it) => ({ ...it, activities: [] })),
     },
     {

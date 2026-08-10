@@ -1437,6 +1437,13 @@ function DayCardPreview({
 
   const activitiesActions: SectionAction[] | undefined = canEditDoc ? [
     {
+      // First, and its own control rather than a mode of Edit: a day can hold
+      // any number of experiences, and with only "Edit" on the toolbar the
+      // section looked like a single filled slot.
+      icon: Plus, label: "Add another experience",
+      onClick: () => builder!.openDrawer({ kind: "activities-edit", day: day.day }),
+    },
+    {
       icon: Pencil, label: "Edit experiences",
       onClick: () => builder!.openDrawer({ kind: "activities-edit", day: day.day }),
     },
