@@ -15,7 +15,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, PencilLine } from "./builder-icons";
+import {
+  Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, Star,
+} from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
@@ -31,7 +33,7 @@ import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
-import { Field, OptionRow, Chip, Empty } from "./builder-ui";
+import { Field, OptionRow, Chip, Empty, Segmented, Group, Card } from "./builder-ui";
 import {
   applyHotelRoomSelection, removeStay, invalidateStaleOverrides,
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
@@ -271,11 +273,75 @@ export function HotelReplaceView({ day }: { day: number }) {
 // Edit
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** A hotel's star rating as stars, not prose.
+ *
+ * The catalog stores it free-text on hotels.stay_type — "4 Star", "3-star",
+ * sometimes something that isn't a rating at all ("Boutique"). A number gets
+ * glyphs; anything else is shown as written rather than guessed at. */
+function StarRating({ raw }: { raw: string | null }) {
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 7) {
+    return (
+      <span className="text-[10.5px] font-medium text-dashboard-base-content/55">{raw}</span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-0.5" title={raw} aria-label={raw}>
+      {Array.from({ length: n }, (_, i) => (
+        <Star key={i} size={10} className="text-amber-500" />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * The stay editor for one day.
+ *
+ * Two tabs, because a stay is genuinely one of two things and the fields
+ * differ completely. A catalog room owns its name, rates and occupancy caps
+ * and is priced from a real hotel_room_pricing row; a hand-typed one owns
+ * nothing but what was entered and is priced from the figures beside it. The
+ * old single column showed the catalog card, then the hand-typed block, then
+ * catalog-only fields below that, with a "Or enter a hotel by hand" link
+ * buried in the middle — so which mode you were in had to be inferred from
+ * which controls happened to be visible.
+ *
+ * Handing the day to the hotel team is deliberately NOT a third tab. It isn't
+ * a way of describing the stay, it's a way of not describing it yet, and it
+ * takes the day out of the exec's hands — that belongs below the fold, behind
+ * a confirmation, not level with the two modes.
+ */
 export function HotelEditView({ day }: { day: number }) {
   const { form, setForm, replaceDay, updateDay, openDrawer, closeDrawer } = useBuilder();
   // Declared before the early return below — hooks can't sit behind a guard.
   const [requesting, setRequesting] = useState(false);
+  // The star rating isn't snapshotted onto the day (see applyHotelRoomSelection
+  // — it stores what pricing and the document need, and stars are neither), so
+  // it's read back from the room this day is priced against.
+  const [stars, setStars] = useState<string | null>(null);
   const itin = form.itineraries.find((it) => it.day === day);
+  const roomPricingId = itin?.roomPricingId ?? null;
+
+  // Clearing on a room change happens during render, not in the effect below:
+  // an effect would paint one frame showing the PREVIOUS hotel's stars beside
+  // the new hotel's name. Same changed-check shape EditableText uses.
+  const [starsFor, setStarsFor] = useState<number | null>(roomPricingId);
+  if (roomPricingId !== starsFor) {
+    setStarsFor(roomPricingId);
+    setStars(null);
+  }
+
+  useEffect(() => {
+    if (roomPricingId == null) return;
+    let cancelled = false;
+    getHotelRoomByIdForBuilder(roomPricingId, null)
+      .then((room) => { if (!cancelled) setStars(room?.starRating ?? null); })
+      // A missing rating is not worth a toast — the rest of the drawer works.
+      .catch(() => { if (!cancelled) setStars(null); });
+    return () => { cancelled = true; };
+  }, [roomPricingId]);
+
   if (!itin) return null;
 
   const hasCatalogRoom = itin.roomPricingId != null;
@@ -309,115 +375,132 @@ export function HotelEditView({ day }: { day: number }) {
     return <HotelRequestView day={day} />;
   }
 
+  // The tab IS the day's state rather than a separate selection, so it can't
+  // disagree with what's stored. Switching to "by hand" releases the catalog
+  // room, because the two are mutually exclusive — the pricing engine takes
+  // its manual branch only when roomPricingId is null.
+  const tab: "catalog" | "hand" = hasCatalogRoom ? "catalog" : "hand";
+
+  function switchTab(next: "catalog" | "hand") {
+    if (next === tab) return;
+    if (next === "hand") {
+      replaceDay(day, beginManualHotel);
+      toast.success("Switched to a hand-typed stay — the catalog room was released.");
+    } else {
+      openDrawer({ kind: "hotel-replace", day });
+    }
+  }
+
   return (
-    <div className="p-5 space-y-5">
-      <div className="rounded-xl border border-dashboard-base-300 p-3">
-        <div className="flex items-start gap-2.5">
-          <Hotel size={15} className="text-dashboard-primary shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">{itin.accommodation || "No stay chosen yet"}</p>
-            {itin.accommodationLocation && (
-              <p className="text-xs text-dashboard-base-content/60">{itin.accommodationLocation}</p>
-            )}
-            {itin.accommodationRoomSpecs && (
-              <p className="text-[11px] text-dashboard-base-content/50 mt-0.5">{itin.accommodationRoomSpecs}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-2 mt-3">
-          <Button
-            type="button" size="sm" variant="outline" className="flex-1 h-8 text-xs"
-            onClick={() => openDrawer({ kind: "hotel-replace", day })}
-          >
-            {hasCatalogRoom ? "Replace" : "Choose a stay"}
-          </Button>
-          {hasCatalogRoom && (
-            <Button
-              type="button" size="sm" variant="outline"
-              className="h-8 text-xs text-dashboard-error hover:text-dashboard-error"
-              onClick={removeHotel}
-            >
-              <Trash2 size={12} /> Remove
-            </Button>
-          )}
-        </div>
+    <div className="p-5 space-y-4">
+      <Segmented
+        value={tab}
+        onChange={switchTab}
+        options={[
+          { value: "catalog", label: "From the catalog" },
+          { value: "hand", label: "By hand" },
+        ]}
+      />
 
-        {hasCatalogRoom && (
-          <div className="mt-2">
-            <ApplyToDays
-              sourceDay={day}
-              label="Remove this stay from other days"
-              confirmLabel="Remove from"
-              tone="danger"
-              onApply={removeStayFromDays}
-            />
-          </div>
-        )}
-
-        {/* Also reachable with a room already chosen, not just from the search
-            view: an exec often only decides the catalog has nothing suitable
-            after looking at what they picked. Handing the day over replaces
-            that room — a request and a booked room are mutually exclusive and
-            share columns — so this asks first rather than discarding the
-            selection on a single click. */}
-        <div className="mt-2 pt-2 border-t border-dashboard-base-300">
-          {requesting ? (
-            <div className="space-y-2">
-              <p className="text-[11px] text-amber-800">
-                {hasCatalogRoom
-                  ? `This clears ${itin.accommodation || "the chosen room"} for day ${day} and puts it in the hotel team's queue.`
-                  : `Day ${day} goes into the hotel team's queue.`}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  type="button" size="sm"
-                  className="h-8 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={() => {
-                    replaceDay(day, beginHotelRequest);
-                    openDrawer({ kind: "hotel-request", day });
-                  }}
-                >
-                  <Clock size={12} /> Yes, request from team
-                </Button>
-                <Button type="button" size="sm" variant="ghost" className="h-8 text-xs"
-                  onClick={() => setRequesting(false)}>
-                  Cancel
-                </Button>
+      {tab === "catalog" ? (
+        <>
+          <Card className="p-3">
+            <div className="flex items-start gap-2.5">
+              <Hotel size={15} className="text-dashboard-primary shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">{itin.accommodation}</p>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                  <StarRating raw={stars} />
+                  {itin.accommodationLocation && (
+                    <span className="text-xs text-dashboard-base-content/60">
+                      {itin.accommodationLocation}
+                    </span>
+                  )}
+                </div>
+                {itin.accommodationRoomSpecs && (
+                  <p className="text-[11px] text-dashboard-base-content/50 mt-0.5">
+                    {itin.accommodationRoomSpecs}
+                  </p>
+                )}
               </div>
             </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <button
-                type="button"
-                onClick={() => setRequesting(true)}
-                className="flex items-center gap-1.5 text-[11px] font-medium text-amber-800 hover:underline"
+            <div className="flex gap-2 mt-3">
+              <Button
+                type="button" size="sm" variant="outline" className="flex-1 h-8 text-xs"
+                onClick={() => openDrawer({ kind: "hotel-replace", day })}
               >
-                <Clock size={11} /> Can&apos;t find a suitable one? Request from the hotel team
-              </button>
-              {hasCatalogRoom && (
-                <button
-                  type="button"
-                  onClick={() => replaceDay(day, beginManualHotel)}
-                  className="flex items-center gap-1.5 text-[11px] font-medium text-dashboard-base-content/60 hover:text-dashboard-base-content hover:underline"
-                >
-                  <PencilLine size={11} /> Or enter a hotel by hand
-                </button>
-              )}
+                Replace
+              </Button>
+              <Button
+                type="button" size="sm" variant="outline"
+                className="h-8 text-xs text-dashboard-error hover:text-dashboard-error"
+                onClick={removeHotel}
+              >
+                <Trash2 size={12} /> Remove
+              </Button>
             </div>
-          )}
-        </div>
-      </div>
+          </Card>
 
-      {/* Hand-typed stay — the third state, alongside a catalog room and a team
-          request. Shown when there's no catalog room but the day still has, or
-          is being given, a hotel by name. The pricing engine takes its manual
-          branch for these (no roomPricingId), which is why the price and
-          mattress rate live here and nowhere else. */}
-      {!hasCatalogRoom && (
-        <div className="space-y-3 rounded-xl border border-dashed border-dashboard-base-300 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">
-            Hotel entered by hand
-          </p>
+          <StayNights day={day} />
+
+          <Group label="This night">
+            <Field
+              label="Rooms needed"
+              hint={`Leave blank to auto-compute. For ${form.adults} adult${form.adults !== 1 ? "s" : ""}${form.children > 0 ? `, ${form.children} child${form.children !== 1 ? "ren" : ""}` : ""}: ${plan.rooms} room${plan.rooms !== 1 ? "s" : ""}${plan.mattresses > 0 ? ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}` : ""}`}
+            >
+              <Input
+                type="number" min={1}
+                value={itin.roomsCount ?? ""}
+                placeholder={String(plan.rooms)}
+                onChange={(e) => updateDay(day, {
+                  roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                })}
+                className="h-9 text-sm w-28"
+              />
+            </Field>
+
+            <Field label="Meal plan">
+              <Input
+                value={itin.hotelMealPlan}
+                onChange={(e) => updateDay(day, { hotelMealPlan: e.target.value })}
+                placeholder="e.g. MAP — Breakfast &amp; Dinner"
+                className="h-9 text-sm"
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Check-in">
+                <Input
+                  value={itin.hotelCheckIn}
+                  onChange={(e) => updateDay(day, { hotelCheckIn: e.target.value })}
+                  placeholder="2:00 PM" className="h-9 text-sm"
+                />
+              </Field>
+              <Field label="Check-out">
+                <Input
+                  value={itin.hotelCheckOut}
+                  onChange={(e) => updateDay(day, { hotelCheckOut: e.target.value })}
+                  placeholder="11:00 AM" className="h-9 text-sm"
+                />
+              </Field>
+            </div>
+          </Group>
+
+          <ExtraRoomsEditor day={day} />
+
+          <ApplyToDays
+            sourceDay={day}
+            label="Remove this stay from other days"
+            confirmLabel="Remove from"
+            tone="danger"
+            onApply={removeStayFromDays}
+          />
+        </>
+      ) : (
+        <Group
+          label="Hotel entered by hand"
+          hint="Priced from these figures rather than a catalog rate: rooms × price, plus mattresses × rate."
+        >
           <Field label="Hotel &amp; room">
             <Input
               value={itin.accommodation}
@@ -425,7 +508,7 @@ export function HotelEditView({ day }: { day: number }) {
               placeholder="e.g. Snow Valley Resorts — Deluxe"
               className="h-9 text-sm"
             />
-            </Field>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Location">
               <Input
@@ -451,10 +534,7 @@ export function HotelEditView({ day }: { day: number }) {
                 placeholder="1" className="h-9 text-sm"
               />
             </Field>
-            <div className="space-y-1.5">
-              <label className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1">
-                <BedDouble size={11} /> Mattresses
-              </label>
+            <Field label="Mattresses">
               <Input
                 type="number" min={0}
                 value={itin.manualExtraBeds ?? ""}
@@ -463,7 +543,7 @@ export function HotelEditView({ day }: { day: number }) {
                 })}
                 placeholder="0" className="h-9 text-sm"
               />
-            </div>
+            </Field>
             <Field label="Price / night">
               <Input
                 type="number" min={0}
@@ -485,68 +565,64 @@ export function HotelEditView({ day }: { day: number }) {
               />
             </Field>
           </div>
-          <p className="text-[11px] text-dashboard-base-content/45">
-            Priced from these figures rather than a catalog rate. Rooms × price, plus
-            mattresses × rate.
-          </p>
-        </div>
-      )}
-
-      {hasCatalogRoom && <StayNights day={day} />}
-
-      {hasCatalogRoom && (
-        <>
-          <Field label="Rooms needed">
-            <Input
-              type="number" min={1}
-              value={itin.roomsCount ?? ""}
-              placeholder={String(plan.rooms)}
-              onChange={(e) => updateDay(day, {
-                roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-              })}
-              className="h-9 text-sm w-28"
-            />
-            <p className="text-[11px] text-dashboard-base-content/50">
-              Leave blank to auto-compute. For {form.adults} adult{form.adults !== 1 ? "s" : ""}
-              {form.children > 0 ? `, ${form.children} child${form.children !== 1 ? "ren" : ""}` : ""}:{" "}
-              <span className="font-medium text-dashboard-primary">
-                {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
-                {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
-              </span>
-            </p>
-            </Field>
-
-          <Field label="Meal plan">
-            <Input
-              value={itin.hotelMealPlan}
-              onChange={(e) => updateDay(day, { hotelMealPlan: e.target.value })}
-              placeholder="e.g. MAP — Breakfast &amp; Dinner"
-              className="h-9 text-sm"
-            />
-            </Field>
-
-          <ExtraRoomsEditor day={day} />
-
           <div className="grid grid-cols-2 gap-3">
             <Field label="Check-in">
               <Input
                 value={itin.hotelCheckIn}
                 onChange={(e) => updateDay(day, { hotelCheckIn: e.target.value })}
-                placeholder="2:00 PM"
-                className="h-9 text-sm"
+                placeholder="2:00 PM" className="h-9 text-sm"
               />
             </Field>
             <Field label="Check-out">
               <Input
                 value={itin.hotelCheckOut}
                 onChange={(e) => updateDay(day, { hotelCheckOut: e.target.value })}
-                placeholder="11:00 AM"
-                className="h-9 text-sm"
+                placeholder="11:00 AM" className="h-9 text-sm"
               />
             </Field>
           </div>
-        </>
+        </Group>
       )}
+
+      {/* Below both tabs, because it is neither mode: it hands the day to the
+          hotel team and takes it out of the exec's hands. Asks first — a
+          request and a booked room are mutually exclusive and share columns,
+          so confirming is what stops one click discarding a chosen room. */}
+      <div className="pt-3 border-t border-dashboard-base-300">
+        {requesting ? (
+          <div className="space-y-2">
+            <p className="text-[11px] text-amber-800">
+              {hasCatalogRoom
+                ? `This clears ${itin.accommodation || "the chosen room"} for day ${day} and puts it in the hotel team's queue.`
+                : `Day ${day} goes into the hotel team's queue.`}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                type="button" size="sm"
+                className="h-8 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => {
+                  replaceDay(day, beginHotelRequest);
+                  openDrawer({ kind: "hotel-request", day });
+                }}
+              >
+                <Clock size={12} /> Yes, request from team
+              </Button>
+              <Button type="button" size="sm" variant="ghost" className="h-8 text-xs"
+                onClick={() => setRequesting(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setRequesting(true)}
+            className="flex items-center gap-1.5 text-[11px] font-medium text-amber-800 hover:underline"
+          >
+            <Clock size={11} /> Can&apos;t find a suitable one? Request from the hotel team
+          </button>
+        )}
+      </div>
     </div>
   );
 }

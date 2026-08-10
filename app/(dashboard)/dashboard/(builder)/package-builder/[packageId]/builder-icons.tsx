@@ -93,6 +93,7 @@ import {
   SignIn as PhSignIn,
   SignOut as PhSignOut,
   Sparkle as PhSparkle,
+  Star as PhStar,
   Sun as PhSun,
   Ticket as PhTicket,
   Train as PhTrain,
@@ -194,6 +195,7 @@ export const Ticket = filled(PhTicket);
 export const Package = filled(PhPackage);
 export const Gift = filled(PhGift);
 export const Sparkles = filled(PhSparkle);
+export const Star = filled(PhStar);
 export const Zap = filled(PhLightning);
 
 // ── People and money ────────────────────────────────────────────────────────
