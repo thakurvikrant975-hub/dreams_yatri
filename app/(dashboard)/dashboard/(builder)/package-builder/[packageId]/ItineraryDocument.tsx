@@ -718,16 +718,12 @@ function StayStars({ raw }: { raw: string }) {
   );
 }
 
-function DaySubHead({ icon: Icon, label, meta, trailing, onEdit }: {
+function DaySubHead({ icon: Icon, label, meta, onEdit }: {
   icon: React.ElementType;
   label: string;
   /** Optional inline detail (distance, drive time, route) shown after the
    * label — it rides on the same line rather than earning its own row. */
   meta?: string | null;
-  /** Right-aligned on the same line, past the rule. For a fact ABOUT the
-   * section rather than a detail within it — a hotel's star rating belongs to
-   * the property, not to this night. */
-  trailing?: React.ReactNode;
   /** When supplied, the marker becomes the way into this section's task
    * drawer. Only ever passed inside the builder — the client-facing document
    * gets the plain, non-interactive marker. */
@@ -748,7 +744,6 @@ function DaySubHead({ icon: Icon, label, meta, trailing, onEdit }: {
         </span>
       )}
       <span className="h-px flex-1" style={{ backgroundColor: DOC.rule }} />
-      {trailing}
       {onEdit && (
         // builder-only: real rendered text, so it would otherwise be baked
         // into the exported PDF (html2canvas rasterises the screen DOM — see
@@ -1903,18 +1898,18 @@ function DayCardPreview({
               <DaySubHead
                 icon={Hotel}
                 label="Stay"
-                trailing={<StayStars raw={day.accommodationStarRating} />}
               />
               <div
                 className={cn("flex items-center gap-2 rounded-lg px-3 py-2", SUBHEAD_INDENT)}
                 style={{ backgroundColor: DOC.paper, border: `1px solid ${DOC.rule}` }}
               >
                 <MoonStar size={12} color={DOC.accent} className="shrink-0" />
-                <p className="text-[11.5px] flex-1 min-w-0" style={{ color: DOC.inkSoft }}>
+                <p className="text-[11.5px] flex-1 min-w-0 flex items-baseline flex-wrap gap-x-1.5" style={{ color: DOC.inkSoft }}>
                   <span className="font-semibold" style={{ color: DOC.ink }}>
                     {day.accommodation}
                   </span>
-                  {" — continuing from day "}{continuesFrom}
+                  <StayStars raw={day.accommodationStarRating} />
+                  <span>{"— continuing from day "}{continuesFrom}</span>
                 </p>
               </div>
             </div>
@@ -1923,14 +1918,19 @@ function DayCardPreview({
             <DaySubHead
               icon={Hotel}
               label="Stay"
-              trailing={<StayStars raw={day.accommodationStarRating} />}
               // canEdit, not merely "is there a builder" — a package locked
               // for costing review must not offer the affordance at all,
               // rather than offering one that silently does nothing.
             />
             <div className={cn("flex gap-3", SUBHEAD_INDENT)}>
               <div className="flex-1 min-w-0 space-y-1.5">
-                <p className={cn(DISPLAY, "text-[12.5px] font-semibold")} style={{ color: DOC.ink }}>
+                {/* Stars sit with the NAME, not out on the section rule.
+                    They rate this property — parked at the right-hand edge of
+                    a "Stay" heading they read as a score for the day. */}
+                <p
+                  className={cn(DISPLAY, "text-[12.5px] font-semibold flex items-baseline flex-wrap gap-x-1.5 gap-y-0.5")}
+                  style={{ color: DOC.ink }}
+                >
                   <EditableText
                     value={day.accommodation}
                     field={{ scope: "day", day: day.day, key: "accommodation" }}
@@ -1939,6 +1939,7 @@ function DayCardPreview({
                     readOnly={fromCatalog}
                     readOnlyReason={catalogLock}
                   />
+                  <StayStars raw={day.accommodationStarRating} />
                 </p>
 
                 {(day.accommodationLocation || (builder?.canEdit && !fromCatalog)) && (
