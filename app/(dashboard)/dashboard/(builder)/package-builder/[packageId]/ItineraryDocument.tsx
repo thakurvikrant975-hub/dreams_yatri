@@ -30,7 +30,8 @@ import {
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import {
-  useOptionalBuilder, revealField, type PolicyListKey, type TicketTextKey, type AddonTextKey,
+  useOptionalBuilder, revealField,
+  type PolicyListKey, type TicketTextKey, type AddonTextKey,
 } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
@@ -88,6 +89,7 @@ const DISPLAY = "font-heading";
  * one onImageChange callback (threaded down from page.tsx) can cover every
  * editable photo in the document instead of a dozen specific props. */
 export type ImageEditTarget =
+  | { kind: "stop"; stopIndex: number }
   | { kind: "accommodationPhoto"; day: number }
   | { kind: "transportPhoto"; day: number }
   | { kind: "roomPhoto"; day: number; photoIndex: number }
@@ -1067,6 +1069,125 @@ export function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Se
   return null;
 }
 
+/** One destination tile: its photo, its name and how many nights are spent
+ * there. The name is editable on the tile; nights are not — see the `stop`
+ * case in EditableField. */
+function StopTile({ stop, img, onImageChange, stopIndex }: {
+  stop: StopInput;
+  img: string | null;
+  onImageChange?: OnImageChange;
+  stopIndex: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  // Same reset-on-change need as SafeImg: once a broken (e.g. AI-hallucinated)
+  // URL fails once, `failed` must not stay stuck true after the user edits
+  // this tile's photo to a new, working one.
+  const [lastImg, setLastImg] = useState(img);
+  if (img !== lastImg) {
+    setLastImg(img);
+    setFailed(false);
+  }
+  const showPhoto = img && !failed;
+
+  return (
+    <div className="group/img relative flex-1 min-w-0">
+      {showPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog/AI-sourced URL, not a static app asset
+        <img src={img} alt={stop.name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        <div className="w-full h-full bg-linear-to-br from-primary-500 to-primary-700 flex items-center justify-center">
+          <MapPin size={22} className="text-white/70" />
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/30 to-transparent px-2.5 py-2 pt-8">
+        {/* titleCase is display-only, so it can't be applied to an editable
+            value without fighting whatever is being typed. The stored name is
+            shown as-is while editing is on; the client still gets it cased. */}
+        <EditableText
+          as="p"
+          value={stop.name}
+          field={{ scope: "stop", index: stopIndex, key: "name" }}
+          fallback={stop.name ? titleCase(stop.name) : "—"}
+          placeholder="Where to?"
+          className="block text-white text-xs font-bold leading-tight"
+        />
+        <p className="text-white/75 text-[10px] font-medium">
+          {stop.nights} Night{stop.nights !== 1 ? "s" : ""}
+        </p>
+      </div>
+      {onImageChange && (
+        <ImageEditButton
+          value={img ?? ""}
+          onChange={(url) => onImageChange({ kind: "stop", stopIndex }, url)}
+          dialogTitle={`${stop.name ? titleCase(stop.name) : "Stop"} Photo`}
+          className="top-1.5 right-1.5 size-6"
+        />
+      )}
+    </div>
+  );
+}
+
+/** The destinations strip — one photo tile per stop, with its name and nights.
+ *
+ * Restored after being cut: it's the document's only visual answer to "where
+ * does this trip actually go", and the Day-wise table and route map are both
+ * text. It's also what the Destination entry in the package add menu creates,
+ * which is why an unnamed stop still renders a tile in the builder — otherwise
+ * "add a destination" produces nothing to see or type into.
+ */
+function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChange?: OnImageChange }) {
+  const builder = useOptionalBuilder();
+  const canEditDoc = !!builder?.canEdit;
+
+  const actions: SectionAction[] | undefined = canEditDoc ? [
+    {
+      icon: Plus, label: "Add a destination",
+      onClick: () => {
+        const index = builder!.form.stops.length;
+        builder!.setForm((f) => ({ ...f, stops: [...f.stops, { name: "", nights: 1, image: "" }] }));
+        builder!.openDrawer({ kind: "stops-edit" });
+        revealField({ scope: "stop", index, key: "name" });
+      },
+    },
+    {
+      icon: Pencil, label: "Edit destinations and nights",
+      onClick: () => builder!.openDrawer({ kind: "stops-edit" }),
+    },
+  ] : undefined;
+
+  if (form.stops.length === 0) return null;
+
+  const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
+  const packageFallback = form.coverImage
+    || form.itineraries.find((d) => d.accommodationPhoto)?.accommodationPhoto
+    || null;
+
+  return (
+    <EditableSection actions={actions}>
+    <div className="space-y-3" style={{ breakInside: "avoid" }}>
+      <SectionHeader icon={Compass} label="Places You Gonna Visit" />
+      <div className="flex gap-[3px] rounded-2xl overflow-hidden" style={{ height: "40mm" }}>
+        {form.stops.map((s, i) => {
+          const dayNumbers = new Set(
+            dayLocations
+              .map((loc, idx) => (loc === s.name ? idx + 1 : null))
+              .filter((d): d is number => d != null),
+          );
+          // A manual override (set via the edit button) always wins over the
+          // auto-resolved catalog/fallback chain.
+          const img = s.image
+            || form.stopImages?.[s.name.trim()]
+            || firstDayPhotoForStop(form.itineraries, dayNumbers)
+            || packageFallback
+            || null;
+          return <StopTile key={i} stop={s} img={img} onImageChange={onImageChange} stopIndex={i} />;
+        })}
+      </div>
+    </div>
+    </EditableSection>
+  );
+}
+
 /** A ticket stays a real bordered card, unlike the day's Stay/Transport/
  * Experiences sections (see DaySubHead), which shed theirs. The distinction is
  * deliberate: those are facets of one day and belong to the day card holding
@@ -1412,6 +1533,16 @@ function PackageAddMenu() {
     revealField({ scope: "addon", index, key: "name" });
   }
 
+  // Adds a tile to the destinations strip. `nights: 1` rather than 0 because a
+  // zero-night stop contributes nothing to deriveDayLocations and would sit in
+  // the strip while affecting no day.
+  function addStop() {
+    const index = builder!.form.stops.length;
+    builder!.setForm((f) => ({ ...f, stops: [...f.stops, { name: "", nights: 1, image: "" }] }));
+    builder!.openDrawer({ kind: "stops-edit" });
+    revealField({ scope: "stop", index, key: "name" });
+  }
+
   const items: { icon: React.ElementType; label: string; onSelect: () => void }[] = [
     { icon: Plane, label: "Flight", onSelect: () => addTicket("FLIGHT") },
     { icon: TrainFront, label: "Train", onSelect: () => addTicket("TRAIN") },
@@ -1419,9 +1550,7 @@ function PackageAddMenu() {
     { icon: Bus, label: "Bus", onSelect: () => addTicket("BUS") },
     { icon: Ticket, label: "Other transport", onSelect: () => addTicket("OTHER") },
     { icon: Gift, label: "Add-on", onSelect: addAddon },
-    // Destinations have no representation in the document to reveal — the
-    // Places strip was removed — so this one stays a plain drawer open.
-    { icon: Compass, label: "Destination", onSelect: () => builder.openDrawer({ kind: "stops-edit" }) },
+    { icon: Compass, label: "Destination", onSelect: addStop },
   ];
 
   return (
@@ -2673,6 +2802,8 @@ export function ItineraryDocument({
           <AddonsSection addOns={form.addOns} />
 
           <PackageAddMenu />
+
+          <PlacesToVisit form={form} onImageChange={onImageChange} />
 
           <div className="space-y-3">
             <SectionHeader icon={Calendar} label="Day-wise Summary" />

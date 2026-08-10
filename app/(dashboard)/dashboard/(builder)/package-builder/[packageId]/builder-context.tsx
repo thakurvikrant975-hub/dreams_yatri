@@ -354,6 +354,7 @@ export function fieldKey(f: EditableField): string {
     case "activity": return `activity:${f.day}:${f.index}:${f.key}`;
     case "ticket": return `ticket:${f.index}:${f.key}`;
     case "addon": return `addon:${f.index}:${f.key}`;
+    case "stop": return `stop:${f.index}:${f.key}`;
   }
 }
 
@@ -398,7 +399,11 @@ export type EditableField =
   // package-level and per-day — so the position on screen is never the
   // position in the array, and the card has to be told its real one.
   | { scope: "ticket"; index: number; key: TicketTextKey }
-  | { scope: "addon"; index: number; key: AddonTextKey };
+  | { scope: "addon"; index: number; key: AddonTextKey }
+  // Only the name. `nights` drives day-to-stop mapping, the day-wise table and
+  // the whole itinerary's length, so it belongs in the Destinations editor
+  // where changing it shows what it does — not behind a text box on a photo.
+  | { scope: "stop"; index: number; key: "name" };
 
 /** The one place a text edit turns into new form state.
  *
@@ -458,6 +463,14 @@ export function applyFieldEdit(
         ...form,
         addOns: form.addOns.map((a, i) =>
           i === field.index ? { ...a, [field.key]: value } : a,
+        ),
+      };
+
+    case "stop":
+      return {
+        ...form,
+        stops: form.stops.map((st, i) =>
+          i === field.index ? { ...st, [field.key]: value } : st,
         ),
       };
   }

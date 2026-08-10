@@ -388,6 +388,11 @@ export default function PackageBuilderDetailPage() {
   const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
   const [computingPrice, setComputingPrice] = useState(false);
   const [cabPricing, setCabPricing] = useState<BuilderCabPricingResult | null>(null);
+  // Real destination photos for the document's "Places You Gonna Visit" strip,
+  // resolved by name through the same catalog lookup the cover-photo
+  // suggestion uses — so a stop called "Manali" gets the actual destination
+  // photo with no upload. A per-tile override still wins (see StopTile).
+  const [stopImages, setStopImages] = useState<Record<string, string | null>>({});
   const [computingCabPrice, setComputingCabPrice] = useState(false);
   // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (external
   // LLM, no direct API call from here). See buildAIPrompt/applyAIItinerary.
@@ -796,6 +801,30 @@ export default function PackageBuilderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.travelDate, cabPricingKey]);
 
+  // ── Resolve real destination photos for the "Places" strip ────────────────
+  // Keyed by name and only fetched for names not already resolved, so editing
+  // an unrelated part of the package doesn't re-request them.
+  const stopNamesKey = form.stops.map((st) => st.name.trim()).filter(Boolean).join("|");
+  useEffect(() => {
+    const names = [...new Set(form.stops.map((st) => st.name.trim()).filter(Boolean))];
+    const missing = names.filter((n) => !(n in stopImages));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        missing.map(async (name) => [name, await getDestinationCoverImage(name)] as const),
+      );
+      if (cancelled) return;
+      setStopImages((prev) => {
+        const next = { ...prev };
+        for (const [name, url] of entries) next[name] = url;
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopNamesKey]);
+
   // ── Margin + GST walkthrough ─────────────────────────────────────────────
   // base_cost (hotel + cab, computed above) → + margin% → taxable → + gst% →
   // final_price — same walkthrough the admin catalog's full pricing engine
@@ -1041,11 +1070,20 @@ export default function PackageBuilderDetailPage() {
 
 
 
-  /** Single handler for every editable photo in the live preview (hotel,
-   * room, transport, activities) — the edit button's ImageEditTarget says
-   * exactly which one, so there's one place that knows how to write each into
-   * `form` instead of a callback per photo. */
+  /** Single handler for every editable photo in the live preview (stops,
+   * hotel, room, transport, activities) — the edit button's ImageEditTarget
+   * says exactly which one, so there's one place that knows how to write each
+   * into `form` instead of a callback per photo. */
   function handleItineraryImageChange(target: ImageEditTarget, url: string) {
+    // A stop lives on form.stops, not on a day, so it can't go through the
+    // per-day mapping below.
+    if (target.kind === "stop") {
+      setForm((f) => ({
+        ...f,
+        stops: f.stops.map((st, i) => (i === target.stopIndex ? { ...st, image: url } : st)),
+      }));
+      return;
+    }
     setForm((f) => ({
       ...f,
       itineraries: f.itineraries.map((d) => {
@@ -1618,6 +1656,7 @@ Rules:
     paymentPolicy: [...form.paymentPolicy, ...form.extraPolicyItems.paymentPolicy],
     amendmentPolicy: [...form.amendmentPolicy, ...form.extraPolicyItems.amendmentPolicy],
     travelBenefits: [...form.travelBenefits, ...form.extraPolicyItems.travelBenefits],
+    stopImages,
     clientName: query.name ?? "",
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",
