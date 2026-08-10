@@ -30,8 +30,8 @@ import {
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import {
-  useOptionalBuilder, revealField,
-  type PolicyListKey, type TicketTextKey, type AddonTextKey,
+  useOptionalBuilder, revealField, scrollToDay,
+  type PolicyListKey, type TicketTextKey, type AddonTextKey, type DrawerTarget,
 } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
@@ -1009,6 +1009,52 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
 /** Compact "Day | Destination | Hotel | Meals | Cab" grid so the pattern
  * across the whole trip is visible at a glance, ahead of the detailed
  * per-day cards below. */
+/**
+ * One cell of the day-wise summary, and the way into what it describes.
+ *
+ * The table is the densest view of the trip there is — five facts a day, every
+ * day, on one screen — so it's where gaps get spotted. Before this it could
+ * only report them: seeing "—" under Cab for day 4 meant scrolling to day 4 and
+ * finding its transport section. Now the cell IS the control.
+ *
+ * Plain text outside the builder and while locked, so the client's copy and
+ * the PDF are exactly the table they always were.
+ */
+function SummaryCell({ value, action, onOpen }: {
+  /** What's there, or null for an empty column. */
+  value: React.ReactNode;
+  /** Names the gap, not the mechanism: "Add a hotel", never "Open drawer". */
+  action: string;
+  onOpen: () => void;
+}) {
+  const builder = useOptionalBuilder();
+  if (!builder?.canEdit) return <>{value ?? "—"}</>;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={value ? action.replace(/^Add/, "Edit") : action}
+      className={cn(
+        "w-full text-left rounded-[3px] -mx-1 px-1 transition-colors",
+        "hover:bg-dashboard-primary/8 focus-visible:outline-2 focus-visible:outline-dashboard-primary/60",
+      )}
+    >
+      {value ?? (
+        <>
+          {/* Two renderings of "nothing here": the offer while editing, and
+              the em dash the client's document has always shown. See the
+              .builder-only / .export-only pair in PRINT_STYLES. */}
+          <span className="builder-only no-print font-medium" style={{ color: DOC.accent }}>
+            + {action.replace(/^Add /, "")}
+          </span>
+          <span className="export-only">—</span>
+        </>
+      )}
+    </button>
+  );
+}
+
 export function DaySummaryTable({
   itineraries, travelDate, stops = [],
 }: {
@@ -1018,8 +1064,10 @@ export function DaySummaryTable({
    * own hotel doesn't have a location on file yet. */
   stops?: StopInput[];
 }) {
+  const builder = useOptionalBuilder();
   const shiftedMeals = computeShiftedMeals(itineraries);
   const dayLocations = deriveDayLocations(stops, itineraries.length);
+  const open = (t: DrawerTarget) => () => builder?.openDrawer(t);
   return (
     // No breakInside:avoid on this outer wrapper: for a long itinerary, the
     // WHOLE table would then be one indivisible unit taller than a single
@@ -1052,23 +1100,69 @@ export function DaySummaryTable({
             const isLastDay = i === itineraries.length - 1;
             return (
             <tr key={d.day} className={`border-t border-neutral-100 ${i % 2 === 1 ? "bg-neutral-50/60" : ""}`} style={{ breakInside: "avoid" }}>
+              {/* The Day cell navigates rather than editing — it stands for
+                  the whole day, which has no single drawer. Selecting it too
+                  keeps the layers rail and the Itinerary panel pointing at
+                  what you just jumped to. */}
               <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">
-                Day {d.day}
-                {date && (
-                  <span className="block font-normal text-neutral-400 text-[10px]">
-                    {formatShortDate(date)}
-                  </span>
-                )}
+                <SummaryCell
+                  action={`Go to day ${d.day}`}
+                  onOpen={() => { builder?.setSelectedDay(d.day); scrollToDay(d.day); }}
+                  value={
+                    <>
+                      Day {d.day}
+                      {date && (
+                        <span className="block font-normal text-neutral-400 text-[10px]">
+                          {formatShortDate(date)}
+                        </span>
+                      )}
+                    </>
+                  }
+                />
               </td>
               <td className="px-3 py-2 text-neutral-600">
-                {destination ? titleCase(destination) : "—"}
-                {isLastDay && d.transportDrop && (
-                  <span className="block text-[10px] text-neutral-400">Drop: {titleCase(d.transportDrop)}</span>
-                )}
+                <SummaryCell
+                  action="Add a destination"
+                  onOpen={open({ kind: "stops-edit" })}
+                  value={destination ? (
+                    <>
+                      {titleCase(destination)}
+                      {isLastDay && d.transportDrop && (
+                        <span className="block text-[10px] text-neutral-400">
+                          Drop: {titleCase(d.transportDrop)}
+                        </span>
+                      )}
+                    </>
+                  ) : null}
+                />
               </td>
-              <td className="px-3 py-2 text-neutral-600">{d.accommodation || "—"}</td>
-              <td className="px-3 py-2 text-neutral-600">{shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : "—"}</td>
-              <td className="px-3 py-2 text-neutral-600">{d.transport || d.transportVehicleType || "—"}</td>
+              <td className="px-3 py-2 text-neutral-600">
+                <SummaryCell
+                  action="Add a hotel"
+                  // A day awaiting the hotel team opens its request, not the
+                  // picker — the room isn't the exec's to choose right now.
+                  onOpen={open(
+                    d.hotelPending ? { kind: "hotel-request", day: d.day }
+                      : d.accommodation ? { kind: "hotel-edit", day: d.day }
+                        : { kind: "hotel-replace", day: d.day },
+                  )}
+                  value={d.accommodation || null}
+                />
+              </td>
+              <td className="px-3 py-2 text-neutral-600">
+                <SummaryCell
+                  action="Add meals"
+                  onOpen={open({ kind: "meals-edit", day: d.day })}
+                  value={shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : null}
+                />
+              </td>
+              <td className="px-3 py-2 text-neutral-600">
+                <SummaryCell
+                  action="Add a cab"
+                  onOpen={open({ kind: "transfer-edit", day: d.day })}
+                  value={d.transport || d.transportVehicleType || null}
+                />
+              </td>
             </tr>
             );
           })}
@@ -2633,7 +2727,16 @@ const PRINT_STYLES = `
      data-exporting on the root for the duration of the capture instead.
      Browser print (Cmd-P) is covered by the .no-print rule further down. */
   .itinerary-print-area[data-exporting] .builder-only { display: none !important; }
+
+  /* The inverse: content that stands in for builder chrome once it's hidden.
+     The day-wise summary needs it — an empty cell offers "+ Add hotel" while
+     editing and has to fall back to a plain em dash in the client's copy,
+     and there is no way to express that with .builder-only alone. Hidden on
+     screen, shown for both output paths. */
+  .export-only { display: none; }
+  .itinerary-print-area[data-exporting] .export-only { display: inline; }
   @media print {
+    .export-only { display: inline; }
     body * { visibility: hidden; }
     .itinerary-print-area, .itinerary-print-area * { visibility: visible; }
     .no-print { display: none !important; }
