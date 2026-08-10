@@ -2037,6 +2037,12 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             },
           });
         }),
+        // Default is 5s — too short for a rich (e.g. AI-generated) multi-day
+        // itinerary on a cold Neon compute (app/lib/db.ts's pool comments
+        // note cold starts up to ~15s under load): one sequential create per
+        // day easily blows a 5s budget, throwing "Transaction already
+        // closed" and surfacing to the exec as a generic save failure.
+        { timeout: 25_000, maxWait: 10_000 },
       );
     }
 
