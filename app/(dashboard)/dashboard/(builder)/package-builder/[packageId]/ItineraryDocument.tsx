@@ -415,8 +415,8 @@ function SectionHeader({
     );
   }
 
-  const iconColor = tone === "emerald" ? DOC.positive : DOC.accent;
-  const badgeBg = tone === "emerald" ? "#E8F6F1" : DOC.accentSoft;
+  const iconColor = tone === "emerald" ? DOC.positive : DOC.iconMuted;
+  const badgeBg = tone === "emerald" ? "#E8F6F1" : DOC.iconBadge;
   return (
     <div className="flex items-center gap-2.5" style={{ breakAfter: "avoid" }}>
       <span
@@ -648,8 +648,8 @@ function EditableSection({ actions, children }: {
               className={cn(
                 "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms]",
                 tone === "danger"
-                  ? "text-dashboard-error/70 hover:bg-dashboard-error/10 hover:text-dashboard-error"
-                  : "text-dashboard-base-content/55 hover:bg-dashboard-base-200 hover:text-dashboard-base-content",
+                  ? "text-dashboard-error/60 hover:bg-dashboard-error/10 hover:text-dashboard-error"
+                  : "text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/75",
               )}
             >
               <Icon size={13} />
@@ -674,7 +674,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
 }) {
   const inner = (
     <>
-      <Icon size={11} color={DOC.accent} className="shrink-0" />
+      <Icon size={11} color={DOC.iconMuted} className="shrink-0" />
       <span
         className="text-[9.5px] font-semibold uppercase tracking-[0.14em] shrink-0"
         style={{ color: DOC.accent }}

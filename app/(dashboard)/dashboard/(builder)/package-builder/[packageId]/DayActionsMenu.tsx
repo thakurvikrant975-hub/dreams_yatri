@@ -57,7 +57,7 @@ const CONFIRM_WORD = "delete";
  * control in the document reads as one family. */
 const TOOLBAR_BUTTON =
   "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms] " +
-  "text-dashboard-base-content/55 hover:bg-dashboard-base-200 hover:text-dashboard-base-content";
+  "text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/75";
 
 /** Everything a day can gain, in the order the document renders it.
  *

@@ -125,14 +125,32 @@ function RailButton({ entry }: {
       onClick={() => setPanelTab(active ? null : tab)}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "w-[56px] flex flex-col items-center gap-1 rounded-lg py-2 transition-colors duration-[120ms]",
-        active
-          ? "bg-dashboard-primary/10 text-dashboard-primary"
-          : "text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/75",
+        "group/rail w-[56px] flex flex-col items-center gap-1 rounded-lg py-2 transition-colors duration-[120ms]",
+        active ? "bg-dashboard-primary/10" : "hover:bg-dashboard-base-200",
       )}
     >
-      <Icon size={17} />
-      <span className="text-[9.5px] font-medium leading-none">{label}</span>
+      {/* Icon and label carry different weights on purpose. One colour for
+          both made the label as faint as the glyph, and the label is the part
+          that actually tells you what the section is — the icons are close
+          enough in silhouette at 17px that several are only distinguishable by
+          the word underneath. So: light icon, dark grey label. */}
+      <Icon
+        size={17}
+        className={cn(
+          "transition-colors duration-[120ms]",
+          active
+            ? "text-dashboard-primary"
+            : "text-dashboard-base-content/35 group-hover/rail:text-dashboard-base-content/55",
+        )}
+      />
+      <span
+        className={cn(
+          "text-[9.5px] font-medium leading-none transition-colors duration-[120ms]",
+          active ? "text-dashboard-primary" : "text-dashboard-base-content/70",
+        )}
+      >
+        {label}
+      </span>
     </button>
   );
 }

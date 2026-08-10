@@ -31,6 +31,16 @@ export const DOC = {
   rule: "#E9E3DA",
   accent: "#c0392b",
   accentSoft: "#FBF1EF",
+  /** Icons that LABEL a section rather than signal anything about it.
+   *
+   * These were all accent red, which spent the document's one loud colour on
+   * decoration — every section header and every day sub-head shouting as
+   * loudly as a price or a warning. Grey lets the accent mean something again.
+   * Warm, not neutral, so it sits on `paper` without going blue. */
+  iconMuted: "#A8A29A",
+  /** Ground for a section header's icon badge. Was accentSoft pink, for the
+   * same reason and with the same problem. */
+  iconBadge: "#F3F0EA",
   /** Secondary accent for the "included / confirmed" tone. */
   positive: "#059669",
 } as const;
