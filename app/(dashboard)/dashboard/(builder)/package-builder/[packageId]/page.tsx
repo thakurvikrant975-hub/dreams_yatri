@@ -389,12 +389,6 @@ export default function PackageBuilderDetailPage() {
   const [computingPrice, setComputingPrice] = useState(false);
   const [cabPricing, setCabPricing] = useState<BuilderCabPricingResult | null>(null);
   const [computingCabPrice, setComputingCabPrice] = useState(false);
-  // Real destination photos for the preview document's "Places You'll Visit"
-  // strip — resolved by name via the same catalog lookup the cover-photo
-  // suggestion already uses, so a route stop like "Manali" picks up the
-  // actual destination photo automatically, no manual upload needed.
-  const [stopImages, setStopImages] = useState<Record<string, string | null>>({});
-
   // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (external
   // LLM, no direct API call from here). See buildAIPrompt/applyAIItinerary.
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -802,28 +796,6 @@ export default function PackageBuilderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.travelDate, cabPricingKey]);
 
-  // ── Resolve real destination photos for the preview's "Places" strip ───────
-  const stopNamesKey = form.stops.map((s) => s.name.trim()).filter(Boolean).join("|");
-  useEffect(() => {
-    const names = [...new Set(form.stops.map((s) => s.name.trim()).filter(Boolean))];
-    const missing = names.filter((n) => !(n in stopImages));
-    if (missing.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      const entries = await Promise.all(
-        missing.map(async (name) => [name, await getDestinationCoverImage(name)] as const),
-      );
-      if (cancelled) return;
-      setStopImages((prev) => {
-        const next = { ...prev };
-        for (const [name, url] of entries) next[name] = url;
-        return next;
-      });
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopNamesKey]);
-
   // ── Margin + GST walkthrough ─────────────────────────────────────────────
   // base_cost (hotel + cab, computed above) → + margin% → taxable → + gst% →
   // final_price — same walkthrough the admin catalog's full pricing engine
@@ -1069,18 +1041,11 @@ export default function PackageBuilderDetailPage() {
 
 
 
-  /** Single handler for every editable photo in the live preview (stops,
-   * hotel, room, transport, activities) — the edit button's ImageEditTarget
-   * says exactly which one, so there's one place that knows how to write
-   * each into `form` instead of a callback per photo. */
+  /** Single handler for every editable photo in the live preview (hotel,
+   * room, transport, activities) — the edit button's ImageEditTarget says
+   * exactly which one, so there's one place that knows how to write each into
+   * `form` instead of a callback per photo. */
   function handleItineraryImageChange(target: ImageEditTarget, url: string) {
-    if (target.kind === "stop") {
-      setForm((f) => ({
-        ...f,
-        stops: f.stops.map((s, i) => (i === target.stopIndex ? { ...s, image: url } : s)),
-      }));
-      return;
-    }
     setForm((f) => ({
       ...f,
       itineraries: f.itineraries.map((d) => {
@@ -1653,7 +1618,6 @@ Rules:
     paymentPolicy: [...form.paymentPolicy, ...form.extraPolicyItems.paymentPolicy],
     amendmentPolicy: [...form.amendmentPolicy, ...form.extraPolicyItems.amendmentPolicy],
     travelBenefits: [...form.travelBenefits, ...form.extraPolicyItems.travelBenefits],
-    stopImages,
     clientName: query.name ?? "",
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",

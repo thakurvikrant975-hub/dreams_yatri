@@ -113,7 +113,6 @@ const DISPLAY = "font-heading";
  * one onImageChange callback (threaded down from page.tsx) can cover every
  * editable photo in the document instead of a dozen specific props. */
 export type ImageEditTarget =
-  | { kind: "stop"; stopIndex: number }
   | { kind: "accommodationPhoto"; day: number }
   | { kind: "transportPhoto"; day: number }
   | { kind: "roomPhoto"; day: number; photoIndex: number }
@@ -1069,96 +1068,6 @@ export function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Se
     if (day.accommodationPhoto) return day.accommodationPhoto;
   }
   return null;
-}
-
-function StopTile({
-  stop, img, onImageChange, stopIndex,
-}: {
-  stop: StopInput;
-  img: string | null;
-  onImageChange?: OnImageChange;
-  stopIndex: number;
-}) {
-  const [failed, setFailed] = useState(false);
-  // Same reset-on-change need as SafeImg: once a broken (e.g. AI-hallucinated)
-  // URL fails once, `failed` must not stay stuck true after the user edits
-  // this tile's photo to a new, working one.
-  const [lastImg, setLastImg] = useState(img);
-  if (img !== lastImg) {
-    setLastImg(img);
-    setFailed(false);
-  }
-  const showPhoto = img && !failed;
-  return (
-    <div className="group/img relative flex-1 min-w-0">
-      {showPhoto ? (
-        // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/catalog/AI-sourced URL, not a static app asset
-        <img src={img} alt={stop.name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
-      ) : (
-        <div className="w-full h-full bg-linear-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-          <MapPin size={22} className="text-white/70" />
-        </div>
-      )}
-      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/30 to-transparent px-2.5 py-2 pt-8">
-        <p className="text-white text-xs font-bold truncate leading-tight">{stop.name ? titleCase(stop.name) : "—"}</p>
-        <p className="text-white/75 text-[10px] font-medium">{stop.nights} Night{stop.nights !== 1 ? "s" : ""}</p>
-      </div>
-      {onImageChange && (
-        <ImageEditButton
-          value={img ?? ""}
-          onChange={(url) => onImageChange({ kind: "stop", stopIndex }, url)}
-          dialogTitle={`${stop.name ? titleCase(stop.name) : "Stop"} Photo`}
-          className="top-1.5 right-1.5 size-6"
-        />
-      )}
-    </div>
-  );
-}
-
-function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChange?: OnImageChange }) {
-  const builder = useOptionalBuilder();
-  const onEditStops = builder?.canEdit
-    ? () => builder.openDrawer({ kind: "stops-edit" })
-    : undefined;
-
-  // With no stops the section vanished entirely, taking the only way to add
-  // the first one with it — the same trap tickets, add-ons and the policy
-  // lists each had. The builder keeps a header; the client's document still
-  // renders nothing.
-  if (form.stops.length === 0) {
-    return onEditStops ? (
-      <div className="builder-only no-print space-y-3">
-        <SectionHeader icon={Compass} label="Places You Gonna Visit" onAdd={onEditStops} addLabel="Add" />
-      </div>
-    ) : null;
-  }
-  const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
-  const packageFallback = form.coverImage
-    || form.itineraries.find((d) => d.accommodationPhoto)?.accommodationPhoto
-    || null;
-
-  return (
-    <div className="space-y-3" style={{ breakInside: "avoid" }}>
-      <SectionHeader icon={Compass} label="Places You Gonna Visit" onAdd={onEditStops} />
-      <div className="flex gap-[3px] rounded-2xl overflow-hidden" style={{ height: "40mm" }}>
-        {form.stops.map((s, i) => {
-          const dayNumbers = new Set(
-            dayLocations
-              .map((loc, idx) => (loc === s.name ? idx + 1 : null))
-              .filter((d): d is number => d != null),
-          );
-          // A manual override (set via the edit button) always wins over the
-          // auto-resolved catalog/fallback chain.
-          const img = s.image
-            || form.stopImages?.[s.name.trim()]
-            || firstDayPhotoForStop(form.itineraries, dayNumbers)
-            || packageFallback
-            || null;
-          return <StopTile key={i} stop={s} img={img} onImageChange={onImageChange} stopIndex={i} />;
-        })}
-      </div>
-    </div>
-  );
 }
 
 /** A ticket stays a real bordered card, unlike the day's Stay/Transport/
@@ -2645,8 +2554,6 @@ export function ItineraryDocument({
           <AddonsSection addOns={form.addOns} />
 
           <PackageAddMenu />
-
-          <PlacesToVisit form={form} onImageChange={onImageChange} />
 
           <div className="space-y-3">
             <SectionHeader icon={Calendar} label="Day-wise Summary" />
