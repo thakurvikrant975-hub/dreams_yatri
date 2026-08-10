@@ -1002,21 +1002,30 @@ export async function deleteQuery(queryId: string): Promise<ActionResult> {
             where: { id: queryId },
             select: {
                 name: true,
+                status: true,
                 booking: { select: { id: true } },
                 _count: { select: { custom_packages: true } },
             },
         });
         if (!query) return { success: false, message: "Query not found — it may already be deleted." };
 
-        // A query that already has a booking or a built package is a real
-        // business record, not a stray/duplicate lead — block hiding it
-        // rather than pulling it out of the pipeline, and point at what's
-        // still attached.
-        if (query.booking || query._count.custom_packages > 0) {
-            const linked = query.booking
-                ? "a booking"
-                : `${query._count.custom_packages} package${query._count.custom_packages > 1 ? "s" : ""}`;
-            return { success: false, message: `Can't delete — this query has ${linked} linked to it.` };
+        // A real booking always blocks deletion — CONVERTED means money
+        // actually changed hands, never safe to hide regardless of status.
+        if (query.booking) {
+            return { success: false, message: "Can't delete — this query has a booking linked to it." };
+        }
+        // A built package alone doesn't block deletion once the query is
+        // CLOSED (client declined/went elsewhere/etc.) — that package was
+        // never going anywhere either, and hiding is non-destructive (it
+        // stays in the DB, so the package's own link keeps resolving fine).
+        // Still blocked for any non-terminal status, so an active/pending
+        // package can't be accidentally hidden out of the pipeline.
+        if (query._count.custom_packages > 0 && query.status !== "CLOSED") {
+            const count = query._count.custom_packages;
+            return {
+                success: false,
+                message: `Can't delete — this query has ${count} package${count > 1 ? "s" : ""} linked to it. Close the query first if you'd like to delete it.`,
+            };
         }
 
         const { actor } = await getCurrentActor();
