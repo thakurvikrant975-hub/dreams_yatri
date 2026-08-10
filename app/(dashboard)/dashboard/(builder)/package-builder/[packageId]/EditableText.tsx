@@ -117,7 +117,10 @@ export function EditableText({
   if (editing) {
     const shared = {
       ref: inputRef as never,
-      style,
+      // Inline colour is dropped for the same reason as the class above — it
+      // would beat any class we add. Everything else the caller set (letter
+      // spacing, font variant) is kept, so the text doesn't reflow on click.
+      style: style ? { ...style, color: undefined } : undefined,
       value: draft,
       autoFocus: true,
       onChange: (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => setDraft(e.target.value),
@@ -135,6 +138,17 @@ export function EditableText({
         className,
         "no-print w-full bg-white/95 outline-none resize-none",
         "rounded-[3px] ring-2 ring-dashboard-primary/40 px-1 -mx-1",
+        // The editor draws on a near-white field, but the caller's className
+        // is styled for wherever the text NORMALLY sits — and some of those
+        // places are dark. A destination tile's name and the hero title are
+        // both `text-white` over a photo, which on this background is white
+        // on white: you type and see nothing.
+        //
+        // Last wins: cn is twMerge, so this drops any conflicting text-* the
+        // caller set while leaving size, weight and family alone. Callers with
+        // a dark colour are unaffected in practice — they all resolve to
+        // near-black anyway.
+        "text-neutral-900",
       ),
     };
     return multiline
