@@ -101,6 +101,12 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
       <div
         ref={captureRef}
         aria-hidden
+        // Marks this subtree as the off-screen twin. It renders the SAME
+        // document, so every data-field hook in the live preview also exists
+        // in here — and this copy comes first in the DOM. Anything doing a
+        // document-wide lookup for one of those hooks must skip this tree, or
+        // it addresses a node parked 10,000px to the left. See revealField.
+        data-offscreen-capture=""
         style={{ position: "fixed", top: 0, left: "-10000px", width: "210mm" }}
       >
         <ItineraryDocument form={form} variant="flat" />

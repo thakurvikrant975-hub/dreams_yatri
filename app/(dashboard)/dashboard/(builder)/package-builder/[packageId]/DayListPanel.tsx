@@ -36,16 +36,10 @@ import {
   Plus, X, Trash2, ChevronRight,
 } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
-import { useBuilder, type DrawerTarget } from "./builder-context";
+import { useBuilder, scrollToDay, type DrawerTarget } from "./builder-context";
 import { removeStay, removeTransport, continuesStayFrom, dayReadiness } from "./day-mutations";
 import { Empty, Group } from "./builder-ui";
 import type { DayItinerary } from "../action";
-
-/** Scrolls the preview to a day. Every day card carries this id. */
-function jumpToDay(day: number) {
-  document.getElementById(`builder-day-${day}`)
-    ?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Days
@@ -314,7 +308,7 @@ export function DayListPanel() {
 
   function select(day: number) {
     setSelectedDay(day);
-    jumpToDay(day);
+    scrollToDay(day);
   }
 
   const addDay = (

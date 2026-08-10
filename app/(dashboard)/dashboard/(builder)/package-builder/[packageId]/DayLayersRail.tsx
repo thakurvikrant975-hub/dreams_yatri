@@ -33,14 +33,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, PanelLeftClose, PanelLeftOpen, Hotel, Car, Sparkles, Plus } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
-import { useBuilder } from "./builder-context";
+import { useBuilder, scrollToDay } from "./builder-context";
 import { dayReadiness } from "./day-mutations";
-
-/** Scrolls the preview to a day. The document tags each card with this id. */
-function jumpToDay(day: number) {
-  document.getElementById(`builder-day-${day}`)
-    ?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
 
 function ReadyDot({ on, title, icon: Icon }: { on: boolean; title: string; icon: React.ElementType }) {
   return (
@@ -89,7 +83,7 @@ function DayRow({ id, index }: { id: string; index: number }) {
 
       <button
         type="button"
-        onClick={() => { setSelectedDay(d.day); jumpToDay(d.day); }}
+        onClick={() => { setSelectedDay(d.day); scrollToDay(d.day); }}
         aria-pressed={selected}
         className="flex-1 min-w-0 text-left"
       >

@@ -301,16 +301,53 @@ export function PackageBuilderProvider({
  * document hides, a locked package) is a reason to do nothing, not to throw
  * inside a click handler.
  */
+/**
+ * Finds a node in the LIVE document, never in the off-screen capture twin.
+ *
+ * ItineraryPdfExport keeps a second, complete render of the document parked at
+ * `position: fixed; left: -10000px` so html2canvas measures a consistent
+ * layout. That copy duplicates every hook the real one has — the data-field
+ * attributes AND the builder-day-N ids — and it sits FIRST in the DOM. So
+ * getElementById and a bare querySelector both return the parked copy, and
+ * scrolling to it drags the page 10,000px sideways: the document goes blank,
+ * the fixed header stays put, and nothing is thrown to explain it.
+ *
+ * Every lookup into the document goes through here for that reason.
+ */
+export function findInDocument(selector: string): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return Array.from(document.querySelectorAll<HTMLElement>(selector))
+    .find((n) => !n.closest("[data-offscreen-capture]")) ?? null;
+}
+
+/** Scrolls a day card into view, from the layers rail or the Itinerary chips. */
+export function scrollToDay(day: number) {
+  findInDocument(`[id="builder-day-${day}"]`)
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 export function revealField(field: EditableField) {
   if (typeof document === "undefined") return;
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(`[data-field="${fieldKey(field)}"]`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    // EditableText's own click handler is what swaps in the input; its
-    // autoFocus does the rest. Going through the handler rather than calling
-    // focus() keeps one path into edit mode.
-    el.click();
+    try {
+      const el = findInDocument(`[data-field="${fieldKey(field)}"]`);
+      if (!el) return;
+      // "nearest", not "center". "center" scrolls EVERY scrollable ancestor to
+      // put this element mid-viewport, including ones that have no business
+      // moving — the preview pane, the panel, and the window all at once.
+      // "nearest" moves each only as far as it must, and not at all when the
+      // element is already visible.
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      // EditableText's own click handler is what swaps in the input; its
+      // autoFocus does the rest. Going through the handler rather than calling
+      // focus() keeps one path into edit mode.
+      el.click();
+    } catch (err) {
+      // Nothing here is worth taking the builder down for. The thing being
+      // revealed was already created by the caller's setForm — failing to
+      // scroll to it costs a scroll, not the edit.
+      console.error("[builder] revealField failed", field, err);
+    }
   }));
 }
 
