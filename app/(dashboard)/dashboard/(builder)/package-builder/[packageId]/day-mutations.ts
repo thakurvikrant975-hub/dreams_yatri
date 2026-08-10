@@ -642,6 +642,27 @@ export function recalcFromStops(stops: StopInput[]) {
   };
 }
 
+/**
+ * How many destinations this trip can hold.
+ *
+ * One per day at most: a stop the itinerary never spends a day at appears in
+ * the strip and the day-wise table's location column while owning no day, and
+ * deriveDayLocations silently drops it. Recomputed at every call rather than
+ * stored, because days are added and removed all session — the cap that was
+ * right when the drawer opened is not necessarily right when Add is pressed.
+ */
+export function maxStops(dayCount: number): number {
+  return Math.max(1, dayCount);
+}
+
+/** Why adding another destination is unavailable, or null when it isn't. */
+export function stopLimitReason(stopCount: number, dayCount: number): string | null {
+  const max = maxStops(dayCount);
+  return stopCount >= max
+    ? `This trip has ${dayCount} day${dayCount !== 1 ? "s" : ""}, so it can hold ${max} destination${max !== 1 ? "s" : ""}. Add a day first.`
+    : null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Readiness
 // ─────────────────────────────────────────────────────────────────────────────

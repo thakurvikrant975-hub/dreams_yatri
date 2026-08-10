@@ -16,9 +16,13 @@ import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/compone
 import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import type { StopInput } from "../action";
 
-export function RouteStopsEditor({ stops, onChange }: {
+export function RouteStopsEditor({ stops, onChange, limitReason }: {
   stops: StopInput[];
   onChange: (v: StopInput[]) => void;
+  /** Why another stop can't be added, or undefined when one can. Passed in
+   * rather than computed here: this editor is also used by Trip Setup, and
+   * only the caller knows how many days the trip currently has. */
+  limitReason?: string | null;
 }) {
   // Per-row toggle: pick from the real locations catalog (default) vs a
   // plain free-text field, for places not in the catalog yet.
@@ -59,6 +63,8 @@ export function RouteStopsEditor({ stops, onChange }: {
           variant="outline"
           size="sm"
           onClick={addStop}
+          disabled={!!limitReason}
+          title={limitReason ?? undefined}
           className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
         >
           <Plus size={11} /> Add Stop

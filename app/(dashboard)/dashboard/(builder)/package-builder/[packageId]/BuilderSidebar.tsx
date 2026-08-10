@@ -31,6 +31,7 @@ import { TransferView, ActivitiesView } from "./DayDrawers";
 import { MealsView, AddonsView, TicketsView, NoteView, StopsView } from "./ExtrasDrawers";
 import { TICKET_TYPE_LABELS } from "./day-mutations";
 import { DayListPanel } from "./DayListPanel";
+import { BuilderErrorBoundary } from "./BuilderErrorBoundary";
 import { HotelSuggestionsView, ActivitySuggestionsView, CabSuggestionsView } from "./SuggestionsPanel";
 
 const RAIL: { tab: PanelTab; icon: React.ElementType; label: string }[] = [
@@ -221,7 +222,12 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
           </header>
 
           <div className="flex-1 overflow-y-auto overscroll-contain">
-            {body()}
+            {/* Keyed on what's showing, so leaving a section that threw and
+                coming back gives a fresh attempt rather than the error you
+                already dismissed. */}
+            <BuilderErrorBoundary key={drawer?.kind ?? panelTab ?? "none"} label="This panel">
+              {body()}
+            </BuilderErrorBoundary>
           </div>
         </section>
       )}

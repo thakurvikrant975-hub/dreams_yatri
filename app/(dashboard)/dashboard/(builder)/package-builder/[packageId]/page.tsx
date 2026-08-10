@@ -69,6 +69,7 @@ import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
 import { BuilderSidebar } from "./BuilderSidebar";
+import { BuilderErrorBoundary } from "./BuilderErrorBoundary";
 import { DayLayersRail } from "./DayLayersRail";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1955,6 +1956,7 @@ Rules:
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
           <div className="print-reset px-6 py-8">
+            <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
               form={previewForm}
               onCoverImageChange={isLocked ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
@@ -1963,6 +1965,7 @@ Rules:
               onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
               variant="flat"
             />
+            </BuilderErrorBoundary>
           </div>
         </aside>
 

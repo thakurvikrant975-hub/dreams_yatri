@@ -26,7 +26,7 @@ import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import {
   continuesStayFrom, removeStay, removeTransport, moveActivityTo, removeActivity,
-  emptyTicket, emptyAddon,
+  emptyTicket, emptyAddon, stopLimitReason, recalcFromStops,
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import {
@@ -1078,6 +1078,7 @@ function StopTile({ stop, img, onImageChange, stopIndex }: {
   onImageChange?: OnImageChange;
   stopIndex: number;
 }) {
+  const builder = useOptionalBuilder();
   const [failed, setFailed] = useState(false);
   // Same reset-on-change need as SafeImg: once a broken (e.g. AI-hallucinated)
   // URL fails once, `failed` must not stay stuck true after the user edits
@@ -1123,6 +1124,24 @@ function StopTile({ stop, img, onImageChange, stopIndex }: {
           className="top-1.5 right-1.5 size-6"
         />
       )}
+      {/* Removing a destination also removes its nights, which shortens the
+          trip — so this goes through the same recalcFromStops every other stop
+          edit does rather than just splicing the array. */}
+      {builder?.canEdit && (
+        <IconTip label={`Remove ${stop.name ? titleCase(stop.name) : "this destination"}`}>
+          <button
+            type="button"
+            onClick={() => builder.setForm((f) => {
+              const stops = f.stops.filter((_, i) => i !== stopIndex);
+              return { ...f, stops, ...recalcFromStops(stops) };
+            })}
+            aria-label="Remove this destination"
+            className="builder-only no-print absolute top-1.5 left-1.5 z-20 flex items-center justify-center size-6 rounded-md bg-black/45 text-white/80 opacity-0 transition-opacity group-hover/img:opacity-100 focus-visible:opacity-100 hover:bg-red-600 hover:text-white"
+          >
+            <Trash2 size={12} />
+          </button>
+        </IconTip>
+      )}
     </div>
   );
 }
@@ -1139,10 +1158,18 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
   const builder = useOptionalBuilder();
   const canEditDoc = !!builder?.canEdit;
 
+  const limit = builder
+    ? stopLimitReason(builder.form.stops.length, builder.form.itineraries.length)
+    : null;
+
   const actions: SectionAction[] | undefined = canEditDoc ? [
     {
-      icon: Plus, label: "Add a destination",
+      icon: Plus,
+      // The cap is read at click time, not baked in when this rendered — days
+      // come and go all session.
+      label: limit ?? "Add a destination",
       onClick: () => {
+        if (limit) { toast.error(limit); return; }
         const index = builder!.form.stops.length;
         builder!.setForm((f) => ({ ...f, stops: [...f.stops, { name: "", nights: 1, image: "" }] }));
         builder!.openDrawer({ kind: "stops-edit" });
@@ -1152,6 +1179,10 @@ function PlacesToVisit({ form, onImageChange }: { form: PreviewData; onImageChan
     {
       icon: Pencil, label: "Edit destinations and nights",
       onClick: () => builder!.openDrawer({ kind: "stops-edit" }),
+    },
+    {
+      icon: Trash2, label: "Remove all destinations", tone: "danger",
+      onClick: () => builder!.setForm((f) => ({ ...f, stops: [], ...recalcFromStops([]) })),
     },
   ] : undefined;
 
@@ -1537,6 +1568,8 @@ function PackageAddMenu() {
   // zero-night stop contributes nothing to deriveDayLocations and would sit in
   // the strip while affecting no day.
   function addStop() {
+    const limit = stopLimitReason(builder!.form.stops.length, builder!.form.itineraries.length);
+    if (limit) { toast.error(limit); return; }
     const index = builder!.form.stops.length;
     builder!.setForm((f) => ({ ...f, stops: [...f.stops, { name: "", nights: 1, image: "" }] }));
     builder!.openDrawer({ kind: "stops-edit" });

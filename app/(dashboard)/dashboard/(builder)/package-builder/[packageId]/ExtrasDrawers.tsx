@@ -23,6 +23,7 @@ import { useBuilder } from "./builder-context";
 import { NOTE_TONES, noteTone, type NoteTone } from "./ItineraryDocument";
 import {
   emptyTicket, emptyAddon, computeDurationText, TICKET_TYPE_LABELS, recalcFromStops,
+  stopLimitReason,
 } from "./day-mutations";
 import { RouteStopsEditor } from "./RouteStopsEditor";
 
@@ -491,6 +492,7 @@ export function StopsView() {
       <RouteStopsEditor
         stops={form.stops}
         onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
+        limitReason={stopLimitReason(form.stops.length, form.itineraries.length)}
       />
       <div className="rounded-lg bg-dashboard-base-200/50 px-3 py-2.5 space-y-1">
         <p className="text-[11px] text-dashboard-base-content/70">
