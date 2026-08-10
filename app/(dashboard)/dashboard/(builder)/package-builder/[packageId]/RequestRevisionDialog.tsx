@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "./builder-icons";
 import { toast } from "sonner";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Label } from "@/app/(dashboard)/dashboard/(main)/components/ui/label";

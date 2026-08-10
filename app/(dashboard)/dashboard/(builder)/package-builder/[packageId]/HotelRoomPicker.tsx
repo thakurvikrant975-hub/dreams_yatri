@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   SearchIcon, Loader2, ChevronDownIcon, XIcon, CheckIcon, Hotel,
   Coffee, Sun, Moon, UtensilsCrossed,
-} from "lucide-react";
+} from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption } from "../action";
 

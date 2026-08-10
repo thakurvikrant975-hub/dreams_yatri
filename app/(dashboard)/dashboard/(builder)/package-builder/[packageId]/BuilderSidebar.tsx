@@ -23,7 +23,7 @@
 import {
   User, CalendarDays, MapPin, ListOrdered, Plane, Gift, Hotel, Sparkles, Car,
   PanelRightClose, PanelRightOpen, ArrowLeft,
-} from "lucide-react";
+} from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type PanelTab, type DrawerTarget } from "./builder-context";
 import { HotelReplaceView, HotelEditView, HotelRequestView } from "./HotelDrawer";

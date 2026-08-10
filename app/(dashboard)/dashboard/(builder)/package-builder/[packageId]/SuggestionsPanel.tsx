@@ -21,7 +21,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Search, Loader2, GripVertical, BedDouble, Users, Clock } from "lucide-react";
+import { Search, Loader2, GripVertical, BedDouble, Users, Clock } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import {

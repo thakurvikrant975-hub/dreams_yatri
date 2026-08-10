@@ -9,7 +9,7 @@ import {
   Coffee, Soup, UtensilsCrossed, Compass, Moon, Milestone, ArrowRight, Gift, Plus,
   StickyNote, AlertTriangle, AlertOctagon, ChevronDown, CalendarPlus, Lock, MoonStar,
   Bus, Ticket, Repeat, Trash2,
-} from "lucide-react";
+} from "./builder-icons";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel,
@@ -1051,7 +1051,7 @@ export function firstDayPhotoForStop(itineraries: DayItinerary[], dayNumbers: Se
  * card, so it isn't creating the double frame the day sections were.
  * Fare is deliberately never shown here — it's priced into the package total
  * but not itemized per-leg on the client-facing document. */
-const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
+const TICKET_TYPE_ICONS: Record<TicketInput["type"], React.ElementType> = {
   FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
   BUS: Bus, OTHER: Ticket,
 };

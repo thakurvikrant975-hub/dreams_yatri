@@ -9,7 +9,7 @@
 // share one copy while the latter is being retired.
 
 import { useState } from "react";
-import { Plus, Trash2, MapPin, Pencil } from "lucide-react";
+import { Plus, Trash2, MapPin, Pencil } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";

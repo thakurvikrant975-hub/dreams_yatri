@@ -21,7 +21,7 @@
 // So this is the block that survives when the six tabs go.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { CalendarDays, Users, MapPin, Percent, Baby, IndianRupee } from "lucide-react";
+import { CalendarDays, Users, MapPin, Percent, Baby, IndianRupee } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";

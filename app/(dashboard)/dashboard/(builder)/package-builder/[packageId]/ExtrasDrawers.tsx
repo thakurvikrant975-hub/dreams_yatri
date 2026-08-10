@@ -14,7 +14,7 @@
 //            (deriveTransportFields) rather than from any day.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Plus, Trash2, Gift, Utensils } from "lucide-react";
+import { Plus, Trash2, Gift, Utensils } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";

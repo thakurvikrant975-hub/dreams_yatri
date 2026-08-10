@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Download, Eye } from "lucide-react";
+import { Loader2, Download, Eye } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,

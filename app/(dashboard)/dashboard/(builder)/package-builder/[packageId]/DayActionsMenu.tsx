@@ -35,7 +35,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { CalendarPlus, Trash2, Gift, StickyNote, MoreHorizontal, Hotel, Car, Sparkles, Utensils, Plus, ChevronDown } from "lucide-react";
+import { CalendarPlus, Trash2, Gift, StickyNote, MoreHorizontal, Hotel, Car, Sparkles, Utensils, Plus, ChevronDown } from "./builder-icons";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,

@@ -31,7 +31,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, PanelLeftClose, PanelLeftOpen, Hotel, Car, Sparkles, Plus } from "lucide-react";
+import { GripVertical, PanelLeftClose, PanelLeftOpen, Hotel, Car, Sparkles, Plus } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { useBuilder } from "./builder-context";
 import { dayReadiness } from "./day-mutations";

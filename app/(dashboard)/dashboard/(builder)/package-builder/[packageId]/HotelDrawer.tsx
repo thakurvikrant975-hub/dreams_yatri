@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, PencilLine } from "lucide-react";
+import { Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, PencilLine } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
@@ -24,7 +24,7 @@ import {
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "./builder-icons";
 import { geocodeCity } from "./geocode-city";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";

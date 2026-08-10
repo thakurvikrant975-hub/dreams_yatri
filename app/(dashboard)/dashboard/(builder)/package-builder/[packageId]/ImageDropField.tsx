@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ImageIcon, X, Loader2, Upload, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { ImageIcon, X, Loader2, Upload, ArrowUpDown, ChevronUp, ChevronDown } from "./builder-icons";
 import { toast } from "sonner";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { cn } from "@/app/lib/utils";

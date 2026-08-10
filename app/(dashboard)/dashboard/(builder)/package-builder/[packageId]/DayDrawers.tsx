@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Car, Loader2, Search, Trash2, Plus, ArrowUp, ArrowDown, Users, Sparkles,
-} from "lucide-react";
+} from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {

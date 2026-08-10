@@ -34,7 +34,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Hotel, Car, Sparkles, UtensilsCrossed, StickyNote, Gift,
   Plus, X, Trash2, ChevronRight,
-} from "lucide-react";
+} from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type DrawerTarget } from "./builder-context";
 import { removeStay, removeTransport, continuesStayFrom, dayReadiness } from "./day-mutations";

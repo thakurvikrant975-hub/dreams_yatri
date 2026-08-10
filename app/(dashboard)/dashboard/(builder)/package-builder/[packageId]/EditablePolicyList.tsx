@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { Lock, Plus, X } from "lucide-react";
+import { Lock, Plus, X } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import {
   useOptionalBuilder, standardCount, addExtraPolicyItem,

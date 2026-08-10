@@ -17,7 +17,7 @@ import {
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Bus, Ticket,
-} from "lucide-react";
+} from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
@@ -337,7 +337,7 @@ function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
   return false;
 }
 
-const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
+const TICKET_TYPE_ICONS: Record<TicketInput["type"], React.ElementType> = {
   FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
   BUS: Bus, OTHER: Ticket,
 };
