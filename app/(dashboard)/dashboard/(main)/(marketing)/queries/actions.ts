@@ -814,10 +814,15 @@ export async function createManualQuery(
 
     try {
         const { actor } = await getCurrentActor();
-        const normalizedPhone = parsed.data.phone.replace(/[\s\-().+]/g, "");
+        // Strip any spaces the exec typed/pasted between digit groups (e.g.
+        // "98765 43210") — PhoneInput already submits a clean value, but this
+        // is the last line of defense so a stray space can never land in the
+        // stored phone number regardless of how it got here.
+        const cleanPhone = parsed.data.phone.replace(/\s+/g, "");
+        const normalizedPhone = cleanPhone.replace(/[\-().+]/g, "");
 
         const recentDuplicate = await db.package_queries.findFirst({
-            where: { phone: parsed.data.phone, createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) } },
+            where: { phone: cleanPhone, createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) } },
         });
         if (recentDuplicate) {
             return { success: false, message: "A query from this number was submitted in the last 5 minutes." };
@@ -832,7 +837,7 @@ export async function createManualQuery(
         const query = await db.package_queries.create({
             data: {
                 name: parsed.data.name,
-                phone: parsed.data.phone,
+                phone: cleanPhone,
                 email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,
@@ -891,7 +896,8 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
 
     try {
         const { actor } = await getCurrentActor();
-        const normalizedPhone = parsed.data.phone.replace(/[\s\-().+]/g, "");
+        const cleanPhone = parsed.data.phone.replace(/\s+/g, "");
+        const normalizedPhone = cleanPhone.replace(/[\-().+]/g, "");
 
         await db.leadProfile.upsert({
             where: { phone: normalizedPhone },
@@ -903,7 +909,7 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
             where: { id: queryId },
             data: {
                 name: parsed.data.name,
-                phone: parsed.data.phone,
+                phone: cleanPhone,
                 countryCode: parsed.data.countryCode,
                 email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
@@ -923,6 +929,82 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
 
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query updated successfully" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
+    }
+}
+
+// ── Duplicate-phone lookup (Add Query dialog) ──────────────────────────────────
+// Looked up via LeadProfile (always stored normalized, regardless of how the
+// underlying package_queries.phone was formatted at the time it was saved) so
+// this reliably catches duplicates even against queries created before phone
+// numbers were normalized on save.
+
+export type ExistingQueryMatch = {
+    name:           string;
+    status:         QueryStatus;
+    assignedToName: string | null;
+    createdAt:      Date;
+};
+
+export async function checkExistingQueryByPhone(phone: string): Promise<ExistingQueryMatch | null> {
+    const normalized = phone.replace(/[\s\-().+]/g, "");
+    if (normalized.length < 6) return null;
+
+    const profile = await db.leadProfile.findUnique({
+        where: { phone: normalized },
+        select: {
+            package_queries: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { name: true, status: true, assignedToName: true, createdAt: true },
+            },
+        },
+    });
+
+    const latest = profile?.package_queries[0];
+    if (!latest) return null;
+
+    return {
+        name:           latest.name,
+        status:         latest.status as QueryStatus,
+        assignedToName: latest.assignedToName,
+        createdAt:      latest.createdAt,
+    };
+}
+
+// ── Delete query ────────────────────────────────────────────────────────────────
+
+export async function deleteQuery(queryId: string): Promise<ActionResult> {
+    try {
+        const query = await db.package_queries.findUnique({
+            where: { id: queryId },
+            select: {
+                name: true,
+                booking: { select: { id: true } },
+                _count: { select: { custom_packages: true } },
+            },
+        });
+        if (!query) return { success: false, message: "Query not found — it may already be deleted." };
+
+        // A query that already has a booking or a built package is a real
+        // business record, not a stray/duplicate lead — block the delete
+        // rather than orphaning those, and point at what's still attached.
+        if (query.booking || query._count.custom_packages > 0) {
+            const linked = query.booking
+                ? "a booking"
+                : `${query._count.custom_packages} package${query._count.custom_packages > 1 ? "s" : ""}`;
+            return { success: false, message: `Can't delete — this query has ${linked} linked to it.` };
+        }
+
+        const { actor } = await getCurrentActor();
+        await db.package_queries.delete({ where: { id: queryId } });
+
+        console.log(`[deleteQuery] "${query.name}" (${queryId}) deleted by ${actor?.name ?? actor?.email ?? "unknown"}`);
+
+        revalidatePath("/dashboard/queries");
+        return { success: true, data: undefined, message: `Query for ${query.name} deleted` };
     } catch (e) {
         console.error(e);
         return actionError(e);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ClipboardPaste } from "lucide-react";
 import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
@@ -13,6 +13,11 @@ type Props = {
     placeholder?:  string;
     className?:    string;
     disabled?:     boolean;
+    /** Fires with the current full value (dial code + number, no spaces)
+     * whenever either changes — lets a parent react live (e.g. checking for
+     * an existing query on that number) without making this a controlled
+     * input. */
+    onChange?:     (fullValue: string) => void;
 };
 
 function parsePhone(value?: string): { countryCode: string; number: string } {
@@ -28,14 +33,22 @@ function parsePhone(value?: string): { countryCode: string; number: string } {
     return { countryCode: DEFAULT_COUNTRY.code, number: value };
 }
 
-export function PhoneInput({ name, defaultValue, placeholder = "98765 43210", className, disabled }: Props) {
+export function PhoneInput({ name, defaultValue, placeholder = "98765 43210", className, disabled, onChange }: Props) {
     const parsed                        = parsePhone(defaultValue);
     const [countryCode, setCountryCode] = useState(parsed.countryCode);
     const [number, setNumber]           = useState(parsed.number);
     const inputRef                      = useRef<HTMLInputElement>(null);
 
-    const selected  = COUNTRY_CODES.find(c => c.code === countryCode) ?? DEFAULT_COUNTRY;
-    const fullValue = `${selected.dial} ${number}`.trim();
+    const selected = COUNTRY_CODES.find(c => c.code === countryCode) ?? DEFAULT_COUNTRY;
+    // No space between the dial code and the number, and none within the
+    // number itself — the digit-group spacing in the input is purely for
+    // readability while typing, it should never end up in the stored value.
+    const fullValue = `${selected.dial}${number.replace(/\s+/g, "")}`;
+
+    useEffect(() => {
+        onChange?.(fullValue);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fullValue]);
 
     async function handlePaste() {
         try {
