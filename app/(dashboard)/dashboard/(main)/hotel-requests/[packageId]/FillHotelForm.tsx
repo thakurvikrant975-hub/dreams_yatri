@@ -3,13 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { cn } from "@/app/lib/utils";
 import { fillPendingHotel } from "../actions";
 import { TimeSelect } from "./TimeSelect";
+import { ImageDropField } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ImageDropField";
 
 // Mirrors STAY_LABELS in package-builder/[packageId]/page.tsx — the exec's
 // Hotel Type request is stored as one of these keys.
@@ -63,6 +64,8 @@ export function FillHotelForm({
     const [roomSpecs, setRoomSpecs] = useState("");
     const [checkIn, setCheckIn] = useState("");
     const [checkOut, setCheckOut] = useState("");
+    const [hotelPhoto, setHotelPhoto] = useState("");
+    const [roomPhotos, setRoomPhotos] = useState<string[]>(["", "", ""]);
     const [notes, setNotes] = useState("");
     const [mealPlan, setMealPlan] = useState(requestedMealPlan ?? "");
     const requestedPlanMatch = mealTypes.find((m) => m.name === requestedMealPlan);
@@ -80,6 +83,10 @@ export function FillHotelForm({
         setMeals(plan.covered_meals.map((k) => MEAL_KEY_LABELS[k] ?? k));
     }
 
+    function setRoomPhotoAt(index: number, url: string) {
+        setRoomPhotos((prev) => prev.map((p, i) => (i === index ? url : p)));
+    }
+
     function handleSubmit() {
         startTransition(async () => {
             const result = await fillPendingHotel(packageId, day, {
@@ -92,6 +99,8 @@ export function FillHotelForm({
                 roomSpecs,
                 checkIn,
                 checkOut,
+                hotelPhoto,
+                roomPhotos: roomPhotos.filter(Boolean),
                 mealPlan,
                 meals,
                 note: notes,
@@ -263,6 +272,23 @@ export function FillHotelForm({
                         placeholder="1 Double Bed | Mountain View"
                         className="text-sm h-9"
                     />
+                </div>
+                <div className="col-span-2 space-y-2">
+                    <label className="text-[11px] text-dashboard-neutral flex items-center gap-1">
+                        <Camera className="size-2.5" /> Photos <span className="text-dashboard-base-content/40">(optional — shown in the itinerary)</span>
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                        <div>
+                            <p className="text-[10px] text-dashboard-base-content/50 mb-1">Hotel</p>
+                            <ImageDropField value={hotelPhoto} onChange={setHotelPhoto} folder="hotels" />
+                        </div>
+                        {roomPhotos.map((photo, i) => (
+                            <div key={i}>
+                                <p className="text-[10px] text-dashboard-base-content/50 mb-1">Room {i + 1}</p>
+                                <ImageDropField value={photo} onChange={(url) => setRoomPhotoAt(i, url)} folder="hotels" />
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 <div className="col-span-2 space-y-2">
                     {mealTypes.length > 0 && (

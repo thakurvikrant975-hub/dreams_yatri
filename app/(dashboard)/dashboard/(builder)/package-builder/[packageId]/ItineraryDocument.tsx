@@ -1063,8 +1063,8 @@ function DayCardPreview({
                     </div>
                   )}
                   {day.accommodationRoomPhotos.length > 0 && (
-                    <div className="grid grid-cols-2 gap-1">
-                      {day.accommodationRoomPhotos.slice(0, 2).map((src, i) => (
+                    <div className="grid grid-cols-3 gap-1">
+                      {day.accommodationRoomPhotos.slice(0, 3).map((src, i) => (
                         <div key={i} className="group relative">
                           {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
                           <img src={src} alt={`Room ${i + 1}`} className="h-14 w-full rounded-md object-cover" />

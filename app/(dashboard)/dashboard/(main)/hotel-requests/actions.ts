@@ -40,6 +40,13 @@ export type FillHotelInput = {
     roomSpecs?: string;
     checkIn?: string;
     checkOut?: string;
+    /** Single hotel exterior/lobby photo — custom_itineraries.accommodationPhoto,
+     * the same field a catalog room's own photo would populate, so it shows
+     * up in the builder's Hotel Info card and the itinerary document exactly
+     * like a catalog pick would. */
+    hotelPhoto?: string;
+    /** Up to 3 room photos — custom_itineraries.accommodationRoomPhotos. */
+    roomPhotos?: string[];
     mealPlan?: string;
     /** Which meals are included (Breakfast/Lunch/Dinner/Tea & Snacks) — feeds
      * custom_itineraries.meals, the field the Day-wise Summary table and PDF
@@ -77,6 +84,8 @@ export async function fillPendingHotel(
         data: {
             accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
             accommodationRoomSpecs: input.roomSpecs?.trim() || null,
+            accommodationPhoto: input.hotelPhoto?.trim() || null,
+            accommodationRoomPhotos: (input.roomPhotos ?? []).map((p) => p.trim()).filter(Boolean).slice(0, 3),
             hotelCheckIn: input.checkIn?.trim() || null,
             hotelCheckOut: input.checkOut?.trim() || null,
             hotelMealPlan: input.mealPlan?.trim() || null,
