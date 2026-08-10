@@ -26,10 +26,11 @@ import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import {
   continuesStayFrom, removeStay, removeTransport, moveActivityTo, removeActivity,
+  emptyTicket, emptyAddon,
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import {
-  useOptionalBuilder, type PolicyListKey, type TicketTextKey, type AddonTextKey,
+  useOptionalBuilder, revealField, type PolicyListKey, type TicketTextKey, type AddonTextKey,
 } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
@@ -551,7 +552,11 @@ function DayNote({ day }: { day: DayItinerary }) {
   const canEdit = !!builder?.canEdit;
   const title = (day.notesTitle ?? "").trim();
   const body = day.notes.trim();
-  if (!title && !body) return null;
+  // A note with a TYPE but no text yet is a note being written — the shell has
+  // to render for there to be anything to scroll to and type into. The client
+  // never sees it: outside the builder an empty note is no note.
+  const started = day.notesType != null;
+  if (!title && !body && !(canEdit && started)) return null;
 
   const tone = noteTone(day.notesType);
   const t = NOTE_TONES[tone];
@@ -751,7 +756,10 @@ function ActivityRow({
   onImageChange?: OnImageChange;
   onCaptionChange?: (activityIndex: number, photoIndex: number, caption: string) => void;
 }) {
-  if (!activity.title.trim()) return null;
+  const builder = useOptionalBuilder();
+  // Blank rows are how a just-added experience gets somewhere to type. Outside
+  // the builder a nameless activity is nothing and renders as nothing.
+  if (!activity.title.trim() && !builder?.canEdit) return null;
   const gallery = activity.photos.length > 0 ? activity.photos : (activity.photo ? [activity.photo] : []);
   const editable = !!onImageChange && dayNumber != null && activityIndex != null;
   // Always pad up to 3 tiles when editable — previously this only added an
@@ -1322,9 +1330,14 @@ function AddonCard({ addon, index }: {
  * than a specific day's hotel, so they aren't tied to any one Day card and
  * are shown here instead, up top with Flight/Train details. */
 export function AddonsSection({ addOns }: { addOns?: AddonInput[] }) {
+  const canEditDoc = !!useOptionalBuilder()?.canEdit;
+  // An add-on with no name yet is one being written. It has to render in the
+  // builder or "Add an add-on" creates something invisible — there'd be
+  // nothing to scroll to and nothing to type into. The client still only sees
+  // named ones.
   const items = (addOns ?? [])
     .map((a, index) => ({ a, index }))
-    .filter(({ a }) => a.name.trim() && a.day == null);
+    .filter(({ a }) => a.day == null && (a.name.trim() || canEditDoc));
   if (items.length === 0) return null;
 
   return (
@@ -1379,13 +1392,35 @@ function PackageAddMenu() {
   const builder = useOptionalBuilder();
   if (!builder?.canEdit) return null;
 
+  // Clicking "Flight" means "this package has a flight", so it creates one.
+  // Before, it opened a drawer that then asked you to press Add — two
+  // decisions for one intention, and nothing appeared in the document until
+  // the second. Now the leg lands in the document with its placeholders
+  // showing, the drawer opens on it for the structured fields, and the caret
+  // is already in the carrier name.
+  function addTicket(type: TicketInput["type"]) {
+    const index = builder!.form.tickets.length;
+    builder!.setForm((f) => ({ ...f, tickets: [...f.tickets, emptyTicket(type)] }));
+    builder!.openDrawer({ kind: "tickets-edit", type });
+    revealField({ scope: "ticket", index, key: "provider" });
+  }
+
+  function addAddon() {
+    const index = builder!.form.addOns.length;
+    builder!.setForm((f) => ({ ...f, addOns: [...f.addOns, emptyAddon(null)] }));
+    builder!.openDrawer({ kind: "addons-edit", day: null });
+    revealField({ scope: "addon", index, key: "name" });
+  }
+
   const items: { icon: React.ElementType; label: string; onSelect: () => void }[] = [
-    { icon: Plane, label: "Flight", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "FLIGHT" }) },
-    { icon: TrainFront, label: "Train", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "TRAIN" }) },
-    { icon: Helicopter, label: "Helicopter", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "HELICOPTER" }) },
-    { icon: Bus, label: "Bus", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "BUS" }) },
-    { icon: Ticket, label: "Other transport", onSelect: () => builder.openDrawer({ kind: "tickets-edit", type: "OTHER" }) },
-    { icon: Gift, label: "Add-on", onSelect: () => builder.openDrawer({ kind: "addons-edit", day: null }) },
+    { icon: Plane, label: "Flight", onSelect: () => addTicket("FLIGHT") },
+    { icon: TrainFront, label: "Train", onSelect: () => addTicket("TRAIN") },
+    { icon: Helicopter, label: "Helicopter", onSelect: () => addTicket("HELICOPTER") },
+    { icon: Bus, label: "Bus", onSelect: () => addTicket("BUS") },
+    { icon: Ticket, label: "Other transport", onSelect: () => addTicket("OTHER") },
+    { icon: Gift, label: "Add-on", onSelect: addAddon },
+    // Destinations have no representation in the document to reveal — the
+    // Places strip was removed — so this one stays a plain drawer open.
     { icon: Compass, label: "Destination", onSelect: () => builder.openDrawer({ kind: "stops-edit" }) },
   ];
 
@@ -1416,9 +1451,10 @@ function PackageAddMenu() {
 /** Add-ons tied to one specific day — rendered inline under that day's Hotel
  * section (see DayCardPreview) rather than in the general AddonsSection. */
 function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }) {
+  const canEditDoc = !!useOptionalBuilder()?.canEdit;
   const items = addOns
     .map((a, index) => ({ a, index }))
-    .filter(({ a }) => a.name.trim() && a.day === day);
+    .filter(({ a }) => a.day === day && (a.name.trim() || canEditDoc));
   if (items.length === 0) return null;
 
   return (
@@ -1459,9 +1495,13 @@ function DayCardPreview({
   const builder = useOptionalBuilder();
   // Keeps each activity's original index (for onImageChange targeting) even
   // though blank ones are filtered out of what's actually rendered.
+  // Blank activities render in the builder for the same reason blank add-ons
+  // and untyped notes do: "add an experience" has to produce something you can
+  // see and type into. They stay hidden on the client's document and in the
+  // PDF, so an abandoned blank costs nothing there.
   const activities = day.activities
     .map((a, originalIndex) => ({ a, originalIndex }))
-    .filter(({ a }) => a.title.trim());
+    .filter(({ a }) => a.title.trim() || !!builder?.canEdit);
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
   // Check-in lands on this day's own date; check-out is the following
   // morning — same "shifted" convention the meal algorithm uses, since a
@@ -1582,7 +1622,7 @@ function DayCardPreview({
           hasNote={!!day.notes.trim()}
           hasStay={!!hasHotel}
           hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
-          hasActivities={activities.length > 0}
+          hasActivities={activities.some(({ a }) => a.title.trim())}
           hasMeals={(shiftedMeals ?? day.meals).length > 0}
           isPending={!!day.hotelPending}
         />
@@ -2069,7 +2109,7 @@ function DayCardPreview({
           day={day.day}
           hasStay={!!hasHotel}
           hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
-          hasActivities={activities.length > 0}
+          hasActivities={activities.some(({ a }) => a.title.trim())}
           hasMeals={(shiftedMeals ?? day.meals).length > 0}
           isPending={!!day.hotelPending}
         />

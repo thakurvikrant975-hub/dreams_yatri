@@ -45,7 +45,8 @@ import {
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
-import { useBuilder, type DrawerTarget } from "./builder-context";
+import { useBuilder, revealField, type DrawerTarget } from "./builder-context";
+import { addActivity, emptyAddon } from "./day-mutations";
 import { cn } from "@/app/lib/utils";
 import { DaySlot } from "./builder-dnd";
 import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
@@ -85,6 +86,14 @@ function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, 
   /** More than one can sit on a day, so having one is not a reason to stop
    * offering another. */
   multiple?: boolean;
+  /** Creates the thing in the document before the drawer opens, then scrolls
+   * to it and puts the caret in it.
+   *
+   * Absent where the drawer IS the add UI rather than a form over something
+   * that already exists — stay and transport are catalog pickers, and
+   * inventing a blank hotel to reveal would put a nameless stay on the
+   * client's document. Those still just open. */
+  create?: (b: ReturnType<typeof useBuilder>) => void;
 }[] {
   return [
     {
@@ -107,6 +116,12 @@ function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, 
       on: hasActivities,
       target: { kind: "activities-edit", day },
       multiple: true,
+      create: (b) => {
+        const it = b.form.itineraries.find((d) => d.day === day);
+        const index = it ? it.activities.length : 0;
+        b.replaceDay(day, (d) => addActivity(d, ""));
+        revealField({ scope: "activity", day, index, key: "title" });
+      },
     },
     {
       icon: Utensils,
@@ -129,7 +144,8 @@ export function DayActionsMenu({
   hasMeals: boolean;
   isPending: boolean;
 }) {
-  const { openDrawer, addDayAfter, removeDay, form } = useBuilder();
+  const builder = useBuilder();
+  const { openDrawer, addDayAfter, removeDay, form } = builder;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState("");
   // Radix portals the open menu outside this card, so pointing at it stops
@@ -139,6 +155,24 @@ export function DayActionsMenu({
 
   const isLastDay = form.itineraries.length <= 1;
   const confirmed = typed.trim().toLowerCase() === CONFIRM_WORD;
+
+  function addAddonToDay() {
+    const index = builder.form.addOns.length;
+    builder.setForm((f) => ({ ...f, addOns: [...f.addOns, emptyAddon(day)] }));
+    openDrawer({ kind: "addons-edit", day });
+    revealField({ scope: "addon", index, key: "name" });
+  }
+
+  /** A note needs a TYPE to exist — DayNote renders from notesType, and the
+   * tone is the one thing about a note with no inline representation. An
+   * existing note is left exactly as it is; this only ever starts one. */
+  function addNote() {
+    if (!hasNote) {
+      builder.replaceDay(day, (d) => ({ ...d, notesType: d.notesType ?? "neutral" }));
+    }
+    openDrawer({ kind: "note-edit", day });
+    revealField({ scope: "day", day, key: "notes" });
+  }
 
   function doDelete() {
     if (!confirmed || isLastDay) return;
@@ -181,19 +215,22 @@ export function DayActionsMenu({
               from both on purpose — this is where you are having scrolled to a
               day deliberately, that is where you are having just read it. */}
           {dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending })
-            .map(({ icon: Icon, label, target }) => (
-              <DropdownMenuItem key={label} onSelect={() => openDrawer(target)}>
+            .map(({ icon: Icon, label, target, create }) => (
+              <DropdownMenuItem key={label} onSelect={() => { create?.(builder); openDrawer(target); }}>
                 <Icon size={13} /> {label}
               </DropdownMenuItem>
             ))}
 
           <DropdownMenuSeparator />
-          {/* Neither of these renders in the document until it exists, so
-              there's nothing to click into them — a menu is the only way in. */}
-          <DropdownMenuItem onSelect={() => openDrawer({ kind: "addons-edit", day })}>
-            <Gift size={13} /> {hasAddons ? "Edit add-ons" : "Add an add-on"}
+          {/* Both land at the FOOT of the day's content, well below this
+              header — which is why neither merely opens a drawer. They create
+              the thing with its placeholders showing, then scroll it into view
+              with the caret in it, so "add a note" produces a note you are
+              looking at rather than one you have to go find. */}
+          <DropdownMenuItem onSelect={addAddonToDay}>
+            <Gift size={13} /> {hasAddons ? "Add another add-on" : "Add an add-on"}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => openDrawer({ kind: "note-edit", day })}>
+          <DropdownMenuItem onSelect={addNote}>
             <StickyNote size={13} /> {hasNote ? "Edit note" : "Add a note"}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -301,7 +338,8 @@ export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasM
   /** Awaiting the hotel team — the stay entry points at the request instead. */
   isPending: boolean;
 }) {
-  const { openDrawer } = useBuilder();
+  const builder = useBuilder();
+  const { openDrawer } = builder;
   const items = dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending });
 
   // What this day still has room for, named in the button itself. A generic
@@ -345,8 +383,8 @@ export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasM
         <DropdownMenuTrigger asChild>{control}</DropdownMenuTrigger>
         <DropdownMenuContent align="center" className="w-56">
           <DropdownMenuLabel className="text-[11px]">Day {day}</DropdownMenuLabel>
-          {items.map(({ icon: Icon, label: itemLabel, target }) => (
-            <DropdownMenuItem key={itemLabel} onSelect={() => openDrawer(target)}>
+          {items.map(({ icon: Icon, label: itemLabel, target, create }) => (
+            <DropdownMenuItem key={itemLabel} onSelect={() => { create?.(builder); openDrawer(target); }}>
               <Icon size={13} /> {itemLabel}
             </DropdownMenuItem>
           ))}

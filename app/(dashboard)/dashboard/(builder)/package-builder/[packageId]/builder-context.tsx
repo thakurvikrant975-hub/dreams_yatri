@@ -200,6 +200,15 @@ type BuilderContextValue = {
    * see the clamp in useSelectedDay. */
   selectedDay: number;
   setSelectedDay: (day: number) => void;
+  /** Scrolls a just-created field into view and opens it for typing.
+   *
+   * Every "add" in the builder used to hand you a drawer and leave you to find
+   * what you'd added. Adding a note from the day header put it at the FOOT of
+   * that day's content, off screen, with no indication anything had happened.
+   *
+   * Call it straight after the setForm that creates the thing — it waits for
+   * React to commit before looking for the node. */
+  revealField: (field: EditableField) => void;
   /** Per-day cost, keyed by day number. Empty while pricing is recomputing or
    * when nothing on the trip is priced yet — a day with no entry simply shows
    * no cost rather than a misleading zero. */
@@ -254,6 +263,7 @@ export function PackageBuilderProvider({
     dayCosts,
     drawer,
     openDrawer: (target) => setDrawer(target),
+    revealField,
     closeDrawer: () => setDrawer(null),
     panelTab,
     setPanelTab: (tab) => {
@@ -273,6 +283,35 @@ export function PackageBuilderProvider({
   }), [form, setForm, canEdit, dayCosts, drawer, panelTab, safeSelectedDay]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
+}
+
+/**
+ * Scrolls to the inline editor for `field` and puts the caret in it.
+ *
+ * Deliberately a DOM lookup rather than React state. The node doesn't exist
+ * until the setForm that created it has rendered, so any state-based approach
+ * needs an effect that fires after commit anyway — and every EditableText
+ * already carries a `data-field` hook for exactly this kind of addressing.
+ *
+ * Two rAFs, not one: the first fires before React has painted the new node on
+ * a re-render triggered inside an event handler; the second is after. A
+ * setTimeout would work too and be less honest about what it's waiting for.
+ *
+ * Silent when the node isn't found. A field that isn't rendered (a section the
+ * document hides, a locked package) is a reason to do nothing, not to throw
+ * inside a click handler.
+ */
+export function revealField(field: EditableField) {
+  if (typeof document === "undefined") return;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>(`[data-field="${fieldKey(field)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // EditableText's own click handler is what swaps in the input; its
+    // autoFocus does the rest. Going through the handler rather than calling
+    // focus() keeps one path into edit mode.
+    el.click();
+  }));
 }
 
 /** Throws outside the provider — a silent null here would show up as an edit
