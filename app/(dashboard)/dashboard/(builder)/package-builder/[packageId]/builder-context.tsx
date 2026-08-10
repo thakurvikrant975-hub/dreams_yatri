@@ -313,6 +313,8 @@ export function fieldKey(f: EditableField): string {
     case "package": return `package:${f.key}`;
     case "day": return `day:${f.day}:${f.key}`;
     case "activity": return `activity:${f.day}:${f.index}:${f.key}`;
+    case "ticket": return `ticket:${f.index}:${f.key}`;
+    case "addon": return `addon:${f.index}:${f.key}`;
   }
 }
 
@@ -333,10 +335,31 @@ export type DayTextKey =
 /** Written as numbers, not strings — see applyFieldEdit. */
 const NUMERIC_DAY_KEYS = new Set<DayTextKey>(["transportDistanceKm"]);
 
+/** Ticket fields editable directly on the card.
+ *
+ * Free text only. travelDate, departureTime and arrivalTime are deliberately
+ * absent: they're stored in fixed formats the document parses (and the client
+ * reads against a real boarding pass), and a free-text box over one is an
+ * invitation to type "9pm" into a field that expects "21:00". Those stay in
+ * the drawer, which has real date and time inputs. */
+export type TicketTextKey =
+  | "provider" | "ticketNumber" | "fromPlace" | "toPlace" | "durationText" | "notes";
+
+/** Add-on fields editable on the card — exactly the two the card renders.
+ * Price is never shown to the client (it's folded into the package total) and
+ * quantity is numeric, so both stay in the drawer. */
+export type AddonTextKey = "name" | "notes";
+
 export type EditableField =
   | { scope: "package"; key: "title" | "description" | "termsNotes" }
   | { scope: "day"; day: number; key: DayTextKey }
-  | { scope: "activity"; day: number; index: number; key: "title" | "description" };
+  | { scope: "activity"; day: number; index: number; key: "title" | "description" }
+  // Indices into form.tickets / form.addOns. Both documents render FILTERED
+  // views of those arrays — tickets grouped by type, add-ons split into
+  // package-level and per-day — so the position on screen is never the
+  // position in the array, and the card has to be told its real one.
+  | { scope: "ticket"; index: number; key: TicketTextKey }
+  | { scope: "addon"; index: number; key: AddonTextKey };
 
 /** The one place a text edit turns into new form state.
  *
@@ -380,6 +403,22 @@ export function applyFieldEdit(
                 ),
               }
             : it,
+        ),
+      };
+
+    case "ticket":
+      return {
+        ...form,
+        tickets: form.tickets.map((t, i) =>
+          i === field.index ? { ...t, [field.key]: value } : t,
+        ),
+      };
+
+    case "addon":
+      return {
+        ...form,
+        addOns: form.addOns.map((a, i) =>
+          i === field.index ? { ...a, [field.key]: value } : a,
         ),
       };
   }

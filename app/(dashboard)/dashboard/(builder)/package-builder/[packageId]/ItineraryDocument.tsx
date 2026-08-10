@@ -28,7 +28,9 @@ import {
   continuesStayFrom, removeStay, removeTransport, moveActivityTo, removeActivity,
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
-import { useOptionalBuilder, type PolicyListKey } from "./builder-context";
+import {
+  useOptionalBuilder, type PolicyListKey, type TicketTextKey, type AddonTextKey,
+} from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 import { DaySlot } from "./builder-dnd";
@@ -555,7 +557,24 @@ function DayNote({ day }: { day: DayItinerary }) {
   const t = NOTE_TONES[tone];
   const Icon = NOTE_TONE_ICONS[tone];
 
+  // Title and body are already click-to-edit in place, so the drawer's only
+  // remaining job here is the note's TONE — which has no inline
+  // representation beyond the colour it produces.
+  const actions: SectionAction[] | undefined = canEdit ? [
+    {
+      icon: Pencil, label: "Change note type",
+      onClick: () => builder!.openDrawer({ kind: "note-edit", day: day.day }),
+    },
+    {
+      icon: Trash2, label: "Remove this note", tone: "danger",
+      onClick: () => builder!.replaceDay(day.day, (d) => ({
+        ...d, notes: "", notesType: null, notesTitle: null,
+      })),
+    },
+  ] : undefined;
+
   return (
+    <EditableSection actions={actions}>
     <div
       className="rounded-lg px-3 py-2.5"
       style={{ backgroundColor: t.bg, border: `1px solid ${t.border}`, breakInside: "avoid" }}
@@ -576,12 +595,7 @@ function DayNote({ day }: { day: DayItinerary }) {
               className="block text-[9px] font-semibold uppercase tracking-[0.13em]"
               style={{ color: t.icon }}
             />
-            {canEdit && (
-              <CardEditButton
-                label={`Edit note for day ${day.day}`}
-                onEdit={() => builder!.openDrawer({ kind: "note-edit", day: day.day })}
-              />
-            )}
+
           </div>
           <EditableText
             as="p"
@@ -595,6 +609,7 @@ function DayNote({ day }: { day: DayItinerary }) {
         </div>
       </div>
     </div>
+    </EditableSection>
   );
 }
 
@@ -1067,9 +1082,29 @@ const TICKET_TYPE_LABEL: Record<TicketInput["type"], string> = {
   BUS: "Bus", OTHER: "Other",
 };
 
-function TicketCard({ ticket, packagePax }: { ticket: TicketInput; packagePax?: PackagePax }) {
+function TicketCard({ ticket, index, packagePax }: {
+  ticket: TicketInput;
+  /** Position in form.tickets — NOT in the per-type group this is rendered
+   * inside. Every inline edit addresses the array by it. */
+  index: number;
+  packagePax?: PackagePax;
+}) {
   const builder = useOptionalBuilder();
   const Icon = TICKET_TYPE_ICONS[ticket.type];
+  const canEditDoc = !!builder?.canEdit;
+
+  const actions: SectionAction[] | undefined = canEditDoc ? [
+    {
+      icon: Pencil, label: `Edit this ${TICKET_TYPE_LABEL[ticket.type].toLowerCase()} leg`,
+      onClick: () => builder!.openDrawer({ kind: "tickets-edit", type: ticket.type }),
+    },
+    {
+      icon: Trash2, label: "Remove this leg", tone: "danger",
+      onClick: () => builder!.setForm((f) => ({
+        ...f, tickets: f.tickets.filter((_, i) => i !== index),
+      })),
+    },
+  ] : undefined;
   // A leg with no pax of its own carries the whole party — which is nearly
   // every leg — so it shows the package's travellers rather than nothing at
   // all. Zeroes are the "not specified" sentinel emptyTicket already writes,
@@ -1085,7 +1120,10 @@ function TicketCard({ ticket, packagePax }: { ticket: TicketInput; packagePax?: 
   const ticketsLabel = ticket.ticketCount > 0 ? `${ticket.ticketCount} Ticket${ticket.ticketCount !== 1 ? "s" : ""}` : null;
   const footerLine = [paxLine, ticketsLabel].filter(Boolean).join(" · ");
 
+  const f = (key: TicketTextKey) => ({ scope: "ticket" as const, index, key });
+
   return (
+    <EditableSection actions={actions}>
     <div className="rounded-xl border border-neutral-200 overflow-hidden" style={{ breakInside: "avoid" }}>
       {/* Header — carrier + travel date */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 bg-primary-50/70 border-b border-primary-100">
@@ -1093,20 +1131,33 @@ function TicketCard({ ticket, packagePax }: { ticket: TicketInput; packagePax?: 
           <span className="flex items-center justify-center size-5 rounded-lg bg-primary-100 shrink-0">
             <Icon size={11} className="text-primary-600" />
           </span>
-          <p className="text-xs font-semibold text-neutral-800 truncate">
-            {ticket.provider || TICKET_PROVIDER_FALLBACKS[ticket.type]}
-            {ticket.ticketNumber && <span className="font-normal text-neutral-500"> · {ticket.ticketNumber}</span>}
+          <p className="text-xs font-semibold text-neutral-800 truncate flex items-center gap-1">
+            <EditableText
+              value={ticket.provider}
+              field={f("provider")}
+              fallback={TICKET_PROVIDER_FALLBACKS[ticket.type]}
+              placeholder={TICKET_PROVIDER_FALLBACKS[ticket.type]}
+            />
+            {/* Separator and field stand or fall together. EditableText
+                renders nothing for an empty value outside the builder, so a
+                bare "·" would be left hanging on the client's copy and in the
+                PDF; inside the builder the empty slot is the point. */}
+            {(ticket.ticketNumber || canEditDoc) && (
+              <span className="font-normal text-neutral-500 flex items-center gap-1">
+                <span aria-hidden>·</span>
+                <EditableText
+                  value={ticket.ticketNumber ?? ""}
+                  field={f("ticketNumber")}
+                  placeholder="PNR / ticket no."
+                />
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Dates and times stay drawer-only — see TicketTextKey. */}
           {ticket.travelDate && (
             <span className="text-[10px] font-semibold text-primary-700">{formatTicketDate(ticket.travelDate)}</span>
-          )}
-          {builder?.canEdit && (
-            <CardEditButton
-              label={`Edit ${TICKET_TYPE_LABEL[ticket.type].toLowerCase()} leg`}
-              onEdit={() => builder.openDrawer({ kind: "tickets-edit", type: ticket.type })}
-            />
           )}
         </div>
       </div>
@@ -1115,18 +1166,35 @@ function TicketCard({ ticket, packagePax }: { ticket: TicketInput; packagePax?: 
       <div className="p-3 space-y-2">
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-neutral-800 truncate">{ticket.fromPlace || "—"}</p>
+            <EditableText
+              as="p"
+              value={ticket.fromPlace}
+              field={f("fromPlace")}
+              fallback="—"
+              placeholder="From"
+              className="block text-sm font-bold text-neutral-800"
+            />
             {ticket.departureTime && <p className="text-[11px] text-neutral-500">{formatTime12h(ticket.departureTime)}</p>}
           </div>
           <div className="flex flex-col items-center gap-1 shrink-0 px-1">
             <Icon size={11} className="text-primary-400" />
             <div className="w-12 border-t border-dotted border-neutral-300" />
-            {ticket.durationText && (
-              <span className="text-[9px] text-neutral-400 font-medium whitespace-nowrap">{ticket.durationText}</span>
-            )}
+            <EditableText
+              value={ticket.durationText ?? ""}
+              field={f("durationText")}
+              placeholder="2h 10m"
+              className="text-[9px] text-neutral-400 font-medium whitespace-nowrap"
+            />
           </div>
           <div className="flex-1 min-w-0 text-right">
-            <p className="text-sm font-bold text-neutral-800 truncate">{ticket.toPlace || "—"}</p>
+            <EditableText
+              as="p"
+              value={ticket.toPlace}
+              field={f("toPlace")}
+              fallback="—"
+              placeholder="To"
+              className="block text-sm font-bold text-neutral-800"
+            />
             {ticket.arrivalTime && <p className="text-[11px] text-neutral-500">{formatTime12h(ticket.arrivalTime)}</p>}
           </div>
         </div>
@@ -1137,9 +1205,17 @@ function TicketCard({ ticket, packagePax }: { ticket: TicketInput; packagePax?: 
           </p>
         )}
 
-        {ticket.notes && <p className="text-[11px] text-neutral-400 italic">{ticket.notes}</p>}
+        <EditableText
+          as="p"
+          multiline
+          value={ticket.notes ?? ""}
+          field={f("notes")}
+          placeholder="Add a note about this leg…"
+          className="block text-[11px] text-neutral-400 italic"
+        />
       </div>
     </div>
+    </EditableSection>
   );
 }
 
@@ -1154,57 +1230,35 @@ export function TicketsSection({ tickets, packagePax }: {
   tickets: TicketInput[];
   packagePax?: PackagePax;
 }) {
-  const flights = tickets.filter((t) => t.type === "FLIGHT");
-  const trains = tickets.filter((t) => t.type === "TRAIN");
-  const helicopters = tickets.filter((t) => t.type === "HELICOPTER");
-  const buses = tickets.filter((t) => t.type === "BUS");
-  const others = tickets.filter((t) => t.type === "OTHER");
-  if (flights.length + trains.length + helicopters.length + buses.length + others.length === 0) {
-    return null;
-  }
+  // Grouped for display but carrying each ticket's position in the original
+  // array, because that's what an inline edit has to address — the third
+  // train is not form.tickets[2].
+  const groups: { type: TicketInput["type"]; icon: React.ElementType; label: string }[] = [
+    { type: "FLIGHT", icon: Plane, label: "Flight Details" },
+    { type: "TRAIN", icon: TrainFront, label: "Train Details" },
+    { type: "HELICOPTER", icon: Helicopter, label: "Helicopter Details" },
+    { type: "BUS", icon: Bus, label: "Bus Details" },
+    { type: "OTHER", icon: Ticket, label: "Other Transport" },
+  ];
+  const indexed = tickets.map((t, index) => ({ t, index }));
+  if (indexed.length === 0) return null;
 
   return (
     <>
-      {flights.length > 0 && (
-        <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={Plane} label="Flight Details" />
-          <div className="grid gap-3">
-            {flights.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
+      {groups.map(({ type, icon, label }) => {
+        const rows = indexed.filter(({ t }) => t.type === type);
+        if (rows.length === 0) return null;
+        return (
+          <div key={type} className="space-y-3" style={{ breakInside: "avoid" }}>
+            <SectionHeader icon={icon} label={label} />
+            <div className="grid gap-3">
+              {rows.map(({ t, index }) => (
+                <TicketCard key={t.id ?? index} ticket={t} index={index} packagePax={packagePax} />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-      {trains.length > 0 && (
-        <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={TrainFront} label="Train Details" />
-          <div className="grid gap-3">
-            {trains.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
-          </div>
-        </div>
-      )}
-      {helicopters.length > 0 && (
-        <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={Helicopter} label="Helicopter Details" />
-          <div className="grid gap-3">
-            {helicopters.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
-          </div>
-        </div>
-      )}
-      {buses.length > 0 && (
-        <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={Bus} label="Bus Details" />
-          <div className="grid gap-3">
-            {buses.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
-          </div>
-        </div>
-      )}
-      {others.length > 0 && (
-        <div className="space-y-3" style={{ breakInside: "avoid" }}>
-          <SectionHeader icon={Ticket} label="Other Transport" />
-          <div className="grid gap-3">
-            {others.map((t, i) => <TicketCard key={t.id ?? i} ticket={t} packagePax={packagePax} />)}
-          </div>
-        </div>
-      )}
+        );
+      })}
     </>
   );
 }
@@ -1212,28 +1266,55 @@ export function TicketsSection({ tickets, packagePax }: {
 /** One add-on tile, shown as what's-included only — never the per-unit price
  * (same convention as TicketCard hiding fare), since the cost is already
  * folded into the package total the client sees on the Price Summary card. */
-function AddonCard({ addon }: { addon: AddonInput }) {
+function AddonCard({ addon, index }: {
+  addon: AddonInput;
+  /** Position in form.addOns. Both callers render a filtered slice of it —
+   * package-level (day == null) here, per-day below — so the position on
+   * screen is never the position in the array. */
+  index: number;
+}) {
   const builder = useOptionalBuilder();
+  const canEditDoc = !!builder?.canEdit;
+
+  const actions: SectionAction[] | undefined = canEditDoc ? [
+    {
+      icon: Pencil, label: "Edit this add-on",
+      onClick: () => builder!.openDrawer({ kind: "addons-edit", day: addon.day ?? null }),
+    },
+    {
+      icon: Trash2, label: "Remove this add-on", tone: "danger",
+      onClick: () => builder!.setForm((f) => ({
+        ...f, addOns: f.addOns.filter((_, i) => i !== index),
+      })),
+    },
+  ] : undefined;
+
+  const f = (key: AddonTextKey) => ({ scope: "addon" as const, index, key });
+
   return (
+    <EditableSection actions={actions}>
     <div className="rounded-xl border border-rose-100 bg-white overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-rose-50/70 border-b border-rose-100">
         <span className="flex items-center justify-center size-5 rounded-lg bg-rose-100 shrink-0">
           <Gift size={11} className="text-rose-600" />
         </span>
         <p className="text-xs font-semibold text-neutral-800 truncate flex-1">
-          {addon.name}{addon.quantity > 1 ? ` × ${addon.quantity}` : ""}
+          <EditableText value={addon.name} field={f("name")} placeholder="Add-on name" />
+          {/* Quantity is numeric and priced against, so it stays in the drawer
+              — see AddonTextKey. */}
+          {addon.quantity > 1 ? ` × ${addon.quantity}` : ""}
         </p>
-        {builder?.canEdit && (
-          <CardEditButton
-            label={`Edit add-on: ${addon.name}`}
-            onEdit={() => builder.openDrawer({ kind: "addons-edit", day: addon.day ?? null })}
-          />
-        )}
       </div>
-      {addon.notes && (
-        <p className="p-3 text-[11px] text-neutral-500 leading-relaxed">{addon.notes}</p>
-      )}
+      <EditableText
+        as="p"
+        multiline
+        value={addon.notes ?? ""}
+        field={f("notes")}
+        placeholder="What this includes…"
+        className="block p-3 text-[11px] text-neutral-500 leading-relaxed"
+      />
     </div>
+    </EditableSection>
   );
 }
 
@@ -1241,14 +1322,16 @@ function AddonCard({ addon }: { addon: AddonInput }) {
  * than a specific day's hotel, so they aren't tied to any one Day card and
  * are shown here instead, up top with Flight/Train details. */
 export function AddonsSection({ addOns }: { addOns?: AddonInput[] }) {
-  const items = (addOns ?? []).filter((a) => a.name.trim() && a.day == null);
+  const items = (addOns ?? [])
+    .map((a, index) => ({ a, index }))
+    .filter(({ a }) => a.name.trim() && a.day == null);
   if (items.length === 0) return null;
 
   return (
     <div className="space-y-3" style={{ breakInside: "avoid" }}>
       <SectionHeader icon={Gift} label="Add-ons Included" />
       <div className="grid grid-cols-2 gap-3">
-        {items.map((a, i) => <AddonCard key={i} addon={a} />)}
+        {items.map(({ a, index }) => <AddonCard key={index} addon={a} index={index} />)}
       </div>
     </div>
   );
@@ -1330,28 +1413,12 @@ function PackageAddMenu() {
   );
 }
 
-/** Opens the drawer that owns an already-created element. Sits on the card
- * itself, so the way to change a ticket is to click the ticket. */
-function CardEditButton({ onEdit, label }: { onEdit: () => void; label: string }) {
-  return (
-    <IconTip label={label}>
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={label}
-        className="builder-only no-print shrink-0 flex items-center gap-1 rounded-md border border-dashed px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider transition-colors hover:bg-dashboard-primary/6"
-        style={{ borderColor: DOC.rule, color: DOC.accent }}
-      >
-        <Pencil size={9} /> Edit
-      </button>
-    </IconTip>
-  );
-}
-
 /** Add-ons tied to one specific day — rendered inline under that day's Hotel
  * section (see DayCardPreview) rather than in the general AddonsSection. */
 function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }) {
-  const items = addOns.filter((a) => a.name.trim() && a.day === day);
+  const items = addOns
+    .map((a, index) => ({ a, index }))
+    .filter(({ a }) => a.name.trim() && a.day === day);
   if (items.length === 0) return null;
 
   return (
@@ -1361,7 +1428,7 @@ function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }
         <p className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Add-ons Included</p>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {items.map((a, i) => <AddonCard key={i} addon={a} />)}
+        {items.map(({ a, index }) => <AddonCard key={index} addon={a} index={index} />)}
       </div>
     </div>
   );
