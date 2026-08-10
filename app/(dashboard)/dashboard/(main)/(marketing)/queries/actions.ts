@@ -10,6 +10,15 @@ import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 import { autoAssignLead } from "@/app/lib/queries/auto-assign";
 
+// Normalizes a name to Title Case regardless of how it was typed/pasted in
+// ("MAYANK SHARMA", "mayank sharma", "mayank Sharma" all become "Mayank
+// Sharma") — enforced here server-side (not just in the Add dialog's
+// onChange) so every entry path (Add, Edit, future callers) stays
+// consistent no matter how the client submitted it.
+function toTitleCase(s: string): string {
+    return s.toLowerCase().replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
@@ -493,6 +502,7 @@ export async function setAutoAssignSetting(enabled: boolean): Promise<ActionResu
 
 export async function getQueries(): Promise<PackageQuery[]> {
     const queries = await db.package_queries.findMany({
+        where: { deletedAt: null },
         include: {
             rejection_reasons: { select: { id: true, label: true } },
             _count: { select: { notes: true, queryFollowUps: true } },
@@ -779,7 +789,10 @@ export async function toggleRejectionReason(id: string, isActive: boolean): Prom
 // ── Create / update query (manual entry) ──────────────────────────────────────
 
 const manualQuerySchema = z.object({
-    name: z.string().min(1, "Name is required"),
+    // Optional — a phone-call lead who hasn't given their name yet still
+    // needs to be logged and followed up on; "name required" used to force
+    // staff to type a placeholder by hand or lose the enquiry entirely.
+    name: z.string().max(100).optional(),
     phone: z.string().min(6, "Valid phone number required").max(20),
     countryCode: z.string().default("IN"),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
@@ -820,6 +833,8 @@ export async function createManualQuery(
         // stored phone number regardless of how it got here.
         const cleanPhone = parsed.data.phone.replace(/\s+/g, "");
         const normalizedPhone = cleanPhone.replace(/[\-().+]/g, "");
+        const rawName = toTitleCase(parsed.data.name?.trim() ?? "") || undefined;
+        const displayName = rawName || "Unknown Caller";
 
         const recentDuplicate = await db.package_queries.findFirst({
             where: { phone: cleanPhone, createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) } },
@@ -830,13 +845,16 @@ export async function createManualQuery(
 
         const profile = await db.leadProfile.upsert({
             where: { phone: normalizedPhone },
-            update: { name: parsed.data.name, email: parsed.data.email || undefined, lastSeenAt: new Date(), totalQueries: { increment: 1 } },
-            create: { phone: normalizedPhone, name: parsed.data.name, email: parsed.data.email || null },
+            // Leaving `name` out of the update entirely when none was given
+            // this time keeps whatever real name is already on file instead
+            // of overwriting it with the placeholder.
+            update: { name: rawName || undefined, email: parsed.data.email || undefined, lastSeenAt: new Date(), totalQueries: { increment: 1 } },
+            create: { phone: normalizedPhone, name: displayName, email: parsed.data.email || null },
         });
 
         const query = await db.package_queries.create({
             data: {
-                name: parsed.data.name,
+                name: displayName,
                 phone: cleanPhone,
                 email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
@@ -856,7 +874,7 @@ export async function createManualQuery(
         await autoAssignLead(query.id);
 
         revalidatePath("/dashboard/queries");
-        return { success: true, message: `Query for ${parsed.data.name} saved successfully` };
+        return { success: true, message: `Query for ${displayName} saved successfully` };
     } catch (e) {
         console.error(e);
         return actionError(e);
@@ -864,7 +882,7 @@ export async function createManualQuery(
 }
 
 const updateQuerySchema = z.object({
-    name: z.string().min(1, "Name is required").max(100),
+    name: z.string().max(100).optional(),
     phone: z.string().min(6, "Valid phone required").max(20),
     countryCode: z.string().default("IN"),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
@@ -898,17 +916,19 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
         const { actor } = await getCurrentActor();
         const cleanPhone = parsed.data.phone.replace(/\s+/g, "");
         const normalizedPhone = cleanPhone.replace(/[\-().+]/g, "");
+        const rawName = toTitleCase(parsed.data.name?.trim() ?? "") || undefined;
+        const displayName = rawName || "Unknown Caller";
 
         await db.leadProfile.upsert({
             where: { phone: normalizedPhone },
-            update: { name: parsed.data.name, email: parsed.data.email || undefined, lastSeenAt: new Date() },
-            create: { phone: normalizedPhone, name: parsed.data.name, email: parsed.data.email || null },
+            update: { name: rawName || undefined, email: parsed.data.email || undefined, lastSeenAt: new Date() },
+            create: { phone: normalizedPhone, name: displayName, email: parsed.data.email || null },
         });
 
         await db.package_queries.update({
             where: { id: queryId },
             data: {
-                name: parsed.data.name,
+                name: displayName,
                 phone: cleanPhone,
                 countryCode: parsed.data.countryCode,
                 email: parsed.data.email || null,
@@ -989,8 +1009,9 @@ export async function deleteQuery(queryId: string): Promise<ActionResult> {
         if (!query) return { success: false, message: "Query not found — it may already be deleted." };
 
         // A query that already has a booking or a built package is a real
-        // business record, not a stray/duplicate lead — block the delete
-        // rather than orphaning those, and point at what's still attached.
+        // business record, not a stray/duplicate lead — block hiding it
+        // rather than pulling it out of the pipeline, and point at what's
+        // still attached.
         if (query.booking || query._count.custom_packages > 0) {
             const linked = query.booking
                 ? "a booking"
@@ -999,7 +1020,12 @@ export async function deleteQuery(queryId: string): Promise<ActionResult> {
         }
 
         const { actor } = await getCurrentActor();
-        await db.package_queries.delete({ where: { id: queryId } });
+        // Soft delete — hides the row from the queries list without actually
+        // removing it, so nothing is ever permanently lost.
+        await db.package_queries.update({
+            where: { id: queryId },
+            data: { deletedAt: new Date(), deletedBy: actor?.id ?? null },
+        });
 
         console.log(`[deleteQuery] "${query.name}" (${queryId}) deleted by ${actor?.name ?? actor?.email ?? "unknown"}`);
 

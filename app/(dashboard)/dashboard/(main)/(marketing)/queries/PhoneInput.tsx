@@ -102,7 +102,7 @@ export function PhoneInput({ name, defaultValue, placeholder = "98765 43210", cl
             <Input
                 ref={inputRef}
                 value={number}
-                onChange={e => setNumber(e.target.value.replace(/[^\d\s]/g, ""))}
+                onChange={e => setNumber(e.target.value.replace(/\D/g, ""))}
                 placeholder={placeholder}
                 disabled={disabled}
                 className="flex-1 min-w-0"

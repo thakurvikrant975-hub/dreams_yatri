@@ -48,10 +48,13 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
     );
 }
 
-// Capitalizes the first letter of each word as the exec types, without
-// touching anything else (so a deliberately-typed "McDonald" isn't mangled).
+// Normalizes to Title Case as the exec types — lowercases everything first
+// so "MAYANK SHARMA" / "mayank Sharma" / "mayank sharma" all converge on
+// "Mayank Sharma" instead of preserving whatever casing was typed. Mirrors
+// the server-side normalization in actions.ts (toTitleCase) so what's shown
+// here always matches what actually gets saved.
 function capitalizeWords(s: string): string {
-    return s.replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+    return s.toLowerCase().replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
 }
 
 const SOURCES = [
@@ -203,7 +206,7 @@ export function AddQueryDialog() {
                     <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2 space-y-1.5">
                             <Label className="text-xs font-medium text-dashboard-base-content/70">
-                                Full Name
+                                Full Name <span className="text-dashboard-base-content/40">(optional — if they haven&apos;t given it yet)</span>
                             </Label>
                             <Input
                                 id="name" name="name"

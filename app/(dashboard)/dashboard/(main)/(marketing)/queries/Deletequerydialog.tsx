@@ -66,7 +66,7 @@ export function DeleteQueryDialog({ queryId, leadName, onDone, compact = false }
                             <p>
                                 Are you sure you want to delete the query from{" "}
                                 <span className="font-semibold text-foreground">{leadName}</span>?
-                                This can&apos;t be undone.
+                                It will be removed from this list — nothing is permanently lost.
                             </p>
                             {errorMsg && (
                                 <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive">

@@ -2470,6 +2470,11 @@ model package_queries {
   closedBy          String?
   requirements      Json?
   packageUrl        String?
+  /** Soft-delete — "Delete Query" hides the row from listings instead of
+   * actually removing it, so history is never lost (and a booking/package
+   * still linked to it keeps resolving normally by id everywhere else). */
+  deletedAt         DateTime?
+  deletedBy         String?
   queryFollowUps    QueryFollowUp[]
   booking           Booking?
   custom_packages   custom_packages[]
@@ -2483,6 +2488,7 @@ model package_queries {
   @@index([destination])
   @@index([status])
   @@index([verified])
+  @@index([deletedAt])
 }
 
 model custom_packages {
