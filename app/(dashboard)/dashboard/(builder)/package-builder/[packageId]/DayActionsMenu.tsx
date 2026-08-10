@@ -1,11 +1,26 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Day-level actions, in the day's header.
+// Day-level actions — a floating toolbar at the top right of the day card.
 //
-// Deliberately only the things that act on the DAY: an add-on or a note (both
-// of which have nothing in the document to click until they exist), and adding
-// or deleting a day.
+// Floats rather than sitting in the header row, and appears on hover, for the
+// same reason the per-section toolbars do: this is chrome for operating on the
+// document, not part of the document. In the flow it was a permanent notch cut
+// out of the header that the title had to lay itself out around, on every day,
+// forever — including on days nobody was working on.
+//
+// Three controls, not one menu:
+//
+//   ⋯  everything the day can gain — stay, transport, experiences, meals,
+//      add-on, note. A list, because it's six things and growing.
+//   +  add a day below
+//   🗑  delete this day
+//
+// The last two came out of the menu deliberately. They're the two actions that
+// operate on the day AS A UNIT rather than on its contents, they're frequent,
+// and burying a one-click action two clicks deep to keep a menu tidy is a bad
+// trade. Sitting outside also stops "delete" being one careless keyboard-repeat
+// away from "add-on" in the same list.
 //
 // The day's CONTENT — stay, transport, experiences, meals — is reached from
 // DaySectionsBar at the foot of the day, where a reader arrives having just
@@ -31,10 +46,17 @@ import {
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { useBuilder, type DrawerTarget } from "./builder-context";
+import { cn } from "@/app/lib/utils";
 import { DaySlot } from "./builder-dnd";
 import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
 
 const CONFIRM_WORD = "delete";
+
+/** Matches the per-section toolbars in ItineraryDocument, so every floating
+ * control in the document reads as one family. */
+const TOOLBAR_BUTTON =
+  "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms] " +
+  "text-dashboard-base-content/55 hover:bg-dashboard-base-200 hover:text-dashboard-base-content";
 
 /** Everything a day can gain, in the order the document renders it.
  *
@@ -95,6 +117,10 @@ export function DayActionsMenu({
   const { openDrawer, addDayAfter, removeDay, form } = useBuilder();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState("");
+  // Radix portals the open menu outside this card, so pointing at it stops
+  // being "hovering the day" and the hover-only toolbar — including the
+  // trigger the menu belongs to — would vanish out from under the pointer.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const isLastDay = form.itineraries.length <= 1;
   const confirmed = typed.trim().toLowerCase() === CONFIRM_WORD;
@@ -108,15 +134,26 @@ export function DayActionsMenu({
 
   return (
     <>
-      <DropdownMenu>
+      <div
+        className={cn(
+          // builder-only as well as no-print: html2canvas rasterises the screen
+          // DOM, so @media print alone would not keep this out of a PDF.
+          "builder-only no-print absolute top-2.5 right-2.5 z-30 flex items-center gap-0.5",
+          "rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-0.5",
+          "shadow-[0_2px_8px_rgba(0,0,0,0.10)]",
+          "transition-opacity duration-[120ms]",
+          menuOpen || confirmOpen
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none group-hover/day:opacity-100 group-hover/day:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
+        )}
+      >
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            // builder-only: real rendered chrome, and html2canvas rasterises
-            // the screen DOM, so @media print alone would not keep it out of
-            // an exported PDF.
-            aria-label={`Day ${day} actions`}
-            className="builder-only no-print flex items-center justify-center size-7 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-primary/8 hover:text-dashboard-primary transition-colors"
+            aria-label={`Day ${day} contents`}
+            title="Add or edit this day's contents"
+            className={TOOLBAR_BUTTON}
           >
             <MoreHorizontal size={13} />
           </button>
@@ -143,26 +180,38 @@ export function DayActionsMenu({
           <DropdownMenuItem onSelect={() => openDrawer({ kind: "note-edit", day })}>
             <StickyNote size={13} /> {hasNote ? "Edit note" : "Add a note"}
           </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="text-[11px]">Itinerary</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => addDayAfter(day)}>
-            <CalendarPlus size={13} /> Add a day below
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={isLastDay}
-            onSelect={(e) => {
-              e.preventDefault();
-              if (isLastDay) return;
-              setTyped("");
-              setConfirmOpen(true);
-            }}
-            className="text-dashboard-error focus:text-dashboard-error"
-          >
-            <Trash2 size={13} /> Delete this day
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Out of the menu and onto the toolbar: both act on the day as a unit
+          rather than on its contents, both are frequent, and a one-click
+          action doesn't belong two clicks deep just to keep a list tidy. */}
+      <button
+        type="button"
+        onClick={() => addDayAfter(day)}
+        aria-label={`Add a day below day ${day}`}
+        title="Add a day below"
+        className={TOOLBAR_BUTTON}
+      >
+        <CalendarPlus size={13} />
+      </button>
+
+      <button
+        type="button"
+        disabled={isLastDay}
+        onClick={() => { setTyped(""); setConfirmOpen(true); }}
+        aria-label={`Delete day ${day}`}
+        title={isLastDay ? "A package needs at least one day" : "Delete this day"}
+        className={cn(
+          "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms]",
+          isLastDay
+            ? "text-dashboard-base-content/20 cursor-not-allowed"
+            : "text-dashboard-error/70 hover:bg-dashboard-error/10 hover:text-dashboard-error",
+        )}
+      >
+        <Trash2 size={13} />
+      </button>
+      </div>
 
       <Dialog open={confirmOpen} onOpenChange={(o) => { setConfirmOpen(o); if (!o) setTyped(""); }}>
         <DialogContent className="no-print sm:max-w-md">

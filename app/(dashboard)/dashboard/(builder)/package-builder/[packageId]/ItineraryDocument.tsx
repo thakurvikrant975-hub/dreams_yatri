@@ -1470,9 +1470,30 @@ function DayCardPreview({
       // Scroll target for the sidebar's Itinerary section — see jumpToDay
       // in DayListPanel.
       id={`builder-day-${day.day}`}
-      className="rounded-2xl overflow-hidden"
+      // group/day + relative host the floating day toolbar below. Named group:
+      // a bare `group` would also be matched by every group-hover inside the
+      // day, so hovering anywhere in a day would reveal that day's per-section
+      // controls too.
+      className="group/day relative rounded-2xl overflow-hidden"
       style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
     >
+      {/* Day-level actions. Floating and hover-only rather than a permanent
+          notch in the header row that the title had to lay out around on every
+          day, including days nobody is working on. Sits INSIDE the card — the
+          card is overflow-hidden for its rounded corners, so the -top-2.5
+          straddle the per-section toolbars use would be clipped here. */}
+      {builder?.canEdit && (
+        <DayActionsMenu
+          day={day.day}
+          hasAddons={(addOns ?? []).some((a) => a.day === day.day)}
+          hasNote={!!day.notes.trim()}
+          hasStay={!!hasHotel}
+          hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
+          hasActivities={activities.length > 0}
+          hasMeals={(shiftedMeals ?? day.meals).length > 0}
+          isPending={!!day.hotelPending}
+        />
+      )}
       {/* Day header — an oversized numeral rather than a small filled badge.
           Paging through the document, those numerals become the rhythm: they
           are the one recurring element large enough to navigate by, which is
@@ -1519,25 +1540,6 @@ function DayCardPreview({
             Day {day.day}{checkInDate && ` · ${formatShortDate(checkInDate)}`}
           </p>
         </div>
-
-        {/* One menu for everything this day can gain or lose — replaces the
-            three separate dashed "Add …" rows, which appeared and vanished
-            depending on what the day already had and pushed the document's
-            own layout around as it filled up. */}
-        {builder?.canEdit && (
-          <div className="shrink-0 self-center">
-            <DayActionsMenu
-              day={day.day}
-              hasAddons={(addOns ?? []).some((a) => a.day === day.day)}
-              hasNote={!!day.notes.trim()}
-              hasStay={!!hasHotel}
-              hasTransport={!!(day.transport || day.transportPickup || day.transportDrop)}
-              hasActivities={activities.length > 0}
-              hasMeals={(shiftedMeals ?? day.meals).length > 0}
-              isPending={!!day.hotelPending}
-            />
-          </div>
-        )}
       </div>
 
       <div className="px-3.5 py-3 space-y-3">
