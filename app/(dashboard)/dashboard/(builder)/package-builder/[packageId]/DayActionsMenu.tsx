@@ -49,7 +49,8 @@ import { useBuilder, revealField, type DrawerTarget } from "./builder-context";
 import { addActivity, emptyAddon } from "./day-mutations";
 import { cn } from "@/app/lib/utils";
 import { DaySlot } from "./builder-dnd";
-import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
+import { ADD_CONTROL_CLASS } from "./doc-tokens";
+import { useDocTheme } from "./doc-theme";
 import { IconTip } from "./builder-ui";
 
 const CONFIRM_WORD = "delete";
@@ -339,6 +340,7 @@ export function DaySectionsBar({ day, hasStay, hasTransport, hasActivities, hasM
   isPending: boolean;
 }) {
   const builder = useBuilder();
+  const DOC = useDocTheme();
   const { openDrawer } = builder;
   const items = dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, isPending });
 

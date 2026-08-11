@@ -37,7 +37,11 @@ import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 import { DaySlot } from "./builder-dnd";
 import { ticketGaps, addonGaps, stayGaps, transportGaps, type Gaps } from "./pricing-gaps";
-import { DOC, ADD_CONTROL_CLASS } from "./doc-tokens";
+import { ADD_CONTROL_CLASS } from "./doc-tokens";
+import {
+  CLASSIC, DocThemeProvider, resolveDocTheme, useDocTheme,
+  type NoteTone, type ThemeOverrides,
+} from "./doc-theme";
 import { IconTip } from "./builder-ui";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
@@ -58,17 +62,13 @@ export { deriveDayLocations };
 // paper ground rather than reusing the dashboard's cooler semantic ramp.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type NoteTone = "neutral" | "info" | "success" | "warning" | "error";
-
-export const NOTE_TONES: Record<NoteTone, {
-  label: string; bg: string; border: string; ink: string; icon: string;
-}> = {
-  neutral: { label: "Note",    bg: "#F6F3EE", border: "#E4DDD2", ink: "#57534E", icon: "#8C857D" },
-  info:    { label: "Info",    bg: "#EEF4FC", border: "#CBDDF5", ink: "#1E4E8C", icon: "#2F6FBF" },
-  success: { label: "Good",    bg: "#ECF7F1", border: "#C6E6D6", ink: "#12634A", icon: "#0F8A5F" },
-  warning: { label: "Heads up",bg: "#FDF4E7", border: "#F2DEBE", ink: "#8A5A16", icon: "#C07E1E" },
-  error:   { label: "Important", bg: "#FDEEEC", border: "#F5CFC9", ink: "#9B2C1E", icon: "#C0392B" },
-};
+// Note tones are part of the palette now (see doc-theme) so a template can
+// retune them alongside everything else. Re-exported here because the tone
+// picker in ExtrasDrawers imports them from this module — and it wants the
+// house colours regardless of which template the open package uses, since it's
+// builder chrome rather than part of the printed page.
+export type { NoteTone };
+export const NOTE_TONES = CLASSIC.notes;
 
 const NOTE_TONE_ICONS: Record<NoteTone, React.ElementType> = {
   neutral: StickyNote, info: Info, success: CheckCircle, warning: AlertTriangle, error: AlertOctagon,
@@ -366,6 +366,14 @@ export interface PreviewData {
    * optional since the public share-link path (getSharedPackage) may not
    * always have a match; the strip falls back gracefully when absent. */
   stopImages?: Record<string, string | null>;
+  /** Which document template this package renders with (see doc-theme's
+   * TEMPLATES). Null/absent falls back to the company default, then to the
+   * house template — so a package written before templates existed, or one
+   * whose template was later removed, still renders rather than blanking. */
+  template?: string | null;
+  /** Per-package tweaks on top of that template — the exec's own accent, say,
+   * for a client whose branding demands it. Applied last, over the company's. */
+  themeOverrides?: ThemeOverrides | null;
   /** Company-wide header/footer content from /dashboard/itinerary-settings —
    * optional so callers that haven't fetched it yet fall back to the
    * hardcoded defaults below rather than rendering blank contact info. */
@@ -375,6 +383,10 @@ export interface PreviewData {
     address: string;
     description: string;
     disclaimer: string;
+    /** House template + house theme tweaks, the fallback for every package
+     * that hasn't chosen its own. */
+    defaultTemplate?: string | null;
+    themeOverrides?: ThemeOverrides | null;
   };
   /** Admin-defined extra policy blocks (title + bullet points) beyond the
    * six fixed lists above, in the order set on /dashboard/itinerary-settings. */
@@ -409,6 +421,7 @@ function SectionHeader({
   onAdd?: () => void;
   addLabel?: string;
 }) {
+  const DOC = useDocTheme();
   if (tone === "muted" || !Icon) {
     return (
       <div className="flex items-center gap-2.5" style={{ breakAfter: "avoid" }}>
@@ -477,6 +490,7 @@ function PolicyBlock({ label, items, listKey }: {
    * discarded, so the section says it's company-wide instead. */
   listKey?: PolicyListKey;
 }) {
+  const DOC = useDocTheme();
   const builder = useOptionalBuilder();
   // A section with nothing in it still needs a way in while editing.
   if (items.length === 0 && !(listKey && builder?.canEdit)) return null;
@@ -551,6 +565,7 @@ function PolicyBlock({ label, items, listKey }: {
  * Once a note exists, its title and body are editable in place through the
  * same fields the drawer writes. */
 function DayNote({ day }: { day: DayItinerary }) {
+  const DOC = useDocTheme();
   const builder = useOptionalBuilder();
   const canEdit = !!builder?.canEdit;
   const title = (day.notesTitle ?? "").trim();
@@ -562,7 +577,7 @@ function DayNote({ day }: { day: DayItinerary }) {
   if (!title && !body && !(canEdit && started)) return null;
 
   const tone = noteTone(day.notesType);
-  const t = NOTE_TONES[tone];
+  const t = DOC.notes[tone];
   const Icon = NOTE_TONE_ICONS[tone];
 
   // Title and body are already click-to-edit in place, so the drawer's only
@@ -723,6 +738,7 @@ function GapBadge({ gaps }: { gaps: Gaps }) {
  * empty value renders nothing — so a hand-typed stay stays clean.
  */
 function StayStars({ raw }: { raw: string }) {
+  const DOC = useDocTheme();
   const value = raw.trim();
   if (!value) return null;
   const n = Number.parseInt(value, 10);
@@ -756,6 +772,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
    * gets the plain, non-interactive marker. */
   onEdit?: () => void;
 }) {
+  const DOC = useDocTheme();
   const inner = (
     <>
       <Icon size={11} color={DOC.iconMuted} className="shrink-0" />
@@ -1054,6 +1071,7 @@ function SummaryCell({ value, action, onOpen }: {
   action: string;
   onOpen: () => void;
 }) {
+  const DOC = useDocTheme();
   const builder = useOptionalBuilder();
   if (!builder?.canEdit) return <>{value ?? "—"}</>;
 
@@ -1604,14 +1622,23 @@ function AddonCard({ addon, index }: {
     },
   ] : undefined;
 
+  const DOC = useDocTheme();
   const f = (key: AddonTextKey) => ({ scope: "addon" as const, index, key });
 
   return (
     <EditableSection actions={actions}>
-    <div className="rounded-xl border border-rose-100 bg-white overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 bg-rose-50/70 border-b border-rose-100">
-        <span className="flex items-center justify-center size-5 rounded-lg bg-rose-100 shrink-0">
-          <Gift size={11} className="text-rose-600" />
+    <div className="rounded-xl border overflow-hidden" style={{ borderColor: DOC.rule, backgroundColor: DOC.card }}>
+      <div
+        className="flex items-center gap-2 px-3 py-2 border-b"
+        style={{ backgroundColor: DOC.accentSoft, borderColor: DOC.rule }}
+      >
+        <span
+          className="flex items-center justify-center size-5 rounded-lg shrink-0"
+          style={{ backgroundColor: DOC.card }}
+        >
+          {/* Colour prop, not a text-* class: an inline SVG's stroke is exactly
+              what html2canvas-pro fails to resolve from an oklch token. */}
+          <Gift size={11} color={DOC.accent} />
         </span>
         <p className="text-xs font-semibold text-neutral-800 truncate flex-1">
           <EditableText value={addon.name} field={f("name")} placeholder="Add-on name" />
@@ -1669,6 +1696,7 @@ export function AddonsSection({ addOns }: { addOns?: AddonInput[] }) {
  * backwards — the action belongs at the end of the list, where the new day
  * will actually appear. */
 function AddDayButton() {
+  const DOC = useDocTheme();
   const builder = useOptionalBuilder();
   if (!builder?.canEdit) return null;
   const lastDay = builder.form.itineraries.length;
@@ -1698,6 +1726,7 @@ function AddDayButton() {
  * The tickets drawer handles all three leg types, so the first three options
  * differ only in which type they pre-create. */
 function PackageAddMenu() {
+  const DOC = useDocTheme();
   const builder = useOptionalBuilder();
   if (!builder?.canEdit) return null;
 
@@ -1770,6 +1799,7 @@ function PackageAddMenu() {
 /** Add-ons tied to one specific day — rendered inline under that day's Hotel
  * section (see DayCardPreview) rather than in the general AddonsSection. */
 function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }) {
+  const DOC = useDocTheme();
   const canEditDoc = !!useOptionalBuilder()?.canEdit;
   const items = addOns
     .map((a, index) => ({ a, index }))
@@ -1779,8 +1809,8 @@ function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }
   return (
     <div className="space-y-2" style={{ breakInside: "avoid" }}>
       <div className="flex items-center gap-2 px-1">
-        <Gift size={11} className="text-rose-500 shrink-0" />
-        <p className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Add-ons Included</p>
+        <Gift size={11} color={DOC.accent} className="shrink-0" />
+        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: DOC.accent }}>Add-ons Included</p>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {items.map(({ a, index }) => <AddonCard key={index} addon={a} index={index} />)}
@@ -1808,6 +1838,7 @@ function DayCardPreview({
    * just this day's, shown right below the Hotel section. */
   addOns?: AddonInput[];
 }) {
+  const DOC = useDocTheme();
   // Null on the public client-facing page, which renders this same component
   // without a builder around it — that's what keeps every edit affordance
   // below out of the client's copy.
@@ -2465,6 +2496,7 @@ function HeroCover({
   onCoverImageChange?: (url: string) => void;
   onCoverImagePositionChange?: (position: number) => void;
 }) {
+  const DOC = useDocTheme();
   const [coverFailed, setCoverFailed] = useState(false);
   // Reset the failed flag when the cover image URL changes, without an
   // effect — setting state during render (guarded by the changed check) is
@@ -2659,6 +2691,7 @@ function HeroCover({
  * uppercase costs legibility and reads as dashboard chrome. The value carries
  * the emphasis instead, in the display face. */
 function StatCell({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  const DOC = useDocTheme();
   return (
     <div className="px-4 py-3.5 flex flex-col justify-center min-w-0">
       <p
@@ -2749,6 +2782,17 @@ const PRINT_STYLES = `
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* The template's two faces, applied by variable rather than by class.
+     .font-heading is Tailwind's own utility (Poppins, from the @theme block in
+     globals.css) and would otherwise pin every heading to the brand display
+     face no matter which template is active — so it's overridden here, inside
+     the document only, to follow --doc-font-heading. The vars themselves are
+     set inline on .itinerary-print-area by ItineraryDocument; the fallbacks
+     keep an un-themed render (a fragment previewed outside the provider) on
+     the house faces instead of dropping to Times. */
+  .itinerary-print-area { font-family: var(--doc-font-body, var(--font-inter), sans-serif); }
+  .itinerary-print-area .font-heading { font-family: var(--doc-font-heading, var(--font-poppins), sans-serif); }
 
   /* Builder-only chrome — empty-field placeholders and any other affordance
      that exists purely to make the preview editable.
@@ -2863,7 +2907,18 @@ export function ItineraryDocument({
   // or there's no way to add the first line.
   const builderCanEdit = !!useOptionalBuilder()?.canEdit;
 
+  // Template, then the company's house tweaks, then this package's own — each
+  // layer only overriding what it actually sets. Resolved once at the root and
+  // handed down by context, so every component below paints the same palette
+  // without a theme prop threaded through twenty levels of section.
+  const DOC = resolveDocTheme(
+    form.template ?? form.companySettings?.defaultTemplate,
+    form.companySettings?.themeOverrides,
+    form.themeOverrides,
+  );
+
   return (
+    <DocThemeProvider theme={DOC}>
     <div>
       <style>{PRINT_STYLES}</style>
 
@@ -2871,9 +2926,23 @@ export function ItineraryDocument({
       <div
         className={cn(
           "itinerary-print-area mx-auto overflow-hidden",
-          variant === "flat" ? "border border-neutral-200" : "rounded-lg shadow-xl",
+          variant === "flat" ? "border" : "rounded-lg shadow-xl",
         )}
-        style={{ width: "210mm", minHeight: "297mm", backgroundColor: DOC.paper }}
+        style={{
+          width: "210mm",
+          minHeight: "297mm",
+          backgroundColor: DOC.paper,
+          borderColor: variant === "flat" ? DOC.rule : undefined,
+          // The two faces reach the page as custom properties rather than as
+          // classes: PRINT_STYLES maps .font-heading and the page body onto
+          // them, and getComputedStyle resolves a var() long before
+          // html2canvas-pro sees it — so a font swap survives PDF capture the
+          // way an oklch() colour would not.
+          ["--doc-font-heading" as string]: DOC.fontHeading,
+          ["--doc-font-body" as string]: DOC.fontBody,
+          fontFamily: DOC.fontBody,
+          color: DOC.ink,
+        }}
       >
         {/* ── Masthead ──────────────────────────────────────────────────────
             Logo left, contact right, closed by a hairline. The rule matters:
@@ -3209,5 +3278,6 @@ export function ItineraryDocument({
         <DocumentFooter form={form} />
       </div>
     </div>
+    </DocThemeProvider>
   );
 }

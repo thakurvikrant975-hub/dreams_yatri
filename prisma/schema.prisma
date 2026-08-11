@@ -2675,6 +2675,19 @@ model custom_packages {
    * changes. Never shown on the client-facing page.
    */
   pricingSnapshot       Json?
+  /**
+   * This package's own document template, overriding the house default from
+   * itinerary_settings. Null means "use whatever the company default is" —
+   * deliberately not defaulted to "classic", so that changing the house
+   * template retroactively restyles every package that never made a choice.
+   */
+  template              String?
+  /**
+   * Per-package colour/font tweaks, applied over the template and over the
+   * company's own overrides — for the occasional client whose branding the
+   * exec needs to match. Null for the overwhelming majority.
+   */
+  themeOverrides        Json?
   flightsIncluded       Boolean                  @default(false)
   flightNotes           String?
   flightFrom            String?
@@ -2731,6 +2744,24 @@ model itinerary_settings {
    */
   defaultMarginPercentage Float    @default(25)
   defaultGstPercentage    Float    @default(5)
+  /**
+   * House document template (see doc-theme's TEMPLATES) and the company-wide
+   * colour/font tweaks layered on top of it. Every package that hasn't chosen
+   * its own template falls back to these, so rebranding all future itineraries
+   * is one edit here rather than one per package.
+   *
+   * Stored as a plain String rather than an enum: templates are a front-end
+   * design catalogue that will gain entries faster than the schema should
+   * churn, and an id that no longer resolves falls back to the house template
+   * at render time instead of breaking the row.
+   */
+  defaultTemplate         String   @default("classic")
+  /**
+   * Partial ThemeOverrides — `{ accent?, paper?, ink?, fontHeading?, fontBody? }`.
+   * Every value is re-validated at render (resolveDocTheme) before it reaches
+   * a style attribute, so a malformed entry is ignored rather than painted.
+   */
+  themeOverrides          Json     @default("{}")
   updatedAt               DateTime @updatedAt
   updatedBy               String?
   updatedByName           String?

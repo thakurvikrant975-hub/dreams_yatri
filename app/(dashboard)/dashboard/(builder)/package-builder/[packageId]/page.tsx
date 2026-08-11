@@ -1669,6 +1669,8 @@ Rules:
           address: itinerarySettings.companyAddress,
           description: itinerarySettings.companyDescription,
           disclaimer: itinerarySettings.documentDisclaimer,
+          defaultTemplate: itinerarySettings.defaultTemplate,
+          themeOverrides: itinerarySettings.themeOverrides,
         }
       : undefined,
   };
