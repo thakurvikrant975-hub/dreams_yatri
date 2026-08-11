@@ -2641,8 +2641,8 @@ function HeroCover({
           field={{ scope: "package", key: "title" }}
           placeholder="Name this package…"
           fallback="Untitled Package"
-          className={cn(DISPLAY, "block text-[34px] leading-[1.08] font-bold text-white")}
-          style={{ maxWidth: "150mm", letterSpacing: "-0.02em", textWrap: "balance" }}
+          className={cn(DISPLAY, "block text-[26px] leading-[1.08] font-bold text-white")}
+          style={{letterSpacing: "-0.02em", textWrap: "balance" }}
         />
 
         {routeSteps.length > 0 ? (
