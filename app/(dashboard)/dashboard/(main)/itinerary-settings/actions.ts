@@ -7,7 +7,7 @@ import { getCurrentActor, type ActionResult } from "../(marketing)/queries/actio
 import { actionError } from "@/app/lib/action-error";
 import {
     DEFAULT_TEMPLATE, isTemplateId, type ThemeOverrides,
-} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme-core";
 
 const SETTINGS_ID = "singleton";
 
