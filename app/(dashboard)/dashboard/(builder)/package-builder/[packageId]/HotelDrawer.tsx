@@ -79,6 +79,19 @@ const SORT_OPTIONS: { value: HotelSortOption; label: string }[] = [
 
 const MEAL_ICONS: Record<string, React.ElementType> = { breakfast: Coffee, lunch: Sun, dinner: Moon };
 
+/** One labeled row inside the filter card — keeps "Rating"/"Type"/"Meals"
+ * lined up in a column instead of each chip group guessing its own meaning. */
+function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="w-12 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/45">
+        {label}
+      </span>
+      <div className="flex flex-1 flex-wrap items-center gap-1.5">{children}</div>
+    </div>
+  );
+}
+
 /** ISO "YYYY-MM-DD" in local time — toISOString() would shift a midnight
  * local date to the previous day in any timezone west of UTC. */
 function toLocalISODate(d: Date): string {
@@ -256,17 +269,18 @@ export function HotelReplaceView({ day }: { day: number }) {
         </p>
       )}
 
-      {/* Sort + star/category/meal filters — sort applies regardless of
-          scope; star and category are single-select (a room is one star
-          rating, one property type), meal chips narrow to rooms whose plan
-          covers ALL the ticked meals. */}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-1">
-          <label className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wider">Sort</label>
+      {/* Sort + star/category/meal filters, grouped into one card so the
+          drawer reads as "search, then refine" rather than a loose stack of
+          chip rows. Sort applies regardless of scope; star and category are
+          single-select (a room is one star rating, one property type); meal
+          chips narrow to rooms whose plan covers ALL the ticked meals. */}
+      <div className="space-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 p-2.5">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50 shrink-0">Sort</label>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as HotelSortOption)}
-            className="h-7 text-[11px] rounded-md border border-dashboard-base-300 bg-transparent px-1.5 outline-none"
+            className="h-7 flex-1 min-w-0 text-[11px] rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-1.5 outline-none"
           >
             {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -274,14 +288,16 @@ export function HotelReplaceView({ day }: { day: number }) {
             <button
               type="button"
               onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); }}
-              className="text-[10px] text-dashboard-error/70 hover:text-dashboard-error px-0.5 ml-auto"
+              className="text-[10.5px] font-medium text-dashboard-error/75 hover:text-dashboard-error shrink-0"
             >
-              Clear filters
+              Clear
             </button>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="h-px bg-dashboard-base-300/70" />
+
+        <FilterRow label="Rating">
           {STAR_FILTER_CHIPS.map((star) => (
             <Chip
               key={star}
@@ -291,9 +307,9 @@ export function HotelReplaceView({ day }: { day: number }) {
               <span className="flex items-center gap-0.5"><Star size={9} /> {star.replace(" Star", "")}</span>
             </Chip>
           ))}
-        </div>
+        </FilterRow>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <FilterRow label="Type">
           {CATEGORY_FILTER_CHIPS.map((c) => (
             <Chip
               key={c.value}
@@ -303,9 +319,9 @@ export function HotelReplaceView({ day }: { day: number }) {
               {c.label}
             </Chip>
           ))}
-        </div>
+        </FilterRow>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <FilterRow label="Meals">
           {MEAL_FILTER_CHIPS.map((m) => (
             <Chip
               key={m.value}
@@ -316,7 +332,7 @@ export function HotelReplaceView({ day }: { day: number }) {
               <span className="flex items-center gap-1"><m.icon size={10} /> {m.label}</span>
             </Chip>
           ))}
-        </div>
+        </FilterRow>
       </div>
 
       {/* The escape hatch this view exists to offer: nothing in the catalog
