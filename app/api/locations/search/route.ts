@@ -3,6 +3,29 @@ import { db } from "@/app/lib/db";
 import { LocationType } from "@/app/generated/prisma";
 import { getLocationsIndex, isMeiliConfigured } from "@/app/lib/search/meili";
 
+// Text search here otherwise ties on is_featured/is_popular (false for most
+// rows) and falls back to plain `name asc` — which ranks an unrelated longer
+// name ("Gir Somnath") above the actual exact match ("Somnath") purely
+// because "G" < "S". Lower is better; used as the primary sort key ahead of
+// featured/popular/name so an exact/prefix match always wins regardless of
+// alphabetical position.
+function relevanceRank(name: string, officialName: string | null, q: string): number {
+  const n = name.toLowerCase();
+  const o = officialName?.toLowerCase() ?? "";
+  const query = q.toLowerCase();
+  if (n === query) return 0;
+  if (n.startsWith(query)) return 1;
+  if (o === query) return 2;
+  if (o.startsWith(query)) return 3;
+  if (n.includes(query)) return 4;
+  return 5;
+}
+
+// Cap on rows fetched for in-memory relevance ranking (a text query rarely
+// matches more than a few dozen locations) — bounds cost while still letting
+// us rank the whole match set before slicing out the requested page.
+const RELEVANCE_FETCH_CAP = 300;
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -66,11 +89,12 @@ export async function GET(req: NextRequest) {
         distinct: ["location_id"],
       });
       const pricedIds = priced.map((r) => r.location_id!).filter(Boolean);
+      const hasQuery = q.length >= 2;
       const rows = await db.location.findMany({
         where: {
           is_active: true,
           type: { in: ["CITY", "STATE", "COUNTRY"] as const },
-          OR: q.length >= 2
+          OR: hasQuery
             ? [
                 { name:          { contains: q, mode: "insensitive" } },
                 { official_name: { contains: q, mode: "insensitive" } },
@@ -79,17 +103,21 @@ export async function GET(req: NextRequest) {
           ...(pricedIds.length > 0 ? { id: { notIn: pricedIds } } : {}),
         },
         select: {
-          id: true, name: true, type: true, slug: true,
+          id: true, name: true, type: true, slug: true, official_name: true,
           latitude: true, longitude: true,
           city:    { select: { name: true } },
           state:   { select: { name: true } },
           country: { select: { name: true } },
         },
         orderBy: [{ is_featured: "desc" }, { is_popular: "desc" }, { name: "asc" }],
-        skip: offset,
-        take: limit,
+        skip: hasQuery ? 0 : offset,
+        take: hasQuery ? RELEVANCE_FETCH_CAP : limit,
       });
-      return NextResponse.json(rows.map((r) => {
+      if (hasQuery) {
+        rows.sort((a, b) => relevanceRank(a.name, a.official_name, q) - relevanceRank(b.name, b.official_name, q));
+      }
+      const paged = hasQuery ? rows.slice(offset, offset + limit) : rows;
+      return NextResponse.json(paged.map((r) => {
         const parts = [r.name];
         if (r.state?.name   && r.state.name   !== r.name) parts.push(r.state.name);
         if (r.country?.name && r.country.name !== r.name) parts.push(r.country.name);
@@ -144,6 +172,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const hasQuery = q.length >= 2;
     const rows = await db.location.findMany({
       where: {
         is_active: true,
@@ -156,7 +185,7 @@ export async function GET(req: NextRequest) {
         ...(excludeLocationIds?.length ? { id: { notIn: excludeLocationIds } } : {}),
       },
       select: {
-        id: true, name: true, type: true, slug: true,
+        id: true, name: true, type: true, slug: true, official_name: true,
         latitude: true, longitude: true,
         city:    { select: { name: true } },
         state:   { select: { name: true } },
@@ -167,12 +196,17 @@ export async function GET(req: NextRequest) {
         { is_popular:  "desc" },
         { name:        "asc"  },
       ],
-      skip: offset,
-      take: limit,
+      skip: hasQuery ? 0 : offset,
+      take: hasQuery ? RELEVANCE_FETCH_CAP : limit,
     });
 
+    if (hasQuery) {
+      rows.sort((a, b) => relevanceRank(a.name, a.official_name, q) - relevanceRank(b.name, b.official_name, q));
+    }
+    const paged = hasQuery ? rows.slice(offset, offset + limit) : rows;
+
     return NextResponse.json(
-      rows.map((r) => {
+      paged.map((r) => {
         const parts = [r.name];
         if (r.state?.name   && r.state.name   !== r.name) parts.push(r.state.name);
         if (r.country?.name && r.country.name !== r.name) parts.push(r.country.name);
