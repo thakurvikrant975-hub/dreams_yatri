@@ -519,9 +519,21 @@ async function findOrCreateRoute(data: TransferInput): Promise<number | null> {
         pickup_location_id: BigInt(data.pickup_location_id),
         drop_location_id: BigInt(data.drop_location_id),
       },
-      select: { id: true },
+      select: { id: true, pickup_name: true, drop_name: true },
     });
-    if (existing) return existing.id;
+    if (existing) {
+      // The matched row may have been created under a stale display name for
+      // this location (e.g. the location's catalog name changed, or an old
+      // search-ranking bug meant the wrong suggestion got picked originally)
+      // — re-attaching it must not keep re-serving that stale text forever.
+      if (existing.pickup_name !== data.pickup_name || existing.drop_name !== data.drop_name) {
+        await db.transfer_routes.update({
+          where: { id: existing.id },
+          data: { pickup_name: data.pickup_name, drop_name: data.drop_name },
+        });
+      }
+      return existing.id;
+    }
   }
 
   // Compute road distance from Mapbox Directions API
