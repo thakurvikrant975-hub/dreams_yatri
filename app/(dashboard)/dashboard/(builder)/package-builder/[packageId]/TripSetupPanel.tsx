@@ -105,6 +105,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
         <RouteStopsEditor
           stops={form.stops}
           onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
+          dayCount={form.itineraries.length}
         />
         <p className="text-[11px] text-dashboard-base-content/45">
           Each day&apos;s hotel and cab search defaults to the stop it falls under, so

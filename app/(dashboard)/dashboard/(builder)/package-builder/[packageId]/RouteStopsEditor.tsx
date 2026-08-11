@@ -9,20 +9,24 @@
 // share one copy while the latter is being retired.
 
 import { useState } from "react";
-import { Plus, Trash2, MapPin, Pencil } from "./builder-icons";
+import { Plus, Trash2, MapPin, Pencil, AlertTriangle } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
 import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import type { StopInput } from "../action";
 
-export function RouteStopsEditor({ stops, onChange, limitReason }: {
+export function RouteStopsEditor({ stops, onChange, limitReason, dayCount }: {
   stops: StopInput[];
   onChange: (v: StopInput[]) => void;
   /** Why another stop can't be added, or undefined when one can. Passed in
    * rather than computed here: this editor is also used by Trip Setup, and
    * only the caller knows how many days the trip currently has. */
   limitReason?: string | null;
+  /** The itinerary's actual day count — e.g. after adding a day from the
+   * layers rail without touching the route. Passed in for the same reason as
+   * limitReason: only the caller knows it. Omit to skip the mismatch check. */
+  dayCount?: number;
 }) {
   // Per-row toggle: pick from the real locations catalog (default) vs a
   // plain free-text field, for places not in the catalog yet.
@@ -51,6 +55,12 @@ export function RouteStopsEditor({ stops, onChange, limitReason }: {
   }
 
   const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
+  const impliedDays = totalNights + 1;
+  // A day added straight from the layers rail (or one deleted there) doesn't
+  // touch these nights, so the two can silently drift apart — flag it rather
+  // than let the route quietly describe a trip shorter or longer than the one
+  // actually built.
+  const dayMismatch = dayCount != null && stops.length > 0 && impliedDays !== dayCount;
 
   return (
     <div>
@@ -127,7 +137,17 @@ export function RouteStopsEditor({ stops, onChange, limitReason }: {
 
       {stops.length > 0 && (
         <p className="text-[11px] text-dashboard-base-content/50 mt-1.5">
-          Auto duration: <span className="font-semibold text-dashboard-base-content">{totalNights + 1}D / {totalNights}N</span> — syncs Duration & Destination(s) below
+          Auto duration: <span className="font-semibold text-dashboard-base-content">{impliedDays}D / {totalNights}N</span> — syncs Duration & Destination(s) below
+        </p>
+      )}
+
+      {dayMismatch && (
+        <p className="flex items-start gap-1.5 text-[11px] text-dashboard-warning bg-dashboard-warning/10 border border-dashboard-warning/25 rounded-md px-2 py-1.5 mt-1.5">
+          <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+          <span>
+            Nights add up to {impliedDays}D / {totalNights}N, but this trip has {dayCount} day{dayCount !== 1 ? "s" : ""}.
+            Adjust the nights above so they match.
+          </span>
         </p>
       )}
     </div>
