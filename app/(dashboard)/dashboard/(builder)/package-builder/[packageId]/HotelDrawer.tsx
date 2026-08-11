@@ -18,7 +18,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import {
   Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, Star,
-  Coffee, Sun, Moon, UtensilsCrossed, Sliders,
+  Coffee, Sun, Moon, UtensilsCrossed, Sliders, Users,
 } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -110,6 +110,18 @@ function FilterRow({ label, children }: { label: string; children: React.ReactNo
  * local date to the previous day in any timezone west of UTC. */
 function toLocalISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** The room's raw inventory — not what THIS party needs (that's
+ * planRoomOccupancy), but what the room itself can hold, so a room can be
+ * judged on its own terms while still browsing rather than only after it's
+ * been matched to the current headcount. */
+function capacitySummary(roomCapacity: number | null | undefined, extraBedCapacity: number | null | undefined): string | null {
+  if (roomCapacity == null) return null;
+  const extra = extraBedCapacity ?? 0;
+  return extra > 0
+    ? `Sleeps ${roomCapacity} · +${extra} mattress${extra !== 1 ? "es" : ""} · max ${roomCapacity + extra}`
+    : `Sleeps ${roomCapacity}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -469,8 +481,23 @@ export function HotelReplaceView({ day }: { day: number }) {
                       <MapPin size={9} /> {room.distanceKm.toFixed(1)} km
                     </span>
                   )}
+                  {/* Room's own inventory — sleep + mattress capacity, so it
+                      can be judged on what it can hold while still browsing,
+                      not just what this party would need from it below. */}
+                  {capacitySummary(room.roomCapacity, room.extraBedCapacity) && (
+                    <span
+                      className="flex items-center gap-0.5"
+                      title={
+                        room.maxAdults != null || room.maxChildren != null
+                          ? `Up to ${room.maxAdults ?? "—"} adult${room.maxAdults !== 1 ? "s" : ""}, ${room.maxChildren ?? "—"} child${room.maxChildren !== 1 ? "ren" : ""} per room`
+                          : undefined
+                      }
+                    >
+                      <Users size={9} /> {capacitySummary(room.roomCapacity, room.extraBedCapacity)}
+                    </span>
+                  )}
                   <span className="flex items-center gap-0.5">
-                    <BedDouble size={9} /> {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
+                    <BedDouble size={9} /> {plan.rooms} room{plan.rooms !== 1 ? "s" : ""} needed
                     {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
                   </span>
                   {room.coveredMeals.length > 0 ? (
@@ -649,6 +676,11 @@ export function HotelEditView({ day }: { day: number }) {
                     {itin.accommodationRoomSpecs}
                   </p>
                 )}
+                {capacitySummary(itin.accommodationRoomCapacity, itin.accommodationExtraBedCapacity) && (
+                  <p className="flex items-center gap-1 text-[11px] text-dashboard-base-content/50 mt-0.5">
+                    <Users size={10} /> {capacitySummary(itin.accommodationRoomCapacity, itin.accommodationExtraBedCapacity)}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex gap-2 mt-3">
@@ -671,20 +703,37 @@ export function HotelEditView({ day }: { day: number }) {
           <StayNights day={day} />
 
           <Group label="This night">
-            <Field
-              label="Rooms needed"
-              hint={`Leave blank to auto-compute. For ${form.adults} adult${form.adults !== 1 ? "s" : ""}${form.children > 0 ? `, ${form.children} child${form.children !== 1 ? "ren" : ""}` : ""}: ${plan.rooms} room${plan.rooms !== 1 ? "s" : ""}${plan.mattresses > 0 ? ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}` : ""}`}
-            >
-              <Input
-                type="number" min={1}
-                value={itin.roomsCount ?? ""}
-                placeholder={String(plan.rooms)}
-                onChange={(e) => updateDay(day, {
-                  roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-                })}
-                className="h-9 text-sm w-28"
-              />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                label="Rooms needed"
+                hint={`Auto: ${plan.rooms} for ${form.adults} adult${form.adults !== 1 ? "s" : ""}${form.children > 0 ? `, ${form.children} child${form.children !== 1 ? "ren" : ""}` : ""}`}
+              >
+                <Input
+                  type="number" min={1}
+                  value={itin.roomsCount ?? ""}
+                  placeholder={String(plan.rooms)}
+                  onChange={(e) => updateDay(day, {
+                    roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                  })}
+                  className="h-9 text-sm"
+                />
+              </Field>
+
+              <Field
+                label="Mattresses needed"
+                hint={`Auto: ${plan.mattresses} · up to ${itin.accommodationExtraBedCapacity ?? 0} per room`}
+              >
+                <Input
+                  type="number" min={0}
+                  value={itin.manualExtraBeds ?? ""}
+                  placeholder={String(plan.mattresses)}
+                  onChange={(e) => updateDay(day, {
+                    manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
+                  })}
+                  className="h-9 text-sm"
+                />
+              </Field>
+            </div>
 
             <Field label="Meal plan">
               <Input
