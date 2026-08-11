@@ -410,6 +410,27 @@ export type PdfCaptureResult = {
  * natural height for its full content) and slices it into A4 page images.
  */
 export async function captureToPdfPages(root: HTMLElement, scale = 2): Promise<PdfCaptureResult> {
+  // Hide builder-only chrome for the duration of the capture.
+  //
+  // html2canvas rasterises the *screen* DOM — @media print never runs — so the
+  // document's own `.no-print` rule (which lives inside @media print) has no
+  // effect here at all. Anything that exists only to make the preview editable
+  // would otherwise be baked into the client's PDF: most visibly the "Click to
+  // add…" placeholders EditableText shows for empty fields.
+  //
+  // Driven by an attribute rather than by mutating each element so it covers
+  // every edit affordance added later without this function needing to know
+  // about them; the matching rule is in ItineraryDocument's PRINT_STYLES,
+  // outside the @media print block for exactly this reason.
+  root.setAttribute("data-exporting", "true");
+  try {
+    return await captureToPdfPagesInner(root, scale);
+  } finally {
+    root.removeAttribute("data-exporting");
+  }
+}
+
+async function captureToPdfPagesInner(root: HTMLElement, scale: number): Promise<PdfCaptureResult> {
   const rootWidthPx = root.offsetWidth;
   // Slice using the FULL page height — shrinking this budget up front to
   // "make room for a margin" only forces more (and bigger) whole-card

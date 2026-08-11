@@ -714,6 +714,9 @@ export interface DayItinerary {
   accommodationRoomPhotos: string[];
   accommodationLocation: string;
   accommodationRoomSpecs: string;
+  /** Snapshotted off the hotel at pick time — see the schema note. Empty for
+   * a hand-typed stay or one chosen before this existed. */
+  accommodationStarRating: string;
   accommodationRoomCapacity: number | null;
   /** Occupancy caps snapshotted from the picked catalog room (see
    * HotelRoomResult) — max adults/children the room itself allows, and how
@@ -788,6 +791,8 @@ export interface DayItinerary {
   transportPickupLat: number | null;
   transportPickupLng: number | null;
   transportDrop:      string;
+  transportDropLat:   number | null;
+  transportDropLng:   number | null;
   transportDistanceKm: number | null;
   /** Free-text estimate like "3h 15m" — typed by the exec or filled in by
    * the AI Itinerary Builder. */
@@ -803,6 +808,11 @@ export interface DayItinerary {
   /** Additional, different cabs for the same day — see CabSelection. */
   extraCabs?:         CabSelection[];
   notes:              string;
+  /** Tone for the note above — warning | info | error | success | neutral.
+   * Null/absent reads as neutral. Same vocabulary as itinerary_notes.type. */
+  notesType?:         string | null;
+  /** Optional heading for the note — falls back to the tone's label. */
+  notesTitle?:        string | null;
 }
 
 /** Per-package additions to the six standard lists — see
@@ -895,6 +905,8 @@ export interface AddonInput {
 
 export interface TicketInput {
   id?:            string;
+  /** Mirrors the TicketType enum, BUS and OTHER included, so a package
+   * carrying either stays readable and editable in the builder. */
   type:           "FLIGHT" | "TRAIN" | "HELICOPTER" | "BUS" | "OTHER";
   provider:       string;
   ticketNumber:   string;
@@ -1068,6 +1080,7 @@ export async function copyPackageIntoDraft(
       accommodationRoomPhotos: rawRoomPhotos.map((u) => getThumbnailImage(u)),
       accommodationLocation: day.hotel?.location ?? "",
       accommodationRoomSpecs: roomSpecs,
+      accommodationStarRating: "",
       accommodationRoomCapacity: day.hotel?.room_capacity ?? null,
       roomPricingId:      roomPricingByDay.get(day.day) ?? null,
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
@@ -1090,6 +1103,8 @@ export async function copyPackageIntoDraft(
       transportPickupLat: null,
       transportPickupLng: null,
       transportDrop:      transfer?.drop_name ?? "",
+      transportDropLat:   null,
+      transportDropLng:   null,
       transportDistanceKm: transfer?.distance_km ?? null,
       // The catalog itinerary_transfers model has no travel-time field to
       // copy from — left blank, same as the other transfer fields noted above.
@@ -1169,7 +1184,8 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
         select: {
           id: true, day: true, title: true, description: true, meals: true,
           accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
-          accommodationLocation: true, accommodationRoomSpecs: true, accommodationRoomCapacity: true,
+          accommodationLocation: true, accommodationRoomSpecs: true, accommodationStarRating: true,
+          accommodationRoomCapacity: true,
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
           manualExtraBeds: true,
           roomPricingId: true, roomsCount: true, extraRooms: true,
@@ -1180,8 +1196,9 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           transport: true, transportPhoto: true, transportVehicleType: true,
           transportSeats: true, transportPickup: true,
           transportPickupLat: true, transportPickupLng: true,
+          transportDropLat: true, transportDropLng: true,
           transportDrop: true, transportDistanceKm: true, transportTravelTime: true,
-          cabPricingId: true, cabQuantity: true, extraCabs: true, notes: true,
+          cabPricingId: true, cabQuantity: true, extraCabs: true, notes: true, notesType: true, notesTitle: true,
           activities: {
             orderBy: { sortOrder: "asc" },
             select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
@@ -1203,7 +1220,8 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       })),
       accommodation: n.accommodation, accommodationPhoto: n.accommodationPhoto,
       accommodationRoomPhotos: n.accommodationRoomPhotos, accommodationLocation: n.accommodationLocation,
-      accommodationRoomSpecs: n.accommodationRoomSpecs, accommodationRoomCapacity: n.accommodationRoomCapacity,
+      accommodationRoomSpecs: n.accommodationRoomSpecs, accommodationStarRating: n.accommodationStarRating,
+      accommodationRoomCapacity: n.accommodationRoomCapacity,
       accommodationMaxAdults: n.accommodationMaxAdults, accommodationMaxChildren: n.accommodationMaxChildren,
       accommodationExtraBedCapacity: n.accommodationExtraBedCapacity, manualExtraBeds: n.manualExtraBeds,
       roomPricingId: n.roomPricingId, roomsCount: n.roomsCount, extraRooms: n.extraRooms,
@@ -1216,8 +1234,9 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
       transportSeats: n.transportSeats, transportPickup: n.transportPickup,
       transportPickupLat: n.transportPickupLat, transportPickupLng: n.transportPickupLng,
+      transportDropLat: n.transportDropLat, transportDropLng: n.transportDropLng,
       transportDrop: n.transportDrop, transportDistanceKm: n.transportDistanceKm, transportTravelTime: n.transportTravelTime,
-      cabPricingId: n.cabPricingId, cabQuantity: n.cabQuantity, extraCabs: n.extraCabs, notes: n.notes,
+      cabPricingId: n.cabPricingId, cabQuantity: n.cabQuantity, extraCabs: n.extraCabs, notes: n.notes, notesType: n.notesType, notesTitle: n.notesTitle,
     };
   });
 
@@ -1373,7 +1392,8 @@ function normalizeActivity(a: {
 function normalizeItinerary(it: {
   id: string; day: number; title: string; description: string | null; meals: string[];
   accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
-  accommodationLocation: string | null; accommodationRoomSpecs: string | null; accommodationRoomCapacity: number | null;
+  accommodationLocation: string | null; accommodationRoomSpecs: string | null;
+  accommodationStarRating: string | null; accommodationRoomCapacity: number | null;
   accommodationMaxAdults: number | null; accommodationMaxChildren: number | null; accommodationExtraBedCapacity: number | null;
   manualExtraBeds: number | null;
   roomPricingId: number | null;
@@ -1388,8 +1408,9 @@ function normalizeItinerary(it: {
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
   transportPickupLat: number | null; transportPickupLng: number | null;
+  transportDropLat: number | null; transportDropLng: number | null;
   transportDrop: string | null;
-  transportDistanceKm: number | null; transportTravelTime: string | null; notes: string | null;
+  transportDistanceKm: number | null; transportTravelTime: string | null; notes: string | null; notesType: string | null; notesTitle: string | null;
   cabPricingId: number | null;
   cabQuantity: number | null;
   extraCabs: Prisma.JsonValue;
@@ -1407,6 +1428,7 @@ function normalizeItinerary(it: {
     accommodationRoomPhotos:   it.accommodationRoomPhotos ?? [],
     accommodationLocation:     it.accommodationLocation ?? "",
     accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
+    accommodationStarRating:   it.accommodationStarRating ?? "",
     accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
     accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
     accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
@@ -1434,6 +1456,8 @@ function normalizeItinerary(it: {
     transportSeats:            it.transportSeats ?? null,
     transportPickup:           it.transportPickup ?? "",
     transportPickupLat:        it.transportPickupLat ?? null,
+    transportDropLat:          it.transportDropLat ?? null,
+    transportDropLng:          it.transportDropLng ?? null,
     transportPickupLng:        it.transportPickupLng ?? null,
     transportDrop:             it.transportDrop ?? "",
     transportDistanceKm:       it.transportDistanceKm ?? null,
@@ -1442,6 +1466,8 @@ function normalizeItinerary(it: {
     cabQuantity:               it.cabQuantity ?? null,
     extraCabs:                 parseCabSelections(it.extraCabs),
     notes:                     it.notes ?? "",
+    notesType:                 it.notesType ?? null,
+    notesTitle:                it.notesTitle ?? null,
   };
 }
 
@@ -1606,6 +1632,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           accommodationRoomPhotos: true,
           accommodationLocation: true,
           accommodationRoomSpecs: true,
+          accommodationStarRating: true,
           accommodationRoomCapacity: true,
           accommodationMaxAdults: true,
           accommodationMaxChildren: true,
@@ -1633,6 +1660,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           transportSeats:     true,
           transportPickup:    true,
           transportPickupLat: true,
+          transportDropLat:   true,
+          transportDropLng:   true,
           transportPickupLng: true,
           transportDrop:      true,
           transportDistanceKm: true,
@@ -1641,6 +1670,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           cabQuantity:        true,
           extraCabs:          true,
           notes:              true,
+          notesType:          true,
+          notesTitle:         true,
           activities: {
             orderBy: { sortOrder: "asc" },
             select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
@@ -2017,6 +2048,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               accommodationRoomPhotos: it.accommodationRoomPhotos ?? [],
               accommodationLocation: it.accommodationLocation || null,
               accommodationRoomSpecs: it.accommodationRoomSpecs || null,
+              accommodationStarRating: it.accommodationStarRating || null,
               accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
               accommodationMaxAdults: it.accommodationMaxAdults ?? null,
               accommodationMaxChildren: it.accommodationMaxChildren ?? null,
@@ -2059,6 +2091,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               transportSeats:     it.transportSeats ?? null,
               transportPickup:    it.transportPickup || null,
               transportPickupLat: it.transportPickupLat ?? null,
+              transportDropLat:   it.transportDropLat ?? null,
+              transportDropLng:   it.transportDropLng ?? null,
               transportPickupLng: it.transportPickupLng ?? null,
               transportDrop:      it.transportDrop || null,
               transportDistanceKm: it.transportDistanceKm ?? null,
@@ -2068,6 +2102,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               // Same "drop unfinished rows" filter as extraRooms above.
               extraCabs:          (it.extraCabs ?? []).filter((c) => c.label.trim()) as unknown as Prisma.InputJsonValue,
               notes:              it.notes || null,
+              notesType:          it.notesType || null,
+              notesTitle:         it.notesTitle || null,
               activities: {
                 create: it.activities
                   .filter((a) => a.title.trim())

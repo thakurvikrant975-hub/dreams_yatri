@@ -114,6 +114,8 @@ export async function getPackagePdfPreviewData(packageId: string): Promise<Previ
       address: settings.companyAddress,
       description: settings.companyDescription,
       disclaimer: settings.documentDisclaimer,
+      defaultTemplate: settings.defaultTemplate,
+      themeOverrides: settings.themeOverrides,
     },
   };
 }

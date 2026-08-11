@@ -1,7 +1,7 @@
 // ItinerarySection.tsx
 'use client';
 
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useBooking, type CabGroup } from './PackageBookingProvider';
 import type { CabTypeOption, RoomOption } from '@/app/actions/packages/fetch-page-data';
 import { getCardImage } from '@/app/lib/imageUrl';
@@ -1605,67 +1605,77 @@ function mealIconFor(name: string): React.ElementType {
   return ForkKnifeIcon;
 }
 
+/**
+ * One row per meal, in time order: breakfast, lunch, dinner, then anything
+ * non-standard the plan adds (snacks, high tea).
+ *
+ * Previously the same three meals were drawn twice — a chip strip showing which
+ * were included, then a separate list of only the included ones with their
+ * venue. A single list carries both: the strike-through and the tick/cross say
+ * whether a meal is in, and the venue rides on the same line.
+ */
+function mealRows(section: MealSection) {
+  const isStandard = (name: string) =>
+    STANDARD_MEAL_CHIPS.some(c => name.toLowerCase().includes(c.key));
+
+  const standard = STANDARD_MEAL_CHIPS.map(({ key, label, icon }) => {
+    const item = section.items.find(it => it.name.toLowerCase().includes(key));
+    return { label: item?.name ?? label, source: item?.source ?? null, icon, included: !!item };
+  });
+
+  const extras = section.items
+    .filter(it => !isStandard(it.name))
+    .map(it => ({ label: it.name, source: it.source, icon: mealIconFor(it.name), included: true }));
+
+  return [...standard, ...extras];
+}
+
 function MealContent({ section }: { section: MealSection }) {
   return (
     <div className="mt-2 flex">
       <div className="w-10 shrink-0" />
-      <div className="flex-1 flex flex-col gap-3">
+      <div className="flex-1 flex flex-col gap-2.5">
+        {mealRows(section).map(({ label, source, icon: Icon, included }, i) => (
+          <div key={i} className="flex items-center gap-2.5">
+            <div
+              className={cn(
+                'size-7 rounded-full border-[1.5px] flex items-center justify-center shrink-0 bg-neutral-50',
+                included
+                  ? 'border-muted shadow-sm shadow-neutral-200/80'
+                  : 'border-(--border-default) opacity-60',
+              )}
+            >
+              <Icon weight="fill" className="size-3.5 text-muted" />
+            </div>
 
-        {/* Standard meals — segmented breakfast | lunch | dinner */}
-        <div className="flex items-center gap-1.5">
-          <Text size="xs" intent="secondary" weight="medium" className="uppercase tracking-wide">Meals:</Text>
-          <div className="flex items-stretch gap-2 flex-1">
-            {STANDARD_MEAL_CHIPS.map(({ key, label, icon: Icon }, i) => {
-              const included = section.items.some(it => it.name.toLowerCase().includes(key));
-              return (
-                <Fragment key={key}>
-                  {i > 0 && <span className="w-px self-stretch bg-(--border-default) shrink-0" />}
-                  <div
-                    className={cn(
-                      'flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium flex-1',
-                      included ? 'text-primary' : 'text-muted',
-                    )}
-                  >
-                    <span className="relative flex items-center gap-1 px-1">
-                      <Icon weight="duotone" className={cn('size-4 shrink-0', included ? 'text-success-500' : 'text-muted')} />
-                      {label}
-                      {!included && (
-                        <span className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 h-px rounded-full bg-error-600 z-10 " />
-                      )}
-                    </span>
-                    {included
-                      ? <CheckCheck className="size-4 text-success-500 shrink-0" />
-                      : <CircleX className="size-4 text-error-600 shrink-0" />}
-                  </div>
-                </Fragment>
-              );
-            })}
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+              <span className="relative shrink-0">
+                <Text
+                  size="sm"
+                  intent={included ? 'primary' : 'muted'}
+                  weight="semibold"
+                  className="font-heading"
+                >
+                  {label}
+                </Text>
+                {!included && (
+                  <span className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 h-px rounded-full bg-error-600" />
+                )}
+              </span>
+              {/* Venue only where there's a meal to serve. */}
+              {included && source && (
+                <>
+                  <span className="text-muted text-sm">·</span>
+                  <Text size="xs" intent="secondary" className="truncate min-w-0">{source}</Text>
+                </>
+              )}
+            </div>
+
+            {included
+              ? <CheckCheck className="size-4 text-success-500 shrink-0" />
+              : <CircleX className="size-4 text-error-600 shrink-0" />}
           </div>
-        </div>
-
-        {/* Each included meal with where it's served */}
-        <div className="flex flex-col gap-2.5">
-          {section.items.map((it, i) => {
-            const Icon = mealIconFor(it.name);
-            return (
-              <div key={i} className="flex items-center gap-2.5">
-                <div className="size-7 rounded-full border-[1.5px] border-muted flex items-center justify-center shrink-0 shadow-sm shadow-neutral-200/80 bg-neutral-50">
-                  <Icon weight="fill" className="size-3.5 text-muted" />
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                  <Text size="sm" intent="primary" weight="semibold" className="font-heading shrink-0">{it.name}</Text>
-                  {it.source && (
-                    <>
-                      <span className="text-muted text-sm">·</span>
-                      <Text size="xs" intent="secondary" className="truncate min-w-0">{it.source}</Text>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
+        ))}
       </div>
     </div>
   );

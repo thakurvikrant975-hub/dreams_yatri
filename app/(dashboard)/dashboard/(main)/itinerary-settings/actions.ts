@@ -5,6 +5,9 @@ import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma";
 import { getCurrentActor, type ActionResult } from "../(marketing)/queries/actions";
 import { actionError } from "@/app/lib/action-error";
+import {
+    DEFAULT_TEMPLATE, isTemplateId, type ThemeOverrides,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme";
 
 const SETTINGS_ID = "singleton";
 
@@ -31,6 +34,10 @@ export type ItinerarySettings = {
     customPolicySections: PolicySection[];
     defaultMarginPercentage: number;
     defaultGstPercentage: number;
+    /** House document template every package inherits unless it picks its own. */
+    defaultTemplate: string;
+    /** Company-wide colour/font tweaks layered over that template. */
+    themeOverrides: ThemeOverrides;
     updatedAt: Date;
     updatedByName: string | null;
 };
@@ -47,6 +54,11 @@ export async function getItinerarySettings(): Promise<ItinerarySettings> {
     return {
         ...row,
         customPolicySections: (row.customPolicySections as unknown as PolicySection[] | null) ?? [],
+        // Both are re-normalised on the way out rather than trusted as stored:
+        // the columns are a free-text id and an unconstrained JSON blob, and
+        // every consumer downstream feeds them straight into a style attribute.
+        defaultTemplate: isTemplateId(row.defaultTemplate) ? row.defaultTemplate : DEFAULT_TEMPLATE,
+        themeOverrides: (row.themeOverrides as unknown as ThemeOverrides | null) ?? {},
     };
 }
 
@@ -74,6 +86,8 @@ export async function updateItinerarySettings(data: {
     customPolicySections: PolicySection[];
     defaultMarginPercentage: number;
     defaultGstPercentage: number;
+    defaultTemplate: string;
+    themeOverrides: ThemeOverrides;
 }): Promise<ActionResult> {
     try {
         const denied = await assertNotSalesExecutive();
@@ -83,12 +97,19 @@ export async function updateItinerarySettings(data: {
         void actor;
 
         const customPolicySections = data.customPolicySections as unknown as Prisma.InputJsonValue;
+        // An unknown template id would render as the house default anyway
+        // (resolveDocTheme falls back); rejecting it here keeps the stored
+        // value honest so the settings page doesn't show a dead selection.
+        const defaultTemplate = isTemplateId(data.defaultTemplate) ? data.defaultTemplate : DEFAULT_TEMPLATE;
+        const themeOverrides = data.themeOverrides as unknown as Prisma.InputJsonValue;
 
         await db.itinerary_settings.upsert({
             where: { id: SETTINGS_ID },
             update: {
                 ...data,
                 customPolicySections,
+                defaultTemplate,
+                themeOverrides,
                 updatedBy: teamMemberId,
                 updatedByName: teamMemberName,
             },
@@ -96,6 +117,8 @@ export async function updateItinerarySettings(data: {
                 id: SETTINGS_ID,
                 ...data,
                 customPolicySections,
+                defaultTemplate,
+                themeOverrides,
                 updatedBy: teamMemberId,
                 updatedByName: teamMemberName,
             },

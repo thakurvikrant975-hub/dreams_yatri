@@ -5,10 +5,11 @@ import { COMPANY } from "@/app/lib/company";
 
 /**
  * The printable trip voucher, shared by the customer route
- * (/bookings/[id]/voucher) and the ops route
- * (/dashboard/package-bookings/[id]/voucher) so both send out the same
- * document — a voucher a guest queries at check-in has to match the one ops is
- * looking at on the phone.
+ * (/bookings/[id]/voucher), the ops route
+ * (/dashboard/package-bookings/[id]/voucher) and the operations team's
+ * hand-raised vouchers (/dashboard/manual-documents) so all three send out the
+ * same document — a voucher a guest queries at check-in has to match the one ops
+ * is looking at on the phone.
  *
  * Sized for A4 and expected to run to several pages: the page box is declared
  * in `@page`, section blocks and table rows carry break-inside: avoid so a stay
@@ -194,11 +195,19 @@ function BulletList({ items, marker }: { items: string[]; marker: "check" | "cro
 
 // ── Document ──────────────────────────────────────────────────────────────────
 
+/**
+ * Everything the sheet actually prints. `bookingId` is deliberately not part of
+ * it: the document never renders the id, and requiring one would mean the
+ * hand-raised voucher — which has no booking behind it at all — had to invent a
+ * fake booking id to satisfy the type. A full `VoucherData` still satisfies this.
+ */
+export type VoucherDocumentData = Omit<VoucherData, "bookingId">;
+
 export default function VoucherDocument({
     data,
     actions,
 }: {
-    data: VoucherData;
+    data: VoucherDocumentData;
     /** Print/download control — rendered under the sheet, inside the page chrome
      *  so it sits on the grey backdrop rather than below it. Carries `.no-print`. */
     actions?: React.ReactNode;
