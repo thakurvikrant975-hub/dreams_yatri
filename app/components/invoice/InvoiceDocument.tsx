@@ -1,11 +1,16 @@
 import DyLogo from "@/app/components/ui/DyLogo";
 import { formatPaiseRoundedUp } from "@/app/lib/money";
-import { buildInvoiceViewModel, type InvoiceBookingData } from "@/app/lib/invoice";
+import { bookingToInvoiceDocument, type InvoiceBookingData, type InvoiceDocumentModel } from "@/app/lib/invoice";
 import { COMPANY } from "@/app/lib/company";
 
-// The one invoice layout — dashboard admins and customers must see identical
-// figures and design for the same booking, so both render THIS component
-// rather than keeping their own copies that can drift apart.
+// The one invoice layout — dashboard admins, customers and the operations team's
+// hand-raised invoices must see identical figures and design, so all of them
+// render THIS component rather than keeping copies that can drift apart.
+//
+// It takes either a booking (which it converts) or an already-built document
+// model (the hand-raised path, which has no booking behind it). Everything below
+// the entry point works only on the model, so neither source gets special
+// treatment in the layout.
 
 /** Grid lines, matching the voucher's tables: a neutral rule in the body and a
  *  lighter primary one inside the header, where the fill is already primary. */
@@ -22,30 +27,26 @@ function TableFrame({ children }: { children: React.ReactNode }) {
     );
 }
 
-/** Invoice-only — the voucher is an operational document and carries none of
- *  these. The closing line is deliberately last, after the conditions. */
-const TERMS = [
-    "Subject to Shimla jurisdiction.",
-    "Subject to realization of Cheque.",
-    "Without original Receipt no refund is permissible.",
-    "Kindly check all details carefully to avoid un-necessary complications.",
-    "Thank you for doing business with us.",
-];
-
 function fmtDate(d: Date | null): string {
     if (!d) return "—";
     return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(d);
 }
 
-export default function InvoiceDocument({ booking }: { booking: InvoiceBookingData }) {
-    const v = buildInvoiceViewModel(booking);
+/** Accepts a booking or a pre-built document, never both. */
+type InvoiceDocumentProps =
+    | { booking: InvoiceBookingData; document?: never }
+    | { document: InvoiceDocumentModel; booking?: never };
+
+export default function InvoiceDocument(props: InvoiceDocumentProps) {
+    const v = props.document ?? bookingToInvoiceDocument(props.booking);
+    const ref = v.reference;
 
     return (
         <div className="invoice-page mx-auto max-w-215 bg-white shadow-lg print:shadow-none rounded-sm overflow-hidden">
             {/* Chrome drops backgrounds when printing unless told otherwise,
                 which strips the header fills and zebra rows from the saved PDF.
-                Lives here rather than in the routes so all three surfaces that
-                render an invoice get it. */}
+                Lives here rather than in the routes so every surface that
+                renders an invoice gets it. */}
             <style>{`
                 .invoice-page, .invoice-page * {
                     -webkit-print-color-adjust: exact;
@@ -81,20 +82,20 @@ export default function InvoiceDocument({ booking }: { booking: InvoiceBookingDa
                 <div className="flex gap-10">
                     <div>
                         <div className="text-[10px] uppercase tracking-wide text-neutral-600/90">Invoice No.</div>
-                        <div className="mt-0.5 font-semibold text-neutral-900">INV-{booking.bookingNumber}</div>
+                        <div className="mt-0.5 font-semibold text-neutral-900">{v.documentNumber}</div>
                     </div>
                     <div>
                         <div className="text-[10px] uppercase tracking-wide text-neutral-600/90">Date</div>
-                        <div className="mt-0.5 font-semibold text-neutral-900">{fmtDate(booking.createdAt)}</div>
+                        <div className="mt-0.5 font-semibold text-neutral-900">{fmtDate(v.issueDate)}</div>
                     </div>
                     <div>
                         <div className="text-[10px] uppercase tracking-wide text-neutral-600/90">Service</div>
                         <div className="mt-0.5 font-semibold text-neutral-900">{v.serviceType}</div>
                     </div>
-                    {booking.gstStateCode && (
+                    {v.gstStateCode && (
                         <div>
                             <div className="text-[10px] uppercase tracking-wide text-neutral-600/90">GST State</div>
-                            <div className="mt-0.5 font-semibold text-neutral-900">{booking.gstStateCode}</div>
+                            <div className="mt-0.5 font-semibold text-neutral-900">{v.gstStateCode}</div>
                         </div>
                     )}
                 </div>
@@ -105,15 +106,27 @@ export default function InvoiceDocument({ booking }: { booking: InvoiceBookingDa
                 </div>
             </div>
 
-            {/* ── Trip summary strip ── */}
+            {/* ── Trip summary strip ──
+                Dropped whole when there is nothing to summarise: a hand-raised
+                invoice for a service with no trip dates would otherwise print a
+                heading over a row of dashes. */}
             <div className="flex flex-wrap items-center justify-between gap-4 px-10 pb-6">
-                <div>
-                    <div className="text-[10px] uppercase tracking-wide text-neutral-600/90">Booking</div>
-                    <div className="mt-0.5 text-lg font-bold text-neutral-900">{booking.bookingNumber}</div>
-                    <div className="text-xs text-neutral-800 mt-0.5">
-                        {fmtDate(booking.startDate)} – {fmtDate(booking.endDate)} · {booking.travellers} traveller{booking.travellers !== 1 ? "s" : ""}
+                {ref ? (
+                    <div>
+                        <div className="text-[10px] uppercase tracking-wide text-neutral-600/90">{ref.label}</div>
+                        <div className="mt-0.5 text-lg font-bold text-neutral-900">{ref.value}</div>
+                        {(ref.startDate || ref.travellers) && (
+                            <div className="text-xs text-neutral-800 mt-0.5">
+                                {[
+                                    ref.startDate ? `${fmtDate(ref.startDate)} – ${fmtDate(ref.endDate)}` : null,
+                                    ref.travellers ? `${ref.travellers} traveller${ref.travellers !== 1 ? "s" : ""}` : null,
+                                ].filter(Boolean).join(" · ")}
+                            </div>
+                        )}
                     </div>
-                </div>
+                ) : (
+                    <div />
+                )}
                 <div className="text-right text-xs text-neutral-800 leading-relaxed">
                     <div>{COMPANY.email}</div>
                     <div>{COMPANY.phone}</div>
@@ -130,16 +143,31 @@ export default function InvoiceDocument({ booking }: { booking: InvoiceBookingDa
                         </tr>
                     </thead>
                     <tbody>
-                        <tr className="break-inside-avoid">
-                            <td className={`px-3 py-3 align-top text-neutral-800 ${CELL_BORDER}`}>
-                                <span className="block text-[10px] uppercase tracking-wide text-neutral-500">{v.serviceType}</span>
-                                {v.lineItemLabel}
-                                {v.lineItemDetail && (
-                                    <span className="block text-xs text-neutral-600/90 mt-0.5">{v.lineItemDetail}</span>
-                                )}
-                            </td>
-                            <td className={`px-3 py-3 align-top text-right text-neutral-800 ${CELL_BORDER}`}>{formatPaiseRoundedUp(v.taxable)}</td>
-                        </tr>
+                        {v.lines.map((line, i) => (
+                            <tr key={i} className="break-inside-avoid">
+                                <td className={`px-3 py-3 align-top text-neutral-800 ${CELL_BORDER}`}>
+                                    {/* The service type labels the first row only. On a
+                                        single-line invoice it reads as a caption; repeated
+                                        down an itemised one it would just be noise. */}
+                                    {i === 0 && (
+                                        <span className="block text-[10px] uppercase tracking-wide text-neutral-500">{v.serviceType}</span>
+                                    )}
+                                    {line.label}
+                                    {line.detail && (
+                                        <span className="block text-xs text-neutral-600/90 mt-0.5">{line.detail}</span>
+                                    )}
+                                </td>
+                                <td className={`px-3 py-3 align-top text-right text-neutral-800 ${CELL_BORDER}`}>{formatPaiseRoundedUp(line.amount_paise)}</td>
+                            </tr>
+                        ))}
+                        {/* Only when itemised — on a single-line invoice the subtotal
+                            would restate the row directly above it. */}
+                        {v.lines.length > 1 && (
+                            <tr className="break-inside-avoid">
+                                <td className={`px-3 py-3 text-right text-neutral-700 ${CELL_BORDER}`}>Subtotal</td>
+                                <td className={`px-3 py-3 text-right text-neutral-700 ${CELL_BORDER}`}>{formatPaiseRoundedUp(v.taxable)}</td>
+                            </tr>
+                        )}
                         {v.gst > 0 && (
                             <tr className="bg-neutral-50 break-inside-avoid">
                                 <td className={`px-3 py-3 align-top text-neutral-700 ${CELL_BORDER}`}>GST ({v.gstPct}%)</td>
@@ -186,14 +214,16 @@ export default function InvoiceDocument({ booking }: { booking: InvoiceBookingDa
             </div>
 
             {/* ── Terms & conditions ── */}
-            <div className="px-10 mt-8 break-inside-avoid">
-                <div className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-700">Terms &amp; Conditions</div>
-                <ol className="list-decimal pl-4 space-y-1">
-                    {TERMS.map((term, i) => (
-                        <li key={i} className="text-[11px] leading-relaxed text-neutral-700 break-inside-avoid">{term}</li>
-                    ))}
-                </ol>
-            </div>
+            {v.terms.length > 0 && (
+                <div className="px-10 mt-8 break-inside-avoid">
+                    <div className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-700">Terms &amp; Conditions</div>
+                    <ol className="list-decimal pl-4 space-y-1">
+                        {v.terms.map((term, i) => (
+                            <li key={i} className="text-[11px] leading-relaxed text-neutral-700 break-inside-avoid">{term}</li>
+                        ))}
+                    </ol>
+                </div>
+            )}
 
             {/* ── Footer ── */}
             <p className="px-10 mt-8 text-xs text-neutral-600/90 text-center">This is a computer-generated invoice and does not require a signature.</p>
