@@ -1101,13 +1101,17 @@ function SummaryCell({ value, action, onOpen }: {
 }
 
 export function DaySummaryTable({
-  itineraries, travelDate, stops = [],
+  itineraries, travelDate, stops = [], adults = 0, childCount = 0,
 }: {
   itineraries: DayItinerary[];
   travelDate?: string;
   /** Route stops — used to derive which city each day is in when the day's
    * own hotel doesn't have a location on file yet. */
   stops?: StopInput[];
+  /** Party size — needed to work out how many rooms/mattresses this day's
+   * stay actually needs, the same math the hotel drawer prices from. */
+  adults?: number;
+  childCount?: number;
 }) {
   const builder = useOptionalBuilder();
   const shiftedMeals = computeShiftedMeals(itineraries);
@@ -1191,7 +1195,25 @@ export function DaySummaryTable({
                       : d.accommodation ? { kind: "hotel-edit", day: d.day }
                         : { kind: "hotel-replace", day: d.day },
                   )}
-                  value={d.accommodation || null}
+                  value={d.accommodation ? (
+                    <>
+                      {d.accommodation}
+                      {(() => {
+                        const plan = planRoomOccupancy(adults, childCount, {
+                          max_occupancy: d.accommodationRoomCapacity,
+                          extra_bed_capacity: d.accommodationExtraBedCapacity,
+                          max_adults: d.accommodationMaxAdults,
+                          max_children: d.accommodationMaxChildren,
+                        }, d.roomsCount);
+                        return (
+                          <span className="block text-[10px] text-neutral-400">
+                            {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
+                            {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
+                          </span>
+                        );
+                      })()}
+                    </>
+                  ) : null}
                 />
               </td>
               <td className="px-3 py-2 text-neutral-600">
@@ -3091,7 +3113,13 @@ export function ItineraryDocument({
 
           <div className="space-y-3">
             <SectionHeader icon={Calendar} label="Day-wise Summary" />
-            <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} stops={form.stops} />
+            <DaySummaryTable
+              itineraries={form.itineraries}
+              travelDate={form.travelDate}
+              stops={form.stops}
+              adults={form.adults}
+              childCount={form.children}
+            />
           </div>
 
           <div className="space-y-3">
