@@ -35,6 +35,11 @@ import {
 } from "./day-mutations";
 import { dragSourceProps, type CatalogDrag } from "./builder-dnd";
 import { Empty, Hint, Chip } from "./builder-ui";
+import { dayCalendarDate } from "./ItineraryDocument";
+
+function toLocalISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared scaffolding
@@ -243,9 +248,15 @@ export function HotelSuggestionsView() {
   const { city, setCity, stops } = useScope();
   const [query, setQuery] = useState("");
 
+  // The selected day's actual date, so the price shown matches what applying
+  // this room to that day would actually cost (season/weekend rate, not the
+  // flat catalog rate) — same resolution the builder's billing itself uses.
+  const dayDate = form.travelDate ? dayCalendarDate(form.travelDate, selectedDay) : null;
+  const dayDateISO = dayDate ? toLocalISODate(dayDate) : null;
+
   const { results, loading } = useCatalog<HotelRoomResult>(
-    () => searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc"),
-    [city, query],
+    () => searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc", null, dayDateISO),
+    [city, query, dayDateISO],
     !!city || !!query.trim(),
     "Couldn't load hotels.",
   );

@@ -14,14 +14,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
   Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, Star,
+  Coffee, Sun, Moon, UtensilsCrossed,
 } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
-  searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult,
+  searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption,
 } from "../action";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
@@ -34,12 +36,36 @@ import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
 import { Field, OptionRow, Chip, Empty, Segmented, Group, Card } from "./builder-ui";
+import { dayCalendarDate } from "./ItineraryDocument";
 import {
   applyHotelRoomSelection, removeStay, invalidateStaleOverrides,
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
   addExtraRoom, updateExtraRoom, removeExtraRoom, beginManualHotel,
   stayRun, validateStayAssignment,
 } from "./day-mutations";
+
+const HOTEL_SEARCH_PAGE_SIZE = 20;
+
+const MEAL_FILTER_CHIPS: { value: string; label: string; icon: React.ElementType }[] = [
+  { value: "breakfast", label: "Breakfast", icon: Coffee },
+  { value: "lunch",     label: "Lunch",     icon: Sun },
+  { value: "dinner",    label: "Dinner",    icon: Moon },
+];
+
+const SORT_OPTIONS: { value: HotelSortOption; label: string }[] = [
+  { value: "price_asc",   label: "Price: Low to High" },
+  { value: "price_desc",  label: "Price: High to Low" },
+  { value: "rating_desc", label: "Star rating" },
+  { value: "name_asc",    label: "Name (A–Z)" },
+];
+
+const MEAL_ICONS: Record<string, React.ElementType> = { breakfast: Coffee, lunch: Sun, dinner: Moon };
+
+/** ISO "YYYY-MM-DD" in local time — toISOString() would shift a midnight
+ * local date to the previous day in any timezone west of UTC. */
+function toLocalISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Replace
@@ -61,6 +87,18 @@ export function HotelReplaceView({ day }: { day: number }) {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [results, setResults] = useState<HotelRoomResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [sortBy, setSortBy] = useState<HotelSortOption>("price_asc");
+  const [mealFilter, setMealFilter] = useState<string[]>([]);
+  const mealFilterKey = mealFilter.join(",");
+
+  // This day's actual calendar date — so the price shown is what this room
+  // would actually cost on THIS night, not a flat catalog rate that may be
+  // wrong for the season it falls in.
+  const dayDate = form.travelDate ? dayCalendarDate(form.travelDate, day) : null;
+  const dayDateISO = dayDate ? toLocalISODate(dayDate) : null;
 
   // Geocode the city so results can be ordered by, and show, distance from
   // town — the single most useful signal when swapping a property.
@@ -78,13 +116,17 @@ export function HotelReplaceView({ day }: { day: number }) {
   // overwrite a newer one, hence the request token.
   const reqRef = useRef(0);
   useEffect(() => {
-    if (!city && !query.trim()) { setResults([]); return; }
+    if (!city && !query.trim()) { setResults([]); setHasMore(false); return; }
     const token = ++reqRef.current;
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const rows = await searchHotelRoomsForBuilder(city, query, coords, 1, null, null, null, "price_asc");
-        if (token === reqRef.current) setResults(rows);
+        const rows = await searchHotelRoomsForBuilder(city, query, coords, 1, null, null, mealFilter, sortBy, null, dayDateISO);
+        if (token === reqRef.current) {
+          setResults(rows);
+          setPage(1);
+          setHasMore(rows.length >= HOTEL_SEARCH_PAGE_SIZE);
+        }
       } catch {
         if (token === reqRef.current) toast.error("Couldn't load hotels. Try again.");
       } finally {
@@ -92,7 +134,22 @@ export function HotelReplaceView({ day }: { day: number }) {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [city, query, coords]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, query, coords, sortBy, mealFilterKey, dayDateISO]);
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const rows = await searchHotelRoomsForBuilder(city, query, coords, nextPage, null, null, mealFilter, sortBy, null, dayDateISO);
+      setResults((prev) => [...prev, ...rows]);
+      setPage(nextPage);
+      setHasMore(rows.length >= HOTEL_SEARCH_PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   if (!itin) return null;
 
@@ -114,7 +171,7 @@ export function HotelReplaceView({ day }: { day: number }) {
   async function applyToDays(days: number[]) {
     const current = itin?.roomPricingId;
     if (current == null) return;
-    const source = await getHotelRoomByIdForBuilder(current, coords);
+    const source = await getHotelRoomByIdForBuilder(current, coords, dayDateISO);
     if (!source) {
       toast.error("Couldn't load that room. Pick it again to apply it elsewhere.");
       return;
@@ -179,6 +236,41 @@ export function HotelReplaceView({ day }: { day: number }) {
         </p>
       )}
 
+      {/* Sort + meal filters — sort applies regardless of scope; meal chips
+          narrow to rooms whose plan covers ALL the ticked meals. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
+          <label className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wider">Sort</label>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as HotelSortOption)}
+            className="h-7 text-[11px] rounded-md border border-dashboard-base-300 bg-transparent px-1.5 outline-none"
+          >
+            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div className="w-px h-4 bg-dashboard-base-300 shrink-0" />
+        {MEAL_FILTER_CHIPS.map((m) => (
+          <Chip
+            key={m.value}
+            selected={mealFilter.includes(m.value)}
+            onClick={() => setMealFilter((prev) =>
+              prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value])}
+          >
+            <span className="flex items-center gap-1"><m.icon size={10} /> {m.label}</span>
+          </Chip>
+        ))}
+        {mealFilter.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMealFilter([])}
+            className="text-[10px] text-dashboard-error/70 hover:text-dashboard-error px-0.5"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
       {/* The escape hatch this view exists to offer: nothing in the catalog
           fits, so hand the day over instead of leaving it empty. */}
       <button
@@ -234,13 +326,28 @@ export function HotelReplaceView({ day }: { day: number }) {
               key={room.id}
               selected={isCurrent}
               onClick={() => pick(room)}
+              leading={room.thumbnail ? (
+                <Image
+                  src={room.thumbnail}
+                  alt={room.roomName}
+                  width={56}
+                  height={42}
+                  className="h-10.5 w-14 rounded-lg object-cover border"
+                />
+              ) : (
+                <div className="h-10.5 w-14 rounded-lg bg-dashboard-base-200 border border-dashboard-base-300 flex items-center justify-center">
+                  <Hotel size={16} className="text-dashboard-base-content/30" />
+                </div>
+              )}
               title={
+                // The room is what's being priced and picked — leading, not a
+                // caption under the hotel name — with the hotel as context.
                 <span className="flex items-center gap-1.5">
-                  {room.hotelName}
+                  {room.roomName}
                   {isCurrent && <CheckIcon size={12} className="text-dashboard-primary shrink-0" />}
                 </span>
               }
-              description={room.roomName}
+              description={room.hotelName}
               meta={
                 <>
                   {room.starRating && <span>{room.starRating}</span>}
@@ -253,17 +360,41 @@ export function HotelReplaceView({ day }: { day: number }) {
                     <BedDouble size={9} /> {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
                     {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
                   </span>
+                  {room.coveredMeals.length > 0 ? (
+                    room.coveredMeals.map((meal) => {
+                      const Icon = MEAL_ICONS[meal] ?? UtensilsCrossed;
+                      return (
+                        <span key={meal} className="flex items-center gap-0.5">
+                          <Icon size={9} /> {meal}
+                        </span>
+                      );
+                    })
+                  ) : room.mealPlanName ? (
+                    <span>{room.mealPlanName}</span>
+                  ) : null}
                 </>
               }
               trailing={
                 <>
                   <p className="text-[13px] font-bold tabular-nums">₹{nightly.toLocaleString("en-IN")}</p>
-                  <p className="text-[10px] text-dashboard-base-content/50">per night</p>
+                  <p className="text-[10px] text-dashboard-base-content/50">
+                    per night{room.isSeasonalRate && " · seasonal"}
+                  </p>
                 </>
               }
             />
           );
         })}
+
+        {hasMore && !loading && (
+          <Button
+            type="button" variant="outline" className="w-full h-8 text-xs"
+            onClick={loadMore} disabled={loadingMore}
+          >
+            {loadingMore ? <Loader2 size={12} className="animate-spin" /> : null}
+            Load more
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -821,6 +952,8 @@ function ExtraRoomsEditor({ day }: { day: number }) {
   const [loading, setLoading] = useState(false);
 
   const city = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
+  const dayDate = form.travelDate ? dayCalendarDate(form.travelDate, day) : null;
+  const dayDateISO = dayDate ? toLocalISODate(dayDate) : null;
 
   useEffect(() => {
     if (!adding) return;
@@ -828,14 +961,14 @@ function ExtraRoomsEditor({ day }: { day: number }) {
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const rows = await searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc");
+        const rows = await searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc", null, dayDateISO);
         if (!cancelled) setResults(rows);
       } finally {
         if (!cancelled) setLoading(false);
       }
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [adding, city, query]);
+  }, [adding, city, query, dayDateISO]);
 
   if (!itin) return null;
   const extras = itin.extraRooms ?? [];

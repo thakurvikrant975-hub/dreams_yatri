@@ -218,7 +218,7 @@ function refCode(queryId: string): string {
  * travel date + 1, etc. Same offset the pricing engine uses to pick
  * season/weekend rates per day (package-pricing.service.ts), just surfaced
  * here for display. Null when there's no travel date to anchor to yet. */
-function dayCalendarDate(travelDate: string, dayNumber: number): Date | null {
+export function dayCalendarDate(travelDate: string, dayNumber: number): Date | null {
   if (!travelDate) return null;
   const base = new Date(travelDate);
   if (Number.isNaN(base.getTime())) return null;
@@ -1090,7 +1090,7 @@ function SummaryCell({ value, action, onOpen }: {
           {/* Two renderings of "nothing here": the offer while editing, and
               the em dash the client's document has always shown. See the
               .builder-only / .export-only pair in PRINT_STYLES. */}
-          <span className="builder-only no-print font-medium" style={{ color: DOC.accent }}>
+          <span className="builder-only no-print font-medium cursor-pointer" style={{ color: DOC.accent }}>
             + {action.replace(/^Add /, "")}
           </span>
           <span className="export-only">—</span>
