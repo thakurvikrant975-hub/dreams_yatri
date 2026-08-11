@@ -520,7 +520,7 @@ export function HotelEditView({ day }: { day: number }) {
                 placeholder="0" className="h-9 text-sm"
               />
             </Field>
-            <Field label="Price / night">
+            <Field label="Price / night (per room)">
               <Input
                 type="number" min={0}
                 value={itin.manualHotelPricePerNight ?? ""}
@@ -541,6 +541,33 @@ export function HotelEditView({ day }: { day: number }) {
               />
             </Field>
           </div>
+
+          {/* What the four fields above actually add up to per night.
+              "Price / night" reads naturally as the whole day's room bill, so
+              an exec would type the already-multiplied figure for three rooms
+              and the day priced at three times that. Showing the arithmetic
+              back makes the per-room reading unmistakable — and doubles as a
+              check on the mattress line, which is added, not multiplied in. */}
+          {(itin.manualHotelPricePerNight ?? 0) > 0 && (
+            <p className="rounded-md border bg-muted/40 px-2 py-1.5 text-[11px]">
+              {(itin.roomsCount ?? 1)} room{(itin.roomsCount ?? 1) !== 1 ? "s" : ""} × ₹{(itin.manualHotelPricePerNight ?? 0).toLocaleString("en-IN")}
+              {" = "}₹{((itin.roomsCount ?? 1) * (itin.manualHotelPricePerNight ?? 0)).toLocaleString("en-IN")}
+              {(itin.manualExtraBeds ?? 0) > 0 && (
+                <>
+                  {" + "}{itin.manualExtraBeds} mattress{itin.manualExtraBeds !== 1 ? "es" : ""} × ₹{(itin.manualExtraBedRate ?? 0).toLocaleString("en-IN")}
+                  {" = "}₹{((itin.manualExtraBeds ?? 0) * (itin.manualExtraBedRate ?? 0)).toLocaleString("en-IN")}
+                </>
+              )}
+              <span className="font-semibold">
+                {" → Total ₹"}
+                {(
+                  (itin.roomsCount ?? 1) * (itin.manualHotelPricePerNight ?? 0)
+                  + (itin.manualExtraBeds ?? 0) * (itin.manualExtraBedRate ?? 0)
+                ).toLocaleString("en-IN")}/night
+              </span>
+            </p>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <Field label="Check-in">
               <Input

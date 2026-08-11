@@ -863,11 +863,58 @@ export default function PackageBuilderDetailPage() {
     };
   }
 
+  // A blocked re-request (see saveCustomPackage's staleHotelRequestDays) must
+  // never be silent — this tab's copy of the day predates a fill that happened
+  // elsewhere, so the request didn't take; warn and point at a reload rather
+  // than let the exec believe it went through.
+  function warnStaleHotelRequests(days: number[] | undefined) {
+    if (!days?.length) return;
+    const list = days.join(", ");
+    toast.warning(
+      `Day ${list} was filled by the hotel team while you had this package open — your re-request didn't go through.`,
+      { description: "Reload the page to see the filled hotel, then request again if it's still not right.", duration: 12000 },
+    );
+  }
+
   function applyComputedPricing() {
     const { finalPrice, perPerson } = computeFinalPricing();
     if (finalPrice <= 0) return;
-    setForm((f) => ({ ...f, pricePerPerson: String(perPerson) }));
+    // Both fields, and `totalPrice` from the exact `finalPrice` rather than
+    // `perPerson * pax` — see the sync effect below for why that distinction
+    // is worth the extra line.
+    setForm((f) => ({ ...f, pricePerPerson: String(perPerson), totalPrice: String(finalPrice) }));
   }
+
+  // ── Keep the saved price synced to the live computation ────────────────────
+  // Mirrors `form.pricePerPerson` and `form.totalPrice` to the live computed
+  // price whenever any pricing input changes, instead of requiring an explicit
+  // "Use ₹X as Price Per Person" click after every edit. This is what used to
+  // go stale: an exec would fix a hotel/cab price after a costing rejection,
+  // forget to re-apply, and resubmit with the old total still saved — the
+  // preview/PDF then showed a different number than the live Pricing tab.
+  //
+  // `totalPrice` is set to the exact `finalPrice` (not `perPerson * pax`) so it
+  // matches the Pricing tab to the rupee — multiplying the *rounded* per-person
+  // value back out by headcount used to drift the header/PDF total off the
+  // Pricing tab's exact total by up to `pax` rupees.
+  //
+  // Never runs once the package is locked for review (READY) or already sent
+  // (SENT), so an approved/quoted price never silently drifts if catalog rates
+  // change later — checked inline off `query` rather than the `isLocked`/
+  // `pkgSent` variables declared further down, since this has to sit above the
+  // loading/not-found early returns to satisfy the rules of hooks.
+  useEffect(() => {
+    const status = query?.customPackage?.status;
+    if (status === "READY" || status === "SENT") return;
+    const { finalPrice, perPerson } = computeFinalPricing();
+    if (finalPrice <= 0) return;
+    const nextPP = String(perPerson);
+    const nextTotal = String(finalPrice);
+    setForm((f) => (f.pricePerPerson === nextPP && f.totalPrice === nextTotal
+      ? f
+      : { ...f, pricePerPerson: nextPP, totalPrice: nextTotal }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage, form.tickets, form.addOns, form.adults, form.children, query?.customPackage?.status]);
 
   // Re-syncs `query` AND the price fields inside `form` from a fresh fetch.
   // `form` is local state hydrated once on mount (see the initial load effect
@@ -909,6 +956,7 @@ export default function PackageBuilderDetailPage() {
         localDraft.clear();
         setSavedOk(true);
         setTimeout(() => setSavedOk(false), 3000);
+        warnStaleHotelRequests(result.staleHotelRequestDays);
       } else {
         toast.error(result.error ?? "Failed to save");
       }
@@ -1012,6 +1060,7 @@ export default function PackageBuilderDetailPage() {
         toast.error(result.error ?? "Failed to save");
         return;
       }
+      warnStaleHotelRequests(result.staleHotelRequestDays);
 
       const result2 = await markPackageReady(packageId);
       if (result2.success) {
