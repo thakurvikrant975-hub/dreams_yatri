@@ -52,6 +52,24 @@ const MEAL_FILTER_CHIPS: { value: string; label: string; icon: React.ElementType
   { value: "dinner",    label: "Dinner",    icon: Moon },
 ];
 
+// hotels.stay_type free text — every value actually in the catalog (checked
+// against production: 1–5 Star, nothing else, so no "other" bucket needed.
+const STAR_FILTER_CHIPS = ["1 Star", "2 Star", "3 Star", "4 Star", "5 Star"];
+
+// hotels.category free text. Labelled and ordered by how common each is in
+// the catalog — matches HOTEL_CAT_LABEL in HotelRoomPicker.tsx (that
+// component is unused post-rewrite, but the label map is still the source of
+// truth for what these keys mean).
+const CATEGORY_FILTER_CHIPS: { value: string; label: string }[] = [
+  { value: "hotel",      label: "Hotel" },
+  { value: "resort",     label: "Resort" },
+  { value: "homestay",   label: "Homestay" },
+  { value: "houseboat",  label: "Houseboat" },
+  { value: "villa",      label: "Villa" },
+  { value: "camp",       label: "Camp" },
+  { value: "cottage",    label: "Cottage" },
+];
+
 const SORT_OPTIONS: { value: HotelSortOption; label: string }[] = [
   { value: "price_asc",   label: "Price: Low to High" },
   { value: "price_desc",  label: "Price: High to Low" },
@@ -92,6 +110,8 @@ export function HotelReplaceView({ day }: { day: number }) {
   const [hasMore, setHasMore] = useState(false);
   const [sortBy, setSortBy] = useState<HotelSortOption>("price_asc");
   const [mealFilter, setMealFilter] = useState<string[]>([]);
+  const [starFilter, setStarFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const mealFilterKey = mealFilter.join(",");
 
   // This day's actual calendar date — so the price shown is what this room
@@ -121,7 +141,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const rows = await searchHotelRoomsForBuilder(city, query, coords, 1, null, null, mealFilter, sortBy, null, dayDateISO);
+        const rows = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
         if (token === reqRef.current) {
           setResults(rows);
           setPage(1);
@@ -135,14 +155,14 @@ export function HotelReplaceView({ day }: { day: number }) {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, query, coords, sortBy, mealFilterKey, dayDateISO]);
+  }, [city, query, coords, sortBy, mealFilterKey, starFilter, categoryFilter, dayDateISO]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const rows = await searchHotelRoomsForBuilder(city, query, coords, nextPage, null, null, mealFilter, sortBy, null, dayDateISO);
+      const rows = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
       setResults((prev) => [...prev, ...rows]);
       setPage(nextPage);
       setHasMore(rows.length >= HOTEL_SEARCH_PAGE_SIZE);
@@ -236,10 +256,12 @@ export function HotelReplaceView({ day }: { day: number }) {
         </p>
       )}
 
-      {/* Sort + meal filters — sort applies regardless of scope; meal chips
-          narrow to rooms whose plan covers ALL the ticked meals. */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <div className="flex items-center gap-1 shrink-0">
+      {/* Sort + star/category/meal filters — sort applies regardless of
+          scope; star and category are single-select (a room is one star
+          rating, one property type), meal chips narrow to rooms whose plan
+          covers ALL the ticked meals. */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1">
           <label className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wider">Sort</label>
           <select
             value={sortBy}
@@ -248,27 +270,53 @@ export function HotelReplaceView({ day }: { day: number }) {
           >
             {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+          {(starFilter || categoryFilter || mealFilter.length > 0) && (
+            <button
+              type="button"
+              onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); }}
+              className="text-[10px] text-dashboard-error/70 hover:text-dashboard-error px-0.5 ml-auto"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
-        <div className="w-px h-4 bg-dashboard-base-300 shrink-0" />
-        {MEAL_FILTER_CHIPS.map((m) => (
-          <Chip
-            key={m.value}
-            selected={mealFilter.includes(m.value)}
-            onClick={() => setMealFilter((prev) =>
-              prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value])}
-          >
-            <span className="flex items-center gap-1"><m.icon size={10} /> {m.label}</span>
-          </Chip>
-        ))}
-        {mealFilter.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setMealFilter([])}
-            className="text-[10px] text-dashboard-error/70 hover:text-dashboard-error px-0.5"
-          >
-            Clear
-          </button>
-        )}
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {STAR_FILTER_CHIPS.map((star) => (
+            <Chip
+              key={star}
+              selected={starFilter === star}
+              onClick={() => setStarFilter((f) => (f === star ? null : star))}
+            >
+              <span className="flex items-center gap-0.5"><Star size={9} /> {star.replace(" Star", "")}</span>
+            </Chip>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {CATEGORY_FILTER_CHIPS.map((c) => (
+            <Chip
+              key={c.value}
+              selected={categoryFilter === c.value}
+              onClick={() => setCategoryFilter((f) => (f === c.value ? null : c.value))}
+            >
+              {c.label}
+            </Chip>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {MEAL_FILTER_CHIPS.map((m) => (
+            <Chip
+              key={m.value}
+              selected={mealFilter.includes(m.value)}
+              onClick={() => setMealFilter((prev) =>
+                prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value])}
+            >
+              <span className="flex items-center gap-1"><m.icon size={10} /> {m.label}</span>
+            </Chip>
+          ))}
+        </div>
       </div>
 
       {/* The escape hatch this view exists to offer: nothing in the catalog
