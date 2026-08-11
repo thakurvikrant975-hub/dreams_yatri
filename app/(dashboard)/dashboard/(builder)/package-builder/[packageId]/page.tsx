@@ -2020,7 +2020,7 @@ Rules:
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
-          <div className="print-reset px-6 py-8">
+          <div className="print-reset px-6 pb-8">
             <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
               form={previewForm}
