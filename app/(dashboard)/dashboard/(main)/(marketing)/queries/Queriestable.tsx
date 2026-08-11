@@ -22,6 +22,7 @@ import type { PackageQuery, RejectionReason } from "./actions";
 import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";
 import { AssignQueryDropdown } from "./Assignquerydropdown";
+import { DeleteQueryDialog } from "./Deletequerydialog";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 import { TodaysAssignmentDialog } from "./TodaysAssignmentDialog";
 
@@ -64,8 +65,8 @@ const SOURCE_FILTER_OPTIONS = [
 // ── Action Cell ───────────────────────────────────────────────────────────────
 
 function ActionCell({
-    query, onView,
-}: { query: PackageQuery; onView: () => void }) {
+    query, onView, onDeleted,
+}: { query: PackageQuery; onView: () => void; onDeleted: (id: string) => void }) {
     const [isPendingP, startProgress] = useTransition();
 
     const isTerminal = query.status === "SUBMITTED";
@@ -119,6 +120,19 @@ function ActionCell({
                     </Tooltip>
                 )}
 
+                {/* Delete */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span onClick={(e) => e.stopPropagation()}>
+                            <DeleteQueryDialog
+                                queryId={query.id}
+                                leadName={query.name}
+                                onDone={() => onDeleted(query.id)}
+                            />
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete Query</TooltipContent>
+                </Tooltip>
 
             </div>
         </TooltipProvider>
@@ -127,7 +141,12 @@ function ActionCell({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function QueriesTable({ queries, reasons }: Props) {
+export function QueriesTable({ queries: initialQueries, reasons }: Props) {
+    // Local copy of the server-provided list — `revalidatePath` in the delete
+    // action refreshes the *route*, not this already-mounted client
+    // component's props, so a deleted row is removed here directly rather
+    // than staying (broken — reopening it 404s) until the next full reload.
+    const [queries, setQueries] = useState(initialQueries);
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState("all");
     const [filterSource, setFilterSource] = useState("all");
@@ -139,6 +158,11 @@ export function QueriesTable({ queries, reasons }: Props) {
     const [sheetOpen, setSheetOpen] = useState(false);
     const [detailQuery, setDetailQuery] = useState<QueryWithDetails | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+
+    function handleDeleted(id: string) {
+        setQueries((prev) => prev.filter((q) => q.id !== id));
+        if (detailQuery?.id === id) setSheetOpen(false);
+    }
 
     async function openDetail(query: PackageQuery) {
         setSheetOpen(true);
@@ -396,7 +420,7 @@ export function QueriesTable({ queries, reasons }: Props) {
             align: "right",
             width: "w-[160px]",
             cell: (q) => (
-                <ActionCell query={q} onView={() => openDetail(q)} />
+                <ActionCell query={q} onView={() => openDetail(q)} onDeleted={handleDeleted} />
             ),
         },
     ];
@@ -562,6 +586,7 @@ export function QueriesTable({ queries, reasons }: Props) {
                 reasons={reasons}
                 open={sheetOpen}
                 onOpenChange={setSheetOpen}
+                onDeleted={handleDeleted}
             />
         </>
     );

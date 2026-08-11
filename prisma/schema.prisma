@@ -2531,6 +2531,11 @@ model package_queries {
   closedBy          String?
   requirements      Json?
   packageUrl        String?
+  /** Soft-delete — "Delete Query" hides the row from listings instead of
+   * actually removing it, so history is never lost (and a booking/package
+   * still linked to it keeps resolving normally by id everywhere else). */
+  deletedAt         DateTime?
+  deletedBy         String?
   queryFollowUps    QueryFollowUp[]
   booking           Booking?
   custom_packages   custom_packages[]
@@ -2544,6 +2549,7 @@ model package_queries {
   @@index([destination])
   @@index([status])
   @@index([verified])
+  @@index([deletedAt])
 }
 
 model custom_packages {
@@ -3035,6 +3041,10 @@ enum TicketType {
   TRAIN
   HELICOPTER
   BUS
+  /** Anything else the exec needs to price as a ticket/transfer line item
+   * (ferry, zipline, cable car, private transfer, etc.) — the human-readable
+   * description lives in the ticket's own `provider` field, same as every
+   * other type. */
   OTHER
 }
 
@@ -3134,6 +3144,14 @@ model custom_itineraries {
   hotelFilledAt             DateTime?
   hotelFilledById           String?
   hotelFilledByName         String?
+  /**
+   * Internal note the hotel team adds when fulfilling a pending request
+   * (e.g. "confirmed by phone, no early check-in available") — shown to the
+   * sales exec in the builder's Hotel Info day card, but deliberately kept
+   * out of `notes` above (which IS rendered in the itinerary PDF) since this
+   * is ops-to-sales communication, not something meant for the client.
+   */
+  hotelFillNote             String?
   /**
    * Set once PackageStatusNotifier's poller has surfaced the "hotel added
    * for <package>" toast to the exec for this fill — same one-shot pattern

@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Plus, Phone, User, MapPin, Users, Calendar, MessageSquare, Globe, Loader2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Plus, Phone, User, MapPin, Users, Calendar, MessageSquare, Globe, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -15,7 +16,7 @@ import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue,
 } from "../../components/ui/select";
-import { createManualQuery, type ManualQueryFormState } from "./actions";
+import { createManualQuery, checkExistingQueryByPhone, type ManualQueryFormState, type ExistingQueryMatch } from "./actions";
 import {
     getDestinationsForQuery, getPackagesByDestination,
     type DestinationOption, type PackageOption,
@@ -47,10 +48,13 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
     );
 }
 
-// Capitalizes the first letter of each word as the exec types, without
-// touching anything else (so a deliberately-typed "McDonald" isn't mangled).
+// Normalizes to Title Case as the exec types — lowercases everything first
+// so "MAYANK SHARMA" / "mayank Sharma" / "mayank sharma" all converge on
+// "Mayank Sharma" instead of preserving whatever casing was typed. Mirrors
+// the server-side normalization in actions.ts (toTitleCase) so what's shown
+// here always matches what actually gets saved.
 function capitalizeWords(s: string): string {
-    return s.replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+    return s.toLowerCase().replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
 }
 
 const SOURCES = [
@@ -87,8 +91,25 @@ export function AddQueryDialog() {
     const [groupSize,          setGroupSize]          = useState("");
     const [travelDate,         setTravelDate]         = useState("");
     const [message,            setMessage]            = useState("");
+    const [phone,              setPhone]              = useState("");
+    const [existingMatch,      setExistingMatch]      = useState<ExistingQueryMatch | null>(null);
     const formRef                                     = useRef<HTMLFormElement>(null);
     const [state, action, isPending]                  = useActionState(createManualQuery, initial);
+
+    // Warn as soon as a phone number the exec is typing already has a query
+    // on file — catches an about-to-be-created duplicate before it happens,
+    // instead of only after the fact via the "N queries" badge in the table.
+    useEffect(() => {
+        const digits = phone.replace(/\D/g, "");
+        if (digits.length < 10) { setExistingMatch(null); return; }
+        let cancelled = false;
+        const timer = setTimeout(() => {
+            checkExistingQueryByPhone(phone).then((match) => {
+                if (!cancelled) setExistingMatch(match);
+            });
+        }, 400);
+        return () => { cancelled = true; clearTimeout(timer); };
+    }, [phone]);
 
     useEffect(() => {
         if (!open) return;
@@ -121,6 +142,8 @@ export function AddQueryDialog() {
             setGroupSize("");
             setTravelDate("");
             setMessage("");
+            setPhone("");
+            setExistingMatch(null);
             formRef.current?.reset();
         } else if (state.message) {
             // Always surface a toast on failure — not just when there's no
@@ -183,7 +206,7 @@ export function AddQueryDialog() {
                     <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2 space-y-1.5">
                             <Label className="text-xs font-medium text-dashboard-base-content/70">
-                                Full Name
+                                Full Name <span className="text-dashboard-base-content/40">(optional — if they haven&apos;t given it yet)</span>
                             </Label>
                             <Input
                                 id="name" name="name"
@@ -200,8 +223,22 @@ export function AddQueryDialog() {
                             <Label className="text-xs font-medium text-dashboard-base-content/70">
                                 Phone <span className="text-dashboard-error">*</span>
                             </Label>
-                            <PhoneInput name="phone" />
+                            <PhoneInput name="phone" onChange={setPhone} />
                             <FieldError errors={state.errors} field="phone" />
+                            {existingMatch && (
+                                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-300">
+                                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                    <p className="text-xs leading-relaxed">
+                                        This number is already on file as{" "}
+                                        <span className="font-semibold">{existingMatch.name}</span> —{" "}
+                                        {existingMatch.assignedToName
+                                            ? <>assigned to <span className="font-semibold">{existingMatch.assignedToName}</span>{" "}</>
+                                            : "not yet assigned "}
+                                        {formatDistanceToNow(new Date(existingMatch.createdAt), { addSuffix: true })}.
+                                        Check it&apos;s not a duplicate before saving.
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div className="col-span-2 space-y-1.5">

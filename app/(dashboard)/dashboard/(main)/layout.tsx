@@ -96,8 +96,17 @@ export default async function DashboardLayout({
 
   // Sidebar badge seed — the same "Total Pending" sources as the Verify
   // Hotels / Verify Cabs / Package Bookings pages themselves, then kept live
-  // over Ably (no per-navigation refetch).
-  const { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending } = await computeVerificationCounts();
+  // over Ably (no per-navigation refetch). Best-effort: these are cosmetic
+  // badge counts, not auth/access data, so a DB hiccup here (e.g. the first
+  // query after the connection pool sat idle overnight) must never take down
+  // the whole dashboard — every user hits this on every page load, right
+  // after login redirects here. Same "swallow and log" contract as this
+  // function's sibling, broadcastVerificationCounts().
+  const { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending } =
+    await computeVerificationCounts().catch((e) => {
+      console.error("[dashboard layout] verification counts failed, defaulting to 0:", e);
+      return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0 };
+    });
 
   return (
     <SidebarProvider>

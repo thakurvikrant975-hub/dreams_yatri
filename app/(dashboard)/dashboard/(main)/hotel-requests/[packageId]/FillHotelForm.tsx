@@ -3,10 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
+import { cn } from "@/app/lib/utils";
 import { fillPendingHotel } from "../actions";
+import { TimeSelect } from "./TimeSelect";
+import { ImageDropField } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ImageDropField";
 
 // Mirrors STAY_LABELS in package-builder/[packageId]/page.tsx — the exec's
 // Hotel Type request is stored as one of these keys.
@@ -16,9 +20,19 @@ const STAY_LABELS: Record<string, string> = {
     RESORT: "Resort", CAMP: "Camp", BUDGET: "Budget",
 };
 
+// Mirrors MEAL_OPTIONS/MEAL_KEY_LABELS in package-builder/[packageId]/page.tsx
+// — same meal categories, same lowercase covered_meals keys from meal_types,
+// so a plan picked here lights up the same chips a catalog room would.
+const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner", "Tea & Snacks"];
+const MEAL_KEY_LABELS: Record<string, string> = {
+    breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
+};
+
+type MealType = { id: number; name: string; covered_meals: string[] };
+
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
-    requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypeOptions,
+    requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypes,
 }: {
     packageId: string;
     day: number;
@@ -34,9 +48,10 @@ export function FillHotelForm({
     requestedRooms?: number | null;
     requestedMattresses?: number | null;
     requestedMealPlan?: string | null;
-    /** Names configured at /dashboard/hotels/meal-types, offered as
-     * suggestions on the Meal Plan field below. */
-    mealTypeOptions: string[];
+    /** Plans configured at /dashboard/hotels/meal-types — picking one below
+     * auto-checks its covered_meals as Breakfast/Lunch/Dinner chips, same as
+     * picking a catalog room does in the main builder. */
+    mealTypes: MealType[];
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -49,9 +64,28 @@ export function FillHotelForm({
     const [roomSpecs, setRoomSpecs] = useState("");
     const [checkIn, setCheckIn] = useState("");
     const [checkOut, setCheckOut] = useState("");
+    const [hotelPhoto, setHotelPhoto] = useState("");
+    const [roomPhotos, setRoomPhotos] = useState<string[]>(["", "", ""]);
+    const [notes, setNotes] = useState("");
     const [mealPlan, setMealPlan] = useState(requestedMealPlan ?? "");
+    const requestedPlanMatch = mealTypes.find((m) => m.name === requestedMealPlan);
+    const [meals, setMeals] = useState<string[]>(
+        requestedPlanMatch ? requestedPlanMatch.covered_meals.map((k) => MEAL_KEY_LABELS[k] ?? k) : [],
+    );
     const [done, setDone] = useState(false);
-    const mealPlanListId = `meal-plan-options-day-${day}`;
+
+    function toggleMeal(m: string) {
+        setMeals((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
+    }
+
+    function selectMealPlan(plan: MealType) {
+        setMealPlan(plan.name);
+        setMeals(plan.covered_meals.map((k) => MEAL_KEY_LABELS[k] ?? k));
+    }
+
+    function setRoomPhotoAt(index: number, url: string) {
+        setRoomPhotos((prev) => prev.map((p, i) => (i === index ? url : p)));
+    }
 
     function handleSubmit() {
         startTransition(async () => {
@@ -65,7 +99,11 @@ export function FillHotelForm({
                 roomSpecs,
                 checkIn,
                 checkOut,
+                hotelPhoto,
+                roomPhotos: roomPhotos.filter(Boolean),
                 mealPlan,
+                meals,
+                note: notes,
             });
             if (result.success) {
                 setDone(true);
@@ -177,25 +215,53 @@ export function FillHotelForm({
                     />
                 </div>
                 <div>
-                    <label className="text-[11px] text-dashboard-neutral mb-1 block">B2B Price / Night (₹)</label>
+                    {/* Matches the exact label the main builder uses for the same
+                       field (manualHotelPricePerNight) — "B2B Price / Night" was
+                       read by hotel-team members as "the whole night's total",
+                       so they'd sum rooms + mattresses themselves and enter that
+                       combined figure here. The pricing engine always treats
+                       this as a PER-ROOM rate and multiplies by Rooms Needed —
+                       entering an already-summed total silently double-counted
+                       the room cost (e.g. 3 rooms @ ₹1000 + 2 mattresses @ ₹800
+                       = ₹4600 entered here → priced as 3 × ₹4600 = ₹13,800). */}
+                    <label className="text-[11px] text-dashboard-neutral mb-1 block">B2B Price / Room / Night (₹)</label>
                     <Input
                         type="number" min={0}
                         value={pricePerNight}
                         onChange={(e) => setPricePerNight(e.target.value)}
-                        placeholder="e.g. 4500"
+                        placeholder="e.g. 1000"
                         className="text-sm h-9"
                     />
                 </div>
                 {parseInt(extraBeds, 10) > 0 && (
                     <div>
-                        <label className="text-[11px] text-dashboard-neutral mb-1 block">Price / Mattress (₹)</label>
+                        <label className="text-[11px] text-dashboard-neutral mb-1 block">Price / Mattress / Night (₹)</label>
                         <Input
                             type="number" min={0}
                             value={extraBedRate}
                             onChange={(e) => setExtraBedRate(e.target.value)}
-                            placeholder="0"
+                            placeholder="e.g. 800"
                             className="text-sm h-9"
                         />
+                    </div>
+                )}
+                {parseFloat(pricePerNight) > 0 && (
+                    <div className="col-span-2 rounded-md border border-dashboard-base-300 bg-dashboard-base-200/40 px-2.5 py-2 text-xs text-dashboard-base-content">
+                        {(parseInt(roomsCount, 10) || 1)} room{(parseInt(roomsCount, 10) || 1) !== 1 ? "s" : ""} × ₹{(parseFloat(pricePerNight) || 0).toLocaleString("en-IN")}
+                        {" = "}₹{((parseInt(roomsCount, 10) || 1) * (parseFloat(pricePerNight) || 0)).toLocaleString("en-IN")}
+                        {parseInt(extraBeds, 10) > 0 && (
+                            <>
+                                {" + "}{parseInt(extraBeds, 10)} mattress{parseInt(extraBeds, 10) !== 1 ? "es" : ""} × ₹{(parseFloat(extraBedRate) || 0).toLocaleString("en-IN")}
+                                {" = "}₹{(parseInt(extraBeds, 10) * (parseFloat(extraBedRate) || 0)).toLocaleString("en-IN")}
+                            </>
+                        )}
+                        <span className="font-semibold">
+                            {" → Total ₹"}
+                            {(
+                                (parseInt(roomsCount, 10) || 1) * (parseFloat(pricePerNight) || 0)
+                                + parseInt(extraBeds, 10) * (parseFloat(extraBedRate) || 0)
+                            ).toLocaleString("en-IN")}/night
+                        </span>
                     </div>
                 )}
                 <div>
@@ -207,41 +273,89 @@ export function FillHotelForm({
                         className="text-sm h-9"
                     />
                 </div>
-                <div>
-                    <label className="text-[11px] text-dashboard-neutral mb-1 block">Meal Plan</label>
-                    <Input
-                        value={mealPlan}
-                        onChange={(e) => setMealPlan(e.target.value)}
-                        placeholder="MAP - Breakfast & Dinner"
-                        list={mealTypeOptions.length > 0 ? mealPlanListId : undefined}
-                        className="text-sm h-9"
-                    />
-                    {mealTypeOptions.length > 0 && (
-                        <datalist id={mealPlanListId}>
-                            {mealTypeOptions.map((name) => <option key={name} value={name} />)}
-                        </datalist>
+                <div className="col-span-2 space-y-2">
+                    <label className="text-[11px] text-dashboard-neutral flex items-center gap-1">
+                        <Camera className="size-2.5" /> Photos <span className="text-dashboard-base-content/40">(optional — shown in the itinerary)</span>
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                        <div>
+                            <p className="text-[10px] text-dashboard-base-content/50 mb-1">Hotel</p>
+                            <ImageDropField value={hotelPhoto} onChange={setHotelPhoto} folder="hotels" compact />
+                        </div>
+                        {roomPhotos.map((photo, i) => (
+                            <div key={i}>
+                                <p className="text-[10px] text-dashboard-base-content/50 mb-1">Room image {i + 1}</p>
+                                <ImageDropField value={photo} onChange={(url) => setRoomPhotoAt(i, url)} folder="hotels" compact />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <div className="col-span-2 space-y-2">
+                    {mealTypes.length > 0 && (
+                        <div>
+                            <label className="text-[11px] text-dashboard-neutral mb-1 block">Meal Plan</label>
+                            <div className="flex flex-wrap gap-1.5">
+                                {mealTypes.map((m) => (
+                                    <button
+                                        key={m.id}
+                                        type="button"
+                                        onClick={() => selectMealPlan(m)}
+                                        className={cn(
+                                            "px-2.5 py-1 rounded-md border text-xs font-medium transition-colors",
+                                            mealPlan === m.name
+                                                ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
+                                                : "bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200",
+                                        )}
+                                    >
+                                        {m.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     )}
+                    <div>
+                        <label className="text-[11px] text-dashboard-neutral mb-1 block">Meals Included</label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {MEAL_OPTIONS.map((m) => (
+                                <button
+                                    key={m}
+                                    type="button"
+                                    onClick={() => toggleMeal(m)}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-md border text-xs font-medium transition-colors",
+                                        meals.includes(m)
+                                            ? "bg-emerald-600 text-white border-emerald-600"
+                                            : "bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200",
+                                    )}
+                                >
+                                    {m}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
                         <LogIn className="size-2.5" /> Check-In
                     </label>
-                    <Input
-                        value={checkIn}
-                        onChange={(e) => setCheckIn(e.target.value)}
-                        placeholder="2:00 PM"
-                        className="text-sm h-9"
-                    />
+                    <TimeSelect value={checkIn} onChange={setCheckIn} placeholder="Select check-in" />
                 </div>
                 <div>
                     <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
                         <LogOut className="size-2.5" /> Check-Out
                     </label>
-                    <Input
-                        value={checkOut}
-                        onChange={(e) => setCheckOut(e.target.value)}
-                        placeholder="11:00 AM"
-                        className="text-sm h-9"
+                    <TimeSelect value={checkOut} onChange={setCheckOut} placeholder="Select check-out" />
+                </div>
+                <div className="col-span-2">
+                    <label className="text-[11px] text-dashboard-neutral mb-1 flex items-center gap-1">
+                        <StickyNote className="size-2.5" /> Notes for Sales Exec <span className="text-dashboard-base-content/40">(optional, internal only)</span>
+                    </label>
+                    <Textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="e.g. Confirmed by phone, no early check-in available"
+                        rows={2}
+                        className="text-sm resize-none"
                     />
                 </div>
             </div>

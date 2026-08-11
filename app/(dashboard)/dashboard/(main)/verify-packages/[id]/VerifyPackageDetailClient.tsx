@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
     CalendarDays, Mail, MapPin, Phone, Users, IndianRupee,
-    Building2, Car, Ticket, Gift, PlaneTakeoff, TrainFront, Helicopter,
+    Building2, Car, Ticket, Gift, PlaneTakeoff, TrainFront, Helicopter, Bus, Package,
     CheckCircle2, XCircle, AlertCircle, Eye, Send, ShieldCheck,
     Pencil, X, Loader2, Clock, Plus, ListChecks, ListX,
 } from "lucide-react";
@@ -20,6 +20,15 @@ import {
 import { RejectPricingDialog } from "./RejectPricingDialog";
 import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
+
+// Explicit lookup (falling back to TrainFront for anything unrecognized)
+// rather than an if/else chain — a ticket type that isn't FLIGHT/HELICOPTER
+// used to silently render with the train icon by falling through the old
+// ternary's final `else`; this at least makes the fallback a deliberate,
+// visible default instead of an accident of chain ordering.
+const TICKET_TYPE_ICONS: Record<string, typeof PlaneTakeoff> = {
+    FLIGHT: PlaneTakeoff, TRAIN: TrainFront, HELICOPTER: Helicopter, BUS: Bus, OTHER: Package,
+};
 
 // ── Locked pricing snapshot — frozen at send time, see package-builder/action.ts ──
 // (extended here with addOns, which the original snapshot type omitted)
@@ -615,16 +624,17 @@ export function VerifyPackageDetailClient({
                         )}
 
                         {(tickets.length > 0) && (
-                            <BreakdownCard icon={Ticket} title="Flight, Train & Helicopter Tickets" subtotal={ticketsSubtotal}>
-                                {tickets.map((t) => (
+                            <BreakdownCard icon={Ticket} title="Flight, Train, Helicopter, Bus & Other Tickets" subtotal={ticketsSubtotal}>
+                                {tickets.map((t) => {
+                                    const TypeIcon = TICKET_TYPE_ICONS[t.type] ?? TrainFront;
+                                    // OTHER has no fixed meaning of its own — the exec's own
+                                    // description (provider) IS the label, not a suffix on it.
+                                    const typeLabel = t.type === "OTHER" ? (t.provider || "Other") : t.type;
+                                    return (
                                     <div key={t.id} className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
                                         <p className="text-dashboard-base-content min-w-0">
-                                            {t.type === "FLIGHT"
-                                                ? <PlaneTakeoff className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" />
-                                                : t.type === "HELICOPTER"
-                                                    ? <Helicopter className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" />
-                                                    : <TrainFront className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" />}
-                                            {t.type} {t.provider && `(${t.provider})`}: {t.fromPlace || "—"} → {t.toPlace || "—"} × {t.ticketCount}
+                                            <TypeIcon className="inline size-3.5 mr-1 -mt-0.5 text-dashboard-neutral" />
+                                            {typeLabel} {t.type !== "OTHER" && t.provider && `(${t.provider})`}: {t.fromPlace || "—"} → {t.toPlace || "—"} × {t.ticketCount}
                                         </p>
                                         {editMode ? (
                                             <Input type="number" min={0} value={ticketFares[t.id] ?? 0}
@@ -634,7 +644,8 @@ export function VerifyPackageDetailClient({
                                             <span className="font-semibold text-dashboard-base-content shrink-0">{inr(t.fare)}</span>
                                         )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </BreakdownCard>
                         )}
 

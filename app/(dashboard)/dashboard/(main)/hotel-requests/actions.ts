@@ -40,7 +40,23 @@ export type FillHotelInput = {
     roomSpecs?: string;
     checkIn?: string;
     checkOut?: string;
+    /** Single hotel exterior/lobby photo — custom_itineraries.accommodationPhoto,
+     * the same field a catalog room's own photo would populate, so it shows
+     * up in the builder's Hotel Info card and the itinerary document exactly
+     * like a catalog pick would. */
+    hotelPhoto?: string;
+    /** Up to 3 room photos — custom_itineraries.accommodationRoomPhotos. */
+    roomPhotos?: string[];
     mealPlan?: string;
+    /** Which meals are included (Breakfast/Lunch/Dinner/Tea & Snacks) — feeds
+     * custom_itineraries.meals, the field the Day-wise Summary table and PDF
+     * preview actually read (hotelMealPlan above is a separate free-text
+     * label, not rendered anywhere in the itinerary document). */
+    meals?: string[];
+    /** Internal note for the sales exec (e.g. "confirmed by phone, no early
+     * check-in") — shown in the builder's Hotel Info card, never in the
+     * itinerary PDF. See custom_itineraries.hotelFillNote. */
+    note?: string;
 };
 
 export async function fillPendingHotel(
@@ -68,9 +84,12 @@ export async function fillPendingHotel(
         data: {
             accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
             accommodationRoomSpecs: input.roomSpecs?.trim() || null,
+            accommodationPhoto: input.hotelPhoto?.trim() || null,
+            accommodationRoomPhotos: (input.roomPhotos ?? []).map((p) => p.trim()).filter(Boolean).slice(0, 3),
             hotelCheckIn: input.checkIn?.trim() || null,
             hotelCheckOut: input.checkOut?.trim() || null,
             hotelMealPlan: input.mealPlan?.trim() || null,
+            meals: input.meals ?? [],
             roomsCount: Math.max(1, Math.round(input.roomsCount) || 1),
             manualExtraBeds: Math.max(0, Math.round(input.extraBeds ?? 0)),
             manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
@@ -79,6 +98,7 @@ export async function fillPendingHotel(
             hotelFilledAt: new Date(),
             hotelFilledById: auth.member.id,
             hotelFilledByName: auth.member.name,
+            hotelFillNote: input.note?.trim() || null,
         },
     });
 

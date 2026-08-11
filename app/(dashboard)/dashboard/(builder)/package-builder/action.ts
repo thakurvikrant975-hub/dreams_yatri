@@ -242,7 +242,16 @@ export async function searchHotelRoomsForBuilder(
               ],
             }
           : {
+              // Also matches the hotel's own name — a stop like "Cherrapunji"
+              // often has no hotel actually tagged with that exact city (the
+              // catalog uses the sub-locality instead, e.g. "Shella
+              // Bholaganj"), but a property literally named "... Cherrapunji"
+              // still exists and should show up by default rather than
+              // silently returning nothing until the exec types the same
+              // string manually (which already matched name — see the `q`
+              // branch above).
               OR: [
+                { name: { contains: city, mode: "insensitive" } },
                 { city: { contains: city, mode: "insensitive" } },
                 { destination: { name: { contains: city, mode: "insensitive" } } },
               ],
@@ -262,7 +271,44 @@ export async function searchHotelRoomsForBuilder(
     orderBy: HOTEL_SORT_ORDER_BY[sortBy ?? "name_asc"],
   });
 
-  return list.map((item) => mapHotelRoomRow(item, refCoords));
+  if (list.length > 0 || q || !refCoords) {
+    return list.map((item) => mapHotelRoomRow(item, refCoords));
+  }
+
+  // Nothing matched the stop's name by text (e.g. "Cherrapunji" isn't in any
+  // nearby hotel's own name/city/destination — the catalog tags them by
+  // sub-locality instead, like "Shella Bholaganj") — fall back to actual
+  // distance from the geocoded stop, same idea as searchCabsForBuilder's
+  // nearest-city fallback below. Real hotel coordinates (hotel.location,
+  // filled in via the location wizard) are what make this possible; a
+  // property genuinely close by should still surface by default instead of
+  // the exec having to already know its name or sub-locality to type it in.
+  const HOTEL_FALLBACK_RADIUS_KM = 25;
+  const nearby = await db.hotel_room_pricing.findMany({
+    where: {
+      is_active: true,
+      hotel: {
+        is_active: true,
+        location: { latitude: { not: null }, longitude: { not: null } },
+        ...(starFilter ? { stay_type: starFilter } : {}),
+        ...(categoryFilter ? { category: categoryFilter } : {}),
+      },
+      ...(noMealsOnly
+        ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
+        : mealFilter && mealFilter.length > 0
+          ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
+          : {}),
+    },
+    select: HOTEL_ROOM_SELECT,
+  });
+
+  const withDistance = nearby
+    .map((item) => mapHotelRoomRow(item, refCoords))
+    .filter((r): r is HotelRoomResult & { distanceKm: number } => r.distanceKm != null && r.distanceKm <= HOTEL_FALLBACK_RADIUS_KM)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  const start = (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE;
+  return withDistance.slice(start, start + HOTEL_SEARCH_PAGE_SIZE);
 }
 
 /** Looks up a single room by its `hotel_room_pricing` id — used by the hotel
@@ -722,6 +768,10 @@ export interface DayItinerary {
    * only (not written back by saveCustomPackage). */
   hotelFilledAt?:     Date | null;
   hotelFilledByName?: string | null;
+  /** Read-only — the hotel team's internal note left when filling this day
+   * in, for display only (not written back by saveCustomPackage, and never
+   * included in the itinerary PDF — see ItineraryDocument.tsx). */
+  hotelFillNote?:     string | null;
   /** Read-only — costing's per-day price correction (see
    * /dashboard/verify-packages), set only from the review screen. Carried
    * forward untouched by saveCustomPackage; feeds computeBuilderHotelPricing/
@@ -855,9 +905,8 @@ export interface AddonInput {
 
 export interface TicketInput {
   id?:            string;
-  /** Mirrors the TicketType enum. BUS/OTHER were added to the database by
-   * another branch; the builder handles them so a package carrying one stays
-   * readable and editable here. */
+  /** Mirrors the TicketType enum, BUS and OTHER included, so a package
+   * carrying either stays readable and editable in the builder. */
   type:           "FLIGHT" | "TRAIN" | "HELICOPTER" | "BUS" | "OTHER";
   provider:       string;
   ticketNumber:   string;
@@ -1042,6 +1091,7 @@ export async function copyPackageIntoDraft(
       manualHotelPricePerNight: null,
       hotelFilledAt:      null,
       hotelFilledByName:  null,
+      hotelFillNote:      null,
       transport:          transfer?.vehicle_name ?? "",
       transportPhoto:     transfer?.vehicle_image_key ? getThumbnailImage(transfer.vehicle_image_key) : "",
       transportVehicleType: transfer?.vehicle_type ?? "",
@@ -1141,7 +1191,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           roomPricingId: true, roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           hotelPending: true, hotelPendingNote: true, hotelRequestType: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
-          hotelFilledAt: true, hotelFilledByName: true,
+          hotelFilledAt: true, hotelFilledByName: true, hotelFillNote: true,
           hotelPriceOverride: true, cabPriceOverride: true,
           transport: true, transportPhoto: true, transportVehicleType: true,
           transportSeats: true, transportPickup: true,
@@ -1179,7 +1229,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       hotelPending: n.hotelPending, hotelPendingNote: n.hotelPendingNote,
       manualHotelPricePerNight: n.manualHotelPricePerNight,
       manualExtraBedRate: n.manualExtraBedRate,
-      hotelFilledAt: null, hotelFilledByName: null,
+      hotelFilledAt: null, hotelFilledByName: null, hotelFillNote: null,
       hotelPriceOverride: null, cabPriceOverride: null,
       transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
       transportSeats: n.transportSeats, transportPickup: n.transportPickup,
@@ -1353,7 +1403,7 @@ function normalizeItinerary(it: {
   hotelPending: boolean; hotelPendingNote: string | null; hotelRequestType: string | null;
   manualHotelPricePerNight: number | null;
   manualExtraBedRate: number | null;
-  hotelFilledAt: Date | null; hotelFilledByName: string | null;
+  hotelFilledAt: Date | null; hotelFilledByName: string | null; hotelFillNote: string | null;
   hotelPriceOverride: number | null; cabPriceOverride: number | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
@@ -1397,6 +1447,7 @@ function normalizeItinerary(it: {
     manualExtraBedRate:        it.manualExtraBedRate ?? null,
     hotelFilledAt:             it.hotelFilledAt,
     hotelFilledByName:         it.hotelFilledByName,
+    hotelFillNote:             it.hotelFillNote,
     hotelPriceOverride:        it.hotelPriceOverride ?? null,
     cabPriceOverride:          it.cabPriceOverride ?? null,
     transport:                 it.transport ?? "",
@@ -1600,6 +1651,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           manualExtraBedRate: true,
           hotelFilledAt:      true,
           hotelFilledByName:  true,
+          hotelFillNote:      true,
           hotelPriceOverride: true,
           cabPriceOverride:   true,
           transport:          true,
@@ -1691,7 +1743,14 @@ export async function getQueryLeadInfo(queryId: string): Promise<QueryDetail | n
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Save (create or update) a custom package with itineraries
 // ─────────────────────────────────────────────────────────────────────────────
-export async function saveCustomPackage(input: PackageInput): Promise<{ id: string; success: boolean; error?: string }> {
+export async function saveCustomPackage(input: PackageInput): Promise<{
+  id: string; success: boolean; error?: string;
+  /** Day numbers where a hotel-team re-request got blocked because this
+   * save's copy of the package predates a fill that happened elsewhere in
+   * the meantime — see the staleResurrection guard below. Present only when
+   * non-empty; the caller should warn the exec to refresh and retry. */
+  staleHotelRequestDays?: number[];
+}> {
   try {
     const {
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
@@ -1906,6 +1965,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       where: { customPackageId: pkg.id },
       select: {
         day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
+        hotelFillNote: true,
         hotelPriceOverride: true, cabPriceOverride: true,
         roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
@@ -1945,13 +2005,34 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       where: { customPackageId: pkg.id },
     });
 
+    // Days where a client-requested `hotelPending: true` got blocked by the
+    // staleResurrection guard below — surfaced back to the caller (see the
+    // return statement) so a blocked re-request is never silent. This is
+    // exactly the scenario the guard exists for (a stale, pre-fill tab
+    // saving over a fill that already happened) — rare, but when it does
+    // happen the exec needs to know their request didn't take, not just see
+    // it quietly vanish, so they know to refresh and try again.
+    const staleHotelRequestDays: number[] = [];
     if (itineraries.length > 0) {
       await db.$transaction(
         itineraries.map((it) => {
           const existing = existingByDay.get(it.day);
           const alreadyFilled = !!existing?.hotelFilledAt;
-          // Can't resurrect "pending" on a day the hotel team already filled.
-          const hotelPending = it.hotelPending && !alreadyFilled;
+          // Distinguishes a genuine re-request (exec saw the filled hotel —
+          // e.g. via the "Filled by X" line, which is sourced from this same
+          // hotelFilledAt — and clicked "Add Hotels by Team" again because it
+          // wasn't right) from the stale-tab race this guard exists to catch:
+          // the hotel team fills a day in a separate tab/page while the exec
+          // still has an older, pre-fill copy of this form open and saves for
+          // an unrelated reason. The client's own hotelFilledAt (read-only,
+          // loaded at page-open time — see the DayItinerary comment above)
+          // only matches the DB's current one if the exec's snapshot already
+          // knew about this exact fill, which a stale tab's never would.
+          const clientSawThisFill = alreadyFilled && it.hotelFilledAt != null
+            && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime();
+          const staleResurrection = alreadyFilled && !clientSawThisFill;
+          if (it.hotelPending && staleResurrection) staleHotelRequestDays.push(it.day);
+          const hotelPending = it.hotelPending && !staleResurrection;
           const hotelRequestedAt = hotelPending
             ? (existing?.hotelPending ? existing.hotelRequestedAt : new Date())
             : (existing?.hotelRequestedAt ?? null);
@@ -1979,9 +2060,16 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               hotelPendingNote:   hotelPending ? (it.hotelPendingNote || null) : null,
               hotelRequestType:   hotelPending ? (it.hotelRequestType || null) : null,
               hotelRequestedAt,
-              hotelFilledAt:      existing?.hotelFilledAt ?? null,
-              hotelFilledById:    existing?.hotelFilledById ?? null,
-              hotelFilledByName:  existing?.hotelFilledByName ?? null,
+              // A day going pending again — whether this is its first-ever
+              // request or a re-request after a fill — starts a fresh
+              // fulfillment cycle, so any previous fill's provenance no
+              // longer applies and must be cleared (otherwise the very next
+              // save would immediately re-trigger the staleResurrection
+              // guard above against the fill this request is superseding).
+              hotelFilledAt:      hotelPending ? null : (existing?.hotelFilledAt ?? null),
+              hotelFilledById:    hotelPending ? null : (existing?.hotelFilledById ?? null),
+              hotelFilledByName:  hotelPending ? null : (existing?.hotelFilledByName ?? null),
+              hotelFillNote:      hotelPending ? null : (existing?.hotelFillNote ?? null),
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
               manualExtraBedRate: it.manualExtraBedRate ?? null,
               // Costing-only corrections — never sourced from the exec's own
@@ -2031,6 +2119,12 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
             },
           });
         }),
+        // Default is 5s — too short for a rich (e.g. AI-generated) multi-day
+        // itinerary on a cold Neon compute (app/lib/db.ts's pool comments
+        // note cold starts up to ~15s under load): one sequential create per
+        // day easily blows a 5s budget, throwing "Transaction already
+        // closed" and surfacing to the exec as a generic save failure.
+        { timeout: 25_000, maxWait: 10_000 },
       );
     }
 
@@ -2085,7 +2179,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
 
     revalidatePath("/dashboard/package-builder");
 
-    return { id: pkg.id, success: true };
+    return {
+      id: pkg.id, success: true,
+      ...(staleHotelRequestDays.length > 0 ? { staleHotelRequestDays } : {}),
+    };
   } catch (err) {
     console.error("[saveCustomPackage]", err);
     return { id: "", success: false, error: "Failed to save package" };
@@ -2256,10 +2353,15 @@ export async function sendPackageToClient(packageId: string): Promise<{
     const transportLine = [
       pkg.flightsIncluded ? "✈️ Flights included" : null,
       pkg.trainIncluded ? "🚆 Train included" : null,
-      // Helicopter legs don't get their own flightsIncluded-style persisted
-      // flag (see TicketLike in deriveTicketTransport.ts) — checked directly
-      // off the ticket list instead, same data this message already has.
+      // Helicopter/Bus/Other legs don't get their own flightsIncluded-style
+      // persisted flag (see TicketLike in deriveTicketTransport.ts) —
+      // checked directly off the ticket list instead, same data this
+      // message already has.
       pkg.tickets.some((t) => t.type === "HELICOPTER") ? "🚁 Helicopter included" : null,
+      pkg.tickets.some((t) => t.type === "BUS") ? "🚌 Bus included" : null,
+      pkg.tickets.some((t) => t.type === "OTHER")
+        ? `🎫 ${pkg.tickets.filter((t) => t.type === "OTHER").map((t) => t.provider).filter(Boolean).join(", ") || "Other transport"} included`
+        : null,
     ].filter(Boolean).join(" · ");
 
     const message = [

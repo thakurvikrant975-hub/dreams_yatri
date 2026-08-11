@@ -1616,6 +1616,7 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{ p
           day: true, roomPricingId: true, roomsCount: true, extraRooms: true,
           cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
           accommodation: true, manualHotelPricePerNight: true,
+          manualExtraBeds: true, manualExtraBedRate: true,
           hotelPriceOverride: true, cabPriceOverride: true,
         },
       },
@@ -1629,6 +1630,7 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{ p
       travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
       days: pkg.itineraries.map((it) => ({
         day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount,
+        manualExtraBeds: it.manualExtraBeds, manualExtraBedRate: it.manualExtraBedRate,
         extraRooms: parseRoomSelections(it.extraRooms),
         manualHotelPricePerNight: it.manualHotelPricePerNight,
         hotelPriceOverride: it.hotelPriceOverride,

@@ -24,6 +24,7 @@ import type { PackageQuery, RejectionReason } from "./actions";
 import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";
 import { AssignQueryDropdown } from "./Assignquerydropdown";
+import { DeleteQueryDialog } from "./Deletequerydialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ type Props = {
     open:         boolean;
     onOpenChange: (v: boolean) => void;
     onRefresh?:   () => void;
+    onDeleted?:   (id: string) => void;
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -77,7 +79,7 @@ function timelineDot(event: string) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh }: Props) {
+export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh, onDeleted }: Props) {
     const [isPendingVerify, startVerify] = useTransition();
     const [isPendingNote, startNote]     = useTransition();
     const formRef = useRef<HTMLFormElement>(null);
@@ -177,6 +179,14 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                     <XCircle className="h-3.5 w-3.5" /> Reject
                                 </Button>
                             </RejectQueryDialog>
+
+                            {/* Delete */}
+                            <DeleteQueryDialog
+                                queryId={query.id}
+                                leadName={query.name}
+                                compact
+                                onDone={() => { onDeleted?.(query.id); onOpenChange(false); }}
+                            />
                         </div>
                     )}
 

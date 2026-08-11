@@ -1,0 +1,2 @@
+-- Add BUS alongside FLIGHT/TRAIN/HELICOPTER.
+ALTER TYPE "TicketType" ADD VALUE 'BUS';

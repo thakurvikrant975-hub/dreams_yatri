@@ -1406,7 +1406,9 @@ const TICKET_TYPE_ICONS: Record<TicketInput["type"], React.ElementType> = {
 };
 const TICKET_PROVIDER_FALLBACKS: Record<TicketInput["type"], string> = {
   FLIGHT: "Airline TBD", TRAIN: "Train TBD", HELICOPTER: "Operator TBD",
-  BUS: "Operator TBD", OTHER: "Operator TBD",
+  // An OTHER leg is a ferry or a cable car as often as it's an operator-run
+  // service, so it asks for details rather than naming an operator.
+  BUS: "Operator TBD", OTHER: "Details TBD",
 };
 
 const TICKET_TYPE_LABEL: Record<TicketInput["type"], string> = {
