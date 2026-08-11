@@ -1,5 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { db } from "@/app/lib/db";
+
+const DASHBOARD_SESSION_COOKIE = "dy.dashboard.session-token";
+
+function clearDashboardSession(url: string, req: NextRequest) {
+  const res = NextResponse.redirect(new URL(url, req.url));
+  // The cookie is set with path: "/dashboard" (auth-dashboard.ts) — a browser
+  // treats cookies with different Path attributes as distinct, so deleting
+  // without matching that path creates a separate, ineffective cookie and
+  // leaves the original (still "valid") one being resent forever, which
+  // just loops this same redirect instead of ever actually logging out.
+  res.cookies.delete({ name: DASHBOARD_SESSION_COOKIE, path: "/dashboard" });
+  return res;
+}
 
 // Renamed from `middleware.ts` (Next 16 deprecated that convention). Note there
 // is deliberately no `export const runtime` here: Proxy runs on the Node.js
@@ -16,6 +30,32 @@ export default async function proxy(req: NextRequest) {
       secret: process.env.AUTH_SECRET,
       cookieName: "dy.dashboard.session-token",
     });
+
+    if (token) {
+      // Force-logout / deactivate check — dashboard sessions are stateless
+      // JWTs (see auth-dashboard.ts), so there's no server-side session row
+      // to delete; this compares the version number embedded in the token
+      // at sign-in against the live value on the TeamMember row (bumped by
+      // team-members/actions.ts's forceLogoutMember, or by deactivating).
+      // Runs here (not in the jwt callback) specifically so the response
+      // can actually clear the cookie — a Server Component render can't,
+      // which would otherwise leave a "valid-looking" cookie that keeps
+      // bouncing the login page back to /dashboard forever.
+      try {
+        const fresh = await db.teamMember.findUnique({
+          where: { id: token.id as string },
+          select: { isActive: true, sessionVersion: true },
+        });
+        if (!fresh || !fresh.isActive || fresh.sessionVersion !== (token.sessionVersion ?? 0)) {
+          return clearDashboardSession("/dashboard/login", req);
+        }
+      } catch (e) {
+        // Fail open — a transient DB hiccup must never log out the whole
+        // team; worst case a force-logout/deactivation takes effect a
+        // request later than intended.
+        console.error("[proxy] dashboard session freshness check failed:", e);
+      }
+    }
 
     if (isLoginPage && token) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
