@@ -391,7 +391,7 @@ export function HotelReplaceView({ day }: { day: number }) {
           replaceDay(day, beginHotelRequest);
           openDrawer({ kind: "hotel-request", day });
         }}
-        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100"
+        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 cursor-pointer"
       >
         <Clock size={12} /> Can&apos;t find one? Request from the hotel team
       </button>
