@@ -129,6 +129,8 @@ export type PackageQuery = {
     email: string | null;
     phone: string;
     countryCode: string;
+    whatsapp: string | null;
+    whatsappSameAsPhone: boolean;
     leadProfileId: string | null;
     message: string | null;
     packageName: string | null;
@@ -795,6 +797,11 @@ const manualQuerySchema = z.object({
     name: z.string().max(100).optional(),
     phone: z.string().min(6, "Valid phone number required").max(20),
     countryCode: z.string().default("IN"),
+    // Hidden input sends the literal string "false" when the exec flips the
+    // "different WhatsApp number" switch on — anything else (missing field,
+    // "true") means "same as phone".
+    whatsappSameAsPhone: z.string().optional().transform((v) => v !== "false"),
+    whatsapp: z.string().max(20).optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().optional(),
     packageName: z.string().optional(),
@@ -802,7 +809,10 @@ const manualQuerySchema = z.object({
     travelDate: z.string().optional(),
     message: z.string().max(2000).optional(),
     source: z.nativeEnum(QuerySourceEnum).default("PHONE_CALL"),
-});
+}).refine(
+    (data) => data.whatsappSameAsPhone || (data.whatsapp?.trim().length ?? 0) >= 6,
+    { message: "Enter a valid WhatsApp number", path: ["whatsapp"] },
+);
 
 export async function createManualQuery(
     _prev: ManualQueryFormState,
@@ -812,6 +822,8 @@ export async function createManualQuery(
         name: formData.get("name"),
         phone: formData.get("phone"),
         countryCode: (formData.get("countryCode") as string) || "IN",
+        whatsappSameAsPhone: formData.get("whatsappSameAsPhone") || undefined,
+        whatsapp: formData.get("whatsapp") || undefined,
         email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
@@ -852,10 +864,17 @@ export async function createManualQuery(
             create: { phone: normalizedPhone, name: displayName, email: parsed.data.email || null },
         });
 
+        // Same last-line-of-defense stripping as cleanPhone above — PhoneInput
+        // already submits a clean value, but this is what actually lands in
+        // the column.
+        const cleanWhatsapp = parsed.data.whatsapp?.replace(/\s+/g, "") || null;
+
         const query = await db.package_queries.create({
             data: {
                 name: displayName,
                 phone: cleanPhone,
+                whatsapp: parsed.data.whatsappSameAsPhone ? null : cleanWhatsapp,
+                whatsappSameAsPhone: parsed.data.whatsappSameAsPhone,
                 email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,
@@ -885,6 +904,8 @@ const updateQuerySchema = z.object({
     name: z.string().max(100).optional(),
     phone: z.string().min(6, "Valid phone required").max(20),
     countryCode: z.string().default("IN"),
+    whatsappSameAsPhone: z.string().optional().transform((v) => v !== "false"),
+    whatsapp: z.string().max(20).optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().optional(),
     packageName: z.string().optional(),
@@ -892,13 +913,18 @@ const updateQuerySchema = z.object({
     travelDate: z.string().optional(),
     message: z.string().max(2000).optional(),
     source: z.nativeEnum(QuerySourceEnum),
-});
+}).refine(
+    (data) => data.whatsappSameAsPhone || (data.whatsapp?.trim().length ?? 0) >= 6,
+    { message: "Enter a valid WhatsApp number", path: ["whatsapp"] },
+);
 
 export async function updateQuery(queryId: string, formData: FormData): Promise<ActionResult> {
     const parsed = updateQuerySchema.safeParse({
         name: formData.get("name"),
         phone: formData.get("phone"),
         countryCode: (formData.get("countryCode") as string) || "IN",
+        whatsappSameAsPhone: formData.get("whatsappSameAsPhone") || undefined,
+        whatsapp: formData.get("whatsapp") || undefined,
         email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
@@ -931,6 +957,8 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
                 name: displayName,
                 phone: cleanPhone,
                 countryCode: parsed.data.countryCode,
+                whatsapp: parsed.data.whatsappSameAsPhone ? null : (parsed.data.whatsapp || null),
+                whatsappSameAsPhone: parsed.data.whatsappSameAsPhone,
                 email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,

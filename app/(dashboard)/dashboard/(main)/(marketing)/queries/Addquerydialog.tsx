@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { Plus, Phone, User, MapPin, Users, Calendar, MessageSquare, Globe, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, Phone, User, MapPin, Users, Calendar, MessageSquare, Globe, Loader2, MessageCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
+import { Switch } from "../../components/ui/switch";
 import {
     Dialog, DialogContent, DialogHeader,
     DialogTitle, DialogTrigger, DialogDescription,
@@ -93,6 +94,7 @@ export function AddQueryDialog() {
     const [message,            setMessage]            = useState("");
     const [phone,              setPhone]              = useState("");
     const [existingMatch,      setExistingMatch]      = useState<ExistingQueryMatch | null>(null);
+    const [differentWhatsapp,  setDifferentWhatsapp]  = useState(false);
     const formRef                                     = useRef<HTMLFormElement>(null);
     const [state, action, isPending]                  = useActionState(createManualQuery, initial);
 
@@ -144,6 +146,7 @@ export function AddQueryDialog() {
             setMessage("");
             setPhone("");
             setExistingMatch(null);
+            setDifferentWhatsapp(false);
             formRef.current?.reset();
         } else if (state.message) {
             // Always surface a toast on failure — not just when there's no
@@ -238,6 +241,28 @@ export function AddQueryDialog() {
                                         Check it&apos;s not a duplicate before saving.
                                     </p>
                                 </div>
+                            )}
+                        </div>
+
+                        <div className="col-span-2 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs font-medium text-dashboard-base-content/70 flex items-center gap-1">
+                                    <MessageCircle className="h-3 w-3" /> WhatsApp number is different
+                                </Label>
+                                <Switch
+                                    size="sm"
+                                    checked={differentWhatsapp}
+                                    onCheckedChange={setDifferentWhatsapp}
+                                />
+                            </div>
+                            <input type="hidden" name="whatsappSameAsPhone" value={String(!differentWhatsapp)} />
+                            {differentWhatsapp ? (
+                                <>
+                                    <PhoneInput name="whatsapp" placeholder="WhatsApp number" />
+                                    <FieldError errors={state.errors} field="whatsapp" />
+                                </>
+                            ) : (
+                                <p className="text-xs text-dashboard-base-content/40">Same as phone number</p>
                             )}
                         </div>
 

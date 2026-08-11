@@ -2444,6 +2444,9 @@ model package_queries {
   email             String?
   phone             String
   countryCode       String            @default("IN")
+  /** Only set when whatsappSameAsPhone is false — a separate WhatsApp number. */
+  whatsapp          String?
+  whatsappSameAsPhone Boolean         @default(true)
   message           String?
   packageName       String?
   destination       String?
@@ -2495,6 +2498,7 @@ model package_queries {
   @@index([status])
   @@index([verified])
   @@index([deletedAt])
+  @@index([phone])
 }
 
 model custom_packages {
