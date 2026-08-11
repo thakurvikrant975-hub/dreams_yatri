@@ -205,7 +205,7 @@ export function Chip({ selected, onClick, children, tone = "primary", title, cla
       title={title}
       aria-pressed={selected}
       className={cn(
-        "rounded-[7px] border px-2 py-1 text-[11px] font-medium transition-colors duration-[120ms]",
+        "rounded-[7px] border px-2 py-1 text-[11px] cursor-pointer font-medium transition-colors duration-[120ms]",
         selected
           ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
           : tone === "warning"

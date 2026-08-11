@@ -70,6 +70,7 @@ import {
   FlagPennant as PhFlagPennant,
   FloppyDisk as PhFloppyDisk,
   ForkKnife as PhForkKnife,
+  FunnelSimple as PhFunnelSimple,
   Gift as PhGift,
   Image as PhImage,
   Info as PhInfo,
@@ -139,6 +140,7 @@ export const XIcon = filled(PhX, "bold");
 export const XCircle = filled(PhXCircle);
 export const Search = filled(PhMagnifyingGlass, "bold");
 export const SearchIcon = filled(PhMagnifyingGlass, "bold");
+export const Sliders = filled(PhFunnelSimple);
 export const ExternalLink = filled(PhArrowSquareOut);
 export const Plus = filled(PhPlus, "bold");
 

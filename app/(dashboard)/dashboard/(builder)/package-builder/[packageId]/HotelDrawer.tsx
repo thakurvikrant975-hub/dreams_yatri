@@ -18,10 +18,11 @@ import Image from "next/image";
 import { toast } from "sonner";
 import {
   Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, Star,
-  Coffee, Sun, Moon, UtensilsCrossed,
+  Coffee, Sun, Moon, UtensilsCrossed, Sliders,
 } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
+import { cn } from "@/app/lib/utils";
 import {
   searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption,
 } from "../action";
@@ -79,6 +80,20 @@ const SORT_OPTIONS: { value: HotelSortOption; label: string }[] = [
 
 const MEAL_ICONS: Record<string, React.ElementType> = { breakfast: Coffee, lunch: Sun, dinner: Moon };
 
+// One color per meal (not a generic gray "tag") so a room's meal plan reads
+// at a glance both in the filter chips and on each result card — breakfast
+// warm/coffee, lunch sun-yellow, dinner night-indigo, matching MEAL_ICONS.
+const MEAL_BADGE_STYLES: Record<string, string> = {
+  breakfast: "border-amber-200 bg-amber-50 text-amber-700",
+  lunch: "border-orange-200 bg-orange-50 text-orange-700",
+  dinner: "border-indigo-200 bg-indigo-50 text-indigo-700",
+};
+const MEAL_CHIP_ACTIVE_STYLES: Record<string, string> = {
+  breakfast: "border-amber-500 bg-amber-500 text-white",
+  lunch: "border-orange-500 bg-orange-500 text-white",
+  dinner: "border-indigo-500 bg-indigo-500 text-white",
+};
+
 /** One labeled row inside the filter card — keeps "Rating"/"Type"/"Meals"
  * lined up in a column instead of each chip group guessing its own meaning. */
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -125,7 +140,9 @@ export function HotelReplaceView({ day }: { day: number }) {
   const [mealFilter, setMealFilter] = useState<string[]>([]);
   const [starFilter, setStarFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const mealFilterKey = mealFilter.join(",");
+  const activeFilterCount = (starFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + mealFilter.length;
 
   // This day's actual calendar date — so the price shown is what this room
   // would actually cost on THIS night, not a flat catalog rate that may be
@@ -269,71 +286,102 @@ export function HotelReplaceView({ day }: { day: number }) {
         </p>
       )}
 
-      {/* Sort + star/category/meal filters, grouped into one card so the
-          drawer reads as "search, then refine" rather than a loose stack of
-          chip rows. Sort applies regardless of scope; star and category are
-          single-select (a room is one star rating, one property type); meal
-          chips narrow to rooms whose plan covers ALL the ticked meals. */}
-      <div className="space-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 p-2.5">
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50 shrink-0">Sort</label>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as HotelSortOption)}
-            className="h-7 flex-1 min-w-0 text-[11px] rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-1.5 outline-none"
-          >
-            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          {(starFilter || categoryFilter || mealFilter.length > 0) && (
-            <button
-              type="button"
-              onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); }}
-              className="text-[10.5px] font-medium text-dashboard-error/75 hover:text-dashboard-error shrink-0"
-            >
-              Clear
-            </button>
+      {/* Sort is always visible — it applies regardless of scope and gets
+          used on nearly every search. Star/category/meal filters are the
+          part that's only sometimes needed, so they live behind a toggle
+          instead of always taking up space; the badge shows how many are
+          active even while collapsed. */}
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50 shrink-0">Sort</label>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as HotelSortOption)}
+          className="h-7 flex-1 min-w-0 text-[11px] rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-1.5 outline-none"
+        >
+          {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          aria-expanded={filtersOpen}
+          className={cn(
+            "flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition-colors",
+            filtersOpen || activeFilterCount > 0
+              ? "border-dashboard-primary/40 bg-dashboard-primary/10 text-dashboard-primary"
+              : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
           )}
-        </div>
-
-        <div className="h-px bg-dashboard-base-300/70" />
-
-        <FilterRow label="Rating">
-          {STAR_FILTER_CHIPS.map((star) => (
-            <Chip
-              key={star}
-              selected={starFilter === star}
-              onClick={() => setStarFilter((f) => (f === star ? null : star))}
-            >
-              <span className="flex items-center gap-0.5"><Star size={9} /> {star.replace(" Star", "")}</span>
-            </Chip>
-          ))}
-        </FilterRow>
-
-        <FilterRow label="Type">
-          {CATEGORY_FILTER_CHIPS.map((c) => (
-            <Chip
-              key={c.value}
-              selected={categoryFilter === c.value}
-              onClick={() => setCategoryFilter((f) => (f === c.value ? null : c.value))}
-            >
-              {c.label}
-            </Chip>
-          ))}
-        </FilterRow>
-
-        <FilterRow label="Meals">
-          {MEAL_FILTER_CHIPS.map((m) => (
-            <Chip
-              key={m.value}
-              selected={mealFilter.includes(m.value)}
-              onClick={() => setMealFilter((prev) =>
-                prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value])}
-            >
-              <span className="flex items-center gap-1"><m.icon size={10} /> {m.label}</span>
-            </Chip>
-          ))}
-        </FilterRow>
+        >
+          <Sliders size={11} />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-dashboard-primary px-1 text-[9px] font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+          <ChevronDown size={10} className={cn("transition-transform duration-150", filtersOpen && "rotate-180")} />
+        </button>
       </div>
+
+      {filtersOpen && (
+        <div className="space-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 p-2.5">
+          {activeFilterCount > 0 && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); }}
+                className="text-[10.5px] font-medium text-dashboard-error/75 hover:text-dashboard-error"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+
+          <FilterRow label="Rating">
+            {STAR_FILTER_CHIPS.map((star) => (
+              <Chip
+                key={star}
+                selected={starFilter === star}
+                onClick={() => setStarFilter((f) => (f === star ? null : star))}
+              >
+                <span className="flex items-center gap-0.5"><Star size={9} /> {star.replace(" Star", "")}</span>
+              </Chip>
+            ))}
+          </FilterRow>
+
+          <FilterRow label="Type">
+            {CATEGORY_FILTER_CHIPS.map((c) => (
+              <Chip
+                key={c.value}
+                selected={categoryFilter === c.value}
+                onClick={() => setCategoryFilter((f) => (f === c.value ? null : c.value))}
+              >
+                {c.label}
+              </Chip>
+            ))}
+          </FilterRow>
+
+          <FilterRow label="Meals">
+            {MEAL_FILTER_CHIPS.map((m) => {
+              const active = mealFilter.includes(m.value);
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setMealFilter((prev) =>
+                    prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value])}
+                  className={cn(
+                    "flex items-center gap-1 rounded-[7px] border px-2 py-1 text-[11px] font-medium transition-colors duration-[120ms]",
+                    active ? MEAL_CHIP_ACTIVE_STYLES[m.value] : MEAL_BADGE_STYLES[m.value],
+                  )}
+                >
+                  <m.icon size={10} /> {m.label}
+                </button>
+              );
+            })}
+          </FilterRow>
+        </div>
+      )}
 
       {/* The escape hatch this view exists to offer: nothing in the catalog
           fits, so hand the day over instead of leaving it empty. */}
@@ -428,7 +476,13 @@ export function HotelReplaceView({ day }: { day: number }) {
                     room.coveredMeals.map((meal) => {
                       const Icon = MEAL_ICONS[meal] ?? UtensilsCrossed;
                       return (
-                        <span key={meal} className="flex items-center gap-0.5">
+                        <span
+                          key={meal}
+                          className={cn(
+                            "flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 font-medium",
+                            MEAL_BADGE_STYLES[meal] ?? "border-dashboard-base-300 bg-dashboard-base-200/60 text-dashboard-base-content/60",
+                          )}
+                        >
                           <Icon size={9} /> {meal}
                         </span>
                       );
