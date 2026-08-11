@@ -213,10 +213,12 @@ function mapHotelRoomRow(
 
 /** "price_asc"/"price_desc" sort by the room's actual nightly rate; "rating_desc"
  * sorts by the hotel's star rating (falls back to name for ties/unrated hotels);
- * "name_asc" is the original default order. Applied in JS now that results can
- * be a merge of two separate queries (see searchHotelRoomsForBuilder) rather
- * than left to a single query's own ORDER BY. */
-export type HotelSortOption = "price_asc" | "price_desc" | "rating_desc" | "name_asc";
+ * "distance_asc" sorts nearest-first (only meaningful with refCoords — rooms
+ * with no computable distance sort last, not first); "name_asc" is the
+ * original default order. Applied in JS now that results can be a merge of
+ * two separate queries (see searchHotelRoomsForBuilder) rather than left to a
+ * single query's own ORDER BY. */
+export type HotelSortOption = "price_asc" | "price_desc" | "rating_desc" | "distance_asc" | "name_asc";
 
 function sortHotelResults(rows: HotelRoomResult[], sortBy: HotelSortOption): HotelRoomResult[] {
   const byName = (a: HotelRoomResult, b: HotelRoomResult) => a.hotelName.localeCompare(b.hotelName);
@@ -232,6 +234,9 @@ function sortHotelResults(rows: HotelRoomResult[], sortBy: HotelSortOption): Hot
       // Free-text "4 Star" etc. — descending string sort still puts 5/4/3/2
       // Star in the right order since only the leading digit differs.
       sorted.sort((a, b) => (b.starRating ?? "").localeCompare(a.starRating ?? "") || byName(a, b));
+      break;
+    case "distance_asc":
+      sorted.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || byName(a, b));
       break;
     case "name_asc":
     default:
@@ -274,10 +279,10 @@ export async function searchHotelRoomsForBuilder(
   /** The day's actual travel date (ISO) — when given, pricePerNight reflects
    * that specific date's season/weekend rate instead of the flat base rate. */
   date?: string | null,
-): Promise<HotelRoomResult[]> {
+): Promise<{ rows: HotelRoomResult[]; total: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
-  if (!city && !q) return [];
+  if (!city && !q) return { rows: [], total: 0 };
 
   const mealClause = noMealsOnly
     ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
@@ -363,7 +368,7 @@ export async function searchHotelRoomsForBuilder(
   );
 
   const start = (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE;
-  return combined.slice(start, start + HOTEL_SEARCH_PAGE_SIZE);
+  return { rows: combined.slice(start, start + HOTEL_SEARCH_PAGE_SIZE), total: combined.length };
 }
 
 /** Looks up a single room by its `hotel_room_pricing` id — used by the hotel

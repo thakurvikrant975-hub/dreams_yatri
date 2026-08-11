@@ -45,8 +45,6 @@ import {
   stayRun, validateStayAssignment,
 } from "./day-mutations";
 
-const HOTEL_SEARCH_PAGE_SIZE = 20;
-
 const MEAL_FILTER_CHIPS: { value: string; label: string; icon: React.ElementType }[] = [
   { value: "breakfast", label: "Breakfast", icon: Coffee },
   { value: "lunch",     label: "Lunch",     icon: Sun },
@@ -72,10 +70,11 @@ const CATEGORY_FILTER_CHIPS: { value: string; label: string }[] = [
 ];
 
 const SORT_OPTIONS: { value: HotelSortOption; label: string }[] = [
-  { value: "price_asc",   label: "Price: Low to High" },
-  { value: "price_desc",  label: "Price: High to Low" },
-  { value: "rating_desc", label: "Star rating" },
-  { value: "name_asc",    label: "Name (A–Z)" },
+  { value: "price_asc",    label: "Price: Low to High" },
+  { value: "price_desc",   label: "Price: High to Low" },
+  { value: "distance_asc", label: "Distance: Nearest" },
+  { value: "rating_desc",  label: "Star rating" },
+  { value: "name_asc",     label: "Name (A–Z)" },
 ];
 
 const MEAL_ICONS: Record<string, React.ElementType> = { breakfast: Coffee, lunch: Sun, dinner: Moon };
@@ -135,7 +134,7 @@ export function HotelReplaceView({ day }: { day: number }) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
   const [sortBy, setSortBy] = useState<HotelSortOption>("price_asc");
   const [mealFilter, setMealFilter] = useState<string[]>([]);
   const [starFilter, setStarFilter] = useState<string | null>(null);
@@ -166,16 +165,16 @@ export function HotelReplaceView({ day }: { day: number }) {
   // overwrite a newer one, hence the request token.
   const reqRef = useRef(0);
   useEffect(() => {
-    if (!city && !query.trim()) { setResults([]); setHasMore(false); return; }
+    if (!city && !query.trim()) { setResults([]); setTotal(0); return; }
     const token = ++reqRef.current;
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const rows = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
+        const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
         if (token === reqRef.current) {
           setResults(rows);
           setPage(1);
-          setHasMore(rows.length >= HOTEL_SEARCH_PAGE_SIZE);
+          setTotal(t);
         }
       } catch {
         if (token === reqRef.current) toast.error("Couldn't load hotels. Try again.");
@@ -187,15 +186,17 @@ export function HotelReplaceView({ day }: { day: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city, query, coords, sortBy, mealFilterKey, starFilter, categoryFilter, dayDateISO]);
 
+  const hasMore = results.length < total;
+
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const rows = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
+      const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
       setResults((prev) => [...prev, ...rows]);
       setPage(nextPage);
-      setHasMore(rows.length >= HOTEL_SEARCH_PAGE_SIZE);
+      setTotal(t);
     } finally {
       setLoadingMore(false);
     }
@@ -296,7 +297,7 @@ export function HotelReplaceView({ day }: { day: number }) {
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as HotelSortOption)}
-          className="h-7 flex-1 min-w-0 text-[11px] rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-1.5 outline-none"
+          className="h-7 flex-1 min-w-0 text-[11px] rounded-md border border-dashboard-base-300 cursor-pointer bg-dashboard-base-100 px-1.5 outline-none"
         >
           {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -305,7 +306,7 @@ export function HotelReplaceView({ day }: { day: number }) {
           onClick={() => setFiltersOpen((o) => !o)}
           aria-expanded={filtersOpen}
           className={cn(
-            "flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition-colors",
+            "flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] cursor-pointer font-medium transition-colors",
             filtersOpen || activeFilterCount > 0
               ? "border-dashboard-primary/40 bg-dashboard-primary/10 text-dashboard-primary"
               : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
@@ -371,7 +372,7 @@ export function HotelReplaceView({ day }: { day: number }) {
                   onClick={() => setMealFilter((prev) =>
                     prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value])}
                   className={cn(
-                    "flex items-center gap-1 rounded-[7px] border px-2 py-1 text-[11px] font-medium transition-colors duration-[120ms]",
+                    "flex items-center gap-1 rounded-[7px] border px-2 py-1 text-[11px] font-medium cursor-pointer transition-colors duration-[120ms]",
                     active ? MEAL_CHIP_ACTIVE_STYLES[m.value] : MEAL_BADGE_STYLES[m.value],
                   )}
                 >
@@ -506,11 +507,12 @@ export function HotelReplaceView({ day }: { day: number }) {
 
         {hasMore && !loading && (
           <Button
-            type="button" variant="outline" className="w-full h-8 text-xs"
+            type="button"
+            className="w-full h-8 gap-1.5 text-xs bg-dashboard-primary text-dashboard-primary-content border-transparent hover:bg-dashboard-primary/90"
             onClick={loadMore} disabled={loadingMore}
           >
-            {loadingMore ? <Loader2 size={12} className="animate-spin" /> : null}
-            Load more
+            {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+            {loadingMore ? "Loading…" : `Load more · ${total - results.length} left`}
           </Button>
         )}
       </div>
@@ -1079,7 +1081,7 @@ function ExtraRoomsEditor({ day }: { day: number }) {
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const rows = await searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc", null, dayDateISO);
+        const { rows } = await searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc", null, dayDateISO);
         if (!cancelled) setResults(rows);
       } finally {
         if (!cancelled) setLoading(false);

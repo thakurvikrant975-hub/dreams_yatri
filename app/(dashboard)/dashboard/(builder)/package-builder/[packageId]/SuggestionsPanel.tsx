@@ -255,7 +255,7 @@ export function HotelSuggestionsView() {
   const dayDateISO = dayDate ? toLocalISODate(dayDate) : null;
 
   const { results, loading } = useCatalog<HotelRoomResult>(
-    () => searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc", null, dayDateISO),
+    () => searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc", null, dayDateISO).then((r) => r.rows),
     [city, query, dayDateISO],
     !!city || !!query.trim(),
     "Couldn't load hotels.",

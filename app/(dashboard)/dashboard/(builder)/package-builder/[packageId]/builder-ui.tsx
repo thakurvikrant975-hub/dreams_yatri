@@ -130,7 +130,7 @@ export function OptionRow({ selected, onClick, leading, title, meta, trailing, d
       disabled={disabled}
       aria-pressed={selected}
       className={cn(
-        "w-full text-left rounded-[10px] border p-2.5 transition-colors duration-[120ms]",
+        "w-full text-left rounded-[10px] border p-2.5 cursor-pointer transition-colors duration-[120ms]",
         "focus-visible:outline-2 focus-visible:outline-dashboard-primary/50",
         selected
           ? "border-dashboard-primary bg-dashboard-primary/[0.06]"
