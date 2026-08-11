@@ -702,6 +702,12 @@ model TeamMember {
   departmentId           String?
   teamRoleId             String?
   isActive               Boolean           @default(true)
+  /** Bumped to force-invalidate this member's current login(s) — dashboard
+   * auth is stateless JWT (no server-side session row to delete), so a
+   * mismatch between this and the value embedded in a member's token at
+   * sign-in is what actually signs them out, checked on every request in
+   * auth-dashboard.ts's jwt callback. */
+  sessionVersion         Int               @default(0)
   joiningDate            DateTime?
   lastLoginAt            DateTime?
   createdById            String?

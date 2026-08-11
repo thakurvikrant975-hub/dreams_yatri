@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  MoreHorizontal, Trash2, Power, Pencil, Key,
+  MoreHorizontal, Trash2, Power, Pencil, Key, LogOut,
   UsersRound, MonitorCheck, MonitorDot, Building2,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { deleteTeamMember, toggleActive } from "./actions";
+import { deleteTeamMember, toggleActive, forceLogoutMember } from "./actions";
 import type { PaginatedMembers, TeamMember } from "./actions";
 import { format } from "date-fns";
 import { MemberDetailDrawer } from "./Memberdetaildrawer";
@@ -81,6 +81,16 @@ export function TeamMembersTable({
     startTransition(async () => {
       const r = await toggleActive(id);
       if (r.success) toast.success(currentState ? "Member deactivated" : "Member activated");
+      else toast.error(r.error, { duration: 6000 });
+    });
+  };
+
+  const handleForceLogout = (id: string, name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Log ${name} out of all devices? They'll be signed out on their next action and can log back in right away.`)) return;
+    startTransition(async () => {
+      const r = await forceLogoutMember(id);
+      if (r.success) toast.success(`${name} logged out`);
       else toast.error(r.error, { duration: 6000 });
     });
   };
@@ -161,6 +171,11 @@ export function TeamMembersTable({
             <DropdownMenuItem onClick={(e) => handleToggle(m.id, m.isActive, e)}>
               <Power className="h-4 w-4 mr-2" /> {m.isActive ? "Deactivate" : "Activate"}
             </DropdownMenuItem>
+            {m.isActive && (
+              <DropdownMenuItem onClick={(e) => handleForceLogout(m.id, m.name, e)}>
+                <LogOut className="h-4 w-4 mr-2" /> Log Out Now
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={(e) => handleDelete(m.id, m.name, e)}
               className="text-destructive focus:text-destructive">
