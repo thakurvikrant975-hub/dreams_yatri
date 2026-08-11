@@ -21,7 +21,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Search, Loader2, GripVertical, BedDouble, Users, Clock } from "./builder-icons";
+import { Search, Loader2, GripVertical, BedDouble, Users, Clock, MapPin, Car } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import {
@@ -150,11 +150,14 @@ function useCatalog<T>(
 /** A draggable suggestion. The grip is decoration — the whole card drags — but
  * without it nothing on screen says so, and an interaction nobody discovers is
  * the same as one that doesn't exist. */
-function SuggestionCard({ drag, onApply, applyTitle, thumbnail, title, meta, trailing }: {
+function SuggestionCard({ drag, onApply, applyTitle, thumbnail, fallbackIcon, title, meta, trailing }: {
   drag: CatalogDrag;
   onApply: () => void;
   applyTitle: string;
   thumbnail: string | null;
+  /** Shown in the thumbnail slot when there's no photo — e.g. a vehicle icon
+   * for cabs. Defaults to a plain empty swatch when omitted. */
+  fallbackIcon?: React.ReactNode;
   title: string;
   meta?: React.ReactNode;
   trailing?: React.ReactNode;
@@ -189,7 +192,9 @@ function SuggestionCard({ drag, onApply, applyTitle, thumbnail, title, meta, tra
           className="size-10 shrink-0 rounded-md object-cover bg-dashboard-base-200"
         />
       ) : (
-        <span className="size-10 shrink-0 rounded-md bg-dashboard-base-200" />
+        <span className="size-10 shrink-0 rounded-md bg-dashboard-base-200 flex items-center justify-center">
+          {fallbackIcon}
+        </span>
       )}
       <div className="flex-1 min-w-0">
         <p className="text-[12px] font-semibold text-dashboard-base-content truncate">{title}</p>
@@ -383,14 +388,19 @@ export function CabSuggestionsView() {
           onApply={() => apply(c)}
           applyTitle={`Drag onto a day, or click to set day ${selectedDay}'s transport`}
           thumbnail={c.thumbnail}
+          fallbackIcon={<Car size={16} className="text-dashboard-base-content/30" />}
           title={c.vehicleName}
           meta={
             <>
               <span className="flex items-center gap-1"><Users size={9} />{c.passengerCapacity}</span>
               {c.hasAc && <span>AC</span>}
-              {/* The rate may come from a nearby priced city rather than the one
-                  searched — saying which avoids "why is this Srinagar's price". */}
-              {c.cityName && c.cityName !== city && <span>{c.cityName}</span>}
+              {/* Always shown, not just on a fallback-city mismatch — this is
+                  which destination's cab inventory these rates come from, and
+                  an exec browsing several cities in one trip needs that even
+                  when it happens to match the current scope. */}
+              {c.cityName && (
+                <span className="flex items-center gap-1"><MapPin size={9} />{c.cityName}</span>
+              )}
             </>
           }
           trailing={

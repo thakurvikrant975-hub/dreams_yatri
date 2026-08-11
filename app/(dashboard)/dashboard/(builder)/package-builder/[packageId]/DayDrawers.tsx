@@ -12,9 +12,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
-  Car, Loader2, Search, Trash2, Plus, ArrowUp, ArrowDown, Users, Sparkles,
+  Car, Loader2, Search, Trash2, Plus, ArrowUp, ArrowDown, Users, Sparkles, MapPin,
 } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -255,12 +256,32 @@ export function TransferView({ day }: { day: number }) {
             <OptionRow
               selected={isCurrent}
               onClick={() => pick(hit)}
+              leading={hit.thumbnail ? (
+                <Image
+                  src={hit.thumbnail}
+                  alt={name}
+                  width={56}
+                  height={42}
+                  className="h-10.5 w-14 rounded-lg object-cover border"
+                />
+              ) : (
+                <div className="h-10.5 w-14 rounded-lg bg-dashboard-base-200 border border-dashboard-base-300 flex items-center justify-center">
+                  <Car size={16} className="text-dashboard-base-content/30" />
+                </div>
+              )}
               title={name}
               meta={
-                <span className="flex items-center gap-1">
-                  <Users size={9} /> {hit.passengerCapacity} seats{hit.hasAc ? " · AC" : ""}
-                  {!priced && " · no rate"}
-                </span>
+                <>
+                  <span className="flex items-center gap-1">
+                    <Users size={9} /> {hit.passengerCapacity} seats{hit.hasAc ? " · AC" : ""}
+                    {!priced && " · no rate"}
+                  </span>
+                  {priced && hit.cityName && (
+                    <span className="flex items-center gap-1">
+                      <MapPin size={9} /> {hit.cityName}
+                    </span>
+                  )}
+                </>
               }
               trailing={priced ? (
                 <>

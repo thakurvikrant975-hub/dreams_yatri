@@ -110,9 +110,11 @@ export function Card({ tone = "plain", className, children, ...rest }: {
 
 /** A selectable row in a list of options — a hotel, a vehicle, an activity.
  * One component so every picker in the builder reads the same way. */
-export function OptionRow({ selected, onClick, title, meta, trailing, description, disabled }: {
+export function OptionRow({ selected, onClick, leading, title, meta, trailing, description, disabled }: {
   selected?: boolean;
   onClick: () => void;
+  /** A thumbnail or icon box before the title — e.g. a vehicle/hotel photo. */
+  leading?: React.ReactNode;
   title: React.ReactNode;
   /** Small facts under the title — distance, seats, category. */
   meta?: React.ReactNode;
@@ -137,6 +139,7 @@ export function OptionRow({ selected, onClick, title, meta, trailing, descriptio
       )}
     >
       <div className="flex items-start gap-3">
+        {leading && <div className="shrink-0">{leading}</div>}
         <div className="flex-1 min-w-0">
           <p className="text-[12.5px] font-semibold text-dashboard-base-content truncate">{title}</p>
           {meta && (
