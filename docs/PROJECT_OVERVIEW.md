@@ -11,6 +11,10 @@ and pricing-calculation logic — see
 For the hotel-owner self-service portal (signup/auth, listing wizard, rates & inventory,
 bookings, revenue, reviews, guest messaging, notifications) — see
 [`docs/hotel-connect/hotel-connect-dashboard.md`](./hotel-connect/hotel-connect-dashboard.md).
+For every other admin/CRM dashboard module — regions, destinations, locations, categories,
+policies, activities, hotels (approvals, inventory, expiring rates, submissions, owners),
+cabs, sales CRM, the custom-package builder, marketing, booking ops, team/RBAC and
+analytics — see [`docs/dashboard/`](./dashboard/README.md).
 For a full endpoint-by-endpoint and
 action-by-action reference (every `app/api/**/route.ts` handler and every
 `app/actions/**` Server Action/service function — auth requirements, request/response
@@ -129,23 +133,26 @@ Managed under **Dashboard → Team → Roles and Permissions**
 ### 4.1 Sidebar navigation (`lib/rbac/nav-items.ts`)
 `NAV_GROUPS` is the single source of truth for the dashboard sidebar, grouped as:
 
-| Group | Example items |
-|---|---|
-| Overview | Dashboard, Analytics |
-| Content Management | Regions, Destinations, Categories, Policies, Blog Reviews |
-| Activities | Activities, Categories |
-| Hotels | Hotels, Meal Types, Diet Types |
-| Packages | Travel Packages |
-| Cab management | Vehicle Types, Cab Pricing, Cab Drivers, Verify Cabs, Assign Drivers |
-| Marketing | Queries, Email Marketing, Follow ups, References, Coupons, Reviews |
-| Sales | Sales Dashboard, Queries Management, Analytics, Follow ups, Package Builder |
-| Transactions | Transactions, Failed Transactions, Refunds, Analytics |
-| Our Team | Team Members, Activity Logs, Roles and Permissions |
-| Booking Management | Package Bookings, Verify Hotels |
-| Settings | General |
+| Group | Items | Feature doc |
+|---|---|---|
+| Overview | Dashboard, Analytics, Reports, Locations | [analytics-and-reports](./dashboard/analytics-and-reports.md), [content-management](./dashboard/content-management.md) |
+| Content Management | Regions, Destinations, Policies | [content-management](./dashboard/content-management.md) |
+| Activities | Activity Categories, Activities | [activities](./dashboard/activities.md) |
+| Packages | Package Categories, Travel Packages, Package Bookings | [content-management](./dashboard/content-management.md), [packages](./packages/admin-package-itinerary-builder.md), [bookings-ops](./dashboard/bookings-ops.md) |
+| Hotels | Hotels, Hotel Directory, Hotel Inventory, Expiring Rates, Hotel Approvals, Property Submissions, Hotel Owners, Meal Types, Diet Types, Verify Hotels, Hotel Requests, Hotel Bookings | [hotels](./dashboard/hotels.md) |
+| Cab management | Vehicle Types, Cab Pricing, Cab Inventory, Permits, Cab Drivers, Verify Cabs, Assign Drivers | [cab-management](./dashboard/cab-management.md) |
+| Marketing | Queries, Landing pages, Email Marketing, References, Coupons and offers, Reviews, Not Found, Blog Reviews | [marketing](./dashboard/marketing.md), [sales-crm](./dashboard/sales-crm.md) |
+| Sales | Queries, Follow ups, Package Library, Package Builder, Verify Packages, My Bookings, Cab Directory | [sales-crm](./dashboard/sales-crm.md), [custom-package-builder](./dashboard/custom-package-builder.md) |
+| Transactions | Transactions, Failed Transactions, Refunds | [bookings-ops](./dashboard/bookings-ops.md) |
+| Our Team | Team Members, Activity Logs, Team Roles, Departments | [team-and-rbac](./dashboard/team-and-rbac.md) |
+| Booking Management | Upcoming Guests, Manual Documents | [bookings-ops](./dashboard/bookings-ops.md) |
+| Settings | General, Itinerary Settings | [custom-package-builder](./dashboard/custom-package-builder.md) §5 |
 
 `AppSidebar` filters these groups/items against `pageAccess` so a restricted
-role only sees the pages it's allowed to.
+role only sees the pages it's allowed to. A few entries (Email Marketing,
+References, Reviews, Not Found, My Bookings, Failed Transactions, Refunds,
+Departments, Settings → General) are **nav entries without a route** — they are
+listed here and in the Sidebar Access editor but currently 404.
 
 ### 4.2 `lib/rbac/nav-hrefs.ts`
 An **icon-free** mirror of every href in `NAV_GROUPS` (`ALL_HREFS`) plus
@@ -243,6 +250,7 @@ prisma/
 └── seed/                   # department / team-role / team-member / sales-query seeders
 
 docs/
+├── dashboard/             # admin/CRM dashboard, module by module (start at README.md)
 ├── booking/               # in-depth booking & payment system docs (phases 1–9)
 ├── channel-management/    # channel-manager / real-time inventory sync docs
 ├── packages/              # admin travel-packages / itinerary-builder docs
