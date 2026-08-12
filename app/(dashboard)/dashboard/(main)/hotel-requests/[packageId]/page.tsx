@@ -41,7 +41,11 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
     if (!pkg) notFound();
 
     const dayLocations = deriveDayLocations(pkg.stops, pkg.totalDays);
-    const pendingDays = pkg.itineraries.filter((it) => it.hotelPending);
+    // hotelPending alone isn't enough — it stays true after a reject (see the
+    // field's doc comment in schema.prisma), so a rejected day is no longer
+    // something the hotel team can act on and must not keep this page (or the
+    // Reject All button, or the "done" state below) thinking it's still open.
+    const pendingDays = pkg.itineraries.filter((it) => it.hotelPending && !it.hotelRejectedAt);
     const paxLabel = `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}${pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : ""}`;
 
     return (

@@ -208,7 +208,7 @@ export async function rejectAllPendingHotels(
     if (!note) return { success: false, error: "A reason is required to reject these hotel requests." };
 
     const rows = await db.custom_itineraries.findMany({
-        where: { customPackageId: packageId, hotelPending: true },
+        where: { customPackageId: packageId, hotelPending: true, hotelRejectedAt: null },
         select: { id: true, day: true },
     });
     if (rows.length === 0) return { success: false, error: "No pending hotel requests on this package." };
