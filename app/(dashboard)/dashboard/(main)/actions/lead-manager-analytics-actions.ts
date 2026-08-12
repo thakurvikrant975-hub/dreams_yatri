@@ -158,9 +158,10 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
   const converted = rangeLeads.filter((q) => q.status === "CONVERTED" || q.status === "PAYMENT_INITIATED").length;
 
   // ── Destination breakdown — grouped case-insensitively (trimmed) so
-  // "Kerala" / "kerala " land in one bucket, displayed title-cased. Top 7 +
-  // an "Other" bucket for the long tail, same shape as topDestinations in
-  // general-analytics-actions.ts.
+  // "Kerala" / "kerala " land in one bucket, displayed title-cased. Every
+  // destination is returned (no "Other" catch-all) so the report always
+  // reflects the real data — the UI is responsible for staying readable
+  // when the list is long (scrollable chart, paginated table).
   const destCounts = new Map<string, { display: string; count: number }>();
   for (const q of rangeLeads) {
     const raw = q.destination?.trim();
@@ -171,15 +172,9 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
     destCounts.set(key, bucket);
   }
   const sortedDest = [...destCounts.values()].sort((a, b) => b.count - a.count);
-  const topDest = sortedDest.slice(0, 7);
-  const restDest = sortedDest.slice(7);
-  const restDestTotal = restDest.reduce((s, d) => s + d.count, 0);
-  const byDestination = topDest.map((d, i) => ({
+  const byDestination = sortedDest.map((d, i) => ({
     name: d.display, value: d.count, color: DEST_PALETTE[i % DEST_PALETTE.length],
   }));
-  if (restDestTotal > 0) {
-    byDestination.push({ name: "Other", value: restDestTotal, color: "var(--color-dashboard-neutral)" });
-  }
   const uniqueDestinations = sortedDest.filter((d) => d.display !== "Not specified").length;
 
   // ── Channel breakdown ("meta, google, etc.") ────────────────────────────

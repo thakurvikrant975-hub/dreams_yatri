@@ -122,6 +122,10 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
   y += 28;
 
   function sectionTitle(title: string, subtitle?: string) {
+    // Extra breathing room above every section heading — otherwise a
+    // heading landed right up against the previous table's last row with
+    // barely any visual separation between sections.
+    y += 5;
     ensureSpace(subtitle ? 13 : 9);
     pdf.setFillColor(...primary);
     pdf.roundedRect(MARGIN, y - 3.2, 2, 4.2, 0.6, 0.6, "F");

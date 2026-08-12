@@ -249,9 +249,13 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
         <DashCard className="lg:col-span-2">
           <DashCardHeader>
             <MapPin className="h-4 w-4" />
-            <p className="text-sm font-semibold">Leads by destination</p>
+            <p className="text-sm font-semibold">Leads by destination ({data.byDestination.length})</p>
           </DashCardHeader>
-          <div className="p-4">
+          {/* Every destination is shown (no "Other" catch-all) — capped to a
+             scrollable viewport so a long tail of destinations doesn't blow
+             out the card's height; sorted highest-first so the ones that
+             matter are visible without scrolling. */}
+          <div className="p-4 max-h-105 overflow-y-auto">
             <RankedBarChart data={data.byDestination} height={Math.max(180, data.byDestination.length * 34)} showValues />
           </div>
         </DashCard>
