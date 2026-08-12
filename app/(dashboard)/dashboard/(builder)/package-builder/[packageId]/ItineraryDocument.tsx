@@ -1205,10 +1205,17 @@ export function DaySummaryTable({
                           max_adults: d.accommodationMaxAdults,
                           max_children: d.accommodationMaxChildren,
                         }, d.roomsCount);
+                        // An explicit manualExtraBeds override (set in the Hotel
+                        // Info drawer) wins over the auto-computed count — same
+                        // rule the pricing engine itself uses (see
+                        // computeBuilderHotelPricing), so this line never shows
+                        // a different mattress count than what's actually
+                        // charged or than what the exec typed in.
+                        const mattresses = d.manualExtraBeds ?? plan.mattresses;
                         return (
                           <span className="block text-[10px] text-neutral-400">
                             {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
-                            {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
+                            {mattresses > 0 && ` · ${mattresses} mattress${mattresses !== 1 ? "es" : ""}`}
                           </span>
                         );
                       })()}
