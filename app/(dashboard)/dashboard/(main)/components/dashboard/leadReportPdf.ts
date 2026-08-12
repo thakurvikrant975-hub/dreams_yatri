@@ -8,83 +8,140 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
 type Col = { header: string; width: number; align?: "left" | "right" };
 
-function fmtDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(iso));
-}
-function fmtTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-IN", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
-}
-function statusLabel(s: string): string {
-  return s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
+/** Chart colors are CSS (var(--color-dashboard-primary), oklch(), hex, named
+ * colors, …) since they're shared with the on-screen recharts components —
+ * jsPDF needs plain RGB triples. Resolving var() via getComputedStyle and
+ * then letting a 1x1 canvas parse whatever's left is the only way to handle
+ * every color form (including oklch) without hand-rolling a CSS color
+ * parser; cached since the same handful of colors repeat across the report. */
+const colorCache = new Map<string, [number, number, number]>();
+function resolveRgb(color: string): [number, number, number] {
+  const cached = colorCache.get(color);
+  if (cached) return cached;
+
+  let resolved = color;
+  if (resolved.startsWith("var(")) {
+    const varName = resolved.slice(4, -1).trim();
+    resolved = getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || "#6b7280";
+  }
+  let rgb: [number, number, number] = [107, 114, 128];
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = resolved;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    rgb = [r, g, b];
+  } catch {
+    // fall back to the default gray above
+  }
+  colorCache.set(color, rgb);
+  return rgb;
 }
 
 /** Builds a self-contained, drawn-from-scratch report PDF (no DOM capture —
  * this is a data report, not a screenshot of the UI). Manages its own page
- * breaks and re-draws the table header on every new page. */
+ * breaks and re-draws section headers on every new page. */
 export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { generatedByName?: string } = {}): jsPDF {
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   let y = MARGIN;
 
+  // Brand palette, resolved once from the same CSS custom properties the
+  // on-screen dashboard uses — keeps the PDF visually consistent with the
+  // app instead of looking like a generic plain-text export.
+  const primary   = resolveRgb("var(--color-dashboard-primary)");
+  const info      = resolveRgb("var(--color-dashboard-info)");
+  const success   = resolveRgb("var(--color-dashboard-success)");
+  const warning   = resolveRgb("var(--color-dashboard-warning)");
+  const secondary = resolveRgb("var(--color-dashboard-secondary)");
+
   function ensureSpace(needed: number) {
-    if (y + needed > PAGE_HEIGHT - MARGIN) {
+    if (y + needed > PAGE_HEIGHT - MARGIN - 10) {
       pdf.addPage();
       y = MARGIN;
     }
   }
 
-  // ── Header ────────────────────────────────────────────────────────────
+  // ── Header banner ─────────────────────────────────────────────────────
+  const bannerHeight = 26;
+  pdf.setFillColor(...primary);
+  pdf.rect(0, 0, PAGE_WIDTH, bannerHeight, "F");
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(18);
-  pdf.setTextColor(20, 20, 20);
-  pdf.text("Lead Report", MARGIN, y);
-  y += 8;
+  pdf.setFontSize(19);
+  pdf.setTextColor(255, 255, 255);
+  pdf.text("Lead Report", MARGIN, 14);
 
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10);
-  pdf.setTextColor(90, 90, 90);
+  pdf.setFontSize(9.5);
   const fromLabel = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${data.range.from}T00:00:00`));
   const toLabel = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${data.range.to}T00:00:00`));
-  pdf.text(`Range: ${fromLabel} - ${toLabel}`, MARGIN, y);
-  pdf.text(`Generated: ${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date())}${opts.generatedByName ? ` by ${opts.generatedByName}` : ""}`, PAGE_WIDTH - MARGIN, y, { align: "right" });
-  y += 8;
-  pdf.setDrawColor(220, 220, 220);
-  pdf.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
-  y += 8;
+  pdf.setTextColor(255, 255, 255);
+  pdf.text(`${fromLabel}  –  ${toLabel}`, MARGIN, 21);
+
+  pdf.setFontSize(8.5);
+  pdf.text(
+    `Generated ${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date())}${opts.generatedByName ? ` by ${opts.generatedByName}` : ""}`,
+    PAGE_WIDTH - MARGIN, 21, { align: "right" },
+  );
+
+  y = bannerHeight + 10;
 
   // ── Summary stats ─────────────────────────────────────────────────────
-  const stats: [string, string | number][] = [
-    ["Today's leads", data.summary.todayLeads],
-    ["Total leads (range)", data.summary.totalLeads],
-    ["Converted", data.summary.converted],
-    ["Conversion rate", `${data.summary.convRate}%`],
-    ["Destinations reached", data.summary.uniqueDestinations],
+  const stats: [string, string | number, [number, number, number]][] = [
+    ["Today's leads", data.summary.todayLeads, primary],
+    ["Total leads (range)", data.summary.totalLeads, info],
+    ["Converted", data.summary.converted, success],
+    ["Conversion rate", `${data.summary.convRate}%`, warning],
+    ["Destinations reached", data.summary.uniqueDestinations, secondary],
   ];
-  const statBoxWidth = CONTENT_WIDTH / stats.length;
-  ensureSpace(20);
-  stats.forEach(([label, value], i) => {
-    const x = MARGIN + i * statBoxWidth;
-    pdf.setFillColor(246, 247, 249);
-    pdf.roundedRect(x, y, statBoxWidth - 3, 18, 2, 2, "F");
+  const statGap = 3;
+  const statBoxWidth = (CONTENT_WIDTH - statGap * (stats.length - 1)) / stats.length;
+  ensureSpace(22);
+  stats.forEach(([label, value, accent], i) => {
+    const x = MARGIN + i * (statBoxWidth + statGap);
+    pdf.setFillColor(250, 250, 251);
+    pdf.setDrawColor(232, 233, 236);
+    pdf.roundedRect(x, y, statBoxWidth, 20, 2, 2, "FD");
+    // Colored top accent strip — clipped to the card's rounded top edge via a
+    // slightly-inset thin rect rather than a hard-cornered overlay.
+    pdf.setFillColor(...accent);
+    pdf.roundedRect(x, y, statBoxWidth, 2.2, 1, 1, "F");
+    pdf.rect(x, y + 1.1, statBoxWidth, 1.1, "F");
+
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13);
-    pdf.setTextColor(20, 20, 20);
-    pdf.text(String(value), x + 4, y + 9);
+    pdf.setFontSize(14);
+    pdf.setTextColor(...accent);
+    pdf.text(String(value), x + 4, y + 11.5);
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7.5);
-    pdf.setTextColor(110, 110, 110);
-    pdf.text(label, x + 4, y + 14.5, { maxWidth: statBoxWidth - 7 });
+    pdf.setFontSize(7.2);
+    pdf.setTextColor(105, 105, 110);
+    pdf.text(label, x + 4, y + 16.5, { maxWidth: statBoxWidth - 7 });
   });
-  y += 26;
+  y += 28;
+
+  function sectionTitle(title: string, subtitle?: string) {
+    ensureSpace(subtitle ? 13 : 9);
+    pdf.setFillColor(...primary);
+    pdf.roundedRect(MARGIN, y - 3.2, 2, 4.2, 0.6, 0.6, "F");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(12.5);
+    pdf.setTextColor(20, 20, 20);
+    pdf.text(title, MARGIN + 4.5, y);
+    y += 5.5;
+    if (subtitle) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(subtitle, MARGIN + 4.5, y);
+      y += 5.5;
+    }
+    y += 1.5;
+  }
 
   // ── Generic table drawer ─────────────────────────────────────────────
-  function drawTable<T>(title: string, cols: Col[], rows: T[], cellText: (row: T, colIndex: number) => string) {
-    ensureSpace(14);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
-    pdf.setTextColor(20, 20, 20);
-    pdf.text(title, MARGIN, y);
-    y += 6;
-
+  function drawTable<T>(cols: Col[], rows: T[], cellText: (row: T, colIndex: number) => string) {
     const rowHeight = 6.5;
     const headerHeight = 7;
 
@@ -137,10 +194,10 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
     y += 8;
   }
 
-  // ── Leads by destination ─────────────────────────────────────────────
+  // ── Leads by destination (quick totals) ───────────────────────────────
   const destTotal = data.byDestination.reduce((s, d) => s + d.value, 0) || 1;
+  sectionTitle("Leads by Destination");
   drawTable(
-    "Leads by Destination",
     [{ header: "Destination", width: 100 }, { header: "Leads", width: 40, align: "right" }, { header: "Share", width: 40, align: "right" }],
     data.byDestination,
     (d, ci) => (ci === 0 ? d.name : ci === 1 ? String(d.value) : `${Math.round((d.value / destTotal) * 100)}%`),
@@ -148,40 +205,109 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
 
   // ── Leads by source/channel ───────────────────────────────────────────
   const chTotal = data.byChannel.reduce((s, c) => s + c.value, 0) || 1;
+  sectionTitle("Leads by Source");
   drawTable(
-    "Leads by Source",
     [{ header: "Source", width: 100 }, { header: "Leads", width: 40, align: "right" }, { header: "Share", width: 40, align: "right" }],
     data.byChannel,
     (c, ci) => (ci === 0 ? c.name : ci === 1 ? String(c.value) : `${Math.round((c.value / chTotal) * 100)}%`),
   );
 
-  // ── Full leads table ──────────────────────────────────────────────────
-  const leadCols: Col[] = [
-    { header: "Date", width: 22 },
-    { header: "Name", width: 30 },
-    { header: "Phone", width: 24 },
-    { header: "Destination", width: 26 },
-    { header: "Source", width: 24 },
-    { header: "Status", width: 26 },
-    { header: "Assigned To", width: 28 },
-  ];
+  // ── Destination x source breakdown — "for Gujarat, how many leads from
+  // which source" — for every destination, a mini bar per source. ─────────
+  sectionTitle("Destination-wise Source Breakdown", "How each destination's leads split across marketing sources");
+
+  const rowH = 6;
+  const headerH = 9;
+  const blockGap = 5;
+  const dotX = MARGIN + 3;
+  const nameX = MARGIN + 8;
+  const barX = MARGIN + 64;
+  const barWidth = 76;
+  const trackHeight = 3;
+
+  if (data.destinationChannelBreakdown.length === 0) {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(140, 140, 140);
+    pdf.text("No data in this range.", MARGIN, y + 4);
+    y += 12;
+  }
+
+  data.destinationChannelBreakdown.forEach((dest) => {
+    const blockHeight = headerH + dest.channels.length * rowH + blockGap;
+    ensureSpace(blockHeight);
+
+    // Header bar — destination name + total-leads badge, right-aligned.
+    pdf.setFillColor(243, 244, 246);
+    pdf.roundedRect(MARGIN, y, CONTENT_WIDTH, headerH - 2, 1.5, 1.5, "F");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10.5);
+    pdf.setTextColor(30, 30, 30);
+    pdf.text(dest.destination, MARGIN + 3, y + 5);
+
+    const badgeText = `${dest.total} lead${dest.total !== 1 ? "s" : ""}`;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
+    const badgeW = pdf.getTextWidth(badgeText) + 6;
+    const badgeX = MARGIN + CONTENT_WIDTH - badgeW - 2.5;
+    pdf.setFillColor(31, 41, 55);
+    pdf.roundedRect(badgeX, y + 1.2, badgeW, 5, 2.5, 2.5, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.text(badgeText, badgeX + badgeW / 2, y + 4.6, { align: "center" });
+
+    y += headerH;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8.3);
+    dest.channels.forEach((ch) => {
+      const [r, g, b] = resolveRgb(ch.color);
+      const share = dest.total > 0 ? ch.value / dest.total : 0;
+
+      pdf.setFillColor(r, g, b);
+      pdf.circle(dotX, y + rowH / 2 - 0.4, 1.3, "F");
+
+      pdf.setTextColor(60, 60, 60);
+      pdf.text(ch.name, nameX, y + rowH / 2 + 1);
+
+      pdf.setFillColor(233, 234, 238);
+      pdf.roundedRect(barX, y + 1.1, barWidth, trackHeight, 1, 1, "F");
+      const fillW = Math.max(1.5, barWidth * share);
+      pdf.setFillColor(r, g, b);
+      pdf.roundedRect(barX, y + 1.1, fillW, trackHeight, 1, 1, "F");
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(45, 45, 45);
+      pdf.text(`${ch.value} (${Math.round(share * 100)}%)`, MARGIN + CONTENT_WIDTH - 2, y + rowH / 2 + 1, { align: "right" });
+      pdf.setFont("helvetica", "normal");
+
+      y += rowH;
+    });
+
+    y += blockGap;
+  });
+
+  // ── Leads by team member ──────────────────────────────────────────────
+  const memberTotal = data.byTeamMember.reduce((s, m) => s + m.value, 0) || 1;
+  sectionTitle("Leads by Team Member", "How many leads (in this range) are currently assigned to each sales exec");
   drawTable(
-    `All Leads (${data.reportRows.length})`,
-    leadCols,
-    data.reportRows,
-    (row, ci) => {
-      switch (ci) {
-        case 0: return `${fmtDate(row.createdAt)} ${fmtTime(row.createdAt)}`;
-        case 1: return row.name;
-        case 2: return row.phone;
-        case 3: return row.destination?.trim() || "—";
-        case 4: return row.channel;
-        case 5: return statusLabel(row.status);
-        case 6: return row.assignedToName || "Unassigned";
-        default: return "";
-      }
-    },
+    [{ header: "Team Member", width: 110 }, { header: "Leads Assigned", width: 45, align: "right" }, { header: "Share", width: 25, align: "right" }],
+    data.byTeamMember,
+    (m, ci) => (ci === 0 ? m.name : ci === 1 ? String(m.value) : `${Math.round((m.value / memberTotal) * 100)}%`),
   );
+
+  // ── Footer — page numbers on every page, added last so the final count
+  // is known. ──────────────────────────────────────────────────────────
+  const totalPages = pdf.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+    pdf.setDrawColor(228, 229, 233);
+    pdf.line(MARGIN, PAGE_HEIGHT - 12, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 12);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(140, 140, 140);
+    pdf.text("Dreams Yatri · Lead Report", MARGIN, PAGE_HEIGHT - 7);
+    pdf.text(`Page ${i} of ${totalPages}`, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 7, { align: "right" });
+  }
 
   return pdf;
 }

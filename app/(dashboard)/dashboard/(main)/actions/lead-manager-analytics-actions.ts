@@ -78,6 +78,12 @@ export type LeadRow = {
   createdAt: string;
 };
 
+export type DestinationChannelBreakdown = {
+  destination: string;
+  total: number;
+  channels: { name: string; value: number; color: string }[];
+};
+
 export type LeadManagerAnalyticsData = {
   summary: {
     todayLeads: number;
@@ -89,6 +95,13 @@ export type LeadManagerAnalyticsData = {
   dailyTrend: { date: string; leads: number }[];
   byDestination: { name: string; value: number; color: string }[];
   byChannel: { name: string; value: number; color: string }[];
+  /** Every destination (not capped, unlike byDestination's top-7-for-a-chart
+   * cap) with its own per-channel lead split — feeds the PDF report's
+   * per-destination source breakdown. */
+  destinationChannelBreakdown: DestinationChannelBreakdown[];
+  /** How many leads (in range) are currently assigned to each team member —
+   * "Unassigned" bucket included when relevant. */
+  byTeamMember: { name: string; value: number }[];
   todaysLeads: LeadRow[];
   reportRows: LeadRow[];
   range: { from: string; to: string };
@@ -180,6 +193,43 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
     .map(([name, value], i) => ({
       name, value, color: CHANNEL_COLORS[name] ?? FALLBACK_PALETTE[i % FALLBACK_PALETTE.length],
     }));
+  const channelColor = new Map(byChannel.map((c) => [c.name, c.color]));
+
+  // ── Destination x channel breakdown ("for Gujarat, how many leads from
+  // which source") — every destination, not just the top 7 shown on the
+  // chart, since the PDF report needs the full picture.
+  const destChannelCounts = new Map<string, Map<string, number>>();
+  for (const q of rangeLeads) {
+    const raw = q.destination?.trim();
+    const destKey = raw ? raw.toLowerCase() : "__unspecified__";
+    const channel = resolveChannel(q.source, q.utmSource);
+    if (!destChannelCounts.has(destKey)) destChannelCounts.set(destKey, new Map());
+    const m = destChannelCounts.get(destKey)!;
+    m.set(channel, (m.get(channel) ?? 0) + 1);
+  }
+  const destinationChannelBreakdown: DestinationChannelBreakdown[] = sortedDest.map((d) => {
+    const key = d.display === "Not specified" ? "__unspecified__" : d.display.toLowerCase();
+    const channelMap = destChannelCounts.get(key) ?? new Map();
+    return {
+      destination: d.display,
+      total: d.count,
+      channels: [...channelMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, value], i) => ({
+          name, value, color: channelColor.get(name) ?? CHANNEL_COLORS[name] ?? FALLBACK_PALETTE[i % FALLBACK_PALETTE.length],
+        })),
+    };
+  });
+
+  // ── Leads by team member ─────────────────────────────────────────────────
+  const memberCounts = new Map<string, number>();
+  for (const q of rangeLeads) {
+    const name = q.assignedToName?.trim() || "Unassigned";
+    memberCounts.set(name, (memberCounts.get(name) ?? 0) + 1);
+  }
+  const byTeamMember = [...memberCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value]) => ({ name, value }));
 
   // ── Daily trend ──────────────────────────────────────────────────────────
   const dayBuckets = new Map<string, number>();
@@ -211,6 +261,8 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
     dailyTrend,
     byDestination,
     byChannel,
+    destinationChannelBreakdown,
+    byTeamMember,
     todaysLeads,
     reportRows,
     range: { from: fromStr, to: toStr },
