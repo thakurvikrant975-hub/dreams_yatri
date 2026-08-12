@@ -374,7 +374,7 @@ export function CabSuggestionsView() {
   const [query, setQuery] = useState("");
 
   const { results, loading } = useCatalog<CabPricingResult>(
-    () => searchCabsForBuilder(city, query, null),
+    () => searchCabsForBuilder(city, query, null).then((r) => r.rows),
     [city, query],
     !!city || !!query.trim(),
     "Couldn't load cabs.",

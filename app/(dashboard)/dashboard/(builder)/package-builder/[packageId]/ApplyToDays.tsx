@@ -51,7 +51,7 @@ export function ApplyToDays({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed py-2 text-xs font-medium transition-colors",
+          "w-full flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed py-2 text-xs font-medium transition-colors",
           tone === "danger"
             ? "border-dashboard-error/40 text-dashboard-error/80 hover:bg-dashboard-error/5"
             : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200/50",
@@ -96,7 +96,7 @@ export function ApplyToDays({
               className={cn(
                 "rounded-md px-2 py-1 text-[11px] font-medium border transition-colors",
                 on
-                  ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
+                  ? "border-dashboard-primary cursor-pointer bg-dashboard-primary/10 text-dashboard-primary"
                   : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
               )}
             >

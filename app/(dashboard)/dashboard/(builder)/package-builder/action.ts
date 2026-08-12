@@ -11,7 +11,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
 import type { RoomSelection, CabSelection } from "./room-cab-selections";
-import type { Prisma } from "@/app/generated/prisma";
+import type { Prisma, VehicleType } from "@/app/generated/prisma";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { emailPackageToClient } from "./email-package";
@@ -533,6 +533,37 @@ const CAB_PRICING_SELECT = {
   vehicle: { select: { name: true, type: true, passenger_capacity: true, has_ac: true, image_key: true } },
 } as const;
 
+export type CabSortOption = "price_asc" | "price_desc" | "seats_desc" | "seats_asc" | "distance_asc" | "name_asc";
+
+const CAB_SEARCH_PAGE_SIZE = 10;
+
+function sortCabResults(rows: CabPricingResult[], sortBy: CabSortOption): CabPricingResult[] {
+  const byName = (a: CabPricingResult, b: CabPricingResult) => a.vehicleName.localeCompare(b.vehicleName);
+  const sorted = [...rows];
+  switch (sortBy) {
+    case "price_asc":
+      sorted.sort((a, b) => a.price - b.price || byName(a, b));
+      break;
+    case "price_desc":
+      sorted.sort((a, b) => b.price - a.price || byName(a, b));
+      break;
+    case "seats_desc":
+      sorted.sort((a, b) => b.passengerCapacity - a.passengerCapacity || byName(a, b));
+      break;
+    case "seats_asc":
+      sorted.sort((a, b) => a.passengerCapacity - b.passengerCapacity || byName(a, b));
+      break;
+    case "distance_asc":
+      sorted.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || byName(a, b));
+      break;
+    case "name_asc":
+    default:
+      sorted.sort(byName);
+      break;
+  }
+  return sorted;
+}
+
 function toCabPricingResult(
   item: Prisma.cab_pricingGetPayload<{ select: typeof CAB_PRICING_SELECT }>,
   refCoords?: { lat: number; lng: number } | null,
@@ -561,57 +592,76 @@ export async function searchCabsForBuilder(
   cityOrDestinationName: string,
   query: string,
   refCoords?: { lat: number; lng: number } | null,
-): Promise<CabPricingResult[]> {
+  page: number = 1,
+  /** vehicles.type match, e.g. "SUV" — the vehicle-type filter chip. */
+  vehicleTypeFilter?: string | null,
+  /** Minimum vehicles.passenger_capacity — the seats filter chip. */
+  minSeats?: number | null,
+  sortBy?: CabSortOption | null,
+): Promise<{ rows: CabPricingResult[]; total: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
+  const vehicleWhere: Prisma.vehiclesWhereInput = {
+    ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+    ...(vehicleTypeFilter ? { type: vehicleTypeFilter as VehicleType } : {}),
+    ...(minSeats ? { passenger_capacity: { gte: minSeats } } : {}),
+  };
+  const hasVehicleWhere = Object.keys(vehicleWhere).length > 0;
+
+  let list: CabPricingResult[] = [];
 
   if (city) {
-    const list = await db.cab_pricing.findMany({
+    const rows = await db.cab_pricing.findMany({
       where: {
         is_active: true,
         OR: [
           { destination: { name: { contains: city, mode: "insensitive" } } },
           { location: { name: { contains: city, mode: "insensitive" } } },
         ],
-        ...(query ? { vehicle: { name: { contains: query, mode: "insensitive" } } } : {}),
+        ...(hasVehicleWhere ? { vehicle: vehicleWhere } : {}),
       },
       select: CAB_PRICING_SELECT,
-      orderBy: [{ price: "asc" }],
     });
-    if (list.length > 0) return list.map((item) => toCabPricingResult(item, refCoords));
+    list = rows.map((item) => toCabPricingResult(item, refCoords));
   }
 
-  // No pricing configured for this exact city — find the nearest one that
-  // does have it, using refCoords (geocoded from the searched city name).
-  if (!refCoords) return [];
+  // No pricing configured for this exact city (or none searched at all) —
+  // fall back to whichever priced destination sits nearest by straight-line
+  // distance, using refCoords (the day's real pickup point when the exec
+  // picked one, otherwise the geocoded city). This is what lets a day
+  // scoped to e.g. "Kochi" surface a state-wide rate priced under "Kerala"
+  // instead of coming back empty just because the names don't match.
+  if (list.length === 0 && refCoords) {
+    const all = await db.cab_pricing.findMany({
+      where: {
+        is_active: true,
+        location: { latitude: { not: null }, longitude: { not: null } },
+        ...(hasVehicleWhere ? { vehicle: vehicleWhere } : {}),
+      },
+      select: CAB_PRICING_SELECT,
+    });
 
-  const all = await db.cab_pricing.findMany({
-    where: {
-      is_active: true,
-      location: { latitude: { not: null }, longitude: { not: null } },
-      ...(query ? { vehicle: { name: { contains: query, mode: "insensitive" } } } : {}),
-    },
-    select: CAB_PRICING_SELECT,
-  });
-  if (all.length === 0) return [];
-
-  let nearestCityName: string | null = null;
-  let minDist = Infinity;
-  for (const item of all) {
-    const lat = item.location?.latitude != null ? Number(item.location.latitude) : null;
-    const lng = item.location?.longitude != null ? Number(item.location.longitude) : null;
-    if (lat == null || lng == null) continue;
-    const d = haversineKm(refCoords.lat, refCoords.lng, lat, lng);
-    if (d < minDist) {
-      minDist = d;
-      nearestCityName = item.destination?.name ?? item.location?.name ?? null;
+    let nearestCityName: string | null = null;
+    let minDist = Infinity;
+    for (const item of all) {
+      const lat = item.location?.latitude != null ? Number(item.location.latitude) : null;
+      const lng = item.location?.longitude != null ? Number(item.location.longitude) : null;
+      if (lat == null || lng == null) continue;
+      const d = haversineKm(refCoords.lat, refCoords.lng, lat, lng);
+      if (d < minDist) {
+        minDist = d;
+        nearestCityName = item.destination?.name ?? item.location?.name ?? null;
+      }
+    }
+    if (nearestCityName) {
+      list = all
+        .filter((item) => (item.destination?.name ?? item.location?.name) === nearestCityName)
+        .map((item) => toCabPricingResult(item, refCoords));
     }
   }
-  if (!nearestCityName) return [];
 
-  return all
-    .filter((item) => (item.destination?.name ?? item.location?.name) === nearestCityName)
-    .map((item) => toCabPricingResult(item, refCoords))
-    .sort((a, b) => a.price - b.price);
+  const sorted = sortCabResults(list, sortBy ?? "price_asc");
+  const start = (Math.max(page, 1) - 1) * CAB_SEARCH_PAGE_SIZE;
+  return { rows: sorted.slice(start, start + CAB_SEARCH_PAGE_SIZE), total: sorted.length };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
