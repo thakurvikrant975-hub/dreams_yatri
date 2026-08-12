@@ -72,6 +72,7 @@ export const ALL_HREFS = [
   "/dashboard/roles-and-permissions",
   // Booking Management
   "/dashboard/upcoming-guests",
+  "/dashboard/manual-documents",
   // Settings
   "/dashboard/settings",
   "/dashboard/itinerary-settings",
