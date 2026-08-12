@@ -158,4 +158,9 @@ export interface LocationSearchSelectProps {
   disableExternalSearch?: boolean;
   /** Suppress the "Recent" section entirely (use when showing a filtered set like unpriced cities) */
   hideRecent?: boolean;
+  /** Hide the type pill ("CITY", "HOTEL", …) next to the selected name in the
+   * trigger — for narrow layouts where that name needs every pixel it can
+   * get and the type is already implied by context (e.g. `types` is a
+   * single value). The dropdown's own result rows still show it. */
+  hideTypeBadge?: boolean;
 }
