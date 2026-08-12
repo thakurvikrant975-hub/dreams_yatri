@@ -4405,9 +4405,24 @@ Rules:
                 </div>
               </div>
 
-              {/* Awaiting-review / rejected banners — shown above the tab
-                 panels so they're visible no matter which tab is open. */}
-              {isLocked && (
+              {/* Awaiting-review / verified / rejected banners — shown above
+                 the tab panels so they're visible no matter which tab is
+                 open. isLocked alone only means "sent to costing" — it stays
+                 true after costing approves it too, so this must branch on
+                 pkgVerified as well or an already-approved package keeps
+                 showing the stale "awaiting review" message (see the
+                 toolbar/sidebar, which already do this same check). */}
+              {isLocked && pkgVerified ? (
+                <div className="flex items-start gap-2.5 rounded-xl border border-green-300 bg-green-50 px-4 py-3">
+                  <CheckCircle className="size-4 mt-0.5 shrink-0 text-green-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-800">Approved by costing</p>
+                    <p className="text-xs text-green-700 mt-0.5">
+                      This package has been verified and is ready to share with the client. To make changes, click Request Revision above — that pulls it back for editing.
+                    </p>
+                  </div>
+                </div>
+              ) : isLocked ? (
                 <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
                   <Clock className="size-4 mt-0.5 shrink-0 text-amber-600" />
                   <div>
@@ -4417,7 +4432,7 @@ Rules:
                     </p>
                   </div>
                 </div>
-              )}
+              ) : null}
               {!isLocked && query.customPackage?.rejectedAt && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-red-300 bg-red-50 px-4 py-3">
                   <XCircle className="size-4 mt-0.5 shrink-0 text-red-600" />
