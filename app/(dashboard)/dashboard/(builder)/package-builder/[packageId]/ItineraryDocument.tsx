@@ -1197,7 +1197,7 @@ export function DaySummaryTable({
                   )}
                   value={d.accommodation ? (
                     <>
-                      {d.accommodation}
+                      {titleCase(d.accommodation)}
                       {(() => {
                         const plan = planRoomOccupancy(adults, childCount, {
                           max_occupancy: d.accommodationRoomCapacity,
@@ -1302,14 +1302,12 @@ function StopTile({ stop, img, onImageChange, stopIndex }: {
         </div>
       )}
       <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/30 to-transparent px-2.5 py-2 pt-8">
-        {/* titleCase is display-only, so it can't be applied to an editable
-            value without fighting whatever is being typed. The stored name is
-            shown as-is while editing is on; the client still gets it cased. */}
         <EditableText
           as="p"
           value={stop.name}
           field={{ scope: "stop", index: stopIndex, key: "name" }}
-          fallback={stop.name ? titleCase(stop.name) : "—"}
+          fallback="—"
+          displayTransform={titleCase}
           placeholder="Where to?"
           className="block text-white text-xs font-bold leading-tight"
         />

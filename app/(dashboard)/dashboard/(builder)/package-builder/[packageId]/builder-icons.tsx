@@ -52,6 +52,7 @@ import {
   CaretDown as PhCaretDown,
   CaretRight as PhCaretRight,
   CaretUp as PhCaretUp,
+  ChatText as PhChatText,
   Check as PhCheck,
   CheckCircle as PhCheckCircle,
   CircleNotch as PhCircleNotch,
@@ -93,6 +94,7 @@ import {
   Plus as PhPlus,
   SignIn as PhSignIn,
   SignOut as PhSignOut,
+  ShieldCheck as PhShieldCheck,
   Sparkle as PhSparkle,
   Star as PhStar,
   Sun as PhSun,
@@ -161,6 +163,8 @@ export const CheckIcon = filled(PhCheck, "bold");
 export const Info = filled(PhInfo);
 export const Lock = filled(PhLock);
 export const Clock = filled(PhClock);
+export const ShieldCheck = filled(PhShieldCheck);
+export const ChatText = filled(PhChatText);
 /** Bold, not fill: a filled CircleNotch is a solid disc with no gap to spin. */
 export const Loader2 = filled(PhCircleNotch, "bold");
 

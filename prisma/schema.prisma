@@ -2680,6 +2680,15 @@ model custom_packages {
   readyBy               String?
   readyByName           String?
   /**
+   * Optional free-text message the exec can leave for costing when
+   * submitting for review (e.g. "client is price-sensitive, tried to keep
+   * margin tight" or "hotel on day 3 is a manual entry, please double-check
+   * the rate") — shown on verify-packages. Same lifecycle as readyAt: not
+   * cleared between cycles, just overwritten by the next Mark Ready, so it
+   * always reflects the message that came with the CURRENT review cycle.
+   */
+  readyNote             String?
+  /**
    * Costing's pricing sign-off, independent of the client-facing status
    * (accepted/declined) and of whether it's actually been sent — a reviewer
    * confirms the pricing is correct (see approveCustomPackage in

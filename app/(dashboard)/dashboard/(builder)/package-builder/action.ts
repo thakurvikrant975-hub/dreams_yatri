@@ -2537,7 +2537,14 @@ export async function sendPackageToClient(packageId: string): Promise<{
  * "ready → sent" duration metrics), and clears any prior verify/reject state
  * so a fresh review cycle starts clean.
  */
-export async function markPackageReady(packageId: string): Promise<{ success: boolean; error?: string }> {
+export async function markPackageReady(
+  packageId: string,
+  /** Optional message for costing, shown on verify-packages — e.g. context
+   * on a manual hotel entry or a price-sensitive client. Omitted entirely
+   * (not just empty) by the hotel-requests auto-advance path, which has no
+   * exec input to draw one from. */
+  note?: string,
+): Promise<{ success: boolean; error?: string }> {
   try {
     const { actor } = await getCurrentActor();
 
@@ -2562,6 +2569,7 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
         readyAt: new Date(),
         readyBy: actor?.id ?? null,
         readyByName: actor?.name ?? null,
+        readyNote: note?.trim() || null,
         verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
         rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
         execNotifiedAt: null,

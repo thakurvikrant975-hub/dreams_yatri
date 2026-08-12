@@ -26,7 +26,7 @@ import { cn } from "@/app/lib/utils";
 import { useOptionalBuilder, applyFieldEdit, fieldKey, type EditableField } from "./builder-context";
 
 export function EditableText({
-  value, field, placeholder, fallback, className, style, multiline = false, as: Tag = "span",
+  value, field, placeholder, fallback, displayTransform, className, style, multiline = false, as: Tag = "span",
   readOnly, readOnlyReason,
 }: {
   value: string;
@@ -42,6 +42,11 @@ export function EditableText({
    * layout, which is what the conditional `{x && <p>…}` wrappers this replaced
    * used to do. */
   fallback?: string;
+  /** Cosmetic formatting applied only to the rendered display (e.g. titleCase
+   * for a destination typed in ALL CAPS) — never applied to `draft`/the live
+   * `<input>` while actually editing, so it can't fight what's being typed or
+   * rewrite the stored value underneath someone's cursor. */
+  displayTransform?: (value: string) => string;
   className?: string;
   /** Carried onto every render path including the input, so an edited field
    * keeps the document's own colour and letter-spacing while being typed in
@@ -89,8 +94,9 @@ export function EditableText({
     // Exactly what the document rendered before any of this existed: real
     // text, a caller-supplied stand-in, or nothing at all — never an empty
     // element holding open space the content doesn't need.
-    const shown = value.trim() || fallback?.trim() || "";
-    if (!shown) return null;
+    const raw = value.trim() || fallback?.trim() || "";
+    if (!raw) return null;
+    const shown = displayTransform ? displayTransform(raw) : raw;
     return (
       <Tag
         className={cn(className, readOnly && canEdit && "cursor-default")}
@@ -181,7 +187,7 @@ export function EditableText({
         isEmpty && "builder-only no-print italic opacity-45",
       )}
     >
-      {isEmpty ? (placeholder ?? "Click to add") : value}
+      {isEmpty ? (placeholder ?? "Click to add") : (displayTransform ? displayTransform(value) : value)}
     </Tag>
   );
 }
