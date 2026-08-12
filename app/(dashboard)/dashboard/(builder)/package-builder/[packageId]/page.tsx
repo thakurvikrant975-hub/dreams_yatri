@@ -3052,15 +3052,32 @@ export default function PackageBuilderDetailPage() {
     let cancelled = false;
     setComputingPrice(true);
     const timer = setTimeout(async () => {
-      const result = await computeBuilderHotelPricing({
-        travelDate: form.travelDate || null,
-        adults: form.adults,
-        children: form.children,
-        days,
-      });
-      if (cancelled) return;
-      setHotelPricing(result);
-      setComputingPrice(false);
+      const input = { travelDate: form.travelDate || null, adults: form.adults, children: form.children, days };
+      // No try/catch here used to mean any failure — including the Neon
+      // cold-start/pooling blips this app hits routinely — left
+      // computingPrice stuck true forever: the Pricing tab showed
+      // "Calculating price…" indefinitely and the hotel just never
+      // appeared, with nothing in the UI saying why. One retry after a
+      // short pause clears most of those transient failures on its own;
+      // if it still fails, at least stop spinning and say so.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const result = await computeBuilderHotelPricing(input);
+          if (cancelled) return;
+          setHotelPricing(result);
+          setComputingPrice(false);
+          return;
+        } catch (err) {
+          if (cancelled) return;
+          if (attempt === 2) {
+            console.error("[computeBuilderHotelPricing]", err);
+            toast.error("Couldn't price the hotel — check your connection and try again.");
+            setComputingPrice(false);
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 1200));
+        }
+      }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3087,13 +3104,27 @@ export default function PackageBuilderDetailPage() {
     let cancelled = false;
     setComputingCabPrice(true);
     const timer = setTimeout(async () => {
-      const result = await computeBuilderCabPricing({
-        travelDate: form.travelDate || null,
-        days,
-      });
-      if (cancelled) return;
-      setCabPricing(result);
-      setComputingCabPrice(false);
+      const input = { travelDate: form.travelDate || null, days };
+      // Same retry-then-surface treatment as the hotel effect above — a
+      // failed request used to leave computingCabPrice stuck true forever.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const result = await computeBuilderCabPricing(input);
+          if (cancelled) return;
+          setCabPricing(result);
+          setComputingCabPrice(false);
+          return;
+        } catch (err) {
+          if (cancelled) return;
+          if (attempt === 2) {
+            console.error("[computeBuilderCabPricing]", err);
+            toast.error("Couldn't price the cab — check your connection and try again.");
+            setComputingCabPrice(false);
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 1200));
+        }
+      }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
