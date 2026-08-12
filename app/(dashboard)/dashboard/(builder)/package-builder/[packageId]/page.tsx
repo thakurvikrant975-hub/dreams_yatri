@@ -1086,7 +1086,24 @@ function HotelRequestPanel({
     ].filter((v): v is string => !!v);
 
     return (
-      <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+      <div className="space-y-2">
+        {data.hotelRejectedAt && (
+          <div className="rounded-lg border border-red-300 bg-red-50 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-red-800 text-sm font-semibold">
+              <XCircle size={14} /> Hotel team couldn&apos;t fulfil this request
+            </div>
+            {data.hotelRejectionNote && (
+              <p className="text-[11px] text-red-800/90 bg-white/70 border border-red-200 rounded-md px-2 py-1.5">
+                &quot;{data.hotelRejectionNote}&quot;
+              </p>
+            )}
+            <p className="text-[11px] text-red-700/80">
+              {data.hotelRejectedByName ? `— ${data.hotelRejectedByName}. ` : ""}
+              Edit the request below and resubmit, or search for a hotel yourself.
+            </p>
+          </div>
+        )}
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
             <Clock size={14} /> Pending — awaiting hotel team
@@ -1123,6 +1140,7 @@ function HotelRequestPanel({
         >
           Remove request — search for a hotel instead
         </Button>
+        </div>
       </div>
     );
   }
@@ -1601,7 +1619,15 @@ function DayCard({
                 composing={hotelRequestComposing}
                 onStartEdit={() => setHotelRequestComposing(true)}
                 onSubmit={() => {
-                  onChange({ ...data, hotelPending: true });
+                  onChange({
+                    ...data,
+                    hotelPending: true,
+                    // Proof to saveCustomPackage that the exec actually saw
+                    // this rejection before resubmitting — see
+                    // hotelRejectionAcknowledged's doc comment in action.ts.
+                    hotelRejectionAcknowledged: true,
+                    hotelRejectedAt: null, hotelRejectedByName: null, hotelRejectionNote: null,
+                  });
                   setHotelRequestComposing(false);
                 }}
                 onCancelEdit={() => setHotelRequestComposing(false)}

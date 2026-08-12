@@ -6,6 +6,7 @@ import { db } from "@/app/lib/db";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { FillHotelForm } from "./FillHotelForm";
+import { RejectAllButton } from "./RejectAllButton";
 
 export const metadata: Metadata = {
     title: "Fill Hotel Request - Dashboard",
@@ -29,6 +30,7 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                     select: {
                         day: true, hotelPending: true, hotelPendingNote: true, accommodationLocation: true,
                         hotelRequestType: true, roomsCount: true, manualExtraBeds: true, hotelMealPlan: true,
+                        hotelRejectedAt: true, hotelRejectedByName: true, hotelRejectionNote: true,
                     },
                 },
             },
@@ -66,6 +68,11 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                 </div>
             ) : (
                 <div className="space-y-3">
+                    {pendingDays.length > 1 && (
+                        <div className="flex justify-end">
+                            <RejectAllButton packageId={pkg.id} pendingCount={pendingDays.length} />
+                        </div>
+                    )}
                     {pendingDays.map((it) => {
                         const location = it.accommodationLocation || dayLocations[it.day - 1] || null;
                         const dayDate = pkg.travelDate
@@ -88,6 +95,9 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                                 requestedMattresses={it.manualExtraBeds}
                                 requestedMealPlan={it.hotelMealPlan}
                                 mealTypes={mealTypes}
+                                rejectedAt={it.hotelRejectedAt}
+                                rejectedByName={it.hotelRejectedByName}
+                                rejectionNote={it.hotelRejectionNote}
                             />
                         );
                     })}

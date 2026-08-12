@@ -3073,6 +3073,25 @@ model custom_itineraries {
    */
   hotelFillNotifiedAt       DateTime?
   /**
+   * Set when the hotel team can't fulfil this pending request — deliberately
+   * does NOT clear hotelPending: the day stays in the queue (and keeps
+   * blocking markPackageReady) as "rejected, needs the exec's attention"
+   * rather than silently vanishing the way a fill would. The exec clears it
+   * by editing and resubmitting the request from the builder (see
+   * submitHotelRequest in day-mutations.ts, which resets these fields), or
+   * the hotel team can still fill the day later if something turns up.
+   */
+  hotelRejectedAt           DateTime?
+  hotelRejectedById         String?
+  hotelRejectedByName       String?
+  hotelRejectionNote        String?
+  /**
+   * Same one-shot toast guard as hotelFillNotifiedAt, kept separate so a
+   * rejection toast can't suppress (or be suppressed by) a fill toast on the
+   * same package.
+   */
+  hotelRejectedNotifiedAt   DateTime?
+  /**
    * B2B price/night the hotel team enters when fulfilling a pending request
    * — used instead of hotel_room_pricing lookups (roomPricingId stays null
    * for these days) by computeBuilderHotelPricing's manual-price branch.

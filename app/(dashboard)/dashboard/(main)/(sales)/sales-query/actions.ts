@@ -101,6 +101,16 @@ export type SentPackageInfo = {
     rejectedByName:      string | null;
     rejectionNote:       string | null;
     rejectionReasonLabel: string | null;
+    /** Rolled up from this package's itineraries — "rejected" wins over
+     * "pending" (most actionable first), which wins over "filled" (the
+     * hotel team fulfilled at least one day this way, still worth showing
+     * even once nothing's outstanding). Null if this package never had a
+     * hotel-team request at all. See HotelRequestBadge. */
+    hotelRequestStatus: "pending" | "rejected" | "filled" | null;
+    /** The rejection note for display, when hotelRequestStatus is "rejected". */
+    hotelRequestNote:   string | null;
+    /** Which days are in that status, for a "Day 2, Day 4" style tooltip. */
+    hotelRequestDays:   number[];
 };
 
 // A query can now have more than one package built for it (e.g. two
@@ -113,7 +123,36 @@ const CUSTOM_PACKAGE_SELECT = {
     verified: true, verifiedAt: true, verifiedByName: true,
     rejectedAt: true, rejectedByName: true, rejectionNote: true,
     rejectionReason: { select: { label: true } },
+    itineraries: {
+        where: { OR: [{ hotelPending: true }, { hotelFilledAt: { not: null } }] as Prisma.custom_itinerariesWhereInput[] },
+        select: { day: true, hotelPending: true, hotelRejectedAt: true, hotelRejectionNote: true, hotelFilledAt: true },
+    },
 } as const;
+
+/** Rolls up a package's per-day hotel-request fields (see CUSTOM_PACKAGE_SELECT's
+ * itineraries) into the one status/note/days a badge actually renders. */
+function deriveHotelRequestStatus(itineraries: {
+    day: number; hotelPending: boolean; hotelRejectedAt: Date | null;
+    hotelRejectionNote: string | null; hotelFilledAt: Date | null;
+}[]): Pick<SentPackageInfo, "hotelRequestStatus" | "hotelRequestNote" | "hotelRequestDays"> {
+    const rejected = itineraries.filter((it) => it.hotelPending && it.hotelRejectedAt);
+    if (rejected.length > 0) {
+        return {
+            hotelRequestStatus: "rejected",
+            hotelRequestNote: rejected[0].hotelRejectionNote,
+            hotelRequestDays: rejected.map((it) => it.day),
+        };
+    }
+    const pending = itineraries.filter((it) => it.hotelPending);
+    if (pending.length > 0) {
+        return { hotelRequestStatus: "pending", hotelRequestNote: null, hotelRequestDays: pending.map((it) => it.day) };
+    }
+    const filled = itineraries.filter((it) => it.hotelFilledAt);
+    if (filled.length > 0) {
+        return { hotelRequestStatus: "filled", hotelRequestNote: null, hotelRequestDays: filled.map((it) => it.day) };
+    }
+    return { hotelRequestStatus: null, hotelRequestNote: null, hotelRequestDays: [] };
+}
 
 /** Returns only queries assigned to the currently logged-in sales exec */
 export async function getSalesQueries(): Promise<SalesQueryRow[]> {
@@ -136,6 +175,7 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
         customPackages:   (q.custom_packages ?? []).map((cp: any) => ({
             ...cp,
             rejectionReasonLabel: cp.rejectionReason?.label ?? null,
+            ...deriveHotelRequestStatus(cp.itineraries ?? []),
         })),
     })) as SalesQueryRow[];
 }

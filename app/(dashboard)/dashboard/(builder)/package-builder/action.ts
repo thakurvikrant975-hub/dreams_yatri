@@ -769,6 +769,22 @@ export interface DayItinerary {
    * in, for display only (not written back by saveCustomPackage, and never
    * included in the itinerary PDF — see ItineraryDocument.tsx). */
   hotelFillNote?:     string | null;
+  /** Read-only — set when the hotel team couldn't fulfil a pending request
+   * (see /dashboard/hotel-requests). hotelPending stays true while this is
+   * set: the day stays in the team's queue as "rejected, needs the exec's
+   * attention" rather than silently clearing. Ignored on save — saveCustomPackage
+   * derives these from the DB row it fetched itself, the same "never trust
+   * the client's stale snapshot" treatment as hotelFilledAt above, so a
+   * background autosave from an older tab can never silently erase a
+   * rejection the exec hasn't seen yet. */
+  hotelRejectedAt?:     Date | null;
+  hotelRejectedByName?: string | null;
+  hotelRejectionNote?:  string | null;
+  /** Set (only) by the "Update Request"/"Request Room" submit action to say
+   * "the exec has seen this rejection and is knowingly resubmitting" — the
+   * one explicit gesture saveCustomPackage accepts as proof this isn't a
+   * stale save, and clears hotelRejectedAt/etc above. Not persisted itself. */
+  hotelRejectionAcknowledged?: boolean;
   /** Read-only — costing's per-day price correction (see
    * /dashboard/verify-packages), set only from the review screen. Carried
    * forward untouched by saveCustomPackage; feeds computeBuilderHotelPricing/
@@ -1176,6 +1192,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           hotelPending: true, hotelPendingNote: true, hotelRequestType: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
           hotelFilledAt: true, hotelFilledByName: true, hotelFillNote: true,
+          hotelRejectedAt: true, hotelRejectedByName: true, hotelRejectionNote: true,
           hotelPriceOverride: true, cabPriceOverride: true,
           transport: true, transportPhoto: true, transportVehicleType: true,
           transportSeats: true, transportPickup: true,
@@ -1212,6 +1229,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       manualHotelPricePerNight: n.manualHotelPricePerNight,
       manualExtraBedRate: n.manualExtraBedRate,
       hotelFilledAt: null, hotelFilledByName: null, hotelFillNote: null,
+      hotelRejectedAt: null, hotelRejectedByName: null, hotelRejectionNote: null,
       hotelPriceOverride: null, cabPriceOverride: null,
       transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
       transportSeats: n.transportSeats, transportPickup: n.transportPickup,
@@ -1384,6 +1402,7 @@ function normalizeItinerary(it: {
   manualHotelPricePerNight: number | null;
   manualExtraBedRate: number | null;
   hotelFilledAt: Date | null; hotelFilledByName: string | null; hotelFillNote: string | null;
+  hotelRejectedAt: Date | null; hotelRejectedByName: string | null; hotelRejectionNote: string | null;
   hotelPriceOverride: number | null; cabPriceOverride: number | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
@@ -1426,6 +1445,9 @@ function normalizeItinerary(it: {
     hotelFilledAt:             it.hotelFilledAt,
     hotelFilledByName:         it.hotelFilledByName,
     hotelFillNote:             it.hotelFillNote,
+    hotelRejectedAt:           it.hotelRejectedAt,
+    hotelRejectedByName:       it.hotelRejectedByName,
+    hotelRejectionNote:        it.hotelRejectionNote,
     hotelPriceOverride:        it.hotelPriceOverride ?? null,
     cabPriceOverride:          it.cabPriceOverride ?? null,
     transport:                 it.transport ?? "",
@@ -1625,6 +1647,9 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           hotelFilledAt:      true,
           hotelFilledByName:  true,
           hotelFillNote:      true,
+          hotelRejectedAt:    true,
+          hotelRejectedByName: true,
+          hotelRejectionNote: true,
           hotelPriceOverride: true,
           cabPriceOverride:   true,
           transport:          true,
@@ -1935,6 +1960,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       select: {
         day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
         hotelFillNote: true,
+        hotelRejectedAt: true, hotelRejectedById: true, hotelRejectedByName: true, hotelRejectionNote: true, hotelRejectedNotifiedAt: true,
         hotelPriceOverride: true, cabPriceOverride: true,
         roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
@@ -2001,6 +2027,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime();
           const staleResurrection = alreadyFilled && !clientSawThisFill;
           if (it.hotelPending && staleResurrection) staleHotelRequestDays.push(it.day);
+          const clearedRejection = !!existing?.hotelRejectedAt && it.hotelRejectionAcknowledged === true;
           const hotelPending = it.hotelPending && !staleResurrection;
           const hotelRequestedAt = hotelPending
             ? (existing?.hotelPending ? existing.hotelRequestedAt : new Date())
@@ -2038,6 +2065,15 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               hotelFilledById:    hotelPending ? null : (existing?.hotelFilledById ?? null),
               hotelFilledByName:  hotelPending ? null : (existing?.hotelFilledByName ?? null),
               hotelFillNote:      hotelPending ? null : (existing?.hotelFillNote ?? null),
+              // The exec's own payload for these is never trusted (see the
+              // DayItinerary doc comment) — only hotelRejectionAcknowledged,
+              // set by the "Update Request" submit action, is proof the exec
+              // actually saw this rejection before resubmitting.
+              hotelRejectedAt:         clearedRejection ? null : (existing?.hotelRejectedAt ?? null),
+              hotelRejectedById:       clearedRejection ? null : (existing?.hotelRejectedById ?? null),
+              hotelRejectedByName:     clearedRejection ? null : (existing?.hotelRejectedByName ?? null),
+              hotelRejectionNote:      clearedRejection ? null : (existing?.hotelRejectionNote ?? null),
+              hotelRejectedNotifiedAt: clearedRejection ? null : (existing?.hotelRejectedNotifiedAt ?? null),
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
               manualExtraBedRate: it.manualExtraBedRate ?? null,
               // Costing-only corrections — never sourced from the exec's own
@@ -2570,6 +2606,17 @@ export type PackageStatusEvent = {
   kind: "hotel_filled";
   days: { day: number; hotelName: string | null }[];
   filledByName: string | null;
+} | {
+  id: string;
+  title: string;
+  kind: "hotel_rejected";
+  /** The client's name, e.g. "Rejected for Priya Sharma" — this is the one
+   * event where the toast names the client rather than just the package
+   * title, per how the hotel-requests queue itself is organized (by
+   * client), not the package title an exec may not have front-of-mind. */
+  clientName: string | null;
+  days: { day: number; note: string | null }[];
+  rejectedByName: string | null;
 };
 
 /**
@@ -2593,7 +2640,7 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
   const { teamMemberId } = await getCurrentActor();
   if (!teamMemberId) return [];
 
-  const [statusRows, hotelFillPackages] = await Promise.all([
+  const [statusRows, hotelFillPackages, hotelRejectPackages] = await Promise.all([
     db.custom_packages.findMany({
       where: {
         builtBy: teamMemberId,
@@ -2624,10 +2671,27 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
       },
       take: 20,
     }),
+    db.custom_packages.findMany({
+      where: {
+        builtBy: teamMemberId,
+        itineraries: { some: { hotelRejectedAt: { not: null }, hotelRejectedNotifiedAt: null } },
+      },
+      select: {
+        id: true, title: true,
+        query: { select: { name: true } },
+        itineraries: {
+          where: { hotelRejectedAt: { not: null }, hotelRejectedNotifiedAt: null },
+          orderBy: { day: "asc" },
+          select: { id: true, day: true, hotelRejectionNote: true, hotelRejectedByName: true },
+        },
+      },
+      take: 20,
+    }),
   ]);
-  if (statusRows.length === 0 && hotelFillPackages.length === 0) return [];
+  if (statusRows.length === 0 && hotelFillPackages.length === 0 && hotelRejectPackages.length === 0) return [];
 
   const hotelFillItineraryIds = hotelFillPackages.flatMap((p) => p.itineraries.map((it) => it.id));
+  const hotelRejectItineraryIds = hotelRejectPackages.flatMap((p) => p.itineraries.map((it) => it.id));
 
   await Promise.all([
     statusRows.length > 0
@@ -2640,6 +2704,12 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
       ? db.custom_itineraries.updateMany({
           where: { id: { in: hotelFillItineraryIds } },
           data: { hotelFillNotifiedAt: new Date() },
+        })
+      : Promise.resolve(),
+    hotelRejectItineraryIds.length > 0
+      ? db.custom_itineraries.updateMany({
+          where: { id: { in: hotelRejectItineraryIds } },
+          data: { hotelRejectedNotifiedAt: new Date() },
         })
       : Promise.resolve(),
   ]);
@@ -2658,6 +2728,14 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
       kind: "hotel_filled" as const,
       days: p.itineraries.map((it) => ({ day: it.day, hotelName: it.accommodation })),
       filledByName: p.itineraries[0]?.hotelFilledByName ?? null,
+    })),
+    ...hotelRejectPackages.map((p) => ({
+      id: p.id,
+      title: p.title,
+      kind: "hotel_rejected" as const,
+      clientName: p.query?.name ?? null,
+      days: p.itineraries.map((it) => ({ day: it.day, note: it.hotelRejectionNote })),
+      rejectedByName: p.itineraries[0]?.hotelRejectedByName ?? null,
     })),
   ];
 }
