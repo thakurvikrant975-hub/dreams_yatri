@@ -45,7 +45,7 @@ export function RejectAllButton({ packageId, pendingCount }: { packageId: string
     }
 
     return (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-4 space-y-2">
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4 space-y-2 w-full">
             <p className="text-sm font-semibold text-red-800 flex items-center gap-1.5">
                 <Ban className="size-4" /> Reject all {pendingCount} pending day{pendingCount !== 1 ? "s" : ""} on this package
             </p>
