@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
-  Car, Loader2, Search, Trash2, Plus, ArrowUp, ArrowDown, Users, Sparkles, MapPin,
+  Car, Loader2, Search, Trash2, Plus, ArrowUp, ArrowDown, Users, MapPin,
   Sliders, ChevronDown, AlertTriangle,
 } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -575,50 +575,58 @@ export function ActivitiesView({ day }: { day: number }) {
       )}
 
       {itin.activities.map((a, i) => (
-        <div key={i} className="rounded-xl border border-dashboard-base-300 p-3 space-y-2">
-          <div className="flex items-start gap-2">
-            <Sparkles size={13} className="text-dashboard-primary shrink-0 mt-2" />
-            <div className="flex-1 min-w-0 space-y-2">
-              <Input
-                value={a.title}
-                onChange={(e) => mutate((d) => updateActivity(d, i, { title: e.target.value }))}
-                placeholder="Activity name…"
-                className="h-9 text-sm font-medium"
-              />
-              <textarea
-                value={a.description}
-                onChange={(e) => mutate((d) => updateActivity(d, i, { description: e.target.value }))}
-                placeholder="Describe this experience…"
-                rows={2}
-                className="w-full rounded-md border border-dashboard-base-300 px-3 py-2 text-xs resize-y focus-visible:outline-2 focus-visible:outline-dashboard-primary/40"
-              />
+        <div key={i} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-2.5 space-y-2">
+          {/* Same shape as a route stop: index circle + the field itself in
+              one row, actions right there instead of stranded below the
+              content with nothing tying them to what they act on. */}
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[10.5px] font-bold text-dashboard-primary">
+              {i + 1}
+            </span>
+            <Input
+              value={a.title}
+              onChange={(e) => mutate((d) => updateActivity(d, i, { title: e.target.value }))}
+              placeholder="Activity name…"
+              className="h-9 text-sm font-semibold flex-1 min-w-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                disabled={i === 0}
+                onClick={() => mutate((d) => moveActivity(d, i, -1))}
+                title="Move up"
+                className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              >
+                <ArrowUp size={13} />
+              </button>
+              <button
+                type="button"
+                disabled={i === itin.activities.length - 1}
+                onClick={() => mutate((d) => moveActivity(d, i, 1))}
+                title="Move down"
+                className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              >
+                <ArrowDown size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => mutate((d) => removeActivity(d, i))}
+                title="Remove this activity"
+                className="p-1.5 rounded-md hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors"
+              >
+                <Trash2 size={13} />
+              </button>
             </div>
           </div>
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              type="button" size="sm" variant="ghost" className="h-7 w-7 p-0"
-              disabled={i === 0}
-              onClick={() => mutate((d) => moveActivity(d, i, -1))}
-              aria-label="Move up"
-            >
-              <ArrowUp size={13} />
-            </Button>
-            <Button
-              type="button" size="sm" variant="ghost" className="h-7 w-7 p-0"
-              disabled={i === itin.activities.length - 1}
-              onClick={() => mutate((d) => moveActivity(d, i, 1))}
-              aria-label="Move down"
-            >
-              <ArrowDown size={13} />
-            </Button>
-            <Button
-              type="button" size="sm" variant="ghost"
-              className="h-7 w-7 p-0 text-dashboard-error hover:text-dashboard-error"
-              onClick={() => mutate((d) => removeActivity(d, i))}
-              aria-label="Remove activity"
-            >
-              <Trash2 size={13} />
-            </Button>
+
+          <div className="pl-7">
+            <textarea
+              value={a.description}
+              onChange={(e) => mutate((d) => updateActivity(d, i, { description: e.target.value }))}
+              placeholder="Describe this experience…"
+              rows={2}
+              className="w-full rounded-md border border-dashboard-base-300 px-3 py-2 text-xs resize-y focus-visible:outline-2 focus-visible:outline-dashboard-primary/40"
+            />
           </div>
         </div>
       ))}
