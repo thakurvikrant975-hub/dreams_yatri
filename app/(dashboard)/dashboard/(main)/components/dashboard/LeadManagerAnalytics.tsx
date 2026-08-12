@@ -242,7 +242,7 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
             <p className="text-sm font-semibold">Leads by source</p>
           </DashCardHeader>
           <div className="p-4">
-            <BreakdownPieChart data={data.byChannel} />
+            <BreakdownPieChart data={data.byChannel} showLabels />
           </div>
         </DashCard>
 
@@ -252,7 +252,7 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
             <p className="text-sm font-semibold">Leads by destination</p>
           </DashCardHeader>
           <div className="p-4">
-            <RankedBarChart data={data.byDestination} height={Math.max(180, data.byDestination.length * 34)} />
+            <RankedBarChart data={data.byDestination} height={Math.max(180, data.byDestination.length * 34)} showValues />
           </div>
         </DashCard>
       </div>
