@@ -465,14 +465,17 @@ export function HotelReplaceView({ day }: { day: number }) {
                 </div>
               )}
               title={
-                // The room is what's being priced and picked — leading, not a
-                // caption under the hotel name — with the hotel as context.
+                // The hotel is what an exec recognizes and browses by — the
+                // room type is a detail of that property, so it reads as a
+                // subtitle underneath rather than competing for the top line.
                 <span className="flex items-center gap-1.5">
-                  {room.roomName}
+                  {room.hotelName}
                   {isCurrent && <CheckIcon size={12} className="text-dashboard-primary shrink-0" />}
                 </span>
               }
-              description={room.hotelName}
+              titleTooltip={room.hotelName}
+              subtitle={room.roomName}
+              subtitleTooltip={room.roomName}
               meta={
                 <>
                   {room.starRating && <span>{room.starRating}</span>}

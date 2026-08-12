@@ -110,13 +110,25 @@ export function Card({ tone = "plain", className, children, ...rest }: {
 
 /** A selectable row in a list of options — a hotel, a vehicle, an activity.
  * One component so every picker in the builder reads the same way. */
-export function OptionRow({ selected, onClick, leading, title, meta, trailing, description, disabled }: {
+export function OptionRow({
+  selected, onClick, leading, title, titleTooltip, subtitle, subtitleTooltip, meta, trailing, description, disabled,
+}: {
   selected?: boolean;
   onClick: () => void;
   /** A thumbnail or icon box before the title — e.g. a vehicle/hotel photo. */
   leading?: React.ReactNode;
   title: React.ReactNode;
-  /** Small facts under the title — distance, seats, category. */
+  /** Plain-text native tooltip for `title` — since `title` itself is often
+   * JSX (an icon alongside the text) rather than a bare string, this is the
+   * only way to show the untruncated value on hover when it's clipped. */
+  titleTooltip?: string;
+  /** A second line directly under the title — e.g. the room type under the
+   * hotel name. Distinct from `meta` (small facts, its own row further down)
+   * and `description` (a longer blurb below meta). */
+  subtitle?: React.ReactNode;
+  /** Same idea as titleTooltip, for `subtitle`. */
+  subtitleTooltip?: string;
+  /** Small facts under the title/subtitle — distance, seats, category. */
   meta?: React.ReactNode;
   /** Right-aligned, usually a price. */
   trailing?: React.ReactNode;
@@ -141,7 +153,14 @@ export function OptionRow({ selected, onClick, leading, title, meta, trailing, d
       <div className="flex items-start gap-3">
         {leading && <div className="shrink-0">{leading}</div>}
         <div className="flex-1 min-w-0">
-          <p className="text-[12.5px] font-semibold text-dashboard-base-content truncate">{title}</p>
+          <p className="text-[12.5px] font-semibold text-dashboard-base-content truncate" title={titleTooltip}>
+            {title}
+          </p>
+          {subtitle && (
+            <p className="text-[11px] text-dashboard-base-content/70 truncate" title={subtitleTooltip}>
+              {subtitle}
+            </p>
+          )}
           {meta && (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[10.5px] text-dashboard-base-content/50">
               {meta}
