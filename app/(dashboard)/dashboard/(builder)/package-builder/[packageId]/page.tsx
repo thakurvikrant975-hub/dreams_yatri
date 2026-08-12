@@ -2467,6 +2467,27 @@ function recalcFromStops(stops: StopInput[]) {
 }
 
 
+/** Retries a flaky async call — this environment's Neon database has
+ * routine cold-start/pooling blips, and several call sites in this file
+ * (initial package load, hotel/cab pricing) used to have no error handling
+ * at all: one failed request left them stuck forever with nothing telling
+ * the exec why. This guarantees SOME outcome — success, or a real thrown
+ * error the caller can catch and surface — instead of an unhandled
+ * rejection that just hangs the UI. Backs off a little longer each retry
+ * since a prolonged outage isn't helped by hammering it every second. */
+async function retryAsync<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts) await new Promise((r) => setTimeout(r, 800 * i));
+    }
+  }
+  throw lastErr;
+}
+
 /** "2h 15m" / "1d 4h" — how long it took to go from assignment to sent,
  * so an exec (and later, reporting) can see whether this tool is actually
  * making things faster. */
@@ -2725,6 +2746,11 @@ export default function PackageBuilderDetailPage() {
 
   const [query, setQuery] = useState<QueryDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  // Set only when the initial load fails after retries — distinct from
+  // `!query` below (a legitimate "nothing here yet" state) so a transient
+  // connection failure shows "couldn't load, try again" instead of either
+  // hanging on the spinner forever or being misread as "this doesn't exist".
+  const [loadError, setLoadError] = useState<string | null>(null);
   // Inclusions/exclusions/policies/benefits are company-wide standard
   // content — edited only on /dashboard/itinerary-settings, never per
   // package. See the "Load itinerary settings" effect below.
@@ -2850,17 +2876,19 @@ export default function PackageBuilderDetailPage() {
     // slower async destination-cover fetch resolves afterwards and clobbers
     // the correctly-applied package cover with the generic destination one.
     let cancelled = false;
+    setLoadError(null);
     (async () => {
+     try {
       // The package is the anchor now (a query can have several), so it's
       // looked up by its own id first. A miss doesn't mean "not found" — it
       // means this is a brand-new, not-yet-saved draft (the caller always
       // navigates here with a freshly-generated id before the first Save),
       // so fall back to the linked query's lead info for prefill, or a fully
       // blank shell for a package started with no query at all.
-      let data = await getPackageDetail(packageId);
+      let data = await retryAsync(() => getPackageDetail(packageId));
       if (cancelled) return;
       if (!data) {
-        data = fromQueryId ? await getQueryLeadInfo(fromQueryId) : null;
+        data = fromQueryId ? await retryAsync(() => getQueryLeadInfo(fromQueryId)) : null;
         if (cancelled) return;
         if (!data) {
           data = {
@@ -3025,6 +3053,12 @@ export default function PackageBuilderDetailPage() {
       }
 
       setLoading(false);
+     } catch (err) {
+      if (cancelled) return;
+      console.error("[load package]", err);
+      setLoadError("Couldn't load this package. Check your connection and try again.");
+      setLoading(false);
+     }
     })();
     return () => { cancelled = true; };
   }, [packageId, fromQueryId]);
@@ -3053,30 +3087,21 @@ export default function PackageBuilderDetailPage() {
     setComputingPrice(true);
     const timer = setTimeout(async () => {
       const input = { travelDate: form.travelDate || null, adults: form.adults, children: form.children, days };
-      // No try/catch here used to mean any failure — including the Neon
-      // cold-start/pooling blips this app hits routinely — left
-      // computingPrice stuck true forever: the Pricing tab showed
-      // "Calculating price…" indefinitely and the hotel just never
-      // appeared, with nothing in the UI saying why. One retry after a
-      // short pause clears most of those transient failures on its own;
-      // if it still fails, at least stop spinning and say so.
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const result = await computeBuilderHotelPricing(input);
-          if (cancelled) return;
-          setHotelPricing(result);
-          setComputingPrice(false);
-          return;
-        } catch (err) {
-          if (cancelled) return;
-          if (attempt === 2) {
-            console.error("[computeBuilderHotelPricing]", err);
-            toast.error("Couldn't price the hotel — check your connection and try again.");
-            setComputingPrice(false);
-            return;
-          }
-          await new Promise((r) => setTimeout(r, 1200));
-        }
+      // retryAsync means a transient failure (Neon cold-start/pooling blips
+      // this app hits routinely) resolves on its own most of the time; if it
+      // still fails, this stops the spinner and says so instead of leaving
+      // computingPrice stuck true forever with the hotel just never
+      // appearing and nothing in the UI explaining why.
+      try {
+        const result = await retryAsync(() => computeBuilderHotelPricing(input));
+        if (cancelled) return;
+        setHotelPricing(result);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("[computeBuilderHotelPricing]", err);
+        toast.error("Couldn't price the hotel — check your connection and try again.");
+      } finally {
+        if (!cancelled) setComputingPrice(false);
       }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -3107,23 +3132,16 @@ export default function PackageBuilderDetailPage() {
       const input = { travelDate: form.travelDate || null, days };
       // Same retry-then-surface treatment as the hotel effect above — a
       // failed request used to leave computingCabPrice stuck true forever.
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const result = await computeBuilderCabPricing(input);
-          if (cancelled) return;
-          setCabPricing(result);
-          setComputingCabPrice(false);
-          return;
-        } catch (err) {
-          if (cancelled) return;
-          if (attempt === 2) {
-            console.error("[computeBuilderCabPricing]", err);
-            toast.error("Couldn't price the cab — check your connection and try again.");
-            setComputingCabPrice(false);
-            return;
-          }
-          await new Promise((r) => setTimeout(r, 1200));
-        }
+      try {
+        const result = await retryAsync(() => computeBuilderCabPricing(input));
+        if (cancelled) return;
+        setCabPricing(result);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("[computeBuilderCabPricing]", err);
+        toast.error("Couldn't price the cab — check your connection and try again.");
+      } finally {
+        if (!cancelled) setComputingCabPrice(false);
       }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -3263,22 +3281,32 @@ export default function PackageBuilderDetailPage() {
 
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
-      const result = await saveCustomPackage({
-        id: packageId,
-        queryId: query?.id ?? null,
-        ...form,
-        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-        marginPercentage: parseFloat(form.marginPercentage) || 0,
-        gstPercentage: parseFloat(form.gstPercentage) || 0,
-        status,
-      });
-      if (result.success) {
-        setSavedOk(true);
-        setTimeout(() => setSavedOk(false), 3000);
-        warnStaleHotelRequests(result.staleHotelRequestDays);
-      } else {
-        toast.error(result.error ?? "Failed to save");
+      // saveCustomPackage normally returns {success:false, error} on a
+      // handled failure (already toasted below) — this catches the other
+      // case, an unexpected thrown exception (e.g. a dropped connection
+      // mid-request), which previously left the Save button just silently
+      // finishing with nothing saved and no explanation.
+      try {
+        const result = await saveCustomPackage({
+          id: packageId,
+          queryId: query?.id ?? null,
+          ...form,
+          pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+          marginPercentage: parseFloat(form.marginPercentage) || 0,
+          gstPercentage: parseFloat(form.gstPercentage) || 0,
+          status,
+        });
+        if (result.success) {
+          setSavedOk(true);
+          setTimeout(() => setSavedOk(false), 3000);
+          warnStaleHotelRequests(result.staleHotelRequestDays);
+        } else {
+          toast.error(result.error ?? "Failed to save");
+        }
+      } catch (err) {
+        console.error("[saveCustomPackage]", err);
+        toast.error("Couldn't save — check your connection and try again.");
       }
     });
   }
@@ -3311,37 +3339,42 @@ export default function PackageBuilderDetailPage() {
   function handleMarkReady() {
     setConfirmReadyOpen(false);
     startSend(async () => {
-      // Always save first — markPackageReady reads nothing from the client,
-      // but the review page does, straight from the DB row, so any edit made
-      // since the last save would otherwise silently never reach costing.
-      const result = await saveCustomPackage({
-        id: packageId,
-        queryId: query?.id ?? null,
-        ...form,
-        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-        marginPercentage: parseFloat(form.marginPercentage) || 0,
-        gstPercentage: parseFloat(form.gstPercentage) || 0,
-        status: "READY",
-      });
-      if (!result.success) {
-        toast.error(result.error ?? "Failed to save");
-        return;
-      }
-      warnStaleHotelRequests(result.staleHotelRequestDays);
+      try {
+        // Always save first — markPackageReady reads nothing from the client,
+        // but the review page does, straight from the DB row, so any edit made
+        // since the last save would otherwise silently never reach costing.
+        const result = await saveCustomPackage({
+          id: packageId,
+          queryId: query?.id ?? null,
+          ...form,
+          pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+          marginPercentage: parseFloat(form.marginPercentage) || 0,
+          gstPercentage: parseFloat(form.gstPercentage) || 0,
+          status: "READY",
+        });
+        if (!result.success) {
+          toast.error(result.error ?? "Failed to save");
+          return;
+        }
+        warnStaleHotelRequests(result.staleHotelRequestDays);
 
-      const result2 = await markPackageReady(packageId);
-      if (result2.success) {
-        toast.success("Submitted for costing review");
-        // Without this, `query.customPackage.status` stays whatever it was
-        // at page load, so `isLocked` never flips true — the fieldset stays
-        // enabled and Mark Ready stays visible/clickable until a manual
-        // reload, letting the exec keep editing a package that's already
-        // out for costing review.
-        const fresh = await getPackageDetail(packageId);
-        if (fresh) syncPricingFromFresh(fresh);
-      } else {
-        toast.error(result2.error ?? "Failed to mark package ready");
+        const result2 = await markPackageReady(packageId);
+        if (result2.success) {
+          toast.success("Submitted for costing review");
+          // Without this, `query.customPackage.status` stays whatever it was
+          // at page load, so `isLocked` never flips true — the fieldset stays
+          // enabled and Mark Ready stays visible/clickable until a manual
+          // reload, letting the exec keep editing a package that's already
+          // out for costing review.
+          const fresh = await retryAsync(() => getPackageDetail(packageId));
+          if (fresh) syncPricingFromFresh(fresh);
+        } else {
+          toast.error(result2.error ?? "Failed to mark package ready");
+        }
+      } catch (err) {
+        console.error("[handleMarkReady]", err);
+        toast.error("Couldn't submit for review — check your connection and try again.");
       }
     });
   }
@@ -4005,6 +4038,17 @@ Rules:
     return (
       <div className="h-screen flex items-center justify-center bg-dashboard-base-200">
         <Loader2 className="animate-spin text-dashboard-primary h-8 w-8" />
+      </div>
+    );
+  }
+  if (loadError) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center gap-3 bg-dashboard-base-200 px-4 text-center">
+        <AlertCircle className="text-dashboard-error h-8 w-8" />
+        <p className="text-sm text-dashboard-base-content/70 max-w-sm">{loadError}</p>
+        <Button size="sm" onClick={() => window.location.reload()}>
+          Retry
+        </Button>
       </div>
     );
   }
