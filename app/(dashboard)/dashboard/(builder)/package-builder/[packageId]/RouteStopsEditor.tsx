@@ -85,46 +85,62 @@ export function RouteStopsEditor({ stops, onChange, limitReason, dayCount }: {
         {stops.map((stop, idx) => {
           const isManual = manualRows.has(idx);
           return (
-            <div key={idx} className="flex items-center gap-2">
-              <span className="shrink-0 text-xs font-semibold text-dashboard-base-content/40 w-4 text-center">{idx + 1}</span>
-              <div className="flex-1 min-w-0">
-                {isManual ? (
-                  <Input
-                    value={stop.name}
-                    onChange={(e) => updateStop(idx, { name: e.target.value })}
-                    placeholder="Type a destination name…"
-                    className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                ) : (
-                  <LocationSearchSelect
-                    value={stop.name ? { id: `stop-${idx}`, name: stop.name, type: "CITY", breadcrumb: stop.name, slug: "" } : null}
-                    onChange={(loc: LocationValue | null) => updateStop(idx, { name: loc?.name ?? "" })}
-                    types={ROUTE_STOP_TYPES}
-                    placeholder="Search a location…"
-                  />
-                )}
+            <div key={idx} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-2.5 space-y-2">
+              {/* Destination gets its own full-width row — cramming the
+                  nights input and both action buttons in alongside it (the
+                  old layout) left the location field too narrow to show
+                  more than a few letters of most place names. */}
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[10.5px] font-bold text-dashboard-primary">
+                  {idx + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {isManual ? (
+                    <Input
+                      value={stop.name}
+                      onChange={(e) => updateStop(idx, { name: e.target.value })}
+                      placeholder="Type a destination name…"
+                      className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                    />
+                  ) : (
+                    <LocationSearchSelect
+                      value={stop.name ? { id: `stop-${idx}`, name: stop.name, type: "CITY", breadcrumb: stop.name, slug: "" } : null}
+                      onChange={(loc: LocationValue | null) => updateStop(idx, { name: loc?.name ?? "" })}
+                      types={ROUTE_STOP_TYPES}
+                      placeholder="Search a location…"
+                      hideTypeBadge
+                    />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleManualRow(idx)}
+                  title={isManual ? "Choose from locations" : "Can't find it? Type it instead"}
+                  className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0"
+                >
+                  {isManual ? <MapPin size={13} /> : <Pencil size={13} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeStop(idx)}
+                  title="Remove this stop"
+                  className="p-1.5 rounded-md hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => toggleManualRow(idx)}
-                title={isManual ? "Choose from locations" : "Can't find it? Type it instead"}
-                className="p-1.5 rounded hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0"
-              >
-                {isManual ? <MapPin size={12} /> : <Pencil size={12} />}
-              </button>
-              <Input
-                type="number" min={0}
-                value={stop.nights}
-                onChange={(e) => updateStop(idx, { nights: +e.target.value })}
-                className="text-sm h-8 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <span className="text-[11px] text-dashboard-base-content/50 shrink-0 w-2">N</span>
-              <button
-                onClick={() => removeStop(idx)}
-                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-              >
-                <Trash2 size={12} />
-              </button>
+
+              <div className="flex items-center gap-2 pl-7">
+                <span className="text-[10.5px] font-semibold uppercase tracking-wide text-dashboard-base-content/45">
+                  Nights
+                </span>
+                <Input
+                  type="number" min={0}
+                  value={stop.nights}
+                  onChange={(e) => updateStop(idx, { nights: +e.target.value })}
+                  className="text-sm h-7 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
             </div>
           );
         })}
