@@ -189,8 +189,7 @@ export function DayActionsMenu({
           // builder-only as well as no-print: html2canvas rasterises the screen
           // DOM, so @media print alone would not keep this out of a PDF.
           "builder-only no-print absolute top-2.5 right-2.5 z-30 flex items-center gap-0.5",
-          "rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-0.5",
-          "shadow-[0_2px_8px_rgba(0,0,0,0.10)]",
+          "rounded-lg p-0.5 bg-white ring-1 ring-inset ring-neutral-200  shadow-xl shadow-neutral-200/80",
           "transition-opacity duration-[120ms]",
           menuOpen || confirmOpen
             ? "opacity-100"

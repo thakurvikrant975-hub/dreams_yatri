@@ -27,7 +27,7 @@ import { useOptionalBuilder, applyFieldEdit, fieldKey, type EditableField } from
 
 export function EditableText({
   value, field, placeholder, fallback, className, style, multiline = false, as: Tag = "span",
-  readOnly, readOnlyReason,
+  readOnly, readOnlyReason, display,
 }: {
   value: string;
   field: EditableField;
@@ -55,6 +55,11 @@ export function EditableText({
    * with an explanation on hover rather than as a dead control. */
   readOnly?: boolean;
   readOnlyReason?: string;
+  /** Formats the value for DISPLAY only — the editor still opens on, and saves,
+   * the raw string. Needed for times: the catalog stores check-in as "11:00"
+   * (24h) while an exec types "11:00 AM", and the document should read the same
+   * either way without rewriting what's stored underneath. */
+  display?: (value: string) => string;
 }) {
   const builder = useOptionalBuilder();
   const canEdit = !!builder?.canEdit;
@@ -89,7 +94,8 @@ export function EditableText({
     // Exactly what the document rendered before any of this existed: real
     // text, a caller-supplied stand-in, or nothing at all — never an empty
     // element holding open space the content doesn't need.
-    const shown = value.trim() || fallback?.trim() || "";
+    const raw = value.trim();
+    const shown = (raw && display ? display(raw) : raw) || fallback?.trim() || "";
     if (!shown) return null;
     return (
       <Tag
@@ -181,7 +187,7 @@ export function EditableText({
         isEmpty && "builder-only no-print italic opacity-45",
       )}
     >
-      {isEmpty ? (placeholder ?? "Click to add") : value}
+      {isEmpty ? (placeholder ?? "Click to add") : (display ? display(value) : value)}
     </Tag>
   );
 }

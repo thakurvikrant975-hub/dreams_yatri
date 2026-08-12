@@ -6,13 +6,16 @@
 // ItineraryDocument, which imports DayActionsMenu — importing them back the
 // other way would have closed a cycle.
 //
-// The palette itself moved on to doc-theme.tsx once the document became
+// The palette itself moved on to doc-theme-data.ts once the document became
 // templatable: a colour is no longer a constant, it's whatever the package's
 // template and overrides resolve to. Components inside the document should
 // therefore read `useDocTheme()`, NOT the `DOC` re-exported below.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { CLASSIC } from "./doc-theme";
+// The data module rather than doc-theme.tsx — this file carries no "use client"
+// of its own, and importing from the client module would drag every consumer of
+// these tokens across that boundary too.
+import { CLASSIC } from "./doc-theme-data";
 
 /** The house palette as a plain object, for the handful of call sites that
  * genuinely can't use the hook — module-level constants and anything rendered

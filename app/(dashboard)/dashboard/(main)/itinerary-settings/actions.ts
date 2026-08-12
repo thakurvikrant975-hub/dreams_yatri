@@ -5,9 +5,12 @@ import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma";
 import { getCurrentActor, type ActionResult } from "../(marketing)/queries/actions";
 import { actionError } from "@/app/lib/action-error";
+// doc-theme-data, NOT doc-theme: the latter is a "use client" module (it holds
+// the DocTheme context), so importing `isTemplateId` from it here hands this
+// server action a client reference proxy that throws the moment it is called.
 import {
     DEFAULT_TEMPLATE, isTemplateId, type ThemeOverrides,
-} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme-data";
 
 const SETTINGS_ID = "singleton";
 
