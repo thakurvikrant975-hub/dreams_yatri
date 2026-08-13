@@ -16,6 +16,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { getCurrentActor, type ActionResult } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
+import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { actionError } from "@/app/lib/action-error";
 import {
   resolveWorkspaceCaps, workspaceRoleOf,
@@ -41,15 +42,15 @@ export type ReviewNote = {
  * resolveWorkspaceCaps needs, fetched in one place so each action below reads
  * the same way. Returns null when the package doesn't exist. */
 async function loadContext(packageId: string) {
-  const { teamMemberId, teamMemberName } = await getCurrentActor();
-
-  const [member, pkg] = await Promise.all([
-    teamMemberId
-      ? db.teamMember.findUnique({
-          where: { id: teamMemberId },
-          select: { teamRole: { select: { name: true } } },
-        })
-      : Promise.resolve(null),
+  // Capabilities follow the EFFECTIVE member so "View As" behaves the way the
+  // page it was used from behaves — a dev standing in for costing can raise a
+  // finding, or the feature is untestable without real credentials.
+  //
+  // Authorship stays with the real actor: a finding says who actually wrote it,
+  // not who they were pretending to be, or the audit trail lies.
+  const [{ teamMemberId, teamMemberName }, memberCtx, pkg] = await Promise.all([
+    getCurrentActor(),
+    getEffectiveMember(),
     db.custom_packages.findUnique({
       where: { id: packageId },
       select: { id: true, status: true, verified: true, rejectedAt: true, revisionRequestedAt: true },
@@ -64,7 +65,7 @@ async function loadContext(packageId: string) {
     rejectedAt: pkg.rejectedAt,
     revisionRequestedAt: pkg.revisionRequestedAt,
   };
-  const role = workspaceRoleOf(member?.teamRole?.name);
+  const role = workspaceRoleOf(memberCtx?.member?.teamRole?.name);
 
   return {
     teamMemberId, teamMemberName,

@@ -1,5 +1,5 @@
 import { db } from "@/app/lib/db";
-import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
+import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf } from "../workspace-caps";
 import { CostingPanel } from "@/app/(dashboard)/dashboard/(main)/verify-packages/[id]/CostingPanel";
 import { PackageWorkspace } from "./PackageWorkspace";
@@ -22,14 +22,13 @@ import { PackageWorkspace } from "./PackageWorkspace";
 export default async function PackageBuilderPage({ params }: { params: Promise<{ packageId: string }> }) {
   const { packageId } = await params;
 
-  const actor = await getCurrentActor();
-  const [member, pkg] = await Promise.all([
-    actor.teamMemberId
-      ? db.teamMember.findUnique({
-          where: { id: actor.teamMemberId },
-          select: { teamRole: { select: { name: true } } },
-        })
-      : Promise.resolve(null),
+  // getEffectiveMember, NOT the session user: a Full Stack Developer using
+  // "View As" is deliberately standing in for someone else, and capabilities
+  // are the whole point of doing so. Reading the real session here meant the
+  // dev saw an FSD's permissions — which map to nothing — no matter who they
+  // had switched to.
+  const [memberCtx, pkg] = await Promise.all([
+    getEffectiveMember(),
     // A brand-new package has no row yet — the exec is navigated here with a
     // freshly-generated id before the first save. Treated as a DRAFT they own,
     // which is exactly what it is about to become.
@@ -39,7 +38,7 @@ export default async function PackageBuilderPage({ params }: { params: Promise<{
     }),
   ]);
 
-  const caps = resolveWorkspaceCaps(workspaceRoleOf(member?.teamRole?.name), {
+  const caps = resolveWorkspaceCaps(workspaceRoleOf(memberCtx?.member?.teamRole?.name), {
     status: pkg?.status ?? "DRAFT",
     verified: pkg?.verified ?? false,
     rejectedAt: pkg?.rejectedAt ?? null,
