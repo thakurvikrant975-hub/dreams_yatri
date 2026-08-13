@@ -1,17 +1,24 @@
 import { db } from "@/app/lib/db";
 import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { resolveWorkspaceCaps, workspaceRoleOf } from "../workspace-caps";
+import { CostingPanel } from "@/app/(dashboard)/dashboard/(main)/verify-packages/[id]/CostingPanel";
 import { PackageWorkspace } from "./PackageWorkspace";
 
-// The builder route is now a thin shell: its only job is to work out what this
-// person is allowed to do with this package and hand that to the workspace.
-// The editor itself lives in PackageWorkspace and is mounted by the costing
-// review too — same code, different capabilities.
+// The one editor. A travel expert building a package and a costing manager
+// reviewing one open the SAME url and get the same screen — full width, same
+// day rail, same document, same drawers. Nothing about the editor is duplicated
+// per role.
 //
-// A server component so capabilities are resolved BEFORE anything renders. Done
-// in the client, the first paint would show a fully-editable builder and then
-// take it away, and "what am I allowed to do" would be a value the client had
-// decided for itself.
+// What differs is decided here, once, from who is asking:
+//
+//   travel expert  → builds and prices what we pay; margin and the marked-up
+//                    figures are not theirs to see
+//   costing        → the same editor, plus a Costing tab carrying the
+//                    breakdown, the findings and approve/reject
+//
+// A server component so this is settled before the first paint. Resolved in the
+// client, the editor would render fully editable and then take that away — and
+// "what am I allowed to do" would be a question the client answered itself.
 export default async function PackageBuilderPage({ params }: { params: Promise<{ packageId: string }> }) {
   const { packageId } = await params;
 
@@ -39,5 +46,12 @@ export default async function PackageBuilderPage({ params }: { params: Promise<{
     revisionRequestedAt: pkg?.revisionRequestedAt ?? null,
   });
 
-  return <PackageWorkspace packageId={packageId} caps={caps} />;
+  // Built only for someone who can actually see costing. For everyone else it
+  // is never rendered, never fetched, and the sidebar has no such tab — the
+  // absence IS the authorisation, rather than a tab that appears and refuses.
+  const costingPanel = caps.seeMargin
+    ? <CostingPanel packageId={packageId} canReview={caps.reviewElements} />
+    : undefined;
+
+  return <PackageWorkspace packageId={packageId} caps={caps} costingPanel={costingPanel} />;
 }
