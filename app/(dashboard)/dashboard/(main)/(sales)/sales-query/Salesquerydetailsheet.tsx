@@ -297,6 +297,11 @@ export function SalesQueryDetailSheet({
                                             Open Builder
                                         </a>
                                     </div>
+                                    <p className="flex items-center gap-1 mt-0.5 text-[11px] text-muted-foreground">
+                                        <CalendarClock className="h-3 w-3 shrink-0" />
+                                        Created {format(new Date(pkg.createdAt), "dd MMM yyyy")} at{" "}
+                                        {format(new Date(pkg.createdAt), "hh:mm a")}
+                                    </p>
 
                                     {/* Every package on a lead gets its own status here — five
                                         drafts on one query used to all read the same generic

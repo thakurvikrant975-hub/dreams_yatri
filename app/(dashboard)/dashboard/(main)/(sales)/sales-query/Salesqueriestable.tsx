@@ -22,7 +22,7 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
-import { reopenSalesQuery, getSalesQueryById } from "./actions";
+import { reopenSalesQuery, getSalesQueryById, mapCustomPackage } from "./actions";
 import type { SalesQueryRow } from "./actions";
 import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
@@ -180,7 +180,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                 // Map queryFollowUps → followUps for the detail sheet
                 followUps: (full as any).queryFollowUps ?? [],
                 notes: (full as any).notes ?? [],
-                customPackages: (full as any).custom_packages ?? [],
+                customPackages: ((full as any).custom_packages ?? []).map(mapCustomPackage),
             };
 
             setDetailQuery(normalized);
@@ -363,6 +363,19 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                 </>
                             )}
                         </div>
+                        {/* With several packages built for the same lead (a couple of
+                            budget options, say), "View Package" only opens the newest
+                            one — this line is the only place an exec sees at a glance
+                            how many of ALL of them have actually cleared costing. */}
+                        {q.customPackages.length > 1 && (
+                            <Badge
+                                variant="outline"
+                                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800"
+                            >
+                                <UserCheck className="h-3 w-3" />
+                                {q.customPackages.filter((p) => p.verified).length}/{q.customPackages.length} Approved
+                            </Badge>
+                        )}
                         {(latest?.readyAt || latest?.hotelRequestStatus) && (
                             <div className="flex flex-col items-center gap-1">
                                 {latest.readyAt && (

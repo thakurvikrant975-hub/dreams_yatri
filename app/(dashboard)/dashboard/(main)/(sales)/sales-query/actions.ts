@@ -89,6 +89,7 @@ export type SentPackageInfo = {
     id:             string;
     title:          string;
     status:         string;
+    createdAt:      Date;
     sentAt:         Date | null;
     readyAt:        Date | null;
     totalPrice:     number | null;
@@ -118,7 +119,7 @@ export type SentPackageInfo = {
 export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[] };
 
 const CUSTOM_PACKAGE_SELECT = {
-    id: true, title: true, status: true, sentAt: true, readyAt: true,
+    id: true, title: true, status: true, createdAt: true, sentAt: true, readyAt: true,
     totalPrice: true, pricePerPerson: true, pdfUrl: true,
     verified: true, verifiedAt: true, verifiedByName: true,
     rejectedAt: true, rejectedByName: true, rejectionNote: true,
@@ -154,6 +155,20 @@ function deriveHotelRequestStatus(itineraries: {
     return { hotelRequestStatus: null, hotelRequestNote: null, hotelRequestDays: [] };
 }
 
+/** Flattens one CUSTOM_PACKAGE_SELECT result into the shape SentPackageInfo's
+ * consumers (badges, the drawer) expect — rejectionReason.label pulled up to
+ * rejectionReasonLabel, itineraries rolled up via deriveHotelRequestStatus.
+ * Shared by every reader of custom_packages so the drawer (getSalesQueryById)
+ * and the table (getSalesQueries) never drift into showing different data
+ * for the same package. */
+export function mapCustomPackage(cp: any): SentPackageInfo {
+    return {
+        ...cp,
+        rejectionReasonLabel: cp.rejectionReason?.label ?? null,
+        ...deriveHotelRequestStatus(cp.itineraries ?? []),
+    };
+}
+
 /** Returns only queries assigned to the currently logged-in sales exec */
 export async function getSalesQueries(): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
@@ -172,11 +187,7 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
         ...q,
         rejectionReason:  q.rejection_reasons ?? null,
         totalLeadQueries: 1,
-        customPackages:   (q.custom_packages ?? []).map((cp: any) => ({
-            ...cp,
-            rejectionReasonLabel: cp.rejectionReason?.label ?? null,
-            ...deriveHotelRequestStatus(cp.itineraries ?? []),
-        })),
+        customPackages:   (q.custom_packages ?? []).map(mapCustomPackage),
     })) as SalesQueryRow[];
 }
 
