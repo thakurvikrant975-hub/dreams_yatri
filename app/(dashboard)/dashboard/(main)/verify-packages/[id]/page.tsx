@@ -9,7 +9,6 @@ import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashb
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
 import { CostingFindings } from "./CostingFindings";
 import { PackageWorkspace } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/PackageWorkspace";
-import { CostingReviewShell } from "./CostingReviewShell";
 import { listReviewNotes } from "@/app/(dashboard)/dashboard/(builder)/package-builder/review-notes.actions";
 import { getCurrentActor } from "../../(marketing)/queries/actions";
 import {
@@ -214,14 +213,17 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
         revisionRequestedAt: pkg.revisionRequestedAt,
     });
 
-    // Costing gets the editor itself, not a read-only view of it: the whole
-    // point is that a wrong rate is corrected where it is seen. The pricing
-    // breakdown and the approve/reject controls ride alongside it in a panel,
-    // since those are costing's own job and have no place in the exec's build.
+    // Costing opens the editor itself, not a view of it: the whole point is that
+    // a wrong rate is corrected where it is seen. Their breakdown, findings and
+    // decision ride in the sidebar as a tab only they get — the editor is the
+    // screen, costing is a section of it, rather than the two competing for the
+    // same space.
     return (
-        <CostingReviewShell
-            editor={<PackageWorkspace packageId={pkg.id} caps={caps} />}
-            review={<VerifyPackageDetailClient
+        <PackageWorkspace
+            packageId={pkg.id}
+            caps={caps}
+            costingPanel={<VerifyPackageDetailClient
+            variant="panel"
             findingsSlot={
                 <CostingFindings
                     packageId={pkg.id}

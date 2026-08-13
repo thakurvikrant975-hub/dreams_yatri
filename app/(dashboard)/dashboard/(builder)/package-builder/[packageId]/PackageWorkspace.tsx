@@ -379,9 +379,13 @@ const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
  * and a capability the client derived would be a suggestion rather than a rule.
  * The server actions re-check the same caps independently.
  */
-export function PackageWorkspace({ packageId, caps }: {
+export function PackageWorkspace({ packageId, caps, costingPanel }: {
   packageId: string;
   caps: WorkspaceCaps;
+  /** Costing's breakdown, findings and decision, rendered as its own tab in
+   * the sidebar rail. Supplied only by the review route; its absence is what
+   * keeps the tab out of an exec's sidebar entirely. */
+  costingPanel?: React.ReactNode;
 }) {
   // Present only when landing here for a brand-new (not-yet-saved) package
   // that's meant to be linked to a query — see the "Load package" effect
@@ -2091,6 +2095,7 @@ Rules:
             persistent sections, and whichever contextual drawer the preview
             has opened. See BuilderSidebar. */}
         <BuilderSidebar
+              costingPanel={costingPanel}
           clientPanel={
             <fieldset disabled={isLocked} className="contents">
               <div className="p-4 space-y-4">

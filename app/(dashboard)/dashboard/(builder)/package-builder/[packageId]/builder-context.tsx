@@ -147,7 +147,12 @@ export type PanelTab =
   // Catalog suggestions, scoped to the trip's destinations. Distinct from the
   // per-day drawers: these are browsed, then dragged onto whichever day they
   // belong to, rather than opened for a day you already picked.
-  | "hotels" | "activities" | "cabs";
+  | "hotels" | "activities" | "cabs"
+  // Costing's own section — the pricing breakdown, its findings and the
+  // approve/reject decision. Only ever rendered for a reviewer: the rail entry
+  // is gated on the caller supplying a costing panel at all, so an exec's
+  // sidebar has no such tab to find.
+  | "costing";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context

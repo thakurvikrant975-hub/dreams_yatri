@@ -214,7 +214,7 @@ function PolicyListEditor({
 }
 
 export function VerifyPackageDetailClient({
-    findingsSlot,
+    findingsSlot, variant = "page",
     pkg, snapshot: s, tickets, addOns, query, rejectionReasons, hotelIdByDay, inclusions, exclusions,
 }: {
     pkg: PkgInfo;
@@ -228,6 +228,10 @@ export function VerifyPackageDetailClient({
     exclusions: string[];
     /** Costing's per-element findings, beside the client/status cards. */
     findingsSlot?: React.ReactNode;
+    /** "panel" strips the page furniture — back link, title, the three-column
+     * grid — for rendering inside the editor's sidebar, where the editor
+     * already supplies all of that. Same logic, same numbers, one column. */
+    variant?: "page" | "panel";
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -386,15 +390,19 @@ export function VerifyPackageDetailClient({
     const hotelDrift = s?.displayedTotalPrice != null && Math.round(s.displayedTotalPrice) !== Math.round(s.finalPrice) && !editMode;
 
     const state: "pending" | "verified" | "rejected" = pkg.verified ? "verified" : pkg.rejectedAt ? "rejected" : "pending";
+    const panel = variant === "panel";
 
     return (
-        <div className="flex flex-col gap-5">
-            <Link href="/dashboard/verify-packages" className="text-sm text-dashboard-neutral hover:text-dashboard-primary cursor-pointer transition-colors">
-                ← Back to verify packages
-            </Link>
+        <div className={panel ? "flex flex-col gap-4 p-4" : "flex flex-col gap-5"}>
+            {!panel && (
+                <Link href="/dashboard/verify-packages" className="text-sm text-dashboard-neutral hover:text-dashboard-primary cursor-pointer transition-colors">
+                    ← Back to verify packages
+                </Link>
+            )}
 
-            {/* Header */}
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            {/* Header. In panel mode the title is the editor's, so only the
+                actions survive — those are the reason costing is here. */}
+            <div className={panel ? "flex flex-wrap items-center gap-2" : "flex flex-wrap items-start justify-between gap-3"}>
                 <div>
                     <h1 className="text-xl font-semibold text-dashboard-base-content">{pkg.title}</h1>
                     <p className="text-sm text-dashboard-neutral mt-0.5">
@@ -496,9 +504,9 @@ export function VerifyPackageDetailClient({
                     No locked pricing snapshot found for this package — nothing to verify yet.
                 </div>
             ) : (
-                <div className="grid gap-5 lg:grid-cols-3 items-start">
+                <div className={panel ? "flex flex-col gap-4" : "grid gap-5 lg:grid-cols-3 items-start"}>
                     {/* ── Pricing breakdown ─────────────────────────────────── */}
-                    <div className="lg:col-span-2 flex flex-col gap-4">
+                    <div className={panel ? "flex flex-col gap-4" : "lg:col-span-2 flex flex-col gap-4"}>
                         {/* This branch only ever renders while pkg.status === "READY"
                             (see the outer ternary above) — i.e. always mid-review, even
                             if the package was sent in an earlier cycle and pulled back

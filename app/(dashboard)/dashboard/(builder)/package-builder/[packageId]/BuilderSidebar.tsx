@@ -22,7 +22,7 @@
 
 import {
   User, CalendarDays, MapPin, ListOrdered, Plane, Gift, Hotel, Sparkles, Car,
-  PanelRightClose, PanelRightOpen, ArrowLeft,
+  PanelRightClose, PanelRightOpen, ArrowLeft, IndianRupee,
 } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type PanelTab, type DrawerTarget } from "./builder-context";
@@ -107,6 +107,7 @@ function headingForTab(tab: PanelTab): { title: string; description: string } {
     case "hotels": return { title: "Hotels", description: "Rooms priced for this trip's destinations. Drag one onto a day." };
     case "activities": return { title: "Things to do", description: "Experiences from the catalog. Drag one onto a day." };
     case "cabs": return { title: "Cabs", description: "Vehicles priced for this trip's destinations. Drag one onto a day." };
+    case "costing": return { title: "Costing", description: "What this package costs, what's wrong with it, and whether it ships." };
   }
 }
 
@@ -156,7 +157,10 @@ function RailButton({ entry }: {
   );
 }
 
-export function BuilderSidebar({ clientPanel, tripPanel }: {
+export function BuilderSidebar({ clientPanel, tripPanel, costingPanel }: {
+  /** Costing's own section. Supplied only by the review route — its presence
+   * is what puts the tab in the rail, so an exec never sees one. */
+  costingPanel?: React.ReactNode;
   /** Rendered under the Client tab — owned by page.tsx, which has the query. */
   clientPanel: React.ReactNode;
   /** Trip Setup, which needs pricing props page.tsx computes. */
@@ -172,6 +176,7 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
     switch (panelTab) {
       case "client": return clientPanel;
       case "trip": return tripPanel;
+      case "costing": return costingPanel ?? null;
       case "stops": return <StopsView />;
       case "itinerary": return <DayListPanel />;
       case "tickets": return <TicketsView type="FLIGHT" />;
@@ -236,6 +241,15 @@ export function BuilderSidebar({ clientPanel, tripPanel }: {
         aria-label="Builder sections"
         className="w-[68px] shrink-0 h-full flex flex-col items-center gap-1 border-l border-dashboard-base-300 bg-dashboard-base-100 py-3"
       >
+        {/* Costing sits at the top of the rail, separated — for the reviewer it
+            is the job, not one section among several. Absent entirely when no
+            costing panel was supplied, which is every exec. */}
+        {costingPanel && (
+          <>
+            <RailButton entry={{ tab: "costing", icon: IndianRupee, label: "Costing" }} />
+            <span className="my-1 h-px w-8 bg-dashboard-base-300" />
+          </>
+        )}
         {RAIL.map((entry) => <RailButton key={entry.tab} entry={entry} />)}
 
         <span className="my-1 h-px w-8 bg-dashboard-base-300" />
