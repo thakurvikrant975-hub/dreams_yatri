@@ -1205,6 +1205,16 @@ export type BuilderHotelDayLine = {
   total: number;
   /** True when costing hand-corrected this day's price (hotelPriceOverride) — the room/rate breakdown above no longer applies, `total` is the override amount directly. */
   overridden?: boolean;
+  /** Why this line prices at nothing, when it does.
+   *
+   * A day that carries a stay but has no rate behind it used to produce no
+   * line at all: the manual branch is gated on manualHotelPricePerNight, so a
+   * hotel filled in without a price — or mattresses entered against a day
+   * whose room price was never set — simply dropped out of the breakdown. The
+   * subtotal was silently short and costing had no way to see the day existed,
+   * which is the worst possible failure for a review screen. Such a day now
+   * emits a ₹0 line carrying the reason instead of vanishing. */
+  gap?: "no-room-price" | "no-mattress-rate";
 };
 
 export type BuilderHotelPricingResult = {
@@ -1212,6 +1222,21 @@ export type BuilderHotelPricingResult = {
   hotelSubtotal: number;
   nightsCounted: number;
 };
+
+/** Whether a day looks like it is MEANT to carry a stay, for a day that has no
+ * price behind it. A named hotel is the clear signal; a room or mattress count
+ * on its own also counts, because that is what a part-filled day looks like
+ * before anyone has typed a rate. Used only to decide whether to surface a gap
+ * line — a day with none of these is genuinely a no-stay day and stays silent. */
+function hasStayIntent(d: {
+  manualHotelName?: string | null;
+  roomsCount?: number | null;
+  manualExtraBeds?: number | null;
+}): boolean {
+  return !!d.manualHotelName?.trim()
+    || (d.roomsCount ?? 0) > 0
+    || (d.manualExtraBeds ?? 0) > 0;
+}
 
 export async function computeBuilderHotelPricing(input: {
   travelDate: string | null;
@@ -1412,6 +1437,25 @@ export async function computeBuilderHotelPricing(input: {
         mattresses,
         extraBedRate,
         total,
+        // Mattresses counted against no rate cost nothing. That is occasionally
+        // deliberate (complimentary), so it isn't corrected here — but costing
+        // has to be told, or the day looks fully priced when it isn't.
+        ...(mattresses > 0 && extraBedRate === 0 ? { gap: "no-mattress-rate" as const } : {}),
+      });
+    } else if (hasStayIntent(d)) {
+      // A stay with nothing to price it by. Emits at ₹0 rather than dropping
+      // out, so the day is visible in the breakdown as work still to do.
+      lines.push({
+        day: d.day,
+        hotelName: d.manualHotelName ?? "Hotel — no rate set",
+        roomName: d.manualRoomName ?? "Room",
+        planName: null,
+        pricePerRoom: 0,
+        roomsNeeded: d.roomsCount && d.roomsCount > 0 ? d.roomsCount : 1,
+        mattresses: Math.max(0, d.manualExtraBeds ?? 0),
+        extraBedRate: d.manualExtraBedRate ?? 0,
+        total: 0,
+        gap: "no-room-price",
       });
     }
 

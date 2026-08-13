@@ -35,7 +35,7 @@ const TICKET_TYPE_ICONS: Record<string, typeof PlaneTakeoff> = {
 export type PricingSnapshot = {
     lockedAt: string;
     currency: string;
-    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean }[]; overridden?: boolean };
+    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: "no-room-price" | "no-mattress-rate" }[]; overridden?: boolean };
     cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number; overridden?: boolean }[]; overridden?: boolean };
     tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
     addOns?: { subtotal: number; lines: { name: string; price: number; quantity: number; day: number | null }[] };
@@ -570,6 +570,17 @@ export function VerifyPackageDetailClient({
                                                             <p className="text-xs text-dashboard-neutral mt-0.5">
                                                                 {l.roomsNeeded} room{l.roomsNeeded !== 1 ? "s" : ""} × {inr(l.pricePerRoom)}
                                                                 {l.mattresses > 0 && ` + ${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} × ${inr(l.extraBedRate)}`}
+                                                            </p>
+                                                        )}
+                                                        {/* These days used to be omitted from the breakdown entirely, so
+                                                            the subtotal was quietly short and there was nothing on screen
+                                                            to review. They now show, at ₹0, saying what is missing. */}
+                                                        {l.gap && (
+                                                            <p className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                                                                <AlertCircle className="size-3 shrink-0" />
+                                                                {l.gap === "no-room-price"
+                                                                    ? "No room rate set — this day is priced at ₹0"
+                                                                    : `${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} with no rate — charging ₹0 for them`}
                                                             </p>
                                                         )}
                                                     </div>
