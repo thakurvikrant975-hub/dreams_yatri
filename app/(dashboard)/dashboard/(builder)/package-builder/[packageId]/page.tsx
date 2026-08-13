@@ -3957,7 +3957,13 @@ Rules:
 
         if (Array.isArray(parsed.days) && parsed.days.length > 0) {
           const byDayNum = new Map<number, AIItineraryDay>();
-          parsed.days.forEach((d, i) => { if (d) byDayNum.set(d.day ?? i + 1, d); });
+          // The model doesn't always honor the prompt's "number, not a string"
+          // instruction (e.g. "day": "1", "transportDistanceKm": "35") — every
+          // numeric field pulled out of the parsed JSON below goes through
+          // Number(...) rather than being trusted as already the right type,
+          // since a raw string handed to a Prisma Float/Int column throws at
+          // save time with no useful message (see saveCustomPackage's catch).
+          parsed.days.forEach((d, i) => { if (d) byDayNum.set(Number(d.day) || i + 1, d); });
 
           let itineraries = next.itineraries;
           if (parsed.days.length > itineraries.length) {
@@ -3978,13 +3984,18 @@ Rules:
             if (src.description && !updated.description.trim()) updated.description = src.description;
             if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
             if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
-            if (src.transportDistanceKm != null && updated.transportDistanceKm == null) updated.transportDistanceKm = src.transportDistanceKm;
+            if (src.transportDistanceKm != null && updated.transportDistanceKm == null) {
+              const distanceKm = Number(src.transportDistanceKm);
+              if (!Number.isNaN(distanceKm)) updated.transportDistanceKm = distanceKm;
+            }
             if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
             if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
               updated.activities = src.activities
                 .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
                 .map((a) => {
-                  const photos = Array.isArray(a.photos) ? a.photos.filter((p): p is string => !!p).slice(0, 3) : [];
+                  const photos = Array.isArray(a.photos)
+                    ? a.photos.filter((p): p is string => typeof p === "string" && !!p).slice(0, 3)
+                    : [];
                   return {
                     title: a.title,
                     description: a.description ?? "",

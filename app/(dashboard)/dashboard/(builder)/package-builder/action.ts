@@ -14,6 +14,7 @@ import type { Prisma } from "@/app/generated/prisma";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { emailPackageToClient } from "./email-package";
+import { classifyActionError } from "@/app/lib/action-error";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -2185,7 +2186,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     };
   } catch (err) {
     console.error("[saveCustomPackage]", err);
-    return { id: "", success: false, error: "Failed to save package" };
+    const { message } = classifyActionError(err);
+    return { id: "", success: false, error: message };
   }
 }
 
