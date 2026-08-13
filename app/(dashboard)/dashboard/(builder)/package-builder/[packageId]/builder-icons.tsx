@@ -60,6 +60,7 @@ import {
   Compass as PhCompass,
   Copy as PhCopy,
   CreditCard as PhCreditCard,
+  Calculator as PhCalculator,
   CurrencyInr as PhCurrencyInr,
   DotsSixVertical as PhDotsSixVertical,
   DotsThree as PhDotsThree,
@@ -203,6 +204,7 @@ export const User = filled(PhUser);
 export const Users = filled(PhUsers);
 export const Baby = filled(PhBaby);
 export const IndianRupee = filled(PhCurrencyInr, "bold");
+export const Calculator = filled(PhCalculator);
 export const Percent = filled(PhPercent, "bold");
 export const CreditCard = filled(PhCreditCard);
 export const Mail = filled(PhEnvelope);

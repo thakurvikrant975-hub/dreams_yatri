@@ -22,7 +22,7 @@
 
 import {
   User, CalendarDays, MapPin, ListOrdered, Plane, Gift, Hotel, Sparkles, Car,
-  PanelRightClose, PanelRightOpen, ArrowLeft, IndianRupee,
+  PanelRightClose, PanelRightOpen, ArrowLeft, IndianRupee, Calculator,
 } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type PanelTab, type DrawerTarget } from "./builder-context";
@@ -108,6 +108,7 @@ function headingForTab(tab: PanelTab): { title: string; description: string } {
     case "activities": return { title: "Things to do", description: "Experiences from the catalog. Drag one onto a day." };
     case "cabs": return { title: "Cabs", description: "Vehicles priced for this trip's destinations. Drag one onto a day." };
     case "costing": return { title: "Costing", description: "What this package costs, what's wrong with it, and whether it ships." };
+    case "pricing": return { title: "Pricing", description: "Every line's arithmetic, live — it moves as you correct the itinerary." };
   }
 }
 
@@ -157,10 +158,13 @@ function RailButton({ entry }: {
   );
 }
 
-export function BuilderSidebar({ clientPanel, tripPanel, costingPanel }: {
+export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPanel }: {
   /** Costing's own section. Supplied only by the review route — its presence
    * is what puts the tab in the rail, so an exec never sees one. */
   costingPanel?: React.ReactNode;
+  /** The live pricing calculation. Same gating as costingPanel — supplied only
+   * for a viewer allowed to see what we charge. */
+  pricingPanel?: React.ReactNode;
   /** Rendered under the Client tab — owned by page.tsx, which has the query. */
   clientPanel: React.ReactNode;
   /** Trip Setup, which needs pricing props page.tsx computes. */
@@ -177,6 +181,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel }: {
       case "client": return clientPanel;
       case "trip": return tripPanel;
       case "costing": return costingPanel ?? null;
+      case "pricing": return pricingPanel ?? null;
       case "stops": return <StopsView />;
       case "itinerary": return <DayListPanel />;
       case "tickets": return <TicketsView type="FLIGHT" />;
@@ -247,6 +252,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel }: {
         {costingPanel && (
           <>
             <RailButton entry={{ tab: "costing", icon: IndianRupee, label: "Costing" }} />
+            {pricingPanel && <RailButton entry={{ tab: "pricing", icon: Calculator, label: "Pricing" }} />}
             <span className="my-1 h-px w-8 bg-dashboard-base-300" />
           </>
         )}

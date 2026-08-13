@@ -152,7 +152,10 @@ export type PanelTab =
   // approve/reject decision. Only ever rendered for a reviewer: the rail entry
   // is gated on the caller supplying a costing panel at all, so an exec's
   // sidebar has no such tab to find.
-  | "costing";
+  | "costing"
+  // The live calculation — every line's arithmetic, and the walkthrough from
+  // base cost to per-person. Costing's, like "costing" above.
+  | "pricing";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context

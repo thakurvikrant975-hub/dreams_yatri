@@ -65,6 +65,7 @@ import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
 import type { WorkspaceCaps } from "../workspace-caps";
+import { CostingPricingPanel } from "./CostingPricingPanel";
 import { TripSetupPanel } from "./TripSetupPanel";
 import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
@@ -2096,6 +2097,19 @@ Rules:
             has opened. See BuilderSidebar. */}
         <BuilderSidebar
               costingPanel={costingPanel}
+              // Built here rather than passed down from the route, because it
+              // reads the editor's LIVE pricing — correcting a mattress rate on
+              // day 3 moves the subtotal, the margin and the per-person figure
+              // while costing watches. A server-rendered panel would show the
+              // numbers as they were when the page loaded.
+              pricingPanel={caps.seeMargin ? (
+                <CostingPricingPanel
+                  hotelPricing={hotelPricing}
+                  cabPricing={cabPricing}
+                  computed={computeFinalPricing()}
+                  canEdit={caps.editCost || caps.editMargin}
+                />
+              ) : undefined}
           clientPanel={
             <fieldset disabled={isLocked} className="contents">
               <div className="p-4 space-y-4">
