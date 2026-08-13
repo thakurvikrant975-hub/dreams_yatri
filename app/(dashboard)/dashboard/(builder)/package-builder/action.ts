@@ -2542,6 +2542,26 @@ export async function requestPackageRevision(packageId: string, note: string): P
       },
     });
 
+    // The columns above hold only the LATEST revision — each request overwrites
+    // the one before it. Costing needs the series, not the last entry: a
+    // package pulled back three times for the same reason is a different
+    // conversation from one pulled back once. Logged here so the history
+    // survives, alongside the pricing corrections already kept this way.
+    await db.activityLog.create({
+      data: {
+        entity: "CustomPackageRevision",
+        entityId: packageId,
+        // LogAction is a fixed enum; the entity above is what identifies these
+        // rows, exactly as CustomPackagePricing does for costing corrections.
+        action: "UPDATE",
+        description: trimmedNote,
+        userId: actor?.id ?? null,
+        userName: actor?.name ?? null,
+        userEmail: actor?.email ?? null,
+        metadata: { fromStatus: pkg.status, wasVerified: pkg.verified },
+      },
+    });
+
     if (pkg.queryId) {
       await logTimeline(pkg.queryId, `${actor?.name ?? "Sales exec"} pulled this package back for another look — ${trimmedNote}`, actor?.id, actor?.name ?? undefined);
     }

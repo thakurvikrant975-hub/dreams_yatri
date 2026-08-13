@@ -1971,18 +1971,26 @@ Rules:
                     <span className="hidden sm:inline text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
-                <Button
-                  size="sm"
-                  className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
-                  onClick={handleShareClick}
-                  disabled={isSharing}
-                >
-                  {isSharing
-                    ? <Loader2 size={13} className="animate-spin" />
-                    : <Send size={13} />
-                  }
-                  <span className="hidden sm:inline text-xs">Share with Client</span>
-                </Button>
+                {/* Sending is the exec's, even once costing has approved. The
+                    reviewer signs off on what it costs; the person who owns the
+                    client relationship decides when it lands in their inbox —
+                    and often waits for a call before it does. caps.send is
+                    false for costing, so they see the approval state without
+                    the button. */}
+                {caps.send && (
+                  <Button
+                    size="sm"
+                    className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                    onClick={handleShareClick}
+                    disabled={isSharing}
+                  >
+                    {isSharing
+                      ? <Loader2 size={13} className="animate-spin" />
+                      : <Send size={13} />
+                    }
+                    <span className="hidden sm:inline text-xs">Share with Client</span>
+                  </Button>
+                )}
               </>
             ) : isLocked ? (
               <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">

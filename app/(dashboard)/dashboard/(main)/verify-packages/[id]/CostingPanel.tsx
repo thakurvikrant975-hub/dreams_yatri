@@ -2,6 +2,7 @@ import { listReviewNotes } from "@/app/(dashboard)/dashboard/(builder)/package-b
 import { loadCostingPanelData } from "./costing-panel-data";
 import { VerifyPackageDetailClient } from "./VerifyPackageDetailClient";
 import { CostingFindings } from "./CostingFindings";
+import { RevisionHistory } from "./RevisionHistory";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Costing tab's contents.
@@ -33,12 +34,17 @@ export async function CostingPanel({ packageId, canReview }: {
     <VerifyPackageDetailClient
       variant="panel"
       findingsSlot={
-        <CostingFindings
-          packageId={pkg.id}
-          notes={notes}
-          canReview={canReview}
-          totalDays={pkg.totalDays}
-        />
+        <>
+          {/* Above the findings: what happened to this package BEFORE this
+              review pass. Renders nothing when it is a first pass. */}
+          <RevisionHistory packageId={packageId} />
+          <CostingFindings
+            packageId={pkg.id}
+            notes={notes}
+            canReview={canReview}
+            totalDays={pkg.totalDays}
+          />
+        </>
       }
       pkg={{
         id: pkg.id, title: pkg.title, destination: pkg.destination, startingPoint: pkg.startingPoint,

@@ -234,3 +234,42 @@ export async function toggleStandardPolicyLine(
     return actionError(e);
   }
 }
+
+export type RevisionEntry = {
+  id: string;
+  note: string;
+  byName: string | null;
+  at: Date;
+  /** What the package was pulled back FROM — an approved-but-unsent package and
+   * one already with the client are very different things to have recalled. */
+  fromStatus: string | null;
+  wasVerified: boolean | null;
+};
+
+/** Every time this package was pulled back for another look, newest first.
+ *
+ * custom_packages keeps only the latest revision — each request overwrites the
+ * last — so this reads the activity log instead, where each one was recorded
+ * separately. A package pulled back three times for the same reason is a
+ * different conversation from one pulled back once, and only the series shows
+ * that.
+ */
+export async function getRevisionHistory(packageId: string): Promise<RevisionEntry[]> {
+  const rows = await db.activityLog.findMany({
+    where: { entity: "CustomPackageRevision", entityId: packageId },
+    orderBy: { actionAt: "desc" },
+    select: { id: true, description: true, userName: true, actionAt: true, metadata: true },
+    take: 50,
+  });
+  return rows.map((r) => {
+    const meta = (r.metadata ?? {}) as { fromStatus?: string; wasVerified?: boolean };
+    return {
+      id: r.id,
+      note: r.description ?? "",
+      byName: r.userName,
+      at: r.actionAt,
+      fromStatus: meta.fromStatus ?? null,
+      wasVerified: meta.wasVerified ?? null,
+    };
+  });
+}
