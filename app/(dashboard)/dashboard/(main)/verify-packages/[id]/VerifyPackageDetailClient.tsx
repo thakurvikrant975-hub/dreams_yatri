@@ -696,62 +696,11 @@ export function VerifyPackageDetailClient({
                             </BreakdownCard>
                         )}
 
-                        {/* Inclusions & Exclusions — separate edit/save from pricing, so a
-                            reviewer can veto a standard line (or a Sales Exec's own
-                            addition) that doesn't apply to this package without also
-                            touching pricing. Persists via updatePackageInclusionsExclusions;
-                            reflected in the exec's builder, the "View Package" PDF above,
-                            and the client-facing send once approved/sent. */}
-                        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden shadow-lg">
-                            <div className="flex items-center justify-between border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5">
-                                <span className="flex items-center gap-2 text-sm font-semibold text-dashboard-base-content">
-                                    <ListChecks className="size-4 text-dashboard-neutral" />
-                                    <span>Inclusions & Exclusions</span>
-                                </span>
-                                {pkg.status === "READY" && !pkg.verified && !policyEditMode && (
-                                    <Button type="button" variant="outline" size="sm" onClick={enterPolicyEditMode} className="gap-1.5 h-7 px-2.5 text-xs">
-                                        <Pencil className="size-3.5" /> Edit
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-dashboard-base-300/60">
-                                <div className="py-3">
-                                    <p className="px-4 pb-1.5 text-xs font-semibold text-dashboard-base-content/70 flex items-center gap-1.5">
-                                        <ListChecks className="size-3.5 text-dashboard-success" /> Inclusions
-                                    </p>
-                                    <PolicyListEditor
-                                        icon={ListChecks} tone="success"
-                                        items={policyEditMode ? inclusionsEdit : inclusions}
-                                        editing={policyEditMode}
-                                        onRemove={(item) => setInclusionsEdit((prev) => prev.filter((i) => i !== item))}
-                                        draft={newInclusion} onDraftChange={setNewInclusion} onAdd={addInclusion}
-                                    />
-                                </div>
-                                <div className="py-3">
-                                    <p className="px-4 pb-1.5 text-xs font-semibold text-dashboard-base-content/70 flex items-center gap-1.5">
-                                        <ListX className="size-3.5 text-dashboard-error" /> Exclusions
-                                    </p>
-                                    <PolicyListEditor
-                                        icon={ListX} tone="error"
-                                        items={policyEditMode ? exclusionsEdit : exclusions}
-                                        editing={policyEditMode}
-                                        onRemove={(item) => setExclusionsEdit((prev) => prev.filter((e) => e !== item))}
-                                        draft={newExclusion} onDraftChange={setNewExclusion} onAdd={addExclusion}
-                                    />
-                                </div>
-                            </div>
-                            {policyEditMode && (
-                                <div className="flex justify-end gap-2 border-t border-dashboard-base-300 px-4 py-3">
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setPolicyEditMode(false)} disabled={isPending} className="gap-1.5">
-                                        <X className="size-3.5" /> Cancel
-                                    </Button>
-                                    <Button type="button" size="sm" onClick={handleSavePolicy} disabled={isPending} className="gap-1.5 bg-dashboard-primary text-white hover:opacity-90">
-                                        {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-                                        {isPending ? "Saving…" : "Save Changes"}
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
+                        {/* Inclusions and exclusions used to be edited here, in a panel
+                            beside the document that showed them. They are editable in
+                            the document itself now — a reviewer strikes a line where
+                            they can see it sitting in the client's copy, rather than
+                            reconciling two lists. */}
 
                         {/* Totals */}
                         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-3.5 shadow-lg text-sm space-y-1.5">

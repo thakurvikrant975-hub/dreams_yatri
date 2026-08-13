@@ -33,10 +33,11 @@ import {
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import {
-  useOptionalBuilder, revealField, scrollToDay,
+  useOptionalBuilder, revealField, scrollToDay, useReview, reviewKey,
   type PolicyListKey, type TicketTextKey, type AddonTextKey, type DrawerTarget,
 } from "./builder-context";
 import { EditablePolicyList } from "./EditablePolicyList";
+import { addReviewNote, resolveReviewNote } from "../review-notes.actions";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 import { DaySlot } from "./builder-dnd";
 import { ticketGaps, addonGaps, stayGaps, transportGaps, type Gaps } from "./pricing-gaps";
@@ -729,17 +730,173 @@ export type SectionAction = {
  * The outline is `outline`, not `border`: a border would shift the block's
  * layout by a pixel on hover, which on a paginated A4 document can push
  * content across a page boundary while you're pointing at it. */
-function EditableSection({ actions, children }: {
+/** The reviewer's controls on a section's hover toolbar: raise a finding
+ * against this element, or clear the ones already on it.
+ *
+ * "Approve" is deliberately expressed as clearing findings rather than as a
+ * per-section approved flag. There is nothing to store an approval in, and a
+ * flag that only ever means "someone looked" would go stale the moment the
+ * exec changed the element underneath it. Open findings are the real state:
+ * none open means nothing is wrong with it. */
+function SectionReviewControls({ target, openCount, review }: {
+  target: ReviewTarget;
+  openCount: number;
+  review: NonNullable<ReturnType<typeof useReview>>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [severity, setSeverity] = useState<"ERROR" | "SUGGESTION">("ERROR");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function raise() {
+    const text = message.trim();
+    if (!text) { toast.error("Say what needs changing."); return; }
+    setBusy(true);
+    const r = await addReviewNote({
+      packageId: review.packageId,
+      targetKind: target.kind,
+      day: target.day ?? null,
+      index: target.index ?? null,
+      severity,
+      message: text,
+    });
+    setBusy(false);
+    if (r.success) {
+      toast.success("Sent back to the travel expert");
+      setMessage(""); setOpen(false); review.refresh();
+    } else toast.error(r.message);
+  }
+
+  async function clearAll() {
+    const notes = review.openByTarget.get(reviewKey(target.kind, target.day, target.index)) ?? [];
+    setBusy(true);
+    for (const n of notes) await resolveReviewNote(review.packageId, n.id);
+    setBusy(false);
+    toast.success("Section cleared");
+    review.refresh();
+  }
+
+  return (
+    <>
+      {openCount > 0 && (
+        <IconTip label="Clear this section's findings">
+          <button
+            type="button" disabled={busy} onClick={clearAll}
+            className="flex items-center justify-center size-6 rounded-md text-emerald-600/70 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+          >
+            <CheckCircle size={13} />
+          </button>
+        </IconTip>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <IconTip label="Send this section back with a note">
+          <DialogTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center justify-center size-6 rounded-md text-amber-600/70 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+            >
+              <AlertOctagon size={13} />
+            </button>
+          </DialogTrigger>
+        </IconTip>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>What needs changing?</DialogTitle>
+            <DialogDescription>
+              This goes back to the travel expert against{" "}
+              {target.day != null ? `day ${target.day}'s ` : "the "}
+              {target.kind.toLowerCase()}, so they can see exactly which part you mean.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex rounded-md border border-neutral-200 overflow-hidden w-max">
+            {(["ERROR", "SUGGESTION"] as const).map((sev) => (
+              <button
+                key={sev} type="button" onClick={() => setSeverity(sev)}
+                className={cn(
+                  "px-3 h-8 text-xs font-medium transition-colors",
+                  severity === sev
+                    ? sev === "ERROR" ? "bg-rose-500 text-white" : "bg-amber-500 text-white"
+                    : "bg-white text-neutral-500 hover:bg-neutral-50",
+                )}
+              >
+                {sev === "ERROR" ? "Must fix" : "Suggestion"}
+              </button>
+            ))}
+          </div>
+          <Input
+            autoFocus
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="e.g. Ertiga is ₹5,500/day — our contracted rate is ₹4,200"
+            onKeyDown={(e) => { if (e.key === "Enter") raise(); }}
+          />
+          <button
+            type="button" onClick={raise} disabled={busy}
+            className="h-9 rounded-md bg-dashboard-primary text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? "Sending…" : "Send back"}
+          </button>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** Identifies which element of the itinerary a section IS, so a reviewer's
+ * finding can be pinned to it. Absent on sections that aren't reviewable. */
+export type ReviewTarget = {
+  kind: "STAY" | "TRANSPORT" | "ACTIVITY" | "MEAL" | "TICKET" | "ADDON" | "DAY";
+  day?: number | null;
+  index?: number | null;
+};
+
+function EditableSection({ actions, review: target, children }: {
   actions?: SectionAction[];
+  /** Makes this section reviewable — adds the flag/clear controls to the same
+   * hover toolbar the edit actions use, for a viewer who may review. */
+  review?: ReviewTarget;
   children: React.ReactNode;
 }) {
-  if (!actions || actions.length === 0) return <>{children}</>;
+  const review = useReview();
+  const reviewable = !!target && !!review?.canReview;
+  const open = target && review
+    ? review.openByTarget.get(reviewKey(target.kind, target.day, target.index)) ?? []
+    : [];
+
+  // A section with neither edit actions nor review controls is just content.
+  if ((!actions || actions.length === 0) && !reviewable && open.length === 0) return <>{children}</>;
   return (
     <div
-      className="group/section relative -mx-1.5 px-1.5 py-1 rounded-lg transition-[outline-color] outline outline-2 outline-transparent hover:outline-dashboard-primary/25"
+      className={cn(
+        "group/section relative -mx-1.5 px-1.5 py-1 rounded-lg transition-[outline-color] outline outline-2",
+        // A flagged section stays outlined without hovering — an open finding
+        // is a standing statement about this element, not a hover affordance.
+        open.length > 0
+          ? "outline-amber-400/70 bg-amber-50/40"
+          : "outline-transparent hover:outline-dashboard-primary/25",
+      )}
       style={{ breakInside: "avoid" }}
     >
       {children}
+
+      {open.length > 0 && (
+        <div className="builder-only no-print mt-1 space-y-1">
+          {open.map((n) => (
+            <p
+              key={n.id}
+              className={cn(
+                "flex items-start gap-1.5 rounded-md px-2 py-1 text-[10px]",
+                n.severity === "ERROR"
+                  ? "bg-rose-50 text-rose-800 border border-rose-200"
+                  : "bg-amber-50 text-amber-800 border border-amber-200",
+              )}
+            >
+              <AlertOctagon size={11} className="shrink-0 mt-px" />
+              <span>{n.message}</span>
+            </p>
+          ))}
+        </div>
+      )}
 
       <div
         className={cn(
@@ -750,7 +907,10 @@ function EditableSection({ actions, children }: {
           "focus-within:opacity-100 focus-within:pointer-events-auto",
         )}
       >
-        {actions.map(({ icon: Icon, label, onClick, tone }) => (
+        {reviewable && target && review && (
+          <SectionReviewControls target={target} openCount={open.length} review={review} />
+        )}
+        {(actions ?? []).map(({ icon: Icon, label, onClick, tone }) => (
           <IconTip key={label} label={label}>
             <button
               type="button"
@@ -2370,7 +2530,7 @@ function DayCardPreview({
         {/* Hotel info */}
         {hasHotel && (
           <DaySlot day={day.day} accepts="hotel">
-            <EditableSection actions={stayActions}>
+            <EditableSection actions={stayActions} review={{ kind: "STAY", day: day.day }}>
               {continuesFrom != null ? (
                 // Night 2+ of the same stay: the client already read the hotel's
                 // details on the night it started, so repeating them is noise.
@@ -2559,7 +2719,7 @@ function DayCardPreview({
         {/* Transport */}
         {(day.transport || day.transportPickup || day.transportDrop) && (
           <DaySlot day={day.day} accepts="cab">
-            <EditableSection actions={transportActions}>
+            <EditableSection actions={transportActions} review={{ kind: "TRANSPORT", day: day.day }}>
               <div className="space-y-2" style={{ breakInside: "avoid" }}>
                 <DaySubHead
                   icon={Car}
@@ -2647,7 +2807,7 @@ function DayCardPreview({
         {/* Meals — shifted so breakfast shows on the day it's actually eaten
             (the morning of checkout), not the day the hotel was checked into. */}
         {(shiftedMeals ?? day.meals).length > 0 && (
-          <EditableSection actions={mealsActions}>
+          <EditableSection actions={mealsActions} review={{ kind: "MEAL", day: day.day }}>
             <div className="space-y-2" style={{ breakInside: "avoid" }}>
               <DaySubHead
                 icon={Utensils}
@@ -2691,7 +2851,7 @@ function DayCardPreview({
                 // holds the "Experiences" heading, so Add/Replace/Remove-all
                 // belong there, while Move and Remove-this belong to the row.
                 const item = (
-                  <EditableSection actions={activityActions(originalIndex, idx)}>
+                  <EditableSection actions={activityActions(originalIndex, idx)} review={{ kind: "ACTIVITY", day: day.day, index: originalIndex }}>
                     {row}
                   </EditableSection>
                 );

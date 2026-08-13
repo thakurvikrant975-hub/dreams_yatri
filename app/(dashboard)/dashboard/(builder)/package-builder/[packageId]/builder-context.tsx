@@ -172,9 +172,31 @@ export type DayCost = {
   overridden: boolean;
 };
 
+/** What the viewer may do, and what has already been said about this package.
+ * Both live on the context because the DOCUMENT needs them: a reviewer's
+ * per-element controls hang off the same hover affordances the exec's edit
+ * controls do, and they are rendered thirty levels down from the route. */
+export type ReviewContext = {
+  /** From resolveWorkspaceCaps — whether this viewer may raise/close findings. */
+  canReview: boolean;
+  /** Open findings only, keyed by `kind:day:index` — see reviewKey. */
+  openByTarget: Map<string, { id: string; severity: "ERROR" | "SUGGESTION"; message: string }[]>;
+  /** Re-reads findings after one is raised or cleared. */
+  refresh: () => void;
+  packageId: string;
+};
+
+/** One key shape for pinning and looking up a finding, so the writer and the
+ * reader can never disagree about what "day 3's stay" is called. */
+export function reviewKey(kind: string, day?: number | null, index?: number | null): string {
+  return `${kind}:${day ?? ""}:${index ?? ""}`;
+}
+
 type BuilderContextValue = {
   form: PackageForm;
   setForm: SetPackageForm;
+  /** Absent for an exec — nothing about review exists on their screen. */
+  review?: ReviewContext;
   /** False once the package is locked for costing review (status READY) or
    * the viewer otherwise may not edit. Every edit surface must gate on this —
    * see useCanEdit. */
@@ -245,12 +267,13 @@ function replaceDay(
 const BuilderContext = createContext<BuilderContextValue | null>(null);
 
 export function PackageBuilderProvider({
-  form, setForm, canEdit, dayCosts, children,
+  form, setForm, canEdit, dayCosts, review, children,
 }: {
   form: PackageForm;
   setForm: SetPackageForm;
   canEdit: boolean;
   dayCosts: Map<number, DayCost>;
+  review?: ReviewContext;
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
@@ -267,6 +290,7 @@ export function PackageBuilderProvider({
   const value = useMemo<BuilderContextValue>(() => ({
     form,
     setForm,
+    review,
     canEdit,
     dayCosts,
     drawer,
@@ -288,7 +312,7 @@ export function PackageBuilderProvider({
     moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),
     selectedDay: safeSelectedDay,
     setSelectedDay,
-  }), [form, setForm, canEdit, dayCosts, drawer, panelTab, safeSelectedDay]);
+  }), [form, setForm, review, canEdit, dayCosts, drawer, panelTab, safeSelectedDay]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }
@@ -700,4 +724,11 @@ export function useDay(day: number): DayItinerary | undefined {
 /** Non-hook variant of the same lookup, for use inside callbacks. */
 export function findDay(form: PackageForm, day: number): DayItinerary | undefined {
   return form.itineraries.find((it) => it.day === day);
+}
+
+/** The review context, or null for anyone who isn't reviewing. Null rather
+ * than a disabled object so a caller can't accidentally render review chrome
+ * that then refuses to work. */
+export function useReview(): ReviewContext | null {
+  return useBuilder().review ?? null;
 }

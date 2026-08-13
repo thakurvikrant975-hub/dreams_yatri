@@ -58,6 +58,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { CostingDecisionButtons } from "./CostingDecisionButtons";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -66,6 +67,8 @@ import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions"
 import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
 import type { WorkspaceCaps } from "../workspace-caps";
 import { CostingPricingPanel } from "./CostingPricingPanel";
+import { listReviewNotes, type ReviewNote } from "../review-notes.actions";
+import { reviewKey, type ReviewContext } from "./builder-context";
 import { TripSetupPanel } from "./TripSetupPanel";
 import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
@@ -410,8 +413,18 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   const [activeTab, setActiveTab] = useState("client");
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
+  const [reviewNotes, setReviewNotes] = useState<ReviewNote[]>([]);
   const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
   const [computingPrice, setComputingPrice] = useState(false);
+
+  // Only a viewer who can see review state fetches it — an exec's screen makes
+  // no such request and has nothing to render from it.
+  useEffect(() => {
+    if (!caps.reviewElements && !caps.seeMargin) return;
+    let cancelled = false;
+    listReviewNotes(packageId).then((n) => { if (!cancelled) setReviewNotes(n); });
+    return () => { cancelled = true; };
+  }, [packageId, caps.reviewElements, caps.seeMargin]);
   const [cabPricing, setCabPricing] = useState<BuilderCabPricingResult | null>(null);
   // Real destination photos for the document's "Places You Gonna Visit" strip,
   // resolved by name through the same catalog lookup the cover-photo
@@ -1704,6 +1717,27 @@ Rules:
   // resolveWorkspaceCaps says so for both.
   const packageEditable = caps.editItinerary;
 
+  // Findings, for a reviewer only. Loaded here rather than on the server so
+  // raising one updates the document immediately — the section it was pinned to
+  // has to show it without a round trip through the route.
+  const reviewContext: ReviewContext | undefined = useMemo(() => {
+    if (!caps.reviewElements && !caps.seeMargin) return undefined;
+    const openByTarget = new Map<string, { id: string; severity: "ERROR" | "SUGGESTION"; message: string }[]>();
+    for (const n of reviewNotes) {
+      if (n.status !== "OPEN") continue;
+      const key = reviewKey(n.targetKind, n.day, n.index);
+      const list = openByTarget.get(key) ?? [];
+      list.push({ id: n.id, severity: n.severity, message: n.message });
+      openByTarget.set(key, list);
+    }
+    return {
+      canReview: caps.reviewElements,
+      openByTarget,
+      refresh: () => { void listReviewNotes(packageId).then(setReviewNotes); },
+      packageId,
+    };
+  }, [caps.reviewElements, caps.seeMargin, reviewNotes, packageId]);
+
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const shiftedMeals = computeShiftedMeals(form.itineraries);
   // Per-section completion, for the focus-mode filter's "3/6" badges.
@@ -1785,7 +1819,8 @@ Rules:
     // having it threaded down as props — which is what lets the preview
     // document on the left edit the itinerary directly. canEdit carries the
     // same lock the right-hand panel has always honoured, from one place.
-    <PackageBuilderProvider form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}>
+    <PackageBuilderProvider
+      review={reviewContext} form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}>
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
 
@@ -2009,7 +2044,15 @@ Rules:
               </div>
             )}
 
-            <ItineraryPdfExport form={previewForm} />
+            {/* A reviewer gets the decision here instead of the PDF controls.
+                Costing is not sending this document anywhere — the exec does
+                that once it is approved — and the two buttons that matter to
+                them belong where their eye already is. */}
+            {caps.decide ? (
+              <CostingDecisionButtons packageId={packageId} />
+            ) : (
+              <ItineraryPdfExport form={previewForm} />
+            )}
 
             {!isLocked && !pkgSent && (
               <Button
