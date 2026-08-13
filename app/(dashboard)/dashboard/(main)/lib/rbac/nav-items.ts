@@ -120,6 +120,7 @@ export const NAV_GROUPS = [
     id: "bookings", label: "Booking Management",
     items: [
       { title: "Upcoming Guests", href: "/dashboard/upcoming-guests", icon: PlaneTakeoff },
+      { title: "Manual Documents", href: "/dashboard/manual-documents", icon: FileTextIcon, phosphor: true },
     ],
   },
   {

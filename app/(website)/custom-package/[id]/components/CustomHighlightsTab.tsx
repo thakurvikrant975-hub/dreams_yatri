@@ -60,7 +60,7 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
               <div className="flex items-center gap-2 mb-2">
                 <Info size={14} className="text-blue-600" />
                 <Text size="sm" weight="bold" className="font-heading text-blue-700">Terms & Conditions</Text>
-              </div> 
+              </div>   
               <ul className="space-y-1.5">
                 {form.termsConditions.map((item, i) => (
                   <li key={i} className="flex items-start gap-2">

@@ -26,8 +26,13 @@ import { cn } from "@/app/lib/utils";
 import { useOptionalBuilder, applyFieldEdit, fieldKey, type EditableField } from "./builder-context";
 
 export function EditableText({
+<<<<<<< HEAD
   value, field, placeholder, fallback, displayTransform, className, style, multiline = false, as: Tag = "span",
   readOnly, readOnlyReason,
+=======
+  value, field, placeholder, fallback, className, style, multiline = false, as: Tag = "span",
+  readOnly, readOnlyReason, display,
+>>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
 }: {
   value: string;
   field: EditableField;
@@ -60,6 +65,11 @@ export function EditableText({
    * with an explanation on hover rather than as a dead control. */
   readOnly?: boolean;
   readOnlyReason?: string;
+  /** Formats the value for DISPLAY only — the editor still opens on, and saves,
+   * the raw string. Needed for times: the catalog stores check-in as "11:00"
+   * (24h) while an exec types "11:00 AM", and the document should read the same
+   * either way without rewriting what's stored underneath. */
+  display?: (value: string) => string;
 }) {
   const builder = useOptionalBuilder();
   const canEdit = !!builder?.canEdit;
@@ -94,9 +104,15 @@ export function EditableText({
     // Exactly what the document rendered before any of this existed: real
     // text, a caller-supplied stand-in, or nothing at all — never an empty
     // element holding open space the content doesn't need.
+<<<<<<< HEAD
     const raw = value.trim() || fallback?.trim() || "";
     if (!raw) return null;
     const shown = displayTransform ? displayTransform(raw) : raw;
+=======
+    const raw = value.trim();
+    const shown = (raw && display ? display(raw) : raw) || fallback?.trim() || "";
+    if (!shown) return null;
+>>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
     return (
       <Tag
         className={cn(className, readOnly && canEdit && "cursor-default")}
@@ -187,7 +203,11 @@ export function EditableText({
         isEmpty && "builder-only no-print italic opacity-45",
       )}
     >
+<<<<<<< HEAD
       {isEmpty ? (placeholder ?? "Click to add") : (displayTransform ? displayTransform(value) : value)}
+=======
+      {isEmpty ? (placeholder ?? "Click to add") : (display ? display(value) : value)}
+>>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
     </Tag>
   );
 }

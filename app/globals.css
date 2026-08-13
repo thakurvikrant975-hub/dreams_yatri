@@ -7,11 +7,14 @@
 :root {
     --font-inter: "Inter Variable", "Inter", sans-serif;
     --font-poppins: "Poppins", sans-serif;
+    --font-dancing-script: "Dancing Script", cursive;
 }
 
 @theme {
     --font-body: var(--font-inter), sans-serif;
     --font-heading: var(--font-poppins), sans-serif;
+    /* Accent only — the client's name on an itinerary cover. Never body text. */
+    --font-script: var(--font-dancing-script), cursive;
 
     --color-primary-50: oklch(97.1% 0.013 17.38);
     --color-primary-100: oklch(93.6% 0.032 17.717);

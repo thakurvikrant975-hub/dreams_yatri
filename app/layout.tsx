@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
 import { Poppins } from "next/font/google";
+import { Dancing_Script } from "next/font/google";
 import { cn } from "@/app/lib/utils";
 import { GlobalProvider } from "./context/Global";
 import { SITE_CONFIG } from "./lib/seo/site-config";
@@ -18,6 +19,18 @@ const poppins = Poppins({
   weight: ["400", "500", "600", "700", "800"],
   subsets: ["latin"],
   variable: "--font-poppins",
+  display: "swap",
+});
+
+/** Handwritten accent, used for the client's name on an itinerary cover and
+ *  nothing else. Loaded properly rather than falling back to the CSS generic
+ *  `cursive`, which resolves to a different face on every machine — these
+ *  covers are printed to PDF and mailed out, so the one on the salesperson's
+ *  screen has to be the one the client opens. */
+const dancingScript = Dancing_Script({
+  weight: ["600", "700"],
+  subsets: ["latin"],
+  variable: "--font-dancing-script",
   display: "swap",
 });
 
@@ -73,7 +86,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={cn(inter.variable, poppins.variable, "font-sans")}>
+    <html lang="en" className={cn(inter.variable, poppins.variable, dancingScript.variable, "font-sans")}>
       <head>
         {/* Organization + Website schema on every page */}
         <SchemaScript data={[organizationSchema(), websiteSchema()]} />

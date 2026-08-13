@@ -1148,6 +1148,27 @@ export async function copyPackageIntoDraft(
     }
   }
 
+  // Star category for each copied day, off the same hotels.stay_type a manual
+  // pick snapshots (see HotelRoomResult.starRating). The catalog day's own
+  // denormalised hotel shape doesn't carry it, so it's resolved through the
+  // room-pricing ids already gathered above — without this the copy wrote an
+  // empty rating and every day of a copied package rendered with no stars,
+  // even though the hotel behind it has one.
+  const starRatingByDay = new Map<number, string>();
+  if (roomPricingByDay.size > 0) {
+    const priced = await db.hotel_room_pricing.findMany({
+      where: { id: { in: [...new Set(roomPricingByDay.values())] } },
+      select: { id: true, hotel: { select: { stay_type: true } } },
+    });
+    const starByPricingId = new Map(
+      priced.map((r) => [r.id, r.hotel?.stay_type ?? ""] as const),
+    );
+    for (const [day, pricingId] of roomPricingByDay) {
+      const stars = starByPricingId.get(pricingId);
+      if (stars) starRatingByDay.set(day, stars);
+    }
+  }
+
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
 
@@ -1191,7 +1212,7 @@ export async function copyPackageIntoDraft(
       accommodationRoomPhotos: rawRoomPhotos.map((u) => getThumbnailImage(u)),
       accommodationLocation: day.hotel?.location ?? "",
       accommodationRoomSpecs: roomSpecs,
-      accommodationStarRating: "",
+      accommodationStarRating: starRatingByDay.get(day.day) ?? "",
       accommodationRoomCapacity: day.hotel?.room_capacity ?? null,
       roomPricingId:      roomPricingByDay.get(day.day) ?? null,
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
