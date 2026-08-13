@@ -112,6 +112,8 @@ export function CostingPricingPanel({
     ticketsSubtotal: number; hotelCabBase: number; addonsSubtotal: number;
     hotelCabMarginAmount: number; ticketsMarginAmount: number; marginAmount: number;
     taxable: number; gstAmount: number; finalPrice: number; perPerson: number;
+    listPrice: number;
+    discount: { applies: boolean; amount: number; percentOff: number | null };
   };
   /** Costing may correct; anyone else looking is reading. */
   canEdit: boolean;
@@ -290,7 +292,55 @@ export function CostingPricingPanel({
           value={inr(computed.gstAmount)}
           muted
         />
+        {/* The concession, between the computed price and what is payable, so
+            the three read as one sum: this is the price, this comes off, this
+            is what they pay. */}
         <div className="pt-1.5 border-t border-dashboard-base-300 space-y-1.5">
+          {canEdit && (
+            <div className="flex items-center gap-1.5 pb-1">
+              <select
+                value={form.discountType ?? ""}
+                onChange={(e) => setForm((f) => ({
+                  ...f,
+                  discountType: (e.target.value || null) as "FLAT" | "PERCENT" | null,
+                  // Clearing the type clears the value too — a stray amount
+                  // left behind would reapply the moment a type was re-picked.
+                  discountValue: e.target.value ? f.discountValue : "",
+                }))}
+                className="h-6 rounded-md border border-dashboard-base-300 bg-white px-1 text-[10px]"
+              >
+                <option value="">No discount</option>
+                <option value="FLAT">₹ off</option>
+                <option value="PERCENT">% off</option>
+              </select>
+              {form.discountType && (
+                <>
+                  <Input
+                    type="number" min={0}
+                    value={form.discountValue}
+                    onChange={(e) => setForm((f) => ({ ...f, discountValue: e.target.value }))}
+                    placeholder="0"
+                    className="h-6 w-16 px-1 text-[10px] text-right"
+                  />
+                  <Input
+                    value={form.discountNote}
+                    onChange={(e) => setForm((f) => ({ ...f, discountNote: e.target.value }))}
+                    placeholder="Why? (internal)"
+                    className="h-6 flex-1 min-w-0 px-1.5 text-[10px]"
+                  />
+                </>
+              )}
+            </div>
+          )}
+          {computed.discount.applies && (
+            <>
+              <Row label="Price before discount" value={inr(computed.listPrice)} muted />
+              <Row
+                label={<span className="text-emerald-700">Discount</span>}
+                value={<span className="text-emerald-700">− {inr(computed.discount.amount)}</span>}
+              />
+            </>
+          )}
           <Row label="Final price" value={inr(computed.finalPrice)} strong />
           <Row
             label={`Per person (${form.adults + form.children} paying)`}

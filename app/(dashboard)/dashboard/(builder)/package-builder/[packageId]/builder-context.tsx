@@ -63,6 +63,10 @@ export interface PackageForm {
   totalPrice: string;
   marginPercentage: string;
   gstPercentage: string;
+  /** Costing's concession off the final price. Null type = no discount. */
+  discountType: "FLAT" | "PERCENT" | null;
+  discountValue: string;
+  discountNote: string;
   currency: string;
   inclusions: string[];
   exclusions: string[];

@@ -658,6 +658,10 @@ export interface QueryDetail {
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
+    /** Costing's concession off the final price — see discount.ts. */
+    discountType: "FLAT" | "PERCENT" | null;
+    discountValue: number | null;
+    discountNote: string | null;
     gstPercentage:    number;
     inclusions:      string[];
     exclusions:      string[];
@@ -872,6 +876,10 @@ export interface PackageInput {
   totalPrice:      number | null;
   marginPercentage: number;
   gstPercentage:    number;
+  /** Costing's concession off the final price — see discount.ts. */
+  discountType?:    "FLAT" | "PERCENT" | null;
+  discountValue?:   number | null;
+  discountNote?:    string | null;
   currency:        string;
   inclusions:      string[];
   exclusions:      string[];
@@ -1183,6 +1191,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       title: true, description: true, coverImage: true, coverImagePosition: true,
       destination: true, startingPoint: true, totalDays: true, totalNights: true,
       marginPercentage: true, gstPercentage: true, termsNotes: true, extraPolicyItems: true,
+      discountType: true, discountValue: true, discountNote: true,
       flightsIncluded: true, flightNotes: true, flightFrom: true, flightTo: true,
       trainIncluded: true, trainNotes: true, trainFrom: true, trainTo: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
@@ -1610,6 +1619,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       pricePerPerson:  true,
       totalPrice:      true,
       marginPercentage: true,
+      discountType: true, discountValue: true, discountNote: true,
       gstPercentage:    true,
       inclusions:      true,
       exclusions:      true,
@@ -1777,6 +1787,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants, childrenAges, infantAges,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
+      discountType, discountValue, discountNote,
       termsNotes, extraPolicyItems,
       status, stops, itineraries, tickets, addOns,
     } = input;
@@ -1887,6 +1898,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         totalPrice:      totalPrice ?? null,
         marginPercentage,
         gstPercentage,
+        discountType:  discountType ?? null,
+        discountValue: discountValue ?? null,
+        discountNote:  discountNote?.trim() || null,
         currency,
         inclusions:      effectiveInclusions,
         exclusions:      effectiveExclusions,
@@ -1928,6 +1942,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         totalPrice:      totalPrice ?? null,
         marginPercentage,
         gstPercentage,
+        discountType:  discountType ?? null,
+        discountValue: discountValue ?? null,
+        discountNote:  discountNote?.trim() || null,
         currency,
         inclusions:      effectiveInclusions,
         exclusions:      effectiveExclusions,

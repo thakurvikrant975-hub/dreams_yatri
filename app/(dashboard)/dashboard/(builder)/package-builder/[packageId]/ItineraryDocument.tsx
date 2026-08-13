@@ -445,6 +445,11 @@ export interface PreviewData {
    * optional since the public share-link path (getSharedPackage) may not
    * always have a match; the strip falls back gracefully when absent. */
   stopImages?: Record<string, string | null>;
+  /** Costing's discount, when one applies. `totalPrice` is already the payable
+   * figure — this is what it was BEFORE the concession, so the document can
+   * show the saving rather than just a smaller number. Absent on every package
+   * without one, which is most of them. */
+  discount?: { originalPrice: number; amount: number; label: string } | null;
   /** Which document template this package renders with (see doc-theme's
    * TEMPLATES). Null/absent falls back to the company default, then to the
    * house template — so a package written before templates existed, or one
@@ -3414,6 +3419,16 @@ export function ItineraryDocument({
                 <p className="flex items-center gap-1.5 mb-1 text-[11px] font-medium text-primary-100 whitespace-nowrap">
                   <IndianRupee size={16} color="#ffffff" /> Total price
                 </p>
+                {form.discount && (
+                  <p className="flex items-baseline gap-1.5 mb-0.5">
+                    <span className="text-[11px] text-white/60 line-through">
+                      {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-white bg-white/25 rounded-full px-1.5 py-px">
+                      {form.discount.label}
+                    </span>
+                  </p>
+                )}
                 <p className={cn(DISPLAY, "font-bold font-heading text-white text-lg leading-tight truncate")}>
                   {priceStr}
                 </p>
@@ -3607,6 +3622,20 @@ export function ItineraryDocument({
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] text-white/55 mb-1">Total package price</p>
+                      {/* The saving stated plainly above the payable figure. A
+                          struck-through number alone reads as a correction; the
+                          chip says it is a concession, which is the thing worth
+                          noticing. */}
+                      {form.discount && (
+                        <p className="flex items-baseline justify-end gap-2 mb-1">
+                          <span className="text-[13px] text-white/45 line-through">
+                            {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-950 bg-emerald-300 rounded-full px-2 py-0.5">
+                            {form.discount.label}
+                          </span>
+                        </p>
+                      )}
                       <p
                         className={cn(DISPLAY, "font-bold text-white leading-none font-heading")}
                         style={{ fontSize: "26px", letterSpacing: "-0.02em" }}

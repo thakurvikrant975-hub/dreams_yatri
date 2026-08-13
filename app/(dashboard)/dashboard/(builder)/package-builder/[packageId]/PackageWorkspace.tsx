@@ -67,6 +67,7 @@ import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions"
 import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
 import type { WorkspaceCaps } from "../workspace-caps";
 import { CostingPricingPanel } from "./CostingPricingPanel";
+import { applyDiscount, discountLabel } from "../discount";
 import { listReviewNotes, type ReviewNote } from "../review-notes.actions";
 import { reviewKey, type ReviewContext } from "./builder-context";
 import { TripSetupPanel } from "./TripSetupPanel";
@@ -482,6 +483,7 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     adults: 1, children: 0, infants: 0, childrenAges: [], infantAges: [],
     pricePerPerson: "", totalPrice: "",
     marginPercentage: "25", gstPercentage: "5",
+    discountType: null, discountValue: "", discountNote: "",
     currency: "INR",
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
@@ -671,6 +673,9 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
+          discountType: cp.discountType ?? null,
+          discountValue: cp.discountValue != null ? String(cp.discountValue) : "",
+          discountNote: cp.discountNote ?? "",
           // Inclusions/exclusions/termsConditions/paymentPolicy/amendmentPolicy/
           // travelBenefits are intentionally NOT re-hydrated from cp here —
           // they're company-wide global content, always sourced live from
@@ -910,13 +915,22 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
 
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
-    const finalPrice = taxable + gstAmount;
+    const listPrice = taxable + gstAmount;
+    // Costing's concession comes off last — see discount.ts for why it sits
+    // after GST rather than inside the base cost.
+    const disc = applyDiscount(listPrice, {
+      type: form.discountType,
+      value: form.discountValue ? parseFloat(form.discountValue) : null,
+    });
+    const finalPrice = disc.finalPrice;
     const totalPax = form.adults + form.children;
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
     return {
       marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase, addonsSubtotal,
       hotelCabMarginAmount, ticketsMarginAmount, marginAmount,
       taxable, gstAmount, finalPrice, perPerson,
+      /** The pre-discount figure, for the struck-through price. */
+      listPrice, discount: disc,
     };
   }
 
@@ -1013,6 +1027,9 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
         totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
         marginPercentage: parseFloat(form.marginPercentage) || 0,
         gstPercentage: parseFloat(form.gstPercentage) || 0,
+        discountType: form.discountType,
+        discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+        discountNote: form.discountNote,
         status: nextStatus,
       });
       if (result.success) {
@@ -1118,6 +1135,9 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
         totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
         marginPercentage: parseFloat(form.marginPercentage) || 0,
         gstPercentage: parseFloat(form.gstPercentage) || 0,
+        discountType: form.discountType,
+        discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+        discountNote: form.discountNote,
         status: "READY",
       });
       if (!result.success) {
@@ -1778,6 +1798,18 @@ Rules:
   const liveComputedPrice = computedPricingForPreview.finalPrice > 0;
   const previewForm: PreviewData = {
     ...form,
+    // Only when one actually applies — the document renders nothing for a
+    // package without a concession, rather than a struck-through equal figure.
+    discount: computedPricingForPreview.discount.applies
+      ? {
+          originalPrice: computedPricingForPreview.discount.originalPrice,
+          amount: computedPricingForPreview.discount.amount,
+          label: discountLabel(
+            { type: form.discountType, value: form.discountValue ? parseFloat(form.discountValue) : null },
+            computedPricingForPreview.discount.amount,
+          ),
+        }
+      : null,
     pricePerPerson: packageEditable && liveComputedPrice
       ? String(computedPricingForPreview.perPerson)
       : form.pricePerPerson || (liveComputedPrice ? String(computedPricingForPreview.perPerson) : form.pricePerPerson),

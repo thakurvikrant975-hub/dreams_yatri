@@ -2744,6 +2744,17 @@ model custom_packages {
    * changes. Never shown on the client-facing page.
    */
   pricingSnapshot         Json?
+  /// Costing's discount off the final price, and why.
+  ///
+  /// Applied AFTER margin and GST, because it is a concession on what the
+  /// client pays rather than a change to what the trip costs us — applying it
+  /// earlier would quietly shrink the margin figure costing is reviewing.
+  /// Stored as type + value rather than a computed amount so a percentage
+  /// stays a percentage when the itinerary changes underneath it.
+  discountType            DiscountType?
+  discountValue           Float?
+  /// Internal — the client sees the struck-through price, not the reason.
+  discountNote            String?
   /**
    * This package's own document template, overriding the house default from
    * itinerary_settings. Null means "use whatever the company default is" —
@@ -3917,4 +3928,11 @@ enum ReviewSeverity {
 enum ReviewNoteStatus {
   OPEN
   RESOLVED
+}
+
+enum DiscountType {
+  /// A fixed rupee amount off the final price.
+  FLAT
+  /// A percentage of the final price, recomputed whenever that price moves.
+  PERCENT
 }
