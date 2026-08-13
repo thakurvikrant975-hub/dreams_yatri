@@ -425,6 +425,32 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     listReviewNotes(packageId).then((n) => { if (!cancelled) setReviewNotes(n); });
     return () => { cancelled = true; };
   }, [packageId, caps.reviewElements, caps.seeMargin]);
+
+  // Findings, for a reviewer only. Loaded client-side so raising one updates the
+  // document immediately — the section it was pinned to has to show it without a
+  // round trip through the route.
+  //
+  // Declared HERE, above the loading/not-found early returns further down, and
+  // not beside the render code that consumes it: a hook after a conditional
+  // return runs on some renders and not others, which is exactly the "rendered
+  // more hooks than during the previous render" crash.
+  const reviewContext: ReviewContext | undefined = useMemo(() => {
+    if (!caps.reviewElements && !caps.seeMargin) return undefined;
+    const openByTarget = new Map<string, { id: string; severity: "ERROR" | "SUGGESTION"; message: string }[]>();
+    for (const n of reviewNotes) {
+      if (n.status !== "OPEN") continue;
+      const key = reviewKey(n.targetKind, n.day, n.index);
+      const list = openByTarget.get(key) ?? [];
+      list.push({ id: n.id, severity: n.severity, message: n.message });
+      openByTarget.set(key, list);
+    }
+    return {
+      canReview: caps.reviewElements,
+      openByTarget,
+      refresh: () => { void listReviewNotes(packageId).then(setReviewNotes); },
+      packageId,
+    };
+  }, [caps.reviewElements, caps.seeMargin, reviewNotes, packageId]);
   const [cabPricing, setCabPricing] = useState<BuilderCabPricingResult | null>(null);
   // Real destination photos for the document's "Places You Gonna Visit" strip,
   // resolved by name through the same catalog lookup the cover-photo
@@ -1717,26 +1743,6 @@ Rules:
   // resolveWorkspaceCaps says so for both.
   const packageEditable = caps.editItinerary;
 
-  // Findings, for a reviewer only. Loaded here rather than on the server so
-  // raising one updates the document immediately — the section it was pinned to
-  // has to show it without a round trip through the route.
-  const reviewContext: ReviewContext | undefined = useMemo(() => {
-    if (!caps.reviewElements && !caps.seeMargin) return undefined;
-    const openByTarget = new Map<string, { id: string; severity: "ERROR" | "SUGGESTION"; message: string }[]>();
-    for (const n of reviewNotes) {
-      if (n.status !== "OPEN") continue;
-      const key = reviewKey(n.targetKind, n.day, n.index);
-      const list = openByTarget.get(key) ?? [];
-      list.push({ id: n.id, severity: n.severity, message: n.message });
-      openByTarget.set(key, list);
-    }
-    return {
-      canReview: caps.reviewElements,
-      openByTarget,
-      refresh: () => { void listReviewNotes(packageId).then(setReviewNotes); },
-      packageId,
-    };
-  }, [caps.reviewElements, caps.seeMargin, reviewNotes, packageId]);
 
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const shiftedMeals = computeShiftedMeals(form.itineraries);
