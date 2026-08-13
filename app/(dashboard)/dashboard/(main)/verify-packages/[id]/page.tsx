@@ -7,8 +7,9 @@ import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/serv
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
-import { CostingDocument } from "./CostingWorkspace";
 import { CostingFindings } from "./CostingFindings";
+import { PackageWorkspace } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/PackageWorkspace";
+import { CostingReviewShell } from "./CostingReviewShell";
 import { listReviewNotes } from "@/app/(dashboard)/dashboard/(builder)/package-builder/review-notes.actions";
 import { getCurrentActor } from "../../(marketing)/queries/actions";
 import {
@@ -213,9 +214,14 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
         revisionRequestedAt: pkg.revisionRequestedAt,
     });
 
+    // Costing gets the editor itself, not a read-only view of it: the whole
+    // point is that a wrong rate is corrected where it is seen. The pricing
+    // breakdown and the approve/reject controls ride alongside it in a panel,
+    // since those are costing's own job and have no place in the exec's build.
     return (
-        <VerifyPackageDetailClient
-            documentSlot={<CostingDocument packageId={pkg.id} />}
+        <CostingReviewShell
+            editor={<PackageWorkspace packageId={pkg.id} caps={caps} />}
+            review={<VerifyPackageDetailClient
             findingsSlot={
                 <CostingFindings
                     packageId={pkg.id}
@@ -249,6 +255,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
             hotelIdByDay={hotelIdByDay}
             inclusions={inclusions}
             exclusions={exclusions}
+        />}
         />
     );
 }
