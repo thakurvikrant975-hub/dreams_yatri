@@ -85,34 +85,12 @@ export async function assignQuery(
 
 // ── Sales READ ────────────────────────────────────────────────────────────────
 
-export type SentPackageInfo = {
-    id:             string;
-    title:          string;
-    status:         string;
-    createdAt:      Date;
-    sentAt:         Date | null;
-    readyAt:        Date | null;
-    totalPrice:     number | null;
-    pricePerPerson: number | null;
-    pdfUrl:         string | null;
-    verified:            boolean;
-    verifiedAt:          Date | null;
-    verifiedByName:      string | null;
-    rejectedAt:          Date | null;
-    rejectedByName:      string | null;
-    rejectionNote:       string | null;
-    rejectionReasonLabel: string | null;
-    /** Rolled up from this package's itineraries — "rejected" wins over
-     * "pending" (most actionable first), which wins over "filled" (the
-     * hotel team fulfilled at least one day this way, still worth showing
-     * even once nothing's outstanding). Null if this package never had a
-     * hotel-team request at all. See HotelRequestBadge. */
-    hotelRequestStatus: "pending" | "rejected" | "filled" | null;
-    /** The rejection note for display, when hotelRequestStatus is "rejected". */
-    hotelRequestNote:   string | null;
-    /** Which days are in that status, for a "Day 2, Day 4" style tooltip. */
-    hotelRequestDays:   number[];
-};
+// SentPackageInfo/mapCustomPackage live in package-status.ts, not here — this
+// file has "use server" at the top, and every export from a Server Actions
+// module must be an async function, which a plain data-shaping helper isn't.
+export type { SentPackageInfo } from "./package-status";
+import { mapCustomPackage } from "./package-status";
+import type { SentPackageInfo } from "./package-status";
 
 // A query can now have more than one package built for it (e.g. two
 // different budget options sent to the same client) — most recent first.
@@ -129,45 +107,6 @@ const CUSTOM_PACKAGE_SELECT = {
         select: { day: true, hotelPending: true, hotelRejectedAt: true, hotelRejectionNote: true, hotelFilledAt: true },
     },
 } as const;
-
-/** Rolls up a package's per-day hotel-request fields (see CUSTOM_PACKAGE_SELECT's
- * itineraries) into the one status/note/days a badge actually renders. */
-function deriveHotelRequestStatus(itineraries: {
-    day: number; hotelPending: boolean; hotelRejectedAt: Date | null;
-    hotelRejectionNote: string | null; hotelFilledAt: Date | null;
-}[]): Pick<SentPackageInfo, "hotelRequestStatus" | "hotelRequestNote" | "hotelRequestDays"> {
-    const rejected = itineraries.filter((it) => it.hotelPending && it.hotelRejectedAt);
-    if (rejected.length > 0) {
-        return {
-            hotelRequestStatus: "rejected",
-            hotelRequestNote: rejected[0].hotelRejectionNote,
-            hotelRequestDays: rejected.map((it) => it.day),
-        };
-    }
-    const pending = itineraries.filter((it) => it.hotelPending);
-    if (pending.length > 0) {
-        return { hotelRequestStatus: "pending", hotelRequestNote: null, hotelRequestDays: pending.map((it) => it.day) };
-    }
-    const filled = itineraries.filter((it) => it.hotelFilledAt);
-    if (filled.length > 0) {
-        return { hotelRequestStatus: "filled", hotelRequestNote: null, hotelRequestDays: filled.map((it) => it.day) };
-    }
-    return { hotelRequestStatus: null, hotelRequestNote: null, hotelRequestDays: [] };
-}
-
-/** Flattens one CUSTOM_PACKAGE_SELECT result into the shape SentPackageInfo's
- * consumers (badges, the drawer) expect — rejectionReason.label pulled up to
- * rejectionReasonLabel, itineraries rolled up via deriveHotelRequestStatus.
- * Shared by every reader of custom_packages so the drawer (getSalesQueryById)
- * and the table (getSalesQueries) never drift into showing different data
- * for the same package. */
-export function mapCustomPackage(cp: any): SentPackageInfo {
-    return {
-        ...cp,
-        rejectionReasonLabel: cp.rejectionReason?.label ?? null,
-        ...deriveHotelRequestStatus(cp.itineraries ?? []),
-    };
-}
 
 /** Returns only queries assigned to the currently logged-in sales exec */
 export async function getSalesQueries(): Promise<SalesQueryRow[]> {
