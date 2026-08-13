@@ -26,13 +26,8 @@ import { cn } from "@/app/lib/utils";
 import { useOptionalBuilder, applyFieldEdit, fieldKey, type EditableField } from "./builder-context";
 
 export function EditableText({
-<<<<<<< HEAD
-  value, field, placeholder, fallback, displayTransform, className, style, multiline = false, as: Tag = "span",
+  value, field, placeholder, fallback, displayTransform, display, className, style, multiline = false, as: Tag = "span",
   readOnly, readOnlyReason,
-=======
-  value, field, placeholder, fallback, className, style, multiline = false, as: Tag = "span",
-  readOnly, readOnlyReason, display,
->>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
 }: {
   value: string;
   field: EditableField;
@@ -74,6 +69,17 @@ export function EditableText({
   const builder = useOptionalBuilder();
   const canEdit = !!builder?.canEdit;
 
+  // Composes both display-only formatters. `display` converts a real value's
+  // raw stored format into a human one (e.g. "11:00" -> "11:00 AM") — it never
+  // runs on `fallback`, which is caller-supplied stand-in text, not raw data.
+  // `displayTransform`'s cosmetic normalization (e.g. titleCase) runs on top,
+  // applied to whichever ends up shown (the formatted value, or the fallback)
+  // so a wrongly-cased value AND a wrongly-cased fallback both get fixed.
+  function formatShown(raw: string, isRealValue: boolean): string {
+    const formatted = isRealValue && display ? display(raw) : raw;
+    return displayTransform ? displayTransform(formatted) : formatted;
+  }
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
@@ -104,15 +110,9 @@ export function EditableText({
     // Exactly what the document rendered before any of this existed: real
     // text, a caller-supplied stand-in, or nothing at all — never an empty
     // element holding open space the content doesn't need.
-<<<<<<< HEAD
-    const raw = value.trim() || fallback?.trim() || "";
-    if (!raw) return null;
-    const shown = displayTransform ? displayTransform(raw) : raw;
-=======
     const raw = value.trim();
-    const shown = (raw && display ? display(raw) : raw) || fallback?.trim() || "";
+    const shown = raw ? formatShown(raw, true) : formatShown(fallback?.trim() || "", false);
     if (!shown) return null;
->>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
     return (
       <Tag
         className={cn(className, readOnly && canEdit && "cursor-default")}
@@ -203,11 +203,7 @@ export function EditableText({
         isEmpty && "builder-only no-print italic opacity-45",
       )}
     >
-<<<<<<< HEAD
-      {isEmpty ? (placeholder ?? "Click to add") : (displayTransform ? displayTransform(value) : value)}
-=======
-      {isEmpty ? (placeholder ?? "Click to add") : (display ? display(value) : value)}
->>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
+      {isEmpty ? (placeholder ?? "Click to add") : formatShown(value, true)}
     </Tag>
   );
 }

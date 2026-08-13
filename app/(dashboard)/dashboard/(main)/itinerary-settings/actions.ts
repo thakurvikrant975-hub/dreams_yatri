@@ -10,11 +10,7 @@ import { actionError } from "@/app/lib/action-error";
 // server action a client reference proxy that throws the moment it is called.
 import {
     DEFAULT_TEMPLATE, isTemplateId, type ThemeOverrides,
-<<<<<<< HEAD
-} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme-core";
-=======
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme-data";
->>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
 
 const SETTINGS_ID = "singleton";
 

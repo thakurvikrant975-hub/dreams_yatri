@@ -1503,88 +1503,33 @@ export function DaySummaryTable({
                     value={d.accommodation ? (
                       <>
                         <span className="flex items-center gap-1.5 flex-wrap">
-                          <span>{hotelName ?? d.accommodation}</span>
+                          <span>{titleCase(hotelName ?? d.accommodation)}</span>
                           <StayStars raw={d.accommodationStarRating} />
                         </span>
-<<<<<<< HEAD
-                      )}
-                    </>
-                  }
-                />
-              </td>
-              <td className="px-3 py-2 text-neutral-600">
-                <SummaryCell
-                  action="Add a destination"
-                  onOpen={open({ kind: "stops-edit" })}
-                  value={destination ? (
-                    <>
-                      {titleCase(destination)}
-                      {isLastDay && d.transportDrop && (
-                        <span className="block text-[10px] text-neutral-400">
-                          Drop: {titleCase(d.transportDrop)}
-                        </span>
-                      )}
-                    </>
-                  ) : null}
-                />
-              </td>
-              <td className="px-3 py-2 text-neutral-600">
-                <SummaryCell
-                  action="Add a hotel"
-                  // A day awaiting the hotel team opens its request, not the
-                  // picker — the room isn't the exec's to choose right now.
-                  onOpen={open(
-                    d.hotelPending ? { kind: "hotel-request", day: d.day }
-                      : d.accommodation ? { kind: "hotel-edit", day: d.day }
-                        : { kind: "hotel-replace", day: d.day },
-                  )}
-                  value={d.accommodation ? (
-                    <>
-                      {titleCase(d.accommodation)}
-                      {(() => {
-                        const plan = planRoomOccupancy(adults, childCount, {
-                          max_occupancy: d.accommodationRoomCapacity,
-                          extra_bed_capacity: d.accommodationExtraBedCapacity,
-                          max_adults: d.accommodationMaxAdults,
-                          max_children: d.accommodationMaxChildren,
-                        }, d.roomsCount);
-                        // An explicit manualExtraBeds override (set in the Hotel
-                        // Info drawer) wins over the auto-computed count — same
-                        // rule the pricing engine itself uses (see
-                        // computeBuilderHotelPricing), so this line never shows
-                        // a different mattress count than what's actually
-                        // charged or than what the exec typed in.
-                        const mattresses = d.manualExtraBeds ?? plan.mattresses;
-                        return (
-                          <span className="block text-[10px] text-neutral-400">
-                            {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
-                            {mattresses > 0 && ` · ${mattresses} mattress${mattresses !== 1 ? "es" : ""}`}
-                          </span>
-                        );
-                      })()}
-                    </>
-                  ) : null}
-                />
-              </td>
-              <td className="px-3 py-2 text-neutral-600">
-                <SummaryCell
-                  action="Add meals"
-                  onOpen={open({ kind: "meals-edit", day: d.day })}
-                  value={shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : null}
-                />
-              </td>
-              <td className="px-3 py-2 text-neutral-600">
-                <SummaryCell
-                  action="Add a cab"
-                  onOpen={open({ kind: "transfer-edit", day: d.day })}
-                  value={d.transport || d.transportVehicleType || null}
-                />
-              </td>
-            </tr>
-=======
                         {roomName && (
-                          <span className={cn(mutedLine, "mt-0.5")}>{roomName}</span>
+                          <span className={cn(mutedLine, "mt-0.5")}>{titleCase(roomName)}</span>
                         )}
+                        {(() => {
+                          const plan = planRoomOccupancy(adults, childCount, {
+                            max_occupancy: d.accommodationRoomCapacity,
+                            extra_bed_capacity: d.accommodationExtraBedCapacity,
+                            max_adults: d.accommodationMaxAdults,
+                            max_children: d.accommodationMaxChildren,
+                          }, d.roomsCount);
+                          // An explicit manualExtraBeds override (set in the Hotel
+                          // Info drawer) wins over the auto-computed count — same
+                          // rule the pricing engine itself uses (see
+                          // computeBuilderHotelPricing), so this line never shows
+                          // a different mattress count than what's actually
+                          // charged or than what the exec typed in.
+                          const mattresses = d.manualExtraBeds ?? plan.mattresses;
+                          return (
+                            <span className={cn(mutedLine, "mt-0.5")}>
+                              {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
+                              {mattresses > 0 && ` · ${mattresses} mattress${mattresses !== 1 ? "es" : ""}`}
+                            </span>
+                          );
+                        })()}
                         {mealLine && (
                           <span
                             className="flex items-center gap-1 text-[10px] mt-0.5"
@@ -1616,7 +1561,6 @@ export function DaySummaryTable({
                   />
                 </td>
               </tr>
->>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
             );
           })}
         </tbody>
@@ -2986,10 +2930,6 @@ function HeroCover({
           field={{ scope: "package", key: "title" }}
           placeholder="Name this package…"
           fallback="Untitled Package"
-<<<<<<< HEAD
-          className={cn(DISPLAY, "block text-[26px] leading-[1.08] font-bold text-white")}
-          style={{letterSpacing: "-0.02em", textWrap: "balance" }}
-=======
           className={cn(DISPLAY, "inline font-heading text-[34px] leading-[1.08] font-bold text-white")}
           style={{
             maxWidth: "150mm",
@@ -2997,7 +2937,6 @@ function HeroCover({
             textWrap: "balance",
             textShadow: "0 2px 6px rgba(0,0,0,0.6)",
           }}
->>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
         />
 
         {/* Duration in a hairline gold box — the third beat of the lockup, and
@@ -3332,191 +3271,6 @@ export function ItineraryDocument({
               <StatCell icon={Users} label="Travellers" value={paxLine} />
               {/* Price is the one cell that inverts — it's the number the client
                 is looking for, and it anchors the strip's right edge. */}
-<<<<<<< HEAD
-            <div
-              className="px-4 py-3.5 flex flex-col justify-center min-w-0"
-              style={{ backgroundColor: DOC.accent }}
-            >
-              <p className="flex items-center gap-1.5 mb-1 text-[10px] font-medium text-white/80 whitespace-nowrap">
-                <IndianRupee size={10} color="#ffffff" /> Total price
-              </p>
-              <p className={cn(DISPLAY, "font-bold text-white text-[14px] leading-tight truncate")}>
-                {priceStr}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Body ──────────────────────────────────────────────────────────── */}
-        <main className="px-[10mm] pt-7 pb-2 space-y-7">
-          {(form.clientName || form.execName) && (
-            <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden" style={{ breakInside: "avoid" }}>
-              <div className="grid grid-cols-2 divide-x divide-neutral-100">
-                {/* Prepared For — the client this itinerary is going to */}
-                <div className="p-3.5">
-                  <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">Prepared For</p>
-                  {form.clientName ? (
-                    <>
-                      <p className="text-sm font-bold text-neutral-800 truncate">{form.clientName}</p>
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
-                          {form.adults} Adult{form.adults !== 1 ? "s" : ""}
-                        </span>
-                        {form.children > 0 && (
-                          <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
-                            {form.children} Child{form.children !== 1 ? "ren" : ""}
-                          </span>
-                        )}
-                        {form.infants > 0 && (
-                          <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
-                            {form.infants} Infant{form.infants !== 1 ? "s" : ""}
-                          </span>
-                        )}
-                      </div>
-                      {form.queryId && (
-                        <p className="text-[11px] text-neutral-400 mt-1.5 font-medium tracking-wide">
-                          Ref: {refCode(form.queryId)}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-xs text-neutral-400 italic">—</p>
-                  )}
-                </div>
-
-                {/* Your Travel Manager — the exec who built it */}
-                <div className="p-3.5">
-                  <p className="text-[9px] font-bold text-primary-500/80 uppercase tracking-widest mb-1.5">Your Travel Manager</p>
-                  {form.execName ? (
-                    <>
-                      <p className="text-sm font-bold text-neutral-800 truncate">
-                        {form.execName}
-                        {form.execDesignation && <span className="font-normal text-neutral-500"> · {form.execDesignation}</span>}
-                      </p>
-                      {form.execEmail && (
-                        <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-primary-600 text-[11px] mt-1.5 hover:underline w-fit">
-                          <Mail size={10} /> {form.execEmail}
-                        </a>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-xs text-neutral-400 italic">—</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <EditableText
-            as="p"
-            multiline
-            value={form.description}
-            field={{ scope: "package", key: "description" }}
-            placeholder="Describe this package for the client — click to add…"
-            className="block text-sm text-neutral-600 leading-relaxed"
-          />
-
-          <TicketsSection
-            tickets={form.tickets}
-            packagePax={{ adults: form.adults, children: form.children, infants: form.infants }}
-          />
-
-          <AddonsSection addOns={form.addOns} />
-
-          <PackageAddMenu />
-
-          <PlacesToVisit form={form} onImageChange={onImageChange} />
-
-          <div className="space-y-3">
-            <SectionHeader icon={Calendar} label="Day-wise Summary" />
-            <DaySummaryTable
-              itineraries={form.itineraries}
-              travelDate={form.travelDate}
-              stops={form.stops}
-              adults={form.adults}
-              childCount={form.children}
-            />
-          </div>
-
-          <div className="space-y-3">
-            <SectionHeader icon={Milestone} label="Detailed Itinerary" />
-            <div className="space-y-3">
-              {form.itineraries.map((d, i) => (
-                <DayCardPreview
-                  key={d.day}
-                  day={d}
-                  allDays={form.itineraries}
-                  adults={form.adults}
-                  childCount={form.children}
-                  travelDate={form.travelDate}
-                  onImageChange={onImageChange}
-                  onActivityCaptionChange={onActivityCaptionChange}
-                  shiftedMeals={detailedShiftedMeals[i]}
-                  addOns={form.addOns}
-                />
-              ))}
-              <AddDayButton />
-            </div>
-          </div>
-
-          <ItineraryMap
-            startingPoint={form.startingPoint}
-            stops={form.stops}
-            flightsIncluded={transport.flightsIncluded}
-            flightFrom={transport.flightFrom}
-            flightTo={transport.flightTo}
-            trainIncluded={transport.trainIncluded}
-            trainFrom={transport.trainFrom}
-            trainTo={transport.trainTo}
-          />
-
-          {/* Price summary — the document's second focal point after the hero,
-              so it gets real scale (26px display) rather than the 17px it had.
-              Warm near-black instead of neutral-950: a cool grey-blue block on
-              a warm paper ground reads as pasted-in from another document. */}
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{ breakInside: "avoid", boxShadow: "0 14px 32px -12px rgba(60,40,25,0.45)" }}
-          >
-            <div className="p-5" style={{ backgroundColor: "#1C1A18" }}>
-              <div className="flex items-center gap-2 mb-3">
-                <IndianRupee size={13} color="#E8A598" />
-                <h2
-                  className="text-[9.5px] font-semibold uppercase tracking-[0.16em]"
-                  style={{ color: "#E8A598" }}
-                >
-                  Price Summary
-                </h2>
-              </div>
-
-              <div className="flex flex-wrap items-end justify-between gap-2">
-                <div className="space-y-1">
-                  <p className="text-[13px] text-white/90 font-medium">{paxLine}</p>
-                  {perPersonStr && <p className="text-[11.5px] text-white/55">{perPersonStr}</p>}
-                  {form.infants > 0 && (
-                    <p className="text-[10px] text-white/45">Infant charges as applicable / on request</p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-white/55 mb-1">Total package price</p>
-                  <p
-                    className={cn(DISPLAY, "font-bold text-white leading-none")}
-                    style={{ fontSize: "26px", letterSpacing: "-0.02em" }}
-                  >
-                    {priceStr}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
-            >
-=======
->>>>>>> 9dbe7e84f2c144511dbdfaa0bfdf3cfc7631426d
               <div
                 className="px-4 py-3.5 flex flex-col justify-center min-w-0 bg-linear-to-r from-primary-500/90 to-primary-600/95 bg-white"
               >
@@ -3623,7 +3377,13 @@ export function ItineraryDocument({
 
             <div className="space-y-3">
               <SectionHeader icon={Calendar} label="Day-wise Summary" />
-              <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} stops={form.stops} />
+              <DaySummaryTable
+                itineraries={form.itineraries}
+                travelDate={form.travelDate}
+                stops={form.stops}
+                adults={form.adults}
+                childCount={form.children}
+              />
             </div>
 
             <div className="space-y-3">
