@@ -19,10 +19,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { toggleStandardPolicyLine } from "../review-notes.actions";
 import { Lock, Plus, X } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import {
-  useOptionalBuilder, standardCount, addExtraPolicyItem,
+  useOptionalBuilder, standardCount, addExtraPolicyItem, useReview,
   updateExtraPolicyItem, removeExtraPolicyItem, type PolicyListKey,
 } from "./builder-context";
 
@@ -42,8 +45,25 @@ export function EditablePolicyList({
   const canEdit = !!builder?.canEdit;
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
+  const [vetoing, setVetoing] = useState(false);
+  const review = useReview();
+  const router = useRouter();
 
   const standard = builder ? standardCount(builder.form, listKey) : items.length;
+
+  // Only the two merged lists have a house half to veto; the four policy lists
+  // (terms, payment, amendment, benefits) are standard content end to end.
+  const vetoable = listKey === "inclusions" || listKey === "exclusions";
+  const canVetoStandard = vetoable && !!review?.canVetoStandardPolicy;
+
+  async function veto(text: string) {
+    if (!review) return;
+    setVetoing(true);
+    const r = await toggleStandardPolicyLine(review.packageId, listKey as "inclusions" | "exclusions", text);
+    setVetoing(false);
+    if (r.success) { toast.success(r.message); router.refresh(); }
+    else toast.error(r.message);
+  }
 
   function commitAdd() {
     const value = draft.trim();
@@ -82,7 +102,22 @@ export function EditablePolicyList({
             ) : (
               <>
                 <span className="flex-1 min-w-0">{text}</span>
-                {canEdit && (
+                {/* Costing may strike a house line off THIS package. Everyone
+                    else gets the padlock: the standard lists are edited in
+                    Itinerary Settings, and an exec quietly dropping a promise
+                    from one quote is exactly what the lock is there to stop. */}
+                {canVetoStandard ? (
+                  <button
+                    type="button"
+                    aria-label="Remove this standard line from this package"
+                    title="Remove from this package only — the house list is unchanged"
+                    disabled={vetoing}
+                    onClick={() => veto(text)}
+                    className="builder-only no-print shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity text-dashboard-error disabled:opacity-40"
+                  >
+                    <X size={11} />
+                  </button>
+                ) : canEdit && (
                   <span
                     title="Standard content — edited in Itinerary Settings"
                     className="builder-only no-print shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity text-neutral-400"

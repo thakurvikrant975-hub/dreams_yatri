@@ -182,3 +182,55 @@ export async function countOpenFindings(packageId: string): Promise<{ errors: nu
     suggestions: rows.find((r) => r.severity === "SUGGESTION")?._count._all ?? 0,
   };
 }
+
+/** Strikes a company-wide standard inclusion/exclusion line off this package,
+ * or restores one already struck.
+ *
+ * Costing only — see WorkspaceCaps.editLockedPolicy. The veto is recorded on
+ * the package (removedInclusions/removedExclusions) rather than touching the
+ * house lists in Itinerary Settings, so one quote dropping "Airport transfers"
+ * never silently changes what every other quote promises.
+ */
+export async function toggleStandardPolicyLine(
+  packageId: string,
+  list: "inclusions" | "exclusions",
+  text: string,
+): Promise<ActionResult> {
+  try {
+    const ctx = await loadContext(packageId);
+    if (!ctx) return { success: false, message: "That package no longer exists." };
+    if (!ctx.caps.editLockedPolicy) {
+      return { success: false, message: "Only costing can change a standard line, and only during review." };
+    }
+
+    const value = text.trim();
+    if (!value) return { success: false, message: "Nothing to change." };
+
+    const field = list === "inclusions" ? "removedInclusions" : "removedExclusions";
+    const pkg = await db.custom_packages.findUnique({
+      where: { id: packageId },
+      select: { removedInclusions: true, removedExclusions: true },
+    });
+    if (!pkg) return { success: false, message: "That package no longer exists." };
+
+    const current = list === "inclusions" ? pkg.removedInclusions : pkg.removedExclusions;
+    const next = current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value];
+
+    await db.custom_packages.update({
+      where: { id: packageId },
+      data: { [field]: next },
+    });
+
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
+    return {
+      success: true,
+      data: undefined,
+      message: current.includes(value) ? "Line restored" : "Line removed from this package",
+    };
+  } catch (e) {
+    console.error("[toggleStandardPolicyLine] FAILED:", e);
+    return actionError(e);
+  }
+}

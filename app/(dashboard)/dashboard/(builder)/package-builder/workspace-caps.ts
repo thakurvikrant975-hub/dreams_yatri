@@ -43,6 +43,16 @@ export type WorkspaceCaps = {
   /** See the marked-up numbers — margin, GST, and the net each element carries.
    * The exec sees cost without this; costing sees both sides. */
   seeMargin: boolean;
+  /** Strike a company-wide standard inclusion/exclusion line off THIS package.
+   *
+   * Costing only, and deliberately narrower than editItinerary. The standard
+   * lists are house content edited in Itinerary Settings — an exec adding their
+   * own lines is normal, an exec quietly dropping "Airport transfers included"
+   * from one quote is not. Costing is the one role that reviews what actually
+   * ships, so it is the one role that may veto a standard line, and the veto is
+   * recorded per package (removedInclusions) rather than changing the house
+   * list for everyone. */
+  editLockedPolicy: boolean;
   /** Attach findings to individual elements. */
   reviewElements: boolean;
   /** Approve, reject, or send back for revision. */
@@ -56,6 +66,7 @@ const NONE: WorkspaceCaps = {
   editCost: false,
   editMargin: false,
   seeMargin: false,
+  editLockedPolicy: false,
   reviewElements: false,
   decide: false,
   send: false,
@@ -96,6 +107,7 @@ export function resolveWorkspaceCaps(role: WorkspaceRole, stage: WorkspaceStage)
       editCost: underReview,
       editMargin: underReview,
       seeMargin: true,
+      editLockedPolicy: underReview,
       reviewElements: underReview,
       decide: underReview,
       send: false,
@@ -117,6 +129,9 @@ export function resolveWorkspaceCaps(role: WorkspaceRole, stage: WorkspaceStage)
       // they can see is an exec quoting around costing.
       editMargin: false,
       seeMargin: false,
+      // An exec adds their own lines and edits those; the house list is not
+      // theirs to trim on a single quote.
+      editLockedPolicy: false,
       reviewElements: false,
       decide: false,
       // Sending is gated on costing having approved it.

@@ -446,6 +446,7 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     }
     return {
       canReview: caps.reviewElements,
+      canVetoStandardPolicy: caps.editLockedPolicy,
       openByTarget,
       refresh: () => { void listReviewNotes(packageId).then(setReviewNotes); },
       packageId,
@@ -1726,6 +1727,12 @@ Rules:
   // four-state branching (draft / awaiting review / approved / sent) on top
   // of this.
   const isLocked = query.customPackage?.status === "READY";
+  // Whether THIS viewer may change the trip. `isLocked` answers a different
+  // question — "is this package out for review" — and the two stopped being the
+  // same thing the moment costing could edit during review. Every edit surface
+  // below reads this; `isLocked` now only drives what the header SAYS about the
+  // package's state.
+  const canEditDoc = caps.editItinerary;
   const pkgVerified = query.customPackage?.verified ?? false;
   const pkgSent = query.customPackage?.status === "SENT";
   // While the exec can still actually change hotel/cab/margin/GST inputs
@@ -1826,7 +1833,7 @@ Rules:
     // document on the left edit the itinerary directly. canEdit carries the
     // same lock the right-hand panel has always honoured, from one place.
     <PackageBuilderProvider
-      review={reviewContext} form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}>
+      review={reviewContext} form={form} setForm={setForm} canEdit={canEditDoc} dayCosts={dayCosts}>
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
 
@@ -2108,10 +2115,10 @@ Rules:
             <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
               form={previewForm}
-              onCoverImageChange={isLocked ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
-              onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
-              onImageChange={isLocked ? undefined : handleItineraryImageChange}
-              onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
+              onCoverImageChange={!canEditDoc ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
+              onCoverImagePositionChange={!canEditDoc ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+              onImageChange={!canEditDoc ? undefined : handleItineraryImageChange}
+              onActivityCaptionChange={!canEditDoc ? undefined : handleActivityCaptionChange}
               variant="flat"
             />
             </BuilderErrorBoundary>
@@ -2130,10 +2137,10 @@ Rules:
             <div className="px-4 py-6">
               <ItineraryDocument
                 form={previewForm}
-                onCoverImageChange={isLocked ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
-              onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
-              onImageChange={isLocked ? undefined : handleItineraryImageChange}
-              onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
+                onCoverImageChange={!canEditDoc ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
+              onCoverImagePositionChange={!canEditDoc ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+              onImageChange={!canEditDoc ? undefined : handleItineraryImageChange}
+              onActivityCaptionChange={!canEditDoc ? undefined : handleActivityCaptionChange}
               variant="flat"
               />
             </div>
@@ -2160,7 +2167,7 @@ Rules:
                 />
               ) : undefined}
           clientPanel={
-            <fieldset disabled={isLocked} className="contents">
+            <fieldset disabled={!canEditDoc} className="contents">
               <div className="p-4 space-y-4">
               {/* Awaiting-review / rejected banners — shown above the tab
                  panels so they're visible no matter which tab is open. */}
@@ -2280,7 +2287,7 @@ Rules:
             </fieldset>
           }
           tripPanel={
-            <fieldset disabled={isLocked} className="contents">
+            <fieldset disabled={!canEditDoc} className="contents">
               <TripSetupPanel
                 computed={computeFinalPricing()}
                 onApplyPrice={applyComputedPricing}

@@ -179,6 +179,9 @@ export type DayCost = {
 export type ReviewContext = {
   /** From resolveWorkspaceCaps — whether this viewer may raise/close findings. */
   canReview: boolean;
+  /** Whether this viewer may strike a company-wide standard inclusion or
+   * exclusion off this package. Costing only — see caps.editLockedPolicy. */
+  canVetoStandardPolicy: boolean;
   /** Open findings only, keyed by `kind:day:index` — see reviewKey. */
   openByTarget: Map<string, { id: string; severity: "ERROR" | "SUGGESTION"; message: string }[]>;
   /** Re-reads findings after one is raised or cleared. */
