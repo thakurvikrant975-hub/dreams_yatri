@@ -25,7 +25,8 @@ import {
   approveCustomPackage, rejectCustomPackage,
 } from "@/app/(dashboard)/dashboard/(main)/verify-packages/actions";
 import { getRejectionReasons } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
-import { countOpenFindings } from "../review-notes.actions";
+import { countOpenFindings, getRevisionHistory, type RevisionEntry } from "../review-notes.actions";
+import { RevisionHistoryDialog } from "@/app/(dashboard)/dashboard/(main)/verify-packages/[id]/RevisionHistoryDialog";
 
 export function CostingDecisionButtons({ packageId }: { packageId: string }) {
   const router = useRouter();
@@ -35,13 +36,19 @@ export function CostingDecisionButtons({ packageId }: { packageId: string }) {
   const [reasonId, setReasonId] = useState("");
   const [note, setNote] = useState("");
   const [blocking, setBlocking] = useState(0);
+  const [revisions, setRevisions] = useState<RevisionEntry[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getRejectionReasons(), countOpenFindings(packageId)]).then(([r, c]) => {
+    Promise.all([
+      getRejectionReasons(),
+      countOpenFindings(packageId),
+      getRevisionHistory(packageId),
+    ]).then(([r, c, revs]) => {
       if (cancelled) return;
       setReasons(r);
       setBlocking(c.errors);
+      setRevisions(revs);
     });
     return () => { cancelled = true; };
   }, [packageId]);
@@ -78,6 +85,12 @@ export function CostingDecisionButtons({ packageId }: { packageId: string }) {
 
   return (
     <div className="flex items-center gap-2">
+      {/* Before the decision, not after it: whether this package has been sent
+          back before changes how the rest of the screen should be read, so it
+          sits where a reviewer meets it first. Renders nothing on a first
+          pass. */}
+      <RevisionHistoryDialog entries={revisions} variant="header" />
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button size="sm" variant="outline" className="h-8 gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50">

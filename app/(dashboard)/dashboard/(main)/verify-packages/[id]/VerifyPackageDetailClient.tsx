@@ -8,7 +8,7 @@ import {
     CalendarDays, Mail, MapPin, Phone, Users, IndianRupee,
     Building2, Car, Ticket, Gift, PlaneTakeoff, TrainFront, Helicopter, Bus, Package,
     CheckCircle2, XCircle, AlertCircle, Eye, Send, ShieldCheck,
-    Pencil, X, Loader2, Clock, Plus, ListChecks, ListX,
+    Pencil, X, Loader2, Clock, Plus,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -172,46 +172,6 @@ function BreakdownCard({ icon: Icon, title, meta, subtotal, editing, subtotalInp
 // Editable checklist for one section (inclusions or exclusions) — shows
 // current items with a remove button while editing, plus an add-row; falls
 // back to a plain bulleted list when not editing (or nothing to review yet).
-function PolicyListEditor({
-    icon: Icon, tone, items, editing, onRemove, draft, onDraftChange, onAdd,
-}: {
-    icon: React.ElementType; tone: "success" | "error"; items: string[]; editing: boolean;
-    onRemove: (item: string) => void; draft: string; onDraftChange: (v: string) => void; onAdd: () => void;
-}) {
-    const toneCls = tone === "success" ? "text-dashboard-success" : "text-dashboard-error";
-    return (
-        <div className="flex flex-col gap-1.5">
-            {items.length === 0 && !editing && (
-                <p className="text-xs text-dashboard-neutral px-4 py-2">Nothing listed.</p>
-            )}
-            {items.map((item) => (
-                <div key={item} className="flex items-center gap-2 px-4 py-1.5 text-sm">
-                    <Icon className={`size-3.5 shrink-0 ${toneCls}`} />
-                    <span className="flex-1 min-w-0 text-dashboard-base-content">{item}</span>
-                    {editing && (
-                        <button type="button" onClick={() => onRemove(item)} className="shrink-0 rounded p-0.5 hover:bg-dashboard-base-200" aria-label="Remove">
-                            <X className="size-3.5 text-dashboard-neutral" />
-                        </button>
-                    )}
-                </div>
-            ))}
-            {editing && (
-                <div className="flex items-center gap-2 px-4 pt-1">
-                    <Input
-                        value={draft}
-                        onChange={(e) => onDraftChange(e.target.value)}
-                        placeholder="Add an item…"
-                        className="h-8 text-xs"
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAdd(); } }}
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={onAdd} className="h-8 gap-1 shrink-0">
-                        <Plus className="size-3.5" /> Add
-                    </Button>
-                </div>
-            )}
-        </div>
-    );
-}
 
 export function VerifyPackageDetailClient({
     findingsSlot, variant = "page",
@@ -269,45 +229,9 @@ export function VerifyPackageDetailClient({
     // Inclusions/exclusions review — its own edit mode/save, independent of
     // the pricing correction flow above, so a reviewer can curate the
     // client-facing lists without also having to touch pricing.
-    const [policyEditMode, setPolicyEditMode] = useState(false);
-    const [inclusionsEdit, setInclusionsEdit] = useState<string[]>(inclusions);
-    const [exclusionsEdit, setExclusionsEdit] = useState<string[]>(exclusions);
-    const [newInclusion, setNewInclusion] = useState("");
-    const [newExclusion, setNewExclusion] = useState("");
 
-    function enterPolicyEditMode() {
-        setInclusionsEdit(inclusions);
-        setExclusionsEdit(exclusions);
-        setNewInclusion("");
-        setNewExclusion("");
-        setPolicyEditMode(true);
-    }
 
-    function addInclusion() {
-        const v = newInclusion.trim();
-        if (!v || inclusionsEdit.includes(v)) { setNewInclusion(""); return; }
-        setInclusionsEdit((prev) => [...prev, v]);
-        setNewInclusion("");
-    }
-    function addExclusion() {
-        const v = newExclusion.trim();
-        if (!v || exclusionsEdit.includes(v)) { setNewExclusion(""); return; }
-        setExclusionsEdit((prev) => [...prev, v]);
-        setNewExclusion("");
-    }
 
-    function handleSavePolicy() {
-        startTransition(async () => {
-            const result = await updatePackageInclusionsExclusions(pkg.id, { inclusions: inclusionsEdit, exclusions: exclusionsEdit });
-            if (result.success) {
-                toast.success(result.message);
-                setPolicyEditMode(false);
-                router.refresh();
-            } else {
-                toast.error(result.message);
-            }
-        });
-    }
 
     function enterEditMode() {
         setMargin(pkg.marginPercentage);
