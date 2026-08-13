@@ -59,6 +59,16 @@ export type WorkspaceCaps = {
   decide: boolean;
   /** Hand the finished package to the client. */
   send: boolean;
+  /** Pull an approved or already-sent package back for another look.
+   *
+   * The exec's, not costing's — and the distinction is real rather than
+   * cosmetic. Costing's way of sending something back is to reject it, which
+   * carries a reason and their findings. requestPackageRevision does something
+   * different: it recalls a package that has already CLEARED review, usually
+   * because the client changed their mind or the exec spotted something after
+   * the fact. Giving costing a second, reason-light path to undo their own
+   * approval would blur the two. */
+  revise: boolean;
 };
 
 const NONE: WorkspaceCaps = {
@@ -70,6 +80,7 @@ const NONE: WorkspaceCaps = {
   reviewElements: false,
   decide: false,
   send: false,
+  revise: false,
 };
 
 /** Maps a team role name (free text in team_roles.name) onto the three roles
@@ -111,6 +122,8 @@ export function resolveWorkspaceCaps(role: WorkspaceRole, stage: WorkspaceStage)
       reviewElements: underReview,
       decide: underReview,
       send: false,
+      // Costing rejects; the exec revises. See `revise` above.
+      revise: false,
     };
   }
 
@@ -136,6 +149,9 @@ export function resolveWorkspaceCaps(role: WorkspaceRole, stage: WorkspaceStage)
       decide: false,
       // Sending is gated on costing having approved it.
       send: stage.status === "READY" && stage.verified,
+      // Only worth offering once there is something to recall: an approved
+      // package awaiting send, or one already with the client.
+      revise: (stage.status === "READY" && stage.verified) || stage.status === "SENT",
     };
   }
 

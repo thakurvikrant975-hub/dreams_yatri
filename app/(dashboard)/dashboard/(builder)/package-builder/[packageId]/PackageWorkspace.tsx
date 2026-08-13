@@ -1934,6 +1934,7 @@ Rules:
                 <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">
                   <CheckCircle size={13} /> Sent to Client
                 </span>
+                {caps.revise && (
                 <RequestRevisionDialog
                   packageId={packageId}
                   packageTitle={form.title}
@@ -1951,9 +1952,11 @@ Rules:
                     <span className="hidden sm:inline text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
+                )}
               </>
             ) : isLocked && pkgVerified ? (
               <>
+                {caps.revise && (
                 <RequestRevisionDialog
                   packageId={packageId}
                   packageTitle={form.title}
@@ -1971,6 +1974,7 @@ Rules:
                     <span className="hidden sm:inline text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
+                )}
                 {/* Sending is the exec's, even once costing has approved. The
                     reviewer signs off on what it costs; the person who owns the
                     client relationship decides when it lands in their inbox —
@@ -2227,6 +2231,7 @@ Rules:
                 <span className="text-sm text-blue-700 flex items-center gap-2">
                   <CheckCircle size={14} /> Sent to client{query.customPackage?.sentAt ? ` — ${new Date(query.customPackage.sentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
                 </span>
+                {caps.revise && (
                 <RequestRevisionDialog
                   packageId={packageId}
                   packageTitle={form.title}
@@ -2240,9 +2245,11 @@ Rules:
                     Request Revision
                   </Button>
                 </RequestRevisionDialog>
+                )}
               </div>
             ) : isLocked && pkgVerified ? (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
+                {caps.revise && (
                 <RequestRevisionDialog
                   packageId={packageId}
                   packageTitle={form.title}
@@ -2256,6 +2263,7 @@ Rules:
                     Request Revision
                   </Button>
                 </RequestRevisionDialog>
+                )}
                 <Button
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleShareClick}
