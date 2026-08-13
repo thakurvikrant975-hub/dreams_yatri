@@ -214,6 +214,7 @@ function PolicyListEditor({
 }
 
 export function VerifyPackageDetailClient({
+    documentSlot, findingsSlot,
     pkg, snapshot: s, tickets, addOns, query, rejectionReasons, hotelIdByDay, inclusions, exclusions,
 }: {
     pkg: PkgInfo;
@@ -225,6 +226,12 @@ export function VerifyPackageDetailClient({
     hotelIdByDay: Record<number, number>;
     inclusions: string[];
     exclusions: string[];
+    /** The live itinerary document, rendered above the costing it explains.
+     * Passed in rather than imported so this component stays a pure view over
+     * pricing — the document brings a data fetch of its own. */
+    documentSlot?: React.ReactNode;
+    /** Costing's per-element findings, beside the client/status cards. */
+    findingsSlot?: React.ReactNode;
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -496,6 +503,11 @@ export function VerifyPackageDetailClient({
                 <div className="grid gap-5 lg:grid-cols-3 items-start">
                     {/* ── Pricing breakdown ─────────────────────────────────── */}
                     <div className="lg:col-span-2 flex flex-col gap-4">
+                        {/* The itinerary itself, above its own costing. Reviewing
+                            a table of line items means imagining the trip behind
+                            it; the document puts the hotel, the room and the day
+                            in front of the number being checked. */}
+                        {documentSlot}
                         {/* This branch only ever renders while pkg.status === "READY"
                             (see the outer ternary above) — i.e. always mid-review, even
                             if the package was sent in an earlier cycle and pulled back
@@ -774,6 +786,7 @@ export function VerifyPackageDetailClient({
 
                     {/* ── Sidebar ──────────────────────────────────────────── */}
                     <div className="flex flex-col gap-4">
+                        {findingsSlot}
                         <SideCard title="Client Details">
                             <div className="flex flex-col gap-3">
                                 <InfoItem icon={Users} label="Name" value={query.name} />

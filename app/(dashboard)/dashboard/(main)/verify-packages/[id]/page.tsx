@@ -7,6 +7,13 @@ import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/serv
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
+import { CostingDocument } from "./CostingWorkspace";
+import { CostingFindings } from "./CostingFindings";
+import { listReviewNotes } from "@/app/(dashboard)/dashboard/(builder)/package-builder/review-notes.actions";
+import { getCurrentActor } from "../../(marketing)/queries/actions";
+import {
+    resolveWorkspaceCaps, workspaceRoleOf,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/workspace-caps";
 
 export const metadata: Metadata = {
     title: "Package Verification - Dashboard",
@@ -17,6 +24,11 @@ const TICKET_MARGIN_PCT = 5;
 
 export default async function VerifyPackageDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
+
+    const [notes, actor] = await Promise.all([
+        listReviewNotes(id),
+        getCurrentActor(),
+    ]);
 
     const [pkg, rejectionReasons, itinerarySettings] = await Promise.all([
         db.custom_packages.findUnique({
@@ -185,8 +197,33 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
     const exclusions = [...itinerarySettings.exclusions, ...(extraPolicy?.exclusions ?? [])]
         .filter((e) => !pkg.removedExclusions.includes(e));
 
+    // The reviewer's own role decides what they can do here, re-derived
+    // server-side rather than inferred from the route — opening this page is
+    // not itself permission to act on the package.
+    const member = actor.teamMemberId
+        ? await db.teamMember.findUnique({
+            where: { id: actor.teamMemberId },
+            select: { teamRole: { select: { name: true } } },
+        })
+        : null;
+    const caps = resolveWorkspaceCaps(workspaceRoleOf(member?.teamRole?.name), {
+        status: pkg.status,
+        verified: pkg.verified,
+        rejectedAt: pkg.rejectedAt,
+        revisionRequestedAt: pkg.revisionRequestedAt,
+    });
+
     return (
         <VerifyPackageDetailClient
+            documentSlot={<CostingDocument packageId={pkg.id} />}
+            findingsSlot={
+                <CostingFindings
+                    packageId={pkg.id}
+                    notes={notes}
+                    canReview={caps.reviewElements}
+                    totalDays={pkg.totalDays}
+                />
+            }
             pkg={{
                 id: pkg.id, title: pkg.title, destination: pkg.destination, startingPoint: pkg.startingPoint,
                 totalDays: pkg.totalDays, totalNights: pkg.totalNights, travelDate: pkg.travelDate,
