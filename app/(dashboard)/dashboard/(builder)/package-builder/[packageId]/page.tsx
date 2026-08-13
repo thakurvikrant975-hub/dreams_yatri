@@ -12,11 +12,12 @@ import {
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
   Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
-  Save, Send, CheckCircle, AlertCircle, Loader2, 
+  Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Ticket,
+  ShieldCheck, ChatText,
 } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
@@ -24,7 +25,7 @@ import {
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/alert-dialog";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
@@ -409,6 +410,10 @@ export default function PackageBuilderDetailPage() {
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
+  // Optional message for costing, shown on verify-packages — cleared each
+  // time the dialog opens so it never carries a stale note from a previous
+  // cycle into a new submission by accident.
+  const [readyNote, setReadyNote] = useState("");
   const [confirmShareOpen, setConfirmShareOpen] = useState(false);
 
   // useState with history — see use-undoable-state.ts. Same signature, so
@@ -1032,6 +1037,7 @@ export default function PackageBuilderDetailPage() {
       toast.error(`Day ${pendingDay.day} is still awaiting the hotel team — fill in or undo the pending hotel request before submitting for review.`);
       return;
     }
+    setReadyNote("");
     setConfirmReadyOpen(true);
   }
 
@@ -1057,7 +1063,7 @@ export default function PackageBuilderDetailPage() {
       }
       warnStaleHotelRequests(result.staleHotelRequestDays);
 
-      const result2 = await markPackageReady(packageId);
+      const result2 = await markPackageReady(packageId, readyNote);
       if (result2.success) {
         toast.success("Submitted for costing review");
         // Without this, `query.customPackage.status` stays whatever it was
@@ -1974,7 +1980,7 @@ Rules:
               </div>
             )}
 
-            <ItineraryPdfExport form={previewForm} />
+            <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
 
             {!isLocked && !pkgSent && (
               <Button
@@ -2020,7 +2026,7 @@ Rules:
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
-          <div className="print-reset px-6 py-8">
+          <div className="print-reset px-6 pb-8">
             <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
               form={previewForm}
@@ -2194,18 +2200,54 @@ Rules:
       </BuilderErrorBoundary>
 
       <AlertDialog open={confirmReadyOpen} onOpenChange={setConfirmReadyOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
+            <AlertDialogMedia className="bg-dashboard-success/10 text-dashboard-success">
+              <ShieldCheck />
+            </AlertDialogMedia>
             <AlertDialogTitle>Submit for costing review?</AlertDialogTitle>
             <AlertDialogDescription>
-              Once this package goes under costing review, you won&apos;t be able to change anything —
-              editing stays locked until the costing team either approves it, or rejects it
-              back to you with a reason.
+              The costing team checks pricing before this package can be shared with the client.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <div className="space-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+            <div className="flex items-start gap-2">
+              <Lock size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
+              <p className="text-xs text-dashboard-base-content/70">Editing locks the moment you submit</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
+              <p className="text-xs text-dashboard-base-content/70">Approved — you can then share it with the client</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <RotateCcw size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
+              <p className="text-xs text-dashboard-base-content/70">Rejected — comes back to you with a reason to fix</p>
+            </div>
+          </div>
+
+          <label className="space-y-1.5 block">
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-dashboard-base-content/70">
+              <ChatText size={12} /> Message for costing
+              <span className="font-normal text-dashboard-base-content/40">(optional)</span>
+            </span>
+            <textarea
+              value={readyNote}
+              onChange={(e) => setReadyNote(e.target.value)}
+              placeholder="e.g. client is price-sensitive, or day 3's hotel is a manual entry — please double-check the rate…"
+              rows={3}
+              className="w-full rounded-lg border border-dashboard-base-300 px-3 py-2 text-xs resize-y focus-visible:outline-2 focus-visible:outline-dashboard-primary/40 focus-visible:border-dashboard-primary/40"
+            />
+          </label>
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleMarkReady}>Mark Ready</AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleMarkReady}
+              className="gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
+            >
+              <Send size={13} /> Mark Ready
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -218,7 +218,7 @@ function refCode(queryId: string): string {
  * travel date + 1, etc. Same offset the pricing engine uses to pick
  * season/weekend rates per day (package-pricing.service.ts), just surfaced
  * here for display. Null when there's no travel date to anchor to yet. */
-function dayCalendarDate(travelDate: string, dayNumber: number): Date | null {
+export function dayCalendarDate(travelDate: string, dayNumber: number): Date | null {
   if (!travelDate) return null;
   const base = new Date(travelDate);
   if (Number.isNaN(base.getTime())) return null;
@@ -1090,7 +1090,7 @@ function SummaryCell({ value, action, onOpen }: {
           {/* Two renderings of "nothing here": the offer while editing, and
               the em dash the client's document has always shown. See the
               .builder-only / .export-only pair in PRINT_STYLES. */}
-          <span className="builder-only no-print font-medium" style={{ color: DOC.accent }}>
+          <span className="builder-only no-print font-medium cursor-pointer" style={{ color: DOC.accent }}>
             + {action.replace(/^Add /, "")}
           </span>
           <span className="export-only">—</span>
@@ -1101,13 +1101,17 @@ function SummaryCell({ value, action, onOpen }: {
 }
 
 export function DaySummaryTable({
-  itineraries, travelDate, stops = [],
+  itineraries, travelDate, stops = [], adults = 0, childCount = 0,
 }: {
   itineraries: DayItinerary[];
   travelDate?: string;
   /** Route stops — used to derive which city each day is in when the day's
    * own hotel doesn't have a location on file yet. */
   stops?: StopInput[];
+  /** Party size — needed to work out how many rooms/mattresses this day's
+   * stay actually needs, the same math the hotel drawer prices from. */
+  adults?: number;
+  childCount?: number;
 }) {
   const builder = useOptionalBuilder();
   const shiftedMeals = computeShiftedMeals(itineraries);
@@ -1191,7 +1195,32 @@ export function DaySummaryTable({
                       : d.accommodation ? { kind: "hotel-edit", day: d.day }
                         : { kind: "hotel-replace", day: d.day },
                   )}
-                  value={d.accommodation || null}
+                  value={d.accommodation ? (
+                    <>
+                      {titleCase(d.accommodation)}
+                      {(() => {
+                        const plan = planRoomOccupancy(adults, childCount, {
+                          max_occupancy: d.accommodationRoomCapacity,
+                          extra_bed_capacity: d.accommodationExtraBedCapacity,
+                          max_adults: d.accommodationMaxAdults,
+                          max_children: d.accommodationMaxChildren,
+                        }, d.roomsCount);
+                        // An explicit manualExtraBeds override (set in the Hotel
+                        // Info drawer) wins over the auto-computed count — same
+                        // rule the pricing engine itself uses (see
+                        // computeBuilderHotelPricing), so this line never shows
+                        // a different mattress count than what's actually
+                        // charged or than what the exec typed in.
+                        const mattresses = d.manualExtraBeds ?? plan.mattresses;
+                        return (
+                          <span className="block text-[10px] text-neutral-400">
+                            {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
+                            {mattresses > 0 && ` · ${mattresses} mattress${mattresses !== 1 ? "es" : ""}`}
+                          </span>
+                        );
+                      })()}
+                    </>
+                  ) : null}
                 />
               </td>
               <td className="px-3 py-2 text-neutral-600">
@@ -1273,14 +1302,12 @@ function StopTile({ stop, img, onImageChange, stopIndex }: {
         </div>
       )}
       <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/30 to-transparent px-2.5 py-2 pt-8">
-        {/* titleCase is display-only, so it can't be applied to an editable
-            value without fighting whatever is being typed. The stored name is
-            shown as-is while editing is on; the client still gets it cased. */}
         <EditableText
           as="p"
           value={stop.name}
           field={{ scope: "stop", index: stopIndex, key: "name" }}
-          fallback={stop.name ? titleCase(stop.name) : "—"}
+          fallback="—"
+          displayTransform={titleCase}
           placeholder="Where to?"
           className="block text-white text-xs font-bold leading-tight"
         />
@@ -2641,8 +2668,8 @@ function HeroCover({
           field={{ scope: "package", key: "title" }}
           placeholder="Name this package…"
           fallback="Untitled Package"
-          className={cn(DISPLAY, "block text-[34px] leading-[1.08] font-bold text-white")}
-          style={{ maxWidth: "150mm", letterSpacing: "-0.02em", textWrap: "balance" }}
+          className={cn(DISPLAY, "block text-[26px] leading-[1.08] font-bold text-white")}
+          style={{letterSpacing: "-0.02em", textWrap: "balance" }}
         />
 
         {routeSteps.length > 0 ? (
@@ -3091,7 +3118,13 @@ export function ItineraryDocument({
 
           <div className="space-y-3">
             <SectionHeader icon={Calendar} label="Day-wise Summary" />
-            <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} stops={form.stops} />
+            <DaySummaryTable
+              itineraries={form.itineraries}
+              travelDate={form.travelDate}
+              stops={form.stops}
+              adults={form.adults}
+              childCount={form.children}
+            />
           </div>
 
           <div className="space-y-3">

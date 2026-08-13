@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, Clock, CheckCircle2, XCircle, Send, Eye } from "lucide-react";
+import { ShieldCheck, Clock, CheckCircle2, XCircle, Send, Eye, MessageSquare } from "lucide-react";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
@@ -28,6 +28,7 @@ export type PackageRow = {
     sentAt: Date | null;
     readyAt: Date | null;
     readyByName: string | null;
+    readyNote: string | null;
     viewedAt: Date | null;
     viewCount: number;
     verified: boolean;
@@ -142,12 +143,19 @@ export function VerifyPackagesTable({
             sortKey: (p) => p.title?.toLowerCase() ?? "",
             cell: (p) => (
                 <div>
-                    <Link
-                        href={`/dashboard/verify-packages/${p.id}`}
-                        className="font-semibold text-dashboard-primary hover:underline text-sm line-clamp-1"
-                    >
-                        {p.title}
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                        <Link
+                            href={`/dashboard/verify-packages/${p.id}`}
+                            className="font-semibold text-dashboard-primary hover:underline text-sm line-clamp-1"
+                        >
+                            {p.title}
+                        </Link>
+                        {p.readyNote && (
+                            <span title={p.readyNote} className="shrink-0">
+                                <MessageSquare className="size-3.5 text-dashboard-primary" />
+                            </span>
+                        )}
+                    </div>
                     <div className="mt-0.5 text-[11px] text-dashboard-neutral">
                         {p.destination} · {p.totalDays}D/{p.totalNights}N
                     </div>

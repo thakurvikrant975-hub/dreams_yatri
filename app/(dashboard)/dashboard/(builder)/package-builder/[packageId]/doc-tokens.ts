@@ -24,6 +24,6 @@ export const DOC = CLASSIC;
  * one of them, so the package-level menu and each day's read as the same
  * offer at two altitudes. */
 export const ADD_CONTROL_CLASS =
-  "builder-only no-print w-full flex items-center justify-center gap-1.5 rounded-lg " +
+  "builder-only no-print w-full flex items-center justify-center cursor-pointer gap-1.5 rounded-lg " +
   "border border-dashed px-3 py-2.5 text-[11px] font-medium transition-colors " +
   "hover:bg-dashboard-primary/6";
