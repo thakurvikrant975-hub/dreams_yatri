@@ -5,6 +5,7 @@ import Card from "@/app/components/ui/Card";
 import { Text } from "@/app/components/ui/Typography";
 import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 import { useBookCustomPackage } from "./useBookCustomPackage";
+import SavingsBadge from "@/app/components/packages/SavingBadge";
 
 /** Mirrors the catalog page's PricingCard chrome (Card, spacing, typography)
  * but with locked, total-only content — no per-adult/GST breakdown. "Book
@@ -14,8 +15,15 @@ import { useBookCustomPackage } from "./useBookCustomPackage";
 export function CustomPricingCard({ form, packageId }: { form: PreviewData; packageId: string }) {
   const totalPax = form.adults + form.children;
   const priceStr = form.totalPrice ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}` : "To be confirmed";
+  // Marked approximate when it doesn't multiply back to the total — per-person
+  // is the total divided by paying heads and rounded, so the two can sit a few
+  // rupees apart. This card shows both, a foot apart, on the page the client
+  // actually reads.
+  const perPersonExact =
+    !!form.pricePerPerson && !!form.totalPrice && totalPax > 0 &&
+    Number(form.pricePerPerson) * totalPax === Number(form.totalPrice);
   const perPersonStr = form.pricePerPerson
-    ? `${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
+    ? `${perPersonExact ? "" : "~"}${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
     : null;
   const { handleBookNow, submitting, error } = useBookCustomPackage(packageId);
 
@@ -24,6 +32,18 @@ export function CustomPricingCard({ form, packageId }: { form: PreviewData; pack
       <Text size="xs" intent="muted" weight="medium" className="uppercase tracking-wide">
         Total Package Price
       </Text>
+      {/* The saving, stated above the payable figure. `totalPrice` is already
+          net of it, so without this the concession the client was promised is
+          invisible on the page they were sent. */}
+      {form.discount && (
+        <div className="flex items-center gap-2.5 mt-1">
+          <Text as="span" size="sm" intent="muted" className="line-through">
+            {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
+          </Text>
+          <SavingsBadge amount={form.discount.label} prefix="" className="py-1 mr-1" />
+        </div>
+      )}
+
       <div className="flex items-baseline gap-2 mt-0.5">
         <Text as="span" size="2xl" weight="bold" intent="primary" className="font-heading tracking-tight">
           {priceStr}

@@ -19,7 +19,7 @@ import { getCurrentActor, type ActionResult } from "@/app/(dashboard)/dashboard/
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { actionError } from "@/app/lib/action-error";
 import {
-  resolveWorkspaceCaps, workspaceRoleOf,
+  resolveWorkspaceCaps, workspaceRoleOf, ownsPackage,
   type WorkspaceStage,
 } from "./workspace-caps";
 import type { ReviewNoteStatus, ReviewSeverity, ReviewTargetKind } from "@/app/generated/prisma";
@@ -53,7 +53,10 @@ async function loadContext(packageId: string) {
     getEffectiveMember(),
     db.custom_packages.findUnique({
       where: { id: packageId },
-      select: { id: true, status: true, verified: true, rejectedAt: true, revisionRequestedAt: true },
+      select: {
+        id: true, status: true, verified: true, rejectedAt: true, revisionRequestedAt: true,
+        builtBy: true, query: { select: { assignedTo: true } },
+      },
     }),
   ]);
 
@@ -69,7 +72,14 @@ async function loadContext(packageId: string) {
 
   return {
     teamMemberId, teamMemberName,
-    caps: resolveWorkspaceCaps(role, stage),
+    caps: resolveWorkspaceCaps(role, stage, {
+      isOwner: ownsPackage({
+        viewerId: memberCtx?.member?.id,
+        viewerRoleName: memberCtx?.member?.teamRole?.name,
+        builtBy: pkg.builtBy,
+        queryAssignedTo: pkg.query?.assignedTo,
+      }),
+    }),
   };
 }
 

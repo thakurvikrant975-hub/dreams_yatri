@@ -56,6 +56,7 @@ import {
   CheckCircle as PhCheckCircle,
   CircleNotch as PhCircleNotch,
   Clock as PhClock,
+  ShieldCheck as PhShieldCheck,
   Coffee as PhCoffee,
   Compass as PhCompass,
   Copy as PhCopy,
@@ -160,6 +161,8 @@ export const CheckIcon = filled(PhCheck, "bold");
 export const Info = filled(PhInfo);
 export const Lock = filled(PhLock);
 export const Clock = filled(PhClock);
+/** Costing's own banner — "this is with you for review". */
+export const ShieldCheck = filled(PhShieldCheck);
 /** Bold, not fill: a filled CircleNotch is a solid disc with no gap to spin. */
 export const Loader2 = filled(PhCircleNotch, "bold");
 

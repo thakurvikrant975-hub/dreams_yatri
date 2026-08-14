@@ -20,6 +20,8 @@ import {
 import { RejectPricingDialog } from "./RejectPricingDialog";
 import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
+import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
+import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/builder-context";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
 // rather than an if/else chain — a ticket type that isn't FLIGHT/HELICOPTER
@@ -47,6 +49,12 @@ export type PricingSnapshot = {
     taxable: number;
     gstPercentage: number;
     gstAmount: number;
+    // Optional: snapshots frozen before discounts existed have none of these,
+    // and must keep rendering rather than blanking the totals card.
+    listPrice?: number;
+    discountType?: "FLAT" | "PERCENT" | null;
+    discountValue?: number | null;
+    discountAmount?: number;
     finalPrice: number;
     pricePerPerson: number;
     displayedTotalPrice: number | null;
@@ -63,6 +71,7 @@ type PkgInfo = {
     childrenAges: number[]; infantAges: number[];
     pricePerPerson: number | null; totalPrice: number | null; currency: string;
     marginPercentage: number; gstPercentage: number;
+    discountType: "FLAT" | "PERCENT" | null; discountValue: number | null; discountNote: string | null;
     status: string; builtByName: string | null; sentAt: Date | null;
     readyAt: Date | null; readyByName: string | null;
     viewedAt: Date | null; viewCount: number;
@@ -100,7 +109,11 @@ const inr = (n: number | null | undefined) => n != null ? `₹${Math.round(n).to
 // Mirrors computeFinalPricing in verify-packages/actions.ts — kept in sync
 // manually so the edit form can preview totals live, before saving.
 const TICKET_MARGIN_PCT = 5;
-function computeFinalPricing(input: { hotelSubtotal: number; cabSubtotal: number; addonsSubtotal: number; ticketsSubtotal: number; marginPercentage: number; gstPercentage: number; totalPax: number }) {
+function computeFinalPricing(input: {
+    hotelSubtotal: number; cabSubtotal: number; addonsSubtotal: number; ticketsSubtotal: number;
+    marginPercentage: number; gstPercentage: number; totalPax: number;
+    discountType: "FLAT" | "PERCENT" | null; discountValue: number | null;
+}) {
     const hotelCabBase = input.hotelSubtotal + input.cabSubtotal;
     const baseCost = hotelCabBase + input.addonsSubtotal + input.ticketsSubtotal;
     const hotelCabMarginAmount = Math.round((hotelCabBase + input.addonsSubtotal) * input.marginPercentage / 100);
@@ -108,9 +121,13 @@ function computeFinalPricing(input: { hotelSubtotal: number; cabSubtotal: number
     const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * input.gstPercentage / 100);
-    const finalPrice = taxable + gstAmount;
+    const listPrice = taxable + gstAmount;
+    // Same helper the server and the document use, so the number costing sees
+    // while typing is the number that gets stored, quoted and charged.
+    const discount = applyDiscount(listPrice, { type: input.discountType, value: input.discountValue });
+    const finalPrice = discount.finalPrice;
     const pricePerPerson = input.totalPax > 0 ? Math.round(finalPrice / input.totalPax) : finalPrice;
-    return { baseCost, hotelCabMarginAmount, ticketsMarginAmount, marginAmount, taxable, gstAmount, finalPrice, pricePerPerson };
+    return { baseCost, hotelCabMarginAmount, ticketsMarginAmount, marginAmount, taxable, gstAmount, listPrice, discount, finalPrice, pricePerPerson };
 }
 
 // Groups same-day line items (e.g. an extra room type booked alongside the
@@ -194,11 +211,22 @@ export function VerifyPackageDetailClient({
     variant?: "page" | "panel";
 }) {
     const router = useRouter();
+    // Null when this renders on its own; non-null when it renders as the
+    // builder's Costing tab, which is the only way in now. See the save
+    // handler for why it needs a handle on the editor's form.
+    const builder = useOptionalBuilder();
     const [isPending, startTransition] = useTransition();
     const [editMode, setEditMode] = useState(false);
 
     const [margin, setMargin] = useState(pkg.marginPercentage);
     const [gst, setGst] = useState(pkg.gstPercentage);
+    // Costing's concession. It lives here rather than in the builder's Pricing
+    // tab because this is the path that actually writes to the row and records
+    // the change — a discount is the most reviewable number on the screen, so
+    // it belongs where corrections are audited.
+    const [discountType, setDiscountType] = useState<"FLAT" | "PERCENT" | null>(pkg.discountType);
+    const [discountValue, setDiscountValue] = useState<number | null>(pkg.discountValue);
+    const [discountNote, setDiscountNote] = useState(pkg.discountNote ?? "");
     // Per-day hotel/cab amounts, keyed by day — seeded from the current
     // (possibly already-overridden) line totals so the inputs always start
     // at what's actually shown. Only days the costing manager actually edits
@@ -236,6 +264,9 @@ export function VerifyPackageDetailClient({
     function enterEditMode() {
         setMargin(pkg.marginPercentage);
         setGst(pkg.gstPercentage);
+        setDiscountType(pkg.discountType);
+        setDiscountValue(pkg.discountValue);
+        setDiscountNote(pkg.discountNote ?? "");
         setHotelDayEdits(hotelDayTotals(s));
         setCabDayEdits(cabDayTotals(s));
         setTouchedHotelDays(new Set());
@@ -263,7 +294,8 @@ export function VerifyPackageDetailClient({
     const preview = useMemo(() => computeFinalPricing({
         hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal,
         marginPercentage: margin, gstPercentage: gst, totalPax,
-    }), [hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal, margin, gst, totalPax]);
+        discountType, discountValue,
+    }), [hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal, margin, gst, totalPax, discountType, discountValue]);
 
     function handleApprove() {
         startTransition(async () => {
@@ -283,9 +315,16 @@ export function VerifyPackageDetailClient({
     }
 
     function handleSave() {
+        if (discountType === "PERCENT" && (discountValue ?? 0) > 100) {
+            toast.error("A percentage discount can't exceed 100%");
+            return;
+        }
         const payload: PricingEditInput = {
             marginPercentage: margin,
             gstPercentage: gst,
+            discountType,
+            discountValue: discountType ? (discountValue ?? 0) : null,
+            discountNote: discountNote.trim() || undefined,
             hotelDayOverrides: [...touchedHotelDays].map((day) => ({ day, amount: hotelDayEdits[day] ?? null })),
             cabDayOverrides: [...touchedCabDays].map((day) => ({ day, amount: cabDayEdits[day] ?? null })),
             tickets: tickets.map((t) => ({ id: t.id, fare: ticketFares[t.id] ?? 0 })),
@@ -296,6 +335,40 @@ export function VerifyPackageDetailClient({
             if (result.success) {
                 toast.success(result.message);
                 setEditMode(false);
+
+                // This panel writes straight to the row, while the editor
+                // around it works from a copy of the package hydrated when it
+                // mounted. router.refresh() re-renders this panel and nothing
+                // else, so without the sync below the Pricing tab and the
+                // header total went on showing the pre-correction numbers
+                // until a full reload — the reviewer correcting a margin
+                // watched two halves of the same screen disagree.
+                const hotelByDay = new Map(payload.hotelDayOverrides.map((o) => [o.day, o.amount]));
+                const cabByDay = new Map(payload.cabDayOverrides.map((o) => [o.day, o.amount]));
+                builder?.setForm((f) => ({
+                    ...f,
+                    marginPercentage: String(margin),
+                    gstPercentage: String(gst),
+                    discountType,
+                    discountValue: discountType ? String(discountValue ?? 0) : "",
+                    discountNote: discountNote.trim(),
+                    tickets: f.tickets.map((t) =>
+                        t.id && ticketFares[t.id] != null ? { ...t, fare: ticketFares[t.id] } : t),
+                    addOns: f.addOns.map((a) =>
+                        a.id && addonEdits[a.id]
+                            ? { ...a, price: addonEdits[a.id].price, quantity: addonEdits[a.id].quantity }
+                            : a),
+                    // Per-day corrections feed computeBuilderHotelPricing on the
+                    // builder side too, so the editor's own base cost only
+                    // matches what was just corrected if these come across with
+                    // the rest. Only days actually touched are in the payload —
+                    // every other day keeps whatever it had.
+                    itineraries: f.itineraries.map((d) => ({
+                        ...d,
+                        hotelPriceOverride: hotelByDay.has(d.day) ? hotelByDay.get(d.day)! : d.hotelPriceOverride,
+                        cabPriceOverride: cabByDay.has(d.day) ? cabByDay.get(d.day)! : d.cabPriceOverride,
+                    })),
+                }));
                 router.refresh();
             } else {
                 toast.error(result.message);
@@ -631,9 +704,70 @@ export function VerifyPackageDetailClient({
                             <div className="flex justify-between"><span className="text-dashboard-neutral">Base cost</span><span className="text-dashboard-base-content">{inr(editMode ? preview.baseCost : s.baseCost)}</span></div>
                             <div className="flex justify-between"><span className="text-dashboard-neutral">Margin ({editMode ? margin : s.marginPercentage}% hotel/cab + 5% tickets)</span><span className="text-dashboard-base-content">{inr(editMode ? preview.marginAmount : s.marginAmount)}</span></div>
                             <div className="flex justify-between"><span className="text-dashboard-neutral">GST ({editMode ? gst : s.gstPercentage}%)</span><span className="text-dashboard-base-content">{inr(editMode ? preview.gstAmount : s.gstAmount)}</span></div>
+
+                            {/* Discount. In edit mode it is always offered — a
+                                concession has to be addable, not only editable
+                                once one exists. Out of edit mode it appears
+                                only when there is one to show. */}
+                            {editMode ? (
+                                <div className="border-t border-dashboard-base-300 pt-2 mt-2 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={discountType ?? ""}
+                                            onChange={(e) => {
+                                                const next = (e.target.value || null) as "FLAT" | "PERCENT" | null;
+                                                setDiscountType(next);
+                                                if (!next) { setDiscountValue(null); setDiscountNote(""); }
+                                            }}
+                                            className="h-9 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2 text-xs"
+                                        >
+                                            <option value="">No discount</option>
+                                            <option value="FLAT">₹ off</option>
+                                            <option value="PERCENT">% off</option>
+                                        </select>
+                                        {discountType && (
+                                            <Input
+                                                type="number" min={0} max={discountType === "PERCENT" ? 100 : undefined}
+                                                value={discountValue ?? 0}
+                                                onChange={(e) => setDiscountValue(Number(e.target.value))}
+                                                className="w-24 text-right"
+                                            />
+                                        )}
+                                        {discountType && (
+                                            <span className="text-xs font-semibold text-emerald-700 ml-auto">
+                                                − {inr(preview.discount.amount)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {discountType && (
+                                        <Input
+                                            value={discountNote}
+                                            onChange={(e) => setDiscountNote(e.target.value)}
+                                            placeholder="Why this discount? (internal — never shown to the client)"
+                                            maxLength={500}
+                                            className="text-xs"
+                                        />
+                                    )}
+                                </div>
+                            ) : s.discountAmount != null && s.discountAmount > 0 ? (
+                                <div className="flex justify-between border-t border-dashboard-base-300 pt-1.5 mt-1.5">
+                                    <span className="text-emerald-700">
+                                        Discount{s.discountType === "PERCENT" && s.discountValue ? ` (${s.discountValue}%)` : ""}
+                                    </span>
+                                    <span className="text-emerald-700">− {inr(s.discountAmount)}</span>
+                                </div>
+                            ) : null}
+
                             <div className="flex justify-between font-bold border-t border-dashboard-base-300 pt-1.5 mt-1.5">
                                 <span className="text-dashboard-base-content">{editMode ? "New total" : "Computed total"}</span>
-                                <span className="text-dashboard-base-content">{inr(editMode ? preview.finalPrice : s.finalPrice)}</span>
+                                <span className="text-dashboard-base-content">
+                                    {(editMode ? preview.discount.applies : (s.discountAmount ?? 0) > 0) && (
+                                        <span className="mr-2 font-normal text-xs text-dashboard-neutral line-through">
+                                            {inr(editMode ? preview.listPrice : s.listPrice)}
+                                        </span>
+                                    )}
+                                    {inr(editMode ? preview.finalPrice : s.finalPrice)}
+                                </span>
                             </div>
                             <p className="text-xs text-dashboard-neutral">{inr(editMode ? preview.pricePerPerson : s.pricePerPerson)} per person</p>
                             {!editMode && (s.hotel.overridden || s.cab.overridden) && (

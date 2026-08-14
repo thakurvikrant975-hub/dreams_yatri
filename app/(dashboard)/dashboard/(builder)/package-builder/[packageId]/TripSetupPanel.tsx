@@ -55,8 +55,13 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
   /** Writes perPerson into the package. Explicit rather than automatic: the
    * exec is allowed to quote a number that isn't the computed one, and
    * overwriting a deliberate figure every time a hotel changed would be
-   * worse than asking. */
-  onApplyPrice: () => void;
+   * worse than asking.
+   *
+   * Omitted while the package is out for review, when the quoted figure is
+   * costing's — set by approve and Edit Pricing, which recompute and record
+   * it. Left in, the button moved the panel's own numbers and was dropped by
+   * the next save, which is a worse answer than not offering it. */
+  onApplyPrice?: () => void;
 }) {
   const { form, setForm, canEdit } = useBuilder();
 
@@ -240,7 +245,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                 : "not set"}
             </span>
           </div>
-          {computed.perPerson > 0 && String(computed.perPerson) !== form.pricePerPerson && (
+          {onApplyPrice && computed.perPerson > 0 && String(computed.perPerson) !== form.pricePerPerson && (
             <Button type="button" size="sm" className="w-full h-8 text-xs" onClick={onApplyPrice}>
               Quote ₹{computed.perPerson.toLocaleString("en-IN")} per person
             </Button>

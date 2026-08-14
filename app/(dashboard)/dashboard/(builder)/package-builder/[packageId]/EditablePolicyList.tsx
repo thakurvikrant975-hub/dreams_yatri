@@ -26,7 +26,8 @@ import { Lock, Plus, X } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import {
   useOptionalBuilder, standardCount, addExtraPolicyItem, useReview,
-  updateExtraPolicyItem, removeExtraPolicyItem, type PolicyListKey,
+  updateExtraPolicyItem, removeExtraPolicyItem, toggleRemovedPolicyLine,
+  type PolicyListKey,
 } from "./builder-context";
 
 export function EditablePolicyList({
@@ -59,10 +60,17 @@ export function EditablePolicyList({
   async function veto(text: string) {
     if (!review) return;
     setVetoing(true);
-    const r = await toggleStandardPolicyLine(review.packageId, listKey as "inclusions" | "exclusions", text);
+    const key = listKey as "inclusions" | "exclusions";
+    const r = await toggleStandardPolicyLine(review.packageId, key, text);
     setVetoing(false);
-    if (r.success) { toast.success(r.message); router.refresh(); }
-    else toast.error(r.message);
+    if (r.success) {
+      toast.success(r.message);
+      // The row is already written; this brings the tab's own copy into line so
+      // the document updates under the cursor. router.refresh() alone only
+      // re-renders the server components around the editor.
+      builder?.setForm((f) => toggleRemovedPolicyLine(f, key, text));
+      router.refresh();
+    } else toast.error(r.message);
   }
 
   function commitAdd() {

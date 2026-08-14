@@ -682,6 +682,28 @@ export function standardCount(form: PackageForm, key: PolicyListKey): number {
   return removed ? form[key].filter((i) => !removed.includes(i)).length : form[key].length;
 }
 
+/** Mirrors what toggleStandardPolicyLine just wrote to the row, in this tab's
+ * copy of the form.
+ *
+ * The veto is one of the few edits that goes straight to the database instead
+ * of through `form`, so the action's own router.refresh() re-renders the server
+ * components around the editor and leaves `form.removedInclusions` exactly as
+ * it was hydrated at mount. Without this the struck line stayed on screen — the
+ * toast said "Line removed from this package" and the client's copy of the
+ * document visibly disagreed until a full reload. */
+export function toggleRemovedPolicyLine(
+  form: PackageForm, key: "inclusions" | "exclusions", value: string,
+): PackageForm {
+  const field = key === "inclusions" ? "removedInclusions" : "removedExclusions";
+  const current = form[field];
+  return {
+    ...form,
+    [field]: current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value],
+  };
+}
+
 export function addExtraPolicyItem(form: PackageForm, key: PolicyListKey, value: string): PackageForm {
   const next = value.trim();
   if (!next) return form;

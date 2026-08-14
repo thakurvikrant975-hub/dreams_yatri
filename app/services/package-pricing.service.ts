@@ -8,6 +8,7 @@ import {
 } from "../lib/room-capacity";
 import { splitManualHotelName } from "./hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
+import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -1637,21 +1638,36 @@ export async function computeBuilderCabPricing(input: {
 // ── Final price for a builder package, override-aware ──────────────────────
 // The single place that turns a custom_packages row into "what the client
 // should be charged" — hotel/cab subtotal (costing's override if set, else
-// the live catalog computation), + tickets, + add-ons, + margin, + GST. Used
-// both to show costing a live preview before anything's frozen (see
-// verify-packages/[id]/page.tsx) and, now, to persist a locked pricePerPerson/
-// totalPrice whenever costing corrects pricing or approves — so the package
-// builder and the PDF viewer (which prefer the stored fields over
-// recomputing) actually pick up costing's correction instead of showing a
-// stale, pre-correction number.
+// the live catalog computation), + tickets, + add-ons, + margin, + GST, then
+// costing's discount off the end. Used both to show costing a live preview
+// before anything's frozen (see verify-packages/[id]/page.tsx) and, now, to
+// persist a locked pricePerPerson/totalPrice whenever costing corrects pricing
+// or approves — so the package builder and the PDF viewer (which prefer the
+// stored fields over recomputing) actually pick up costing's correction
+// instead of showing a stale, pre-correction number.
+//
+// The discount was missing here, and this function is what approve and the
+// pricing re-lock write from — so applying a concession and then approving it
+// put the FULL price back on the row. `totalPrice` is what the public package
+// page renders and what the Book Now charge is built from, so the client was
+// quoted a saving and billed without it.
 const TICKET_MARGIN_PCT = 5;
 
-export async function computeFinalPackagePricing(packageId: string): Promise<{ pricePerPerson: number; totalPrice: number } | null> {
+export async function computeFinalPackagePricing(packageId: string): Promise<{
+  pricePerPerson: number;
+  totalPrice: number;
+  /** Before the discount — the struck-through figure. Equal to totalPrice when
+   * no discount applies. */
+  listPrice: number;
+  /** Rupees off. Zero when no discount applies. */
+  discountAmount: number;
+} | null> {
   const pkg = await db.custom_packages.findUnique({
     where: { id: packageId },
     select: {
       travelDate: true, adults: true, children: true,
       marginPercentage: true, gstPercentage: true,
+      discountType: true, discountValue: true,
       hotelSubtotalOverride: true, cabSubtotalOverride: true,
       tickets: { select: { fare: true } },
       addOns: { select: { price: true, quantity: true } },
@@ -1702,9 +1718,18 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{ p
   const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
   const taxable = baseCost + marginAmount;
   const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
-  const finalPrice = taxable + gstAmount;
+  const listPrice = taxable + gstAmount;
+  // Applied after GST, for the reason spelled out in discount.ts: a discount is
+  // a concession on what the client pays, not a change to what the trip costs
+  // us. Netting it off earlier would shrink the margin figure costing reviews
+  // and hide the concession inside it.
+  const discount = applyDiscount(listPrice, {
+    type: pkg.discountType,
+    value: pkg.discountValue,
+  });
+  const finalPrice = discount.finalPrice;
   const totalPax = pkg.adults + pkg.children;
   const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
-  return { pricePerPerson, totalPrice: finalPrice };
+  return { pricePerPerson, totalPrice: finalPrice, listPrice, discountAmount: discount.amount };
 }

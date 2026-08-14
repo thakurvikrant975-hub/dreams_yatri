@@ -53,8 +53,28 @@ export type WorkspaceCaps = {
    * recorded per package (removedInclusions) rather than changing the house
    * list for everyone. */
   editLockedPolicy: boolean;
+  /** Change a package the client already has.
+   *
+   * Separate from editItinerary, which is false at SENT for everyone, because
+   * this is a genuinely different act: the quote has been delivered, and an
+   * edit revises something the client is holding rather than building it. It
+   * stays open because clients routinely ask for changes after seeing the
+   * itinerary — saveCustomPackage snapshots the delivered version first, so
+   * what they were originally shown survives the edit.
+   *
+   * The owning exec only. Costing must never be rewriting a package that is
+   * already with the client. */
+  editAfterSend: boolean;
   /** Attach findings to individual elements. */
   reviewElements: boolean;
+  /** Hand a finished draft to costing — the exec's Mark Ready.
+   *
+   * Its own capability rather than a corollary of editItinerary, because the
+   * two diverge exactly where it matters: costing may edit a package at READY
+   * and must never be able to submit one. Left ungated, markPackageReady would
+   * let a reviewer push an exec's half-built draft into their own queue, and
+   * record the reviewer as the person who marked it ready. */
+  submit: boolean;
   /** Approve, reject, or send back for revision. */
   decide: boolean;
   /** Hand the finished package to the client. */
@@ -77,7 +97,9 @@ const NONE: WorkspaceCaps = {
   editMargin: false,
   seeMargin: false,
   editLockedPolicy: false,
+  editAfterSend: false,
   reviewElements: false,
+  submit: false,
   decide: false,
   send: false,
   revise: false,
@@ -102,15 +124,52 @@ function isClosed(stage: WorkspaceStage): boolean {
   return stage.status === "ACCEPTED" || stage.status === "DECLINED";
 }
 
-export function resolveWorkspaceCaps(role: WorkspaceRole, stage: WorkspaceStage): WorkspaceCaps {
+/** Does this package belong to this viewer?
+ *
+ * An exec edits their own work, not a colleague's. Ownership runs through the
+ * query rather than the package alone, so reassigning a lead hands its packages
+ * over with it — and whoever originally built one keeps access, since they are
+ * usually the person being asked about it.
+ *
+ * Team Leaders are owners of everything. They build AND oversee (see
+ * workspaceRoleOf), and a lead who cannot open their team's drafts cannot do
+ * the second half of that job.
+ */
+export function ownsPackage(input: {
+  viewerId: string | null | undefined;
+  viewerRoleName: string | null | undefined;
+  /** custom_packages.builtBy */
+  builtBy: string | null | undefined;
+  /** package_queries.assignedTo */
+  queryAssignedTo: string | null | undefined;
+}): boolean {
+  const name = (input.viewerRoleName ?? "").trim().toLowerCase();
+  if (name.includes("team leader")) return true;
+  if (!input.viewerId) return false;
+  return input.viewerId === input.builtBy || input.viewerId === input.queryAssignedTo;
+}
+
+/** Whether the viewer owns this package, for the exec branch below. Costing
+ * never owns anything — their claim comes from the review, not the lead — so
+ * this is ignored for them. */
+export type WorkspaceOwnership = { isOwner: boolean };
+
+export function resolveWorkspaceCaps(
+  role: WorkspaceRole,
+  stage: WorkspaceStage,
+  ownership: WorkspaceOwnership = { isOwner: false },
+): WorkspaceCaps {
   if (isClosed(stage)) return NONE;
 
   if (role === "costing") {
-    // Costing's whole job lives at READY. Before that the exec is still
-    // building and there is nothing to review; after SENT the quote is with the
-    // client and re-pricing it underneath them would change a number they have
-    // already been given.
-    const underReview = stage.status === "READY";
+    // Costing's whole job lives at READY, and ends the moment they approve.
+    // Before READY the exec is still building and there is nothing to review;
+    // after SENT the quote is with the client. And once verified, the package
+    // is waiting on the exec to send exactly what was signed off — editing it
+    // then would change the thing that was approved without re-approving it.
+    // If costing spots something afterwards, the exec pulls it back for
+    // revision, which is recorded and puts it back in the queue properly.
+    const underReview = stage.status === "READY" && !stage.verified;
     return {
       // Full itinerary editing, so costing can correct an element outright
       // rather than only describing what is wrong with it.
@@ -119,7 +178,10 @@ export function resolveWorkspaceCaps(role: WorkspaceRole, stage: WorkspaceStage)
       editMargin: underReview,
       seeMargin: true,
       editLockedPolicy: underReview,
+      editAfterSend: false,
       reviewElements: underReview,
+      // Costing never submits. Their way forward is approve or reject.
+      submit: false,
       decide: underReview,
       send: false,
       // Costing rejects; the exec revises. See `revise` above.
@@ -128,6 +190,11 @@ export function resolveWorkspaceCaps(role: WorkspaceRole, stage: WorkspaceStage)
   }
 
   if (role === "exec") {
+    // Someone else's package is not theirs to touch, at any status — the whole
+    // branch collapses to read-only. Nothing checked this before: any exec
+    // could open and edit any other exec's draft.
+    if (!ownership.isOwner) return { ...NONE, seeMargin: false };
+
     // DRAFT is the exec's; READY has been handed to costing and is theirs until
     // they hand it back. Editing a package while it is being reviewed is how
     // two people end up correcting the same element in opposite directions.
@@ -145,7 +212,11 @@ export function resolveWorkspaceCaps(role: WorkspaceRole, stage: WorkspaceStage)
       // An exec adds their own lines and edits those; the house list is not
       // theirs to trim on a single quote.
       editLockedPolicy: false,
+      editAfterSend: stage.status === "SENT",
       reviewElements: false,
+      // Only from their own draft — a package already with costing, or already
+      // quoted to the client, is not theirs to resubmit.
+      submit: mine,
       decide: false,
       // Sending is gated on costing having approved it.
       send: stage.status === "READY" && stage.verified,

@@ -12,11 +12,20 @@
 // Every line shows its arithmetic rather than a total. "₹3,200" invites the
 // question the reviewer is here to answer; "1 room × ₹3,200 + 2 mattresses ×
 // ₹500 = ₹4,200" answers it.
+//
+// Read-only, all of it. This panel used to offer four editable controls — a
+// per-day hotel correction, a per-day cab correction, margin % and GST % — and
+// every one of them wrote to the editor's form copy. Nothing persists them
+// from there: per-day corrections were never read back off the client, and
+// margin/GST/discount are written only by updatePackagePricing, which records
+// who changed what. So all four moved this panel's own arithmetic, convinced
+// the reviewer the correction had landed, and were dropped on the next reload.
+//
+// Corrections live in the Costing tab, under Edit Pricing. This is where you
+// read the number; that is where you change it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState } from "react";
-import { AlertOctagon, Pencil, RotateCcw } from "lucide-react";
-import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
+import { AlertOctagon } from "lucide-react";
 import { useBuilder } from "./builder-context";
 import { scrollToDay } from "./builder-context";
 import type {
@@ -54,56 +63,8 @@ function Section({ title, meta, subtotal, children }: {
   );
 }
 
-/** A day whose price costing has hand-corrected, or can. The override replaces
- * the whole computed line — that is what makes it a correction rather than an
- * edit of one input, and why the arithmetic is struck through when it's set. */
-function DayOverride({ value, onSet, onClear }: {
-  value: number | null; onSet: (n: number) => void; onClear: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-
-  if (editing) {
-    return (
-      <span className="flex items-center gap-1">
-        <Input
-          autoFocus type="number" min={0} value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { const n = parseFloat(draft); if (!Number.isNaN(n)) onSet(n); setEditing(false); }
-            if (e.key === "Escape") setEditing(false);
-          }}
-          onBlur={() => { const n = parseFloat(draft); if (!Number.isNaN(n)) onSet(n); setEditing(false); }}
-          className="h-6 w-20 text-[11px] text-right"
-        />
-      </span>
-    );
-  }
-
-  return (
-    <span className="flex items-center gap-1">
-      {value != null && (
-        <button
-          type="button" title="Drop the correction, go back to the computed price"
-          onClick={onClear}
-          className="text-dashboard-neutral hover:text-dashboard-base-content"
-        >
-          <RotateCcw className="size-3" />
-        </button>
-      )}
-      <button
-        type="button" title="Correct this day's price"
-        onClick={() => { setDraft(value != null ? String(value) : ""); setEditing(true); }}
-        className="text-dashboard-neutral hover:text-dashboard-primary"
-      >
-        <Pencil className="size-3" />
-      </button>
-    </span>
-  );
-}
-
 export function CostingPricingPanel({
-  hotelPricing, cabPricing, computed, canEdit,
+  hotelPricing, cabPricing, computed,
 }: {
   hotelPricing: BuilderHotelPricingResult | null;
   cabPricing: BuilderCabPricingResult | null;
@@ -115,15 +76,8 @@ export function CostingPricingPanel({
     listPrice: number;
     discount: { applies: boolean; amount: number; percentOff: number | null };
   };
-  /** Costing may correct; anyone else looking is reading. */
-  canEdit: boolean;
 }) {
-  const { form, setForm, replaceDay, setSelectedDay } = useBuilder();
-
-  const setHotelOverride = (day: number, amount: number | null) =>
-    replaceDay(day, (d) => ({ ...d, hotelPriceOverride: amount }));
-  const setCabOverride = (day: number, amount: number | null) =>
-    replaceDay(day, (d) => ({ ...d, cabPriceOverride: amount }));
+  const { form, setSelectedDay } = useBuilder();
 
   const jump = (day: number) => { setSelectedDay(day); scrollToDay(day); };
 
@@ -158,13 +112,6 @@ export function CostingPricingPanel({
               </button>
               <span className="flex items-center gap-1.5 shrink-0">
                 <span className="text-xs font-semibold tabular-nums">{inr(l.total)}</span>
-                {canEdit && (
-                  <DayOverride
-                    value={form.itineraries.find((d) => d.day === l.day)?.hotelPriceOverride ?? null}
-                    onSet={(n) => setHotelOverride(l.day, n)}
-                    onClear={() => setHotelOverride(l.day, null)}
-                  />
-                )}
               </span>
             </div>
             <p className={`text-[10px] mt-0.5 ${l.overridden ? "line-through text-dashboard-neutral" : "text-dashboard-neutral"}`}>
@@ -195,13 +142,6 @@ export function CostingPricingPanel({
               </button>
               <span className="flex items-center gap-1.5 shrink-0">
                 <span className="text-xs font-semibold tabular-nums">{inr(l.total)}</span>
-                {canEdit && (
-                  <DayOverride
-                    value={form.itineraries.find((d) => d.day === l.day)?.cabPriceOverride ?? null}
-                    onSet={(n) => setCabOverride(l.day, n)}
-                    onClear={() => setCabOverride(l.day, null)}
-                  />
-                )}
               </span>
             </div>
             <p className={`text-[10px] mt-0.5 ${l.overridden ? "line-through text-dashboard-neutral" : "text-dashboard-neutral"}`}>
@@ -252,15 +192,7 @@ export function CostingPricingPanel({
           label={
             <span className="flex items-center gap-1.5">
               Margin
-              {canEdit ? (
-                <Input
-                  type="number" min={0} max={100}
-                  value={form.marginPercentage}
-                  onChange={(e) => setForm((f) => ({ ...f, marginPercentage: e.target.value }))}
-                  className="h-5 w-12 px-1 text-[10px] text-right"
-                />
-              ) : <span className="text-dashboard-neutral">{computed.marginPct}%</span>}
-              {canEdit && <span className="text-dashboard-neutral">%</span>}
+              <span className="text-dashboard-neutral">{computed.marginPct}%</span>
             </span>
           }
           value={inr(computed.marginAmount)}
@@ -278,15 +210,7 @@ export function CostingPricingPanel({
           label={
             <span className="flex items-center gap-1.5">
               GST
-              {canEdit ? (
-                <Input
-                  type="number" min={0} max={100}
-                  value={form.gstPercentage}
-                  onChange={(e) => setForm((f) => ({ ...f, gstPercentage: e.target.value }))}
-                  className="h-5 w-12 px-1 text-[10px] text-right"
-                />
-              ) : <span className="text-dashboard-neutral">{computed.gstPct}%</span>}
-              {canEdit && <span className="text-dashboard-neutral">%</span>}
+              <span className="text-dashboard-neutral">{computed.gstPct}%</span>
             </span>
           }
           value={inr(computed.gstAmount)}
@@ -294,44 +218,15 @@ export function CostingPricingPanel({
         />
         {/* The concession, between the computed price and what is payable, so
             the three read as one sum: this is the price, this comes off, this
-            is what they pay. */}
+            is what they pay.
+
+            Read-only here, deliberately. The inputs that set it live in the
+            Costing tab's Edit Pricing, alongside margin and GST — that is the
+            path that writes to the row and records who changed what. Editing
+            it here wrote to the builder's form copy instead, which is not
+            persisted while a package is under review, so a discount typed on
+            this panel moved the preview and was then quietly dropped. */}
         <div className="pt-1.5 border-t border-dashboard-base-300 space-y-1.5">
-          {canEdit && (
-            <div className="flex items-center gap-1.5 pb-1">
-              <select
-                value={form.discountType ?? ""}
-                onChange={(e) => setForm((f) => ({
-                  ...f,
-                  discountType: (e.target.value || null) as "FLAT" | "PERCENT" | null,
-                  // Clearing the type clears the value too — a stray amount
-                  // left behind would reapply the moment a type was re-picked.
-                  discountValue: e.target.value ? f.discountValue : "",
-                }))}
-                className="h-6 rounded-md border border-dashboard-base-300 bg-white px-1 text-[10px]"
-              >
-                <option value="">No discount</option>
-                <option value="FLAT">₹ off</option>
-                <option value="PERCENT">% off</option>
-              </select>
-              {form.discountType && (
-                <>
-                  <Input
-                    type="number" min={0}
-                    value={form.discountValue}
-                    onChange={(e) => setForm((f) => ({ ...f, discountValue: e.target.value }))}
-                    placeholder="0"
-                    className="h-6 w-16 px-1 text-[10px] text-right"
-                  />
-                  <Input
-                    value={form.discountNote}
-                    onChange={(e) => setForm((f) => ({ ...f, discountNote: e.target.value }))}
-                    placeholder="Why? (internal)"
-                    className="h-6 flex-1 min-w-0 px-1.5 text-[10px]"
-                  />
-                </>
-              )}
-            </div>
-          )}
           {computed.discount.applies && (
             <>
               <Row label="Price before discount" value={inr(computed.listPrice)} muted />

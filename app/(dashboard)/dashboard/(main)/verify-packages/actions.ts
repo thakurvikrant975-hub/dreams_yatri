@@ -20,6 +20,42 @@ import { broadcastVerificationCounts } from "@/app/services/verification-counts.
 import { createLog } from "../lib/logger";
 import { computeFinalPackagePricing } from "@/app/services/package-pricing.service";
 import { getItinerarySettings } from "../itinerary-settings/actions";
+import { getEffectiveMember } from "../lib/get-current-member";
+import {
+    resolveWorkspaceCaps, workspaceRoleOf,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/workspace-caps";
+
+/** Re-derives the caller's capabilities against this package, server-side.
+ *
+ * The three actions below — approve, reject, correct pricing — used to check
+ * only that the package was at READY, never who was asking. The buttons live
+ * behind a costing-only tab, but a hidden button is a courtesy, not a
+ * permission: any signed-in dashboard user could call these directly and sign
+ * off a package's pricing for send.
+ *
+ * Follows the effective member, so a Full Stack Developer using "View As" gets
+ * the capabilities of whoever they are standing in for — the same rule the
+ * builder route and review-notes.actions.ts already use. */
+async function decideCapsFor(packageId: string) {
+    const [memberCtx, pkg] = await Promise.all([
+        getEffectiveMember(),
+        db.custom_packages.findUnique({
+            where: { id: packageId },
+            select: { status: true, verified: true, rejectedAt: true, revisionRequestedAt: true },
+        }),
+    ]);
+    if (!pkg) return null;
+    return resolveWorkspaceCaps(workspaceRoleOf(memberCtx?.member?.teamRole?.name), {
+        status: pkg.status,
+        verified: pkg.verified,
+        rejectedAt: pkg.rejectedAt,
+        revisionRequestedAt: pkg.revisionRequestedAt,
+    });
+}
+
+const NOT_COSTING = "Only the costing team can review a package's pricing.";
+
+const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
 // Entity name pricing corrections are logged under in ActivityLog — kept
 // distinct from "custom_package" so this history can be queried and shown
@@ -43,10 +79,13 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
 
         const pkg = await db.custom_packages.findUnique({
             where: { id: packageId },
-            select: { id: true, status: true, queryId: true },
+            select: { id: true, status: true, queryId: true, totalPrice: true, title: true },
         });
         if (!pkg) return { success: false, message: "Package not found" };
         if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review — the exec needs to mark it ready first." };
+
+        const caps = await decideCapsFor(packageId);
+        if (!caps?.decide) return { success: false, message: NOT_COSTING };
 
         // Lock in the exact price this approval is signing off on — hotel/cab
         // overrides included — so the package builder and PDF viewer show the
@@ -69,13 +108,44 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
             },
         });
 
+        // Approving can change the price, and used to do it silently. The write
+        // above replaces whatever the exec had typed with the recomputed
+        // figure; if the two differ, the exec's next sight of their own package
+        // is a different number with nothing saying why. Say it — in the toast
+        // costing sees, in the timeline the exec reads, and in the pricing
+        // history, so the change is attributable afterwards.
+        const priceMoved =
+            finalPricing != null && pkg.totalPrice != null &&
+            Math.round(pkg.totalPrice) !== Math.round(finalPricing.totalPrice);
+        const priceNote = priceMoved
+            ? ` Price updated from ${inr(pkg.totalPrice!)} to ${inr(finalPricing!.totalPrice)} on approval.`
+            : "";
+
         if (pkg.queryId) {
-            await logTimeline(pkg.queryId, `Package pricing approved by ${actor?.name ?? "team member"} — ready for the exec to share with the client`, actor?.id, actor?.name ?? undefined);
+            await logTimeline(
+                pkg.queryId,
+                `Package pricing approved by ${actor?.name ?? "team member"} — ready for the exec to share with the client.${priceNote}`,
+                actor?.id, actor?.name ?? undefined,
+            );
+        }
+        if (priceMoved) {
+            await createLog({
+                action: "UPDATE",
+                entity: PRICING_HISTORY_ENTITY,
+                entityId: packageId,
+                entitySlug: pkg.title,
+                description: `Price recomputed on approval by ${actor?.name ?? "Costing"}`,
+                previousData: { "Total price": inr(pkg.totalPrice!) },
+                newData: { "Total price": inr(finalPricing!.totalPrice) },
+            });
         }
         await broadcastVerificationCounts();
 
         revalidateAll(packageId);
-        return { success: true, data: undefined, message: "Approved — the exec can now share this with the client" };
+        return {
+            success: true, data: undefined,
+            message: `Approved — the exec can now share this with the client.${priceNote}`,
+        };
     } catch (e) {
         console.error("[approveCustomPackage] FAILED:", e);
         return actionError(e);
@@ -106,6 +176,9 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
         });
         if (!pkg) return { success: false, message: "Package not found" };
         if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review." };
+
+        const caps = await decideCapsFor(packageId);
+        if (!caps?.decide) return { success: false, message: NOT_COSTING };
 
         const reason = await db.rejectionReason.findUnique({ where: { id: parsed.data.rejectionReasonId } });
 
@@ -150,13 +223,24 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
 const pricingEditSchema = z.object({
     marginPercentage: z.coerce.number().min(0).max(100),
     gstPercentage: z.coerce.number().min(0).max(100),
+    // Costing's concession off the final price. Null type = no discount, and
+    // clears any previous one. PERCENT is capped at 100 here rather than only
+    // being clamped downstream: applyDiscount floors the payable figure at
+    // zero, so a mistyped 200% would silently produce a ₹0 package that
+    // checkout then refuses with "this package doesn't have a price set yet".
+    discountType: z.enum(["FLAT", "PERCENT"]).nullable(),
+    discountValue: z.coerce.number().min(0).nullable(),
+    discountNote: z.string().max(500).optional(),
     // Per-day corrections — null means "no correction, use the catalog-
     // computed price for that day" (or clears a previously-set correction).
     hotelDayOverrides: z.array(z.object({ day: z.number().int(), amount: z.coerce.number().min(0).nullable() })),
     cabDayOverrides: z.array(z.object({ day: z.number().int(), amount: z.coerce.number().min(0).nullable() })),
     tickets: z.array(z.object({ id: z.string(), fare: z.coerce.number().min(0) })),
     addOns: z.array(z.object({ id: z.string(), price: z.coerce.number().min(0), quantity: z.coerce.number().int().min(1) })),
-});
+}).refine(
+    (d) => d.discountType !== "PERCENT" || (d.discountValue ?? 0) <= 100,
+    { path: ["discountValue"], message: "A percentage discount can't exceed 100%" },
+);
 
 export type PricingEditInput = z.infer<typeof pricingEditSchema>;
 
@@ -174,6 +258,7 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
             select: {
                 id: true, status: true, queryId: true, title: true,
                 marginPercentage: true, gstPercentage: true,
+                discountType: true, discountValue: true, discountNote: true,
                 tickets: { select: { id: true, fare: true, type: true, fromPlace: true, toPlace: true } },
                 addOns: { select: { id: true, name: true, price: true, quantity: true } },
                 itineraries: { select: { day: true, hotelPriceOverride: true, cabPriceOverride: true } },
@@ -181,6 +266,12 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
         });
         if (!pkg) return { success: false, message: "Package not found" };
         if (pkg.status !== "READY") return { success: false, message: "Pricing can only be corrected while a package is awaiting review." };
+
+        // Margin, GST and the discount are costing's levers — see the caps
+        // model. editMargin rather than decide: correcting a price is a
+        // different act from signing it off, even though the same role does both.
+        const caps = await decideCapsFor(packageId);
+        if (!caps?.editMargin) return { success: false, message: NOT_COSTING };
 
         const validTicketIds = new Set(pkg.tickets.map((t) => t.id));
         const validAddonIds = new Set(pkg.addOns.map((a) => a.id));
@@ -202,13 +293,25 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
             `Ticket: ${t.type}${t.fromPlace && t.toPlace ? ` (${t.fromPlace} → ${t.toPlace})` : ""} [${t.id.slice(-4)}]`;
         const addonLabel = (a: { id: string; name: string }) => `Add-on: ${a.name} [${a.id.slice(-4)}]`;
 
+        // A concession is the single most reviewable thing on this screen, so
+        // it is recorded in the same before/after history as everything else —
+        // who gave it, how much, and the internal reason they typed.
+        const discountText = (type: "FLAT" | "PERCENT" | null, value: number | null) =>
+            !type || value == null || value <= 0
+                ? "none"
+                : type === "PERCENT" ? `${value}% off` : `${rupee(value)} off`;
+
         const previousData: Record<string, string> = {
             "Margin": `${pkg.marginPercentage}%`,
             "GST": `${pkg.gstPercentage}%`,
+            "Discount": discountText(pkg.discountType, pkg.discountValue),
+            "Discount reason": pkg.discountNote ?? "—",
         };
         const newData: Record<string, string> = {
             "Margin": `${data.marginPercentage}%`,
             "GST": `${data.gstPercentage}%`,
+            "Discount": discountText(data.discountType, data.discountValue ?? null),
+            "Discount reason": data.discountNote?.trim() || "—",
         };
         const itineraryByDay = new Map(pkg.itineraries.map((it) => [it.day, it]));
         for (const o of data.hotelDayOverrides) {
@@ -256,6 +359,12 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
                 data: {
                     marginPercentage: data.marginPercentage,
                     gstPercentage: data.gstPercentage,
+                    // Clearing the type clears the value and the note with it —
+                    // a stray amount left behind would reapply the moment a
+                    // type was picked again.
+                    discountType:  data.discountType,
+                    discountValue: data.discountType ? (data.discountValue ?? null) : null,
+                    discountNote:  data.discountType ? (data.discountNote?.trim() || null) : null,
                     hotelSubtotalOverride: null,
                     cabSubtotalOverride: null,
                 },

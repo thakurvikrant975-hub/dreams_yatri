@@ -16,7 +16,7 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Ticket,
+  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, ShieldCheck, BedDouble, Undo2, Redo2, Ticket,
 } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
@@ -969,14 +969,17 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   // value back out by headcount used to drift the header/PDF total off the
   // Pricing tab's exact total by up to `pax` rupees.
   //
-  // Never runs once the package is locked for review (READY) or already sent
-  // (SENT), so an approved/quoted price never silently drifts if catalog rates
-  // change later — checked inline off `query` rather than the `isLocked`/
-  // `pkgSent` variables declared further down, since this has to sit above the
-  // loading/not-found early returns to satisfy the rules of hooks.
+  // Runs only for whoever may edit this package right now, so an approved or
+  // quoted price never silently drifts if catalog rates change later.
+  //
+  // That used to be spelled "not READY and not SENT", which also froze it for
+  // costing — the one person whose margin, GST and discount edits are supposed
+  // to move the price. Their changes went into the breakdown while
+  // form.totalPrice kept the exec's submitted figure, and a save wrote the two
+  // out disagreeing. caps.editItinerary keeps SENT frozen for everyone and the
+  // exec frozen from the moment they submit, which is what the rule was for.
   useEffect(() => {
-    const status = query?.customPackage?.status;
-    if (status === "READY" || status === "SENT") return;
+    if (!caps.editItinerary) return;
     const { finalPrice, perPerson } = computeFinalPricing();
     if (finalPrice <= 0) return;
     const nextPP = String(perPerson);
@@ -985,7 +988,9 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
       ? f
       : { ...f, pricePerPerson: nextPP, totalPrice: nextTotal }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage, form.tickets, form.addOns, form.adults, form.children, query?.customPackage?.status]);
+  }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage,
+      form.discountType, form.discountValue,
+      form.tickets, form.addOns, form.adults, form.children, caps.editItinerary]);
 
   // Re-syncs `query` AND the price fields inside `form` from a fresh fetch.
   // `form` is local state hydrated once on mount (see the initial load effect
@@ -1016,6 +1021,9 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     // is at READY, and sending it back to DRAFT would silently drop it out of
     // the very queue they are working through. Absent an explicit status, keep
     // whatever the package already has.
+    //
+    // saveCustomPackage enforces the same rule server-side and is the actual
+    // guarantee; this just keeps the payload honest.
     const current = query?.customPackage?.status;
     const nextStatus = status ?? (current === "READY" ? "READY" : "DRAFT");
     startSave(async () => {
@@ -1065,7 +1073,11 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   const localDraft = useLocalDraft<PackageForm>({
     packageId,
     form,
-    armed: !loading && !!query && query.customPackage?.status !== "READY",
+    // Armed for whoever may actually edit, not for a status. Keyed off status
+    // it was disarmed for costing — the one reviewer working through a queue,
+    // on the one screen with no undo, was also the one person whose work a
+    // refresh threw away without so much as a banner.
+    armed: !loading && !!query && (caps.editItinerary || caps.editAfterSend),
   });
 
   const AUTOSAVE_DELAY_MS = 3000;
@@ -1074,8 +1086,17 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
 
   useEffect(() => {
     if (loading || !query) return;
-    const status = query.customPackage?.status;
-    if (status && status !== "DRAFT") return;
+    // Deliberately editItinerary alone, NOT the wider canEditDoc: a SENT
+    // package is editable but must not autosave, because every save snapshots
+    // the delivered version and a timer would bury the real one under a stack
+    // of near-identical copies. Post-send edits go through an explicit Save.
+    //
+    // Otherwise the same rule as the local draft above: "DRAFT only" was a
+    // stand-in for "the exec owns this", written when the exec was the
+    // only person who could save. caps.editItinerary says it directly, and
+    // says it for costing at READY too — while still refusing on a SENT
+    // package, where it resolves false for everyone.
+    if (!caps.editItinerary) return;
 
     const snapshot = JSON.stringify(form);
     // First pass after load records the baseline without saving — this is what
@@ -1089,13 +1110,16 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
 
     const timer = setTimeout(() => {
       lastSavedSnapshot.current = snapshot;
-      handleSave("DRAFT");
+      // No explicit status: an autosave must never move a package. Passing
+      // "DRAFT" here would have pulled costing's package out of the review
+      // queue three seconds after they touched anything.
+      handleSave();
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
     // handleSave is stable enough for this purpose and intentionally omitted —
     // including it would re-arm the timer on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, loading, query]);
+  }, [form, loading, query, caps.editItinerary]);
 
   // The ONLY way a package moves forward from the builder into review — no
   // direct "send to client" from here. This locks nothing and notifies no
@@ -1127,6 +1151,13 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
       // Always save first — markPackageReady reads nothing from the client,
       // but the review page does, straight from the DB row, so any edit made
       // since the last save would otherwise silently never reach costing.
+      //
+      // Saved as DRAFT, deliberately: markPackageReady owns the transition and
+      // is the only thing that sets readyAt/readyBy alongside it. This used to
+      // send "READY", which flipped the status here and then made
+      // markPackageReady's own submit check fail against it — the package
+      // landed at READY with no readyAt, locked to the exec and invisible to
+      // costing, who only see rows where readyAt is set.
       const result = await saveCustomPackage({
         id: packageId,
         queryId: query?.id ?? null,
@@ -1138,7 +1169,7 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
         discountType: form.discountType,
         discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
         discountNote: form.discountNote,
-        status: "READY",
+        status: "DRAFT",
       });
       if (!result.success) {
         toast.error(result.error ?? "Failed to save");
@@ -1752,7 +1783,11 @@ Rules:
   // same thing the moment costing could edit during review. Every edit surface
   // below reads this; `isLocked` now only drives what the header SAYS about the
   // package's state.
-  const canEditDoc = caps.editItinerary;
+  // Drives the document and every editing surface in it. Includes the
+  // post-send case: an exec revising a quote the client already has needs the
+  // fields to actually be editable, and until now the caps model said they
+  // weren't while the Save button suggested they were.
+  const canEditDoc = caps.editItinerary || caps.editAfterSend;
   const pkgVerified = query.customPackage?.verified ?? false;
   const pkgSent = query.customPackage?.status === "SENT";
   // While the exec can still actually change hotel/cab/margin/GST inputs
@@ -1770,6 +1805,58 @@ Rules:
   // resolveWorkspaceCaps says so for both.
   const packageEditable = caps.editItinerary;
 
+  // "Save Draft" is the exec's word for it: their package IS a draft until
+  // they mark it ready. Costing is saving corrections to a package that has
+  // already been submitted — calling that a draft would suggest it had fallen
+  // back out of review, which is the one thing saving must not do.
+  const saveLabel = isLocked ? "Save Changes" : "Save Draft";
+
+  // Costing is the only role that sees margin, which makes this the cheapest
+  // honest way for the editor to ask "is a reviewer reading this" without
+  // threading the role itself through as a second source of truth.
+  const isReviewer = caps.seeMargin;
+
+  // Whether to offer a Save at all. `editItinerary` covers the exec on their
+  // draft and costing on a package under review; `editAfterSend` is the owning
+  // exec revising a quote the client already has.
+  const canSave = caps.editItinerary || caps.editAfterSend;
+
+  // Leaving the editor.
+  //
+  // window.close() on its own was wrong twice over. It silently does nothing
+  // on a tab the browser doesn't consider script-opened, so the control looked
+  // dead; and the thing people reached for instead — the browser's own Back —
+  // lands the dashboard inside THIS layout. /dashboard/* is split across two
+  // route groups, (main) with the sidebar and header and (builder) without,
+  // and route groups are invisible in the URL: a client-side navigation
+  // between two siblings reuses the layout already mounted instead of swapping
+  // it. That is the chrome-less full-screen dashboard.
+  //
+  // So: close the tab when the browser allows it, and otherwise leave with a
+  // real document load, which makes the server render (main) from scratch.
+  const handleBack = () => {
+    // Back to wherever they came from — the review queue on its page, with its
+    // filter and search intact — rather than dumping everyone on /dashboard.
+    let backTo = "/dashboard";
+    try {
+      const ref = new URL(document.referrer);
+      const sameSite = ref.origin === window.location.origin && ref.pathname.startsWith("/dashboard");
+      // Both of these redirect straight back into the builder, so following
+      // them would just reopen the editor we are trying to leave.
+      const bouncesBack =
+        ref.pathname.startsWith("/dashboard/package-builder") ||
+        /^\/dashboard\/verify-packages\/.+/.test(ref.pathname);
+      if (sameSite && !bouncesBack) backTo = ref.pathname + ref.search;
+    } catch {
+      // No referrer at all (typed URL, bookmark, restored tab) — /dashboard.
+    }
+
+    window.close();
+    // Still running a tick later means close() was refused. Hard navigation,
+    // deliberately: router.push would soft-navigate and hit the layout bug
+    // described above.
+    window.setTimeout(() => { window.location.href = backTo; }, 150);
+  };
 
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const shiftedMeals = computeShiftedMeals(form.itineraries);
@@ -1912,17 +1999,29 @@ Rules:
           {/* Left */}
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => window.close()}
+              onClick={handleBack}
+              title="Back to the dashboard"
+              aria-label="Back to the dashboard"
               className="text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0 cursor-pointer"
             >
               <ArrowLeft size={18} />
             </button>
+            {/* Client on top, then this package. The header named only the
+                client, which is not enough to tell two packages apart — a query
+                can carry several, titles repeat freely across clients, and a
+                reviewer approving the wrong one has no way to notice from here.
+                The short id is the only truly unique thing on the screen, so it
+                closes the gap when even the titles match. */}
             <div className="min-w-0">
               <h1 className="text-sm font-bold truncate leading-tight text-dashboard-base-content">
                 {query.name ?? "Blank Package"}
               </h1>
               <p className="text-xs text-dashboard-base-content/75 truncate">
-                {j?.destinations?.join(" › ") ?? query.destination ?? "—"}
+                <span title={form.title || undefined}>{form.title || "Untitled package"}</span>
+                <span className="text-dashboard-base-content/45">
+                  {" · "}{j?.destinations?.join(" › ") ?? query.destination ?? "—"}
+                  {" · "}<span className="font-mono" title={packageId}>#{packageId.slice(0, 8)}</span>
+                </span>
               </p>
             </div>
           </div>
@@ -2028,16 +2127,26 @@ Rules:
                   </Button>
                 )}
               </>
-            ) : isLocked ? (
-              <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">
-                <Clock size={13} /> Awaiting Costing Review
-              </span>
-            ) : (
+            ) : isLocked && !caps.editItinerary ? (
+              // The exec's view of their own package while it sits with
+              // costing, and the reviewer's once they've approved it — at which
+              // point the editor is closed to both of them until the exec pulls
+              // it back for revision.
+              isReviewer && pkgVerified ? (
+                <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-100 text-green-700 text-xs font-semibold">
+                  <CheckCircle size={13} /> Approved by you
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">
+                  <Clock size={13} /> {pkgVerified ? "Approved — ready to share" : "Awaiting Costing Review"}
+                </span>
+              )
+            ) : canSave ? (
               <Button
                 variant="outline"
                 size="sm"
                 className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
-                onClick={() => handleSave("DRAFT")}
+                onClick={() => handleSave()}
                 disabled={isSaving || isSending}
               >
                 {isSaving
@@ -2047,10 +2156,10 @@ Rules:
                     : <Save size={13} />
                 }
                 <span className="hidden sm:inline text-xs">
-                  {savedOk ? "Saved!" : "Save Draft"}
+                  {savedOk ? "Saved!" : saveLabel}
                 </span>
               </Button>
-            )}
+            ) : null}
 
             {/* Running total, always visible. The breakdown still lives on the
                 Pricing tab; what matters here is that the number moves while
@@ -2074,9 +2183,11 @@ Rules:
               </button>
             )}
 
-            {/* Undo / redo. Hidden once the package is locked for costing
-                review, where nothing is editable to undo in the first place. */}
-            {!isLocked && (
+            {/* Undo / redo, for whoever can edit. Keyed off "locked", these
+                were hidden from costing — the one person editing a package
+                they did not build, under review, with no way to walk back a
+                mistaken correction. */}
+            {caps.editItinerary && (
               <div className="flex items-center gap-0.5">
                 <Button
                   variant="ghost" size="sm"
@@ -2111,7 +2222,7 @@ Rules:
               <ItineraryPdfExport form={previewForm} />
             )}
 
-            {!isLocked && !pkgSent && (
+            {caps.submit && (
               <Button
                 size="sm"
                 className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
@@ -2207,7 +2318,6 @@ Rules:
                   hotelPricing={hotelPricing}
                   cabPricing={cabPricing}
                   computed={computeFinalPricing()}
-                  canEdit={caps.editCost || caps.editMargin}
                 />
               ) : undefined}
           clientPanel={
@@ -2215,13 +2325,48 @@ Rules:
               <div className="p-4 space-y-4">
               {/* Awaiting-review / rejected banners — shown above the tab
                  panels so they're visible no matter which tab is open. */}
-              {isLocked && (
+              {/* Every one of these used to be written in the exec's voice and
+                  shown to whoever opened the package, so a reviewer was told
+                  their own package was "with the costing team", and that the
+                  way forward was a Mark Ready button they do not have. Each
+                  now addresses the person actually reading it. */}
+              {isLocked && !caps.editItinerary && !isReviewer && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
                   <Clock className="size-4 mt-0.5 shrink-0 text-amber-600" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">Awaiting costing review</p>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {pkgVerified ? "Approved by costing" : "Awaiting costing review"}
+                    </p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      This package is with the costing team for pricing verification — editing is disabled until they verify &amp; send it, or reject it back to you.
+                      {pkgVerified
+                        ? "The pricing has been signed off. Share it with the client when you're ready — or pull it back for revision if something needs to change first."
+                        : "This package is with the costing team for pricing verification — editing is disabled until they verify & send it, or reject it back to you."}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {/* The reviewer's own view once they've signed off. Editing ends
+                  at approval: the exec is now holding exactly what was
+                  approved, and changing it underneath them would alter the
+                  signed-off package without signing it off again. */}
+              {isLocked && isReviewer && pkgVerified && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-green-300 bg-green-50 px-4 py-3">
+                  <CheckCircle className="size-4 mt-0.5 shrink-0 text-green-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-800">You approved this package</p>
+                    <p className="text-xs text-green-700 mt-0.5">
+                      It&apos;s locked to what you signed off, and waiting for the sales exec to share it. If something still needs changing, ask them to pull it back for revision — that puts it back in your queue with the change on record.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {isLocked && caps.editItinerary && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-3">
+                  <ShieldCheck className="size-4 mt-0.5 shrink-0 text-indigo-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-800">This package is with you for review</p>
+                    <p className="text-xs text-indigo-700 mt-0.5">
+                      Corrections you make here save straight to it. Margin, GST and any discount live on the Costing tab under Edit Pricing; approve or reject from the header when you&apos;re done.
                     </p>
                   </div>
                 </div>
@@ -2236,7 +2381,11 @@ Rules:
                     {query.customPackage.rejectionNote && (
                       <p className="text-xs text-red-700 mt-0.5">&quot;{query.customPackage.rejectionNote}&quot;</p>
                     )}
-                    <p className="text-xs text-red-700 mt-1">Fix the issue above and click Mark Ready to resubmit.</p>
+                    <p className="text-xs text-red-700 mt-1">
+                      {caps.submit
+                        ? "Fix the issue above and click Mark Ready to resubmit."
+                        : "It's back with the sales exec — it will reappear in your queue when they resubmit it."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -2244,9 +2393,18 @@ Rules:
                 <div className="flex items-start gap-2.5 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                   <RotateCcw className="size-4 mt-0.5 shrink-0 text-blue-600" />
                   <div>
-                    <p className="text-sm font-semibold text-blue-800">Pulled back for revision</p>
+                    <p className="text-sm font-semibold text-blue-800">
+                      Pulled back for revision
+                      {!caps.submit && query.customPackage.revisionRequestedByName
+                        ? ` by ${query.customPackage.revisionRequestedByName}`
+                        : ""}
+                    </p>
                     <p className="text-xs text-blue-700 mt-0.5">&quot;{query.customPackage.revisionNote}&quot;</p>
-                    <p className="text-xs text-blue-700 mt-1">Click Mark Ready once you&apos;re done to send it back to costing.</p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      {caps.submit
+                        ? "Click Mark Ready once you're done to send it back to costing."
+                        : "Nothing to review yet — it will reappear in your queue when they resubmit it."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -2305,30 +2463,37 @@ Rules:
                   Share with Client
                 </Button>
               </div>
-            ) : isLocked ? (
+            ) : isLocked && !caps.editItinerary ? (
               <div className="flex items-center justify-end gap-2 pt-6 pb-10 text-sm text-amber-700">
                 <Clock size={14} /> Awaiting costing review — editing is disabled until it&apos;s approved, or rejected back to you.
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
-                <Button
-                  variant="outline"
-                  onClick={() => handleSave("DRAFT")}
-                  disabled={isSaving || isSending}
-                  className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
-                >
-                  {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                  Save Draft
-                </Button>
-                <Button
-                  className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
-                  onClick={handleMarkReadyClick}
-                  disabled={isSending || isSaving}
-                  title={validateItineraryRequiredFields(form) ?? undefined}
-                >
-                  {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  Mark Ready
-                </Button>
+                {canSave && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleSave()}
+                    disabled={isSaving || isSending}
+                    className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
+                  >
+                    {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    {saveLabel}
+                  </Button>
+                )}
+                {/* Mark Ready is the exec's hand-off, and only from their own
+                    draft. Costing reaching READY already has it; their way
+                    forward is Approve, in the header. */}
+                {caps.submit && (
+                  <Button
+                    className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
+                    onClick={handleMarkReadyClick}
+                    disabled={isSending || isSaving}
+                    title={validateItineraryRequiredFields(form) ?? undefined}
+                  >
+                    {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    Mark Ready
+                  </Button>
+                )}
               </div>
             )}
               </div>
@@ -2338,7 +2503,9 @@ Rules:
             <fieldset disabled={!canEditDoc} className="contents">
               <TripSetupPanel
                 computed={computeFinalPricing()}
-                onApplyPrice={applyComputedPricing}
+                // Mirrors saveCustomPackage's own rule: the quoted figure is
+                // not writable from here while the package is with costing.
+                onApplyPrice={isLocked ? undefined : applyComputedPricing}
               />
             </fieldset>
           }
@@ -2601,6 +2768,12 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
 
       {query.customPackage?.readyAt && (
         <SectionCard title="Package Status" icon={<Send size={14} />}>
+          {/* "Awaiting costing review" was the fallback for anything neither
+              verified nor rejected — which fires on a DRAFT too. A package the
+              exec had pulled back therefore claimed to be in review on the same
+              screen as the banner saying it had been pulled out of it. Whether
+              it is actually with costing is a question about status, so it is
+              asked of status. */}
           <InfoRow
             label="Verification"
             value={
@@ -2608,7 +2781,11 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
                 ? (query.customPackage.status === "SENT" ? "Approved & sent" : "Approved — awaiting share")
                 : query.customPackage.rejectedAt
                   ? `Rejected — ${query.customPackage.rejectionReason?.label ?? "see note"}`
-                  : "Awaiting costing review"
+                  : query.customPackage.status === "READY"
+                    ? "Awaiting costing review"
+                    : query.customPackage.revisionNote
+                      ? "Pulled back — with the sales exec"
+                      : "Not submitted for review"
             }
           />
           {query.customPackage.rejectedAt && query.customPackage.rejectionNote && (

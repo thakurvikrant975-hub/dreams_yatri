@@ -1,6 +1,6 @@
 import { db } from "@/app/lib/db";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
-import { resolveWorkspaceCaps, workspaceRoleOf } from "../workspace-caps";
+import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "../workspace-caps";
 import { CostingPanel } from "@/app/(dashboard)/dashboard/(main)/verify-packages/[id]/CostingPanel";
 import { PackageWorkspace } from "./PackageWorkspace";
 
@@ -34,16 +34,33 @@ export default async function PackageBuilderPage({ params }: { params: Promise<{
     // which is exactly what it is about to become.
     db.custom_packages.findUnique({
       where: { id: packageId },
-      select: { status: true, verified: true, rejectedAt: true, revisionRequestedAt: true },
+      select: {
+        status: true, verified: true, rejectedAt: true, revisionRequestedAt: true,
+        builtBy: true, query: { select: { assignedTo: true } },
+      },
     }),
   ]);
 
-  const caps = resolveWorkspaceCaps(workspaceRoleOf(memberCtx?.member?.teamRole?.name), {
-    status: pkg?.status ?? "DRAFT",
-    verified: pkg?.verified ?? false,
-    rejectedAt: pkg?.rejectedAt ?? null,
-    revisionRequestedAt: pkg?.revisionRequestedAt ?? null,
-  });
+  const caps = resolveWorkspaceCaps(
+    workspaceRoleOf(memberCtx?.member?.teamRole?.name),
+    {
+      status: pkg?.status ?? "DRAFT",
+      verified: pkg?.verified ?? false,
+      rejectedAt: pkg?.rejectedAt ?? null,
+      revisionRequestedAt: pkg?.revisionRequestedAt ?? null,
+    },
+    {
+      // A package with no row yet is one the visitor is about to create, so
+      // they own it by definition — this is the exec arriving from
+      // CreatePackageDialog with a freshly-generated id.
+      isOwner: pkg == null || ownsPackage({
+        viewerId: memberCtx?.member?.id,
+        viewerRoleName: memberCtx?.member?.teamRole?.name,
+        builtBy: pkg.builtBy,
+        queryAssignedTo: pkg.query?.assignedTo,
+      }),
+    },
+  );
 
   // Built only for someone who can actually see costing. For everyone else it
   // is never rendered, never fetched, and the sidebar has no such tab — the

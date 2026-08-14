@@ -18,6 +18,7 @@ import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/serv
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import type { PricingSnapshot } from "./VerifyPackageDetailClient";
+import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 
 /** Tickets carry a lower margin than hotels and cabs — same split
  * sendPackageToClient applies when it freezes the real snapshot. */
@@ -35,6 +36,7 @@ export async function loadCostingPanelData(id: string) {
                 childrenAges: true, infantAges: true,
                 pricePerPerson: true, totalPrice: true, currency: true,
                 marginPercentage: true, gstPercentage: true,
+                discountType: true, discountValue: true, discountNote: true,
                 hotelSubtotalOverride: true, cabSubtotalOverride: true,
                 status: true, builtByName: true, sentAt: true,
                 readyAt: true, readyByName: true,
@@ -136,7 +138,10 @@ export async function loadCostingPanelData(id: string) {
         const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
         const taxable = baseCost + marginAmount;
         const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
-        const finalPrice = taxable + gstAmount;
+        const listPrice = taxable + gstAmount;
+        // Same helper, same order as everywhere else — see discount.ts.
+        const discount = applyDiscount(listPrice, { type: pkg.discountType, value: pkg.discountValue });
+        const finalPrice = discount.finalPrice;
         const totalPax = pkg.adults + pkg.children;
         const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
@@ -161,6 +166,10 @@ export async function loadCostingPanelData(id: string) {
             taxable,
             gstPercentage: pkg.gstPercentage,
             gstAmount,
+            listPrice,
+            discountType: pkg.discountType,
+            discountValue: pkg.discountValue,
+            discountAmount: discount.amount,
             finalPrice,
             pricePerPerson,
             displayedTotalPrice: pkg.totalPrice ?? null,

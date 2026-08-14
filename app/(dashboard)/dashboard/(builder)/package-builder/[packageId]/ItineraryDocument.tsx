@@ -387,6 +387,7 @@ export function mealIncludedText(planText: string): string | null {
   return `${joined} included`;
 }
 import DyLogo from "@/app/components/ui/DyLogo";
+import SavingsBadge from "@/app/components/packages/SavingBadge";
 import type { DayItinerary, ActivityInput, StopInput, TicketInput, AddonInput } from "../action";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 
@@ -3324,8 +3325,19 @@ export function ItineraryDocument({
     ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}`
     : "To be confirmed";
 
+  // Per-person is the total divided by paying heads and rounded, so it does not
+  // generally multiply back to the total — for 3 paying travellers on ₹60,001
+  // the two figures are a rupee apart. The document prints both side by side,
+  // which invites exactly that multiplication, so where it cannot reconcile the
+  // number is marked approximate rather than quietly inviting the client to
+  // find the discrepancy themselves.
+  const payingPax = form.adults + form.children;
+  const perPersonExact =
+    !!form.pricePerPerson && !!form.totalPrice && payingPax > 0 &&
+    Number(form.pricePerPerson) * payingPax === Number(form.totalPrice);
+
   const perPersonStr = form.pricePerPerson
-    ? `${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
+    ? `${perPersonExact ? "" : "~"}${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
     : null;
 
   // Route map legs derived straight from the ticket list — see the module
@@ -3419,15 +3431,20 @@ export function ItineraryDocument({
                 <p className="flex items-center gap-1.5 mb-1 text-[11px] font-medium text-primary-100 whitespace-nowrap">
                   <IndianRupee size={16} color="#ffffff" /> Total price
                 </p>
+                {/* Same ticket-stub badge the marketing package cards use, so a
+                  concession looks identical wherever the client meets it. The
+                  label comes from discount.ts already worded ("10% off"), so
+                  the badge's own "Save " prefix is dropped rather than
+                  producing "Save 10% off". */}
                 {form.discount && (
-                  <p className="flex items-baseline gap-1.5 mb-0.5">
+                  <div className="flex items-center gap-2.5 mb-1">
                     <span className="text-[11px] text-white/60 line-through">
                       {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
                     </span>
-                    <span className="text-[9px] font-bold uppercase tracking-wide text-white bg-white/25 rounded-full px-1.5 py-px">
-                      {form.discount.label}
-                    </span>
-                  </p>
+                    {/* mr-1 keeps the right serration off the cell's padding —
+                      both edges hang outside the badge's own box. */}
+                    <SavingsBadge amount={form.discount.label} prefix="" className="py-1 mr-1" />
+                  </div>
                 )}
                 <p className={cn(DISPLAY, "font-bold font-heading text-white text-lg leading-tight truncate")}>
                   {priceStr}
@@ -3627,14 +3644,12 @@ export function ItineraryDocument({
                           chip says it is a concession, which is the thing worth
                           noticing. */}
                       {form.discount && (
-                        <p className="flex items-baseline justify-end gap-2 mb-1">
+                        <div className="flex items-center justify-end gap-2.5 mb-1.5 pr-1">
                           <span className="text-[13px] text-white/45 line-through">
                             {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
                           </span>
-                          <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-950 bg-emerald-300 rounded-full px-2 py-0.5">
-                            {form.discount.label}
-                          </span>
-                        </p>
+                          <SavingsBadge amount={form.discount.label} prefix="" />
+                        </div>
                       )}
                       <p
                         className={cn(DISPLAY, "font-bold text-white leading-none font-heading")}
