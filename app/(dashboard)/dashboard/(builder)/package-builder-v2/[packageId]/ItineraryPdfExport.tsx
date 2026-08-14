@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Download, Eye } from "lucide-react";
+import { Loader2, Download, Eye } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -37,12 +37,23 @@ function pdfFilename(clientName: string, title: string): string {
   return `${base.replace(/[\\/:*?"<>|]/g, "")}.pdf`;
 }
 
-export function ItineraryPdfExport({ form }: { form: PreviewData }) {
+export function ItineraryPdfExport({ form, canDownload }: {
+  form: PreviewData;
+  /** Gate on costing's sign-off (query.customPackage.verified) — an
+   * unverified itinerary's pricing hasn't been checked yet, so it must not
+   * be exportable as a file someone could forward to the client. Preview
+   * stays available regardless: it's the exec's own on-screen check before
+   * submitting, not something that leaves the building. */
+  canDownload: boolean;
+}) {
   const captureRef = useRef<HTMLDivElement>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pages, setPages] = useState<PdfPage[] | null>(null);
   const [generating, setGenerating] = useState(false);
   const validationError = validateItineraryRequiredFields(form);
+  const downloadBlockedReason = !canDownload
+    ? "This itinerary hasn't been verified by costing yet — download unlocks once it's approved."
+    : null;
 
   async function generatePages(): Promise<PdfPage[] | null> {
     if (validationError) {
@@ -85,6 +96,10 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
   }
 
   async function handleDownload() {
+    if (downloadBlockedReason) {
+      toast.error(downloadBlockedReason);
+      return;
+    }
     const result = await generatePages();
     if (!result) return;
     const pdf = buildPdf(result);
@@ -101,6 +116,12 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
       <div
         ref={captureRef}
         aria-hidden
+        // Marks this subtree as the off-screen twin. It renders the SAME
+        // document, so every data-field hook in the live preview also exists
+        // in here — and this copy comes first in the DOM. Anything doing a
+        // document-wide lookup for one of those hooks must skip this tree, or
+        // it addresses a node parked 10,000px to the left. See revealField.
+        data-offscreen-capture=""
         style={{ position: "fixed", top: 0, left: "-10000px", width: "210mm" }}
       >
         <ItineraryDocument form={form} variant="flat" />
@@ -123,8 +144,8 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
         size="sm"
         className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
         onClick={handleDownload}
-        disabled={generating}
-        title={validationError ?? undefined}
+        disabled={generating || !!downloadBlockedReason}
+        title={validationError ?? downloadBlockedReason ?? undefined}
       >
         {generating ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
         <span className="hidden sm:inline text-xs">Download PDF (A4)</span>
@@ -164,12 +185,17 @@ export function ItineraryPdfExport({ form }: { form: PreviewData }) {
             )}
           </div>
 
+          {downloadBlockedReason && (
+            <p className="text-[11px] text-dashboard-warning text-center -mb-1">{downloadBlockedReason}</p>
+          )}
+
           <DialogFooter>
             <Button
               size="sm"
               className="h-8 gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md"
               onClick={handleDownload}
-              disabled={generating}
+              disabled={generating || !!downloadBlockedReason}
+              title={downloadBlockedReason ?? undefined}
             >
               {generating ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
               <span className="text-xs">Download PDF</span>

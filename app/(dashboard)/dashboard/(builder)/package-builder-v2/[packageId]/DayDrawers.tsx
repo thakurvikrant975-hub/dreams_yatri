@@ -24,8 +24,8 @@ import { cn } from "@/app/lib/utils";
 import {
   searchVehiclesForBuilder, searchCabsForBuilder, searchActivitiesForBuilder,
   type DayItinerary, type ActivityResult, type CabSortOption,
-} from "../action";
-import type { CabSelection } from "../room-cab-selections";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import type { CabSelection } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
 import { TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";

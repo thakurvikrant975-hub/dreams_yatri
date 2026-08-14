@@ -29,7 +29,7 @@ import {
   applyHotelRoomSelection, applyVehicleSelection, continuesStayFrom,
   type AnyVehicleHit,
 } from "./day-mutations";
-import type { HotelRoomResult, ActivityResult } from "../action";
+import type { HotelRoomResult, ActivityResult } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 export type DragKind = "hotel" | "activity" | "cab";
 

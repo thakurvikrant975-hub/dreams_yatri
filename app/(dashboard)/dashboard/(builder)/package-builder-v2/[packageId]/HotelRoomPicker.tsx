@@ -6,9 +6,9 @@ import Image from "next/image";
 import {
   SearchIcon, Loader2, ChevronDownIcon, XIcon, CheckIcon, Hotel,
   Coffee, Sun, Moon, UtensilsCrossed,
-} from "lucide-react";
+} from "./builder-icons";
 import { cn } from "@/app/lib/utils";
-import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption } from "../action";
+import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 // Mirrors the admin catalog's HOTEL_CAT_LABEL (ItineraryDaySidebar.tsx) — kept
 // as a separate copy since that file lives in a different feature area and
@@ -16,7 +16,7 @@ import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomR
 const HOTEL_CAT_LABEL: Record<string, string> = {
   hotel: "Hotel", resort: "Resort", homestay: "Homestay", apartment: "Apartment",
   villa: "Villa", guest_house: "Guest House", houseboat: "Houseboat", camp: "Camp",
-  glamping: "Glamping", treehouse: "Treehouse", jungle_lodge: "Jungle Lodge",
+  glamping: "Glamping", treehouse: "Treehouse", lodge: "Lodge", jungle_lodge: "Jungle Lodge",
   eco_lodge: "Eco Lodge", boutique_hotel: "Boutique", heritage_hotel: "Heritage",
   luxury_hotel: "Luxury", cottage: "Cottage", bungalow: "Bungalow", farm_stay: "Farm Stay",
 };

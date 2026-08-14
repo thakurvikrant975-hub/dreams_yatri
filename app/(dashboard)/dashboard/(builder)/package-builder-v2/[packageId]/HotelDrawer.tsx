@@ -25,7 +25,7 @@ import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
 import { cn } from "@/app/lib/utils";
 import {
   searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption,
-} from "../action";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";

@@ -19,7 +19,7 @@ import { Plus, Trash2, Gift, Utensils } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
-import { getHotelRoomByIdForBuilder, type TicketInput, type AddonInput } from "../action";
+import { getHotelRoomByIdForBuilder, type TicketInput, type AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { useBuilder } from "./builder-context";
 import { NOTE_TONES, noteTone, type NoteTone } from "./ItineraryDocument";
 import {

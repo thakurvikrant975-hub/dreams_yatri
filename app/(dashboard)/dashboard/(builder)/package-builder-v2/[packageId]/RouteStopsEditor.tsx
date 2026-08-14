@@ -14,7 +14,7 @@ import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
 import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
-import type { StopInput } from "../action";
+import type { StopInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 export function RouteStopsEditor({ stops, onChange, limitReason, dayCount }: {
   stops: StopInput[];

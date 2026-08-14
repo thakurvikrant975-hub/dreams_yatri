@@ -13,12 +13,12 @@
 // bug impossible instead of merely unlikely.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { RoomSelection, CabSelection } from "../room-cab-selections";
+import type { RoomSelection, CabSelection } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import type {
   StopInput,
   DayItinerary, HotelRoomResult, VehicleResult, CabPricingResult, ActivityInput,
   TicketInput, AddonInput,
-} from "../action";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { formatTime12h } from "./ItineraryDocument";
 
 /** Vehicle enum → display label. Mirrors CAB_LABELS in page.tsx, which stays

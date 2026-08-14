@@ -21,7 +21,7 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
       {form.description && (
         <Text size="sm" intent="secondary" className="leading-relaxed block">{form.description}</Text>
       )}
-    
+
       {(form.inclusions.length > 0 || form.exclusions.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {form.inclusions.length > 0 && (
@@ -60,7 +60,7 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
               <div className="flex items-center gap-2 mb-2">
                 <Info size={14} className="text-blue-600" />
                 <Text size="sm" weight="bold" className="font-heading text-blue-700">Terms & Conditions</Text>
-              </div>   
+              </div>
               <ul className="space-y-1.5">
                 {form.termsConditions.map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
@@ -128,21 +128,10 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
           <Calendar size={16} className="text-primary-500" />
           <Text size="sm" weight="bold" intent="primary" className="font-heading">Day-wise Summary</Text>
         </div>
-        <DaySummaryTable
-          itineraries={form.itineraries}
-          travelDate={form.travelDate}
-          stops={form.stops}
-          adults={form.adults}
-          childCount={form.children}
-        />
+        <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} stops={form.stops} />
       </div>
 
-      {form.tickets.length > 0 && (
-        <TicketsSection
-          tickets={form.tickets}
-          packagePax={{ adults: form.adults, children: form.children, infants: form.infants }}
-        />
-      )}
+      {form.tickets.length > 0 && <TicketsSection tickets={form.tickets} />}
 
       <div className="space-y-3">
         <div className="flex items-center gap-2">

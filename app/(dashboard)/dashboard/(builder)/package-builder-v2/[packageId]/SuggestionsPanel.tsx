@@ -27,7 +27,7 @@ import { cn } from "@/app/lib/utils";
 import {
   searchHotelRoomsForBuilder, searchActivitiesForBuilder, searchCabsForBuilder,
   type HotelRoomResult, type ActivityResult, type CabPricingResult,
-} from "../action";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { useBuilder } from "./builder-context";
 import {

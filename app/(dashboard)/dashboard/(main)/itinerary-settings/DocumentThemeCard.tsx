@@ -8,7 +8,7 @@ import { Button } from "../components/ui/button";
 import {
     FONT_CHOICES, TEMPLATES, resolveDocTheme,
     type FontKey, type ThemeOverrides,
-} from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/doc-theme";
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
