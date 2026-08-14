@@ -30,7 +30,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import type {
   StopInput, DayItinerary, TicketInput, AddonInput, ExtraPolicyItems,
-} from "../action";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { invalidateStaleOverrides, emptyDay } from "./day-mutations";
 import type { PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 

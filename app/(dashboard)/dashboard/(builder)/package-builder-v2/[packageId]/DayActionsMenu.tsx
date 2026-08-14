@@ -113,7 +113,7 @@ function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, 
     },
     {
       icon: Sparkles,
-      label: hasActivities ? "Add another experience" : "Add an experience",
+      label: hasActivities ? "Add another activity" : "Add an activity",
       on: hasActivities,
       target: { kind: "activities-edit", day },
       multiple: true,

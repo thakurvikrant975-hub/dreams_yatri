@@ -14,15 +14,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
   Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, Star,
+  Coffee, Sun, Moon, UtensilsCrossed, Sliders, Users,
 } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
+import { cn } from "@/app/lib/utils";
 import {
-  searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult,
-} from "../action";
+  searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
@@ -34,12 +37,92 @@ import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
 import { Field, OptionRow, Chip, Empty, Segmented, Group, Card } from "./builder-ui";
+import { dayCalendarDate } from "./ItineraryDocument";
 import {
   applyHotelRoomSelection, removeStay, invalidateStaleOverrides,
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
   addExtraRoom, updateExtraRoom, removeExtraRoom, beginManualHotel,
   stayRun, validateStayAssignment,
 } from "./day-mutations";
+
+const MEAL_FILTER_CHIPS: { value: string; label: string; icon: React.ElementType }[] = [
+  { value: "breakfast", label: "Breakfast", icon: Coffee },
+  { value: "lunch",     label: "Lunch",     icon: Sun },
+  { value: "dinner",    label: "Dinner",    icon: Moon },
+];
+
+// hotels.stay_type free text — every value actually in the catalog (checked
+// against production: 1–5 Star, nothing else, so no "other" bucket needed.
+const STAR_FILTER_CHIPS = ["1 Star", "2 Star", "3 Star", "4 Star", "5 Star"];
+
+// hotels.category free text. Labelled and ordered by how common each is in
+// the catalog — matches HOTEL_CAT_LABEL in HotelRoomPicker.tsx (that
+// component is unused post-rewrite, but the label map is still the source of
+// truth for what these keys mean).
+const CATEGORY_FILTER_CHIPS: { value: string; label: string }[] = [
+  { value: "hotel",      label: "Hotel" },
+  { value: "resort",     label: "Resort" },
+  { value: "homestay",   label: "Homestay" },
+  { value: "houseboat",  label: "Houseboat" },
+  { value: "villa",      label: "Villa" },
+  { value: "camp",       label: "Camp" },
+  { value: "cottage",    label: "Cottage" },
+];
+
+const SORT_OPTIONS: { value: HotelSortOption; label: string }[] = [
+  { value: "price_asc",    label: "Price: Low to High" },
+  { value: "price_desc",   label: "Price: High to Low" },
+  { value: "distance_asc", label: "Distance: Nearest" },
+  { value: "rating_desc",  label: "Star rating" },
+  { value: "name_asc",     label: "Name (A–Z)" },
+];
+
+const MEAL_ICONS: Record<string, React.ElementType> = { breakfast: Coffee, lunch: Sun, dinner: Moon };
+
+// One color per meal (not a generic gray "tag") so a room's meal plan reads
+// at a glance both in the filter chips and on each result card — breakfast
+// warm/coffee, lunch sun-yellow, dinner night-indigo, matching MEAL_ICONS.
+const MEAL_BADGE_STYLES: Record<string, string> = {
+  breakfast: "border-amber-200 bg-amber-50 text-amber-700",
+  lunch: "border-orange-200 bg-orange-50 text-orange-700",
+  dinner: "border-indigo-200 bg-indigo-50 text-indigo-700",
+};
+const MEAL_CHIP_ACTIVE_STYLES: Record<string, string> = {
+  breakfast: "border-amber-500 bg-amber-500 text-white",
+  lunch: "border-orange-500 bg-orange-500 text-white",
+  dinner: "border-indigo-500 bg-indigo-500 text-white",
+};
+
+/** One labeled row inside the filter card — keeps "Rating"/"Type"/"Meals"
+ * lined up in a column instead of each chip group guessing its own meaning. */
+function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="w-12 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/45">
+        {label}
+      </span>
+      <div className="flex flex-1 flex-wrap items-center gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+/** ISO "YYYY-MM-DD" in local time — toISOString() would shift a midnight
+ * local date to the previous day in any timezone west of UTC. */
+function toLocalISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** The room's raw inventory — not what THIS party needs (that's
+ * planRoomOccupancy), but what the room itself can hold, so a room can be
+ * judged on its own terms while still browsing rather than only after it's
+ * been matched to the current headcount. */
+function capacitySummary(roomCapacity: number | null | undefined, extraBedCapacity: number | null | undefined): string | null {
+  if (roomCapacity == null) return null;
+  const extra = extraBedCapacity ?? 0;
+  return extra > 0
+    ? `Sleeps ${roomCapacity} · +${extra} mattress${extra !== 1 ? "es" : ""} · max ${roomCapacity + extra}`
+    : `Sleeps ${roomCapacity}`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Replace
@@ -61,6 +144,22 @@ export function HotelReplaceView({ day }: { day: number }) {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [results, setResults] = useState<HotelRoomResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [sortBy, setSortBy] = useState<HotelSortOption>("price_asc");
+  const [mealFilter, setMealFilter] = useState<string[]>([]);
+  const [starFilter, setStarFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const mealFilterKey = mealFilter.join(",");
+  const activeFilterCount = (starFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + mealFilter.length;
+
+  // This day's actual calendar date — so the price shown is what this room
+  // would actually cost on THIS night, not a flat catalog rate that may be
+  // wrong for the season it falls in.
+  const dayDate = form.travelDate ? dayCalendarDate(form.travelDate, day) : null;
+  const dayDateISO = dayDate ? toLocalISODate(dayDate) : null;
 
   // Geocode the city so results can be ordered by, and show, distance from
   // town — the single most useful signal when swapping a property.
@@ -78,13 +177,17 @@ export function HotelReplaceView({ day }: { day: number }) {
   // overwrite a newer one, hence the request token.
   const reqRef = useRef(0);
   useEffect(() => {
-    if (!city && !query.trim()) { setResults([]); return; }
+    if (!city && !query.trim()) { setResults([]); setTotal(0); return; }
     const token = ++reqRef.current;
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const rows = await searchHotelRoomsForBuilder(city, query, coords, 1, null, null, null, "price_asc");
-        if (token === reqRef.current) setResults(rows);
+        const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
+        if (token === reqRef.current) {
+          setResults(rows);
+          setPage(1);
+          setTotal(t);
+        }
       } catch {
         if (token === reqRef.current) toast.error("Couldn't load hotels. Try again.");
       } finally {
@@ -92,7 +195,24 @@ export function HotelReplaceView({ day }: { day: number }) {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [city, query, coords]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, query, coords, sortBy, mealFilterKey, starFilter, categoryFilter, dayDateISO]);
+
+  const hasMore = results.length < total;
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
+      setResults((prev) => [...prev, ...rows]);
+      setPage(nextPage);
+      setTotal(t);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   if (!itin) return null;
 
@@ -114,7 +234,7 @@ export function HotelReplaceView({ day }: { day: number }) {
   async function applyToDays(days: number[]) {
     const current = itin?.roomPricingId;
     if (current == null) return;
-    const source = await getHotelRoomByIdForBuilder(current, coords);
+    const source = await getHotelRoomByIdForBuilder(current, coords, dayDateISO);
     if (!source) {
       toast.error("Couldn't load that room. Pick it again to apply it elsewhere.");
       return;
@@ -179,6 +299,103 @@ export function HotelReplaceView({ day }: { day: number }) {
         </p>
       )}
 
+      {/* Sort is always visible — it applies regardless of scope and gets
+          used on nearly every search. Star/category/meal filters are the
+          part that's only sometimes needed, so they live behind a toggle
+          instead of always taking up space; the badge shows how many are
+          active even while collapsed. */}
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50 shrink-0">Sort</label>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as HotelSortOption)}
+          className="h-7 flex-1 min-w-0 text-[11px] rounded-md border border-dashboard-base-300 cursor-pointer bg-dashboard-base-100 px-1.5 outline-none"
+        >
+          {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          aria-expanded={filtersOpen}
+          className={cn(
+            "flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] cursor-pointer font-medium transition-colors",
+            filtersOpen || activeFilterCount > 0
+              ? "border-dashboard-primary/40 bg-dashboard-primary/10 text-dashboard-primary"
+              : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+          )}
+        >
+          <Sliders size={11} />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-dashboard-primary px-1 text-[9px] font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+          <ChevronDown size={10} className={cn("transition-transform duration-150", filtersOpen && "rotate-180")} />
+        </button>
+      </div>
+
+      {filtersOpen && (
+        <div className="space-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 p-2.5">
+          {activeFilterCount > 0 && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); }}
+                className="text-[10.5px] font-medium text-dashboard-error/75 hover:text-dashboard-error"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+
+          <FilterRow label="Rating">
+            {STAR_FILTER_CHIPS.map((star) => (
+              <Chip
+                key={star}
+                selected={starFilter === star}
+                onClick={() => setStarFilter((f) => (f === star ? null : star))}
+              >
+                <span className="flex items-center gap-0.5"><Star size={9} /> {star.replace(" Star", "")}</span>
+              </Chip>
+            ))}
+          </FilterRow>
+
+          <FilterRow label="Type">
+            {CATEGORY_FILTER_CHIPS.map((c) => (
+              <Chip
+                key={c.value}
+                selected={categoryFilter === c.value}
+                onClick={() => setCategoryFilter((f) => (f === c.value ? null : c.value))}
+              >
+                {c.label}
+              </Chip>
+            ))}
+          </FilterRow>
+
+          <FilterRow label="Meals">
+            {MEAL_FILTER_CHIPS.map((m) => {
+              const active = mealFilter.includes(m.value);
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setMealFilter((prev) =>
+                    prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value])}
+                  className={cn(
+                    "flex items-center gap-1 rounded-[7px] border px-2 py-1 text-[11px] font-medium cursor-pointer transition-colors duration-[120ms]",
+                    active ? MEAL_CHIP_ACTIVE_STYLES[m.value] : MEAL_BADGE_STYLES[m.value],
+                  )}
+                >
+                  <m.icon size={10} /> {m.label}
+                </button>
+              );
+            })}
+          </FilterRow>
+        </div>
+      )}
+
       {/* The escape hatch this view exists to offer: nothing in the catalog
           fits, so hand the day over instead of leaving it empty. */}
       <button
@@ -187,7 +404,7 @@ export function HotelReplaceView({ day }: { day: number }) {
           replaceDay(day, beginHotelRequest);
           openDrawer({ kind: "hotel-request", day });
         }}
-        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100"
+        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 cursor-pointer"
       >
         <Clock size={12} /> Can&apos;t find one? Request from the hotel team
       </button>
@@ -234,13 +451,31 @@ export function HotelReplaceView({ day }: { day: number }) {
               key={room.id}
               selected={isCurrent}
               onClick={() => pick(room)}
+              leading={room.thumbnail ? (
+                <Image
+                  src={room.thumbnail}
+                  alt={room.roomName}
+                  width={56}
+                  height={42}
+                  className="h-10.5 w-14 rounded-lg object-cover border"
+                />
+              ) : (
+                <div className="h-10.5 w-14 rounded-lg bg-dashboard-base-200 border border-dashboard-base-300 flex items-center justify-center">
+                  <Hotel size={16} className="text-dashboard-base-content/30" />
+                </div>
+              )}
               title={
+                // The hotel is what an exec recognizes and browses by — the
+                // room type is a detail of that property, so it reads as a
+                // subtitle underneath rather than competing for the top line.
                 <span className="flex items-center gap-1.5">
                   {room.hotelName}
                   {isCurrent && <CheckIcon size={12} className="text-dashboard-primary shrink-0" />}
                 </span>
               }
-              description={room.roomName}
+              titleTooltip={room.hotelName}
+              subtitle={room.roomName}
+              subtitleTooltip={room.roomName}
               meta={
                 <>
                   {room.starRating && <span>{room.starRating}</span>}
@@ -249,21 +484,67 @@ export function HotelReplaceView({ day }: { day: number }) {
                       <MapPin size={9} /> {room.distanceKm.toFixed(1)} km
                     </span>
                   )}
+                  {/* Room's own inventory — sleep + mattress capacity, so it
+                      can be judged on what it can hold while still browsing,
+                      not just what this party would need from it below. */}
+                  {capacitySummary(room.roomCapacity, room.extraBedCapacity) && (
+                    <span
+                      className="flex items-center gap-0.5"
+                      title={
+                        room.maxAdults != null || room.maxChildren != null
+                          ? `Up to ${room.maxAdults ?? "—"} adult${room.maxAdults !== 1 ? "s" : ""}, ${room.maxChildren ?? "—"} child${room.maxChildren !== 1 ? "ren" : ""} per room`
+                          : undefined
+                      }
+                    >
+                      <Users size={9} /> {capacitySummary(room.roomCapacity, room.extraBedCapacity)}
+                    </span>
+                  )}
                   <span className="flex items-center gap-0.5">
-                    <BedDouble size={9} /> {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
+                    <BedDouble size={9} /> {plan.rooms} room{plan.rooms !== 1 ? "s" : ""} needed
                     {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
                   </span>
+                  {room.coveredMeals.length > 0 ? (
+                    room.coveredMeals.map((meal) => {
+                      const Icon = MEAL_ICONS[meal] ?? UtensilsCrossed;
+                      return (
+                        <span
+                          key={meal}
+                          className={cn(
+                            "flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 font-medium",
+                            MEAL_BADGE_STYLES[meal] ?? "border-dashboard-base-300 bg-dashboard-base-200/60 text-dashboard-base-content/60",
+                          )}
+                        >
+                          <Icon size={9} /> {meal}
+                        </span>
+                      );
+                    })
+                  ) : room.mealPlanName ? (
+                    <span>{room.mealPlanName}</span>
+                  ) : null}
                 </>
               }
               trailing={
                 <>
                   <p className="text-[13px] font-bold tabular-nums">₹{nightly.toLocaleString("en-IN")}</p>
-                  <p className="text-[10px] text-dashboard-base-content/50">per night</p>
+                  <p className="text-[10px] text-dashboard-base-content/50">
+                    per night{room.isSeasonalRate && " · seasonal"}
+                  </p>
                 </>
               }
             />
           );
         })}
+
+        {hasMore && !loading && (
+          <Button
+            type="button"
+            className="w-full h-8 gap-1.5 text-xs bg-dashboard-primary text-dashboard-primary-content border-transparent hover:bg-dashboard-primary/90"
+            onClick={loadMore} disabled={loadingMore}
+          >
+            {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+            {loadingMore ? "Loading…" : `Load more · ${total - results.length} left`}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -398,6 +679,11 @@ export function HotelEditView({ day }: { day: number }) {
                     {itin.accommodationRoomSpecs}
                   </p>
                 )}
+                {capacitySummary(itin.accommodationRoomCapacity, itin.accommodationExtraBedCapacity) && (
+                  <p className="flex items-center gap-1 text-[11px] text-dashboard-base-content/50 mt-0.5">
+                    <Users size={10} /> {capacitySummary(itin.accommodationRoomCapacity, itin.accommodationExtraBedCapacity)}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex gap-2 mt-3">
@@ -420,20 +706,37 @@ export function HotelEditView({ day }: { day: number }) {
           <StayNights day={day} />
 
           <Group label="This night">
-            <Field
-              label="Rooms needed"
-              hint={`Leave blank to auto-compute. For ${form.adults} adult${form.adults !== 1 ? "s" : ""}${form.children > 0 ? `, ${form.children} child${form.children !== 1 ? "ren" : ""}` : ""}: ${plan.rooms} room${plan.rooms !== 1 ? "s" : ""}${plan.mattresses > 0 ? ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}` : ""}`}
-            >
-              <Input
-                type="number" min={1}
-                value={itin.roomsCount ?? ""}
-                placeholder={String(plan.rooms)}
-                onChange={(e) => updateDay(day, {
-                  roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-                })}
-                className="h-9 text-sm w-28"
-              />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                label="Rooms needed"
+                hint={`Auto: ${plan.rooms} for ${form.adults} adult${form.adults !== 1 ? "s" : ""}${form.children > 0 ? `, ${form.children} child${form.children !== 1 ? "ren" : ""}` : ""}`}
+              >
+                <Input
+                  type="number" min={1}
+                  value={itin.roomsCount ?? ""}
+                  placeholder={String(plan.rooms)}
+                  onChange={(e) => updateDay(day, {
+                    roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
+                  })}
+                  className="h-9 text-sm"
+                />
+              </Field>
+
+              <Field
+                label="Mattresses needed"
+                hint={`Auto: ${plan.mattresses} · up to ${itin.accommodationExtraBedCapacity ?? 0} per room`}
+              >
+                <Input
+                  type="number" min={0}
+                  value={itin.manualExtraBeds ?? ""}
+                  placeholder={String(plan.mattresses)}
+                  onChange={(e) => updateDay(day, {
+                    manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
+                  })}
+                  className="h-9 text-sm"
+                />
+              </Field>
+            </div>
 
             <Field label="Meal plan">
               <Input
@@ -821,6 +1124,8 @@ function ExtraRoomsEditor({ day }: { day: number }) {
   const [loading, setLoading] = useState(false);
 
   const city = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
+  const dayDate = form.travelDate ? dayCalendarDate(form.travelDate, day) : null;
+  const dayDateISO = dayDate ? toLocalISODate(dayDate) : null;
 
   useEffect(() => {
     if (!adding) return;
@@ -828,14 +1133,14 @@ function ExtraRoomsEditor({ day }: { day: number }) {
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const rows = await searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc");
+        const { rows } = await searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc", null, dayDateISO);
         if (!cancelled) setResults(rows);
       } finally {
         if (!cancelled) setLoading(false);
       }
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [adding, city, query]);
+  }, [adding, city, query, dayDateISO]);
 
   if (!itin) return null;
   const extras = itin.extraRooms ?? [];

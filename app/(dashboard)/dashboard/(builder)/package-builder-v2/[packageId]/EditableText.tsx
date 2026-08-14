@@ -26,8 +26,8 @@ import { cn } from "@/app/lib/utils";
 import { useOptionalBuilder, applyFieldEdit, fieldKey, type EditableField } from "./builder-context";
 
 export function EditableText({
-  value, field, placeholder, fallback, className, style, multiline = false, as: Tag = "span",
-  readOnly, readOnlyReason, display,
+  value, field, placeholder, fallback, displayTransform, display, className, style, multiline = false, as: Tag = "span",
+  readOnly, readOnlyReason,
 }: {
   value: string;
   field: EditableField;
@@ -42,6 +42,11 @@ export function EditableText({
    * layout, which is what the conditional `{x && <p>…}` wrappers this replaced
    * used to do. */
   fallback?: string;
+  /** Cosmetic formatting applied only to the rendered display (e.g. titleCase
+   * for a destination typed in ALL CAPS) — never applied to `draft`/the live
+   * `<input>` while actually editing, so it can't fight what's being typed or
+   * rewrite the stored value underneath someone's cursor. */
+  displayTransform?: (value: string) => string;
   className?: string;
   /** Carried onto every render path including the input, so an edited field
    * keeps the document's own colour and letter-spacing while being typed in
@@ -63,6 +68,17 @@ export function EditableText({
 }) {
   const builder = useOptionalBuilder();
   const canEdit = !!builder?.canEdit;
+
+  // Composes both display-only formatters. `display` converts a real value's
+  // raw stored format into a human one (e.g. "11:00" -> "11:00 AM") — it never
+  // runs on `fallback`, which is caller-supplied stand-in text, not raw data.
+  // `displayTransform`'s cosmetic normalization (e.g. titleCase) runs on top,
+  // applied to whichever ends up shown (the formatted value, or the fallback)
+  // so a wrongly-cased value AND a wrongly-cased fallback both get fixed.
+  function formatShown(raw: string, isRealValue: boolean): string {
+    const formatted = isRealValue && display ? display(raw) : raw;
+    return displayTransform ? displayTransform(formatted) : formatted;
+  }
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -95,7 +111,7 @@ export function EditableText({
     // text, a caller-supplied stand-in, or nothing at all — never an empty
     // element holding open space the content doesn't need.
     const raw = value.trim();
-    const shown = (raw && display ? display(raw) : raw) || fallback?.trim() || "";
+    const shown = raw ? formatShown(raw, true) : formatShown(fallback?.trim() || "", false);
     if (!shown) return null;
     return (
       <Tag
@@ -187,7 +203,7 @@ export function EditableText({
         isEmpty && "builder-only no-print italic opacity-45",
       )}
     >
-      {isEmpty ? (placeholder ?? "Click to add") : (display ? display(value) : value)}
+      {isEmpty ? (placeholder ?? "Click to add") : formatShown(value, true)}
     </Tag>
   );
 }

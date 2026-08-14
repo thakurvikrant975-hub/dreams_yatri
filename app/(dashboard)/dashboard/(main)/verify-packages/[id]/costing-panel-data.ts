@@ -39,7 +39,7 @@ export async function loadCostingPanelData(id: string) {
                 discountType: true, discountValue: true, discountNote: true,
                 hotelSubtotalOverride: true, cabSubtotalOverride: true,
                 status: true, builtByName: true, sentAt: true,
-                readyAt: true, readyByName: true,
+                readyAt: true, readyByName: true, readyNote: true,
                 viewedAt: true, viewCount: true, pricingSnapshot: true,
                 verified: true, verifiedAt: true, verifiedByName: true,
                 rejectedAt: true, rejectedByName: true, rejectionNote: true,

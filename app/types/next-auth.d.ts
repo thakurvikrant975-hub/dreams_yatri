@@ -55,5 +55,9 @@ declare module "next-auth/jwt" {
     permissions?:       Prisma.JsonValue;
     pageAccess?:        string[] | null;
     departmentId?:      string | null;
+    /** TeamMember.sessionVersion at sign-in — compared against the live DB
+     * value in proxy.ts on every /dashboard request to force-invalidate a
+     * token (see forceLogoutMember). */
+    sessionVersion?:    number;
   }
 }

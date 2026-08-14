@@ -25,7 +25,7 @@ import {
   approveCustomPackage, rejectCustomPackage,
 } from "@/app/(dashboard)/dashboard/(main)/verify-packages/actions";
 import { getRejectionReasons } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
-import { countOpenFindings, getRevisionHistory, type RevisionEntry } from "../review-notes.actions";
+import { countOpenFindings, getRevisionHistory, type RevisionEntry } from "@/app/(dashboard)/dashboard/(builder)/package-builder/review-notes.actions";
 import { RevisionHistoryDialog } from "@/app/(dashboard)/dashboard/(main)/verify-packages/[id]/RevisionHistoryDialog";
 
 export function CostingDecisionButtons({ packageId }: { packageId: string }) {

@@ -21,7 +21,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { toggleStandardPolicyLine } from "../review-notes.actions";
+import { toggleStandardPolicyLine } from "@/app/(dashboard)/dashboard/(builder)/package-builder/review-notes.actions";
 import { Lock, Plus, X } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import {

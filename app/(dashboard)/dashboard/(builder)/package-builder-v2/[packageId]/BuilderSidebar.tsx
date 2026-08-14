@@ -128,7 +128,7 @@ function RailButton({ entry }: {
       onClick={() => setPanelTab(active ? null : tab)}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group/rail w-[56px] flex flex-col items-center gap-1 rounded-lg py-2 transition-colors duration-[120ms]",
+        "group/rail w-[56px] flex flex-col items-center gap-1 rounded-lg py-2 transition-colors cursor-pointer duration-[120ms]",
         active ? "bg-dashboard-primary/10" : "hover:bg-dashboard-base-200",
       )}
     >

@@ -14,11 +14,12 @@
 //            (deriveTransportFields) rather than from any day.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { useEffect, useState } from "react";
 import { Plus, Trash2, Gift, Utensils } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
-import type { TicketInput, AddonInput } from "../action";
+import { getHotelRoomByIdForBuilder, type TicketInput, type AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { useBuilder } from "./builder-context";
 import { NOTE_TONES, noteTone, type NoteTone } from "./ItineraryDocument";
 import {
@@ -32,34 +33,73 @@ import { RouteStopsEditor } from "./RouteStopsEditor";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STANDARD_MEALS = ["Breakfast", "Lunch", "Dinner"] as const;
+const MEAL_KEY_LABELS: Record<string, string> = {
+  breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
+};
 
 export function MealsView({ day }: { day: number }) {
   const { form, updateDay } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
+  const roomPricingId = itin?.roomPricingId ?? null;
+
+  // A catalog room's meal plan is ground truth for what's actually served —
+  // re-fetched here (not trusted from itin.meals) since that field used to be
+  // freely hand-editable and could still be holding a meal this room never
+  // actually included. Corrects it in place the moment the drawer opens, so
+  // stale hand-added meals from before this fix get fixed too, not just
+  // blocked going forward.
+  const [roomMeals, setRoomMeals] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (roomPricingId == null) { setRoomMeals(null); return; }
+    let cancelled = false;
+    getHotelRoomByIdForBuilder(roomPricingId, null).then((room) => {
+      if (cancelled || !room) return;
+      setRoomMeals(room.coveredMeals.map((k) => MEAL_KEY_LABELS[k]).filter((v): v is string => !!v));
+    });
+    return () => { cancelled = true; };
+  }, [roomPricingId]);
+
+  useEffect(() => {
+    if (roomMeals == null || !itin) return;
+    const current = [...itin.meals].sort().join(",");
+    const real = [...roomMeals].sort().join(",");
+    if (current !== real) updateDay(day, { meals: roomMeals });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomMeals]);
+
   if (!itin) return null;
 
+  const hasCatalogRoom = roomPricingId != null;
+
   function toggle(meal: string) {
+    if (hasCatalogRoom) return;
     const has = itin!.meals.includes(meal);
     updateDay(day, {
       meals: has ? itin!.meals.filter((m) => m !== meal) : [...itin!.meals, meal],
     });
   }
 
+  const visibleMeals = hasCatalogRoom
+    ? STANDARD_MEALS.filter((meal) => itin.meals.includes(meal))
+    : STANDARD_MEALS;
+
   return (
     <div className="p-5 space-y-4">
       <div className="space-y-2">
-        {STANDARD_MEALS.map((meal) => {
+        {visibleMeals.map((meal) => {
           const on = itin.meals.includes(meal);
           return (
             <button
               key={meal}
               type="button"
+              disabled={hasCatalogRoom}
               onClick={() => toggle(meal)}
               className={cn(
                 "w-full flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors",
                 on
                   ? "border-dashboard-primary bg-dashboard-primary/5"
                   : "border-dashboard-base-300 hover:bg-dashboard-base-200/50",
+                hasCatalogRoom && "cursor-default",
               )}
             >
               <Utensils size={13} className={on ? "text-dashboard-primary" : "text-dashboard-base-content/40"} />
@@ -68,10 +108,16 @@ export function MealsView({ day }: { day: number }) {
             </button>
           );
         })}
+        {hasCatalogRoom && visibleMeals.length === 0 && (
+          <p className="py-4 text-center text-[11px] text-dashboard-base-content/50">
+            This room&apos;s rate doesn&apos;t include any meals.
+          </p>
+        )}
       </div>
       <p className="text-[11px] text-dashboard-base-content/45">
-        Picking a room with a meal plan sets these automatically — changing them here
-        overrides that for this day only.
+        {hasCatalogRoom
+          ? "Set by the picked room's meal plan — replace the room (or switch it to a hand-typed stay) to change what's included here."
+          : "No catalog room is picked for this day, so meals are set by hand."}
       </p>
     </div>
   );
@@ -493,6 +539,7 @@ export function StopsView() {
         stops={form.stops}
         onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
         limitReason={stopLimitReason(form.stops.length, form.itineraries.length)}
+        dayCount={form.itineraries.length}
       />
       <div className="rounded-lg bg-dashboard-base-200/50 px-3 py-2.5 space-y-1">
         <p className="text-[11px] text-dashboard-base-content/70">

@@ -8,7 +8,7 @@ import {
     CalendarDays, Mail, MapPin, Phone, Users, IndianRupee,
     Building2, Car, Ticket, Gift, PlaneTakeoff, TrainFront, Helicopter, Bus, Package,
     CheckCircle2, XCircle, AlertCircle, Eye, Send, ShieldCheck,
-    Pencil, X, Loader2, Clock, Plus,
+    Pencil, X, Loader2, Clock, Plus, ListChecks, ListX, MessageSquare,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -21,7 +21,7 @@ import { RejectPricingDialog } from "./RejectPricingDialog";
 import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
 import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
-import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/builder-context";
+import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/builder-context";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
 // rather than an if/else chain — a ticket type that isn't FLIGHT/HELICOPTER
@@ -73,7 +73,7 @@ type PkgInfo = {
     marginPercentage: number; gstPercentage: number;
     discountType: "FLAT" | "PERCENT" | null; discountValue: number | null; discountNote: string | null;
     status: string; builtByName: string | null; sentAt: Date | null;
-    readyAt: Date | null; readyByName: string | null;
+    readyAt: Date | null; readyByName: string | null; readyNote: string | null;
     viewedAt: Date | null; viewCount: number;
     verified: boolean; verifiedAt: Date | null; verifiedByName: string | null;
     rejectedAt: Date | null; rejectedByName: string | null; rejectionNote: string | null; rejectionReasonLabel: string | null;
@@ -454,6 +454,18 @@ export function VerifyPackageDetailClient({
                     )}
                 </div>
             </div>
+
+            {pkg.readyNote && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-dashboard-primary/30 bg-dashboard-primary/5 px-4 py-3 shadow-lg">
+                    <MessageSquare className="size-4 mt-0.5 shrink-0 text-dashboard-primary" />
+                    <div>
+                        <p className="text-sm font-semibold text-dashboard-base-content">
+                            Message from {pkg.readyByName ?? pkg.builtByName ?? "the sales exec"}
+                        </p>
+                        <p className="text-xs text-dashboard-base-content/70 mt-0.5">&quot;{pkg.readyNote}&quot;</p>
+                    </div>
+                </div>
+            )}
 
             {state === "rejected" && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-red-300 bg-red-50 px-4 py-3 shadow-lg">

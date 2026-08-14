@@ -39,7 +39,7 @@ import { cn } from "@/app/lib/utils";
 import { useBuilder, scrollToDay, type DrawerTarget } from "./builder-context";
 import { removeStay, removeTransport, continuesStayFrom, dayReadiness } from "./day-mutations";
 import { Empty, Group } from "./builder-ui";
-import type { DayItinerary } from "../action";
+import type { DayItinerary } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Days

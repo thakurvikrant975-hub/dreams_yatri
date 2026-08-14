@@ -8,9 +8,10 @@ import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
+import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
 import type { RoomSelection, CabSelection } from "./room-cab-selections";
-import type { Prisma } from "@/app/generated/prisma";
+import type { Prisma, VehicleType } from "@/app/generated/prisma";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { emailPackageToClient } from "./email-package";
@@ -53,6 +54,23 @@ const HOTEL_ROOM_SELECT = {
   id: true,
   plan_name: true,
   price_per_night: true,
+  weekend_price_per_night: true,
+  extra_bed_rate: true,
+  weekend_extra_bed_rate: true,
+  occupancy_prices: {
+    select: { occupancy: true, price_per_night: true, weekend_price_per_night: true },
+  },
+  // Only active seasons — resolveHotelSeasonPricing (shared with the actual
+  // billing engine, see its own doc comment) is what turns these plus a date
+  // into the room's effective rate; this search must never disagree with it.
+  seasons: {
+    where: { is_active: true },
+    select: {
+      valid_from: true, valid_to: true, price_per_night: true, weekend_price_per_night: true,
+      extra_bed_rate: true, weekend_extra_bed_rate: true,
+      occupancy_prices: { select: { occupancy: true, price_per_night: true, weekend_price_per_night: true } },
+    },
+  },
   meal_type: { select: { name: true, covered_meals: true } },
   hotel: {
     select: {
@@ -81,7 +99,15 @@ export interface HotelRoomResult {
   mealPlanName:  string | null;
   /** Lowercase meal keys actually covered by this room's plan — e.g. ["breakfast", "dinner"] — sourced from meal_types.covered_meals, not guessed from the plan name text. */
   coveredMeals:  string[];
+  /** The rate actually charged for the date passed to the search — a season
+   * override when the day falls inside one, its own weekend rate on a Sat/Sun
+   * with none active, otherwise the room's flat base rate. Same figure
+   * whether or not a date was given; without one this is just the base rate. */
   pricePerNight: number;
+  /** True when pricePerNight came from a season override rather than the
+   * room's flat base rate — shown as a small badge so an exec knows a date
+   * actually moved the price rather than assuming the flat rate everywhere. */
+  isSeasonalRate: boolean;
   thumbnail:     string | null;
   /** The hotel's own main photo — shown first in the picked-hotel gallery. */
   hotelPhoto:    string | null;
@@ -133,6 +159,7 @@ const HOTEL_SEARCH_PAGE_SIZE = 20;
 function mapHotelRoomRow(
   item: Prisma.hotel_room_pricingGetPayload<{ select: typeof HOTEL_ROOM_SELECT }>,
   refCoords?: { lat: number; lng: number } | null,
+  date?: string | null,
 ): HotelRoomResult {
   const rawHotelPhoto = item.hotel.images[0]?.thumbnail ?? item.hotel.images[0]?.url ?? item.hotel.thumbnail ?? null;
   const rawRoomPhotos = (item.room?.images ?? []).map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
@@ -155,13 +182,20 @@ function mapHotelRoomRow(
     ? Math.round(haversineKm(refCoords.lat, refCoords.lng, hotelLat, hotelLng) * 10) / 10
     : null;
 
+  // Same resolution the actual billing engine uses (computeBuilderHotelPricing
+  // → resolveHotelSeasonPricing) — this search's price can never disagree
+  // with what a pick of this room would actually cost on this date.
+  const dateObj = date ? new Date(date) : null;
+  const { basePrice, isSeasonal } = resolveHotelSeasonPricing(item, dateObj && !Number.isNaN(dateObj.getTime()) ? dateObj : null);
+
   return {
     id:            item.id,
     hotelName:     item.hotel.name,
     roomName:      item.room?.name ?? "Room",
     mealPlanName:  item.meal_type?.name ?? null,
     coveredMeals:  item.meal_type?.covered_meals ?? [],
-    pricePerNight: Number(item.price_per_night),
+    pricePerNight: basePrice,
+    isSeasonalRate: isSeasonal,
     thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
     hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
     roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
@@ -182,18 +216,42 @@ function mapHotelRoomRow(
 
 /** "price_asc"/"price_desc" sort by the room's actual nightly rate; "rating_desc"
  * sorts by the hotel's star rating (falls back to name for ties/unrated hotels);
- * "name_asc" is the original default order. */
-export type HotelSortOption = "price_asc" | "price_desc" | "rating_desc" | "name_asc";
+ * "distance_asc" sorts nearest-first (only meaningful with refCoords — rooms
+ * with no computable distance sort last, not first); "name_asc" is the
+ * original default order. Applied in JS now that results can be a merge of
+ * two separate queries (see searchHotelRoomsForBuilder) rather than left to a
+ * single query's own ORDER BY. */
+export type HotelSortOption = "price_asc" | "price_desc" | "rating_desc" | "distance_asc" | "name_asc";
 
-const HOTEL_SORT_ORDER_BY: Record<HotelSortOption, Prisma.hotel_room_pricingOrderByWithRelationInput[]> = {
-  price_asc:    [{ price_per_night: "asc" }, { hotel: { name: "asc" } }],
-  price_desc:   [{ price_per_night: "desc" }, { hotel: { name: "asc" } }],
-  // hotels.stay_type is a free-text string like "4 Star" — descending string
-  // sort still puts 5/4/3/2 Star in the right order since only the leading
-  // digit differs between them.
-  rating_desc:  [{ hotel: { stay_type: "desc" } }, { hotel: { name: "asc" } }],
-  name_asc:     [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
-};
+function sortHotelResults(rows: HotelRoomResult[], sortBy: HotelSortOption): HotelRoomResult[] {
+  const byName = (a: HotelRoomResult, b: HotelRoomResult) => a.hotelName.localeCompare(b.hotelName);
+  const sorted = [...rows];
+  switch (sortBy) {
+    case "price_asc":
+      sorted.sort((a, b) => a.pricePerNight - b.pricePerNight || byName(a, b));
+      break;
+    case "price_desc":
+      sorted.sort((a, b) => b.pricePerNight - a.pricePerNight || byName(a, b));
+      break;
+    case "rating_desc":
+      // Free-text "4 Star" etc. — descending string sort still puts 5/4/3/2
+      // Star in the right order since only the leading digit differs.
+      sorted.sort((a, b) => (b.starRating ?? "").localeCompare(a.starRating ?? "") || byName(a, b));
+      break;
+    case "distance_asc":
+      sorted.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || byName(a, b));
+      break;
+    case "name_asc":
+    default:
+      sorted.sort(byName);
+      break;
+  }
+  return sorted;
+}
+
+/** Hotels within this straight-line radius of the searched/geocoded point
+ * count as "near here" for the coordinate-based blend below. */
+const HOTEL_NEARBY_RADIUS_KM = 25;
 
 export async function searchHotelRoomsForBuilder(
   /** The day's auto-derived stop (from Route: Destinations & Nights) — the
@@ -221,16 +279,30 @@ export async function searchHotelRoomsForBuilder(
   /** Room-only / EP filter — true shows only rooms with no meal plan at all
    * (no meal_type row, or a meal_type whose covered_meals is empty). */
   noMealsOnly?: boolean | null,
-): Promise<HotelRoomResult[]> {
+  /** The day's actual travel date (ISO) — when given, pricePerNight reflects
+   * that specific date's season/weekend rate instead of the flat base rate. */
+  date?: string | null,
+): Promise<{ rows: HotelRoomResult[]; total: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
-  if (!city && !q) return [];
+  if (!city && !q) return { rows: [], total: 0 };
 
-  const list = await db.hotel_room_pricing.findMany({
+  const mealClause = noMealsOnly
+    ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
+    : mealFilter && mealFilter.length > 0
+      ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
+      : {};
+  const hotelFilters = {
+    is_active: true,
+    ...(starFilter ? { stay_type: starFilter } : {}),
+    ...(categoryFilter ? { category: categoryFilter } : {}),
+  };
+
+  const textMatches = await db.hotel_room_pricing.findMany({
     where: {
       is_active: true,
       hotel: {
-        is_active: true,
+        ...hotelFilters,
         // A typed search reaches anywhere (name or location) — it isn't
         // scoped to the day's default city, so an exec can jump straight to
         // a hotel/city they already know without clearing anything first.
@@ -259,59 +331,47 @@ export async function searchHotelRoomsForBuilder(
                 { destination: { name: { contains: city, mode: "insensitive" } } },
               ],
             }),
-        ...(starFilter ? { stay_type: starFilter } : {}),
-        ...(categoryFilter ? { category: categoryFilter } : {}),
       },
-      ...(noMealsOnly
-        ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
-        : mealFilter && mealFilter.length > 0
-          ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
-          : {}),
+      ...mealClause,
     },
     select: HOTEL_ROOM_SELECT,
-    take: HOTEL_SEARCH_PAGE_SIZE,
-    skip: (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE,
-    orderBy: HOTEL_SORT_ORDER_BY[sortBy ?? "name_asc"],
   });
 
-  if (list.length > 0 || q || !refCoords) {
-    return list.map((item) => mapHotelRoomRow(item, refCoords));
+  // Blended in whenever there's a point to measure from — not just as a
+  // fallback when the text match came back empty. A stop can have one hotel
+  // tagged with its exact city name and a dozen more a few km away tagged
+  // with a neighbouring sub-locality; those shouldn't stay invisible just
+  // because the first one happened to match by text. Skipped for a typed
+  // name/place search (`q`) — that's a deliberate "find this specific thing"
+  // query, not "what's near here", and geocoding whatever was typed as a
+  // place wouldn't reliably mean what the exec meant by it.
+  let geoMatches: typeof textMatches = [];
+  if (refCoords && !q) {
+    const excludeIds = textMatches.map((r) => r.id);
+    const nearby = await db.hotel_room_pricing.findMany({
+      where: {
+        is_active: true,
+        hotel: { ...hotelFilters, location: { latitude: { not: null }, longitude: { not: null } } },
+        ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
+        ...mealClause,
+      },
+      select: HOTEL_ROOM_SELECT,
+    });
+    geoMatches = nearby.filter((item) => {
+      const lat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
+      const lng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
+      if (lat == null || lng == null) return false;
+      return haversineKm(refCoords.lat, refCoords.lng, lat, lng) <= HOTEL_NEARBY_RADIUS_KM;
+    });
   }
 
-  // Nothing matched the stop's name by text (e.g. "Cherrapunji" isn't in any
-  // nearby hotel's own name/city/destination — the catalog tags them by
-  // sub-locality instead, like "Shella Bholaganj") — fall back to actual
-  // distance from the geocoded stop, same idea as searchCabsForBuilder's
-  // nearest-city fallback below. Real hotel coordinates (hotel.location,
-  // filled in via the location wizard) are what make this possible; a
-  // property genuinely close by should still surface by default instead of
-  // the exec having to already know its name or sub-locality to type it in.
-  const HOTEL_FALLBACK_RADIUS_KM = 25;
-  const nearby = await db.hotel_room_pricing.findMany({
-    where: {
-      is_active: true,
-      hotel: {
-        is_active: true,
-        location: { latitude: { not: null }, longitude: { not: null } },
-        ...(starFilter ? { stay_type: starFilter } : {}),
-        ...(categoryFilter ? { category: categoryFilter } : {}),
-      },
-      ...(noMealsOnly
-        ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
-        : mealFilter && mealFilter.length > 0
-          ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
-          : {}),
-    },
-    select: HOTEL_ROOM_SELECT,
-  });
-
-  const withDistance = nearby
-    .map((item) => mapHotelRoomRow(item, refCoords))
-    .filter((r): r is HotelRoomResult & { distanceKm: number } => r.distanceKm != null && r.distanceKm <= HOTEL_FALLBACK_RADIUS_KM)
-    .sort((a, b) => a.distanceKm - b.distanceKm);
+  const combined = sortHotelResults(
+    [...textMatches, ...geoMatches].map((item) => mapHotelRoomRow(item, refCoords, date)),
+    sortBy ?? "name_asc",
+  );
 
   const start = (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE;
-  return withDistance.slice(start, start + HOTEL_SEARCH_PAGE_SIZE);
+  return { rows: combined.slice(start, start + HOTEL_SEARCH_PAGE_SIZE), total: combined.length };
 }
 
 /** Looks up a single room by its `hotel_room_pricing` id — used by the hotel
@@ -321,13 +381,14 @@ export async function searchHotelRoomsForBuilder(
 export async function getHotelRoomByIdForBuilder(
   id: number,
   refCoords?: { lat: number; lng: number } | null,
+  date?: string | null,
 ): Promise<HotelRoomResult | null> {
   const item = await db.hotel_room_pricing.findUnique({
     where: { id },
     select: HOTEL_ROOM_SELECT,
   });
   if (!item) return null;
-  return mapHotelRoomRow(item, refCoords);
+  return mapHotelRoomRow(item, refCoords, date);
 }
 
 export interface ActivityResult {
@@ -475,6 +536,37 @@ const CAB_PRICING_SELECT = {
   vehicle: { select: { name: true, type: true, passenger_capacity: true, has_ac: true, image_key: true } },
 } as const;
 
+export type CabSortOption = "price_asc" | "price_desc" | "seats_desc" | "seats_asc" | "distance_asc" | "name_asc";
+
+const CAB_SEARCH_PAGE_SIZE = 10;
+
+function sortCabResults(rows: CabPricingResult[], sortBy: CabSortOption): CabPricingResult[] {
+  const byName = (a: CabPricingResult, b: CabPricingResult) => a.vehicleName.localeCompare(b.vehicleName);
+  const sorted = [...rows];
+  switch (sortBy) {
+    case "price_asc":
+      sorted.sort((a, b) => a.price - b.price || byName(a, b));
+      break;
+    case "price_desc":
+      sorted.sort((a, b) => b.price - a.price || byName(a, b));
+      break;
+    case "seats_desc":
+      sorted.sort((a, b) => b.passengerCapacity - a.passengerCapacity || byName(a, b));
+      break;
+    case "seats_asc":
+      sorted.sort((a, b) => a.passengerCapacity - b.passengerCapacity || byName(a, b));
+      break;
+    case "distance_asc":
+      sorted.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || byName(a, b));
+      break;
+    case "name_asc":
+    default:
+      sorted.sort(byName);
+      break;
+  }
+  return sorted;
+}
+
 function toCabPricingResult(
   item: Prisma.cab_pricingGetPayload<{ select: typeof CAB_PRICING_SELECT }>,
   refCoords?: { lat: number; lng: number } | null,
@@ -503,57 +595,76 @@ export async function searchCabsForBuilder(
   cityOrDestinationName: string,
   query: string,
   refCoords?: { lat: number; lng: number } | null,
-): Promise<CabPricingResult[]> {
+  page: number = 1,
+  /** vehicles.type match, e.g. "SUV" — the vehicle-type filter chip. */
+  vehicleTypeFilter?: string | null,
+  /** Minimum vehicles.passenger_capacity — the seats filter chip. */
+  minSeats?: number | null,
+  sortBy?: CabSortOption | null,
+): Promise<{ rows: CabPricingResult[]; total: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
+  const vehicleWhere: Prisma.vehiclesWhereInput = {
+    ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+    ...(vehicleTypeFilter ? { type: vehicleTypeFilter as VehicleType } : {}),
+    ...(minSeats ? { passenger_capacity: { gte: minSeats } } : {}),
+  };
+  const hasVehicleWhere = Object.keys(vehicleWhere).length > 0;
+
+  let list: CabPricingResult[] = [];
 
   if (city) {
-    const list = await db.cab_pricing.findMany({
+    const rows = await db.cab_pricing.findMany({
       where: {
         is_active: true,
         OR: [
           { destination: { name: { contains: city, mode: "insensitive" } } },
           { location: { name: { contains: city, mode: "insensitive" } } },
         ],
-        ...(query ? { vehicle: { name: { contains: query, mode: "insensitive" } } } : {}),
+        ...(hasVehicleWhere ? { vehicle: vehicleWhere } : {}),
       },
       select: CAB_PRICING_SELECT,
-      orderBy: [{ price: "asc" }],
     });
-    if (list.length > 0) return list.map((item) => toCabPricingResult(item, refCoords));
+    list = rows.map((item) => toCabPricingResult(item, refCoords));
   }
 
-  // No pricing configured for this exact city — find the nearest one that
-  // does have it, using refCoords (geocoded from the searched city name).
-  if (!refCoords) return [];
+  // No pricing configured for this exact city (or none searched at all) —
+  // fall back to whichever priced destination sits nearest by straight-line
+  // distance, using refCoords (the day's real pickup point when the exec
+  // picked one, otherwise the geocoded city). This is what lets a day
+  // scoped to e.g. "Kochi" surface a state-wide rate priced under "Kerala"
+  // instead of coming back empty just because the names don't match.
+  if (list.length === 0 && refCoords) {
+    const all = await db.cab_pricing.findMany({
+      where: {
+        is_active: true,
+        location: { latitude: { not: null }, longitude: { not: null } },
+        ...(hasVehicleWhere ? { vehicle: vehicleWhere } : {}),
+      },
+      select: CAB_PRICING_SELECT,
+    });
 
-  const all = await db.cab_pricing.findMany({
-    where: {
-      is_active: true,
-      location: { latitude: { not: null }, longitude: { not: null } },
-      ...(query ? { vehicle: { name: { contains: query, mode: "insensitive" } } } : {}),
-    },
-    select: CAB_PRICING_SELECT,
-  });
-  if (all.length === 0) return [];
-
-  let nearestCityName: string | null = null;
-  let minDist = Infinity;
-  for (const item of all) {
-    const lat = item.location?.latitude != null ? Number(item.location.latitude) : null;
-    const lng = item.location?.longitude != null ? Number(item.location.longitude) : null;
-    if (lat == null || lng == null) continue;
-    const d = haversineKm(refCoords.lat, refCoords.lng, lat, lng);
-    if (d < minDist) {
-      minDist = d;
-      nearestCityName = item.destination?.name ?? item.location?.name ?? null;
+    let nearestCityName: string | null = null;
+    let minDist = Infinity;
+    for (const item of all) {
+      const lat = item.location?.latitude != null ? Number(item.location.latitude) : null;
+      const lng = item.location?.longitude != null ? Number(item.location.longitude) : null;
+      if (lat == null || lng == null) continue;
+      const d = haversineKm(refCoords.lat, refCoords.lng, lat, lng);
+      if (d < minDist) {
+        minDist = d;
+        nearestCityName = item.destination?.name ?? item.location?.name ?? null;
+      }
+    }
+    if (nearestCityName) {
+      list = all
+        .filter((item) => (item.destination?.name ?? item.location?.name) === nearestCityName)
+        .map((item) => toCabPricingResult(item, refCoords));
     }
   }
-  if (!nearestCityName) return [];
 
-  return all
-    .filter((item) => (item.destination?.name ?? item.location?.name) === nearestCityName)
-    .map((item) => toCabPricingResult(item, refCoords))
-    .sort((a, b) => a.price - b.price);
+  const sorted = sortCabResults(list, sortBy ?? "price_asc");
+  const start = (Math.max(page, 1) - 1) * CAB_SEARCH_PAGE_SIZE;
+  return { rows: sorted.slice(start, start + CAB_SEARCH_PAGE_SIZE), total: sorted.length };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2641,7 +2752,14 @@ export async function sendPackageToClient(packageId: string): Promise<{
  * "ready → sent" duration metrics), and clears any prior verify/reject state
  * so a fresh review cycle starts clean.
  */
-export async function markPackageReady(packageId: string): Promise<{ success: boolean; error?: string }> {
+export async function markPackageReady(
+  packageId: string,
+  /** Optional message for costing, shown on verify-packages — e.g. context
+   * on a manual hotel entry or a price-sensitive client. Omitted entirely
+   * (not just empty) by the hotel-requests auto-advance path, which has no
+   * exec input to draw one from. */
+  note?: string,
+): Promise<{ success: boolean; error?: string }> {
   try {
     const { actor } = await getCurrentActor();
 
@@ -2694,6 +2812,7 @@ export async function markPackageReady(packageId: string): Promise<{ success: bo
         readyAt: new Date(),
         readyBy: actor?.id ?? null,
         readyByName: actor?.name ?? null,
+        readyNote: note?.trim() || null,
         verified: false, verifiedAt: null, verifiedBy: null, verifiedByName: null,
         rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
         execNotifiedAt: null,

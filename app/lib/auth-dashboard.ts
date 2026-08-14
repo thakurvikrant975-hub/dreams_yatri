@@ -60,12 +60,13 @@ async authorize(credentials) {
     member = await db.teamMember.findUnique({
       where: { email },
       select: {
-        id:           true,
-        name:         true,
-        email:        true,
-        password:     true,
-        isActive:     true,
-        departmentId: true,
+        id:             true,
+        name:           true,
+        email:          true,
+        password:       true,
+        isActive:       true,
+        sessionVersion: true,
+        departmentId:   true,
         teamRole: {
           select: {
             name:        true,
@@ -112,13 +113,14 @@ async authorize(credentials) {
   }).catch(console.error);
 
   return {
-    id:           member.id,
-    name:         member.name,
-    email:        member.email,
-    role:         member.teamRole?.name ?? "",
-    permissions:  member.teamRole?.permissions ?? [],
-    pageAccess:   member.teamRole?.pageAccess ?? [],
-    departmentId: member.departmentId ?? null,
+    id:             member.id,
+    name:           member.name,
+    email:          member.email,
+    role:           member.teamRole?.name ?? "",
+    permissions:    member.teamRole?.permissions ?? [],
+    pageAccess:     member.teamRole?.pageAccess ?? [],
+    departmentId:   member.departmentId ?? null,
+    sessionVersion: member.sessionVersion,
   } as any;
 },
     }),
@@ -134,6 +136,16 @@ async authorize(credentials) {
         token.permissions = (user as any).permissions;
         token.pageAccess  = (user as any).pageAccess;
         token.departmentId = (user as any).departmentId;
+        // Embedded at sign-in only — the actual force-logout check (compare
+        // against the live DB value) runs in proxy.ts, not here. This
+        // `jwt` callback can't safely do that itself: it's invoked from
+        // Server Component rendering too, which can't clear cookies, so an
+        // invalidated-but-still-cryptographically-valid cookie would keep
+        // getting resent forever — proxy.ts's `getToken` check (which reads
+        // this cookie directly, independent of this callback) would keep
+        // seeing a "logged in" token and bounce back off the login page,
+        // producing a redirect loop instead of an actual logout.
+        token.sessionVersion = (user as any).sessionVersion ?? 0;
       }
       return token;
     },

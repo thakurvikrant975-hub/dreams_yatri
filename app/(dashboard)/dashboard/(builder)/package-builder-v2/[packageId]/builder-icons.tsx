@@ -52,6 +52,7 @@ import {
   CaretDown as PhCaretDown,
   CaretRight as PhCaretRight,
   CaretUp as PhCaretUp,
+  ChatText as PhChatText,
   Check as PhCheck,
   CheckCircle as PhCheckCircle,
   CircleNotch as PhCircleNotch,
@@ -72,6 +73,7 @@ import {
   FlagPennant as PhFlagPennant,
   FloppyDisk as PhFloppyDisk,
   ForkKnife as PhForkKnife,
+  FunnelSimple as PhFunnelSimple,
   Gift as PhGift,
   Image as PhImage,
   Info as PhInfo,
@@ -141,6 +143,7 @@ export const XIcon = filled(PhX, "bold");
 export const XCircle = filled(PhXCircle);
 export const Search = filled(PhMagnifyingGlass, "bold");
 export const SearchIcon = filled(PhMagnifyingGlass, "bold");
+export const Sliders = filled(PhFunnelSimple);
 export const ExternalLink = filled(PhArrowSquareOut);
 export const Plus = filled(PhPlus, "bold");
 
@@ -163,6 +166,7 @@ export const Lock = filled(PhLock);
 export const Clock = filled(PhClock);
 /** Costing's own banner — "this is with you for review". */
 export const ShieldCheck = filled(PhShieldCheck);
+export const ChatText = filled(PhChatText);
 /** Bold, not fill: a filled CircleNotch is a solid disc with no gap to spin. */
 export const Loader2 = filled(PhCircleNotch, "bold");
 

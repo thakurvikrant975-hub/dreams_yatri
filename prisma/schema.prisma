@@ -762,6 +762,12 @@ model TeamMember {
   departmentId           String?
   teamRoleId             String?
   isActive               Boolean           @default(true)
+  /** Bumped to force-invalidate this member's current login(s) — dashboard
+   * auth is stateless JWT (no server-side session row to delete), so a
+   * mismatch between this and the value embedded in a member's token at
+   * sign-in is what actually signs them out, checked on every request in
+   * auth-dashboard.ts's jwt callback. */
+  sessionVersion         Int               @default(0)
   joiningDate            DateTime?
   lastLoginAt            DateTime?
   createdById            String?
@@ -2675,6 +2681,15 @@ model custom_packages {
   readyAt                 DateTime?
   readyBy                 String?
   readyByName             String?
+  /**
+   * Optional free-text message the exec can leave for costing when
+   * submitting for review (e.g. "client is price-sensitive, tried to keep
+   * margin tight" or "hotel on day 3 is a manual entry, please double-check
+   * the rate") — shown on verify-packages. Same lifecycle as readyAt: not
+   * cleared between cycles, just overwritten by the next Mark Ready, so it
+   * always reflects the message that came with the CURRENT review cycle.
+   */
+  readyNote             String?
   /**
    * Costing's pricing sign-off, independent of the client-facing status
    * (accepted/declined) and of whether it's actually been sent — a reviewer

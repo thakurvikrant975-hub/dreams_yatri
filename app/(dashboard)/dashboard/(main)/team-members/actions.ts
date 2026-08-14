@@ -480,3 +480,34 @@ export async function toggleActive(id: string): Promise<Result<null>> {
     return { success: false, error: "Failed to toggle status" };
   }
 }
+
+/**
+ * Force-signs a member out of every device they're currently logged into,
+ * without deactivating their account — they can log back in immediately
+ * with their normal credentials. Dashboard auth is stateless JWT (no
+ * server-side session row to delete), so this works by bumping
+ * sessionVersion; auth-dashboard.ts's jwt callback re-checks it against the
+ * value embedded in the member's token on every request and invalidates it
+ * on mismatch, so this takes effect on their very next request/page load —
+ * not just at their token's natural 8h expiry.
+ */
+export async function forceLogoutMember(id: string): Promise<Result<null>> {
+  const actor = await getAuthenticatedUser();
+
+  const current = await db.teamMember.findUnique({ where: { id }, select: { name: true } });
+  if (!current) return { success: false, error: "Not found" };
+
+  try {
+    await db.teamMember.update({ where: { id }, data: { sessionVersion: { increment: 1 } } });
+    await createLog({
+      action: "UPDATE", entity: "TeamMember", entityId: id,
+      metadata: { operation: "force_logout", targetName: current.name, actorId: actor?.id },
+      severity: "MEDIUM",
+    });
+    revalidatePath("/dashboard/team-members");
+    return { success: true, data: null };
+  } catch (err) {
+    await createLog({ action: "UPDATE", entity: "TeamMember", entityId: id, status: "FAILED", errorMessage: String(err), severity: "HIGH", metadata: { operation: "force_logout" } });
+    return { success: false, error: "Failed to log out member" };
+  }
+}

@@ -16,7 +16,7 @@
 // ignore warnings, which costs more than the one it was trying to save.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { DayItinerary, TicketInput, AddonInput } from "../action";
+import type { DayItinerary, TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 /** Empty means priced, or at least nothing here can prove otherwise. */
 export type Gaps = string[];

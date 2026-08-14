@@ -49,7 +49,7 @@ export async function CostingPanel({ packageId, canReview }: {
         marginPercentage: pkg.marginPercentage, gstPercentage: pkg.gstPercentage,
         discountType: pkg.discountType, discountValue: pkg.discountValue, discountNote: pkg.discountNote,
         status: pkg.status, builtByName: pkg.builtByName, sentAt: pkg.sentAt,
-        readyAt: pkg.readyAt, readyByName: pkg.readyByName,
+        readyAt: pkg.readyAt, readyByName: pkg.readyByName, readyNote: pkg.readyNote,
         viewedAt: pkg.viewedAt, viewCount: pkg.viewCount,
         verified: pkg.verified, verifiedAt: pkg.verifiedAt, verifiedByName: pkg.verifiedByName,
         rejectedAt: pkg.rejectedAt, rejectedByName: pkg.rejectedByName, rejectionNote: pkg.rejectionNote,
