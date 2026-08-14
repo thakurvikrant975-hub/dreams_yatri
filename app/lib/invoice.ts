@@ -159,3 +159,88 @@ export function buildInvoiceViewModel(booking: InvoiceBookingData): InvoiceViewM
         billedToContact: [booking.contactEmail ?? booking.user?.email, booking.contactPhone].filter(Boolean).join(" · "),
     };
 }
+
+// ── The rendered document ─────────────────────────────────────────────────────
+//
+// Everything above turns a Booking into figures. Everything below is what the
+// invoice sheet actually prints — and that is deliberately booking-free, because
+// ops also raises invoices by hand for business that never became a Booking
+// (see app/lib/manual-documents.ts). Both paths build one of these, so there is
+// still exactly one invoice layout and the two can't drift apart.
+
+/** One printed row in the description table. The automatic invoice produces
+ *  exactly one; a hand-raised invoice can itemise a mixed sale. */
+export type InvoiceLine = { label: string; detail: string | null; amount_paise: number };
+
+export type InvoiceDocumentModel = {
+    /** As printed at the top — "INV-DY1043", "MINV-2026-0001". Already carries
+     *  its own prefix, so the sheet prints it verbatim rather than prefixing. */
+    documentNumber: string;
+    issueDate: Date;
+    serviceType: string;
+    gstStateCode: string | null;
+    billedToName: string;
+    billedToContact: string;
+    /** The summary strip under the meta row. Null on an invoice with nothing to
+     *  summarise — a hand-raised one for a service with no trip dates — and the
+     *  strip is then dropped rather than printed with dashes in it. */
+    reference: {
+        label: string;
+        value: string;
+        startDate: Date | null;
+        endDate: Date | null;
+        travellers: number | null;
+    } | null;
+    lines: InvoiceLine[];
+    taxable: number;
+    gstPct: number;
+    gst: number;
+    total: number;
+    paidPayments: { label: string; amount_paise: number; date: Date }[];
+    paid: number;
+    balance: number;
+    /** Numbered conditions at the foot. Defaulted to INVOICE_TERMS; editable on
+     *  a hand-raised invoice, where the jurisdiction line isn't always right. */
+    terms: string[];
+};
+
+/** The standard conditions. Order matters — the closing line is last, after the
+ *  conditions proper. */
+export const INVOICE_TERMS = [
+    "Subject to Shimla jurisdiction.",
+    "Subject to realization of Cheque.",
+    "Without original Receipt no refund is permissible.",
+    "Kindly check all details carefully to avoid un-necessary complications.",
+    "Thank you for doing business with us.",
+] as const;
+
+/** Booking → printed invoice. The figures still come from
+ *  `buildInvoiceViewModel`, so the emailed receipt (which uses that directly)
+ *  and this sheet cannot disagree. */
+export function bookingToInvoiceDocument(booking: InvoiceBookingData): InvoiceDocumentModel {
+    const v = buildInvoiceViewModel(booking);
+    return {
+        documentNumber: `INV-${booking.bookingNumber}`,
+        issueDate: booking.createdAt,
+        serviceType: v.serviceType,
+        gstStateCode: booking.gstStateCode,
+        billedToName: v.billedToName,
+        billedToContact: v.billedToContact,
+        reference: {
+            label: "Booking",
+            value: booking.bookingNumber,
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            travellers: booking.travellers,
+        },
+        lines: [{ label: v.lineItemLabel, detail: v.lineItemDetail, amount_paise: v.taxable }],
+        taxable: v.taxable,
+        gstPct: v.gstPct,
+        gst: v.gst,
+        total: v.total,
+        paidPayments: v.paidPayments,
+        paid: v.paid,
+        balance: v.balance,
+        terms: [...INVOICE_TERMS],
+    };
+}

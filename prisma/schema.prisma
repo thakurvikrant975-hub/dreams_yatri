@@ -263,6 +263,66 @@ model TripDocument {
   @@map("trip_documents")
 }
 
+/// An invoice or voucher the operations team fills in by hand.
+///
+/// The automatic documents (dashboard/package-bookings/[id]/invoice|voucher)
+/// are derived entirely from a Booking row, so they only exist for trips sold
+/// through the site. Ops also issues the same two documents for business that
+/// never became a Booking — a walk-in, a B2B agent, a stay arranged over the
+/// phone — and was doing it in Word. This is that document, stored so it can be
+/// reopened, corrected and reprinted rather than retyped.
+///
+/// It deliberately does NOT reference Booking. A manual document is the record
+/// of what was issued, not a shadow booking: nothing schedules against it,
+/// nothing prices off it, and ops must be able to raise one for a trip the
+/// system knows nothing about.
+model ManualDocument {
+  id             String             @id @default(cuid())
+  type           ManualDocumentType
+  /// Its own series (MINV-2026-0001 / MVCH-2026-0001) so a manual document can
+  /// never be mistaken for — or collide with — a system booking number.
+  documentNumber String             @unique
+  /// The date printed on the document. Separate from createdAt: ops routinely
+  /// raises a document days after the service, dated when it was rendered.
+  issueDate      DateTime
+  guestName      String
+  guestContact   String?
+  /// Trip title on a voucher, service description on an invoice — the one line
+  /// that identifies the document in a list.
+  title          String
+  startDate      DateTime?
+  endDate        DateTime?
+  travellers     Int                @default(1)
+  /// Invoice grand total in paise; 0 on a voucher. A column rather than a
+  /// payload read so the list can sort and total without parsing every row.
+  totalAmount_paise Int             @default(0)
+  /// The document body — line items and payments for an invoice, the itinerary
+  /// and hotel/cab tables for a voucher. Shape is discriminated by `type` and
+  /// validated in app/lib/manual-documents.ts.
+  ///
+  /// JSON rather than tables because these are issued artefacts: nothing joins
+  /// to a manual voucher's day rows, and normalising them would cost six tables
+  /// that only ever get read back together, as a whole document.
+  payload        Json
+  /// Internal note — why this was raised, who asked for it. Never printed.
+  notes          String?
+  createdById    String?
+  createdByName  String?
+  updatedByName  String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  createdBy      TeamMember?        @relation("ManualDocumentAuthor", fields: [createdById], references: [id])
+
+  @@index([type, issueDate])
+  @@index([guestName])
+  @@map("manual_documents")
+}
+
+enum ManualDocumentType {
+  INVOICE
+  VOUCHER
+}
+
 model BookingHotel {
   id            String            @id @default(cuid())
   bookingId     String
@@ -737,6 +797,7 @@ model TeamMember {
   currentBookings        Booking[]         @relation("BookingCurrentAssignee")
   hotelBookings          Booking[]         @relation("BookingHotelAssignee")
   opsBookings            Booking[]         @relation("BookingOpsAssignee")
+  manualDocuments        ManualDocument[]  @relation("ManualDocumentAuthor")
   department             Department?       @relation(fields: [departmentId], references: [id])
   teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
 
@@ -2623,6 +2684,15 @@ model custom_packages {
   readyBy               String?
   readyByName           String?
   /**
+   * Optional free-text message the exec can leave for costing when
+   * submitting for review (e.g. "client is price-sensitive, tried to keep
+   * margin tight" or "hotel on day 3 is a manual entry, please double-check
+   * the rate") — shown on verify-packages. Same lifecycle as readyAt: not
+   * cleared between cycles, just overwritten by the next Mark Ready, so it
+   * always reflects the message that came with the CURRENT review cycle.
+   */
+  readyNote             String?
+  /**
    * Costing's pricing sign-off, independent of the client-facing status
    * (accepted/declined) and of whether it's actually been sent — a reviewer
    * confirms the pricing is correct (see approveCustomPackage in
@@ -2691,6 +2761,19 @@ model custom_packages {
    * changes. Never shown on the client-facing page.
    */
   pricingSnapshot       Json?
+  /**
+   * This package's own document template, overriding the house default from
+   * itinerary_settings. Null means "use whatever the company default is" —
+   * deliberately not defaulted to "classic", so that changing the house
+   * template retroactively restyles every package that never made a choice.
+   */
+  template              String?
+  /**
+   * Per-package colour/font tweaks, applied over the template and over the
+   * company's own overrides — for the occasional client whose branding the
+   * exec needs to match. Null for the overwhelming majority.
+   */
+  themeOverrides        Json?
   flightsIncluded       Boolean                  @default(false)
   flightNotes           String?
   flightFrom            String?
@@ -2747,6 +2830,24 @@ model itinerary_settings {
    */
   defaultMarginPercentage Float    @default(25)
   defaultGstPercentage    Float    @default(5)
+  /**
+   * House document template (see doc-theme's TEMPLATES) and the company-wide
+   * colour/font tweaks layered on top of it. Every package that hasn't chosen
+   * its own template falls back to these, so rebranding all future itineraries
+   * is one edit here rather than one per package.
+   *
+   * Stored as a plain String rather than an enum: templates are a front-end
+   * design catalogue that will gain entries faster than the schema should
+   * churn, and an id that no longer resolves falls back to the house template
+   * at render time instead of breaking the row.
+   */
+  defaultTemplate         String   @default("classic")
+  /**
+   * Partial ThemeOverrides — `{ accent?, paper?, ink?, fontHeading?, fontBody? }`.
+   * Every value is re-validated at render (resolveDocTheme) before it reaches
+   * a style attribute, so a malformed entry is ignored rather than painted.
+   */
+  themeOverrides          Json     @default("{}")
   updatedAt               DateTime @updatedAt
   updatedBy               String?
   updatedByName           String?
@@ -2978,6 +3079,12 @@ model custom_itineraries {
   accommodationRoomPhotos   String[]                      @default([])
   accommodationLocation     String?
   accommodationRoomSpecs    String?
+  /// Star rating snapshotted off the hotel at pick time (hotels.stay_type,
+  /// free text — "4 Star", sometimes "Boutique"). Denormalised for the same
+  /// reason as accommodationRoomSpecs above: the client-facing page and the
+  /// PDF render from this row alone and never see roomPricingId, so anything
+  /// the document displays has to live here rather than be joined back.
+  accommodationStarRating   String?
   accommodationRoomCapacity Int?
   /**
    * Room-level occupancy caps snapshotted from hotel_rooms at the moment a
@@ -3125,6 +3232,11 @@ model custom_itineraries {
   transportPickupLat        Float?
   transportPickupLng        Float?
   transportDrop             String?
+  /** Coordinates for transportDrop, the counterpart to transportPickupLat/Lng.
+   * Needed to route between the two — road distance and drive time are derived
+   * from a real routing call, not from the place names. */
+  transportDropLat          Float?
+  transportDropLng          Float?
   transportDistanceKm       Float?
   /**
    * Free-text estimate like "3h 15m" — typed by the exec or filled in by the
@@ -3132,6 +3244,13 @@ model custom_itineraries {
    */
   transportTravelTime       String?
   notes                     String?
+  /** Optional heading for `notes`. Falls back to the tone's own label when
+   * empty, so a note never renders headless. */
+  notesTitle                String?
+  /** Tone for `notes` — mirrors itinerary_notes.type in the admin catalog
+   * (warning | info | error | success | neutral) so both note systems speak
+   * the same vocabulary. Null reads as neutral. */
+  notesType                 String?
   createdAt                 DateTime                      @default(now())
   updatedAt                 DateTime                      @updatedAt
   package                   custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)

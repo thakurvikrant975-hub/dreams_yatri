@@ -1466,7 +1466,7 @@ function DayCard({
       : cabCityCoords;
     const distanceRefLabel = hasPickupPoint ? data.transportPickup : searchCabCity;
 
-    const results = await searchCabsForBuilder(searchCabCity, query, refCoords);
+    const { rows: results } = await searchCabsForBuilder(searchCabCity, query, refCoords);
     return results.map((r): Option & { raw: CabPricingResult } => ({
       id: r.id,
       label: r.vehicleName,
@@ -2519,13 +2519,14 @@ const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
   meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
   accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+  accommodationStarRating: "",
   roomPricingId: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
   hotelPending: false, hotelPendingNote: "", hotelRequestType: null, manualHotelPricePerNight: null,
   hotelFilledAt: null, hotelFilledByName: null,
   transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
   transportPickup: "", transportPickupLat: null, transportPickupLng: null,
-  transportDrop: "", transportDistanceKm: null, transportTravelTime: "",
+  transportDrop: "", transportDropLat: null, transportDropLng: null, transportDistanceKm: null, transportTravelTime: "",
   cabPricingId: null,
   notes: "",
 });

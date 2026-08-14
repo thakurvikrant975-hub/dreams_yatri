@@ -108,11 +108,11 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     const delay = query === "" ? 0 : 300;
     const timer = setTimeout(async () => {
       try {
-        const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly);
+        const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly);
         if (!cancelled) {
-          setItems(results);
+          setItems(rows);
           setPage(1);
-          setHasMore(results.length >= PAGE_SIZE);
+          setHasMore(rows.length >= PAGE_SIZE);
         }
       } catch {
         if (!cancelled) { setItems([]); setHasMore(false); }
@@ -129,10 +129,10 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const results = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly);
-      setItems((prev) => [...prev, ...results]);
+      const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly);
+      setItems((prev) => [...prev, ...rows]);
       setPage(nextPage);
-      setHasMore(results.length >= PAGE_SIZE);
+      setHasMore(rows.length >= PAGE_SIZE);
     } finally {
       setLoadingMore(false);
     }

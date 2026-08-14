@@ -15,6 +15,8 @@ import { Textarea } from "../components/ui/textarea";
 import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
 import { updateItinerarySettings, type ItinerarySettings, type PolicySection } from "./actions";
+import { DocumentThemeCard } from "./DocumentThemeCard";
+import type { ThemeOverrides } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/doc-theme";
 
 type FormState = {
     companyPhone: string;
@@ -31,6 +33,8 @@ type FormState = {
     customPolicySections: PolicySection[];
     defaultMarginPercentage: string;
     defaultGstPercentage: string;
+    defaultTemplate: string;
+    themeOverrides: ThemeOverrides;
 };
 
 function newSectionId(): string {
@@ -111,6 +115,8 @@ export default function ItinerarySettingsClient({
         customPolicySections: settings.customPolicySections,
         defaultMarginPercentage: String(settings.defaultMarginPercentage),
         defaultGstPercentage: String(settings.defaultGstPercentage),
+        defaultTemplate: settings.defaultTemplate,
+        themeOverrides: settings.themeOverrides,
     });
     const [isPending, startTransition] = useTransition();
 
@@ -286,6 +292,14 @@ export default function ItinerarySettingsClient({
                     </div>
                 </CardContent>
             </Card>
+
+            <DocumentThemeCard
+                template={form.defaultTemplate}
+                overrides={form.themeOverrides}
+                onTemplateChange={(defaultTemplate) => setForm((f) => ({ ...f, defaultTemplate }))}
+                onOverridesChange={(themeOverrides) => setForm((f) => ({ ...f, themeOverrides }))}
+                readOnly={readOnly}
+            />
 
             <Card>
                 <CardHeader>

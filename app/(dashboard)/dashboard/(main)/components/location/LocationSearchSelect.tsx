@@ -162,6 +162,7 @@ export function LocationSearchSelect({
   extraParams,
   disableExternalSearch = false,
   hideRecent = false,
+  hideTypeBadge = false,
 }: LocationSearchSelectProps) {
   // Countries-only mode: preload all, filter client-side, skip debounced search
   const isCountriesOnly = types?.length === 1 && types[0] === "COUNTRY";
@@ -431,7 +432,7 @@ export function LocationSearchSelect({
               {value ? (
                 <span className="flex flex-1 min-w-0 items-center gap-1.5 truncate">
                   <span className="truncate text-xs text-dashboard-base-content">{value.name}</span>
-                  <TypeBadge type={value.type} />
+                  {!hideTypeBadge && <TypeBadge type={value.type} />}
                   {value.breadcrumb && value.breadcrumb !== value.name && (
                     <span className="hidden truncate text-[10px] text-muted-foreground sm:block">
                       · {value.breadcrumb.split(", ").slice(1).join(", ")}
