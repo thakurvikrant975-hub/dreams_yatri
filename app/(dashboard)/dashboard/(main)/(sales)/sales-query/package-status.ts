@@ -15,6 +15,9 @@ export type SentPackageInfo = {
     totalPrice:     number | null;
     pricePerPerson: number | null;
     pdfUrl:         string | null;
+    /** The sales exec who built this package — whoever it was assigned to
+     * at save time, not necessarily the query's current assignee. */
+    builtByName:    string | null;
     verified:            boolean;
     verifiedAt:          Date | null;
     verifiedByName:      string | null;

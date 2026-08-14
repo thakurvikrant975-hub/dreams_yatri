@@ -25,6 +25,7 @@ import { RejectQueryDialog } from "./Rejectquerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { PackageVerificationBadge, PackageSentBadge, HotelRequestBadge } from "./Salesquerybadges";
+import { DeletePackageDialog } from "./Deletepackagedialog";
 import { reopenSalesQuery } from "./actions";
 import type { SentPackageInfo } from "./actions";
 import { PackageRequirements } from "../../(marketing)/queries/actions";
@@ -288,14 +289,21 @@ export function SalesQueryDetailSheet({
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <p className="text-sm font-medium min-w-0 truncate">{pkg.title}</p>
-                                        <a
-                                            href={`/dashboard/package-builder/${pkg.id}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[11px] text-primary hover:underline shrink-0"
-                                        >
-                                            Open Builder
-                                        </a>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <a
+                                                href={`/dashboard/package-builder/${pkg.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[11px] text-primary hover:underline"
+                                            >
+                                                Open Builder
+                                            </a>
+                                            <DeletePackageDialog
+                                                packageId={pkg.id}
+                                                packageTitle={pkg.title}
+                                                onDone={onRefresh}
+                                            />
+                                        </div>
                                     </div>
                                     <p className="flex items-center gap-1 mt-0.5 text-[11px] text-muted-foreground">
                                         <CalendarClock className="h-3 w-3 shrink-0" />

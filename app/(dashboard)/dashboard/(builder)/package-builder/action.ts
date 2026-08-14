@@ -2717,6 +2717,54 @@ export async function requestPackageRevision(packageId: string, note: string): P
 }
 
 /**
+ * Permanently removes a package the exec doesn't want anymore — a hard
+ * delete, cascading to its stops/tickets/addons/itineraries (all four
+ * relations are onDelete: Cascade — see prisma/schema.prisma). Unlike
+ * deleteQuery, custom_packages has no deletedAt/soft-delete field, so this
+ * can't be undone: blocked outright once the package has actually gone out
+ * to a client (its PDF/shared link may already be in their hands) or the
+ * query it belongs to has converted to a real booking.
+ */
+export async function deleteCustomPackage(packageId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { actor } = await getCurrentActor();
+
+    const pkg = await db.custom_packages.findUnique({
+      where: { id: packageId },
+      select: {
+        title: true, sentAt: true, queryId: true,
+        query: { select: { booking: { select: { id: true } } } },
+      },
+    });
+    if (!pkg) return { success: false, error: "Package not found — it may already have been deleted." };
+
+    if (pkg.sentAt) {
+      return { success: false, error: "Can't delete — this package has already been sent to the client." };
+    }
+    if (pkg.query?.booking) {
+      return { success: false, error: "Can't delete — this client's query has a booking linked to it." };
+    }
+
+    await db.custom_packages.delete({ where: { id: packageId } });
+
+    if (pkg.queryId) {
+      await logTimeline(pkg.queryId, `${actor?.name ?? "Sales exec"} deleted the package "${pkg.title}"`, actor?.id, actor?.name ?? undefined);
+    }
+    await broadcastVerificationCounts();
+
+    revalidatePath("/dashboard/package-builder");
+    revalidatePath("/dashboard/verify-packages");
+    revalidatePath("/dashboard/hotel-requests");
+    revalidatePath("/dashboard/sales-query");
+    return { success: true };
+  } catch (err) {
+    console.error("[deleteCustomPackage]", err);
+    const { message } = classifyActionError(err);
+    return { success: false, error: message };
+  }
+}
+
+/**
  * The exec's own send step — only reachable once costing has approved the
  * pricing (verified: true). sendPackageToClient still separately enforces
  * status === "READY" (its own long-standing guard), so this adds the one

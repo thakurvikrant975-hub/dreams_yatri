@@ -98,7 +98,7 @@ export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[] }
 
 const CUSTOM_PACKAGE_SELECT = {
     id: true, title: true, status: true, createdAt: true, sentAt: true, readyAt: true,
-    totalPrice: true, pricePerPerson: true, pdfUrl: true,
+    totalPrice: true, pricePerPerson: true, pdfUrl: true, builtByName: true,
     verified: true, verifiedAt: true, verifiedByName: true,
     rejectedAt: true, rejectedByName: true, rejectionNote: true,
     rejectionReason: { select: { label: true } },
