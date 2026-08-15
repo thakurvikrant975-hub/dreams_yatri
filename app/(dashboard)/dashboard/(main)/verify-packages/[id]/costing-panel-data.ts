@@ -1,22 +1,30 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+// ─────────────────────────────────────────────────────────────────────────────
+// Costing panel data.
+//
+// Everything the costing sidebar needs, in one server call: the package, its
+// live-computed pricing snapshot, the rejection reasons and the standard
+// inclusion/exclusion lists.
+//
+// Pulled out of the verify route so the BUILDER route can load it too. There is
+// one editor now, at /dashboard/package-builder/[packageId], and whether it
+// shows a costing tab depends on who opened it — which means the builder route
+// has to be able to assemble costing's data when a reviewer is the one looking.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { db } from "@/app/lib/db";
 import { getRejectionReasons } from "../../(marketing)/queries/actions";
 import { getItinerarySettings } from "../../itinerary-settings/actions";
 import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
-import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
+import type { PricingSnapshot } from "./VerifyPackageDetailClient";
+import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 
-export const metadata: Metadata = {
-    title: "Package Verification - Dashboard",
-    robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
-};
-
+/** Tickets carry a lower margin than hotels and cabs — same split
+ * sendPackageToClient applies when it freezes the real snapshot. */
 const TICKET_MARGIN_PCT = 5;
 
-export default async function VerifyPackageDetailPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
+export async function loadCostingPanelData(id: string) {
 
     const [pkg, rejectionReasons, itinerarySettings] = await Promise.all([
         db.custom_packages.findUnique({
@@ -73,7 +81,10 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
     // a linked query — see markPackageReady), so this also guarantees
     // pkg.query below. A package still sitting in DRAFT that was never
     // submitted has nothing to review yet.
-    if (!pkg || !pkg.readyAt || !pkg.query) notFound();
+    // Returns null rather than 404-ing: the builder route calls this for any
+    // package a reviewer opens, and a DRAFT that was never submitted simply has
+    // nothing to review — the editor still renders, just without a costing tab.
+    if (!pkg || !pkg.readyAt || !pkg.query) return null;
 
     // status === SENT (currently delivered) → show the frozen numbers
     // actually locked in and delivered to the client. Anything else —
@@ -127,7 +138,10 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
         const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
         const taxable = baseCost + marginAmount;
         const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
-        const finalPrice = taxable + gstAmount;
+        const listPrice = taxable + gstAmount;
+        // Same helper, same order as everywhere else — see discount.ts.
+        const discount = applyDiscount(listPrice, { type: pkg.discountType, value: pkg.discountValue });
+        const finalPrice = discount.finalPrice;
         const totalPax = pkg.adults + pkg.children;
         const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
@@ -152,6 +166,10 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
             taxable,
             gstPercentage: pkg.gstPercentage,
             gstAmount,
+            listPrice,
+            discountType: pkg.discountType,
+            discountValue: pkg.discountValue,
+            discountAmount: discount.amount,
             finalPrice,
             pricePerPerson,
             displayedTotalPrice: pkg.totalPrice ?? null,
@@ -186,34 +204,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
     const exclusions = [...itinerarySettings.exclusions, ...(extraPolicy?.exclusions ?? [])]
         .filter((e) => !pkg.removedExclusions.includes(e));
 
-    return (
-        <VerifyPackageDetailClient
-            pkg={{
-                id: pkg.id, title: pkg.title, destination: pkg.destination, startingPoint: pkg.startingPoint,
-                totalDays: pkg.totalDays, totalNights: pkg.totalNights, travelDate: pkg.travelDate,
-                adults: pkg.adults, children: pkg.children, infants: pkg.infants,
-                childrenAges: pkg.childrenAges, infantAges: pkg.infantAges,
-                pricePerPerson: pkg.pricePerPerson, totalPrice: pkg.totalPrice, currency: pkg.currency,
-                marginPercentage: pkg.marginPercentage, gstPercentage: pkg.gstPercentage,
-                discountType: pkg.discountType, discountValue: pkg.discountValue, discountNote: pkg.discountNote,
-                status: pkg.status, builtByName: pkg.builtByName, sentAt: pkg.sentAt,
-                readyAt: pkg.readyAt, readyByName: pkg.readyByName, readyNote: pkg.readyNote,
-                viewedAt: pkg.viewedAt, viewCount: pkg.viewCount,
-                verified: pkg.verified, verifiedAt: pkg.verifiedAt, verifiedByName: pkg.verifiedByName,
-                rejectedAt: pkg.rejectedAt, rejectedByName: pkg.rejectedByName, rejectionNote: pkg.rejectionNote,
-                rejectionReasonLabel: pkg.rejectionReason?.label ?? null,
-                revisionRequestedAt: pkg.revisionRequestedAt, revisionRequestedByName: pkg.revisionRequestedByName, revisionNote: pkg.revisionNote,
-                flightsIncluded: pkg.flightsIncluded, flightNotes: pkg.flightNotes, flightFrom: pkg.flightFrom, flightTo: pkg.flightTo,
-                trainIncluded: pkg.trainIncluded, trainNotes: pkg.trainNotes, trainFrom: pkg.trainFrom, trainTo: pkg.trainTo,
-            }}
-            snapshot={snapshot}
-            tickets={pkg.tickets}
-            addOns={pkg.addOns}
-            query={pkg.query}
-            rejectionReasons={rejectionReasons}
-            hotelIdByDay={hotelIdByDay}
-            inclusions={inclusions}
-            exclusions={exclusions}
-        />
-    );
+    return { pkg, snapshot, rejectionReasons, hotelIdByDay, inclusions, exclusions };
 }
+
+export type CostingPanelData = NonNullable<Awaited<ReturnType<typeof loadCostingPanelData>>>;

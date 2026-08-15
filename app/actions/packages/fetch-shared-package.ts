@@ -10,6 +10,7 @@
 import { db } from "@/app/lib/db";
 import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
+import { discountLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 
 /** Mirrors ExtraPolicyItems in package-builder/action.ts — can't import it
  * directly since that's a "use server" file (only async function exports
@@ -26,6 +27,47 @@ function extraItems(raw: unknown, key: keyof ExtraPolicyItems): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
+/** The concession as the document wants it: what the package listed at, how
+ * much came off, and the chip's wording.
+ *
+ * Prefers the frozen snapshot — this page is the client's copy of what was
+ * quoted, and the snapshot is the record of exactly that, immune to anything
+ * edited on the row afterwards. Falls back to the row for packages sent before
+ * the snapshot carried a discount, where listPrice has to be reconstructed by
+ * adding the concession back onto what they were charged. */
+function resolveSharedDiscount(
+  rawSnapshot: unknown,
+  rowType: "FLAT" | "PERCENT" | null,
+  rowValue: number | null,
+): { originalPrice: number; amount: number; label: string } | null {
+  const snap = (rawSnapshot && typeof rawSnapshot === "object" ? rawSnapshot : null) as {
+    listPrice?: number; finalPrice?: number;
+    discountType?: "FLAT" | "PERCENT" | null; discountValue?: number | null; discountAmount?: number;
+  } | null;
+
+  if (snap?.discountAmount != null && snap.discountAmount > 0) {
+    return {
+      originalPrice: snap.listPrice ?? (snap.finalPrice ?? 0) + snap.discountAmount,
+      amount: snap.discountAmount,
+      label: discountLabel({ type: snap.discountType, value: snap.discountValue }, snap.discountAmount),
+    };
+  }
+
+  // Pre-snapshot fallback. Only the percentage can be reconstructed exactly
+  // here (it is a share of the list price, which we don't have); a flat amount
+  // is its own answer.
+  if (!rowType || rowValue == null || rowValue <= 0) return null;
+  const paid = typeof snap?.finalPrice === "number" ? snap.finalPrice : null;
+  if (paid == null) return null;
+  const amount = rowType === "FLAT" ? rowValue : Math.round((paid / (100 - rowValue)) * rowValue);
+  if (amount <= 0) return null;
+  return {
+    originalPrice: paid + amount,
+    amount,
+    label: discountLabel({ type: rowType, value: rowValue }, amount),
+  };
+}
+
 export async function getSharedPackage(packageId: string) {
   const pkg = await db.custom_packages.findFirst({
     where: { id: packageId, status: "SENT" },
@@ -34,6 +76,7 @@ export async function getSharedPackage(packageId: string) {
       title: true, description: true, coverImage: true, coverImagePosition: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
       pricePerPerson: true, totalPrice: true, currency: true,
+      discountType: true, discountValue: true, pricingSnapshot: true,
       inclusions: true, exclusions: true, removedInclusions: true, removedExclusions: true, termsNotes: true,
       termsConditions: true, paymentPolicy: true, amendmentPolicy: true, travelBenefits: true,
       extraPolicyItems: true,
@@ -116,6 +159,13 @@ export async function getSharedPackage(packageId: string) {
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     currency:        pkg.currency,
+    // The concession, for the document's saving badge. Read from the frozen
+    // snapshot rather than recomputed: this page is the client's copy of what
+    // was quoted, and the snapshot is the record of exactly that. Falls back to
+    // the row's own discount fields for packages sent before the snapshot
+    // carried them, and is simply absent when neither has one — which is most
+    // packages. `totalPrice` above is already net of it either way.
+    discount:        resolveSharedDiscount(pkg.pricingSnapshot, pkg.discountType, pkg.discountValue),
     // Drops anything costing vetoed during pre-send review — see
     // updatePackageInclusionsExclusions (verify-packages/actions.ts).
     inclusions:      [...pkg.inclusions, ...extraItems(pkg.extraPolicyItems, "inclusions")].filter((i) => !pkg.removedInclusions.includes(i)),

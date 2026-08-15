@@ -57,10 +57,12 @@ import {
   CheckCircle as PhCheckCircle,
   CircleNotch as PhCircleNotch,
   Clock as PhClock,
+  ShieldCheck as PhShieldCheck,
   Coffee as PhCoffee,
   Compass as PhCompass,
   Copy as PhCopy,
   CreditCard as PhCreditCard,
+  Calculator as PhCalculator,
   CurrencyInr as PhCurrencyInr,
   DotsSixVertical as PhDotsSixVertical,
   DotsThree as PhDotsThree,
@@ -94,7 +96,6 @@ import {
   Plus as PhPlus,
   SignIn as PhSignIn,
   SignOut as PhSignOut,
-  ShieldCheck as PhShieldCheck,
   Sparkle as PhSparkle,
   Star as PhStar,
   Sun as PhSun,
@@ -163,6 +164,7 @@ export const CheckIcon = filled(PhCheck, "bold");
 export const Info = filled(PhInfo);
 export const Lock = filled(PhLock);
 export const Clock = filled(PhClock);
+/** Costing's own banner — "this is with you for review". */
 export const ShieldCheck = filled(PhShieldCheck);
 export const ChatText = filled(PhChatText);
 /** Bold, not fill: a filled CircleNotch is a solid disc with no gap to spin. */
@@ -209,6 +211,7 @@ export const User = filled(PhUser);
 export const Users = filled(PhUsers);
 export const Baby = filled(PhBaby);
 export const IndianRupee = filled(PhCurrencyInr, "bold");
+export const Calculator = filled(PhCalculator);
 export const Percent = filled(PhPercent, "bold");
 export const CreditCard = filled(PhCreditCard);
 export const Mail = filled(PhEnvelope);

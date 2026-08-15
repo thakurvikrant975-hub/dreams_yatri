@@ -20,6 +20,8 @@ import {
 import { RejectPricingDialog } from "./RejectPricingDialog";
 import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
+import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
+import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/builder-context";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
 // rather than an if/else chain — a ticket type that isn't FLIGHT/HELICOPTER
@@ -35,7 +37,7 @@ const TICKET_TYPE_ICONS: Record<string, typeof PlaneTakeoff> = {
 export type PricingSnapshot = {
     lockedAt: string;
     currency: string;
-    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean }[]; overridden?: boolean };
+    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: "no-room-price" | "no-mattress-rate" }[]; overridden?: boolean };
     cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number; overridden?: boolean }[]; overridden?: boolean };
     tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
     addOns?: { subtotal: number; lines: { name: string; price: number; quantity: number; day: number | null }[] };
@@ -47,6 +49,12 @@ export type PricingSnapshot = {
     taxable: number;
     gstPercentage: number;
     gstAmount: number;
+    // Optional: snapshots frozen before discounts existed have none of these,
+    // and must keep rendering rather than blanking the totals card.
+    listPrice?: number;
+    discountType?: "FLAT" | "PERCENT" | null;
+    discountValue?: number | null;
+    discountAmount?: number;
     finalPrice: number;
     pricePerPerson: number;
     displayedTotalPrice: number | null;
@@ -63,6 +71,7 @@ type PkgInfo = {
     childrenAges: number[]; infantAges: number[];
     pricePerPerson: number | null; totalPrice: number | null; currency: string;
     marginPercentage: number; gstPercentage: number;
+    discountType: "FLAT" | "PERCENT" | null; discountValue: number | null; discountNote: string | null;
     status: string; builtByName: string | null; sentAt: Date | null;
     readyAt: Date | null; readyByName: string | null; readyNote: string | null;
     viewedAt: Date | null; viewCount: number;
@@ -100,7 +109,11 @@ const inr = (n: number | null | undefined) => n != null ? `₹${Math.round(n).to
 // Mirrors computeFinalPricing in verify-packages/actions.ts — kept in sync
 // manually so the edit form can preview totals live, before saving.
 const TICKET_MARGIN_PCT = 5;
-function computeFinalPricing(input: { hotelSubtotal: number; cabSubtotal: number; addonsSubtotal: number; ticketsSubtotal: number; marginPercentage: number; gstPercentage: number; totalPax: number }) {
+function computeFinalPricing(input: {
+    hotelSubtotal: number; cabSubtotal: number; addonsSubtotal: number; ticketsSubtotal: number;
+    marginPercentage: number; gstPercentage: number; totalPax: number;
+    discountType: "FLAT" | "PERCENT" | null; discountValue: number | null;
+}) {
     const hotelCabBase = input.hotelSubtotal + input.cabSubtotal;
     const baseCost = hotelCabBase + input.addonsSubtotal + input.ticketsSubtotal;
     const hotelCabMarginAmount = Math.round((hotelCabBase + input.addonsSubtotal) * input.marginPercentage / 100);
@@ -108,9 +121,13 @@ function computeFinalPricing(input: { hotelSubtotal: number; cabSubtotal: number
     const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * input.gstPercentage / 100);
-    const finalPrice = taxable + gstAmount;
+    const listPrice = taxable + gstAmount;
+    // Same helper the server and the document use, so the number costing sees
+    // while typing is the number that gets stored, quoted and charged.
+    const discount = applyDiscount(listPrice, { type: input.discountType, value: input.discountValue });
+    const finalPrice = discount.finalPrice;
     const pricePerPerson = input.totalPax > 0 ? Math.round(finalPrice / input.totalPax) : finalPrice;
-    return { baseCost, hotelCabMarginAmount, ticketsMarginAmount, marginAmount, taxable, gstAmount, finalPrice, pricePerPerson };
+    return { baseCost, hotelCabMarginAmount, ticketsMarginAmount, marginAmount, taxable, gstAmount, listPrice, discount, finalPrice, pricePerPerson };
 }
 
 // Groups same-day line items (e.g. an extra room type booked alongside the
@@ -172,48 +189,9 @@ function BreakdownCard({ icon: Icon, title, meta, subtotal, editing, subtotalInp
 // Editable checklist for one section (inclusions or exclusions) — shows
 // current items with a remove button while editing, plus an add-row; falls
 // back to a plain bulleted list when not editing (or nothing to review yet).
-function PolicyListEditor({
-    icon: Icon, tone, items, editing, onRemove, draft, onDraftChange, onAdd,
-}: {
-    icon: React.ElementType; tone: "success" | "error"; items: string[]; editing: boolean;
-    onRemove: (item: string) => void; draft: string; onDraftChange: (v: string) => void; onAdd: () => void;
-}) {
-    const toneCls = tone === "success" ? "text-dashboard-success" : "text-dashboard-error";
-    return (
-        <div className="flex flex-col gap-1.5">
-            {items.length === 0 && !editing && (
-                <p className="text-xs text-dashboard-neutral px-4 py-2">Nothing listed.</p>
-            )}
-            {items.map((item) => (
-                <div key={item} className="flex items-center gap-2 px-4 py-1.5 text-sm">
-                    <Icon className={`size-3.5 shrink-0 ${toneCls}`} />
-                    <span className="flex-1 min-w-0 text-dashboard-base-content">{item}</span>
-                    {editing && (
-                        <button type="button" onClick={() => onRemove(item)} className="shrink-0 rounded p-0.5 hover:bg-dashboard-base-200" aria-label="Remove">
-                            <X className="size-3.5 text-dashboard-neutral" />
-                        </button>
-                    )}
-                </div>
-            ))}
-            {editing && (
-                <div className="flex items-center gap-2 px-4 pt-1">
-                    <Input
-                        value={draft}
-                        onChange={(e) => onDraftChange(e.target.value)}
-                        placeholder="Add an item…"
-                        className="h-8 text-xs"
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAdd(); } }}
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={onAdd} className="h-8 gap-1 shrink-0">
-                        <Plus className="size-3.5" /> Add
-                    </Button>
-                </div>
-            )}
-        </div>
-    );
-}
 
 export function VerifyPackageDetailClient({
+    findingsSlot, variant = "page",
     pkg, snapshot: s, tickets, addOns, query, rejectionReasons, hotelIdByDay, inclusions, exclusions,
 }: {
     pkg: PkgInfo;
@@ -225,13 +203,30 @@ export function VerifyPackageDetailClient({
     hotelIdByDay: Record<number, number>;
     inclusions: string[];
     exclusions: string[];
+    /** Costing's per-element findings, beside the client/status cards. */
+    findingsSlot?: React.ReactNode;
+    /** "panel" strips the page furniture — back link, title, the three-column
+     * grid — for rendering inside the editor's sidebar, where the editor
+     * already supplies all of that. Same logic, same numbers, one column. */
+    variant?: "page" | "panel";
 }) {
     const router = useRouter();
+    // Null when this renders on its own; non-null when it renders as the
+    // builder's Costing tab, which is the only way in now. See the save
+    // handler for why it needs a handle on the editor's form.
+    const builder = useOptionalBuilder();
     const [isPending, startTransition] = useTransition();
     const [editMode, setEditMode] = useState(false);
 
     const [margin, setMargin] = useState(pkg.marginPercentage);
     const [gst, setGst] = useState(pkg.gstPercentage);
+    // Costing's concession. It lives here rather than in the builder's Pricing
+    // tab because this is the path that actually writes to the row and records
+    // the change — a discount is the most reviewable number on the screen, so
+    // it belongs where corrections are audited.
+    const [discountType, setDiscountType] = useState<"FLAT" | "PERCENT" | null>(pkg.discountType);
+    const [discountValue, setDiscountValue] = useState<number | null>(pkg.discountValue);
+    const [discountNote, setDiscountNote] = useState(pkg.discountNote ?? "");
     // Per-day hotel/cab amounts, keyed by day — seeded from the current
     // (possibly already-overridden) line totals so the inputs always start
     // at what's actually shown. Only days the costing manager actually edits
@@ -262,49 +257,16 @@ export function VerifyPackageDetailClient({
     // Inclusions/exclusions review — its own edit mode/save, independent of
     // the pricing correction flow above, so a reviewer can curate the
     // client-facing lists without also having to touch pricing.
-    const [policyEditMode, setPolicyEditMode] = useState(false);
-    const [inclusionsEdit, setInclusionsEdit] = useState<string[]>(inclusions);
-    const [exclusionsEdit, setExclusionsEdit] = useState<string[]>(exclusions);
-    const [newInclusion, setNewInclusion] = useState("");
-    const [newExclusion, setNewExclusion] = useState("");
 
-    function enterPolicyEditMode() {
-        setInclusionsEdit(inclusions);
-        setExclusionsEdit(exclusions);
-        setNewInclusion("");
-        setNewExclusion("");
-        setPolicyEditMode(true);
-    }
 
-    function addInclusion() {
-        const v = newInclusion.trim();
-        if (!v || inclusionsEdit.includes(v)) { setNewInclusion(""); return; }
-        setInclusionsEdit((prev) => [...prev, v]);
-        setNewInclusion("");
-    }
-    function addExclusion() {
-        const v = newExclusion.trim();
-        if (!v || exclusionsEdit.includes(v)) { setNewExclusion(""); return; }
-        setExclusionsEdit((prev) => [...prev, v]);
-        setNewExclusion("");
-    }
 
-    function handleSavePolicy() {
-        startTransition(async () => {
-            const result = await updatePackageInclusionsExclusions(pkg.id, { inclusions: inclusionsEdit, exclusions: exclusionsEdit });
-            if (result.success) {
-                toast.success(result.message);
-                setPolicyEditMode(false);
-                router.refresh();
-            } else {
-                toast.error(result.message);
-            }
-        });
-    }
 
     function enterEditMode() {
         setMargin(pkg.marginPercentage);
         setGst(pkg.gstPercentage);
+        setDiscountType(pkg.discountType);
+        setDiscountValue(pkg.discountValue);
+        setDiscountNote(pkg.discountNote ?? "");
         setHotelDayEdits(hotelDayTotals(s));
         setCabDayEdits(cabDayTotals(s));
         setTouchedHotelDays(new Set());
@@ -332,7 +294,8 @@ export function VerifyPackageDetailClient({
     const preview = useMemo(() => computeFinalPricing({
         hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal,
         marginPercentage: margin, gstPercentage: gst, totalPax,
-    }), [hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal, margin, gst, totalPax]);
+        discountType, discountValue,
+    }), [hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal, margin, gst, totalPax, discountType, discountValue]);
 
     function handleApprove() {
         startTransition(async () => {
@@ -352,9 +315,16 @@ export function VerifyPackageDetailClient({
     }
 
     function handleSave() {
+        if (discountType === "PERCENT" && (discountValue ?? 0) > 100) {
+            toast.error("A percentage discount can't exceed 100%");
+            return;
+        }
         const payload: PricingEditInput = {
             marginPercentage: margin,
             gstPercentage: gst,
+            discountType,
+            discountValue: discountType ? (discountValue ?? 0) : null,
+            discountNote: discountNote.trim() || undefined,
             hotelDayOverrides: [...touchedHotelDays].map((day) => ({ day, amount: hotelDayEdits[day] ?? null })),
             cabDayOverrides: [...touchedCabDays].map((day) => ({ day, amount: cabDayEdits[day] ?? null })),
             tickets: tickets.map((t) => ({ id: t.id, fare: ticketFares[t.id] ?? 0 })),
@@ -365,6 +335,40 @@ export function VerifyPackageDetailClient({
             if (result.success) {
                 toast.success(result.message);
                 setEditMode(false);
+
+                // This panel writes straight to the row, while the editor
+                // around it works from a copy of the package hydrated when it
+                // mounted. router.refresh() re-renders this panel and nothing
+                // else, so without the sync below the Pricing tab and the
+                // header total went on showing the pre-correction numbers
+                // until a full reload — the reviewer correcting a margin
+                // watched two halves of the same screen disagree.
+                const hotelByDay = new Map(payload.hotelDayOverrides.map((o) => [o.day, o.amount]));
+                const cabByDay = new Map(payload.cabDayOverrides.map((o) => [o.day, o.amount]));
+                builder?.setForm((f) => ({
+                    ...f,
+                    marginPercentage: String(margin),
+                    gstPercentage: String(gst),
+                    discountType,
+                    discountValue: discountType ? String(discountValue ?? 0) : "",
+                    discountNote: discountNote.trim(),
+                    tickets: f.tickets.map((t) =>
+                        t.id && ticketFares[t.id] != null ? { ...t, fare: ticketFares[t.id] } : t),
+                    addOns: f.addOns.map((a) =>
+                        a.id && addonEdits[a.id]
+                            ? { ...a, price: addonEdits[a.id].price, quantity: addonEdits[a.id].quantity }
+                            : a),
+                    // Per-day corrections feed computeBuilderHotelPricing on the
+                    // builder side too, so the editor's own base cost only
+                    // matches what was just corrected if these come across with
+                    // the rest. Only days actually touched are in the payload —
+                    // every other day keeps whatever it had.
+                    itineraries: f.itineraries.map((d) => ({
+                        ...d,
+                        hotelPriceOverride: hotelByDay.has(d.day) ? hotelByDay.get(d.day)! : d.hotelPriceOverride,
+                        cabPriceOverride: cabByDay.has(d.day) ? cabByDay.get(d.day)! : d.cabPriceOverride,
+                    })),
+                }));
                 router.refresh();
             } else {
                 toast.error(result.message);
@@ -383,15 +387,19 @@ export function VerifyPackageDetailClient({
     const hotelDrift = s?.displayedTotalPrice != null && Math.round(s.displayedTotalPrice) !== Math.round(s.finalPrice) && !editMode;
 
     const state: "pending" | "verified" | "rejected" = pkg.verified ? "verified" : pkg.rejectedAt ? "rejected" : "pending";
+    const panel = variant === "panel";
 
     return (
-        <div className="flex flex-col gap-5">
-            <Link href="/dashboard/verify-packages" className="text-sm text-dashboard-neutral hover:text-dashboard-primary cursor-pointer transition-colors">
-                ← Back to verify packages
-            </Link>
+        <div className={panel ? "flex flex-col gap-4 p-4" : "flex flex-col gap-5"}>
+            {!panel && (
+                <Link href="/dashboard/verify-packages" className="text-sm text-dashboard-neutral hover:text-dashboard-primary cursor-pointer transition-colors">
+                    ← Back to verify packages
+                </Link>
+            )}
 
-            {/* Header */}
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            {/* Header. In panel mode the title is the editor's, so only the
+                actions survive — those are the reason costing is here. */}
+            <div className={panel ? "flex flex-wrap items-center gap-2" : "flex flex-wrap items-start justify-between gap-3"}>
                 <div>
                     <h1 className="text-xl font-semibold text-dashboard-base-content">{pkg.title}</h1>
                     <p className="text-sm text-dashboard-neutral mt-0.5">
@@ -427,6 +435,21 @@ export function VerifyPackageDetailClient({
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700">
                             <XCircle className="size-3.5" /> Rejected by {pkg.rejectedByName ?? "—"} · {fmtDateTime(pkg.rejectedAt)} — awaiting rework
                         </span>
+                    )}
+                    {/* The other way to review the same package. Offered only
+                        on the classic screen (`!panel`) — inside the editor this
+                        IS the new way, and a link back to itself would be a
+                        loop. Kept while both paths run in parallel. */}
+                    {!panel && pkg.status === "READY" && !pkg.verified && !editMode && (
+                        <Link
+                            href={`/dashboard/package-builder-v2/${pkg.id}/review`}
+                            target="_blank"
+                            rel="noopener"
+                            title="Review in the new editor — correct the itinerary where it sits, then approve or reject"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+                        >
+                            <Pencil className="size-3.5" /> Open in editor
+                        </Link>
                     )}
                     {pkg.status === "READY" && !pkg.verified && !editMode && (
                         <>
@@ -505,9 +528,9 @@ export function VerifyPackageDetailClient({
                     No locked pricing snapshot found for this package — nothing to verify yet.
                 </div>
             ) : (
-                <div className="grid gap-5 lg:grid-cols-3 items-start">
+                <div className={panel ? "flex flex-col gap-4" : "grid gap-5 lg:grid-cols-3 items-start"}>
                     {/* ── Pricing breakdown ─────────────────────────────────── */}
-                    <div className="lg:col-span-2 flex flex-col gap-4">
+                    <div className={panel ? "flex flex-col gap-4" : "lg:col-span-2 flex flex-col gap-4"}>
                         {/* This branch only ever renders while pkg.status === "READY"
                             (see the outer ternary above) — i.e. always mid-review, even
                             if the package was sent in an earlier cycle and pulled back
@@ -582,6 +605,17 @@ export function VerifyPackageDetailClient({
                                                             <p className="text-xs text-dashboard-neutral mt-0.5">
                                                                 {l.roomsNeeded} room{l.roomsNeeded !== 1 ? "s" : ""} × {inr(l.pricePerRoom)}
                                                                 {l.mattresses > 0 && ` + ${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} × ${inr(l.extraBedRate)}`}
+                                                            </p>
+                                                        )}
+                                                        {/* These days used to be omitted from the breakdown entirely, so
+                                                            the subtotal was quietly short and there was nothing on screen
+                                                            to review. They now show, at ₹0, saying what is missing. */}
+                                                        {l.gap && (
+                                                            <p className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                                                                <AlertCircle className="size-3 shrink-0" />
+                                                                {l.gap === "no-room-price"
+                                                                    ? "No room rate set — this day is priced at ₹0"
+                                                                    : `${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} with no rate — charging ₹0 for them`}
                                                             </p>
                                                         )}
                                                     </div>
@@ -686,71 +720,81 @@ export function VerifyPackageDetailClient({
                             </BreakdownCard>
                         )}
 
-                        {/* Inclusions & Exclusions — separate edit/save from pricing, so a
-                            reviewer can veto a standard line (or a Sales Exec's own
-                            addition) that doesn't apply to this package without also
-                            touching pricing. Persists via updatePackageInclusionsExclusions;
-                            reflected in the exec's builder, the "View Package" PDF above,
-                            and the client-facing send once approved/sent. */}
-                        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden shadow-lg">
-                            <div className="flex items-center justify-between border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5">
-                                <span className="flex items-center gap-2 text-sm font-semibold text-dashboard-base-content">
-                                    <ListChecks className="size-4 text-dashboard-neutral" />
-                                    <span>Inclusions & Exclusions</span>
-                                </span>
-                                {pkg.status === "READY" && !pkg.verified && !policyEditMode && (
-                                    <Button type="button" variant="outline" size="sm" onClick={enterPolicyEditMode} className="gap-1.5 h-7 px-2.5 text-xs">
-                                        <Pencil className="size-3.5" /> Edit
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-dashboard-base-300/60">
-                                <div className="py-3">
-                                    <p className="px-4 pb-1.5 text-xs font-semibold text-dashboard-base-content/70 flex items-center gap-1.5">
-                                        <ListChecks className="size-3.5 text-dashboard-success" /> Inclusions
-                                    </p>
-                                    <PolicyListEditor
-                                        icon={ListChecks} tone="success"
-                                        items={policyEditMode ? inclusionsEdit : inclusions}
-                                        editing={policyEditMode}
-                                        onRemove={(item) => setInclusionsEdit((prev) => prev.filter((i) => i !== item))}
-                                        draft={newInclusion} onDraftChange={setNewInclusion} onAdd={addInclusion}
-                                    />
-                                </div>
-                                <div className="py-3">
-                                    <p className="px-4 pb-1.5 text-xs font-semibold text-dashboard-base-content/70 flex items-center gap-1.5">
-                                        <ListX className="size-3.5 text-dashboard-error" /> Exclusions
-                                    </p>
-                                    <PolicyListEditor
-                                        icon={ListX} tone="error"
-                                        items={policyEditMode ? exclusionsEdit : exclusions}
-                                        editing={policyEditMode}
-                                        onRemove={(item) => setExclusionsEdit((prev) => prev.filter((e) => e !== item))}
-                                        draft={newExclusion} onDraftChange={setNewExclusion} onAdd={addExclusion}
-                                    />
-                                </div>
-                            </div>
-                            {policyEditMode && (
-                                <div className="flex justify-end gap-2 border-t border-dashboard-base-300 px-4 py-3">
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setPolicyEditMode(false)} disabled={isPending} className="gap-1.5">
-                                        <X className="size-3.5" /> Cancel
-                                    </Button>
-                                    <Button type="button" size="sm" onClick={handleSavePolicy} disabled={isPending} className="gap-1.5 bg-dashboard-primary text-white hover:opacity-90">
-                                        {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-                                        {isPending ? "Saving…" : "Save Changes"}
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
+                        {/* Inclusions and exclusions used to be edited here, in a panel
+                            beside the document that showed them. They are editable in
+                            the document itself now — a reviewer strikes a line where
+                            they can see it sitting in the client's copy, rather than
+                            reconciling two lists. */}
 
                         {/* Totals */}
                         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-3.5 shadow-lg text-sm space-y-1.5">
                             <div className="flex justify-between"><span className="text-dashboard-neutral">Base cost</span><span className="text-dashboard-base-content">{inr(editMode ? preview.baseCost : s.baseCost)}</span></div>
                             <div className="flex justify-between"><span className="text-dashboard-neutral">Margin ({editMode ? margin : s.marginPercentage}% hotel/cab + 5% tickets)</span><span className="text-dashboard-base-content">{inr(editMode ? preview.marginAmount : s.marginAmount)}</span></div>
                             <div className="flex justify-between"><span className="text-dashboard-neutral">GST ({editMode ? gst : s.gstPercentage}%)</span><span className="text-dashboard-base-content">{inr(editMode ? preview.gstAmount : s.gstAmount)}</span></div>
+
+                            {/* Discount. In edit mode it is always offered — a
+                                concession has to be addable, not only editable
+                                once one exists. Out of edit mode it appears
+                                only when there is one to show. */}
+                            {editMode ? (
+                                <div className="border-t border-dashboard-base-300 pt-2 mt-2 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={discountType ?? ""}
+                                            onChange={(e) => {
+                                                const next = (e.target.value || null) as "FLAT" | "PERCENT" | null;
+                                                setDiscountType(next);
+                                                if (!next) { setDiscountValue(null); setDiscountNote(""); }
+                                            }}
+                                            className="h-9 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2 text-xs"
+                                        >
+                                            <option value="">No discount</option>
+                                            <option value="FLAT">₹ off</option>
+                                            <option value="PERCENT">% off</option>
+                                        </select>
+                                        {discountType && (
+                                            <Input
+                                                type="number" min={0} max={discountType === "PERCENT" ? 100 : undefined}
+                                                value={discountValue ?? 0}
+                                                onChange={(e) => setDiscountValue(Number(e.target.value))}
+                                                className="w-24 text-right"
+                                            />
+                                        )}
+                                        {discountType && (
+                                            <span className="text-xs font-semibold text-emerald-700 ml-auto">
+                                                − {inr(preview.discount.amount)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {discountType && (
+                                        <Input
+                                            value={discountNote}
+                                            onChange={(e) => setDiscountNote(e.target.value)}
+                                            placeholder="Why this discount? (internal — never shown to the client)"
+                                            maxLength={500}
+                                            className="text-xs"
+                                        />
+                                    )}
+                                </div>
+                            ) : s.discountAmount != null && s.discountAmount > 0 ? (
+                                <div className="flex justify-between border-t border-dashboard-base-300 pt-1.5 mt-1.5">
+                                    <span className="text-emerald-700">
+                                        Discount{s.discountType === "PERCENT" && s.discountValue ? ` (${s.discountValue}%)` : ""}
+                                    </span>
+                                    <span className="text-emerald-700">− {inr(s.discountAmount)}</span>
+                                </div>
+                            ) : null}
+
                             <div className="flex justify-between font-bold border-t border-dashboard-base-300 pt-1.5 mt-1.5">
                                 <span className="text-dashboard-base-content">{editMode ? "New total" : "Computed total"}</span>
-                                <span className="text-dashboard-base-content">{inr(editMode ? preview.finalPrice : s.finalPrice)}</span>
+                                <span className="text-dashboard-base-content">
+                                    {(editMode ? preview.discount.applies : (s.discountAmount ?? 0) > 0) && (
+                                        <span className="mr-2 font-normal text-xs text-dashboard-neutral line-through">
+                                            {inr(editMode ? preview.listPrice : s.listPrice)}
+                                        </span>
+                                    )}
+                                    {inr(editMode ? preview.finalPrice : s.finalPrice)}
+                                </span>
                             </div>
                             <p className="text-xs text-dashboard-neutral">{inr(editMode ? preview.pricePerPerson : s.pricePerPerson)} per person</p>
                             {!editMode && (s.hotel.overridden || s.cab.overridden) && (
@@ -775,6 +819,7 @@ export function VerifyPackageDetailClient({
 
                     {/* ── Sidebar ──────────────────────────────────────────── */}
                     <div className="flex flex-col gap-4">
+                        {findingsSlot}
                         <SideCard title="Client Details">
                             <div className="flex flex-col gap-3">
                                 <InfoItem icon={Users} label="Name" value={query.name} />

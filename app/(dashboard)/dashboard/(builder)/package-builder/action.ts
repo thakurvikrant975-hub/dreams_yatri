@@ -16,6 +16,9 @@ import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinera
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { emailPackageToClient } from "./email-package";
 import { classifyActionError } from "@/app/lib/action-error";
+import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
+import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
+import { applyDiscount, discountLabel } from "./discount";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -780,6 +783,10 @@ export interface QueryDetail {
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
+    /** Costing's concession off the final price — see discount.ts. */
+    discountType: "FLAT" | "PERCENT" | null;
+    discountValue: number | null;
+    discountNote: string | null;
     gstPercentage:    number;
     inclusions:      string[];
     exclusions:      string[];
@@ -1010,6 +1017,10 @@ export interface PackageInput {
   totalPrice:      number | null;
   marginPercentage: number;
   gstPercentage:    number;
+  /** Costing's concession off the final price — see discount.ts. */
+  discountType?:    "FLAT" | "PERCENT" | null;
+  discountValue?:   number | null;
+  discountNote?:    string | null;
   currency:        string;
   inclusions:      string[];
   exclusions:      string[];
@@ -1321,6 +1332,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       title: true, description: true, coverImage: true, coverImagePosition: true,
       destination: true, startingPoint: true, totalDays: true, totalNights: true,
       marginPercentage: true, gstPercentage: true, termsNotes: true, extraPolicyItems: true,
+      discountType: true, discountValue: true, discountNote: true,
       flightsIncluded: true, flightNotes: true, flightFrom: true, flightTo: true,
       trainIncluded: true, trainNotes: true, trainFrom: true, trainTo: true,
       stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true, image: true } },
@@ -1754,6 +1766,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       pricePerPerson:  true,
       totalPrice:      true,
       marginPercentage: true,
+      discountType: true, discountValue: true, discountNote: true,
       gstPercentage:    true,
       inclusions:      true,
       exclusions:      true,
@@ -1924,6 +1937,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants, childrenAges, infantAges,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
+      discountType, discountValue, discountNote,
       termsNotes, extraPolicyItems,
       status, stops, itineraries, tickets, addOns,
     } = input;
@@ -1949,7 +1963,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     const existing = await db.custom_packages.findUnique({
       where:  { id },
       select: {
-        status: true, title: true, totalDays: true, totalNights: true, travelDate: true,
+        status: true, verified: true, rejectedAt: true, revisionRequestedAt: true,
+        builtBy: true, query: { select: { assignedTo: true } },
+        title: true, totalDays: true, totalNights: true, travelDate: true,
         adults: true, children: true, infants: true, pricePerPerson: true, totalPrice: true,
         stops: { orderBy: { sortOrder: "asc" }, select: { name: true, nights: true } },
         itineraries: {
@@ -1963,15 +1979,95 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         },
       },
     });
-    // Once a package is out for costing review, only a reject (which flips
-    // it back to DRAFT — see verify-packages' rejectCustomPackage) reopens
-    // it for editing. The builder UI already hides/disables everything
-    // while READY, but that's client-side only — this is the actual gate
-    // against a stale tab (or anything else calling this action directly)
-    // still being able to write over a package costing is reviewing.
-    if (existing?.status === "READY") {
+    // A package out for costing review is closed to the person who submitted
+    // it — but not to the reviewer, whose entire job happens at READY. This
+    // used to reject the status outright, which locked out the one role that
+    // is supposed to be writing then: costing could edit every field in the
+    // builder and had no way to persist a single one of them.
+    //
+    // So it asks the same question the editor asks, from the same pure
+    // function, rather than inferring it from status: may THIS caller edit
+    // THIS package right now. The client already hides what it can, but
+    // hiding a control is a courtesy, not a permission — this is the gate
+    // against a stale tab, or anything calling the action directly.
+    //
+    // Deliberately narrowed to READY rather than applied to every save: at
+    // DRAFT this stays exactly as permissive as it has always been, so a team
+    // role that doesn't map cleanly onto exec/costing (workspaceRoleOf's
+    // "other") keeps working the way it does today instead of quietly losing
+    // the ability to save.
+    const memberCtx = await getEffectiveMember();
+    const role = workspaceRoleOf(memberCtx?.member?.teamRole?.name);
+    // A package with no row yet is being created by this very call, so the
+    // caller owns it — that is the exec arriving with a freshly-generated id.
+    const isOwner = existing == null || ownsPackage({
+      viewerId: memberCtx?.member?.id,
+      viewerRoleName: memberCtx?.member?.teamRole?.name,
+      builtBy: existing.builtBy,
+      queryAssignedTo: existing.query?.assignedTo,
+    });
+    const caps = resolveWorkspaceCaps(role, {
+      status: existing?.status ?? "DRAFT",
+      verified: existing?.verified ?? false,
+      rejectedAt: existing?.rejectedAt ?? null,
+      revisionRequestedAt: existing?.revisionRequestedAt ?? null,
+    }, { isOwner });
+
+    // An exec edits their own work. Applied here rather than through
+    // caps.editItinerary because that is false for them on a SENT package,
+    // where saving is still allowed on purpose: a client who asks for a change
+    // after receiving the itinerary is ordinary, and the save snapshots what
+    // they were originally shown (see previousSnapshot below).
+    if (role === "exec" && !isOwner) {
+      return { id, success: false, error: "This package belongs to another sales exec. Ask them, or a team leader, to make the change." };
+    }
+
+    // Costing writes only while the package is actually with them — which now
+    // ends at their own approval. After that the exec is holding exactly what
+    // was signed off, and changing it would alter the approved package without
+    // re-approving it; the way back in is for the exec to request a revision.
+    if (role === "costing" && !caps.editItinerary) {
+      return {
+        id, success: false,
+        error: existing?.verified
+          ? "You've already approved this package. Ask the sales exec to pull it back for revision if it needs another change."
+          : "This package is back with the sales exec — you'll be able to edit it again when they resubmit it for review.",
+      };
+    }
+
+    // And nobody else writes while it IS with costing. Two people correcting
+    // the same element in opposite directions is the thing this prevents.
+    if (existing?.status === "READY" && !caps.editItinerary) {
       return { id, success: false, error: "This package is awaiting costing review and can't be edited until it's verified or rejected back to you." };
     }
+
+    // A save edits content. It never moves a package through its workflow —
+    // every transition has its own action that records who did it and when:
+    // markPackageReady, approve, reject, requestPackageRevision, send.
+    //
+    // Without this, `status` was whatever the client last put in the payload:
+    // costing's autosave would have dropped a package out of the review queue
+    // by writing DRAFT over READY, and the exec's Save Draft on an already-SENT
+    // package silently un-sent it.
+    //
+    // It briefly allowed DRAFT → READY, on the reasoning that Mark Ready saves
+    // first and then flips the status. It does — but in the other order than
+    // that implies: letting the save move it to READY meant markPackageReady's
+    // own submit check then ran against a package that was no longer a draft,
+    // failed, and left the row at READY with no readyAt. Locked to the exec,
+    // and invisible to costing, whose queue is keyed on readyAt.
+    const nextStatus = existing == null ? status : existing.status;
+
+    // True while the package is out for review, when the quoted total is
+    // costing's to set — through approve and updatePackagePricing, both of
+    // which recompute it and record the change. The exec's editor keeps
+    // pricePerPerson/totalPrice synced to its own live computation as they
+    // build, and that must not overwrite a reviewed figure.
+    //
+    // Scoped to those two columns only. What we PAY — ticket fares, add-on
+    // prices, per-day rates — stays writable here at every status, because
+    // caps.editCost gives costing exactly that in the builder.
+    const pricingLocked = existing?.status === "READY";
 
     if (existing?.status === "SENT") {
       previousSnapshot = {
@@ -2034,6 +2130,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         totalPrice:      totalPrice ?? null,
         marginPercentage,
         gstPercentage,
+        discountType:  discountType ?? null,
+        discountValue: discountValue ?? null,
+        discountNote:  discountNote?.trim() || null,
         currency,
         inclusions:      effectiveInclusions,
         exclusions:      effectiveExclusions,
@@ -2052,7 +2151,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         trainNotes:      trainNotes || null,
         trainFrom:       trainFrom || null,
         trainTo:         trainTo || null,
-        status,
+        status:          nextStatus,
         builtBy,
         builtByName:     builtByName || null,
       },
@@ -2071,10 +2170,30 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         infants,
         childrenAges:    childrenAges ?? [],
         infantAges:      infantAges ?? [],
-        pricePerPerson:  pricePerPerson ?? null,
-        totalPrice:      totalPrice ?? null,
-        marginPercentage,
-        gstPercentage,
+        // Margin, GST and the discount are absent from this update on purpose,
+        // at every status.
+        //
+        // They are costing's levers (see workspace-caps: the exec has
+        // editMargin: false and cannot even see these numbers), and the one
+        // path that writes them — updatePackagePricing — re-checks that
+        // capability and records the change. Accepting them here gave the rule
+        // a hole on both sides: a crafted payload could set a margin the sender
+        // was never allowed to set, and an ordinary save from an editor opened
+        // before a correction would post the pre-correction values back over
+        // it. With autosave now running for costing, the second one would have
+        // happened on a timer, seconds after their own correction, silently.
+        //
+        // They are still written on `create` below — a new package needs its
+        // opening margin and GST from somewhere, and that is the house default
+        // the form carries.
+        //
+        // pricePerPerson/totalPrice stay the exec's while a package is theirs:
+        // the builder keeps them synced to the live computation as they work.
+        // At READY they are costing's, via updatePackagePricing and approve.
+        ...(pricingLocked ? {} : {
+          pricePerPerson:  pricePerPerson ?? null,
+          totalPrice:      totalPrice ?? null,
+        }),
         currency,
         inclusions:      effectiveInclusions,
         exclusions:      effectiveExclusions,
@@ -2093,8 +2212,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         trainNotes:      trainNotes || null,
         trainFrom:       trainFrom || null,
         trainTo:         trainTo || null,
-        status,
-        builtByName:     builtByName || null,
+        status:          nextStatus,
+        // builtBy/builtByName are set on create and never rewritten. They name
+        // whoever BUILT the package, which is not the same as whoever last
+        // saved it — now that costing saves too, echoing the current actor here
+        // would quietly reassign authorship to the reviewer.
         ...(previousSnapshot ? { previousSnapshot } : {}),
       },
     });
@@ -2307,54 +2429,102 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       );
     }
 
-    // Replace tickets — flat rows, no nested children, so createMany is fine
-    // (same pattern as stops above).
-    await db.custom_package_tickets.deleteMany({
-      where: { customPackageId: pkg.id },
-    });
-    if (tickets.length > 0) {
-      await db.custom_package_tickets.createMany({
-        data: tickets.map((t, idx) => ({
-          customPackageId: pkg.id,
-          type:            t.type,
-          provider:        t.provider || null,
-          ticketNumber:    t.ticketNumber || null,
-          fromPlace:       t.fromPlace || null,
-          toPlace:         t.toPlace || null,
-          travelDate:      t.travelDate ? new Date(t.travelDate) : null,
-          departureTime:   t.departureTime || null,
-          arrivalTime:     t.arrivalTime || null,
-          durationText:    t.durationText || null,
-          adults:          t.adults,
-          children:        t.children,
-          infants:         t.infants,
-          ticketCount:     t.ticketCount,
-          fare:            t.fare ?? null,
-          notes:           t.notes || null,
-          sortOrder:       idx,
-        })),
-      });
-    }
+    // Tickets — reconciled by id, not replaced wholesale.
+    //
+    // This was delete-everything + createMany, which handed every surviving
+    // ticket a brand-new id on every save. updatePackagePricing corrects fares
+    // by id (`custom_package_tickets.update({ where: { id } })`), so one save
+    // from the builder left the Costing tab holding ids that no longer existed
+    // and its next Edit Pricing save failed outright. Rows now keep their
+    // identity, and `fare` — costing's column, not this form's — is left alone
+    // while a correction can be in flight against it.
+    const liveTicketIds = new Set(
+      (await db.custom_package_tickets.findMany({
+        where: { customPackageId: pkg.id }, select: { id: true },
+      })).map((t) => t.id),
+    );
+    const keptTicketIds = tickets
+      .map((t) => t.id)
+      .filter((tid): tid is string => !!tid && liveTicketIds.has(tid));
 
-    // Replace add-ons — flat rows, no nested children, same pattern as
-    // tickets/stops above.
-    await db.custom_package_addons.deleteMany({
-      where: { customPackageId: pkg.id },
+    // `notIn: []` matches every row, which is exactly right when nothing is
+    // kept — the whole list was cleared.
+    await db.custom_package_tickets.deleteMany({
+      where: { customPackageId: pkg.id, id: { notIn: keptTicketIds } },
     });
+
+    await Promise.all(tickets.map((t, idx) => {
+      const content = {
+        type:          t.type,
+        provider:      t.provider || null,
+        ticketNumber:  t.ticketNumber || null,
+        fromPlace:     t.fromPlace || null,
+        toPlace:       t.toPlace || null,
+        travelDate:    t.travelDate ? new Date(t.travelDate) : null,
+        departureTime: t.departureTime || null,
+        arrivalTime:   t.arrivalTime || null,
+        durationText:  t.durationText || null,
+        adults:        t.adults,
+        children:      t.children,
+        infants:       t.infants,
+        ticketCount:   t.ticketCount,
+        notes:         t.notes || null,
+        sortOrder:     idx,
+      };
+      // Fares are written at every status, costing's review included.
+      //
+      // They were briefly held back at READY, to stop a save posting a stale
+      // fare over one corrected in Edit Pricing. But a fare is what we PAY,
+      // which caps.editCost puts squarely in costing's hands *in the builder* —
+      // so holding it back turned the Tickets drawer into a control that moved
+      // the live pricing and then dropped the change. The staleness it guarded
+      // against is handled at the source now: Edit Pricing syncs what it wrote
+      // back into the editor's form, so there is no stale fare left to post.
+      return t.id && liveTicketIds.has(t.id)
+        ? db.custom_package_tickets.update({
+            where: { id: t.id },
+            data:  { ...content, fare: t.fare ?? null },
+          })
+        : db.custom_package_tickets.create({
+            data: { customPackageId: pkg.id, ...content, fare: t.fare ?? null },
+          });
+    }));
+
+    // Add-ons — same reconcile, same reason: updatePackagePricing corrects
+    // price and quantity by id.
     const namedAddons = addOns.filter((a) => a.name.trim());
-    if (namedAddons.length > 0) {
-      await db.custom_package_addons.createMany({
-        data: namedAddons.map((a, idx) => ({
-          customPackageId: pkg.id,
-          name:            a.name,
-          price:           a.price ?? 0,
-          quantity:        a.quantity || 1,
-          notes:           a.notes || null,
-          day:             a.day ?? null,
-          sortOrder:       idx,
-        })),
-      });
-    }
+    const liveAddonIds = new Set(
+      (await db.custom_package_addons.findMany({
+        where: { customPackageId: pkg.id }, select: { id: true },
+      })).map((a) => a.id),
+    );
+    const keptAddonIds = namedAddons
+      .map((a) => a.id)
+      .filter((aid): aid is string => !!aid && liveAddonIds.has(aid));
+
+    await db.custom_package_addons.deleteMany({
+      where: { customPackageId: pkg.id, id: { notIn: keptAddonIds } },
+    });
+
+    await Promise.all(namedAddons.map((a, idx) => {
+      const content = {
+        name:      a.name,
+        notes:     a.notes || null,
+        day:       a.day ?? null,
+        sortOrder: idx,
+      };
+      return a.id && liveAddonIds.has(a.id)
+        ? db.custom_package_addons.update({
+            where: { id: a.id },
+            data:  { ...content, price: a.price ?? 0, quantity: a.quantity || 1 },
+          })
+        : db.custom_package_addons.create({
+            data: {
+              customPackageId: pkg.id, ...content,
+              price: a.price ?? 0, quantity: a.quantity || 1,
+            },
+          });
+    }));
 
     revalidatePath("/dashboard/package-builder");
 
@@ -2466,7 +2636,17 @@ export async function sendPackageToClient(packageId: string): Promise<{
     const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
-    const finalPrice = taxable + gstAmount;
+    const listPrice = taxable + gstAmount;
+    // Costing's concession, off the end — same rule and same helper as every
+    // other surface (see discount.ts). Missing here, this recompute quietly
+    // undid the discount at the last possible moment: on the row the client
+    // page reads, in the snapshot meant to be the record of what was quoted,
+    // and in the WhatsApp message itself.
+    const discount = applyDiscount(listPrice, {
+      type: pkg.discountType,
+      value: pkg.discountValue,
+    });
+    const finalPrice = discount.finalPrice;
     const totalPax = pkg.adults + pkg.children;
     const pricePerPersonComputed = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
@@ -2500,6 +2680,14 @@ export async function sendPackageToClient(packageId: string): Promise<{
       taxable,
       gstPercentage: pkg.gstPercentage,
       gstAmount,
+      // Both sides of the concession are frozen, not just the payable figure.
+      // A snapshot that recorded only finalPrice could not answer "was this
+      // client given a discount, and how much" after the fact — which is the
+      // question a snapshot exists to answer.
+      listPrice,
+      discountType:   pkg.discountType,
+      discountValue:  pkg.discountValue,
+      discountAmount: discount.amount,
       finalPrice,
       pricePerPerson: pricePerPersonComputed,
       // What was actually shown to the client at lock time (the exec may
@@ -2555,6 +2743,12 @@ export async function sendPackageToClient(packageId: string): Promise<{
       `🌙 *Duration:* ${pkg.totalDays} Days / ${pkg.totalNights} Nights`,
       `👥 *Travellers:* ${paxLine}`,
       `💰 *Total Price:* ${priceStr}`,
+      // Stated, not implied. The price above is already net of the discount,
+      // so without this line the concession is invisible in the one message
+      // the client actually reads.
+      ...(discount.applies
+        ? [`🎉 _You save ${pkg.currency} ${discount.amount.toLocaleString("en-IN")} (${discountLabel({ type: pkg.discountType, value: pkg.discountValue }, discount.amount)})_`]
+        : []),
       ...(transportLine ? [transportLine] : []),
       ``,
       `View your full itinerary here: ${shareUrl}`,
@@ -2617,13 +2811,41 @@ export async function markPackageReady(
   try {
     const { actor } = await getCurrentActor();
 
-    const pkg = await db.custom_packages.findUnique({
-      where: { id: packageId },
-      select: { id: true, status: true, queryId: true },
-    });
+    const [pkg, memberCtx] = await Promise.all([
+      db.custom_packages.findUnique({
+        where: { id: packageId },
+        select: {
+          id: true, status: true, queryId: true,
+          verified: true, rejectedAt: true, revisionRequestedAt: true,
+          builtBy: true, query: { select: { assignedTo: true } },
+        },
+      }),
+      getEffectiveMember(),
+    ]);
     if (!pkg) return { success: false, error: "Package not found" };
     if (!pkg.queryId) return { success: false, error: "This package isn't linked to a client query yet — attach one before submitting for review." };
     if (pkg.status === "SENT") return { success: false, error: "This package has already been sent to the client." };
+
+    // Submitting is the exec's, from their own draft. This action had no role
+    // check at all: a costing manager with the package open could push an
+    // exec's half-built draft into their own review queue, and the row would
+    // then record the reviewer as the person who marked it ready.
+    const caps = resolveWorkspaceCaps(workspaceRoleOf(memberCtx?.member?.teamRole?.name), {
+      status: pkg.status,
+      verified: pkg.verified,
+      rejectedAt: pkg.rejectedAt,
+      revisionRequestedAt: pkg.revisionRequestedAt,
+    }, {
+      isOwner: ownsPackage({
+        viewerId: memberCtx?.member?.id,
+        viewerRoleName: memberCtx?.member?.teamRole?.name,
+        builtBy: pkg.builtBy,
+        queryAssignedTo: pkg.query?.assignedTo,
+      }),
+    });
+    if (!caps.submit) {
+      return { success: false, error: "Only the sales exec who owns this package can mark it ready for review." };
+    }
 
     // Per-day hotel/cab corrections from a prior review cycle are left as-is
     // here — saveCustomPackage already invalidates a given day's correction
@@ -2686,15 +2908,43 @@ export async function requestPackageRevision(packageId: string, note: string): P
   try {
     const { actor } = await getCurrentActor();
 
-    const pkg = await db.custom_packages.findUnique({
-      where: { id: packageId },
-      select: { id: true, status: true, verified: true, sentAt: true, queryId: true },
-    });
+    const [pkg, memberCtx] = await Promise.all([
+      db.custom_packages.findUnique({
+        where: { id: packageId },
+        select: {
+          id: true, status: true, verified: true, sentAt: true, queryId: true,
+          rejectedAt: true, revisionRequestedAt: true,
+          builtBy: true, query: { select: { assignedTo: true } },
+        },
+      }),
+      getEffectiveMember(),
+    ]);
     if (!pkg) return { success: false, error: "Package not found" };
     const isApprovedNotSent = pkg.status === "READY" && pkg.verified;
     const isSent = pkg.status === "SENT";
     if (!isApprovedNotSent && !isSent) {
       return { success: false, error: "This package isn't in a state that can be pulled back for revision." };
+    }
+
+    // The exec's, not costing's — and the distinction is the one `revise`
+    // exists to draw (see workspace-caps). Costing sends work back by
+    // rejecting it, which carries a reason and their findings. Unguarded, this
+    // gave them a second, reason-light path to quietly undo their own approval.
+    const caps = resolveWorkspaceCaps(workspaceRoleOf(memberCtx?.member?.teamRole?.name), {
+      status: pkg.status,
+      verified: pkg.verified,
+      rejectedAt: pkg.rejectedAt,
+      revisionRequestedAt: pkg.revisionRequestedAt,
+    }, {
+      isOwner: ownsPackage({
+        viewerId: memberCtx?.member?.id,
+        viewerRoleName: memberCtx?.member?.teamRole?.name,
+        builtBy: pkg.builtBy,
+        queryAssignedTo: pkg.query?.assignedTo,
+      }),
+    });
+    if (!caps.revise) {
+      return { success: false, error: "Only the sales exec who owns this package can pull it back for revision. Costing sends one back by rejecting it, with a reason." };
     }
 
     await db.custom_packages.update({
@@ -2706,6 +2956,26 @@ export async function requestPackageRevision(packageId: string, note: string): P
         revisionRequestedBy: actor?.id ?? null,
         revisionRequestedByName: actor?.name ?? null,
         revisionNote: trimmedNote,
+      },
+    });
+
+    // The columns above hold only the LATEST revision — each request overwrites
+    // the one before it. Costing needs the series, not the last entry: a
+    // package pulled back three times for the same reason is a different
+    // conversation from one pulled back once. Logged here so the history
+    // survives, alongside the pricing corrections already kept this way.
+    await db.activityLog.create({
+      data: {
+        entity: "CustomPackageRevision",
+        entityId: packageId,
+        // LogAction is a fixed enum; the entity above is what identifies these
+        // rows, exactly as CustomPackagePricing does for costing corrections.
+        action: "UPDATE",
+        description: trimmedNote,
+        userId: actor?.id ?? null,
+        userName: actor?.name ?? null,
+        userEmail: actor?.email ?? null,
+        metadata: { fromStatus: pkg.status, wasVerified: pkg.verified },
       },
     });
 
@@ -2791,10 +3061,35 @@ export async function shareCustomPackageWithClient(packageId: string): Promise<{
 
     const pkg = await db.custom_packages.findUnique({
       where: { id: packageId },
-      select: { id: true, status: true, verified: true, queryId: true },
+      select: {
+        id: true, status: true, verified: true, queryId: true,
+        builtBy: true, query: { select: { assignedTo: true } },
+      },
     });
     if (!pkg) return { success: false, error: "Package not found" };
     if (!pkg.verified) return { success: false, error: "This package hasn't been approved by costing yet." };
+
+    // Sending stays with the exec even once costing has approved: the reviewer
+    // signs off on what it costs, the person who owns the client relationship
+    // decides when it lands in their inbox. caps.send says so, and until now
+    // only the button respected it.
+    const memberCtx = await getEffectiveMember();
+    const sendCaps = resolveWorkspaceCaps(workspaceRoleOf(memberCtx?.member?.teamRole?.name), {
+      status: pkg.status,
+      verified: pkg.verified,
+      rejectedAt: null,
+      revisionRequestedAt: null,
+    }, {
+      isOwner: ownsPackage({
+        viewerId: memberCtx?.member?.id,
+        viewerRoleName: memberCtx?.member?.teamRole?.name,
+        builtBy: pkg.builtBy,
+        queryAssignedTo: pkg.query?.assignedTo,
+      }),
+    });
+    if (!sendCaps.send) {
+      return { success: false, error: "Only the sales exec who owns this package can share it with the client." };
+    }
 
     const sendResult = await sendPackageToClient(packageId);
     if (!sendResult.success) {

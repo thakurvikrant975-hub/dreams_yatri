@@ -17,6 +17,7 @@ import {
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { getItinerarySettings } from "../../../itinerary-settings/actions";
 import { computeFinalPackagePricing } from "@/app/services/package-pricing.service";
+import { applyDiscount, discountLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 
 function recalcFromStops(stops: StopInput[]) {
@@ -65,7 +66,18 @@ export async function getPackagePdfPreviewData(packageId: string): Promise<Previ
     }
   }
 
+  // Resolved the same way the live editor resolves it, so the exported PDF and
+  // the on-screen document can never state different savings.
+  const disc = applyDiscount(totalPrice ?? 0, { type: cp.discountType, value: cp.discountValue });
+
   return {
+    discount: disc.applies
+      ? {
+          originalPrice: disc.originalPrice,
+          amount: disc.amount,
+          label: discountLabel({ type: cp.discountType, value: cp.discountValue }, disc.amount),
+        }
+      : null,
     title: cp.title,
     description: cp.description ?? "",
     coverImage: cp.coverImage ?? "",

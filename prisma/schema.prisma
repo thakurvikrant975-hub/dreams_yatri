@@ -277,25 +277,25 @@ model TripDocument {
 /// nothing prices off it, and ops must be able to raise one for a trip the
 /// system knows nothing about.
 model ManualDocument {
-  id             String             @id @default(cuid())
-  type           ManualDocumentType
+  id                String             @id @default(cuid())
+  type              ManualDocumentType
   /// Its own series (MINV-2026-0001 / MVCH-2026-0001) so a manual document can
   /// never be mistaken for — or collide with — a system booking number.
-  documentNumber String             @unique
+  documentNumber    String             @unique
   /// The date printed on the document. Separate from createdAt: ops routinely
   /// raises a document days after the service, dated when it was rendered.
-  issueDate      DateTime
-  guestName      String
-  guestContact   String?
+  issueDate         DateTime
+  guestName         String
+  guestContact      String?
   /// Trip title on a voucher, service description on an invoice — the one line
   /// that identifies the document in a list.
-  title          String
-  startDate      DateTime?
-  endDate        DateTime?
-  travellers     Int                @default(1)
+  title             String
+  startDate         DateTime?
+  endDate           DateTime?
+  travellers        Int                @default(1)
   /// Invoice grand total in paise; 0 on a voucher. A column rather than a
   /// payload read so the list can sort and total without parsing every row.
-  totalAmount_paise Int             @default(0)
+  totalAmount_paise Int                @default(0)
   /// The document body — line items and payments for an invoice, the itinerary
   /// and hotel/cab tables for a voucher. Shape is discriminated by `type` and
   /// validated in app/lib/manual-documents.ts.
@@ -303,15 +303,15 @@ model ManualDocument {
   /// JSON rather than tables because these are issued artefacts: nothing joins
   /// to a manual voucher's day rows, and normalising them would cost six tables
   /// that only ever get read back together, as a whole document.
-  payload        Json
+  payload           Json
   /// Internal note — why this was raised, who asked for it. Never printed.
-  notes          String?
-  createdById    String?
-  createdByName  String?
-  updatedByName  String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  createdBy      TeamMember?        @relation("ManualDocumentAuthor", fields: [createdById], references: [id])
+  notes             String?
+  createdById       String?
+  createdByName     String?
+  updatedByName     String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  createdBy         TeamMember?        @relation("ManualDocumentAuthor", fields: [createdById], references: [id])
 
   @@index([type, issueDate])
   @@index([guestName])
@@ -324,20 +324,20 @@ enum ManualDocumentType {
 }
 
 model BookingHotel {
-  id            String            @id @default(cuid())
-  bookingId     String
-  dayNumber     Int
-  cityName      String
-  checkInDate   DateTime
-  checkOutDate  DateTime
-  hotelId       Int
-  roomType      String
-  roomsCount    Int
-  ratePerRoom   Decimal           @db.Decimal(10, 2)
-  totalCost     Decimal           @db.Decimal(10, 2)
-  isConfirmed   Boolean           @default(false)
-  confirmedAt   DateTime?
-  confirmedById String?
+  id                String            @id @default(cuid())
+  bookingId         String
+  dayNumber         Int
+  cityName          String
+  checkInDate       DateTime
+  checkOutDate      DateTime
+  hotelId           Int
+  roomType          String
+  roomsCount        Int
+  ratePerRoom       Decimal           @db.Decimal(10, 2)
+  totalCost         Decimal           @db.Decimal(10, 2)
+  isConfirmed       Boolean           @default(false)
+  confirmedAt       DateTime?
+  confirmedById     String?
   // Pre-travel double-check with the hotel, separate from the initial
   // confirmedAt above — a hotel can still cancel/change a stay it confirmed
   // weeks earlier, so this is set from the Upcoming Guests page's own call-
@@ -345,13 +345,13 @@ model BookingHotel {
   reconfirmedAt     DateTime?
   reconfirmedById   String?
   reconfirmedByName String?
-  notes         String?
-  status        FulfillmentStatus @default(PENDING)
-  voucherUrl    String?
-  booking       Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  confirmedBy   TeamMember?       @relation(fields: [confirmedById], references: [id])
-  hotel         hotels            @relation(fields: [hotelId], references: [id])
-  meals         BookingMeal[]
+  notes             String?
+  status            FulfillmentStatus @default(PENDING)
+  voucherUrl        String?
+  booking           Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  confirmedBy       TeamMember?       @relation(fields: [confirmedById], references: [id])
+  hotel             hotels            @relation(fields: [hotelId], references: [id])
+  meals             BookingMeal[]
 
   @@unique([bookingId, dayNumber])
   @@index([bookingId])
@@ -461,33 +461,33 @@ model hotel_landmark {
 }
 
 model BookingCab {
-  id            String            @id @default(cuid())
-  bookingId     String
-  legNumber     Int
-  fromLocation  String
-  toLocation    String
-  transferDate  DateTime
-  cabType       CabType
-  cabCount      Int               @default(1)
-  capacity      Int
-  ratePerCab    Decimal           @db.Decimal(10, 2)
-  totalCost     Decimal           @db.Decimal(10, 2)
-  isConfirmed   Boolean           @default(false)
-  confirmedAt   DateTime?
-  confirmedById String?
+  id                String            @id @default(cuid())
+  bookingId         String
+  legNumber         Int
+  fromLocation      String
+  toLocation        String
+  transferDate      DateTime
+  cabType           CabType
+  cabCount          Int               @default(1)
+  capacity          Int
+  ratePerCab        Decimal           @db.Decimal(10, 2)
+  totalCost         Decimal           @db.Decimal(10, 2)
+  isConfirmed       Boolean           @default(false)
+  confirmedAt       DateTime?
+  confirmedById     String?
   // Pre-travel double-check with the operator — see BookingHotel.reconfirmedAt.
   reconfirmedAt     DateTime?
   reconfirmedById   String?
   reconfirmedByName String?
-  driverName    String?
-  driverPhone   String?
-  vehicleNumber String?
-  vehicleName   String?
-  notes         String?
-  status        FulfillmentStatus @default(PENDING)
-  voucherUrl    String?
-  booking       Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  confirmedBy   TeamMember?       @relation(fields: [confirmedById], references: [id])
+  driverName        String?
+  driverPhone       String?
+  vehicleNumber     String?
+  vehicleName       String?
+  notes             String?
+  status            FulfillmentStatus @default(PENDING)
+  voucherUrl        String?
+  booking           Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  confirmedBy       TeamMember?       @relation(fields: [confirmedById], references: [id])
 
   @@unique([bookingId, legNumber])
   @@index([bookingId])
@@ -2540,9 +2540,11 @@ model package_queries {
   closedBy          String?
   requirements      Json?
   packageUrl        String?
-  /** Soft-delete — "Delete Query" hides the row from listings instead of
+  /**
+   * Soft-delete — "Delete Query" hides the row from listings instead of
    * actually removing it, so history is never lost (and a booking/package
-   * still linked to it keeps resolving normally by id everywhere else). */
+   * still linked to it keeps resolving normally by id everywhere else).
+   */
   deletedAt         DateTime?
   deletedBy         String?
   queryFollowUps    QueryFollowUp[]
@@ -2563,31 +2565,31 @@ model package_queries {
 }
 
 model custom_packages {
-  id                    String                   @id @default(cuid())
+  id                      String                   @id @default(cuid())
   /**
    * Nullable + non-unique — a query can have multiple packages built for it
    * (e.g. two different budget options sent to the same client), and a
    * package can exist with no linked query at all ("blank" packages, built
    * ahead of a lead so an exec can reuse/adapt one on the fly).
    */
-  queryId               String?
-  title                 String
-  description           String?
-  coverImage            String?
+  queryId                 String?
+  title                   String
+  description             String?
+  coverImage              String?
   /**
    * Vertical focal point for the cover image's object-position (0 = top,
    * 50 = center, 100 = bottom) — lets the exec re-center an image that
    * object-cover crops awkwardly, without re-uploading/re-cropping it.
    */
-  coverImagePosition    Float                    @default(50)
-  destination           String
-  startingPoint         String?
-  totalDays             Int
-  totalNights           Int
-  travelDate            DateTime?
-  adults                Int                      @default(1)
-  children              Int                      @default(0)
-  infants               Int                      @default(0)
+  coverImagePosition      Float                    @default(50)
+  destination             String
+  startingPoint           String?
+  totalDays               Int
+  totalNights             Int
+  travelDate              DateTime?
+  adults                  Int                      @default(1)
+  children                Int                      @default(0)
+  infants                 Int                      @default(0)
   /**
    * Per-traveller ages, entered by the sales exec on the Package tab —
    * costing sometimes needs the actual age (not just the count) to check
@@ -2596,13 +2598,13 @@ model custom_packages {
    * not enforced to always match its length — a count change resizes the
    * array client-side, this is just whatever was last saved.
    */
-  childrenAges          Int[]                    @default([])
-  infantAges            Int[]                    @default([])
-  pricePerPerson        Float?
-  totalPrice            Float?
-  currency              String                   @default("INR")
-  marginPercentage      Float                    @default(25)
-  gstPercentage         Float                    @default(5)
+  childrenAges            Int[]                    @default([])
+  infantAges              Int[]                    @default([])
+  pricePerPerson          Float?
+  totalPrice              Float?
+  currency                String                   @default("INR")
+  marginPercentage        Float                    @default(25)
+  gstPercentage           Float                    @default(5)
   /**
    * Costing-team correction, set during pre-send review (verify-packages'
    * updatePackagePricing) when the live-computed hotel/cab subtotal is
@@ -2613,10 +2615,10 @@ model custom_packages {
    * exec marks the package ready again, since a re-submitted itinerary may
    * have genuinely different rooms/cabs the old override no longer applies to.
    */
-  hotelSubtotalOverride Float?
-  cabSubtotalOverride   Float?
-  inclusions            String[]
-  exclusions            String[]
+  hotelSubtotalOverride   Float?
+  cabSubtotalOverride     Float?
+  inclusions              String[]
+  exclusions              String[]
   /**
    * Costing-team vetoes applied during pre-send review (verify-packages) —
    * exact-string removals from the merged inclusions/exclusions list (the
@@ -2629,28 +2631,28 @@ model custom_packages {
    * (verify-packages/actions.ts), so an exec's builder save can't clobber a
    * costing edit made while the package sits in READY review.
    */
-  removedInclusions     String[]                 @default([])
-  removedExclusions     String[]                 @default([])
-  termsNotes            String?
+  removedInclusions       String[]                 @default([])
+  removedExclusions       String[]                 @default([])
+  termsNotes              String?
   /**
    * Short, removable bullet points — seeded with company-wide defaults the
    * exec can trim/extend per package, distinct from the free-text termsNotes
    * above (kept as a separate general-notes field).
    */
-  termsConditions       String[]
-  paymentPolicy         String[]
-  amendmentPolicy       String[]
+  termsConditions         String[]
+  paymentPolicy           String[]
+  amendmentPolicy         String[]
   /**
    * "Benefits of Travelling With Us" — marketing bullets shown on the
    * client-facing document/page, same removable-default pattern as above.
    */
-  travelBenefits        String[]
+  travelBenefits          String[]
   /**
    * Mirrors itinerary_settings.customPolicySections at save time — admin-
    * defined extra policy blocks (`{ id, title, items }[]`) beyond the six
    * fixed lists above.
    */
-  customPolicySections  Json?
+  customPolicySections    Json?
   /**
    * Per-package additions to the six standard lists above (inclusions,
    * exclusions, termsConditions, paymentPolicy, amendmentPolicy,
@@ -2660,15 +2662,15 @@ model custom_packages {
    * only via itinerary_settings. Shape: `{ inclusions: string[], ... }`,
    * one key per standard list, each defaulting to an empty array.
    */
-  extraPolicyItems      Json                     @default("{}")
-  status                CustomPackageStatus      @default(DRAFT)
-  builtBy               String
-  builtByName           String?
-  sentAt                DateTime?
-  pdfUrl                String?
-  viewedAt              DateTime?
-  viewCount             Int                      @default(0)
-  previousSnapshot      Json?
+  extraPolicyItems        Json                     @default("{}")
+  status                  CustomPackageStatus      @default(DRAFT)
+  builtBy                 String
+  builtByName             String?
+  sentAt                  DateTime?
+  pdfUrl                  String?
+  viewedAt                DateTime?
+  viewCount               Int                      @default(0)
+  previousSnapshot        Json?
   /**
    * Set when a sales exec clicks "Mark Ready" — the moment pricing edits
    * stop and the package enters the costing team's verify-packages queue
@@ -2680,9 +2682,9 @@ model custom_packages {
    * timestamp, which is intentional: the queue/metrics reflect the latest
    * review cycle, not history (QueryTimeline carries the audit trail).
    */
-  readyAt               DateTime?
-  readyBy               String?
-  readyByName           String?
+  readyAt                 DateTime?
+  readyBy                 String?
+  readyByName             String?
   /**
    * Optional free-text message the exec can leave for costing when
    * submitting for review (e.g. "client is price-sensitive, tried to keep
@@ -2701,10 +2703,10 @@ model custom_packages {
    * doesn't trigger it. status only flips to SENT and pricingSnapshot gets
    * locked once the exec actually sends it.
    */
-  verified              Boolean                  @default(false)
-  verifiedAt            DateTime?
-  verifiedBy            String?
-  verifiedByName        String?
+  verified                Boolean                  @default(false)
+  verifiedAt              DateTime?
+  verifiedBy              String?
+  verifiedByName          String?
   /**
    * Set when the verification team sends a package's pricing back for
    * rework instead of verifying it — mirrors package_queries' structured
@@ -2713,12 +2715,12 @@ model custom_packages {
    * a package is never both verified and rejected, and the rejection
    * reason stays visible to the exec until they've actually acted on it.
    */
-  rejectedAt            DateTime?
-  rejectedBy            String?
-  rejectedByName        String?
-  rejectionReasonId     String?
-  rejectionNote         String?
-  rejectionReason       RejectionReason?         @relation(fields: [rejectionReasonId], references: [id])
+  rejectedAt              DateTime?
+  rejectedBy              String?
+  rejectedByName          String?
+  rejectionReasonId       String?
+  rejectionNote           String?
+  rejectionReason         RejectionReason?         @relation(fields: [rejectionReasonId], references: [id])
   /**
    * The exec's own equivalent of a rejection, in reverse — set when they
    * pull an already-verified package back out of "ready to share" (e.g. the
@@ -2730,10 +2732,10 @@ model custom_packages {
    * markPackageReady itself, so the note stays visible through the review
    * cycle it was requested for.
    */
-  revisionRequestedAt   DateTime?
-  revisionRequestedBy   String?
+  revisionRequestedAt     DateTime?
+  revisionRequestedBy     String?
   revisionRequestedByName String?
-  revisionNote          String?
+  revisionNote            String?
   /**
    * Set the moment the exec has been shown (via the in-app toast poller)
    * that this package was verified-and-sent or rejected — prevents
@@ -2741,54 +2743,66 @@ model custom_packages {
    * event happens (re-marking ready, or a new verify/reject decision), so
    * exactly one toast fires per event.
    */
-  execNotifiedAt        DateTime?
+  execNotifiedAt          DateTime?
   /**
    * Guards the +1h "check in with the client" auto follow-up (see
    * app/api/cron/package-followups) from being created twice for the same
    * send — set true the moment that follow-up is created, never reset.
    */
-  followUpAutoCreated   Boolean                  @default(false)
+  followUpAutoCreated     Boolean                  @default(false)
   /**
    * Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
    * exact locked total) — the client-facing "Pay Now" button opens this.
    * No gateway/webhook integration; purely a manual URL field.
    */
-  paymentLink           String?
+  paymentLink             String?
   /**
    * Frozen hotel/cab/ticket/margin/GST breakdown, computed server-side and
    * written once when the package is sent — lets the exec recheck later how
    * the delivered total was built, independent of any later catalog rate
    * changes. Never shown on the client-facing page.
    */
-  pricingSnapshot       Json?
+  pricingSnapshot         Json?
+  /// Costing's discount off the final price, and why.
+  ///
+  /// Applied AFTER margin and GST, because it is a concession on what the
+  /// client pays rather than a change to what the trip costs us — applying it
+  /// earlier would quietly shrink the margin figure costing is reviewing.
+  /// Stored as type + value rather than a computed amount so a percentage
+  /// stays a percentage when the itinerary changes underneath it.
+  discountType            DiscountType?
+  discountValue           Float?
+  /// Internal — the client sees the struck-through price, not the reason.
+  discountNote            String?
   /**
    * This package's own document template, overriding the house default from
    * itinerary_settings. Null means "use whatever the company default is" —
    * deliberately not defaulted to "classic", so that changing the house
    * template retroactively restyles every package that never made a choice.
    */
-  template              String?
+  template                String?
   /**
    * Per-package colour/font tweaks, applied over the template and over the
    * company's own overrides — for the occasional client whose branding the
    * exec needs to match. Null for the overwhelming majority.
    */
-  themeOverrides        Json?
-  flightsIncluded       Boolean                  @default(false)
-  flightNotes           String?
-  flightFrom            String?
-  flightTo              String?
-  trainIncluded         Boolean                  @default(false)
-  trainNotes            String?
-  trainFrom             String?
-  trainTo               String?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  itineraries           custom_itineraries[]
-  stops                 custom_package_stops[]
-  tickets               custom_package_tickets[]
-  addOns                custom_package_addons[]
-  query                 package_queries?         @relation(fields: [queryId], references: [id])
+  themeOverrides          Json?
+  flightsIncluded         Boolean                  @default(false)
+  flightNotes             String?
+  flightFrom              String?
+  flightTo                String?
+  trainIncluded           Boolean                  @default(false)
+  trainNotes              String?
+  trainFrom               String?
+  trainTo                 String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  itineraries             custom_itineraries[]
+  stops                   custom_package_stops[]
+  tickets                 custom_package_tickets[]
+  addOns                  custom_package_addons[]
+  reviewNotes             package_review_notes[]
+  query                   package_queries?         @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
@@ -2835,7 +2849,6 @@ model itinerary_settings {
    * colour/font tweaks layered on top of it. Every package that hasn't chosen
    * its own template falls back to these, so rebranding all future itineraries
    * is one edit here rather than one per package.
-   *
    * Stored as a plain String rather than an enum: templates are a front-end
    * design catalogue that will gain entries faster than the schema should
    * churn, and an id that no longer resolves falls back to the house template
@@ -3060,32 +3073,34 @@ enum TicketType {
   TRAIN
   HELICOPTER
   BUS
-  /** Anything else the exec needs to price as a ticket/transfer line item
+  /**
+   * Anything else the exec needs to price as a ticket/transfer line item
    * (ferry, zipline, cable car, private transfer, etc.) — the human-readable
    * description lives in the ticket's own `provider` field, same as every
-   * other type. */
+   * other type.
+   */
   OTHER
 }
 
 model custom_itineraries {
-  id                        String                        @id @default(cuid())
-  customPackageId           String
-  day                       Int
-  title                     String
-  description               String?
-  meals                     String[]
-  accommodation             String?
-  accommodationPhoto        String?
-  accommodationRoomPhotos   String[]                      @default([])
-  accommodationLocation     String?
-  accommodationRoomSpecs    String?
+  id                            String                        @id @default(cuid())
+  customPackageId               String
+  day                           Int
+  title                         String
+  description                   String?
+  meals                         String[]
+  accommodation                 String?
+  accommodationPhoto            String?
+  accommodationRoomPhotos       String[]                      @default([])
+  accommodationLocation         String?
+  accommodationRoomSpecs        String?
   /// Star rating snapshotted off the hotel at pick time (hotels.stay_type,
   /// free text — "4 Star", sometimes "Boutique"). Denormalised for the same
   /// reason as accommodationRoomSpecs above: the client-facing page and the
   /// PDF render from this row alone and never see roomPricingId, so anything
   /// the document displays has to live here rather than be joined back.
-  accommodationStarRating   String?
-  accommodationRoomCapacity Int?
+  accommodationStarRating       String?
+  accommodationRoomCapacity     Int?
   /**
    * Room-level occupancy caps snapshotted from hotel_rooms at the moment a
    * catalog room is picked (see HotelRoomResult.maxAdults/maxChildren/
@@ -3107,15 +3122,15 @@ model custom_itineraries {
    * this field only exists because that computation has nothing to work
    * from once there's no catalog room behind the day.
    */
-  manualExtraBeds           Int?
-  roomPricingId             Int?
+  manualExtraBeds               Int?
+  roomPricingId                 Int?
   /**
    * Overrides the auto-computed (adults+children ÷ room capacity) room
    * count for the primary `roomPricingId` above — set when the exec
    * explicitly says how many of that room type are needed instead of
    * letting occupancy drive it. Null keeps the auto-computed behavior.
    */
-  roomsCount                Int?
+  roomsCount                    Int?
   /**
    * Additional, DIFFERENT room types booked for the same night (e.g. one
    * couple in a Deluxe Room, another in a Suite) — each a
@@ -3123,20 +3138,20 @@ model custom_itineraries {
    * that room's own resolved per-night rate, no auto occupancy/mattress
    * logic (that only applies to the primary roomPricingId above).
    */
-  extraRooms                Json?
-  cabPricingId              Int?
+  extraRooms                    Json?
+  cabPricingId                  Int?
   /**
    * Same override pattern as roomsCount, for the primary cabPricingId.
    */
-  cabQuantity               Int?
+  cabQuantity                   Int?
   /**
    * Additional, DIFFERENT cabs for the same day (e.g. one Sedan + one
    * SUV) — each a {cabPricingId, label, quantity} entry.
    */
-  extraCabs                 Json?
-  hotelCheckIn              String?
-  hotelCheckOut             String?
-  hotelMealPlan             String?
+  extraCabs                     Json?
+  hotelCheckIn                  String?
+  hotelCheckOut                 String?
+  hotelMealPlan                 String?
   /**
    * Set when the exec can't find a catalog hotel for this day and flags it
    * for the hotel team instead of leaving it silently blank (see
@@ -3144,8 +3159,8 @@ model custom_itineraries {
    * above stay empty — a day is either catalog-picked/manually-typed, or
    * pending, never both. Blocks markPackageReady until cleared.
    */
-  hotelPending              Boolean                       @default(false)
-  hotelPendingNote          String?
+  hotelPending                  Boolean                       @default(false)
+  hotelPendingNote              String?
   /**
    * Property type the exec wants for a pending request (e.g. "RESORT",
    * "STAR_4" — same keys as the client's stayPreference chips), shown to the
@@ -3158,11 +3173,11 @@ model custom_itineraries {
    * is true (no catalog room, no manual fill yet) and fillPendingHotel
    * already overwrites them with the team's actual fulfillment values.
    */
-  hotelRequestType          String?
-  hotelRequestedAt          DateTime?
-  hotelFilledAt             DateTime?
-  hotelFilledById           String?
-  hotelFilledByName         String?
+  hotelRequestType              String?
+  hotelRequestedAt              DateTime?
+  hotelFilledAt                 DateTime?
+  hotelFilledById               String?
+  hotelFilledByName             String?
   /**
    * Internal note the hotel team adds when fulfilling a pending request
    * (e.g. "confirmed by phone, no early check-in available") — shown to the
@@ -3170,7 +3185,7 @@ model custom_itineraries {
    * out of `notes` above (which IS rendered in the itinerary PDF) since this
    * is ops-to-sales communication, not something meant for the client.
    */
-  hotelFillNote             String?
+  hotelFillNote                 String?
   /**
    * Set once PackageStatusNotifier's poller has surfaced the "hotel added
    * for <package>" toast to the exec for this fill — same one-shot pattern
@@ -3178,7 +3193,7 @@ model custom_itineraries {
    * than reusing that one so a hotel-fill toast can't suppress (or be
    * suppressed by) the separate approved/rejected toast on the same package.
    */
-  hotelFillNotifiedAt       DateTime?
+  hotelFillNotifiedAt           DateTime?
   /**
    * Set when the hotel team can't fulfil this pending request — deliberately
    * does NOT clear hotelPending: the day stays in the queue (and keeps
@@ -3203,7 +3218,7 @@ model custom_itineraries {
    * — used instead of hotel_room_pricing lookups (roomPricingId stays null
    * for these days) by computeBuilderHotelPricing's manual-price branch.
    */
-  manualHotelPricePerNight  Float?
+  manualHotelPricePerNight      Float?
   /**
    * Price per extra mattress/rollaway bed for a day with NO catalog
    * roomPricingId — the manual counterpart to hotel_room_pricing.extra_bed_rate.
@@ -3211,7 +3226,7 @@ model custom_itineraries {
    * hand-typed or hotel-team-filled day never actually charged for the
    * mattresses it listed.
    */
-  manualExtraBedRate        Float?
+  manualExtraBedRate            Float?
   /**
    * Costing's per-day correction to what this day's hotel/cab would
    * otherwise cost (catalog rate, or manualHotelPricePerNight above) — set
@@ -3222,39 +3237,45 @@ model custom_itineraries {
    * null has no special meaning here — the exec never sets these; only
    * costing does, and only while the package is READY for review.
    */
-  hotelPriceOverride        Float?
-  cabPriceOverride          Float?
-  transport                 String?
-  transportPhoto            String?
-  transportVehicleType      String?
-  transportSeats            Int?
-  transportPickup           String?
-  transportPickupLat        Float?
-  transportPickupLng        Float?
-  transportDrop             String?
-  /** Coordinates for transportDrop, the counterpart to transportPickupLat/Lng.
+  hotelPriceOverride            Float?
+  cabPriceOverride              Float?
+  transport                     String?
+  transportPhoto                String?
+  transportVehicleType          String?
+  transportSeats                Int?
+  transportPickup               String?
+  transportPickupLat            Float?
+  transportPickupLng            Float?
+  transportDrop                 String?
+  /**
+   * Coordinates for transportDrop, the counterpart to transportPickupLat/Lng.
    * Needed to route between the two — road distance and drive time are derived
-   * from a real routing call, not from the place names. */
-  transportDropLat          Float?
-  transportDropLng          Float?
-  transportDistanceKm       Float?
+   * from a real routing call, not from the place names.
+   */
+  transportDropLat              Float?
+  transportDropLng              Float?
+  transportDistanceKm           Float?
   /**
    * Free-text estimate like "3h 15m" — typed by the exec or filled in by the
    * AI Itinerary Builder, shown in the Transport/Cab section of the day.
    */
-  transportTravelTime       String?
-  notes                     String?
-  /** Optional heading for `notes`. Falls back to the tone's own label when
-   * empty, so a note never renders headless. */
-  notesTitle                String?
-  /** Tone for `notes` — mirrors itinerary_notes.type in the admin catalog
+  transportTravelTime           String?
+  notes                         String?
+  /**
+   * Optional heading for `notes`. Falls back to the tone's own label when
+   * empty, so a note never renders headless.
+   */
+  notesTitle                    String?
+  /**
+   * Tone for `notes` — mirrors itinerary_notes.type in the admin catalog
    * (warning | info | error | success | neutral) so both note systems speak
-   * the same vocabulary. Null reads as neutral. */
-  notesType                 String?
-  createdAt                 DateTime                      @default(now())
-  updatedAt                 DateTime                      @updatedAt
-  package                   custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
-  activities                custom_itinerary_activities[]
+   * the same vocabulary. Null reads as neutral.
+   */
+  notesType                     String?
+  createdAt                     DateTime                      @default(now())
+  updatedAt                     DateTime                      @updatedAt
+  package                       custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  activities                    custom_itinerary_activities[]
 
   @@index([customPackageId])
   @@index([day])
@@ -3881,4 +3902,75 @@ model SystemSetting {
   updatedBy String?
 
   @@map("system_settings")
+}
+
+/// Costing's per-element findings on a package under review.
+///
+/// A rejection used to be one note on the whole package, which is fine for
+/// "priced too low" and useless for "day 3's cab rate is wrong and the Goa
+/// hotel is the wrong room type" — the exec got a paragraph and had to work out
+/// which elements it meant. Each finding is pinned to the thing it is about, so
+/// it can render on that element in the document and be resolved on its own.
+///
+/// This is what makes "partially correct, reject the rest" expressible: costing
+/// fixes what it can, leaves the rest OPEN, and rejects. The open notes ARE the
+/// rejection detail.
+model package_review_notes {
+  id              String           @id @default(cuid())
+  customPackageId String
+  /// What the note is about. DAY/PACKAGE carry no index; PRICING pins to the
+  /// costing breakdown rather than to document content.
+  targetKind      ReviewTargetKind
+  /// 1-based day number for anything that lives on a day. Null for PACKAGE and
+  /// for PRICING notes about the package total.
+  day             Int?
+  /// Position within the day's list (activity n, ticket n, add-on n). Null when
+  /// the day has only one of the thing — a day has one stay and one transfer.
+  index           Int?
+  severity        ReviewSeverity
+  status          ReviewNoteStatus @default(OPEN)
+  message         String
+  createdById     String?
+  createdByName   String?
+  createdAt       DateTime         @default(now())
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedByName  String?
+  package         custom_packages  @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+
+  /// The queue's "N issues open" badge and the document's per-element lookup
+  /// both read by package + status, so they share one index.
+  @@index([customPackageId, status])
+  @@map("package_review_notes")
+}
+
+enum ReviewTargetKind {
+  STAY
+  TRANSPORT
+  ACTIVITY
+  MEAL
+  TICKET
+  ADDON
+  DAY
+  PRICING
+  PACKAGE
+}
+
+enum ReviewSeverity {
+  /// Blocks approval — the exec has to act on it.
+  ERROR
+  /// Worth improving, does not block.
+  SUGGESTION
+}
+
+enum ReviewNoteStatus {
+  OPEN
+  RESOLVED
+}
+
+enum DiscountType {
+  /// A fixed rupee amount off the final price.
+  FLAT
+  /// A percentage of the final price, recomputed whenever that price moves.
+  PERCENT
 }

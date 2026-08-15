@@ -9,6 +9,7 @@ import {
 import { splitManualHotelName } from "./hotel-name-utils";
 import { resolveHotelSeasonPricing } from "../lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
+import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -1116,6 +1117,16 @@ export type BuilderHotelDayLine = {
   total: number;
   /** True when costing hand-corrected this day's price (hotelPriceOverride) — the room/rate breakdown above no longer applies, `total` is the override amount directly. */
   overridden?: boolean;
+  /** Why this line prices at nothing, when it does.
+   *
+   * A day that carries a stay but has no rate behind it used to produce no
+   * line at all: the manual branch is gated on manualHotelPricePerNight, so a
+   * hotel filled in without a price — or mattresses entered against a day
+   * whose room price was never set — simply dropped out of the breakdown. The
+   * subtotal was silently short and costing had no way to see the day existed,
+   * which is the worst possible failure for a review screen. Such a day now
+   * emits a ₹0 line carrying the reason instead of vanishing. */
+  gap?: "no-room-price" | "no-mattress-rate";
 };
 
 export type BuilderHotelPricingResult = {
@@ -1123,6 +1134,21 @@ export type BuilderHotelPricingResult = {
   hotelSubtotal: number;
   nightsCounted: number;
 };
+
+/** Whether a day looks like it is MEANT to carry a stay, for a day that has no
+ * price behind it. A named hotel is the clear signal; a room or mattress count
+ * on its own also counts, because that is what a part-filled day looks like
+ * before anyone has typed a rate. Used only to decide whether to surface a gap
+ * line — a day with none of these is genuinely a no-stay day and stays silent. */
+function hasStayIntent(d: {
+  manualHotelName?: string | null;
+  roomsCount?: number | null;
+  manualExtraBeds?: number | null;
+}): boolean {
+  return !!d.manualHotelName?.trim()
+    || (d.roomsCount ?? 0) > 0
+    || (d.manualExtraBeds ?? 0) > 0;
+}
 
 export async function computeBuilderHotelPricing(input: {
   travelDate: string | null;
@@ -1323,6 +1349,25 @@ export async function computeBuilderHotelPricing(input: {
         mattresses,
         extraBedRate,
         total,
+        // Mattresses counted against no rate cost nothing. That is occasionally
+        // deliberate (complimentary), so it isn't corrected here — but costing
+        // has to be told, or the day looks fully priced when it isn't.
+        ...(mattresses > 0 && extraBedRate === 0 ? { gap: "no-mattress-rate" as const } : {}),
+      });
+    } else if (hasStayIntent(d)) {
+      // A stay with nothing to price it by. Emits at ₹0 rather than dropping
+      // out, so the day is visible in the breakdown as work still to do.
+      lines.push({
+        day: d.day,
+        hotelName: d.manualHotelName ?? "Hotel — no rate set",
+        roomName: d.manualRoomName ?? "Room",
+        planName: null,
+        pricePerRoom: 0,
+        roomsNeeded: d.roomsCount && d.roomsCount > 0 ? d.roomsCount : 1,
+        mattresses: Math.max(0, d.manualExtraBeds ?? 0),
+        extraBedRate: d.manualExtraBedRate ?? 0,
+        total: 0,
+        gap: "no-room-price",
       });
     }
 
@@ -1504,21 +1549,36 @@ export async function computeBuilderCabPricing(input: {
 // ── Final price for a builder package, override-aware ──────────────────────
 // The single place that turns a custom_packages row into "what the client
 // should be charged" — hotel/cab subtotal (costing's override if set, else
-// the live catalog computation), + tickets, + add-ons, + margin, + GST. Used
-// both to show costing a live preview before anything's frozen (see
-// verify-packages/[id]/page.tsx) and, now, to persist a locked pricePerPerson/
-// totalPrice whenever costing corrects pricing or approves — so the package
-// builder and the PDF viewer (which prefer the stored fields over
-// recomputing) actually pick up costing's correction instead of showing a
-// stale, pre-correction number.
+// the live catalog computation), + tickets, + add-ons, + margin, + GST, then
+// costing's discount off the end. Used both to show costing a live preview
+// before anything's frozen (see verify-packages/[id]/page.tsx) and, now, to
+// persist a locked pricePerPerson/totalPrice whenever costing corrects pricing
+// or approves — so the package builder and the PDF viewer (which prefer the
+// stored fields over recomputing) actually pick up costing's correction
+// instead of showing a stale, pre-correction number.
+//
+// The discount was missing here, and this function is what approve and the
+// pricing re-lock write from — so applying a concession and then approving it
+// put the FULL price back on the row. `totalPrice` is what the public package
+// page renders and what the Book Now charge is built from, so the client was
+// quoted a saving and billed without it.
 const TICKET_MARGIN_PCT = 5;
 
-export async function computeFinalPackagePricing(packageId: string): Promise<{ pricePerPerson: number; totalPrice: number } | null> {
+export async function computeFinalPackagePricing(packageId: string): Promise<{
+  pricePerPerson: number;
+  totalPrice: number;
+  /** Before the discount — the struck-through figure. Equal to totalPrice when
+   * no discount applies. */
+  listPrice: number;
+  /** Rupees off. Zero when no discount applies. */
+  discountAmount: number;
+} | null> {
   const pkg = await db.custom_packages.findUnique({
     where: { id: packageId },
     select: {
       travelDate: true, adults: true, children: true,
       marginPercentage: true, gstPercentage: true,
+      discountType: true, discountValue: true,
       hotelSubtotalOverride: true, cabSubtotalOverride: true,
       tickets: { select: { fare: true } },
       addOns: { select: { price: true, quantity: true } },
@@ -1569,9 +1629,18 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{ p
   const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
   const taxable = baseCost + marginAmount;
   const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
-  const finalPrice = taxable + gstAmount;
+  const listPrice = taxable + gstAmount;
+  // Applied after GST, for the reason spelled out in discount.ts: a discount is
+  // a concession on what the client pays, not a change to what the trip costs
+  // us. Netting it off earlier would shrink the margin figure costing reviews
+  // and hide the concession inside it.
+  const discount = applyDiscount(listPrice, {
+    type: pkg.discountType,
+    value: pkg.discountValue,
+  });
+  const finalPrice = discount.finalPrice;
   const totalPax = pkg.adults + pkg.children;
   const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
-  return { pricePerPerson, totalPrice: finalPrice };
+  return { pricePerPerson, totalPrice: finalPrice, listPrice, discountAmount: discount.amount };
 }

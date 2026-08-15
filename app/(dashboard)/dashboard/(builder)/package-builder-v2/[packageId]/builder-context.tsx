@@ -63,6 +63,10 @@ export interface PackageForm {
   totalPrice: string;
   marginPercentage: string;
   gstPercentage: string;
+  /** Costing's concession off the final price. Null type = no discount. */
+  discountType: "FLAT" | "PERCENT" | null;
+  discountValue: string;
+  discountNote: string;
   currency: string;
   inclusions: string[];
   exclusions: string[];
@@ -147,7 +151,15 @@ export type PanelTab =
   // Catalog suggestions, scoped to the trip's destinations. Distinct from the
   // per-day drawers: these are browsed, then dragged onto whichever day they
   // belong to, rather than opened for a day you already picked.
-  | "hotels" | "activities" | "cabs";
+  | "hotels" | "activities" | "cabs"
+  // Costing's own section — the pricing breakdown, its findings and the
+  // approve/reject decision. Only ever rendered for a reviewer: the rail entry
+  // is gated on the caller supplying a costing panel at all, so an exec's
+  // sidebar has no such tab to find.
+  | "costing"
+  // The live calculation — every line's arithmetic, and the walkthrough from
+  // base cost to per-person. Costing's, like "costing" above.
+  | "pricing";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context
@@ -164,9 +176,34 @@ export type DayCost = {
   overridden: boolean;
 };
 
+/** What the viewer may do, and what has already been said about this package.
+ * Both live on the context because the DOCUMENT needs them: a reviewer's
+ * per-element controls hang off the same hover affordances the exec's edit
+ * controls do, and they are rendered thirty levels down from the route. */
+export type ReviewContext = {
+  /** From resolveWorkspaceCaps — whether this viewer may raise/close findings. */
+  canReview: boolean;
+  /** Whether this viewer may strike a company-wide standard inclusion or
+   * exclusion off this package. Costing only — see caps.editLockedPolicy. */
+  canVetoStandardPolicy: boolean;
+  /** Open findings only, keyed by `kind:day:index` — see reviewKey. */
+  openByTarget: Map<string, { id: string; severity: "ERROR" | "SUGGESTION"; message: string }[]>;
+  /** Re-reads findings after one is raised or cleared. */
+  refresh: () => void;
+  packageId: string;
+};
+
+/** One key shape for pinning and looking up a finding, so the writer and the
+ * reader can never disagree about what "day 3's stay" is called. */
+export function reviewKey(kind: string, day?: number | null, index?: number | null): string {
+  return `${kind}:${day ?? ""}:${index ?? ""}`;
+}
+
 type BuilderContextValue = {
   form: PackageForm;
   setForm: SetPackageForm;
+  /** Absent for an exec — nothing about review exists on their screen. */
+  review?: ReviewContext;
   /** False once the package is locked for costing review (status READY) or
    * the viewer otherwise may not edit. Every edit surface must gate on this —
    * see useCanEdit. */
@@ -237,12 +274,13 @@ function replaceDay(
 const BuilderContext = createContext<BuilderContextValue | null>(null);
 
 export function PackageBuilderProvider({
-  form, setForm, canEdit, dayCosts, children,
+  form, setForm, canEdit, dayCosts, review, children,
 }: {
   form: PackageForm;
   setForm: SetPackageForm;
   canEdit: boolean;
   dayCosts: Map<number, DayCost>;
+  review?: ReviewContext;
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
@@ -259,6 +297,7 @@ export function PackageBuilderProvider({
   const value = useMemo<BuilderContextValue>(() => ({
     form,
     setForm,
+    review,
     canEdit,
     dayCosts,
     drawer,
@@ -280,7 +319,7 @@ export function PackageBuilderProvider({
     moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),
     selectedDay: safeSelectedDay,
     setSelectedDay,
-  }), [form, setForm, canEdit, dayCosts, drawer, panelTab, safeSelectedDay]);
+  }), [form, setForm, review, canEdit, dayCosts, drawer, panelTab, safeSelectedDay]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }
@@ -643,6 +682,28 @@ export function standardCount(form: PackageForm, key: PolicyListKey): number {
   return removed ? form[key].filter((i) => !removed.includes(i)).length : form[key].length;
 }
 
+/** Mirrors what toggleStandardPolicyLine just wrote to the row, in this tab's
+ * copy of the form.
+ *
+ * The veto is one of the few edits that goes straight to the database instead
+ * of through `form`, so the action's own router.refresh() re-renders the server
+ * components around the editor and leaves `form.removedInclusions` exactly as
+ * it was hydrated at mount. Without this the struck line stayed on screen — the
+ * toast said "Line removed from this package" and the client's copy of the
+ * document visibly disagreed until a full reload. */
+export function toggleRemovedPolicyLine(
+  form: PackageForm, key: "inclusions" | "exclusions", value: string,
+): PackageForm {
+  const field = key === "inclusions" ? "removedInclusions" : "removedExclusions";
+  const current = form[field];
+  return {
+    ...form,
+    [field]: current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value],
+  };
+}
+
 export function addExtraPolicyItem(form: PackageForm, key: PolicyListKey, value: string): PackageForm {
   const next = value.trim();
   if (!next) return form;
@@ -692,4 +753,11 @@ export function useDay(day: number): DayItinerary | undefined {
 /** Non-hook variant of the same lookup, for use inside callbacks. */
 export function findDay(form: PackageForm, day: number): DayItinerary | undefined {
   return form.itineraries.find((it) => it.day === day);
+}
+
+/** The review context, or null for anyone who isn't reviewing. Null rather
+ * than a disabled object so a caller can't accidentally render review chrome
+ * that then refuses to work. */
+export function useReview(): ReviewContext | null {
+  return useBuilder().review ?? null;
 }

@@ -319,11 +319,18 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                     } : null,
                     queryReceivedAt: q.createdAt,
                 };
-                // A query can have several packages now — the most recent one
-                // (customPackages is already ordered newest-first) is what
-                // "View Package" opens; the "+" lets an exec start another,
-                // e.g. a second budget option for the same client.
-                const latest = q.customPackages[0] ?? null;
+                // A query can have several packages now — the "+" lets an exec
+                // start another, e.g. a second budget option for the same
+                // client. This picks which one the row represents.
+                //
+                // Newest-first alone hid the package that matters most: build a
+                // second draft and the one sitting with costing disappeared
+                // behind it, with nothing on the row to say anything of yours
+                // was in review. Anything still with costing wins, then a
+                // rejection waiting to be fixed, then the newest.
+                const inReview = q.customPackages.find((p) => p.status === "READY" && !p.verified && !p.rejectedAt) ?? null;
+                const needsRework = q.customPackages.find((p) => p.rejectedAt && p.status === "DRAFT") ?? null;
+                const latest = inReview ?? needsRework ?? q.customPackages[0] ?? null;
                 return (
                     <div onClick={(e) => e.stopPropagation()} className="flex flex-col items-center justify-center gap-1">
                         <div className="flex items-center justify-center gap-1.5">
@@ -352,6 +359,25 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                         <Eye className="h-3 w-3" />
                                         View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
                                     </a>
+                                    {/* Says which of the several this row is
+                                        showing, so "in review" isn't something
+                                        you have to open the package to find. */}
+                                    {inReview && (
+                                        <span
+                                            title="With costing for pricing review"
+                                            className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400"
+                                        >
+                                            In review
+                                        </span>
+                                    )}
+                                    {!inReview && needsRework && (
+                                        <span
+                                            title="Costing sent this back — needs fixing and resubmitting"
+                                            className="inline-flex items-center rounded-full border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400"
+                                        >
+                                            Rework
+                                        </span>
+                                    )}
                                     <CreatePackageDialog {...dialogProps} existingPackages={q.customPackages}>
                                         <button
                                             type="button"

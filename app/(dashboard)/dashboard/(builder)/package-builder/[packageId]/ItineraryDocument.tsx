@@ -239,6 +239,7 @@ export function mealIncludedText(planText: string): string | null {
   return `${joined} included`;
 }
 import DyLogo from "@/app/components/ui/DyLogo";
+import SavingsBadge from "@/app/components/packages/SavingBadge";
 import type { DayItinerary, ActivityInput, StopInput, TicketInput, AddonInput } from "../action";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 
@@ -297,6 +298,11 @@ export interface PreviewData {
    * optional since the public share-link path (getSharedPackage) may not
    * always have a match; the strip falls back gracefully when absent. */
   stopImages?: Record<string, string | null>;
+  /** Costing's discount, when one applies. `totalPrice` is already the payable
+   * figure — this is what it was BEFORE the concession, so the document can
+   * show the saving rather than just a smaller number. Absent on every package
+   * without one, which is most of them. */
+  discount?: { originalPrice: number; amount: number; label: string } | null;
   /** Company-wide header/footer content from /dashboard/itinerary-settings —
    * optional so callers that haven't fetched it yet fall back to the
    * hardcoded defaults below rather than rendering blank contact info. */
@@ -1608,8 +1614,16 @@ export function ItineraryDocument({
     ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}`
     : "To be confirmed";
 
+  // Per-person is the total divided by paying heads and rounded, so it does not
+  // generally multiply back to the total. Marked approximate where the two
+  // cannot reconcile, since the document prints both.
+  const payingPax = form.adults + form.children;
+  const perPersonExact =
+    !!form.pricePerPerson && !!form.totalPrice && payingPax > 0 &&
+    Number(form.pricePerPerson) * payingPax === Number(form.totalPrice);
+
   const perPersonStr = form.pricePerPerson
-    ? `${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
+    ? `${perPersonExact ? "" : "~"}${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
     : null;
 
   // Route map legs derived straight from the ticket list — see the module
@@ -1658,6 +1672,14 @@ export function ItineraryDocument({
               <p className="text-white/75 flex items-center gap-1 mb-1 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap">
                 <IndianRupee size={10} /> Total Price
               </p>
+              {form.discount && (
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] text-white/60 line-through">
+                    {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
+                  </span>
+                  <SavingsBadge amount={form.discount.label} prefix="" className="py-0.5 mr-1" />
+                </div>
+              )}
               <p className="font-extrabold text-white text-[13px] leading-tight truncate">{priceStr}</p>
             </div>
           </div>
@@ -1787,6 +1809,14 @@ export function ItineraryDocument({
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] text-white/60 uppercase tracking-widest font-bold mb-0.5">Total Package Price</p>
+                  {form.discount && (
+                    <div className="flex items-center justify-end gap-2 mb-1 pr-1">
+                      <span className="text-[12px] text-white/45 line-through">
+                        {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
+                      </span>
+                      <SavingsBadge amount={form.discount.label} prefix="" />
+                    </div>
+                  )}
                   <p className="text-[17px] font-extrabold text-white leading-none">{priceStr}</p>
                 </div>
               </div>
