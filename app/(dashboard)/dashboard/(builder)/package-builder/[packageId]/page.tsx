@@ -51,6 +51,7 @@ import {
   searchActivitiesForBuilder,
   searchVehiclesForBuilder,
   searchCabsForBuilder,
+  CAB_SEARCH_PAGE_SIZE,
   type QueryDetail,
   type DayItinerary,
   type ActivityInput,
@@ -1444,9 +1445,12 @@ function DayCard({
   // city nor an exact pickup point to price against yet (e.g. route stops
   // not filled in) — once either is available, cab_pricing (real, bookable
   // rates) takes over.
-  async function fetchCabOptions(query: string): Promise<Option[]> {
+  async function fetchCabOptions(query: string, page: number = 1): Promise<Option[]> {
     const hasPickupPoint = data.transportPickupLat != null && data.transportPickupLng != null;
     if (!searchCabCity && !hasPickupPoint) {
+      // Unscoped fleet catalog fallback (no destination/pickup to price
+      // against yet) — capped at 20 server-side with no page param, so
+      // there's nothing further to load here.
       const results = await searchVehiclesForBuilder(query);
       return results.map((v): Option & { raw: VehicleResult } => ({
         id: v.id,
@@ -1466,7 +1470,7 @@ function DayCard({
       : cabCityCoords;
     const distanceRefLabel = hasPickupPoint ? data.transportPickup : searchCabCity;
 
-    const { rows: results } = await searchCabsForBuilder(searchCabCity, query, refCoords);
+    const { rows: results } = await searchCabsForBuilder(searchCabCity, query, refCoords, page);
     return results.map((r): Option & { raw: CabPricingResult } => ({
       id: r.id,
       label: r.vehicleName,
@@ -2078,6 +2082,7 @@ function DayCard({
                 value={null}
                 onChange={handleCabSelect}
                 fetchOptions={fetchCabOptions}
+                pageSize={CAB_SEARCH_PAGE_SIZE}
                 placeholder={
                   searchCabCity ? `Search cabs in ${searchCabCity}…`
                     : data.transportPickup ? `Search cabs near ${data.transportPickup}…`
@@ -2135,6 +2140,7 @@ function DayCard({
                           onChange({ ...data, extraCabs: next });
                         }}
                         fetchOptions={fetchCabOptions}
+                        pageSize={CAB_SEARCH_PAGE_SIZE}
                         placeholder={cab.label || "Search another cab…"}
                       />
                     </div>

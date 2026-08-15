@@ -540,11 +540,11 @@ export type CabSortOption = "price_asc" | "price_desc" | "seats_desc" | "seats_a
 // location rows (e.g. two "Goa" rows — a state-wide entry and an unrelated
 // duplicate — see the package-builder-v2 split investigation) can have an
 // entirely cheaper vehicle group (bikes) fill the whole page and permanently
-// hide a pricier group (cars/buses) from callers that never fetch page 2 —
-// the quick "Search cabs in <city>" combobox doesn't paginate at all.
-// 60 comfortably covers the largest single city today (21 active rows,
-// Tripura) even doubled up across a duplicate-named location.
-const CAB_SEARCH_PAGE_SIZE = 60;
+// hide a pricier group (cars/buses). The classic "Search cabs in <city>"
+// combobox now paginates properly (SearchSelect's "Load more" button), so
+// this is back to a normal page size — kept small so the popup opens fast
+// and "Load more" is the way to see the rest, not a giant first fetch.
+export const CAB_SEARCH_PAGE_SIZE = 20;
 
 function sortCabResults(rows: CabPricingResult[], sortBy: CabSortOption): CabPricingResult[] {
   const byName = (a: CabPricingResult, b: CabPricingResult) => a.vehicleName.localeCompare(b.vehicleName);

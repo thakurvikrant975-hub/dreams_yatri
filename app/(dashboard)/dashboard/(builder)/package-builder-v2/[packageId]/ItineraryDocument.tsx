@@ -3263,24 +3263,12 @@ export function ItineraryDocument({
           {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
           <div className="relative z-10 px-[10mm] " style={{ marginTop: "-13mm" }}>
             <div
-              className="rounded-md grid grid-cols-4 overflow-hidden bg-white shadow-lg shadow-neutral-200/85"
+              className="rounded-md grid grid-cols-3 overflow-hidden bg-white shadow-lg shadow-neutral-200/85"
 
             >
               <StatCell icon={Calendar} label="Travel date" value={travelDateStr} />
               <StatCell icon={Moon} label="Duration" value={durationLabel} />
               <StatCell icon={Users} label="Travellers" value={paxLine} />
-              {/* Price is the one cell that inverts — it's the number the client
-                is looking for, and it anchors the strip's right edge. */}
-              <div
-                className="px-4 py-3.5 flex flex-col justify-center min-w-0 bg-linear-to-r from-primary-500/90 to-primary-600/95 bg-white"
-              >
-                <p className="flex items-center gap-1.5 mb-1 text-[11px] font-medium text-primary-100 whitespace-nowrap">
-                  <IndianRupee size={16} color="#ffffff" /> Total price
-                </p>
-                <p className={cn(DISPLAY, "font-bold font-heading text-white text-lg leading-tight truncate")}>
-                  {priceStr}
-                </p>
-              </div>
             </div>
           </div>
 
