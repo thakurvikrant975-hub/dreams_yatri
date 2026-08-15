@@ -2462,10 +2462,14 @@ interface PackageForm {
 }
 
 /** Keeps a children/infants ages array in sync with a changed traveller
- * count — grows with 0-filled slots, shrinks by dropping the trailing ones. */
+ * count — grows with blank (-1 = not yet entered) slots, shrinks by dropping
+ * the trailing ones. -1 rather than 0 because 0 is a real, valid infant age
+ * (a newborn) — the sentinel is what lets "not filled in yet" be told apart
+ * from "deliberately zero" so Mark Ready can require the former without
+ * rejecting the latter. See validateItineraryRequiredFields. */
 function resizeAges(ages: number[], count: number): number[] {
   if (count <= ages.length) return ages.slice(0, count);
-  return [...ages, ...Array(count - ages.length).fill(0)];
+  return [...ages, ...Array(count - ages.length).fill(-1)];
 }
 
 /** Sum of stop nights → total nights/days + a joined destination string. */
@@ -4666,23 +4670,28 @@ Rules:
                       {form.children > 0 && (
                         <div className="pt-3">
                           <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
-                            Children&apos;s Ages
+                            Children&apos;s Ages <span className="text-dashboard-error">*</span>
                           </label>
                           <div className="flex flex-wrap gap-1.5">
                             {form.childrenAges.map((age, i) => (
                               <Input
                                 key={i}
                                 type="number" min={0} max={17}
-                                value={age}
+                                value={age === -1 ? "" : age}
+                                placeholder="Age"
                                 onChange={(e) => {
-                                  const v = Math.min(17, Math.max(0, +e.target.value || 0));
+                                  const raw = e.target.value;
+                                  const v = raw === "" ? -1 : Math.min(17, Math.max(0, +raw || 0));
                                   setForm((f) => ({
                                     ...f,
                                     childrenAges: f.childrenAges.map((a, idx) => idx === i ? v : a),
                                   }));
                                 }}
                                 title={`Child ${i + 1}`}
-                                className="text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                                className={cn(
+                                  "text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md",
+                                  age === -1 && "border-dashboard-error/50 focus-visible:ring-dashboard-error/20",
+                                )}
                               />
                             ))}
                           </div>
@@ -4691,23 +4700,28 @@ Rules:
                       {form.infants > 0 && (
                         <div className="pt-3">
                           <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
-                            Infants&apos; Ages
+                            Infants&apos; Ages <span className="text-dashboard-error">*</span>
                           </label>
                           <div className="flex flex-wrap gap-1.5">
                             {form.infantAges.map((age, i) => (
                               <Input
                                 key={i}
                                 type="number" min={0} max={2}
-                                value={age}
+                                value={age === -1 ? "" : age}
+                                placeholder="Age"
                                 onChange={(e) => {
-                                  const v = Math.min(2, Math.max(0, +e.target.value || 0));
+                                  const raw = e.target.value;
+                                  const v = raw === "" ? -1 : Math.min(2, Math.max(0, +raw || 0));
                                   setForm((f) => ({
                                     ...f,
                                     infantAges: f.infantAges.map((a, idx) => idx === i ? v : a),
                                   }));
                                 }}
                                 title={`Infant ${i + 1}`}
-                                className="text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                                className={cn(
+                                  "text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md",
+                                  age === -1 && "border-dashboard-error/50 focus-visible:ring-dashboard-error/20",
+                                )}
                               />
                             ))}
                           </div>
