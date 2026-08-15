@@ -436,6 +436,21 @@ export function VerifyPackageDetailClient({
                             <XCircle className="size-3.5" /> Rejected by {pkg.rejectedByName ?? "—"} · {fmtDateTime(pkg.rejectedAt)} — awaiting rework
                         </span>
                     )}
+                    {/* The other way to review the same package. Offered only
+                        on the classic screen (`!panel`) — inside the editor this
+                        IS the new way, and a link back to itself would be a
+                        loop. Kept while both paths run in parallel. */}
+                    {!panel && pkg.status === "READY" && !pkg.verified && !editMode && (
+                        <Link
+                            href={`/dashboard/package-builder-v2/${pkg.id}/review`}
+                            target="_blank"
+                            rel="noopener"
+                            title="Review in the new editor — correct the itinerary where it sits, then approve or reject"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+                        >
+                            <Pencil className="size-3.5" /> Open in editor
+                        </Link>
+                    )}
                     {pkg.status === "READY" && !pkg.verified && !editMode && (
                         <>
                             <Button type="button" variant="outline" size="sm" onClick={enterEditMode} className="gap-1.5">
