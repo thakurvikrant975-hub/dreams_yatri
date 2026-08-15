@@ -544,7 +544,9 @@ export type CabSortOption = "price_asc" | "price_desc" | "seats_desc" | "seats_a
 // combobox now paginates properly (SearchSelect's "Load more" button), so
 // this is back to a normal page size — kept small so the popup opens fast
 // and "Load more" is the way to see the rest, not a giant first fetch.
-export const CAB_SEARCH_PAGE_SIZE = 20;
+// Not exported: this is a "use server" file, and only async functions may
+// be exported from one — callers mirror this value locally (see page.tsx).
+const CAB_SEARCH_PAGE_SIZE = 20;
 
 function sortCabResults(rows: CabPricingResult[], sortBy: CabSortOption): CabPricingResult[] {
   const byName = (a: CabPricingResult, b: CabPricingResult) => a.vehicleName.localeCompare(b.vehicleName);

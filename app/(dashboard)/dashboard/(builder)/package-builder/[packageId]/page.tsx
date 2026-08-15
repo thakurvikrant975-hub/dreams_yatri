@@ -51,7 +51,6 @@ import {
   searchActivitiesForBuilder,
   searchVehiclesForBuilder,
   searchCabsForBuilder,
-  CAB_SEARCH_PAGE_SIZE,
   type QueryDetail,
   type DayItinerary,
   type ActivityInput,
@@ -84,6 +83,13 @@ import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions"
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner", "Tea & Snacks"];
+
+// Mirrors the private CAB_SEARCH_PAGE_SIZE in ../action.ts (can't be
+// imported — that's a "use server" file and only async functions may be
+// exported from one). Only used to size the SearchSelect "Load more"
+// heuristic (a page counts as full, and more may follow, once it comes
+// back with this many rows) — keep in sync if the server value changes.
+const CAB_SEARCH_PAGE_SIZE = 20;
 
 // hotel_room_pricing's meal_type.covered_meals comes back as lowercase keys
 // ("breakfast", "lunch", "dinner") — map to the same labels MEAL_OPTIONS uses
