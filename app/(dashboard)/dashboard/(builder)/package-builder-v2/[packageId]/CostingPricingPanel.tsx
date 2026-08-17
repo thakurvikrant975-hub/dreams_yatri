@@ -25,7 +25,8 @@
 // read the number; that is where you change it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { AlertOctagon } from "lucide-react";
+import { AlertOctagon, Users } from "lucide-react";
+import { travellersLine } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { useBuilder } from "./builder-context";
 import { scrollToDay } from "./builder-context";
 import type {
@@ -89,6 +90,18 @@ export function CostingPricingPanel({
 
   return (
     <div className="p-3 space-y-3">
+      {/* Who is travelling, with the children's ages spelled out. The reviewer
+          is checking rooms and mattresses against each hotel's child policy —
+          free under 5, extra bed under 12 — and that is a different answer for
+          a 4-year-old than for an 11-year-old. The head count alone (which is
+          all the per-person line below carries) can't settle it, and asking
+          the exec is a round-trip. Ages are required before a package can
+          reach this panel at all — see traveller-ages.ts. */}
+      <div className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/50 px-3 py-2">
+        <Users className="size-3.5 shrink-0 mt-0.5 text-dashboard-neutral" />
+        <p className="text-[11px] text-dashboard-base-content">{travellersLine(form)}</p>
+      </div>
+
       {gaps > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
           <AlertOctagon className="size-3.5 shrink-0 mt-0.5 text-amber-600" />

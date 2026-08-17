@@ -18,6 +18,7 @@ import { emailPackageToClient } from "./email-package";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
+import { missingTravellerAgesError } from "./traveller-ages";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -2770,6 +2771,7 @@ export async function markPackageReady(
           id: true, status: true, queryId: true,
           verified: true, rejectedAt: true, revisionRequestedAt: true,
           builtBy: true, query: { select: { assignedTo: true } },
+          children: true, infants: true, childrenAges: true, infantAges: true,
         },
       }),
       getEffectiveMember(),
@@ -2798,6 +2800,15 @@ export async function markPackageReady(
     if (!caps.submit) {
       return { success: false, error: "Only the sales exec who owns this package can mark it ready for review." };
     }
+
+    // Every child and infant needs a real age before costing sees this. Both
+    // builders check the same rule client-side, but it is enforced here as
+    // well: this action is the single door into review (the hotel-requests
+    // auto-advance path comes through it too), and a package that reaches
+    // costing reading "2 Children (age 0, 0)" costs them a round-trip to the
+    // exec to price the rooms at all. See traveller-ages.ts.
+    const agesError = missingTravellerAgesError(pkg);
+    if (agesError) return { success: false, error: agesError };
 
     // Per-day hotel/cab corrections from a prior review cycle are left as-is
     // here — saveCustomPackage already invalidates a given day's correction

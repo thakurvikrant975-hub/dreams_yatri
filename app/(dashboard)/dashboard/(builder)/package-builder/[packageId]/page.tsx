@@ -74,6 +74,10 @@ import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "../ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
+import {
+  resizeAges, ageInputValue, parseAgeInput, missingTravellerAgesError,
+  CHILD_AGE_MIN, CHILD_AGE_MAX, INFANT_AGE_MIN, INFANT_AGE_MAX,
+} from "../traveller-ages";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -2440,12 +2444,9 @@ interface PackageForm {
   execDesignation: string;
 }
 
-/** Keeps a children/infants ages array in sync with a changed traveller
- * count — grows with 0-filled slots, shrinks by dropping the trailing ones. */
-function resizeAges(ages: number[], count: number): number[] {
-  if (count <= ages.length) return ages.slice(0, count);
-  return [...ages, ...Array(count - ages.length).fill(0)];
-}
+// resizeAges and the age helpers now live in ../traveller-ages, shared with the
+// v2 builder, the costing panel and markPackageReady's server-side guard — the
+// unset sentinel has to mean the same thing in all four places.
 
 /** Sum of stop nights → total nights/days + a joined destination string. */
 function recalcFromStops(stops: StopInput[]) {
@@ -3318,6 +3319,14 @@ export default function PackageBuilderDetailPage() {
     const validationError = validateItineraryRequiredFields(form);
     if (validationError) {
       toast.error(validationError);
+      return;
+    }
+    // Same rule markPackageReady enforces server-side — checked here so the
+    // exec is turned back at the button, next to the Travellers block that
+    // fixes it, instead of after the save round-trip.
+    const agesError = missingTravellerAgesError(form);
+    if (agesError) {
+      toast.error(agesError);
       return;
     }
     const pendingDay = form.itineraries.find((it) => it.hotelPending);
@@ -4323,7 +4332,7 @@ Rules:
                 className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
                 onClick={handleMarkReadyClick}
                 disabled={isSending || isSaving}
-                title={validateItineraryRequiredFields(form) ?? undefined}
+                title={validateItineraryRequiredFields(form) ?? missingTravellerAgesError(form) ?? undefined}
               >
                 {isSending
                   ? <Loader2 size={13} className="animate-spin" />
@@ -4663,17 +4672,20 @@ Rules:
                             {form.childrenAges.map((age, i) => (
                               <Input
                                 key={i}
-                                type="number" min={0} max={17}
-                                value={age}
+                                type="number" min={CHILD_AGE_MIN} max={CHILD_AGE_MAX}
+                                // Empty while unanswered rather than a
+                                // prefilled 0 — see ../traveller-ages.
+                                value={ageInputValue(age)}
+                                placeholder="–"
                                 onChange={(e) => {
-                                  const v = Math.min(17, Math.max(0, +e.target.value || 0));
+                                  const v = parseAgeInput(e.target.value, CHILD_AGE_MIN, CHILD_AGE_MAX);
                                   setForm((f) => ({
                                     ...f,
                                     childrenAges: f.childrenAges.map((a, idx) => idx === i ? v : a),
                                   }));
                                 }}
                                 title={`Child ${i + 1}`}
-                                className="text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                                className={`text-sm h-9 w-14 text-center focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md ${age < CHILD_AGE_MIN ? "border-dashboard-warning/70 bg-dashboard-warning/5" : "border-dashboard-base-300"}`}
                               />
                             ))}
                           </div>
@@ -4688,17 +4700,18 @@ Rules:
                             {form.infantAges.map((age, i) => (
                               <Input
                                 key={i}
-                                type="number" min={0} max={2}
-                                value={age}
+                                type="number" min={INFANT_AGE_MIN} max={INFANT_AGE_MAX}
+                                value={ageInputValue(age)}
+                                placeholder="–"
                                 onChange={(e) => {
-                                  const v = Math.min(2, Math.max(0, +e.target.value || 0));
+                                  const v = parseAgeInput(e.target.value, INFANT_AGE_MIN, INFANT_AGE_MAX);
                                   setForm((f) => ({
                                     ...f,
                                     infantAges: f.infantAges.map((a, idx) => idx === i ? v : a),
                                   }));
                                 }}
                                 title={`Infant ${i + 1}`}
-                                className="text-sm h-9 w-14 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                                className={`text-sm h-9 w-14 text-center focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md ${age < INFANT_AGE_MIN ? "border-dashboard-warning/70 bg-dashboard-warning/5" : "border-dashboard-base-300"}`}
                               />
                             ))}
                           </div>
@@ -5642,7 +5655,7 @@ Rules:
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleMarkReadyClick}
                   disabled={isSending || isSaving}
-                  title={validateItineraryRequiredFields(form) ?? undefined}
+                  title={validateItineraryRequiredFields(form) ?? missingTravellerAgesError(form) ?? undefined}
                 >
                   {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   Mark Ready

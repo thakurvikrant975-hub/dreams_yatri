@@ -56,7 +56,11 @@ export interface PackageForm {
   infants: number;
   /** Index-aligned with children/infants above — see the schema comment on
    * custom_packages.childrenAges. Resized (padded/truncated) automatically
-   * whenever the count input changes, see the Travellers section handler. */
+   * whenever the count input changes, see the Travellers section handler.
+   *
+   * A new slot is AGE_UNSET (-1), not 0: 0 is a real answer for an infant, and
+   * every age has to be filled in before the package can go to costing. See
+   * package-builder/traveller-ages.ts. */
   childrenAges: number[];
   infantAges: number[];
   pricePerPerson: string;

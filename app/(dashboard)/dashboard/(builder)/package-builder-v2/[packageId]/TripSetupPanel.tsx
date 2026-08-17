@@ -28,13 +28,10 @@ import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { useBuilder, type PackageForm } from "./builder-context";
 import { RouteStopsEditor } from "./RouteStopsEditor";
 import { recalcFromStops } from "./day-mutations";
-
-/** Keeps a children/infants ages array in sync with a changed traveller count —
- * grows with 0-filled slots, shrinks by dropping the trailing ones. */
-function resizeAges(ages: number[], count: number): number[] {
-  if (count <= ages.length) return ages.slice(0, count);
-  return [...ages, ...Array(count - ages.length).fill(0)];
-}
+import {
+  resizeAges, ageInputValue, parseAgeInput, travellersMissingAges,
+  CHILD_AGE_MIN, CHILD_AGE_MAX, INFANT_AGE_MIN, INFANT_AGE_MAX,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 function Block({ icon: Icon, title, children }: {
   icon: React.ElementType; title: string; children: React.ReactNode;
@@ -64,6 +61,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
   onApplyPrice?: () => void;
 }) {
   const { form, setForm, canEdit } = useBuilder();
+  const missingAges = travellersMissingAges(form);
 
   function field<K extends keyof PackageForm>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -154,16 +152,23 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                   {form.childrenAges.map((age, i) => (
                     <Input
                       key={i}
-                      type="number" min={0} max={17}
-                      value={age}
+                      type="number" min={CHILD_AGE_MIN} max={CHILD_AGE_MAX}
+                      // Empty, not 0, while unanswered — see traveller-ages.ts.
+                      // A prefilled 0 was the whole reason costing kept
+                      // receiving ages nobody had actually entered.
+                      value={ageInputValue(age)}
+                      placeholder="–"
                       onChange={(e) => {
-                        const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+                        const v = parseAgeInput(e.target.value, CHILD_AGE_MIN, CHILD_AGE_MAX);
                         setForm((f) => ({
                           ...f,
                           childrenAges: f.childrenAges.map((a, idx) => (idx === i ? v : a)),
                         }));
                       }}
-                      className="h-8 w-14 text-sm"
+                      className={cn(
+                        "h-8 w-14 text-sm",
+                        age < CHILD_AGE_MIN && "border-dashboard-warning/70 bg-dashboard-warning/5",
+                      )}
                       aria-label={`Child ${i + 1} age`}
                     />
                   ))}
@@ -177,21 +182,34 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                   {form.infantAges.map((age, i) => (
                     <Input
                       key={i}
-                      type="number" min={0} max={2}
-                      value={age}
+                      type="number" min={INFANT_AGE_MIN} max={INFANT_AGE_MAX}
+                      value={ageInputValue(age)}
+                      placeholder="–"
                       onChange={(e) => {
-                        const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+                        const v = parseAgeInput(e.target.value, INFANT_AGE_MIN, INFANT_AGE_MAX);
                         setForm((f) => ({
                           ...f,
                           infantAges: f.infantAges.map((a, idx) => (idx === i ? v : a)),
                         }));
                       }}
-                      className="h-8 w-14 text-sm"
+                      className={cn(
+                        "h-8 w-14 text-sm",
+                        age < INFANT_AGE_MIN && "border-dashboard-warning/70 bg-dashboard-warning/5",
+                      )}
                       aria-label={`Infant ${i + 1} age`}
                     />
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Said here, where the boxes are, rather than only in the toast
+                the exec gets after clicking Mark Ready and being turned away. */}
+            {missingAges.length > 0 && (
+              <p className="text-[11px] text-dashboard-warning">
+                {missingAges.join(", ")} still {missingAges.length === 1 ? "needs an age" : "need ages"} — costing
+                prices hotel child policies off it, so this can&apos;t go to review without them.
+              </p>
             )}
           </div>
         )}
