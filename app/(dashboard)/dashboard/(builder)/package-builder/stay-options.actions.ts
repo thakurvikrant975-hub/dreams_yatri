@@ -332,6 +332,45 @@ export async function getStayOptionsWithPricing(packageId: string) {
   }));
 }
 
+/** Everything the costing manager needs to compare tiers in one look: each
+ * option's price, and the hotel it puts on every single day.
+ *
+ * This is the "several hotels to verify for the same day" view — a reviewer
+ * checking a 3★ and a 4★ quote is checking two hotels against the same night,
+ * and reading that as two separate itineraries is how a day gets approved at
+ * one standard and priced at the other. */
+export async function getStayOptionComparison(packageId: string) {
+  const [priced, options, days] = await Promise.all([
+    computeStayOptionPricing(packageId),
+    getStayOptions(packageId),
+    db.custom_itineraries.findMany({
+      where: { customPackageId: packageId },
+      select: { day: true, title: true },
+      orderBy: { day: "asc" },
+    }),
+  ]);
+
+  const staysByOption = new Map(options.map((o) => [o.id, o.stays]));
+
+  return {
+    days: days.map((d) => ({ day: d.day, title: d.title })),
+    options: priced.map((p) => {
+      const stays = staysByOption.get(p.id) ?? [];
+      return {
+        ...p,
+        hotelByDay: Object.fromEntries(stays.map((s) => [s.day, {
+          name: s.accommodation?.trim() || null,
+          mealPlan: s.hotelMealPlan?.trim() || null,
+          rooms: s.roomsCount ?? null,
+          pending: s.hotelPending,
+          /** Costing's own flat correction on this day, for this tier. */
+          overridden: s.hotelPriceOverride != null,
+        }])),
+      };
+    }),
+  };
+}
+
 /** Every tier on a package with its per-day stays, cheapest first — the read
  * the builder's tier bar, the costing comparison and the document all start
  * from. */
