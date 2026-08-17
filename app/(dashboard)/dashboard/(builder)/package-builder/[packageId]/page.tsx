@@ -71,6 +71,7 @@ import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type Pr
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { ClientLinkButton } from "../ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
@@ -4314,6 +4315,7 @@ Rules:
             )}
 
             <ItineraryPdfExport form={previewForm} />
+            <ClientLinkButton packageId={packageId} isLive={pkgSent} />
 
             {!isLocked && !pkgSent && (
               <Button

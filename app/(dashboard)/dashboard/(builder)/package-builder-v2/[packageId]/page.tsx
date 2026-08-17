@@ -59,6 +59,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -2002,6 +2003,7 @@ Rules:
             )}
 
             <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
+            <ClientLinkButton packageId={packageId} isLive={pkgSent} />
 
             {!isLocked && !pkgSent && (
               <Button
