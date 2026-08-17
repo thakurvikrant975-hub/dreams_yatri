@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 
 const VALID_LIMITS = [10, 20, 50] as const;
 const VALID_STATUS = ["all", "active", "inactive"] as const;
+const VALID_NEAR_SORT = ["distance", "price"] as const;
 
 export default async function HotelInventoryPage({
     searchParams,
@@ -23,12 +24,28 @@ export default async function HotelInventoryPage({
         ? (sp.status as typeof VALID_STATUS[number])
         : "all";
 
+    // "Near a location" mode — an alternative to text search, picked from the
+    // map/location catalog rather than typed. See HotelInventoryTable for the
+    // picker and getHotels for the distance ranking.
+    const nearLat = parseFloat(sp.nearLat ?? "");
+    const nearLng = parseFloat(sp.nearLng ?? "");
+    const near = (sp.nearName && Number.isFinite(nearLat) && Number.isFinite(nearLng))
+        ? { id: sp.nearId ?? "0", name: sp.nearName, type: sp.nearType ?? "CITY", lat: nearLat, lng: nearLng }
+        : null;
+    const nearSort = (VALID_NEAR_SORT as readonly string[]).includes(sp.nearSort ?? "")
+        ? (sp.nearSort as typeof VALID_NEAR_SORT[number])
+        : "distance";
+    const uploadedBy = (sp.uploadedBy ?? "all").trim() || "all";
+
     return (
         <HotelInventoryClient
             page={page}
             limit={limit}
             search={search}
             status={status}
+            near={near}
+            nearSort={nearSort}
+            uploadedBy={uploadedBy}
         />
     );
 }

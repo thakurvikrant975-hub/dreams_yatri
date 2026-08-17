@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Building2, BedDouble, CheckCircle2 } from "lucide-react";
-import { getHotels } from "../hotels/actions";
+import { getHotels, getHotelUploaders } from "../hotels/actions";
 import { HotelInventoryTable } from "./HotelInventoryTable";
 import {
     Breadcrumb, BreadcrumbItem,
@@ -12,6 +12,8 @@ import { PageHeader } from "../components/dashboard/PageHeader";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 
 type Status = "all" | "active" | "inactive";
+type NearSort = "distance" | "price";
+type NearLocation = { id: string; name: string; type: string; lat: number; lng: number };
 
 function TableSkeleton() {
     return (
@@ -36,11 +38,19 @@ function TableSkeleton() {
 }
 
 async function HotelInventoryData({
-    page, limit, search, status,
+    page, limit, search, status, near, nearSort, uploadedBy,
 }: {
     page: number; limit: number; search: string; status: Status;
+    near: NearLocation | null; nearSort: NearSort; uploadedBy: string;
 }) {
-    const { hotels, totalCount, stats } = await getHotels({ page, limit, search, status });
+    const [{ hotels, totalCount, stats }, uploaders] = await Promise.all([
+        getHotels({
+            page, limit, search, status, uploadedBy,
+            near: near ? { lat: near.lat, lng: near.lng } : null,
+            nearSort,
+        }),
+        getHotelUploaders(),
+    ]);
 
     return (
         <>
@@ -58,15 +68,20 @@ async function HotelInventoryData({
                 limit={limit}
                 search={search}
                 status={status}
+                near={near}
+                nearSort={nearSort}
+                uploadedBy={uploadedBy}
+                uploaders={uploaders}
             />
         </>
     );
 }
 
 export default function HotelInventoryClient({
-    page, limit, search, status,
+    page, limit, search, status, near, nearSort, uploadedBy,
 }: {
     page: number; limit: number; search: string; status: Status;
+    near: NearLocation | null; nearSort: NearSort; uploadedBy: string;
 }) {
     return (
         <div className="space-y-6">
@@ -89,7 +104,7 @@ export default function HotelInventoryClient({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${status}`}
+                key={`${page}-${limit}-${search}-${status}-${near?.id ?? ""}-${nearSort}-${uploadedBy}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-3">
@@ -104,7 +119,10 @@ export default function HotelInventoryClient({
                     </div>
                 }
             >
-                <HotelInventoryData page={page} limit={limit} search={search} status={status} />
+                <HotelInventoryData
+                    page={page} limit={limit} search={search} status={status}
+                    near={near} nearSort={nearSort} uploadedBy={uploadedBy}
+                />
             </Suspense>
         </div>
     );

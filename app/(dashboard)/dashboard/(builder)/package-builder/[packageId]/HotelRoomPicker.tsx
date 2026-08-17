@@ -121,8 +121,19 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
       }
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
+    // refCoords is read via lat/lng below rather than as a whole object: the
+    // parent re-geocodes on a debounce and hands down a new object each time
+    // even when the coordinates are unchanged, which would otherwise re-fire
+    // this search on every parent render. Its ABSENCE from this array used to
+    // be the actual bug: a day's city geocodes asynchronously, so the popover's
+    // very first search (opened before the parent's geocode resolves) locked in
+    // refCoords=null — the query-only text match keeps whatever it found
+    // forever after, silently hiding every hotel that's only reachable via the
+    // nearby-radius fallback (e.g. "Cherrapunji" hotels actually tagged with a
+    // neighbouring sub-locality like "Shella Bholaganj" — see
+    // searchHotelRoomsForBuilder's geoMatches).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy]);
+  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy, refCoords?.lat, refCoords?.lng]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
