@@ -18,6 +18,8 @@ import {
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, ShieldCheck, BedDouble, Undo2, Redo2, Ticket,
 } from "./builder-icons";
+import { Menu } from "lucide-react";
+import { cn } from "@/app/lib/utils";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
@@ -411,18 +413,21 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   // select (see HotelRequestPanel) — same list configured at
   // /dashboard/hotels/meal-types, fetched once here and shared by every day.
   const [mealTypes, setMealTypes] = useState<{ id: number; name: string }[]>([]);
-  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // How much the A4 document has to shrink to fit the phone it is being
   // previewed on. 794px is 210mm at 96dpi; 32px covers the overlay's padding.
   // Recomputed on rotate/resize, and only ever while the overlay is open.
   const [previewZoom, setPreviewZoom] = useState(1);
   useEffect(() => {
-    if (!mobilePreviewOpen) return;
-    const fit = () => setPreviewZoom(Math.min(1, (window.innerWidth - 32) / 794));
+    // Only ever shrinks, and only below lg — from there the document has its
+    // own column and should render at true size.
+    const fit = () => setPreviewZoom(
+      window.innerWidth >= 1024 ? 1 : Math.min(1, (window.innerWidth - 24) / 794),
+    );
     fit();
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
-  }, [mobilePreviewOpen]);
+  }, []);
   const [activeTab, setActiveTab] = useState("client");
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
@@ -2045,17 +2050,32 @@ Rules:
               were there. min-w-0 lets the flex row actually shrink; the
               children keep their own shrink-0 so they scroll instead of
               squashing into each other. */}
-          <div className="flex items-center gap-2 min-w-0 overflow-x-auto overscroll-x-contain [&>*]:shrink-0 py-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="lg:hidden h-8 gap-1 border-dashboard-base-300 hover:bg-dashboard-base-200 rounded-md"
-              onClick={() => setMobilePreviewOpen(true)}
-            >
-              <Eye size={13} />
-              <span className="text-xs">Preview</span>
-            </Button>
+          {/* Hamburger, phone only. Even scrolling sideways, a dozen controls
+              in a 375px strip is a row you have to fish through. Behind one
+              button they get their names back — and the header keeps room for
+              the package title, which is what tells you which package this is.
+              From lg up the row is unchanged. */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
+            className="lg:hidden shrink-0 flex items-center justify-center size-9 -mr-1 rounded-md text-dashboard-base-content/70 hover:bg-dashboard-base-200"
+          >
+            <Menu size={18} />
+          </button>
 
+          <div
+            className={cn(
+              "items-center gap-2 min-w-0 [&>*]:shrink-0",
+              // Phone, menu open: a sheet under the header, controls stacked
+              // full width so each one is a real target with its label showing.
+              // Phone, menu closed: absent. Desktop: the row it has always been.
+              mobileMenuOpen
+                ? "fixed inset-x-0 top-14 z-50 flex flex-col items-stretch gap-2 p-4 border-b border-dashboard-base-300 bg-dashboard-base-100 shadow-lg lg:static lg:z-auto lg:flex-row lg:items-center lg:p-0 lg:border-0 lg:shadow-none"
+                : "hidden lg:flex",
+              "lg:overflow-x-auto lg:overscroll-x-contain lg:py-1",
+            )}
+          >
             {!isLocked && (
               <CreatePackageDialog
                 packageId={packageId}
@@ -2262,6 +2282,14 @@ Rules:
         </div>
       </header>
 
+      {/* Closes the menu on a tap outside it. Below the sheet, above the page. */}
+      {mobileMenuOpen && (
+        <div
+          className="no-print lg:hidden fixed inset-0 z-40 bg-black/20"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
       {/* justify-center + the aside's max-w below keep the preview+editor pair
           from drifting apart into a big dead grey gap on wide screens — the
@@ -2286,8 +2314,13 @@ Rules:
         </div>
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
-          <div className="print-reset px-6 py-8">
+        {/* Visible at every width now. A phone used to open on the editor
+            panel with the document behind an overlay, so the thing being built
+            was the one thing you could not see. It opens on the document, and
+            a section covers it only when you choose one from the bottom bar.
+            pb-20 clears that bar; the zoom fits 210mm onto the screen. */}
+        <aside className="print-reset block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
+          <div className="print-reset px-3 py-4 pb-20 lg:px-6 lg:py-8" style={{ zoom: previewZoom }}>
             <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
               form={previewForm}
@@ -2301,38 +2334,9 @@ Rules:
           </div>
         </aside>
 
-        {/* Mobile preview overlay */}
-        {mobilePreviewOpen && (
-          <div className="no-print lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
-            <div className="no-print flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100 z-10">
-              <span className="text-sm font-semibold text-dashboard-base-content">Live Preview</span>
-              <button onClick={() => setMobilePreviewOpen(false)}>
-                <EyeOff size={16} className="text-dashboard-base-content/50" />
-              </button>
-            </div>
-            {/* The document is a fixed 210mm — about 794px — so on a phone it
-                ran off the side and the client's page could not actually be
-                previewed there at all, which is the one thing this overlay is
-                for. Scaled to fit the viewport instead of cropped: `zoom`
-                rather than `transform: scale`, because zoom reflows, so the
-                overlay's scroll height matches the scaled document instead of
-                leaving a page of dead space beneath it. Capped at 1 so it never
-                magnifies on a tablet. overflow-x-auto is the safety net for
-                anything inside the document that refuses to shrink. */}
-            <div className="px-4 py-6 overflow-x-auto">
-              <div style={{ zoom: previewZoom }}>
-              <ItineraryDocument
-                form={previewForm}
-                onCoverImageChange={!canEditDoc ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
-              onCoverImagePositionChange={!canEditDoc ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
-              onImageChange={!canEditDoc ? undefined : handleItineraryImageChange}
-              onActivityCaptionChange={!canEditDoc ? undefined : handleActivityCaptionChange}
-              variant="flat"
-              />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* The mobile preview overlay that used to live here is gone: the
+            document is the default view on a phone now, so an overlay of the
+            same thing had nothing left to show. */}
 
         {/* ── RIGHT: rail + panel ────────────────────────────────────────────────
             One surface for everything that isn't the document: the rail's

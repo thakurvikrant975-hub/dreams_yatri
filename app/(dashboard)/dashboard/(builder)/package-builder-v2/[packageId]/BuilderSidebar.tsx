@@ -193,59 +193,74 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
     }
   }
 
-  return (
-    // Full width on a phone, intrinsic on desktop. Fixed widths (336 + 68)
-    // exceeded a 375px viewport, so the rail was pushed off-screen entirely —
-    // the tabs were there, just past the right edge with no way to reach them.
-    <div className="no-print flex h-full w-full lg:w-auto lg:shrink-0 min-w-0">
-      {open && (
-        // Takes what is left beside the rail on a phone; fixed beside the
-        // document on desktop.
-        <section className="flex-1 min-w-0 lg:flex-none lg:w-[336px] xl:w-[380px] h-full flex flex-col border-l border-dashboard-base-300 bg-dashboard-base-100">
-          <header className="px-4 pt-4 pb-3 border-b border-dashboard-base-300 shrink-0">
-            <div className="flex items-start gap-2">
-              {/* A drawer is a detour from wherever the rail was — this returns
-                  to it rather than closing the whole panel. */}
-              {drawer && (
-                <button
-                  type="button"
-                  onClick={closeDrawer}
-                  aria-label="Back"
-                  className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
-                >
-                  <ArrowLeft size={14} />
-                </button>
-              )}
-              <div className="flex-1 min-w-0">
-                <h2 className="text-[15px] font-semibold tracking-[-0.01em] truncate">
-                  {heading?.title}
-                </h2>
-                <p className="text-[11.5px] leading-relaxed text-dashboard-base-content/55 mt-0.5">
-                  {heading?.description}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { closeDrawer(); setPanelTab(null); }}
-                aria-label="Collapse panel"
-                title="Collapse panel"
-                className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/35 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
-              >
-                <PanelRightClose size={14} />
-              </button>
-            </div>
-          </header>
-
-          <div className="flex-1 overflow-y-auto overscroll-contain">
-            {/* Keyed on what's showing, so leaving a section that threw and
-                coming back is a fresh attempt rather than the error you
-                already dismissed. */}
-            <BuilderErrorBoundary key={drawer?.kind ?? panelTab ?? "none"} label="This panel">
-              {body()}
-            </BuilderErrorBoundary>
+  // The panel's contents, rendered in two places: docked beside the document
+  // on desktop, and as a full-screen sheet on a phone. Extracted rather than
+  // duplicated so the two can never drift.
+  const panelContent = (
+    <>
+      <header className="px-4 pt-4 pb-3 border-b border-dashboard-base-300 shrink-0">
+        <div className="flex items-start gap-2">
+          {/* A drawer is a detour from wherever the rail was — this returns
+              to it rather than closing the whole panel. */}
+          {drawer && (
+            <button
+              type="button"
+              onClick={closeDrawer}
+              aria-label="Back"
+              className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
+            >
+              <ArrowLeft size={14} />
+            </button>
+          )}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-[15px] font-semibold tracking-[-0.01em] truncate">
+              {heading?.title}
+            </h2>
+            <p className="text-[11.5px] leading-relaxed text-dashboard-base-content/55 mt-0.5">
+              {heading?.description}
+            </p>
           </div>
-        </section>
-      )}
+          <button
+            type="button"
+            onClick={() => { closeDrawer(); setPanelTab(null); }}
+            aria-label="Collapse panel"
+            title="Collapse panel"
+            className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/35 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
+          >
+            <PanelRightClose size={14} />
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto overscroll-contain">
+        {/* Keyed on what's showing, so leaving a section that threw and
+            coming back is a fresh attempt rather than the error you
+            already dismissed. */}
+        <BuilderErrorBoundary key={drawer?.kind ?? panelTab ?? "none"} label="This panel">
+          {body()}
+        </BuilderErrorBoundary>
+      </div>
+    </>
+  );
+
+  // Every section, in rail order — the same list the bottom bar shows on a
+  // phone. Costing and pricing are present only for a reviewer.
+  const allSections = [
+    ...(costingPanel ? [{ tab: "costing" as PanelTab, icon: IndianRupee, label: "Costing" }] : []),
+    ...(costingPanel && pricingPanel ? [{ tab: "pricing" as PanelTab, icon: Calculator, label: "Pricing" }] : []),
+    ...RAIL,
+    ...CATALOG_RAIL,
+  ];
+
+  return (
+    <>
+      {/* ── Desktop: panel docked beside the document, rail on the edge ────── */}
+      <div className="no-print hidden lg:flex h-full shrink-0">
+        {open && (
+          <section className="w-[336px] xl:w-[380px] shrink-0 h-full flex flex-col border-l border-dashboard-base-300 bg-dashboard-base-100">
+            {panelContent}
+          </section>
+        )}
 
       <nav
         aria-label="Builder sections"
@@ -282,6 +297,33 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
           </button>
         )}
       </nav>
-    </div>
+      </div>
+
+      {/* ── Phone: the panel is a sheet over the document ─────────────────────
+          Docking it would leave the document a sliver. Sits between the header
+          and the bottom bar so both stay reachable while a section is open. */}
+      {open && (
+        <div className="no-print lg:hidden fixed inset-x-0 top-14 bottom-14 z-30 flex flex-col bg-dashboard-base-100">
+          {panelContent}
+        </div>
+      )}
+
+      {/* ── Phone: sections as a fixed bottom bar ─────────────────────────────
+          The vertical rail cannot work at this width — it either eats a third
+          of the screen or falls off the edge, which is what it did. Icons along
+          the bottom are within thumb reach, and the row scrolls sideways
+          because eleven sections will not fit any phone. */}
+      <nav
+        aria-label="Builder sections"
+        className="no-print lg:hidden fixed inset-x-0 bottom-0 z-40 h-14 flex items-center gap-1 px-2 border-t border-dashboard-base-300 bg-dashboard-base-100 overflow-x-auto overscroll-x-contain"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {allSections.map((entry) => (
+          <span key={entry.tab} className="shrink-0">
+            <RailButton entry={entry} />
+          </span>
+        ))}
+      </nav>
+    </>
   );
 }
