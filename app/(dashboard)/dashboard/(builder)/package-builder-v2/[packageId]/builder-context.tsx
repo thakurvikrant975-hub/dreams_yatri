@@ -757,7 +757,13 @@ export function findDay(form: PackageForm, day: number): DayItinerary | undefine
 
 /** The review context, or null for anyone who isn't reviewing. Null rather
  * than a disabled object so a caller can't accidentally render review chrome
- * that then refuses to work. */
+ * that then refuses to work.
+ *
+ * Optional, not required: "anyone who isn't reviewing" includes the client
+ * reading the published itinerary at /custom-package/[id], where the document
+ * renders with no builder around it at all. Reaching this through useBuilder
+ * threw there and took the whole page down — EditablePolicyList calls it, and
+ * every inclusions/exclusions list in the document goes through that. */
 export function useReview(): ReviewContext | null {
-  return useBuilder().review ?? null;
+  return useOptionalBuilder()?.review ?? null;
 }
