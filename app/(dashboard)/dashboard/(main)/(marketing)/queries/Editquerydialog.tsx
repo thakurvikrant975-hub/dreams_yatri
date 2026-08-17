@@ -47,13 +47,14 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
 }
 
 const SOURCES = [
-    { label: "Phone Call",    value: "PHONE_CALL" },
-    { label: "WhatsApp",      value: "WHATSAPP" },
-    { label: "Meta",          value: "META" },
-    { label: "Website Form",  value: "WEBSITE_FORM" },
-    { label: "Landing Page",  value: "LANDING_PAGE" },
-    { label: "Referral",      value: "REFERRAL" },
-    { label: "Other",         value: "OTHER" },
+    { label: "Phone Call",       value: "PHONE_CALL" },
+    { label: "WhatsApp Meta",    value: "WHATSAPP" },
+    { label: "WhatsApp Google",  value: "WHATSAPP_GOOGLE" },
+    { label: "Meta",             value: "META" },
+    { label: "Website Form",     value: "WEBSITE_FORM" },
+    { label: "Landing Page",     value: "LANDING_PAGE" },
+    { label: "Referral",         value: "REFERRAL" },
+    { label: "Other",            value: "OTHER" },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
