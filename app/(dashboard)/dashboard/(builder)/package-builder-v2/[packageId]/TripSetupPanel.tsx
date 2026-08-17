@@ -29,11 +29,15 @@ import { useBuilder, type PackageForm } from "./builder-context";
 import { RouteStopsEditor } from "./RouteStopsEditor";
 import { recalcFromStops } from "./day-mutations";
 
-/** Keeps a children/infants ages array in sync with a changed traveller count —
- * grows with 0-filled slots, shrinks by dropping the trailing ones. */
+/** Keeps a children/infants ages array in sync with a changed traveller
+ * count — grows with blank (-1 = not yet entered) slots, shrinks by dropping
+ * the trailing ones. -1 rather than 0 because 0 is a real, valid infant age
+ * (a newborn) — the sentinel is what lets "not filled in yet" be told apart
+ * from "deliberately zero" so Mark Ready can require the former without
+ * rejecting the latter. See validateItineraryRequiredFields. */
 function resizeAges(ages: number[], count: number): number[] {
   if (count <= ages.length) return ages.slice(0, count);
-  return [...ages, ...Array(count - ages.length).fill(0)];
+  return [...ages, ...Array(count - ages.length).fill(-1)];
 }
 
 function Block({ icon: Icon, title, children }: {
@@ -148,22 +152,24 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             {form.children > 0 && (
               <div className="space-y-1">
                 <span className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1">
-                  <Baby size={11} /> Children&apos;s ages
+                  <Baby size={11} /> Children&apos;s ages <span className="text-red-500">*</span>
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {form.childrenAges.map((age, i) => (
                     <Input
                       key={i}
                       type="number" min={0} max={17}
-                      value={age}
+                      value={age === -1 ? "" : age}
+                      placeholder="Age"
                       onChange={(e) => {
-                        const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+                        const raw = e.target.value;
+                        const v = raw === "" ? -1 : Math.max(0, parseInt(raw, 10) || 0);
                         setForm((f) => ({
                           ...f,
                           childrenAges: f.childrenAges.map((a, idx) => (idx === i ? v : a)),
                         }));
                       }}
-                      className="h-8 w-14 text-sm"
+                      className={cn("h-8 w-14 text-sm", age === -1 && "border-red-300 focus-visible:ring-red-200")}
                       aria-label={`Child ${i + 1} age`}
                     />
                   ))}
@@ -172,21 +178,25 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             )}
             {form.infants > 0 && (
               <div className="space-y-1">
-                <span className="text-[11px] text-dashboard-base-content/60">Infants&apos; ages</span>
+                <span className="text-[11px] text-dashboard-base-content/60">
+                  Infants&apos; ages <span className="text-red-500">*</span>
+                </span>
                 <div className="flex flex-wrap gap-2">
                   {form.infantAges.map((age, i) => (
                     <Input
                       key={i}
                       type="number" min={0} max={2}
-                      value={age}
+                      value={age === -1 ? "" : age}
+                      placeholder="Age"
                       onChange={(e) => {
-                        const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+                        const raw = e.target.value;
+                        const v = raw === "" ? -1 : Math.max(0, parseInt(raw, 10) || 0);
                         setForm((f) => ({
                           ...f,
                           infantAges: f.infantAges.map((a, idx) => (idx === i ? v : a)),
                         }));
                       }}
-                      className="h-8 w-14 text-sm"
+                      className={cn("h-8 w-14 text-sm", age === -1 && "border-red-300 focus-visible:ring-red-200")}
                       aria-label={`Infant ${i + 1} age`}
                     />
                   ))}

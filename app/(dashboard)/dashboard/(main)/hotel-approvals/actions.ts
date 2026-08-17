@@ -2,11 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import type { Prisma } from "@/app/generated/prisma";
+import { addDays, addMonths } from "date-fns";
+import { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { createLog } from "../lib/logger";
 import { APPROVAL_SECTIONS, type ApprovalSectionKey } from "./approval-checklist";
+import type { RateWindow, DataIssue } from "./filters";
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,47 @@ async function requireSession() {
   const session = await dashboardAuth();
   if (!session) redirect("/dashboard/login");
   return session;
+}
+
+function rateWindowCutoff(window: Exclude<RateWindow, "all" | "expired">, from: Date): Date {
+  switch (window) {
+    case "15d": return addDays(from, 15);
+    case "1m":  return addMonths(from, 1);
+    case "2m":  return addMonths(from, 2);
+    case "3m":  return addMonths(from, 3);
+    case "6m":  return addMonths(from, 6);
+  }
+}
+
+// A pricing plan's real expiry is whichever is later: its own valid_to, or —
+// if it carries seasonal overrides — the latest active season's valid_to
+// (the plan doesn't lapse back to base rate until the last season ends). A
+// plan with neither is an ongoing rate that never expires, so it's excluded
+// from both "expired" and "expiring soon" — same definition the Expiring
+// Rates dashboard uses, just resolved down to a hotel id here instead of a
+// per-plan row.
+async function getHotelIdsForRateWindow(window: Exclude<RateWindow, "all">): Promise<number[]> {
+  const now = new Date();
+  const dateCondition = window === "expired"
+    ? Prisma.sql`effective_expiry < ${now}`
+    : Prisma.sql`effective_expiry >= ${now} AND effective_expiry <= ${rateWindowCutoff(window, now)}`;
+
+  const rows = await db.$queryRaw<{ hotel_id: number }[]>`
+    WITH plan_expiry AS (
+      SELECT
+        p.id AS pricing_id,
+        p.hotel_id,
+        COALESCE(
+          (SELECT MAX(s.valid_to) FROM hotel_room_pricing_seasons s WHERE s.pricing_id = p.id AND s.is_active = true),
+          p.valid_to
+        ) AS effective_expiry
+      FROM hotel_room_pricing p
+      JOIN hotel_rooms r ON r.id = p.room_id AND r.is_active = true
+      WHERE p.is_active = true
+    )
+    SELECT DISTINCT hotel_id FROM plan_expiry WHERE effective_expiry IS NOT NULL AND ${dateCondition}
+  `;
+  return rows.map((r) => r.hotel_id);
 }
 
 /** Team-member display names for a set of ids, for "reviewed by" labels. */
@@ -46,6 +89,8 @@ export type GetHotelApprovalsParams = {
   search: string;
   status: ApprovalStatusFilter;
   destination: number | "all";
+  rateWindow: RateWindow;
+  dataIssue: DataIssue;
 };
 
 export type HotelApprovalListItem = {
@@ -93,19 +138,47 @@ export async function getHotelApprovals(params: GetHotelApprovalsParams): Promis
 }> {
   await requireSession();
 
-  const where: Prisma.hotelsWhereInput = {
-    ...(params.status === "all" ? {} : STATUS_WHERE[params.status]),
-    ...(params.destination !== "all" ? { destination_id: params.destination } : {}),
+  // AND'd as a list rather than spread into one object — "search" and
+  // "no_location" each need their own OR clause, and Prisma object-spread
+  // would let the second OR silently clobber the first.
+  const conditions: Prisma.hotelsWhereInput[] = [
+    ...(params.status === "all" ? [] : [STATUS_WHERE[params.status]]),
+    ...(params.destination !== "all" ? [{ destination_id: params.destination }] : []),
     ...(params.search
-      ? {
+      ? [{
           OR: [
-            { name: { contains: params.search, mode: "insensitive" } },
-            { city: { contains: params.search, mode: "insensitive" } },
-            { state: { contains: params.search, mode: "insensitive" } },
+            { name: { contains: params.search, mode: "insensitive" as const } },
+            { city: { contains: params.search, mode: "insensitive" as const } },
+            { state: { contains: params.search, mode: "insensitive" as const } },
           ],
-        }
-      : {}),
-  };
+        }]
+      : []),
+    ...(params.dataIssue === "no_room" ? [{ hotelRooms: { none: { is_active: true } } }] : []),
+    ...(params.dataIssue === "no_location" ? [{
+        OR: [
+          { location_id: null },
+          { city: null }, { city: "" },
+          { state: null }, { state: "" },
+        ],
+      }]
+      : []),
+    ...(params.dataIssue === "no_images" ? [{ images: { none: {} } }] : []),
+    // Has at least one active room, but not one of them has an active
+    // pricing row — distinct from "no_room" (never got that far) and from
+    // "expired" (was priced, lapsed) below.
+    ...(params.dataIssue === "no_pricing" ? [{
+        hotelRooms: { some: { is_active: true } },
+        NOT: { hotelRooms: { some: { is_active: true, pricing: { some: { is_active: true } } } } },
+      }]
+      : []),
+  ];
+
+  if (params.rateWindow !== "all") {
+    const ids = await getHotelIdsForRateWindow(params.rateWindow);
+    conditions.push({ id: { in: ids } });
+  }
+
+  const where: Prisma.hotelsWhereInput = conditions.length > 0 ? { AND: conditions } : {};
 
   const [rows, totalCount, pending, approved, changes, total] = await Promise.all([
     db.hotels.findMany({

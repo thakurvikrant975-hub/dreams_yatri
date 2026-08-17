@@ -335,7 +335,10 @@ export function DayListPanel() {
 
   return (
     <div className="p-4 space-y-5">
-      <Group label="Days" hint={canEdit ? "Drag to reorder. Click to open a day." : undefined}>
+      <Group
+        label="Days"
+        hint={canEdit ? "Drag to reorder. Click to open a day." : undefined}
+      >
         <div className="flex flex-wrap gap-1.5">
           {canEdit ? (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>

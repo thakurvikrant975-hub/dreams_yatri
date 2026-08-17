@@ -85,34 +85,27 @@ export async function assignQuery(
 
 // ── Sales READ ────────────────────────────────────────────────────────────────
 
-export type SentPackageInfo = {
-    id:             string;
-    title:          string;
-    status:         string;
-    sentAt:         Date | null;
-    readyAt:        Date | null;
-    totalPrice:     number | null;
-    pricePerPerson: number | null;
-    pdfUrl:         string | null;
-    verified:            boolean;
-    verifiedAt:          Date | null;
-    verifiedByName:      string | null;
-    rejectedAt:          Date | null;
-    rejectedByName:      string | null;
-    rejectionNote:       string | null;
-    rejectionReasonLabel: string | null;
-};
+// SentPackageInfo/mapCustomPackage live in package-status.ts, not here — this
+// file has "use server" at the top, and every export from a Server Actions
+// module must be an async function, which a plain data-shaping helper isn't.
+export type { SentPackageInfo } from "./package-status";
+import { mapCustomPackage } from "./package-status";
+import type { SentPackageInfo } from "./package-status";
 
 // A query can now have more than one package built for it (e.g. two
 // different budget options sent to the same client) — most recent first.
 export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[] };
 
 const CUSTOM_PACKAGE_SELECT = {
-    id: true, title: true, status: true, sentAt: true, readyAt: true,
-    totalPrice: true, pricePerPerson: true, pdfUrl: true,
+    id: true, title: true, status: true, createdAt: true, sentAt: true, readyAt: true,
+    totalPrice: true, pricePerPerson: true, pdfUrl: true, builtByName: true,
     verified: true, verifiedAt: true, verifiedByName: true,
     rejectedAt: true, rejectedByName: true, rejectionNote: true,
     rejectionReason: { select: { label: true } },
+    itineraries: {
+        where: { OR: [{ hotelPending: true }, { hotelFilledAt: { not: null } }] as Prisma.custom_itinerariesWhereInput[] },
+        select: { day: true, hotelPending: true, hotelRejectedAt: true, hotelRejectionNote: true, hotelFilledAt: true },
+    },
 } as const;
 
 /** Returns only queries assigned to the currently logged-in sales exec */
@@ -120,7 +113,10 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
 
     const queries = await db.package_queries.findMany({
-        where:   teamMemberId ? { assignedTo: teamMemberId } : {},
+        where: {
+            deletedAt: null,
+            ...(teamMemberId ? { assignedTo: teamMemberId } : {}),
+        },
         include: {
             rejection_reasons: { select: { id: true, label: true } },
             _count:            { select: { queryFollowUps: true, notes: true } },
@@ -133,10 +129,7 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
         ...q,
         rejectionReason:  q.rejection_reasons ?? null,
         totalLeadQueries: 1,
-        customPackages:   (q.custom_packages ?? []).map((cp: any) => ({
-            ...cp,
-            rejectionReasonLabel: cp.rejectionReason?.label ?? null,
-        })),
+        customPackages:   (q.custom_packages ?? []).map(mapCustomPackage),
     })) as SalesQueryRow[];
 }
 

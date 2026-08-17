@@ -21,7 +21,7 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
       {form.description && (
         <Text size="sm" intent="secondary" className="leading-relaxed block">{form.description}</Text>
       )}
-
+ 
       {(form.inclusions.length > 0 || form.exclusions.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {form.inclusions.length > 0 && (

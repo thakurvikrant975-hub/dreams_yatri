@@ -50,8 +50,15 @@ async function HotelRequestsData({
         }
         : {};
 
+    // Truly "awaiting the hotel team" — hotelPending stays true after a
+    // reject (it's what keeps the day in the sales exec's own queue/
+    // notifications, see the field's doc comment in schema.prisma), so a
+    // rejected day must be excluded here or a package never leaves this list
+    // once every one of its flagged days is either filled or rejected.
+    const pendingFilter = { hotelPending: true, hotelRejectedAt: null } as const;
+
     const where: Prisma.custom_packagesWhereInput = {
-        itineraries: { some: { hotelPending: true } },
+        itineraries: { some: pendingFilter },
         ...searchWhere,
     };
 
@@ -66,14 +73,14 @@ async function HotelRequestsData({
                 builtByName: true,
                 query: { select: { name: true, phone: true } },
                 itineraries: {
-                    where:   { hotelPending: true },
+                    where:   pendingFilter,
                     orderBy: { day: "asc" },
                     select:  { day: true, hotelPendingNote: true, hotelRequestedAt: true },
                 },
             },
         }),
         db.custom_packages.count({ where }),
-        db.custom_itineraries.count({ where: { hotelPending: true } }),
+        db.custom_itineraries.count({ where: pendingFilter }),
     ]);
 
     const requests: HotelRequestRow[] = rows.map((r) => ({

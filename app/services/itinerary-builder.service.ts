@@ -786,8 +786,11 @@ function toItems(list: {
     max_occupancy: number | null; max_adults: number | null; child_cot_available: boolean | null;
     images: { url: string; thumbnail: string | null }[];
   } | null;
+  /** Straight-line km from the day's stop — see searchRoomPricings. Null
+   * when there's no stop location to measure from. */
+  distanceKm?: number | null;
 }[]) {
-  return list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) }));
+  return list.map((p) => ({ ...p, price_per_night: Number(p.price_per_night) }));
 }
 
 export async function getRoomPricingById(id: number) {
@@ -796,12 +799,38 @@ export async function getRoomPricingById(id: number) {
   return { ...row, price_per_night: Number(row.price_per_night) };
 }
 
+const ROOM_SEARCH_PAGE_SIZE = 20;
+
+export type RoomSearchSort = "distance" | "price_asc" | "price_desc" | "name";
+
+/** Great-circle distance in km — mirrors the raw-SQL haversine used to find
+ * the nearby hotel ID set below, just run in JS once per already-fetched
+ * item instead of a second DB round-trip. */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
 export async function searchRoomPricings(
   destinationId: number,
   query: string,
   itineraryId?: number,
   stayBlockOrder?: number,
   stopIndex?: number,
+  page: number = 1,
+  sortBy?: RoomSearchSort | null,
+  /** hotels.stay_type exact match, e.g. "4 Star". */
+  starFilter?: string | null,
+  /** hotels.category exact match, e.g. "resort". */
+  catFilter?: string | null,
+  /** Lowercase meal keys ("breakfast"/"lunch"/"dinner") the room's plan
+   * must cover ALL of — ignored when noMealsOnly is set. */
+  mealFilter?: string[] | null,
+  noMealsOnly?: boolean | null,
 ) {
   const lookupOrder = stopIndex ?? stayBlockOrder;
 
@@ -828,68 +857,102 @@ export async function searchRoomPricings(
     }
   }
 
+  const hotelFilter = {
+    is_active: true,
+    ...(starFilter ? { stay_type: starFilter } : {}),
+    ...(catFilter ? { category: catFilter } : {}),
+  };
+  const mealClause = noMealsOnly
+    ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
+    : mealFilter && mealFilter.length > 0
+      ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
+      : {};
+
+  /** Fetches every room_pricing row for these hotel IDs (uncapped — the
+   * candidate hotel-ID set is already scoped to a real place, never the
+   * whole catalog, so this stays small), then sorts/paginates the FULL set
+   * in memory. Capping the DB fetch itself (the old `take: 51`) was the
+   * actual bug: hotels sorted after whatever filled that cap — 45 real
+   * hotels can exist within 50km of a stop, most of them past a 51-row
+   * cut sorted by name — never had a way to appear, "search to refine"
+   * notwithstanding, since the filter chips only ever ran on the already-
+   * truncated list client-side. */
+  async function fetchAndPage(hotelIds: number[] | null) {
+    const rows = await db.hotel_room_pricing.findMany({
+      where: {
+        is_active: true,
+        hotel: {
+          ...hotelFilter,
+          ...(hotelIds ? { id: { in: hotelIds } } : { destination_id: destinationId }),
+          ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
+        },
+        ...mealClause,
+      },
+      select: HOTEL_SELECT,
+    });
+
+    const withDistance = rows.map((r) => ({
+      row: r,
+      distanceKm: (stopLat != null && stopLng != null && r.hotel.location?.latitude != null && r.hotel.location?.longitude != null)
+        ? Math.round(haversineKm(stopLat, stopLng, Number(r.hotel.location.latitude), Number(r.hotel.location.longitude)) * 10) / 10
+        : null,
+    }));
+
+    const effectiveSort = sortBy ?? (stopLat != null && stopLng != null ? "distance" : "name");
+    withDistance.sort((a, b) => {
+      if (effectiveSort === "price_asc") return a.row.price_per_night.toString().localeCompare(b.row.price_per_night.toString(), undefined, { numeric: true }) || a.row.hotel.name.localeCompare(b.row.hotel.name);
+      if (effectiveSort === "price_desc") return b.row.price_per_night.toString().localeCompare(a.row.price_per_night.toString(), undefined, { numeric: true }) || a.row.hotel.name.localeCompare(b.row.hotel.name);
+      if (effectiveSort === "distance") return (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || a.row.hotel.name.localeCompare(b.row.hotel.name);
+      return a.row.hotel.name.localeCompare(b.row.hotel.name);
+    });
+
+    const start = (Math.max(page, 1) - 1) * ROOM_SEARCH_PAGE_SIZE;
+    const pageSlice = withDistance.slice(start, start + ROOM_SEARCH_PAGE_SIZE);
+    return {
+      items: toItems(pageSlice.map((p) => ({ ...p.row, distanceKm: p.distanceKm }))),
+      has_more: withDistance.length > start + ROOM_SEARCH_PAGE_SIZE,
+      total: withDistance.length,
+    };
+  }
+
   // ── 1. Haversine proximity (requires coordinates) ──────────────────────
   if (stopLat != null && stopLng != null) {
     type HotelId = { id: number };
     const haversine = `6371 * acos(LEAST(1.0, cos(radians(${stopLat})) * cos(radians(l.latitude::float)) * cos(radians(l.longitude::float) - radians(${stopLng})) + sin(radians(${stopLat})) * sin(radians(l.latitude::float))))`;
-    const nearby: HotelId[] = query
-      ? await db.$queryRawUnsafe<HotelId[]>(
-          `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND h.name ILIKE $1 AND (${haversine}) <= 50`,
-          `%${query}%`,
-        )
-      : await db.$queryRawUnsafe<HotelId[]>(
-          `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND (${haversine}) <= 50`,
-        );
+    const nearby: HotelId[] = await db.$queryRawUnsafe<HotelId[]>(
+      `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND (${haversine}) <= 50`,
+    );
     const nearbyIds = nearby.map((r) => r.id);
     if (nearbyIds.length > 0) {
-      const list = await db.hotel_room_pricing.findMany({
-        where: { is_active: true, hotel: { id: { in: nearbyIds } } },
-        select: HOTEL_SELECT,
-        take: 51,
-        orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
-      });
-      return { items: toItems(list), has_more: list.length > 50 };
+      const result = await fetchAndPage(nearbyIds);
+      if (result.total > 0) return result;
     }
   }
 
   // ── 2. Place-name city match (when stop has no coords or Haversine empty) ─
   if (stopPlaceName) {
-    const cityFilter = {
-      is_active: true,
-      hotel: {
+    const rows = await db.hotel_room_pricing.findMany({
+      where: {
         is_active: true,
-        OR: [
-          { city:  { contains: stopPlaceName, mode: "insensitive" as const } },
-          { name:  { contains: query || stopPlaceName, mode: "insensitive" as const } },
-        ],
+        hotel: {
+          ...hotelFilter,
+          OR: [
+            { city: { contains: stopPlaceName, mode: "insensitive" as const } },
+            { name: { contains: query || stopPlaceName, mode: "insensitive" as const } },
+          ],
+        },
+        ...mealClause,
       },
-    };
-    const list = await db.hotel_room_pricing.findMany({
-      where: cityFilter,
-      select: HOTEL_SELECT,
-      take: 51,
-      orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+      select: { id: true, hotel: { select: { id: true } } },
     });
-    if (list.length > 0) {
-      return { items: toItems(list), has_more: list.length > 50 };
+    if (rows.length > 0) {
+      const result = await fetchAndPage(rows.map((r) => r.hotel.id));
+      if (result.total > 0) return result;
     }
   }
 
   // ── 3. Fallback: destination-wide search ───────────────────────────────
-  const list = await db.hotel_room_pricing.findMany({
-    where: {
-      is_active: true,
-      hotel: {
-        is_active: true,
-        destination_id: destinationId,
-        ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
-      },
-    },
-    select: HOTEL_SELECT,
-    take: 51,
-    orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
-  });
-  return { items: toItems(list), has_more: list.length > 50 };
+  return fetchAndPage(null);
 }
 
 // ── Day source images (for attraction picker) ──────────────────────────────

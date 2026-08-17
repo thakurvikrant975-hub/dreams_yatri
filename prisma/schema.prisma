@@ -762,6 +762,23 @@ model TeamMember {
   departmentId           String?
   teamRoleId             String?
   isActive               Boolean           @default(true)
+  /** Per-member override for the round-robin auto-assign (see
+   * app/lib/queries/auto-assign.ts) — independent of isActive, so an exec
+   * on leave can be pulled out of the rotation without deactivating their
+   * account entirely. Defaults true: every existing Sales Executive stays
+   * in the rotation exactly as before until an admin explicitly opts them
+   * out. Only ever consulted for the "Sales Executive" role. */
+  autoAssignActive       Boolean           @default(true)
+  /** Floor on this member's active-pipeline lead count (same count the
+   * round robin already ranks by) that auto-assign will prioritise filling
+   * before falling back to ordinary least-loaded selection — see
+   * autoAssignLead. Null means no floor (falls straight into the ordinary
+   * round robin, same as before this feature existed). */
+  autoAssignMin          Int?
+  /** Ceiling on active-pipeline leads — once reached, this member drops out
+   * of auto-assign eligibility until something moves off their pipeline
+   * (closes, converts, etc). Null means no ceiling. */
+  autoAssignMax          Int?
   /** Bumped to force-invalidate this member's current login(s) — dashboard
    * auth is stateless JWT (no server-side session row to delete), so a
    * mismatch between this and the value embedded in a member's token at
@@ -2505,6 +2522,9 @@ model package_queries {
   email             String?
   phone             String
   countryCode       String            @default("IN")
+  /** Only set when whatsappSameAsPhone is false — a separate WhatsApp number. */
+  whatsapp          String?
+  whatsappSameAsPhone Boolean         @default(true)
   message           String?
   packageName       String?
   destination       String?
@@ -2558,6 +2578,7 @@ model package_queries {
   @@index([status])
   @@index([verified])
   @@index([deletedAt])
+  @@index([phone])
 }
 
 model custom_packages {
@@ -2659,6 +2680,17 @@ model custom_packages {
    * one key per standard list, each defaulting to an empty array.
    */
   extraPolicyItems        Json                     @default("{}")
+  /**
+   * DB-enforced: status = READY always implies readyAt is set (see the
+   * ready_status_requires_ready_at check constraint, added after a
+   * two-call submit sequence — save-with-status-READY, then a separate
+   * markPackageReady — let the second call's own permission check reread
+   * a status the first call had already flipped, fail, and leave rows
+   * stuck at READY with no readyAt: locked to the exec, invisible to
+   * costing's readyAt-gated queue). Application code now only ever writes
+   * READY and readyAt together, in markPackageReady's single update — the
+   * constraint is the backstop against that regressing unnoticed.
+   */
   status                  CustomPackageStatus      @default(DRAFT)
   builtBy                 String
   builtByName             String?
@@ -3191,6 +3223,25 @@ model custom_itineraries {
    */
   hotelFillNotifiedAt           DateTime?
   /**
+   * Set when the hotel team can't fulfil this pending request — deliberately
+   * does NOT clear hotelPending: the day stays in the queue (and keeps
+   * blocking markPackageReady) as "rejected, needs the exec's attention"
+   * rather than silently vanishing the way a fill would. The exec clears it
+   * by editing and resubmitting the request from the builder (see
+   * submitHotelRequest in day-mutations.ts, which resets these fields), or
+   * the hotel team can still fill the day later if something turns up.
+   */
+  hotelRejectedAt           DateTime?
+  hotelRejectedById         String?
+  hotelRejectedByName       String?
+  hotelRejectionNote        String?
+  /**
+   * Same one-shot toast guard as hotelFillNotifiedAt, kept separate so a
+   * rejection toast can't suppress (or be suppressed by) a fill toast on the
+   * same package.
+   */
+  hotelRejectedNotifiedAt   DateTime?
+  /**
    * B2B price/night the hotel team enters when fulfilling a pending request
    * — used instead of hotel_room_pricing lookups (roomPricingId stays null
    * for these days) by computeBuilderHotelPricing's manual-price branch.
@@ -3632,6 +3683,10 @@ enum QueryStatus {
 enum QuerySource {
   WEBSITE_FORM
   LANDING_PAGE
+  /// Labelled "WhatsApp Meta" in the UI — most WhatsApp leads arrive via
+  /// Meta's WhatsApp Business API, and WHATSAPP_GOOGLE below exists to
+  /// separate out the ones that don't. The enum value itself is unchanged
+  /// (no data migration needed), only the display label moved.
   WHATSAPP
   PHONE_CALL
   REFERRAL
@@ -3639,6 +3694,9 @@ enum QuerySource {
   CONTACT_FORM
   PACKAGE_FORM
   META
+  /// Click-to-WhatsApp leads from Google Ads, as distinct from WHATSAPP
+  /// (Meta's WhatsApp Business API) above.
+  WHATSAPP_GOOGLE
 }
 
 enum GallerySourceType {

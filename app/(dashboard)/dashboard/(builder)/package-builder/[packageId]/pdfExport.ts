@@ -30,10 +30,20 @@ export function validateItineraryRequiredFields(form: {
   adults: number;
   children: number;
   infants: number;
+  /** -1 = not yet entered — see resizeAges. Only present once
+   * children/infants > 0, since that's what grows these arrays. */
+  childrenAges?: number[];
+  infantAges?: number[];
 }): string | null {
   if (!form.travelDate) return "Add a travel date before generating the PDF or sending to the client.";
   if ((form.adults || 0) + (form.children || 0) + (form.infants || 0) < 1) {
     return "Add at least one traveller before generating the PDF or sending to the client.";
+  }
+  if ((form.children || 0) > 0 && (form.childrenAges ?? []).some((a) => a < 0)) {
+    return "Add every child's age before generating the PDF or sending to costing review.";
+  }
+  if ((form.infants || 0) > 0 && (form.infantAges ?? []).some((a) => a < 0)) {
+    return "Add every infant's age before generating the PDF or sending to costing review.";
   }
   return null;
 }

@@ -3,16 +3,21 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Building2, MapPin, BedDouble, ChevronRight } from "lucide-react";
+import { Building2, MapPin, BedDouble, ChevronRight, Navigation } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
-import { CATEGORIES } from "../hotels/constants";
+import { CATEGORIES, STAY_TYPES } from "../hotels/constants";
 import type { getHotels } from "../hotels/actions";
+import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
+import type { LocationValue } from "../components/location/location.types";
 
 type HotelRow = Awaited<ReturnType<typeof getHotels>>["hotels"][number];
 type Status = "all" | "active" | "inactive";
+type NearSort = "distance" | "price";
+type NearLocation = { id: string; name: string; type: string; lat: number; lng: number };
+type Uploader = { id: string; name: string };
 
 const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
 
@@ -27,7 +32,7 @@ function catLabel(value: string | null) {
 }
 
 export function HotelInventoryTable({
-    hotels, currentPage, totalPages, totalCount, limit, search, status,
+    hotels, currentPage, totalPages, totalCount, limit, search, status, near, nearSort, uploadedBy, uploaders, category, stayType,
 }: {
     hotels: HotelRow[];
     currentPage: number;
@@ -36,6 +41,12 @@ export function HotelInventoryTable({
     limit: number;
     search: string;
     status: Status;
+    near: NearLocation | null;
+    nearSort: NearSort;
+    uploadedBy: string;
+    uploaders: Uploader[];
+    category: string;
+    stayType: string;
 }) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -49,11 +60,45 @@ export function HotelInventoryTable({
         startTransition(() => router.replace(`?${params.toString()}`));
     }
 
+    // Text search and "near a location" are two different ways of finding the
+    // same hotel — whichever the exec touches most recently wins, rather than
+    // trying to combine a typed name with a distance ranking.
+    function handleSearchChange(v: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (v) params.set("search", v); else params.delete("search");
+        params.delete("nearLat"); params.delete("nearLng");
+        params.delete("nearName"); params.delete("nearId"); params.delete("nearType");
+        params.delete("page");
+        startTransition(() => router.replace(`?${params.toString()}`));
+    }
+
+    function handleNearChange(loc: LocationValue | null) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (loc && loc.latitude != null && loc.longitude != null) {
+            params.set("nearLat", String(loc.latitude));
+            params.set("nearLng", String(loc.longitude));
+            params.set("nearName", loc.name);
+            params.set("nearId", loc.id);
+            params.set("nearType", loc.type);
+            params.delete("search");
+        } else {
+            params.delete("nearLat"); params.delete("nearLng");
+            params.delete("nearName"); params.delete("nearId"); params.delete("nearType");
+        }
+        params.delete("page");
+        startTransition(() => router.replace(`?${params.toString()}`));
+    }
+
     function buildHref(p: number) {
         const params = new URLSearchParams(searchParams.toString());
         params.set("page", String(p));
         return `?${params.toString()}`;
     }
+
+    const nearValue: LocationValue | null = near ? {
+        id: near.id, name: near.name, type: near.type as LocationValue["type"],
+        breadcrumb: near.name, slug: "", latitude: near.lat, longitude: near.lng,
+    } : null;
 
     const from = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
     const to = Math.min(currentPage * limit, totalCount);
@@ -89,6 +134,23 @@ export function HotelInventoryTable({
                 </div>
             ),
         },
+        ...(near ? [{
+            header: "Distance",
+            align: "center" as const,
+            width: "w-[130px]",
+            sortKey: (row: HotelRow) => row.distanceKm ?? Infinity,
+            cell: (row: HotelRow) => (
+                <div className="flex flex-col items-center gap-0.5">
+                    <div className="flex items-center justify-center gap-1 text-sm text-dashboard-base-content/75">
+                        <Navigation className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40" />
+                        {row.distanceKm != null ? `${row.distanceKm} km` : "—"}
+                    </div>
+                    <span className="text-[10px] text-dashboard-base-content/50">
+                        {row.priceFrom != null ? `from ₹${row.priceFrom.toLocaleString("en-IN")}` : "no priced room"}
+                    </span>
+                </div>
+            ),
+        }] : []),
         {
             header: "Rooms",
             align: "center",
@@ -135,23 +197,76 @@ export function HotelInventoryTable({
 
     return (
         <div className="space-y-4">
-            <TableFilters
-                search={search}
-                onSearchChange={(v) => updateParam("search", v)}
-                searchPlaceholder="Search hotel, city, state, country…"
-                filters={[
-                    {
-                        value: status,
-                        onChange: (v) => updateParam("status", v),
-                        placeholder: "All Statuses",
-                        width: "w-38",
-                        options: [
-                            { label: "Active", value: "active" },
-                            { label: "Inactive", value: "inactive" },
-                        ],
-                    },
-                ]}
-            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <div className="flex-1 min-w-0">
+                    <TableFilters
+                        search={search}
+                        onSearchChange={handleSearchChange}
+                        searchPlaceholder="Search hotel, city, state, country…"
+                        filters={[
+                            {
+                                value: status,
+                                onChange: (v) => updateParam("status", v),
+                                placeholder: "All Statuses",
+                                width: "w-38",
+                                options: [
+                                    { label: "Active", value: "active" },
+                                    { label: "Inactive", value: "inactive" },
+                                ],
+                            },
+                            {
+                                value: category,
+                                onChange: (v) => updateParam("category", v),
+                                placeholder: "All Categories",
+                                width: "w-40",
+                                options: CATEGORIES.map((c) => ({ label: c.label, value: c.value })),
+                            },
+                            {
+                                value: stayType,
+                                onChange: (v) => updateParam("stayType", v),
+                                placeholder: "All Star Ratings",
+                                width: "w-40",
+                                options: STAY_TYPES.map((s) => ({ label: s, value: s })),
+                            },
+                            ...(near ? [{
+                                value: nearSort,
+                                onChange: (v: string) => updateParam("nearSort", v),
+                                placeholder: "Nearest first",
+                                width: "w-40",
+                                allValue: "distance",
+                                options: [
+                                    { label: "Cheapest first", value: "price" },
+                                ],
+                            }] : []),
+                            ...(uploaders.length > 0 ? [{
+                                value: uploadedBy,
+                                onChange: (v: string) => updateParam("uploadedBy", v),
+                                placeholder: "Uploaded by anyone",
+                                width: "w-44",
+                                options: uploaders.map((u) => ({ label: u.name, value: u.id })),
+                            }] : []),
+                        ]}
+                    />
+                </div>
+                {/* Proximity search — picks any mapped location and ranks
+                   hotels by distance from it, instead of matching a typed
+                   name. Independent of the text search above: picking a
+                   location here clears it, and vice versa. */}
+                <LocationSearchSelect
+                    value={nearValue}
+                    onChange={handleNearChange}
+                    placeholder="Or search hotels near a location…"
+                    className="w-full sm:w-72 shrink-0"
+                    hideRecent
+                />
+            </div>
+
+            {near && (
+                <div className="flex items-center gap-2 rounded-lg border border-dashboard-primary/30 bg-dashboard-primary/5 px-3 py-2 text-xs text-dashboard-base-content/80">
+                    <Navigation className="h-3.5 w-3.5 shrink-0 text-dashboard-primary" />
+                    Showing hotels with a mapped location near <span className="font-medium">{near.name}</span>, {nearSort === "price" ? "cheapest first" : "nearest first"}.
+                </div>
+            )}
 
             <DataTable
                 data={hotels}
@@ -160,7 +275,9 @@ export function HotelInventoryTable({
                 emptyState={
                     <TableEmptyState
                         title="No hotels found"
-                        description="Try adjusting your search or filters"
+                        description={near
+                            ? "No hotels with a mapped location were found near this place yet."
+                            : "Try adjusting your search or filters"}
                     />
                 }
                 pagination={{ currentPage, totalPages, buildHref, label: paginationLabel }}

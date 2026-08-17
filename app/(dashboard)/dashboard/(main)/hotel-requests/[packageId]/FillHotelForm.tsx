@@ -3,12 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { cn } from "@/app/lib/utils";
-import { fillPendingHotel } from "../actions";
+import { fillPendingHotel, rejectPendingHotel } from "../actions";
 import { TimeSelect } from "./TimeSelect";
 import { ImageDropField } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ImageDropField";
 
@@ -33,6 +33,7 @@ type MealType = { id: number; name: string; covered_meals: string[] };
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
     requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypes,
+    rejectedAt, rejectedByName, rejectionNote,
 }: {
     packageId: string;
     day: number;
@@ -52,6 +53,12 @@ export function FillHotelForm({
      * auto-checks its covered_meals as Breakfast/Lunch/Dinner chips, same as
      * picking a catalog room does in the main builder. */
     mealTypes: MealType[];
+    /** Set when THIS day was already rejected on a previous visit (not yet
+     * resolved by the exec resubmitting) — shown as a standing banner above
+     * the form, which stays usable in case something turns up after all. */
+    rejectedAt?: Date | null;
+    rejectedByName?: string | null;
+    rejectionNote?: string | null;
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -73,6 +80,9 @@ export function FillHotelForm({
         requestedPlanMatch ? requestedPlanMatch.covered_meals.map((k) => MEAL_KEY_LABELS[k] ?? k) : [],
     );
     const [done, setDone] = useState(false);
+    const [rejecting, setRejecting] = useState(false);
+    const [rejectReason, setRejectReason] = useState("");
+    const [rejectDone, setRejectDone] = useState(false);
 
     function toggleMeal(m: string) {
         setMeals((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
@@ -119,10 +129,32 @@ export function FillHotelForm({
         });
     }
 
+    function handleReject() {
+        if (!rejectReason.trim()) { toast.error("A reason is required to reject a hotel request."); return; }
+        startTransition(async () => {
+            const result = await rejectPendingHotel(packageId, day, rejectReason);
+            if (result.success) {
+                setRejectDone(true);
+                toast.success(`Day ${day} marked rejected — the sales exec has been notified.`);
+                router.refresh();
+            } else {
+                toast.error(result.error ?? "Failed to reject");
+            }
+        });
+    }
+
     if (done) {
         return (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 flex items-center gap-2 text-emerald-800 text-sm font-medium">
                 <CheckCircle2 className="size-4 shrink-0" /> Day {day} filled — {hotelName}{roomName ? ` — ${roomName}` : ""}
+            </div>
+        );
+    }
+
+    if (rejectDone) {
+        return (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-4 flex items-center gap-2 text-red-800 text-sm font-medium">
+                <XCircle className="size-4 shrink-0" /> Day {day} marked rejected — the sales exec has been notified.
             </div>
         );
     }
@@ -137,7 +169,65 @@ export function FillHotelForm({
                         <p className="text-xs text-dashboard-neutral">{[dateLabel, paxLabel].filter(Boolean).join(" · ")}</p>
                     </div>
                 </div>
+                {!rejecting && (
+                    <Button
+                        type="button" size="sm" variant="outline"
+                        className="h-7 shrink-0 text-xs gap-1 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                        onClick={() => setRejecting(true)}
+                    >
+                        <Ban className="size-3" /> Reject
+                    </Button>
+                )}
             </div>
+
+            {rejectedAt && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 space-y-1">
+                    <p className="text-[11px] font-semibold text-red-800 flex items-center gap-1">
+                        <XCircle className="size-3" /> You already rejected this day
+                        {rejectedByName ? ` (${rejectedByName})` : ""}
+                    </p>
+                    {rejectionNote && (
+                        <p className="text-xs text-red-800 bg-white/70 border border-red-200 rounded-md px-2 py-1.5">
+                            &quot;{rejectionNote}&quot;
+                        </p>
+                    )}
+                    <p className="text-[11px] text-red-700/80">
+                        Still awaiting the sales exec to update the request — fill it below if something turns up.
+                    </p>
+                </div>
+            )}
+
+            {rejecting && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 space-y-2">
+                    <label className="text-[11px] font-semibold text-red-800 flex items-center gap-1">
+                        <Ban className="size-3" /> Reason for rejecting Day {day}
+                    </label>
+                    <Textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="e.g. Nothing available in this budget/area for these dates"
+                        rows={2}
+                        className="text-sm resize-none bg-white"
+                    />
+                    <div className="flex items-center gap-2">
+                        <Button
+                            type="button" size="sm"
+                            className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white"
+                            disabled={isPending || !rejectReason.trim()}
+                            onClick={handleReject}
+                        >
+                            {isPending ? "Rejecting…" : "Confirm Reject"}
+                        </Button>
+                        <Button
+                            type="button" size="sm" variant="ghost"
+                            className="h-8 text-xs"
+                            onClick={() => { setRejecting(false); setRejectReason(""); }}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {(requestedType || requestedRooms || requestedMattresses || requestedMealPlan || note) && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 space-y-1.5">
