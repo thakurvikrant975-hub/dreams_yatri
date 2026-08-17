@@ -1262,6 +1262,7 @@ function DayCard({
   onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
   focusSection, shiftedMeals, mealTypes,
   dayAddons, onAddAddon, onUpdateAddon, onRemoveAddon,
+  onHotelRequestSubmitted,
 }: {
   /** dnd-kit's stable identity for this row — see dayDndIds on the parent. */
   dndId: string;
@@ -1308,6 +1309,10 @@ function DayCard({
   onAddAddon: () => void;
   onUpdateAddon: (idx: number, patch: Partial<AddonInput>) => void;
   onRemoveAddon: (idx: number) => void;
+  /** Saves the whole package right away — a hotel request is meant to
+   * reach the hotel team's queue the moment it's submitted, not whenever
+   * the exec next happens to hit Save Draft. See its call site. */
+  onHotelRequestSubmitted: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dndId });
@@ -1669,6 +1674,7 @@ function DayCard({
                     hotelRejectedAt: null, hotelRejectedByName: null, hotelRejectionNote: null,
                   });
                   setHotelRequestComposing(false);
+                  onHotelRequestSubmitted();
                 }}
                 onCancelEdit={() => setHotelRequestComposing(false)}
                 onRemoveRequest={() => {
@@ -1678,6 +1684,7 @@ function DayCard({
                     roomsCount: null, manualExtraBeds: null, hotelMealPlan: "",
                   });
                   setHotelRequestComposing(false);
+                  onHotelRequestSubmitted();
                 }}
               />
             ) : (
@@ -2836,6 +2843,18 @@ export default function PackageBuilderDetailPage() {
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
   const [confirmShareOpen, setConfirmShareOpen] = useState(false);
 
+  // There's no autosave in this builder (unlike v2) — every other edit
+  // waits for an explicit Save Draft click, which is fine for most fields
+  // since nothing outside this tab is watching them. A hotel request is
+  // different: submitting one is supposed to put the day in the hotel
+  // team's queue (/dashboard/hotel-requests) right away, not whenever the
+  // exec next happens to save. A plain `handleSave()` call from inside the
+  // submit handler would still read the pre-update `form` (setForm's
+  // update hasn't committed yet in the same tick) — so this fires from an
+  // effect instead, which only runs after the state it depends on has
+  // actually landed.
+  const [pendingHotelRequestSave, setPendingHotelRequestSave] = useState(false);
+
   const [form, setForm] = useState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
@@ -3357,6 +3376,17 @@ export default function PackageBuilderDetailPage() {
       }
     });
   }
+
+  // Fires the save `pendingHotelRequestSave` above queued up, now that
+  // `form` has actually picked up the hotel-request change that requested
+  // it. Deliberately not a plain call inside the submit handler — see that
+  // state's own comment.
+  useEffect(() => {
+    if (!pendingHotelRequestSave) return;
+    setPendingHotelRequestSave(false);
+    handleSave("DRAFT");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingHotelRequestSave]);
 
   // ── Mark ready for costing review ───────────────────────────────────────────
   // The ONLY way a package moves forward from the builder into review — no
@@ -5065,6 +5095,7 @@ Rules:
                         onAddAddon={() => addAddon(day.day)}
                         onUpdateAddon={updateAddon}
                         onRemoveAddon={removeAddon}
+                        onHotelRequestSubmitted={() => setPendingHotelRequestSave(true)}
                       />
                     ))}
                   </SortableContext>

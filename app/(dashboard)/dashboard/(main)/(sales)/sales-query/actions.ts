@@ -113,7 +113,10 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
 
     const queries = await db.package_queries.findMany({
-        where:   teamMemberId ? { assignedTo: teamMemberId } : {},
+        where: {
+            deletedAt: null,
+            ...(teamMemberId ? { assignedTo: teamMemberId } : {}),
+        },
         include: {
             rejection_reasons: { select: { id: true, label: true } },
             _count:            { select: { queryFollowUps: true, notes: true } },

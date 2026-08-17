@@ -1007,6 +1007,20 @@ export default function PackageBuilderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, loading, query]);
 
+  // See BuilderContextValue.requestSaveNow — bypasses the autosave debounce
+  // above for an edit meant to take effect immediately (a submitted hotel
+  // request). Deferred to an effect rather than called straight from the
+  // trigger site for the same reason autosave itself reads `form` from a
+  // dependency array instead of a closure: the setForm that made the change
+  // hasn't committed yet in the same tick it was requested.
+  const [pendingImmediateSave, setPendingImmediateSave] = useState(false);
+  useEffect(() => {
+    if (!pendingImmediateSave) return;
+    setPendingImmediateSave(false);
+    handleSave("DRAFT");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingImmediateSave]);
+
   // The ONLY way a package moves forward from the builder into review — no
   // direct "send to client" from here. This locks nothing and notifies no
   // one; it just hands the package to /dashboard/verify-packages, where
@@ -1559,7 +1573,10 @@ export default function PackageBuilderDetailPage() {
     // having it threaded down as props — which is what lets the preview
     // document on the left edit the itinerary directly. canEdit carries the
     // same lock the right-hand panel has always honoured, from one place.
-    <PackageBuilderProvider form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}>
+    <PackageBuilderProvider
+      form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}
+      requestSaveNow={() => setPendingImmediateSave(true)}
+    >
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
 

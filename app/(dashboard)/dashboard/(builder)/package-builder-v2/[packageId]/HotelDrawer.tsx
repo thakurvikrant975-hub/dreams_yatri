@@ -966,7 +966,7 @@ export function HotelEditView({ day }: { day: number }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HotelRequestView({ day }: { day: number }) {
-  const { form, replaceDay, openDrawer, closeDrawer } = useBuilder();
+  const { form, replaceDay, openDrawer, closeDrawer, requestSaveNow } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
   const [mealTypes, setMealTypes] = useState<{ id: number; name: string }[]>([]);
@@ -986,11 +986,16 @@ export function HotelRequestView({ day }: { day: number }) {
   function submit() {
     replaceDay(day, submitHotelRequest);
     setComposing(false);
+    // Saves right away rather than waiting on the autosave debounce — the
+    // hotel team's queue is a separate page reading straight from the DB,
+    // so "sent" below needs to actually mean saved.
+    requestSaveNow();
     toast.success(`Day ${day} sent to the hotel team`);
   }
 
   function withdraw() {
     replaceDay(day, cancelHotelRequest);
+    requestSaveNow();
     toast.success(`Day ${day}: request withdrawn`);
     openDrawer({ kind: "hotel-replace", day });
   }

@@ -250,6 +250,18 @@ type BuilderContextValue = {
    * when nothing on the trip is priced yet — a day with no entry simply shows
    * no cost rather than a misleading zero. */
   dayCosts: Map<number, DayCost>;
+  /** Saves the whole package right away, bypassing the autosave debounce —
+   * for an edit that's meant to take effect somewhere else immediately
+   * rather than whenever the exec next happens to pause typing. Submitting
+   * a hotel request is the case this exists for: the hotel team's queue
+   * (/dashboard/hotel-requests) is a separate page reading straight from
+   * the DB, so "submitted" has to actually mean saved, not staged for the
+   * next autosave tick. Call it right after the setForm/replaceDay that
+   * made the change — it defers to a moment after that state has actually
+   * committed, the same reason updateDay et al. never read `form` directly.
+   * A no-op where nothing wired up a real save (e.g. the reviewer's
+   * workspace, which doesn't submit hotel requests). */
+  requestSaveNow: () => void;
 };
 
 /** The one way a day changes.
@@ -274,7 +286,7 @@ function replaceDay(
 const BuilderContext = createContext<BuilderContextValue | null>(null);
 
 export function PackageBuilderProvider({
-  form, setForm, canEdit, dayCosts, review, children,
+  form, setForm, canEdit, dayCosts, review, children, requestSaveNow,
 }: {
   form: PackageForm;
   setForm: SetPackageForm;
@@ -282,6 +294,9 @@ export function PackageBuilderProvider({
   dayCosts: Map<number, DayCost>;
   review?: ReviewContext;
   children: ReactNode;
+  /** See BuilderContextValue.requestSaveNow. Omit where there's no real
+   * save to trigger (e.g. the reviewer's workspace) — defaults to a no-op. */
+  requestSaveNow?: () => void;
 }) {
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab | null>("client");
@@ -319,7 +334,8 @@ export function PackageBuilderProvider({
     moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),
     selectedDay: safeSelectedDay,
     setSelectedDay,
-  }), [form, setForm, review, canEdit, dayCosts, drawer, panelTab, safeSelectedDay]);
+    requestSaveNow: requestSaveNow ?? (() => {}),
+  }), [form, setForm, review, canEdit, dayCosts, drawer, panelTab, safeSelectedDay, requestSaveNow]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }
