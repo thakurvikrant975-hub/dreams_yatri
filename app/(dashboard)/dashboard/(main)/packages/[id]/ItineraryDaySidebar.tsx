@@ -64,7 +64,7 @@ import {
   handleGetDaySourceImages,
   handleAddActivityPrimaryImage,
 } from "@/app/actions/packages/itinerary-builder.actions";
-import type { HotelMealOption } from "@/app/services/itinerary-builder.service";
+import type { HotelMealOption, RoomSearchSort } from "@/app/services/itinerary-builder.service";
 import MealsEditor from "./MealsEditor";
 import { CopyFromPackageDialog } from "./CopyFromPackageDialog";
 import type {
@@ -1181,6 +1181,7 @@ type SearchedRoom = {
     max_occupancy: number | null; max_adults: number | null; child_cot_available: boolean | null;
     images: { url: string; thumbnail: string | null }[];
   } | null;
+  distanceKm?: number | null;
 };
 
 const HOTEL_CAT_LABEL: Record<string, string> = {
@@ -1211,45 +1212,68 @@ function HotelPickerPanel({
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [items, setItems] = useState<SearchedRoom[]>([]);
+  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [starFilter, setStarFilter] = useState<string | null>(null);
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [mealFilter, setMealFilter] = useState<string[]>([]);
   const [noMealsOnly, setNoMealsOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<RoomSearchSort>(stopCoords ? "distance" : "name");
+  const mealFilterKey = mealFilter.join(",");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
     return () => clearTimeout(t);
   }, [query]);
 
+  // Filtering/sorting now happen server-side (see searchRoomPricings) — a
+  // client-side re-filter on top used to be the actual bug: it only ever
+  // ran on whatever fit under the old hard page cap, so a hotel past that
+  // cap could never surface no matter which chip was picked.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    handleSearchRoomPricings(destinationId, debouncedQuery, itineraryId ?? undefined, stayBlockOrder, stopIndex)
+    handleSearchRoomPricings(
+      destinationId, debouncedQuery, itineraryId ?? undefined, stayBlockOrder, stopIndex,
+      1, sortBy, starFilter, catFilter, mealFilter, noMealsOnly,
+    )
       .then((res) => {
         if (cancelled) return;
         setLoading(false);
         if (res.success) {
           setItems(res.data.items as unknown as SearchedRoom[]);
+          setPage(1);
           setHasMore(res.data.has_more);
         }
       })
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [debouncedQuery, destinationId, itineraryId, stayBlockOrder, stopIndex]);
+    // mealFilterKey is the array's flattened identity — using mealFilter
+    // itself would re-fire on every render that hands it a new array
+    // reference with the same contents.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery, destinationId, itineraryId, stayBlockOrder, stopIndex, sortBy, starFilter, catFilter, mealFilterKey, noMealsOnly]);
 
-  const filtered = items.filter((item) => {
-    if (starFilter && item.hotel.stay_type !== starFilter) return false;
-    if (catFilter && item.hotel.category !== catFilter) return false;
-    const coveredMeals = item.meal_type?.covered_meals ?? [];
-    if (noMealsOnly && coveredMeals.length > 0) return false;
-    // A room's plan must cover ALL selected meals to match, not just one —
-    // e.g. selecting Breakfast + Dinner still matches an AP plan that also
-    // covers lunch, since AP is a superset of what was asked for.
-    if (!noMealsOnly && mealFilter.length > 0 && !mealFilter.every((m) => coveredMeals.includes(m))) return false;
-    return true;
-  });
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const res = await handleSearchRoomPricings(
+        destinationId, debouncedQuery, itineraryId ?? undefined, stayBlockOrder, stopIndex,
+        nextPage, sortBy, starFilter, catFilter, mealFilter, noMealsOnly,
+      );
+      if (res.success) {
+        setItems((prev) => [...prev, ...(res.data.items as unknown as SearchedRoom[])]);
+        setPage(nextPage);
+        setHasMore(res.data.has_more);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
   const STAR_CHIPS = ["3 Star", "4 Star", "5 Star"];
@@ -1264,6 +1288,12 @@ function HotelPickerPanel({
     { value: "breakfast", label: "Breakfast" },
     { value: "lunch", label: "Lunch" },
     { value: "dinner", label: "Dinner" },
+  ];
+  const SORT_OPTIONS: { value: RoomSearchSort; label: string }[] = [
+    ...(stopCoords ? [{ value: "distance" as const, label: "Nearest first" }] : []),
+    { value: "price_asc", label: "Price: Low to High" },
+    { value: "price_desc", label: "Price: High to Low" },
+    { value: "name", label: "Name (A–Z)" },
   ];
 
   return (
@@ -1284,6 +1314,18 @@ function HotelPickerPanel({
             <X className="h-3.5 w-3.5" />
           </button>
         )}
+      </div>
+
+      {/* Sort */}
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Sort</label>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as RoomSearchSort)}
+          className="h-7 flex-1 min-w-0 text-[11px] rounded-md border border-border cursor-pointer bg-background px-1.5 outline-none"
+        >
+          {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
       </div>
 
       {/* Filter chips */}
@@ -1357,7 +1399,7 @@ function HotelPickerPanel({
           <div className="flex items-center justify-center py-8 gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching hotels…
           </div>
-        ) : filtered.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="py-8 text-center space-y-1">
             <p className="text-xs text-muted-foreground">No hotels found</p>
             {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
@@ -1366,14 +1408,10 @@ function HotelPickerPanel({
           </div>
         ) : (
           <div className="max-h-[440px] overflow-y-auto divide-y">
-            {filtered.map((item) => {
+            {items.map((item) => {
               const roomImg = item.room?.images?.[0];
               const imgKey = roomImg ? (roomImg.thumbnail ?? roomImg.url) : item.hotel.thumbnail;
-              const lat = item.hotel.location?.latitude;
-              const lng = item.hotel.location?.longitude;
-              const distKm = stopCoords && lat != null && lng != null
-                ? haversineKm(stopCoords.lat, stopCoords.lng, Number(lat), Number(lng))
-                : null;
+              const distKm = item.distanceKm ?? null;
               const coveredMeals = item.meal_type?.covered_meals ?? [];
 
               return (
@@ -1482,10 +1520,16 @@ function HotelPickerPanel({
                 </button>
               );
             })}
-            {hasMore && !starFilter && !catFilter && mealFilter.length === 0 && !noMealsOnly && (
-              <p className="px-3 py-2 text-[10px] text-muted-foreground/60 text-center bg-muted/30">
-                Showing top 50 — search to refine
-              </p>
+            {hasMore && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="flex w-full items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-medium text-violet-700 hover:bg-violet-50/60 transition-colors disabled:opacity-50"
+              >
+                {loadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+                Load more
+              </button>
             )}
           </div>
         )}
