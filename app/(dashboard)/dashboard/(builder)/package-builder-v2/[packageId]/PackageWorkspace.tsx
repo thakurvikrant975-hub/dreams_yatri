@@ -2057,11 +2057,17 @@ Rules:
               From lg up the row is unchanged. */}
           <button
             type="button"
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label="Open menu"
-            className="lg:hidden shrink-0 flex items-center justify-center size-9 -mr-1 rounded-md text-dashboard-base-content/70 hover:bg-dashboard-base-200"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            className={cn(
+              "lg:hidden shrink-0 flex items-center justify-center size-9 -mr-1 rounded-md transition-colors",
+              mobileMenuOpen
+                ? "bg-dashboard-base-200 text-dashboard-base-content"
+                : "text-dashboard-base-content/70 hover:bg-dashboard-base-200",
+            )}
           >
-            <Menu size={18} />
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
 
           <div
@@ -2084,6 +2090,21 @@ Rules:
             )}
             onClick={mobileMenuOpen ? () => setMobileMenuOpen(false) : undefined}
           >
+            {mobileMenuOpen && (
+              <div className="lg:hidden flex items-center justify-between -mt-1 mb-1 pb-2 border-b border-dashboard-base-300">
+                <span className="text-xs font-semibold uppercase tracking-wider text-dashboard-base-content/45">
+                  Menu
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-label="Close menu"
+                  className="flex items-center justify-center size-7 rounded-md text-dashboard-base-content/50 hover:bg-dashboard-base-200 hover:text-dashboard-base-content"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            )}
             {!isLocked && (
               <CreatePackageDialog
                 packageId={packageId}
