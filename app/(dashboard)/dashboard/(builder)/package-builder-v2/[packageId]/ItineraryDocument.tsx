@@ -3429,17 +3429,6 @@ export function ItineraryDocument({
             <PlacesToVisit form={form} onImageChange={onImageChange} />
 
             <div className="space-y-3">
-              <SectionHeader icon={Calendar} label="Day-wise Summary" />
-              <DaySummaryTable
-                itineraries={form.itineraries}
-                travelDate={form.travelDate}
-                stops={form.stops}
-                adults={form.adults}
-                childCount={form.children}
-              />
-            </div>
-
-            <div className="space-y-3">
               <SectionHeader icon={Milestone} label="Detailed Itinerary" />
               <div className="space-y-3">
                 {form.itineraries.map((d, i) => (
@@ -3470,6 +3459,63 @@ export function ItineraryDocument({
               trainFrom={transport.trainFrom}
               trainTo={transport.trainTo}
             />
+
+            {/* ── What it covers, at a glance, then what it costs ──────────────
+              The closing run of the document is deliberately ordered: what's
+              included and excluded, then the trip condensed to one table, then
+              the price. The number lands last, after the client has read
+              everything it buys — rather than before the summary, where it was
+              being quoted against a trip they hadn't finished reading. */}
+            <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
+              <div className="rounded-lg border border-neutral-200 overflow-hidden shadow-lg shadow-neutral-200/80 bg-white">
+                {/* Same card chrome as the ticket/add-on cards above: a gradient
+                  bar closed by a hairline, and a ringed icon tile. The tint is
+                  emerald rather than primary because this pair is read as a
+                  yes/no — the structure is shared, the colour still means
+                  something. */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-linear-to-b from-emerald-50/60 via-emerald-50 to-emerald-100/80 border-b border-emerald-200/70">
+                  <span className="flex items-center justify-center size-5 rounded-lg bg-white p-1 ring-1 ring-inset ring-emerald-200/80 shadow-sm shadow-emerald-200/80 shrink-0">
+                    <CheckCircle size={16} color={DOC.positive} />
+                  </span>
+                  <h3 className={cn(DISPLAY, "text-[13px] font-semibold font-heading text-neutral-900")}>
+                    Inclusions
+                  </h3>
+                </div>
+                <EditablePolicyList
+                  items={form.inclusions}
+                  listKey="inclusions"
+                  itemClassName="text-[11.5px] text-neutral-600/90"
+                  marker={() => <CheckCircle size={12} color={DOC.positive} className="shrink-0 mt-0.5" />}
+                />
+              </div>
+              <div className="rounded-lg border border-neutral-200 overflow-hidden shadow-lg shadow-neutral-200/80 bg-white">
+                <div className="flex items-center gap-2 px-3 py-2 bg-linear-to-b from-primary-50/60 via-primary-50 to-primary-100/80 border-b border-primary-200/70">
+                  <span className="flex items-center justify-center size-5 rounded-lg bg-white p-1 ring-1 ring-inset ring-primary-200/80 shadow-sm shadow-primary-200/80 shrink-0">
+                    <XCircle size={16} color={DOC.accent} />
+                  </span>
+                  <h3 className={cn(DISPLAY, "text-[13px] font-semibold font-heading text-neutral-900")}>
+                    Exclusions
+                  </h3>
+                </div>
+                <EditablePolicyList
+                  items={form.exclusions}
+                  listKey="exclusions"
+                  itemClassName="text-[11.5px] text-neutral-600/90"
+                  marker={() => <XCircle size={12} color="#D98B7F" className="shrink-0 mt-0.5" />}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <SectionHeader icon={Calendar} label="Day-wise Summary" />
+              <DaySummaryTable
+                itineraries={form.itineraries}
+                travelDate={form.travelDate}
+                stops={form.stops}
+                adults={form.adults}
+                childCount={form.children}
+              />
+            </div>
 
             {/* Price summary — the document's second focal point after the hero.
               On the Tailwind gray ramp the rest of the document uses
@@ -3549,46 +3595,6 @@ export function ItineraryDocument({
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
-              <div className="rounded-lg border border-neutral-200 overflow-hidden shadow-lg shadow-neutral-200/80 bg-white">
-                {/* Same card chrome as the ticket/add-on cards above: a gradient
-                  bar closed by a hairline, and a ringed icon tile. The tint is
-                  emerald rather than primary because this pair is read as a
-                  yes/no — the structure is shared, the colour still means
-                  something. */}
-                <div className="flex items-center gap-2 px-3 py-2 bg-linear-to-b from-emerald-50/60 via-emerald-50 to-emerald-100/80 border-b border-emerald-200/70">
-                  <span className="flex items-center justify-center size-5 rounded-lg bg-white p-1 ring-1 ring-inset ring-emerald-200/80 shadow-sm shadow-emerald-200/80 shrink-0">
-                    <CheckCircle size={16} color={DOC.positive} />
-                  </span>
-                  <h3 className={cn(DISPLAY, "text-[13px] font-semibold font-heading text-neutral-900")}>
-                    Inclusions
-                  </h3>
-                </div>
-                <EditablePolicyList
-                  items={form.inclusions}
-                  listKey="inclusions"
-                  itemClassName="text-[11.5px] text-neutral-600/90"
-                  marker={() => <CheckCircle size={12} color={DOC.positive} className="shrink-0 mt-0.5" />}
-                />
-              </div>
-              <div className="rounded-lg border border-neutral-200 overflow-hidden shadow-lg shadow-neutral-200/80 bg-white">
-                <div className="flex items-center gap-2 px-3 py-2 bg-linear-to-b from-primary-50/60 via-primary-50 to-primary-100/80 border-b border-primary-200/70">
-                  <span className="flex items-center justify-center size-5 rounded-lg bg-white p-1 ring-1 ring-inset ring-primary-200/80 shadow-sm shadow-primary-200/80 shrink-0">
-                    <XCircle size={16} color={DOC.accent} />
-                  </span>
-                  <h3 className={cn(DISPLAY, "text-[13px] font-semibold font-heading text-neutral-900")}>
-                    Exclusions
-                  </h3>
-                </div>
-                <EditablePolicyList
-                  items={form.exclusions}
-                  listKey="exclusions"
-                  itemClassName="text-[11.5px] text-neutral-600/90"
-                  marker={() => <XCircle size={12} color="#D98B7F" className="shrink-0 mt-0.5" />}
-                />
               </div>
             </div>
 
