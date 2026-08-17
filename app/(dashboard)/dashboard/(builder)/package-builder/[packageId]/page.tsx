@@ -71,6 +71,7 @@ import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type Pr
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { ClientLinkButton } from "../ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
@@ -1513,6 +1514,11 @@ function DayCard({
       transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
       transportSeats: vehicle.passengerCapacity,
       cabPricingId,
+      // See applyVehicleToDays below — a reassignment drops the previous
+      // quantity and any extra cabs, which pricing would otherwise keep
+      // charging for behind a day that shows one vehicle.
+      cabQuantity: null,
+      extraCabs: [],
     });
     if (totalDays > 1) {
       setLastVehicle(vehicle);
@@ -3665,6 +3671,17 @@ export default function PackageBuilderDetailPage() {
               transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
               transportSeats: vehicle.passengerCapacity,
               cabPricingId,
+              // A new vehicle replaces the day's transport, so what was
+              // attached to the old one goes with it. cabQuantity and
+              // extraCabs used to survive a reassignment untouched, and
+              // pricing counts BOTH (primary × quantity, plus every extra) —
+              // so picking Ertiga on a day that already carried "× 3" and a
+              // Tempo Traveller charged for all of them, while the day-wise
+              // Transport section rendered only "Ertiga". Costing approved a
+              // figure the itinerary never showed. Same reasoning as
+              // cabPriceOverride below: every apply IS a cab change.
+              cabQuantity: null,
+              extraCabs: [],
               // Same override-invalidation updateDay does for a single-day
               // pick — this bulk "apply to remaining days" path sets
               // cabPricingId directly via setForm, bypassing updateDay
@@ -4329,6 +4346,7 @@ Rules:
             )}
 
             <ItineraryPdfExport form={previewForm} />
+            <ClientLinkButton packageId={packageId} isLive={pkgSent} />
 
             {!isLocked && !pkgSent && (
               <Button

@@ -59,6 +59,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -1238,6 +1239,17 @@ export default function PackageBuilderDetailPage() {
               transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
               transportSeats: vehicle.passengerCapacity,
               cabPricingId,
+              // A new vehicle replaces the day's transport, so what was
+              // attached to the old one goes with it. cabQuantity and
+              // extraCabs used to survive a reassignment untouched, and
+              // pricing counts BOTH (primary × quantity, plus every extra) —
+              // so picking Ertiga on a day that already carried "× 3" and a
+              // Tempo Traveller charged for all of them, while the day-wise
+              // Transport section rendered only "Ertiga". Costing approved a
+              // figure the itinerary never showed. Same reasoning as
+              // cabPriceOverride below: every apply IS a cab change.
+              cabQuantity: null,
+              extraCabs: [],
               // Same override-invalidation updateDay does for a single-day
               // pick — this bulk "apply to remaining days" path sets
               // cabPricingId directly via setForm, bypassing updateDay
@@ -1772,6 +1784,7 @@ export default function PackageBuilderDetailPage() {
             )}
 
             <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
+            <ClientLinkButton packageId={packageId} isLive={pkgSent} />
 
             {!isLocked && !pkgSent && (
               <Button

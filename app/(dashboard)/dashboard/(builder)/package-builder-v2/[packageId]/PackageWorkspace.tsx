@@ -58,6 +58,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
+import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { CostingDecisionButtons } from "./CostingDecisionButtons";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
@@ -2219,7 +2220,10 @@ Rules:
             {caps.decide ? (
               <CostingDecisionButtons packageId={packageId} />
             ) : (
-              <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
+              <>
+                <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
+                <ClientLinkButton packageId={packageId} isLive={pkgSent} />
+              </>
             )}
 
             {caps.submit && (

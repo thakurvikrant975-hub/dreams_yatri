@@ -190,6 +190,14 @@ export function applyVehicleSelection(day: DayItinerary, hit: AnyVehicleHit): Da
     transportVehicleType: CAB_LABELS[type] ?? type,
     transportSeats: hit.passengerCapacity,
     cabPricingId: priced ? hit.id : null,
+    // A new vehicle replaces the day's transport, and what was attached to
+    // the old one goes with it. Pricing charges the primary × cabQuantity
+    // PLUS every extraCabs entry, so a quantity or an extra cab left over
+    // from a previous selection kept being billed under a day that showed a
+    // single vehicle — the itinerary and the total disagreeing, with the
+    // total winning.
+    cabQuantity: null,
+    extraCabs: [],
   };
 }
 
