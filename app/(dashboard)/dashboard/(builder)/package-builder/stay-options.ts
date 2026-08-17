@@ -66,6 +66,11 @@ export const STAY_FIELDS = [
   "hotelCheckOut",
   "hotelMealPlan",
   "manualHotelPricePerNight",
+  // Part of the hotel line's own arithmetic, so they belong to the stay and
+  // have to travel with it — a mirror that dropped them would price the
+  // default tier off one tier's extra beds and another's rooms.
+  "manualExtraBeds",
+  "manualExtraBedRate",
   "hotelPriceOverride",
   "hotelPending",
   "hotelPendingNote",

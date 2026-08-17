@@ -19,6 +19,7 @@ import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-c
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
 import { missingTravellerAgesError } from "./traveller-ages";
+import { syncDefaultStayFromDays } from "./stay-options.actions";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -2256,6 +2257,21 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       || existing.cabQuantity !== (it.cabQuantity ?? null)
       || JSON.stringify(existing.extraCabs ?? []) !== JSON.stringify(filteredExtraCabs(it));
 
+    // Stay tiers hang off the day rows this is about to delete and recreate,
+    // and custom_itinerary_stays cascades on itineraryId — so a plain save
+    // silently took every tier's hotels with it. (Caught exactly that way: a
+    // package's 4★ option lost all three of its stays to an ordinary save.)
+    //
+    // Read them out keyed by DAY NUMBER, which is the thing that survives the
+    // recreate, and put them back against the new row ids below. Not fixed by
+    // making the save upsert instead: the delete/recreate is load-bearing here
+    // (day renumbering, the activities cascade, the hotel-request guards), and
+    // rebuilding that is a much larger change than carrying the stays across.
+    const carriedStays = await db.custom_itinerary_stays.findMany({
+      where: { itinerary: { customPackageId: pkg.id } },
+      include: { itinerary: { select: { day: true } } },
+    });
+
     await db.custom_itineraries.deleteMany({
       where: { customPackageId: pkg.id },
     });
@@ -2382,6 +2398,47 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         { timeout: 25_000, maxWait: 10_000 },
       );
     }
+
+    // Re-attach the stay tiers to the rows that just replaced the ones they
+    // hung from, matching on day number. Days the save dropped take their
+    // stays with them, which is right — the day is gone. A day that survived
+    // keeps every tier's hotel.
+    //
+    // The default tier is skipped: its columns live on the day row itself and
+    // have just been written from the form above, so recreating it from the
+    // pre-save copy would put the OLD hotel back and undo the edit that
+    // triggered the save. It is re-derived from the day row instead, which is
+    // the same direction the mirror runs everywhere else (stay-options.ts).
+    if (carriedStays.length > 0) {
+      const freshDays = await db.custom_itineraries.findMany({
+        where: { customPackageId: pkg.id },
+        select: { id: true, day: true },
+      });
+      const idByDay = new Map(freshDays.map((d) => [d.day, d.id]));
+      const defaultOption = await db.custom_package_stay_options.findFirst({
+        where: { customPackageId: pkg.id, isDefault: true },
+        select: { id: true },
+      });
+
+      const restored = carriedStays
+        .filter((s) => idByDay.has(s.itinerary.day))
+        .filter((s) => s.stayOptionId !== defaultOption?.id)
+        .map((s) => {
+          const { id: _id, itineraryId: _itineraryId, itinerary: _itinerary, createdAt: _createdAt, updatedAt: _updatedAt, ...fields } = s;
+          return {
+            ...fields,
+            // Prisma reads Json as JsonValue (null included) but won't accept a
+            // bare null on write — undefined leaves the column at its default.
+            extraRooms: (fields.extraRooms ?? undefined) as Prisma.InputJsonValue | undefined,
+            itineraryId: idByDay.get(s.itinerary.day)!,
+          };
+        });
+      if (restored.length > 0) {
+        await db.custom_itinerary_stays.createMany({ data: restored, skipDuplicates: true });
+      }
+    }
+    // The default tier, rebuilt from the day rows the form just wrote.
+    await syncDefaultStayFromDays(pkg.id);
 
     // Tickets — reconciled by id, not replaced wholesale.
     //

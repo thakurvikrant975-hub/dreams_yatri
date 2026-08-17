@@ -84,6 +84,61 @@ async function mirrorDefaultOntoDays(tx: TransactionClient, packageId: string): 
   }
 }
 
+/** The mirror run backwards: day rows → the default tier's stays.
+ *
+ * Two jobs. It repairs the default tier after saveCustomPackage's
+ * delete-and-recreate of the day rows, where the form has just written the
+ * authoritative hotel onto the day and the stay row is the copy that has to
+ * catch up. And it gives a package its first stay option, so a package created
+ * after tiers existed — createCustomPackage knows nothing about them — is not
+ * left with zero options for the builder and the document to read.
+ *
+ * Safe to call on every save: it converges rather than accumulating. */
+export async function syncDefaultStayFromDays(packageId: string): Promise<void> {
+  const days = await db.custom_itineraries.findMany({ where: { customPackageId: packageId } });
+
+  let defaultOption = await db.custom_package_stay_options.findFirst({
+    where: { customPackageId: packageId, isDefault: true },
+    select: { id: true },
+  });
+
+  if (!defaultOption) {
+    // An option exists but none is flagged default (only reachable if a
+    // default was deleted outside removeStayOption) — promote the first.
+    const orphan = await db.custom_package_stay_options.findFirst({
+      where: { customPackageId: packageId },
+      orderBy: [{ sortOrder: "asc" }, { starRating: "asc" }],
+      select: { id: true },
+    });
+    if (orphan) {
+      defaultOption = await db.custom_package_stay_options.update({
+        where: { id: orphan.id }, data: { isDefault: true }, select: { id: true },
+      });
+    } else {
+      // Star rating read off whatever the days actually recorded — the same
+      // rule the backfill migration used, since this is the same question.
+      // accommodationStarRating is free text ("4", "4 Star", "4.5").
+      const stated = days
+        .map((d) => parseInt(d.accommodationStarRating?.match(/\d+/)?.[0] ?? "", 10))
+        .find((n) => Number.isFinite(n));
+      const starRating = stated ? Math.min(5, Math.max(2, stated)) : 3;
+      defaultOption = await db.custom_package_stay_options.create({
+        data: { customPackageId: packageId, starRating, isDefault: true, sortOrder: 0 },
+        select: { id: true },
+      });
+    }
+  }
+
+  for (const day of days) {
+    const data = pickStayFields(day);
+    await db.custom_itinerary_stays.upsert({
+      where: { itineraryId_stayOptionId: { itineraryId: day.id, stayOptionId: defaultOption.id } },
+      create: { itineraryId: day.id, stayOptionId: defaultOption.id, ...data } as Prisma.custom_itinerary_staysUncheckedCreateInput,
+      update: data as Prisma.custom_itinerary_staysUncheckedUpdateInput,
+    });
+  }
+}
+
 /** Adds a tier and gives it an (empty) stay row for every day the package
  * already has.
  *

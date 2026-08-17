@@ -3297,6 +3297,11 @@ model custom_package_stay_options {
   totalPrice      Float?
   /// Frozen breakdown for this tier, same role as custom_packages.pricingSnapshot.
   pricingSnapshot Json?
+  /// Costing's flat correction to this tier's whole hotel subtotal — the
+  /// per-tier twin of custom_packages.hotelSubtotalOverride. They review each
+  /// option's hotels separately, so the correction has to hang off the option;
+  /// the package-level column stays as the default tier's mirror.
+  hotelSubtotalOverride Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3339,6 +3344,10 @@ model custom_itinerary_stays {
   hotelCheckOut            String?
   hotelMealPlan            String?
   manualHotelPricePerNight Float?
+  /// Extra beds and their rate, per tier — both feed the hotel line the price
+  /// is built from, and a 4★ room sleeps a child differently from a 2★ one.
+  manualExtraBeds          Int?
+  manualExtraBedRate       Float?
   /// Costing's flat per-day correction, per tier — they review each option's
   /// hotels separately, so the override has to hang off the option too.
   hotelPriceOverride       Float?
