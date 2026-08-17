@@ -431,13 +431,12 @@ export function HotelsTableClient({
     <div className="space-y-4">
 
       {/* Filters + rows per page */}
-      <div className="flex flex-wrap items-center gap-3">
-        <TableFilters
-          className="flex-1 min-w-0"
-          search={search}
-          onSearchChange={handleSearch}
-          searchPlaceholder="Search by name, city, state, country…"
-          filters={[
+      <TableFilters
+        collapsible
+        search={search}
+        onSearchChange={handleSearch}
+        searchPlaceholder="Search by name, city, state, country…"
+        filters={[
             {
               value: destination === "all" ? "all" : String(destination),
               onChange: (v) => updateParam("destination", v),
@@ -498,7 +497,7 @@ export function HotelsTableClient({
               options: uploaders.map((u) => ({ label: u.name, value: u.id })),
             }] : []),
           ]}
-        />
+      >
         {/* Proximity search — picks any mapped location and ranks hotels by
            distance from it, instead of matching a typed name. Same picker
            and semantics as hotel-inventory's "near a location" search. */}
@@ -510,6 +509,7 @@ export function HotelsTableClient({
           hideRecent
         />
         <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-dashboard-base-content/50 whitespace-nowrap">Rows</span>
           <Select value={String(limit)} onValueChange={v => updateParam("limit", v)}>
             <SelectTrigger className="w-20 h-10 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg">
               <SelectValue />
@@ -521,7 +521,7 @@ export function HotelsTableClient({
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </TableFilters>
 
       {near && (
         <div className="flex items-center gap-2 rounded-lg border border-dashboard-primary/30 bg-dashboard-primary/5 px-3 py-2 text-xs text-dashboard-base-content/80">

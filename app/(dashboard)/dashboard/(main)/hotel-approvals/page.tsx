@@ -12,6 +12,7 @@ import {
     getHotelApprovals, getDestinationsForApprovalFilter, type ApprovalStatusFilter,
 } from "./actions";
 import { HotelApprovalsTableClient } from "./HotelApprovalsTableClient";
+import { isRateWindow, isDataIssue, type RateWindow, type DataIssue } from "./filters";
 
 export const metadata: Metadata = {
     title: "Hotel Approvals - Dashboard",
@@ -48,13 +49,14 @@ function TableSkeleton() {
 }
 
 async function ApprovalsData({
-    page, limit, search, status, destination,
+    page, limit, search, status, destination, rateWindow, dataIssue,
 }: {
     page: number; limit: number; search: string;
     status: ApprovalStatusFilter; destination: number | "all";
+    rateWindow: RateWindow; dataIssue: DataIssue;
 }) {
     const [{ hotels, reviewers, totalCount, stats }, destinations] = await Promise.all([
-        getHotelApprovals({ page, limit, search, status, destination }),
+        getHotelApprovals({ page, limit, search, status, destination, rateWindow, dataIssue }),
         getDestinationsForApprovalFilter(),
     ]);
 
@@ -77,6 +79,8 @@ async function ApprovalsData({
                 search={search}
                 status={status}
                 destination={destination}
+                rateWindow={rateWindow}
+                dataIssue={dataIssue}
             />
         </>
     );
@@ -98,6 +102,8 @@ export default async function HotelApprovalsPage({
         : "pending";
     const rawDest = sp.destination ?? "all";
     const destination = rawDest === "all" ? ("all" as const) : ((parseInt(rawDest, 10) || "all") as number | "all");
+    const rateWindow: RateWindow = isRateWindow(sp.rateWindow ?? "") ? (sp.rateWindow as RateWindow) : "all";
+    const dataIssue: DataIssue = isDataIssue(sp.dataIssue ?? "") ? (sp.dataIssue as DataIssue) : "all";
 
     return (
         <div className="space-y-6">
@@ -116,7 +122,7 @@ export default async function HotelApprovalsPage({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${status}-${String(destination)}`}
+                key={`${page}-${limit}-${search}-${status}-${String(destination)}-${rateWindow}-${dataIssue}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-4 gap-4">
@@ -131,7 +137,10 @@ export default async function HotelApprovalsPage({
                     </div>
                 }
             >
-                <ApprovalsData page={page} limit={limit} search={search} status={status} destination={destination} />
+                <ApprovalsData
+                    page={page} limit={limit} search={search} status={status} destination={destination}
+                    rateWindow={rateWindow} dataIssue={dataIssue}
+                />
             </Suspense>
         </div>
     );
