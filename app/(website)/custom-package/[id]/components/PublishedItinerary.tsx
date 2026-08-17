@@ -126,24 +126,56 @@ export function PublishedItinerary({ form, packageId }: { form: PreviewData; pac
  * at the bottom on every size — the document is long, and the client reaching
  * the end of day 6 shouldn't have to scroll back up to act on it. */
 function BookingBar({ form, packageId }: { form: PreviewData; packageId: string }) {
-  const { handleBookNow, submitting, error } = useBookCustomPackage(packageId);
-  const totalPax = form.adults + form.children;
-  const priceStr = form.totalPrice
-    ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}`
-    : "To be confirmed";
-
-  // Which stay option this bar's price and Book Now actually refer to. The
-  // document above may be showing three, and the booking flow can currently
-  // only create the default one — so the bar has to say which, rather than
-  // letting someone who just read a 4★ row assume that is what they are
-  // paying for. Absent entirely on a single-option package.
+  // The tiers, and which one the client is buying. Starts on the default —
+  // the one the day-by-day above describes — so a client who never touches
+  // this books exactly what they read.
   const options = form.stayOptions ?? [];
-  const bookingTier = options.length > 1
-    ? stayOptionLabel(options.find((o) => o.isDefault) ?? options[0])
-    : null;
+  const multi = options.length > 1;
+  const [chosenId, setChosenId] = useState<string | null>(
+    multi ? (options.find((o) => o.isDefault) ?? options[0]).id : null,
+  );
+  const chosen = options.find((o) => o.id === chosenId) ?? null;
+
+  const { handleBookNow, submitting, error } = useBookCustomPackage(packageId, chosenId);
+  const totalPax = form.adults + form.children;
+
+  // The chosen tier's price leads once there is a choice to make, because that
+  // is the number this button is about to charge. Falls back to the package's
+  // own figure, which is the only one a single-option package has.
+  const priceValue = chosen?.totalPrice ?? (form.totalPrice ? Number(form.totalPrice) : null);
+  const priceStr = priceValue
+    ? `${form.currency} ${priceValue.toLocaleString("en-IN")}`
+    : "To be confirmed";
+  const bookingTier = multi && chosen ? stayOptionLabel(chosen) : null;
 
   return (
     <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
+      {multi && (
+        <div className="mx-auto max-w-3xl pb-2 flex flex-wrap items-center gap-1.5">
+          {options.map((o) => {
+            const on = o.id === chosenId;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setChosenId(o.id)}
+                aria-pressed={on}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  on
+                    ? "border-primary-500 bg-primary-50 font-semibold text-primary-600"
+                    : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                }`}
+              >
+                {stayOptionLabel(o)}
+                <span className="ml-1.5 tabular-nums opacity-80">
+                  {form.currency} {o.totalPrice.toLocaleString("en-IN")}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="font-heading text-lg font-bold tracking-tight text-primary-500 truncate">{priceStr}</p>
@@ -167,7 +199,7 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
             <span className="hidden sm:inline">Save as PDF</span>
           </button>
 
-          {form.totalPrice ? (
+          {priceValue ? (
             <button
               type="button"
               onClick={handleBookNow}
@@ -181,13 +213,6 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
           ) : null}
         </div>
       </div>
-
-      {bookingTier && (
-        <p className="mx-auto max-w-3xl pt-1.5 text-[11px] text-neutral-500">
-          Booking online charges the {bookingTier} option shown above. To take one of the
-          other standards, message your travel manager and they will send it across.
-        </p>
-      )}
 
       {error && (
         <p role="alert" className="mt-2 text-center text-xs text-red-600">{error}</p>
