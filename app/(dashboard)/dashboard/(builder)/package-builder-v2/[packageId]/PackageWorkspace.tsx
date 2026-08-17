@@ -2071,10 +2071,18 @@ Rules:
               // full width so each one is a real target with its label showing.
               // Phone, menu closed: absent. Desktop: the row it has always been.
               mobileMenuOpen
-                ? "fixed inset-x-0 top-14 z-50 flex flex-col items-stretch gap-2 p-4 border-b border-dashboard-base-300 bg-dashboard-base-100 shadow-lg lg:static lg:z-auto lg:flex-row lg:items-center lg:p-0 lg:border-0 lg:shadow-none"
+                // Stacked, each control full width and labelled. The labels
+                // used to be `hidden sm:inline`, which meant the sheet opened
+                // onto a column of unlabelled icons on the very screens it
+                // exists for; they are unconditional now, since this row only
+                // ever renders here or at lg, where sm was always true anyway.
+                // max-h + scroll because a reviewer's toolbar is long enough to
+                // run past a short phone.
+                ? "fixed inset-x-0 top-14 z-50 flex flex-col items-stretch gap-2 p-4 max-h-[calc(100vh-3.5rem)] overflow-y-auto overscroll-contain border-b border-dashboard-base-300 bg-dashboard-base-100 shadow-lg [&>*]:justify-center lg:static lg:z-auto lg:max-h-none lg:overflow-visible lg:flex-row lg:items-center lg:p-0 lg:border-0 lg:shadow-none"
                 : "hidden lg:flex",
               "lg:overflow-x-auto lg:overscroll-x-contain lg:py-1",
             )}
+            onClick={mobileMenuOpen ? () => setMobileMenuOpen(false) : undefined}
           >
             {!isLocked && (
               <CreatePackageDialog
@@ -2093,7 +2101,7 @@ Rules:
                   className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
                 >
                   <Package size={13} />
-                  <span className="hidden sm:inline text-xs">Change Template</span>
+                  <span className="text-xs">Change Template</span>
                 </Button>
               </CreatePackageDialog>
             )}
@@ -2118,7 +2126,7 @@ Rules:
                     className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
                   >
                     <RotateCcw size={13} />
-                    <span className="hidden sm:inline text-xs">Request Revision</span>
+                    <span className="text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
                 )}
@@ -2140,7 +2148,7 @@ Rules:
                     className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
                   >
                     <RotateCcw size={13} />
-                    <span className="hidden sm:inline text-xs">Request Revision</span>
+                    <span className="text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
                 )}
@@ -2161,7 +2169,7 @@ Rules:
                       ? <Loader2 size={13} className="animate-spin" />
                       : <Send size={13} />
                     }
-                    <span className="hidden sm:inline text-xs">Share with Client</span>
+                    <span className="text-xs">Share with Client</span>
                   </Button>
                 )}
               </>
@@ -2193,7 +2201,7 @@ Rules:
                     ? <CheckCircle size={13} className="text-dashboard-success" />
                     : <Save size={13} />
                 }
-                <span className="hidden sm:inline text-xs">
+                <span className="text-xs">
                   {savedOk ? "Saved!" : saveLabel}
                 </span>
               </Button>
@@ -2207,7 +2215,7 @@ Rules:
                 type="button"
                 onClick={() => setActiveTab("pricing")}
                 title="Open the full pricing breakdown"
-                className="hidden md:flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-dashboard-base-300 hover:bg-dashboard-base-200 transition-colors"
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-dashboard-base-300 hover:bg-dashboard-base-200 transition-colors"
               >
                 <span className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wider">
                   Total
@@ -2275,7 +2283,7 @@ Rules:
                   ? <Loader2 size={13} className="animate-spin" />
                   : <Send size={13} />
                 }
-                <span className="hidden sm:inline text-xs">Mark Ready</span>
+                <span className="text-xs">Mark Ready</span>
               </Button>
             )}
           </div>
@@ -2285,7 +2293,10 @@ Rules:
       {/* Closes the menu on a tap outside it. Below the sheet, above the page. */}
       {mobileMenuOpen && (
         <div
-          className="no-print lg:hidden fixed inset-0 z-40 bg-black/20"
+          // z-20, not z-40: the sheet renders inside the header's stacking
+          // context (z-30), so a backdrop above that covered the very menu it
+          // is meant to sit behind.
+          className="no-print lg:hidden fixed inset-0 z-20 bg-black/20"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
