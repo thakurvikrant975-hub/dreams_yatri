@@ -274,6 +274,14 @@ export async function getHotels(params: GetHotelsParams = {}) {
     gst_percentage:    Number(h.gst_percentage),
     distanceKm:        distancesKm ? distancesKm[i] : null,
     priceFrom:         pricesFrom ? pricesFrom[i] : null,
+    // location.latitude/longitude come back as Prisma Decimal instances,
+    // which aren't plain objects — React errors passing them from this
+    // Server Component data fetcher to the client table below.
+    location: h.location ? {
+      ...h.location,
+      latitude:  h.location.latitude  != null ? Number(h.location.latitude)  : null,
+      longitude: h.location.longitude != null ? Number(h.location.longitude) : null,
+    } : h.location,
   }));
 
   const actorIds = [...new Set(

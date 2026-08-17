@@ -762,6 +762,23 @@ model TeamMember {
   departmentId           String?
   teamRoleId             String?
   isActive               Boolean           @default(true)
+  /** Per-member override for the round-robin auto-assign (see
+   * app/lib/queries/auto-assign.ts) — independent of isActive, so an exec
+   * on leave can be pulled out of the rotation without deactivating their
+   * account entirely. Defaults true: every existing Sales Executive stays
+   * in the rotation exactly as before until an admin explicitly opts them
+   * out. Only ever consulted for the "Sales Executive" role. */
+  autoAssignActive       Boolean           @default(true)
+  /** Floor on this member's active-pipeline lead count (same count the
+   * round robin already ranks by) that auto-assign will prioritise filling
+   * before falling back to ordinary least-loaded selection — see
+   * autoAssignLead. Null means no floor (falls straight into the ordinary
+   * round robin, same as before this feature existed). */
+  autoAssignMin          Int?
+  /** Ceiling on active-pipeline leads — once reached, this member drops out
+   * of auto-assign eligibility until something moves off their pipeline
+   * (closes, converts, etc). Null means no ceiling. */
+  autoAssignMax          Int?
   /** Bumped to force-invalidate this member's current login(s) — dashboard
    * auth is stateless JWT (no server-side session row to delete), so a
    * mismatch between this and the value embedded in a member's token at

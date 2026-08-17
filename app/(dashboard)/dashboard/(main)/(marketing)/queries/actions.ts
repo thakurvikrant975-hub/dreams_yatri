@@ -8,7 +8,7 @@ import { z } from "zod";
 import { Prisma, QuerySource as QuerySourceEnum } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
-import { autoAssignLead } from "@/app/lib/queries/auto-assign";
+import { autoAssignLead, ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
 
 // Normalizes a name to Title Case regardless of how it was typed/pasted in
 // ("MAYANK SHARMA", "mayank sharma", "mayank Sharma" all become "Mayank
@@ -494,6 +494,73 @@ export async function setAutoAssignSetting(enabled: boolean): Promise<ActionResu
             data: { enabled },
             message: enabled ? "Auto-assign turned on" : "Auto-assign turned off — assign leads manually",
         };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
+    }
+}
+
+// ── Auto-assign per-member limits ───────────────────────────────────────────
+// See app/lib/queries/auto-assign.ts for how these are actually consumed.
+
+export type AutoAssignMemberSetting = {
+    id:          string;
+    name:        string;
+    email:       string;
+    active:      boolean;
+    min:         number | null;
+    max:         number | null;
+    /** Current active-pipeline lead count — same figure the round robin
+     * itself ranks by, shown for context next to the min/max inputs so an
+     * admin can see at a glance who's already at/near their limit. */
+    activeCount: number;
+};
+
+export async function getAutoAssignMemberSettings(): Promise<AutoAssignMemberSetting[]> {
+    const members = await db.teamMember.findMany({
+        where: { teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } } },
+        select: {
+            id: true, name: true, email: true, isActive: true,
+            autoAssignActive: true, autoAssignMin: true, autoAssignMax: true,
+        },
+        orderBy: { name: "asc" },
+    });
+    if (members.length === 0) return [];
+
+    const counts = await db.package_queries.groupBy({
+        by: ["assignedTo"],
+        where: { assignedTo: { in: members.map((m) => m.id) }, status: { in: [...ACTIVE_PIPELINE_STATUSES] } },
+        _count: { id: true },
+    });
+    const countMap = new Map(counts.map((c) => [c.assignedTo as string, c._count.id]));
+
+    return members.map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        active: m.autoAssignActive,
+        min: m.autoAssignMin,
+        max: m.autoAssignMax,
+        activeCount: countMap.get(m.id) ?? 0,
+    }));
+}
+
+export async function updateAutoAssignMemberSetting(
+    memberId: string,
+    input: { active: boolean; min: number | null; max: number | null },
+): Promise<ActionResult> {
+    try {
+        if (input.min != null && input.min < 0) return { success: false, message: "Min can't be negative" };
+        if (input.max != null && input.max < 0) return { success: false, message: "Max can't be negative" };
+        if (input.min != null && input.max != null && input.min > input.max) {
+            return { success: false, message: "Min can't be greater than max" };
+        }
+        await db.teamMember.update({
+            where: { id: memberId },
+            data: { autoAssignActive: input.active, autoAssignMin: input.min, autoAssignMax: input.max },
+        });
+        revalidatePath("/dashboard/queries");
+        return { success: true, data: undefined, message: "Saved" };
     } catch (e) {
         console.error(e);
         return actionError(e);
