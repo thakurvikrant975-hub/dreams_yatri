@@ -12,6 +12,7 @@ import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { discountLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
+import { getStayOptionComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 // The v2 document's shape, because the v2 document is what this page now
 // renders — the same component the builder previews and the PDF captures.
 // Type-only, so nothing from that client module is pulled into this server
@@ -150,7 +151,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
   // here (server-side) so the client-facing link shows real photos too, not
   // just the internal builder preview.
   const stopNames = [...new Set(pkg.stops.map((s) => s.name.trim()).filter(Boolean))];
-  const [stopImageEntries, settings] = await Promise.all([
+  const [stopImageEntries, settings, comparison] = await Promise.all([
     Promise.all(stopNames.map(async (name) => [name, await getDestinationCoverImage(name)] as const)),
     // Header/footer contact block, the disclaimer, the admin's extra policy
     // blocks, and the house template this package's own choice layers over.
@@ -158,6 +159,11 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     // and everything read from it here is already printed on the PDF the
     // client is sent anyway.
     getItinerarySettings(),
+    // The tiers this trip is quoted at, for the options table. Prices come
+    // from each option's frozen figure where one exists (markPackageReady
+    // writes them) and fall back to a live computation otherwise, so an old
+    // package quoted before tiers existed still renders rather than blanking.
+    getStayOptionComparison(packageId).catch(() => null),
   ]);
   const stopImages = Object.fromEntries(stopImageEntries);
 
@@ -180,6 +186,22 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     // not frozen onto the package row, so they read live — same as they do in
     // the builder's own preview and in the PDF.
     customPolicySections: settings.customPolicySections,
+    // Single-option packages send an empty list, and the document's table
+    // renders nothing below two — so this is inert for every package that
+    // offers one standard.
+    stayOptions: (comparison?.options ?? [])
+      .filter((o) => o.totalPrice > 0)
+      .map((o) => ({
+        id: o.id,
+        starRating: o.starRating,
+        label: o.label,
+        isDefault: o.isDefault,
+        totalPrice: o.totalPrice,
+        pricePerPerson: o.pricePerPerson,
+        hotelByDay: Object.fromEntries(
+          Object.entries(o.hotelByDay).map(([day, cell]) => [Number(day), cell.name]),
+        ),
+      })),
     title:           pkg.title,
     description:     pkg.description ?? "",
     coverImage:      pkg.coverImage ?? "",

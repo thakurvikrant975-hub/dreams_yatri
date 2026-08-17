@@ -1769,8 +1769,9 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
     };
   }));
 
-  // Cheapest tier first — the order the client compares in.
-  return priced.sort((a, b) => a.sortOrder - b.sortOrder || a.starRating - b.starRating);
+  // Up the ladder, same rule as sortStayOptions — star rating leads, since
+  // sortOrder is only creation order and every backfilled option shares a 0.
+  return priced.sort((a, b) => a.starRating - b.starRating || a.sortOrder - b.sortOrder);
 }
 
 /** Freezes each tier's price onto its row, so costing, the comparison table and

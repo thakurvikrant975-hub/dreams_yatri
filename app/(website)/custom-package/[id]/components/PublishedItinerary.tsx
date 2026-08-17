@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, Loader2, Printer } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
+import { stayOptionLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 
 /** Undoes the scaler for window.print(): the document's own PRINT_STYLES
@@ -131,6 +132,16 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
     ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}`
     : "To be confirmed";
 
+  // Which stay option this bar's price and Book Now actually refer to. The
+  // document above may be showing three, and the booking flow can currently
+  // only create the default one — so the bar has to say which, rather than
+  // letting someone who just read a 4★ row assume that is what they are
+  // paying for. Absent entirely on a single-option package.
+  const options = form.stayOptions ?? [];
+  const bookingTier = options.length > 1
+    ? stayOptionLabel(options.find((o) => o.isDefault) ?? options[0])
+    : null;
+
   return (
     <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
@@ -138,6 +149,7 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
           <p className="font-heading text-lg font-bold tracking-tight text-primary-500 truncate">{priceStr}</p>
           <p className="text-xs text-neutral-500">
             Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
+            {bookingTier && <> · <span className="font-medium text-neutral-700">{bookingTier}</span></>}
           </p>
         </div>
 
@@ -162,11 +174,20 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               disabled={submitting}
               className="flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:opacity-60"
             >
-              {submitting ? <Loader2 size={14} className="animate-spin" /> : <>Book Now <ArrowRight size={14} /></>}
+              {submitting
+                ? <Loader2 size={14} className="animate-spin" />
+                : <>Book {bookingTier ?? "Now"} <ArrowRight size={14} /></>}
             </button>
           ) : null}
         </div>
       </div>
+
+      {bookingTier && (
+        <p className="mx-auto max-w-3xl pt-1.5 text-[11px] text-neutral-500">
+          Booking online charges the {bookingTier} option shown above. To take one of the
+          other standards, message your travel manager and they will send it across.
+        </p>
+      )}
 
       {error && (
         <p role="alert" className="mt-2 text-center text-xs text-red-600">{error}</p>

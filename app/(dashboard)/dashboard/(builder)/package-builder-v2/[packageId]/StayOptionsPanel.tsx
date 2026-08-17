@@ -29,7 +29,7 @@ import {
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import {
   addStayOption, removeStayOption, setDefaultStayOption,
-  getStayOptions, getStayOptionsWithPricing,
+  getStayOptions, getStayOptionComparison,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 
 type OptionRow = {
@@ -40,12 +40,13 @@ type OptionRow = {
   totalPrice: number;
   pricePerPerson: number;
   gapDays: number[];
+  hotelByDay: Record<number, { name: string | null }>;
 };
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
 export function StayOptionsPanel({
-  packageId, activeOptionId, onActiveOptionChange, onBeforeSwitch,
+  packageId, activeOptionId, onActiveOptionChange, onBeforeSwitch, onOptionsChange,
 }: {
   packageId: string;
   /** Null until the first load resolves, then always a real option. */
@@ -54,6 +55,13 @@ export function StayOptionsPanel({
   /** Persists whatever the editor currently holds, before its hotel fields are
    * replaced with another tier's. Returns false to abort the switch. */
   onBeforeSwitch: () => Promise<boolean>;
+  /** The tiers, shaped for the document's options table. Lifted out of the one
+   * fetch this panel already makes rather than loading them twice — the table
+   * and this list must never disagree about what a tier costs. */
+  onOptionsChange?: (options: {
+    id: string; starRating: number; label: string | null; isDefault: boolean;
+    totalPrice: number; pricePerPerson: number; hotelByDay: Record<number, string | null>;
+  }[]) => void;
 }) {
   const { form, setForm, canEdit } = useBuilder();
   const [options, setOptions] = useState<OptionRow[] | null>(null);
@@ -62,13 +70,23 @@ export function StayOptionsPanel({
 
   const load = useCallback(async () => {
     try {
-      setOptions(await getStayOptionsWithPricing(packageId));
+      const cmp = await getStayOptionComparison(packageId);
+      setOptions(cmp.options);
+      onOptionsChange?.(cmp.options
+        // Unpriced tiers are left out of the client's table entirely rather
+        // than shown at zero.
+        .filter((o) => o.totalPrice > 0)
+        .map((o) => ({
+          id: o.id, starRating: o.starRating, label: o.label, isDefault: o.isDefault,
+          totalPrice: o.totalPrice, pricePerPerson: o.pricePerPerson,
+          hotelByDay: Object.fromEntries(Object.entries(o.hotelByDay).map(([d, c]) => [Number(d), c.name])),
+        })));
     } catch {
       // A failed read must not take the editor down with it — the tiers are
       // one panel, the itinerary is the page.
       setOptions([]);
     }
-  }, [packageId]);
+  }, [packageId, onOptionsChange]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -206,7 +224,7 @@ export function StayOptionsPanel({
                           const r = await removeStayOption(packageId, o.id);
                           if (!r.success) { toast.error(r.error); return; }
                           if (o.id === activeOptionId) {
-                            const rest = await getStayOptionsWithPricing(packageId);
+                            const rest = (await getStayOptionComparison(packageId)).options;
                             const next = rest.find((x) => x.isDefault) ?? rest[0];
                             if (next) await switchTo(next.id);
                           }

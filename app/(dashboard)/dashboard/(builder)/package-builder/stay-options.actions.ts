@@ -314,24 +314,6 @@ export async function saveStayForDay(
   }
 }
 
-/** The tier list as the builder's panel and the costing comparison want it:
- * each option with its own price and the days it still has no hotel for.
- * Prices come from computeStayOptionPricing rather than the stored columns, so
- * the panel reflects an edit the moment it is saved instead of waiting for a
- * reprice. */
-export async function getStayOptionsWithPricing(packageId: string) {
-  const priced = await computeStayOptionPricing(packageId);
-  return priced.map((o) => ({
-    id: o.id,
-    starRating: o.starRating,
-    label: o.label,
-    isDefault: o.isDefault,
-    totalPrice: o.totalPrice,
-    pricePerPerson: o.pricePerPerson,
-    gapDays: o.gapDays,
-  }));
-}
-
 /** Everything the costing manager needs to compare tiers in one look: each
  * option's price, and the hotel it puts on every single day.
  *

@@ -25,12 +25,17 @@ export function stayOptionLabel(o: { starRating: number; label?: string | null }
   return o.label?.trim() || `${o.starRating} Star`;
 }
 
-/** Cheapest tier first, which is the order a client compares in. sortOrder wins
- * where it has been set deliberately; star rating is the tiebreak, so options
- * created before anyone reordered them still come out in a sensible order. */
+/** Up the ladder — 2★, 3★, 4★ — which is the order a client compares in and
+ * the order the tiers mean something in.
+ *
+ * Star rating leads, NOT sortOrder. sortOrder records the order options were
+ * created in, and the backfill gave every existing package a 0, so ordering by
+ * it put whichever tier happened to exist first at the head of the table: a
+ * client's comparison opened 3★, 2★, 4★. sortOrder survives only as a tiebreak
+ * for the impossible case of two options at the same rating. */
 export function sortStayOptions<T extends { starRating: number; sortOrder?: number }>(options: T[]): T[] {
   return [...options].sort(
-    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.starRating - b.starRating,
+    (a, b) => a.starRating - b.starRating || (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
   );
 }
 

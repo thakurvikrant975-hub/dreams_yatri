@@ -409,6 +409,10 @@ export default function PackageBuilderDetailPage() {
   /** Which stay tier the editor is currently working on. Null only until the
       stay-options panel has loaded and adopted the package's default. */
   const [activeStayOptionId, setActiveStayOptionId] = useState<string | null>(null);
+  /** The tiers as the document's options table wants them — kept beside the
+      form rather than in it, because they are saved server-side per option and
+      the form only ever describes the tier being edited. */
+  const [docStayOptions, setDocStayOptions] = useState<PreviewData["stayOptions"]>([]);
   // Optional message for costing, shown on verify-packages — cleared each
   // time the dialog opens so it never carries a stale note from a previous
   // cycle into a new submission by accident.
@@ -1748,6 +1752,7 @@ Rules:
     amendmentPolicy: [...form.amendmentPolicy, ...form.extraPolicyItems.amendmentPolicy],
     travelBenefits: [...form.travelBenefits, ...form.extraPolicyItems.travelBenefits],
     stopImages,
+    stayOptions: docStayOptions,
     clientName: query.name ?? "",
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",
@@ -2222,6 +2227,7 @@ Rules:
               activeOptionId={activeStayOptionId}
               onActiveOptionChange={setActiveStayOptionId}
               onBeforeSwitch={async () => (isLocked ? true : persistPackage("DRAFT"))}
+              onOptionsChange={setDocStayOptions}
             />
             <fieldset disabled={isLocked} className="contents">
               <TripSetupPanel

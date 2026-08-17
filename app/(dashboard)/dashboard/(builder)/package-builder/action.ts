@@ -6,7 +6,7 @@ import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
@@ -2948,6 +2948,17 @@ export async function markPackageReady(
         rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
         execNotifiedAt: null,
       },
+    });
+
+    // Freeze each tier's price at the moment it goes for review, the same way
+    // the package's own figure is frozen. From here the comparison the client
+    // reads is a settled number rather than one recomputed against catalog
+    // rates that may have moved since the quote was made.
+    await persistStayOptionPricing(packageId).catch((err) => {
+      // Never block a submission on this: the package's own price is already
+      // authoritative, and a tier without a stored figure falls back to the
+      // computed one wherever it is shown.
+      console.error("[markPackageReady] stay option pricing", err);
     });
 
     await logTimeline(pkg.queryId, `Package marked ready for costing review by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);
