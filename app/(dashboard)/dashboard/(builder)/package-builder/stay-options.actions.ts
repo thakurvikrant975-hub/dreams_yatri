@@ -24,6 +24,7 @@ import type { Prisma } from "@/app/generated/prisma";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { isStarTier, pickStayFields, sortStayOptions } from "./stay-options";
+import { computeStayOptionPricing } from "@/app/services/package-pricing.service";
 
 type Result<T = undefined> = { success: true; data?: T } | { success: false; error: string };
 
@@ -311,6 +312,24 @@ export async function saveStayForDay(
     console.error("[saveStayForDay]", err);
     return { success: false, error: "Couldn't save that hotel." };
   }
+}
+
+/** The tier list as the builder's panel and the costing comparison want it:
+ * each option with its own price and the days it still has no hotel for.
+ * Prices come from computeStayOptionPricing rather than the stored columns, so
+ * the panel reflects an edit the moment it is saved instead of waiting for a
+ * reprice. */
+export async function getStayOptionsWithPricing(packageId: string) {
+  const priced = await computeStayOptionPricing(packageId);
+  return priced.map((o) => ({
+    id: o.id,
+    starRating: o.starRating,
+    label: o.label,
+    isDefault: o.isDefault,
+    totalPrice: o.totalPrice,
+    pricePerPerson: o.pricePerPerson,
+    gapDays: o.gapDays,
+  }));
 }
 
 /** Every tier on a package with its per-day stays, cheapest first — the read

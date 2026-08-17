@@ -20,6 +20,7 @@ import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-
 import { applyDiscount, discountLabel } from "./discount";
 import { missingTravellerAgesError } from "./traveller-ages";
 import { syncDefaultStayFromDays } from "./stay-options.actions";
+import { pickStayFields } from "./stay-options";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -988,6 +989,17 @@ export interface PackageInput {
   infants:         number;
   childrenAges:    number[];
   infantAges:      number[];
+  /** Which stay tier the builder was editing when this save fired.
+   *
+   * The editor works on one tier at a time: its per-day hotel fields describe
+   * whichever option is active, not necessarily the default. Absent (or the
+   * default option's id) means the ordinary case — the hotel fields belong on
+   * the day rows, where they always have. Anything else and those fields are
+   * routed to that option's stays instead, and the day rows are put back to
+   * the default tier's, so switching to 4★ and saving can't overwrite the
+   * quote the client is actually being shown. See the block after the
+   * itinerary write. */
+  activeStayOptionId?: string | null;
   pricePerPerson:  number | null;
   totalPrice:      number | null;
   marginPercentage: number;
@@ -2437,7 +2449,58 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         await db.custom_itinerary_stays.createMany({ data: restored, skipDuplicates: true });
       }
     }
-    // The default tier, rebuilt from the day rows the form just wrote.
+    // Which tier did the hotel fields in this payload actually describe?
+    //
+    // Normally the default one, and everything below is skipped. But the
+    // editor can be pointed at another tier, in which case the day rows have
+    // just been written with (say) the 4★ hotels — and the day rows are what
+    // the PDF, the client's page and the v1 builder read as the quote. So the
+    // 4★ hotels are moved onto their own option, and the day rows are put back
+    // to the default tier's stays, which the pre-delete copy still holds.
+    const activeOption = input.activeStayOptionId
+      ? await db.custom_package_stay_options.findFirst({
+          where: { id: input.activeStayOptionId, customPackageId: pkg.id },
+          select: { id: true, isDefault: true },
+        })
+      : null;
+
+    if (activeOption && !activeOption.isDefault) {
+      const freshDays = await db.custom_itineraries.findMany({ where: { customPackageId: pkg.id } });
+      const defaultOption = await db.custom_package_stay_options.findFirst({
+        where: { customPackageId: pkg.id, isDefault: true },
+        select: { id: true },
+      });
+      const defaultStayByDay = new Map(
+        carriedStays
+          .filter((s) => s.stayOptionId === defaultOption?.id)
+          .map((s) => [s.itinerary.day, s]),
+      );
+
+      for (const day of freshDays) {
+        // What the exec just edited → the active tier.
+        const edited = pickStayFields(day);
+        await db.custom_itinerary_stays.upsert({
+          where: { itineraryId_stayOptionId: { itineraryId: day.id, stayOptionId: activeOption.id } },
+          create: { itineraryId: day.id, stayOptionId: activeOption.id, ...edited } as Prisma.custom_itinerary_staysUncheckedCreateInput,
+          update: edited as Prisma.custom_itinerary_staysUncheckedUpdateInput,
+        });
+
+        // The day row goes back to describing the default tier. A day added in
+        // this very save has no default stay behind it yet — it is left as
+        // written and syncDefaultStayFromDays below adopts it, which is better
+        // than blanking a hotel the exec can see on screen.
+        const fallback = defaultStayByDay.get(day.day);
+        if (fallback) {
+          await db.custom_itineraries.update({
+            where: { id: day.id },
+            data: pickStayFields(fallback) as Prisma.custom_itinerariesUpdateInput,
+          });
+        }
+      }
+    }
+
+    // The default tier, rebuilt from the day rows — which by now describe it
+    // whichever branch ran above.
     await syncDefaultStayFromDays(pkg.id);
 
     // Tickets — reconciled by id, not replaced wholesale.

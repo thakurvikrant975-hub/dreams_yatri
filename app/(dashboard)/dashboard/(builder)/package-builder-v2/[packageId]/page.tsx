@@ -68,6 +68,7 @@ import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
 import { TripSetupPanel } from "./TripSetupPanel";
+import { StayOptionsPanel } from "./StayOptionsPanel";
 import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
@@ -405,6 +406,9 @@ export default function PackageBuilderDetailPage() {
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
+  /** Which stay tier the editor is currently working on. Null only until the
+      stay-options panel has loaded and adopted the package's default. */
+  const [activeStayOptionId, setActiveStayOptionId] = useState<string | null>(null);
   // Optional message for costing, shown on verify-packages — cleared each
   // time the dialog opens so it never carries a stale note from a previous
   // cycle into a new submission by accident.
@@ -938,29 +942,42 @@ export default function PackageBuilderDetailPage() {
   }
 
   // ── Save ───────────────────────────────────────────────────────────────────
+  /** The save itself, awaitable. Split out of handleSave because switching stay
+   * tiers has to persist the tier being left before its hotels are replaced in
+   * form state by the next one's — and a transition gives the caller nothing to
+   * wait on. Returns whether the package is now safely on the server. */
+  async function persistPackage(status: "DRAFT" | "READY" = "DRAFT"): Promise<boolean> {
+    const result = await saveCustomPackage({
+      id: packageId,
+      queryId: query?.id ?? null,
+      ...form,
+      // Which tier the per-day hotel fields above describe. Without it the
+      // server would file 4★ hotels as the quote itself. See PackageInput.
+      activeStayOptionId,
+      pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+      totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+      marginPercentage: parseFloat(form.marginPercentage) || 0,
+      gstPercentage: parseFloat(form.gstPercentage) || 0,
+      discountType: form.discountType,
+      discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+      discountNote: form.discountNote,
+      status,
+    });
+    if (!result.success) {
+      toast.error(result.error ?? "Failed to save");
+      return false;
+    }
+    // The server now has it, so the crash-recovery copy is redundant.
+    localDraft.clear();
+    warnStaleHotelRequests(result.staleHotelRequestDays);
+    return true;
+  }
+
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
-      const result = await saveCustomPackage({
-        id: packageId,
-        queryId: query?.id ?? null,
-        ...form,
-        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-        marginPercentage: parseFloat(form.marginPercentage) || 0,
-        gstPercentage: parseFloat(form.gstPercentage) || 0,
-        discountType: form.discountType,
-        discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
-        discountNote: form.discountNote,
-        status,
-      });
-      if (result.success) {
-        // The server now has it, so the crash-recovery copy is redundant.
-        localDraft.clear();
+      if (await persistPackage(status)) {
         setSavedOk(true);
         setTimeout(() => setSavedOk(false), 3000);
-        warnStaleHotelRequests(result.staleHotelRequestDays);
-      } else {
-        toast.error(result.error ?? "Failed to save");
       }
     });
   }
@@ -1057,24 +1074,10 @@ export default function PackageBuilderDetailPage() {
       // Always save first — markPackageReady reads nothing from the client,
       // but the review page does, straight from the DB row, so any edit made
       // since the last save would otherwise silently never reach costing.
-      const result = await saveCustomPackage({
-        id: packageId,
-        queryId: query?.id ?? null,
-        ...form,
-        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-        marginPercentage: parseFloat(form.marginPercentage) || 0,
-        gstPercentage: parseFloat(form.gstPercentage) || 0,
-        discountType: form.discountType,
-        discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
-        discountNote: form.discountNote,
-        status: "READY",
-      });
-      if (!result.success) {
-        toast.error(result.error ?? "Failed to save");
-        return;
-      }
-      warnStaleHotelRequests(result.staleHotelRequestDays);
+      // Through persistPackage so this carries activeStayOptionId too — an exec
+      // who was editing the 4★ tier when they hit Mark Ready must not have
+      // those hotels filed as the quote itself.
+      if (!await persistPackage("READY")) return;
 
       const result2 = await markPackageReady(packageId, readyNote);
       if (result2.success) {
@@ -2213,12 +2216,20 @@ Rules:
             </fieldset>
           }
           tripPanel={
+            <>
+            <StayOptionsPanel
+              packageId={packageId}
+              activeOptionId={activeStayOptionId}
+              onActiveOptionChange={setActiveStayOptionId}
+              onBeforeSwitch={async () => (isLocked ? true : persistPackage("DRAFT"))}
+            />
             <fieldset disabled={isLocked} className="contents">
               <TripSetupPanel
                 computed={computeFinalPricing()}
                 onApplyPrice={applyComputedPricing}
               />
             </fieldset>
+            </>
           }
         />
       </div>
