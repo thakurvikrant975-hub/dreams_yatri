@@ -32,7 +32,7 @@ function catLabel(value: string | null) {
 }
 
 export function HotelInventoryTable({
-    hotels, currentPage, totalPages, totalCount, limit, search, status, near, nearSort, uploadedBy, uploaders,
+    hotels, currentPage, totalPages, totalCount, limit, search, status, near, nearSort, uploadedBy, uploaders, category,
 }: {
     hotels: HotelRow[];
     currentPage: number;
@@ -45,6 +45,7 @@ export function HotelInventoryTable({
     nearSort: NearSort;
     uploadedBy: string;
     uploaders: Uploader[];
+    category: string;
 }) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -211,6 +212,13 @@ export function HotelInventoryTable({
                                     { label: "Active", value: "active" },
                                     { label: "Inactive", value: "inactive" },
                                 ],
+                            },
+                            {
+                                value: category,
+                                onChange: (v) => updateParam("category", v),
+                                placeholder: "All Categories",
+                                width: "w-40",
+                                options: CATEGORIES.map((c) => ({ label: c.label, value: c.value })),
                             },
                             ...(near ? [{
                                 value: nearSort,

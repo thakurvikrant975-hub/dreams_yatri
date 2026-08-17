@@ -153,16 +153,40 @@ const TRIP_TYPE_LABELS: Record<string, string> = {
   BUSINESS: "Business", CORPORATE: "Corporate / MICE", OTHER: "Other",
 };
 
-// Geocodes the day's search-city text (Mapbox, India-scoped) so hotel search
-// results can show "X km from {city}" — cached in module scope, same pattern
-// as ItineraryMap.tsx, since the same city gets searched repeatedly across days.
+// Geocodes the day's search-city text so hotel search results can show "X km
+// from {city}" — cached in module scope, same pattern as ItineraryMap.tsx,
+// since the same city gets searched repeatedly across days.
 const cityGeocodeCache = new Map<string, { lat: number; lng: number } | null>();
 async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
   const key = query.trim().toLowerCase();
   if (!key) return null;
   if (cityGeocodeCache.has(key)) return cityGeocodeCache.get(key) ?? null;
+
+  // The app's own Location catalog first — real coordinates for anywhere
+  // already in it (added via the location picker, manual entry, or an
+  // earlier Mapbox save), and it covers places Mapbox's `mapbox.places`
+  // dataset can return NOTHING for even with a correct token — "Cherrapunji"
+  // itself is a confirmed case, despite the catalog having it at the right
+  // coordinates all along (it's how the hotel-inventory "near a location"
+  // search already finds hotels there). Mapbox stays as the fallback for a
+  // place that's genuinely not in the catalog yet.
+  try {
+    const res = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}&limit=1`);
+    if (res.ok) {
+      const rows = await res.json() as { latitude: number | null; longitude: number | null }[];
+      const hit = rows[0];
+      if (hit?.latitude != null && hit?.longitude != null) {
+        const result = { lat: hit.latitude, lng: hit.longitude };
+        cityGeocodeCache.set(key, result);
+        return result;
+      }
+    }
+  } catch {
+    // Falls through to Mapbox below.
+  }
+
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  if (!token) return null;
+  if (!token) { cityGeocodeCache.set(key, null); return null; }
   try {
     const res = await fetch(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +

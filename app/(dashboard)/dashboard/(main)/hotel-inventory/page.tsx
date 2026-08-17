@@ -36,6 +36,7 @@ export default async function HotelInventoryPage({
         ? (sp.nearSort as typeof VALID_NEAR_SORT[number])
         : "distance";
     const uploadedBy = (sp.uploadedBy ?? "all").trim() || "all";
+    const category = (sp.category ?? "all").trim() || "all";
 
     return (
         <HotelInventoryClient
@@ -46,6 +47,7 @@ export default async function HotelInventoryPage({
             near={near}
             nearSort={nearSort}
             uploadedBy={uploadedBy}
+            category={category}
         />
     );
 }

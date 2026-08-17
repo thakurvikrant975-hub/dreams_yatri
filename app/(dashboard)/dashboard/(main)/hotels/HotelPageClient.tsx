@@ -10,10 +10,18 @@ import {
 import { PageHeader } from "../components/dashboard/PageHeader";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 import {
-    getHotels, getDestinationsForHotelFilter,
+    getHotels, getDestinationsForHotelFilter, getHotelUploaders,
     type GetHotelsParams, type HotelApprovalFilter,
 } from "./actions";
 import { HotelsTableClient } from "./HotelsTableClient";
+
+// Hotel data entry actually happens in these two roles — narrows the
+// "Uploaded by" filter to people who'd realistically be on it, instead of
+// every team member who's ever had create access.
+const UPLOADER_ROLES = ["Platform Manager", "Hotel Department"];
+
+type NearSort = "distance" | "price";
+type NearLocation = { id: string; name: string; type: string; lat: number; lng: number };
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
 
@@ -49,10 +57,13 @@ function TableSkeleton() {
 
 // ── Async data component ──────────────────────────────────────────────────
 
-async function HotelsData({ params }: { params: GetHotelsParams }) {
-    const [{ hotels: rawHotels, memberNames, totalCount, stats }, destinations] = await Promise.all([
+async function HotelsData({ params, near, nearSort }: {
+    params: GetHotelsParams; near: NearLocation | null; nearSort: NearSort;
+}) {
+    const [{ hotels: rawHotels, memberNames, totalCount, stats }, destinations, uploaders] = await Promise.all([
         getHotels(params),
         getDestinationsForHotelFilter(),
+        getHotelUploaders(UPLOADER_ROLES),
     ]);
 
     const hotels = rawHotels.map((h) => ({
@@ -75,6 +86,7 @@ async function HotelsData({ params }: { params: GetHotelsParams }) {
                 hotels={hotels}
                 memberNames={memberNames}
                 destinations={destinations}
+                uploaders={uploaders}
                 totalCount={totalCount}
                 limit={params.limit ?? 20}
                 currentPage={params.page ?? 1}
@@ -83,6 +95,9 @@ async function HotelsData({ params }: { params: GetHotelsParams }) {
                 category={params.category ?? "all"}
                 status={(params.status ?? "all") as "active" | "inactive" | "all"}
                 approval={params.approval ?? "all"}
+                near={near}
+                nearSort={nearSort}
+                uploadedBy={params.uploadedBy ?? "all"}
             />
         </>
     );
@@ -98,6 +113,9 @@ export async function HotelsPageServer({
     destination,
     category,
     approval,
+    near,
+    nearSort,
+    uploadedBy,
 }: {
     page:        number;
     limit:       number;
@@ -106,8 +124,15 @@ export async function HotelsPageServer({
     destination: number | "all";
     category:    string | "all";
     approval:    HotelApprovalFilter;
+    near:        NearLocation | null;
+    nearSort:    NearSort;
+    uploadedBy:  string;
 }) {
-    const params: GetHotelsParams = { page, limit, search, status, destination, category, approval };
+    const params: GetHotelsParams = {
+        page, limit, search, status, destination, category, approval, uploadedBy,
+        near: near ? { lat: near.lat, lng: near.lng } : null,
+        nearSort,
+    };
 
     return (
         <div className="space-y-6">
@@ -144,7 +169,7 @@ export async function HotelsPageServer({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${String(destination)}-${category}-${status}-${approval}`}
+                key={`${page}-${limit}-${search}-${String(destination)}-${category}-${status}-${approval}-${near?.id ?? ""}-${nearSort}-${uploadedBy}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-4">
@@ -159,7 +184,7 @@ export async function HotelsPageServer({
                     </div>
                 }
             >
-                <HotelsData params={params} />
+                <HotelsData params={params} near={near} nearSort={nearSort} />
             </Suspense>
         </div>
     );

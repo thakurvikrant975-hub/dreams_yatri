@@ -38,14 +38,14 @@ function TableSkeleton() {
 }
 
 async function HotelInventoryData({
-    page, limit, search, status, near, nearSort, uploadedBy,
+    page, limit, search, status, near, nearSort, uploadedBy, category,
 }: {
     page: number; limit: number; search: string; status: Status;
-    near: NearLocation | null; nearSort: NearSort; uploadedBy: string;
+    near: NearLocation | null; nearSort: NearSort; uploadedBy: string; category: string;
 }) {
     const [{ hotels, totalCount, stats }, uploaders] = await Promise.all([
         getHotels({
-            page, limit, search, status, uploadedBy,
+            page, limit, search, status, uploadedBy, category,
             near: near ? { lat: near.lat, lng: near.lng } : null,
             nearSort,
         }),
@@ -72,16 +72,17 @@ async function HotelInventoryData({
                 nearSort={nearSort}
                 uploadedBy={uploadedBy}
                 uploaders={uploaders}
+                category={category}
             />
         </>
     );
 }
 
 export default function HotelInventoryClient({
-    page, limit, search, status, near, nearSort, uploadedBy,
+    page, limit, search, status, near, nearSort, uploadedBy, category,
 }: {
     page: number; limit: number; search: string; status: Status;
-    near: NearLocation | null; nearSort: NearSort; uploadedBy: string;
+    near: NearLocation | null; nearSort: NearSort; uploadedBy: string; category: string;
 }) {
     return (
         <div className="space-y-6">
@@ -104,7 +105,7 @@ export default function HotelInventoryClient({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${status}-${near?.id ?? ""}-${nearSort}-${uploadedBy}`}
+                key={`${page}-${limit}-${search}-${status}-${near?.id ?? ""}-${nearSort}-${uploadedBy}-${category}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-3">
@@ -121,7 +122,7 @@ export default function HotelInventoryClient({
             >
                 <HotelInventoryData
                     page={page} limit={limit} search={search} status={status}
-                    near={near} nearSort={nearSort} uploadedBy={uploadedBy}
+                    near={near} nearSort={nearSort} uploadedBy={uploadedBy} category={category}
                 />
             </Suspense>
         </div>

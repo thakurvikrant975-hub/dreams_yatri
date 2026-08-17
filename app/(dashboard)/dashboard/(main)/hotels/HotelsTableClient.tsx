@@ -15,7 +15,7 @@ import {
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
-import { Hotel, BedDouble, ImageIcon, Trash2, Pencil, SearchIcon, Loader2 } from "lucide-react";
+import { Hotel, BedDouble, ImageIcon, Trash2, Pencil, SearchIcon, Loader2, Navigation } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -33,6 +33,8 @@ import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { HistorySheet } from "../components/dashboard/HistorySheet";
+import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
+import type { LocationValue } from "../components/location/location.types";
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
@@ -44,6 +46,9 @@ const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type Destination = { id: number; name: string };
+type NearSort = "distance" | "price";
+type NearLocation = { id: string; name: string; type: string; lat: number; lng: number };
+type Uploader = { id: string; name: string };
 
 type HotelItem = {
   id: number;
@@ -74,6 +79,9 @@ type HotelItem = {
     images: number;
     packageBookings: number;
   };
+  /** Only set in "near a location" mode — see getHotels. */
+  distanceKm?: number | null;
+  priceFrom?:  number | null;
 };
 
 // ── Main Component ────────────────────────────────────────────────────────
@@ -82,6 +90,7 @@ export function HotelsTableClient({
   hotels: initialHotels,
   memberNames,
   destinations,
+  uploaders,
   totalCount,
   limit,
   currentPage,
@@ -90,10 +99,14 @@ export function HotelsTableClient({
   category,
   status,
   approval,
+  near,
+  nearSort,
+  uploadedBy,
 }: {
   hotels: HotelItem[];
   memberNames: Record<string, string>;
   destinations: Destination[];
+  uploaders: Uploader[];
   totalCount: number;
   limit: number;
   currentPage: number;
@@ -102,6 +115,9 @@ export function HotelsTableClient({
   category: string | "all";
   status: "active" | "inactive" | "all";
   approval: HotelApprovalFilter;
+  near: NearLocation | null;
+  nearSort: NearSort;
+  uploadedBy: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -129,9 +145,39 @@ export function HotelsTableClient({
     startTransition(() => router.replace(`?${params.toString()}`));
   }
 
+  // Text search and "near a location" are two different ways of finding the
+  // same hotel — whichever the exec touches most recently wins, rather than
+  // trying to combine a typed name with a distance ranking.
   function handleSearch(value: string) {
-    updateParam("search", value);
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set("search", value); else params.delete("search");
+    params.delete("nearLat"); params.delete("nearLng");
+    params.delete("nearName"); params.delete("nearId"); params.delete("nearType");
+    params.delete("page");
+    startTransition(() => router.replace(`?${params.toString()}`));
   }
+
+  function handleNearChange(loc: LocationValue | null) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (loc && loc.latitude != null && loc.longitude != null) {
+      params.set("nearLat", String(loc.latitude));
+      params.set("nearLng", String(loc.longitude));
+      params.set("nearName", loc.name);
+      params.set("nearId", loc.id);
+      params.set("nearType", loc.type);
+      params.delete("search");
+    } else {
+      params.delete("nearLat"); params.delete("nearLng");
+      params.delete("nearName"); params.delete("nearId"); params.delete("nearType");
+    }
+    params.delete("page");
+    startTransition(() => router.replace(`?${params.toString()}`));
+  }
+
+  const nearValue: LocationValue | null = near ? {
+    id: near.id, name: near.name, type: near.type as LocationValue["type"],
+    breadcrumb: near.name, slug: "", latitude: near.lat, longitude: near.lng,
+  } : null;
 
   function buildHref(p: number) {
     const params = new URLSearchParams(searchParams.toString());
@@ -242,6 +288,23 @@ export function HotelsTableClient({
       sortKey: (h) => h.destination?.name?.toLowerCase() ?? "",
       cell: (h) => h.destination ? <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge> : <span className="text-muted-foreground text-xs">—</span>,
     },
+    ...(near ? [{
+      header: "Distance",
+      align: "center" as const,
+      width: "w-[130px]",
+      sortKey: (h: HotelItem) => h.distanceKm ?? Infinity,
+      cell: (h: HotelItem) => (
+        <div className="flex flex-col items-center gap-0.5">
+          <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
+            <Navigation className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+            {h.distanceKm != null ? `${h.distanceKm} km` : "—"}
+          </div>
+          <span className="text-[10px] text-muted-foreground/70">
+            {h.priceFrom != null ? `from ₹${h.priceFrom.toLocaleString("en-IN")}` : "no priced room"}
+          </span>
+        </div>
+      ),
+    }] : []),
     {
       header: "Category",
       sortKey: (h) => h.category?.toLowerCase() ?? "",
@@ -408,7 +471,34 @@ export function HotelsTableClient({
                 { label: "Changes requested", value: "changes" },
               ],
             },
+            ...(near ? [{
+              value: nearSort,
+              onChange: (v: string) => updateParam("nearSort", v),
+              placeholder: "Nearest first",
+              width: "w-40",
+              allValue: "distance",
+              options: [
+                { label: "Cheapest first", value: "price" },
+              ],
+            }] : []),
+            ...(uploaders.length > 0 ? [{
+              value: uploadedBy,
+              onChange: (v: string) => updateParam("uploadedBy", v),
+              placeholder: "Uploaded by anyone",
+              width: "w-48",
+              options: uploaders.map((u) => ({ label: u.name, value: u.id })),
+            }] : []),
           ]}
+        />
+        {/* Proximity search — picks any mapped location and ranks hotels by
+           distance from it, instead of matching a typed name. Same picker
+           and semantics as hotel-inventory's "near a location" search. */}
+        <LocationSearchSelect
+          value={nearValue}
+          onChange={handleNearChange}
+          placeholder="Or search hotels near a location…"
+          className="w-full sm:w-72 shrink-0"
+          hideRecent
         />
         <div className="flex items-center gap-2 shrink-0">
           <Select value={String(limit)} onValueChange={v => updateParam("limit", v)}>
@@ -424,12 +514,23 @@ export function HotelsTableClient({
         </div>
       </div>
 
+      {near && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashboard-primary/30 bg-dashboard-primary/5 px-3 py-2 text-xs text-dashboard-base-content/80">
+          <Navigation className="h-3.5 w-3.5 shrink-0 text-dashboard-primary" />
+          Showing hotels with a mapped location near <span className="font-medium">{near.name}</span>, {nearSort === "price" ? "cheapest first" : "nearest first"}.
+        </div>
+      )}
+
       {/* Table or empty state */}
       {hotels.length === 0 ? (
 
         <TableEmptyState
           title="No hotels found"
-          description={totalCount === 0 ? 'Click "Add Hotel" to get started' : "Try adjusting your filters"}
+          description={
+            near
+              ? "No hotels with a mapped location were found near this place yet."
+              : (totalCount === 0 ? 'Click "Add Hotel" to get started' : "Try adjusting your filters")
+          }
         />
       ) : (
         <DataTable

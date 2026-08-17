@@ -298,7 +298,13 @@ export async function getHotels(params: GetHotelsParams = {}) {
  * by" filter. Independent of any current search/filter state (unlike
  * `memberNames` above, which only covers the current page) so the dropdown's
  * options don't shrink or reorder as the exec filters. */
-export async function getHotelUploaders(): Promise<{ id: string; name: string }[]> {
+export async function getHotelUploaders(
+  /** Restricts the list to members holding one of these TeamRole names
+   * (e.g. ["Platform Manager", "Hotel Department"] on /dashboard/hotels,
+   * where hotel data entry is actually done) — omit for every uploader
+   * regardless of role (hotel-inventory's read-only view). */
+  roleNames?: string[],
+): Promise<{ id: string; name: string }[]> {
   const rows = await db.hotels.findMany({
     where: { created_by: { not: null } },
     select: { created_by: true },
@@ -307,7 +313,10 @@ export async function getHotelUploaders(): Promise<{ id: string; name: string }[
   const ids = rows.map((r) => r.created_by).filter((id): id is string => !!id);
   if (ids.length === 0) return [];
   const members = await db.teamMember.findMany({
-    where: { id: { in: ids } },
+    where: {
+      id: { in: ids },
+      ...(roleNames?.length ? { teamRole: { name: { in: roleNames } } } : {}),
+    },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
