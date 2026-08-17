@@ -37,6 +37,7 @@ export default async function HotelInventoryPage({
         : "distance";
     const uploadedBy = (sp.uploadedBy ?? "all").trim() || "all";
     const category = (sp.category ?? "all").trim() || "all";
+    const stayType = (sp.stayType ?? "all").trim() || "all";
 
     return (
         <HotelInventoryClient
@@ -48,6 +49,7 @@ export default async function HotelInventoryPage({
             nearSort={nearSort}
             uploadedBy={uploadedBy}
             category={category}
+            stayType={stayType}
         />
     );
 }

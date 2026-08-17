@@ -8,7 +8,7 @@ import { cn } from "@/app/lib/utils";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
-import { CATEGORIES } from "../hotels/constants";
+import { CATEGORIES, STAY_TYPES } from "../hotels/constants";
 import type { getHotels } from "../hotels/actions";
 import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
 import type { LocationValue } from "../components/location/location.types";
@@ -32,7 +32,7 @@ function catLabel(value: string | null) {
 }
 
 export function HotelInventoryTable({
-    hotels, currentPage, totalPages, totalCount, limit, search, status, near, nearSort, uploadedBy, uploaders, category,
+    hotels, currentPage, totalPages, totalCount, limit, search, status, near, nearSort, uploadedBy, uploaders, category, stayType,
 }: {
     hotels: HotelRow[];
     currentPage: number;
@@ -46,6 +46,7 @@ export function HotelInventoryTable({
     uploadedBy: string;
     uploaders: Uploader[];
     category: string;
+    stayType: string;
 }) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -219,6 +220,13 @@ export function HotelInventoryTable({
                                 placeholder: "All Categories",
                                 width: "w-40",
                                 options: CATEGORIES.map((c) => ({ label: c.label, value: c.value })),
+                            },
+                            {
+                                value: stayType,
+                                onChange: (v) => updateParam("stayType", v),
+                                placeholder: "All Star Ratings",
+                                width: "w-40",
+                                options: STAY_TYPES.map((s) => ({ label: s, value: s })),
                             },
                             ...(near ? [{
                                 value: nearSort,

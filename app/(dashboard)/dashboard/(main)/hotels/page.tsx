@@ -46,6 +46,7 @@ export default async function Page({
         ? (sp.nearSort as typeof VALID_NEAR_SORT[number])
         : "distance";
     const uploadedBy = (sp.uploadedBy ?? "all").trim() || "all";
+    const stayType = (sp.stayType ?? "all").trim() || "all";
 
     return (
         <HotelsPageServer
@@ -59,6 +60,7 @@ export default async function Page({
             near={near}
             nearSort={nearSort}
             uploadedBy={uploadedBy}
+            stayType={stayType}
         />
     );
 }

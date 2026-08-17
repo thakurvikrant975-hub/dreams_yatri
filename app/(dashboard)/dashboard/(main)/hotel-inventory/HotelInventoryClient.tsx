@@ -38,14 +38,14 @@ function TableSkeleton() {
 }
 
 async function HotelInventoryData({
-    page, limit, search, status, near, nearSort, uploadedBy, category,
+    page, limit, search, status, near, nearSort, uploadedBy, category, stayType,
 }: {
     page: number; limit: number; search: string; status: Status;
-    near: NearLocation | null; nearSort: NearSort; uploadedBy: string; category: string;
+    near: NearLocation | null; nearSort: NearSort; uploadedBy: string; category: string; stayType: string;
 }) {
     const [{ hotels, totalCount, stats }, uploaders] = await Promise.all([
         getHotels({
-            page, limit, search, status, uploadedBy, category,
+            page, limit, search, status, uploadedBy, category, stayType,
             near: near ? { lat: near.lat, lng: near.lng } : null,
             nearSort,
         }),
@@ -73,16 +73,17 @@ async function HotelInventoryData({
                 uploadedBy={uploadedBy}
                 uploaders={uploaders}
                 category={category}
+                stayType={stayType}
             />
         </>
     );
 }
 
 export default function HotelInventoryClient({
-    page, limit, search, status, near, nearSort, uploadedBy, category,
+    page, limit, search, status, near, nearSort, uploadedBy, category, stayType,
 }: {
     page: number; limit: number; search: string; status: Status;
-    near: NearLocation | null; nearSort: NearSort; uploadedBy: string; category: string;
+    near: NearLocation | null; nearSort: NearSort; uploadedBy: string; category: string; stayType: string;
 }) {
     return (
         <div className="space-y-6">
@@ -105,7 +106,7 @@ export default function HotelInventoryClient({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${status}-${near?.id ?? ""}-${nearSort}-${uploadedBy}-${category}`}
+                key={`${page}-${limit}-${search}-${status}-${near?.id ?? ""}-${nearSort}-${uploadedBy}-${category}-${stayType}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-3">
@@ -122,7 +123,7 @@ export default function HotelInventoryClient({
             >
                 <HotelInventoryData
                     page={page} limit={limit} search={search} status={status}
-                    near={near} nearSort={nearSort} uploadedBy={uploadedBy} category={category}
+                    near={near} nearSort={nearSort} uploadedBy={uploadedBy} category={category} stayType={stayType}
                 />
             </Suspense>
         </div>

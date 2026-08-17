@@ -2663,6 +2663,17 @@ model custom_packages {
    * one key per standard list, each defaulting to an empty array.
    */
   extraPolicyItems        Json                     @default("{}")
+  /**
+   * DB-enforced: status = READY always implies readyAt is set (see the
+   * ready_status_requires_ready_at check constraint, added after a
+   * two-call submit sequence — save-with-status-READY, then a separate
+   * markPackageReady — let the second call's own permission check reread
+   * a status the first call had already flipped, fail, and leave rows
+   * stuck at READY with no readyAt: locked to the exec, invisible to
+   * costing's readyAt-gated queue). Application code now only ever writes
+   * READY and readyAt together, in markPackageReady's single update — the
+   * constraint is the backstop against that regressing unnoticed.
+   */
   status                  CustomPackageStatus      @default(DRAFT)
   builtBy                 String
   builtByName             String?

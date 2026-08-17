@@ -98,6 +98,7 @@ async function HotelsData({ params, near, nearSort }: {
                 near={near}
                 nearSort={nearSort}
                 uploadedBy={params.uploadedBy ?? "all"}
+                stayType={params.stayType ?? "all"}
             />
         </>
     );
@@ -116,6 +117,7 @@ export async function HotelsPageServer({
     near,
     nearSort,
     uploadedBy,
+    stayType,
 }: {
     page:        number;
     limit:       number;
@@ -127,9 +129,10 @@ export async function HotelsPageServer({
     near:        NearLocation | null;
     nearSort:    NearSort;
     uploadedBy:  string;
+    stayType:    string;
 }) {
     const params: GetHotelsParams = {
-        page, limit, search, status, destination, category, approval, uploadedBy,
+        page, limit, search, status, destination, category, approval, uploadedBy, stayType,
         near: near ? { lat: near.lat, lng: near.lng } : null,
         nearSort,
     };
@@ -169,7 +172,7 @@ export async function HotelsPageServer({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${String(destination)}-${category}-${status}-${approval}-${near?.id ?? ""}-${nearSort}-${uploadedBy}`}
+                key={`${page}-${limit}-${search}-${String(destination)}-${category}-${status}-${approval}-${near?.id ?? ""}-${nearSort}-${uploadedBy}-${stayType}`}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-4">

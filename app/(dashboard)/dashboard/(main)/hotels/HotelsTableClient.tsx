@@ -26,7 +26,7 @@ import {
 import { ApprovalBadge } from "../hotel-approvals/ApprovalBadge";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
-import { CATEGORIES } from "./constants";
+import { CATEGORIES, STAY_TYPES } from "./constants";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
 import { Label } from "../components/ui/label";
@@ -102,6 +102,7 @@ export function HotelsTableClient({
   near,
   nearSort,
   uploadedBy,
+  stayType,
 }: {
   hotels: HotelItem[];
   memberNames: Record<string, string>;
@@ -118,6 +119,7 @@ export function HotelsTableClient({
   near: NearLocation | null;
   nearSort: NearSort;
   uploadedBy: string;
+  stayType: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -449,6 +451,13 @@ export function HotelsTableClient({
               placeholder: "All Categories",
               width: "w-40",
               options: CATEGORIES.map(c => ({ label: c.label, value: c.value })),
+            },
+            {
+              value: stayType === "all" ? "all" : stayType,
+              onChange: (v) => updateParam("stayType", v),
+              placeholder: "All Star Ratings",
+              width: "w-40",
+              options: STAY_TYPES.map(s => ({ label: s, value: s })),
             },
             {
               value: status,

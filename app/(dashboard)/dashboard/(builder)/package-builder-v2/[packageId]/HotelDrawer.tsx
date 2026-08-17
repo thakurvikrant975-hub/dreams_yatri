@@ -55,6 +55,14 @@ const MEAL_FILTER_CHIPS: { value: string; label: string; icon: React.ElementType
 // against production: 1–5 Star, nothing else, so no "other" bucket needed.
 const STAR_FILTER_CHIPS = ["1 Star", "2 Star", "3 Star", "4 Star", "5 Star"];
 
+// Only affects the coordinate-based "near this city" blend (see
+// searchHotelRoomsForBuilder's geoMatches) — a typed name/place search
+// never used a radius. 25km is the default a bare city search already used;
+// the rest give room to widen for a sparse destination or narrow to rule
+// out a distant same-named place.
+const RADIUS_OPTIONS_KM = [10, 25, 50, 100, 200];
+const DEFAULT_RADIUS_KM = 25;
+
 // hotels.category free text. Labelled and ordered by how common each is in
 // the catalog — matches HOTEL_CAT_LABEL in HotelRoomPicker.tsx (that
 // component is unused post-rewrite, but the label map is still the source of
@@ -151,9 +159,11 @@ export function HotelReplaceView({ day }: { day: number }) {
   const [mealFilter, setMealFilter] = useState<string[]>([]);
   const [starFilter, setStarFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const mealFilterKey = mealFilter.join(",");
-  const activeFilterCount = (starFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + mealFilter.length;
+  const activeFilterCount = (starFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + mealFilter.length
+    + (radiusKm !== DEFAULT_RADIUS_KM ? 1 : 0);
 
   // This day's actual calendar date — so the price shown is what this room
   // would actually cost on THIS night, not a flat catalog rate that may be
@@ -182,7 +192,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
+        const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO, radiusKm);
         if (token === reqRef.current) {
           setResults(rows);
           setPage(1);
@@ -196,7 +206,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, query, coords, sortBy, mealFilterKey, starFilter, categoryFilter, dayDateISO]);
+  }, [city, query, coords, sortBy, mealFilterKey, starFilter, categoryFilter, dayDateISO, radiusKm]);
 
   const hasMore = results.length < total;
 
@@ -205,7 +215,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO);
+      const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO, radiusKm);
       setResults((prev) => [...prev, ...rows]);
       setPage(nextPage);
       setTotal(t);
@@ -341,7 +351,7 @@ export function HotelReplaceView({ day }: { day: number }) {
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); }}
+                onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); setRadiusKm(DEFAULT_RADIUS_KM); }}
                 className="text-[10.5px] font-medium text-dashboard-error/75 hover:text-dashboard-error"
               >
                 Clear all
@@ -357,6 +367,18 @@ export function HotelReplaceView({ day }: { day: number }) {
                 onClick={() => setStarFilter((f) => (f === star ? null : star))}
               >
                 <span className="flex items-center gap-0.5"><Star size={9} /> {star.replace(" Star", "")}</span>
+              </Chip>
+            ))}
+          </FilterRow>
+
+          <FilterRow label="Radius">
+            {RADIUS_OPTIONS_KM.map((km) => (
+              <Chip
+                key={km}
+                selected={radiusKm === km}
+                onClick={() => setRadiusKm(km)}
+              >
+                {km} km
               </Chip>
             ))}
           </FilterRow>

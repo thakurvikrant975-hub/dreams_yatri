@@ -250,8 +250,9 @@ function sortHotelResults(rows: HotelRoomResult[], sortBy: HotelSortOption): Hot
   return sorted;
 }
 
-/** Hotels within this straight-line radius of the searched/geocoded point
- * count as "near here" for the coordinate-based blend below. */
+/** Default straight-line radius (km) of the searched/geocoded point that
+ * counts as "near here" for the coordinate-based blend below — used
+ * whenever a caller doesn't pass its own `radiusKm`. */
 const HOTEL_NEARBY_RADIUS_KM = 25;
 
 export async function searchHotelRoomsForBuilder(
@@ -283,6 +284,12 @@ export async function searchHotelRoomsForBuilder(
   /** The day's actual travel date (ISO) — when given, pricePerNight reflects
    * that specific date's season/weekend rate instead of the flat base rate. */
   date?: string | null,
+  /** Overrides HOTEL_NEARBY_RADIUS_KM for the coordinate-based blend — lets
+   * an exec widen the search past 25km for a sparsely-covered destination,
+   * or narrow it to rule out a distant same-named place. Only affects the
+   * geo fallback (refCoords set, no typed query); a typed search never used
+   * a radius to begin with. */
+  radiusKm?: number | null,
 ): Promise<{ rows: HotelRoomResult[]; total: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
@@ -358,11 +365,12 @@ export async function searchHotelRoomsForBuilder(
       },
       select: HOTEL_ROOM_SELECT,
     });
+    const effectiveRadiusKm = radiusKm ?? HOTEL_NEARBY_RADIUS_KM;
     geoMatches = nearby.filter((item) => {
       const lat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
       const lng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
       if (lat == null || lng == null) return false;
-      return haversineKm(refCoords.lat, refCoords.lng, lat, lng) <= HOTEL_NEARBY_RADIUS_KM;
+      return haversineKm(refCoords.lat, refCoords.lng, lat, lng) <= effectiveRadiusKm;
     });
   }
 
@@ -1939,8 +1947,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
       discountType, discountValue, discountNote,
       termsNotes, extraPolicyItems,
-      status, stops, itineraries, tickets, addOns,
+      stops, itineraries, tickets, addOns,
     } = input;
+    // input.status is deliberately never read — see nextStatus below, which
+    // is the only thing allowed to decide this row's status on a save.
 
     // flightsIncluded/flightFrom/... aren't edited directly anymore — they're
     // derived from the ticket list so the map legs (ItineraryMap) and the
@@ -2056,7 +2066,15 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     // own submit check then ran against a package that was no longer a draft,
     // failed, and left the row at READY with no readyAt. Locked to the exec,
     // and invisible to costing, whose queue is keyed on readyAt.
-    const nextStatus = existing == null ? status : existing.status;
+    //
+    // The create branch had the same hole a level up: a brand-new package's
+    // very first save can BE the Mark Ready save (duplicate, then submit
+    // before anything else autosaves) — `existing` is null there too, so
+    // trusting `status` let the row get created at READY directly, with the
+    // exact same downstream failure the moment markPackageReady re-fetched
+    // it. A new package is always a DRAFT; nothing about creating one is
+    // costing's or a reviewer's decision to make.
+    const nextStatus = existing == null ? "DRAFT" : existing.status;
 
     // True while the package is out for review, when the quoted total is
     // costing's to set — through approve and updatePackagePricing, both of

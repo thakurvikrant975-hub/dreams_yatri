@@ -124,6 +124,8 @@ export type GetHotelsParams = {
   /** `teamMember.id` of whoever added the hotel (`hotels.created_by`). Applies
    * in both search modes. */
   uploadedBy?:  string | "all";
+  /** Exact `hotels.stay_type` match, e.g. "3 Star" — see STAY_TYPES. */
+  stayType?:    string | "all";
 };
 
 const HOTEL_INCLUDE = {
@@ -155,6 +157,7 @@ export async function getHotels(params: GetHotelsParams = {}) {
     near        = null,
     nearSort    = "distance",
     uploadedBy  = "all",
+    stayType    = "all",
   } = params;
 
   const skip = (page - 1) * limit;
@@ -175,6 +178,7 @@ export async function getHotels(params: GetHotelsParams = {}) {
     ...(status === "active"   ? { is_active: true }                        : {}),
     ...(status === "inactive" ? { is_active: false }                       : {}),
     ...(uploadedBy  !== "all" ? { created_by: uploadedBy }                 : {}),
+    ...(stayType    !== "all" ? { stay_type: stayType as string }          : {}),
     ...approvalWhere,
   };
 

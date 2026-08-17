@@ -22,6 +22,11 @@ const HOTEL_CAT_LABEL: Record<string, string> = {
 };
 
 const STAR_CHIPS = ["2 Star", "3 Star", "4 Star", "5 Star"];
+// Only affects the coordinate-based "near this city" blend (see
+// searchHotelRoomsForBuilder's geoMatches) — a typed name/place search
+// never used a radius. 25km is the default a bare city search already used.
+const RADIUS_CHIPS = [10, 25, 50, 100, 200];
+const DEFAULT_RADIUS_KM = 25;
 const CAT_CHIPS = [
   { value: "hotel", label: "Hotel" },
   { value: "resort", label: "Resort" },
@@ -72,6 +77,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [mealFilter, setMealFilter] = useState<string[]>([]);
   const [noMealsOnly, setNoMealsOnly] = useState(false);
+  const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
   const [sortBy, setSortBy] = useState<HotelSortOption>("name_asc");
   const mealFilterKey = mealFilter.join(",");
   const [currentRoom, setCurrentRoom] = useState<HotelRoomResult | null>(null);
@@ -108,7 +114,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     const delay = query === "" ? 0 : 300;
     const timer = setTimeout(async () => {
       try {
-        const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly);
+        const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, undefined, radiusKm);
         if (!cancelled) {
           setItems(rows);
           setPage(1);
@@ -133,14 +139,14 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     // neighbouring sub-locality like "Shella Bholaganj" — see
     // searchHotelRoomsForBuilder's geoMatches).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy, refCoords?.lat, refCoords?.lng]);
+  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy, refCoords?.lat, refCoords?.lng, radiusKm]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly);
+      const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, undefined, radiusKm);
       setItems((prev) => [...prev, ...rows]);
       setPage(nextPage);
       setHasMore(rows.length >= PAGE_SIZE);
@@ -237,6 +243,21 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                 ★ {star}
               </button>
             ))}
+            {RADIUS_CHIPS.map((km) => (
+              <button
+                key={km}
+                type="button"
+                onClick={() => setRadiusKm(km)}
+                className={cn(
+                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                  radiusKm === km
+                    ? "bg-sky-600 text-white border-sky-600"
+                    : "bg-background text-muted-foreground border-border hover:border-sky-400 hover:text-sky-700",
+                )}
+              >
+                {km} km
+              </button>
+            ))}
             {CAT_CHIPS.map((c) => (
               <button
                 key={c.value}
@@ -284,10 +305,10 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
             >
               No meals
             </button>
-            {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
+            {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly || radiusKm !== DEFAULT_RADIUS_KM) && (
               <button
                 type="button"
-                onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); setNoMealsOnly(false); }}
+                onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); setNoMealsOnly(false); setRadiusKm(DEFAULT_RADIUS_KM); }}
                 className="text-[10px] text-destructive/70 hover:text-destructive px-1"
               >
                 Clear
@@ -322,7 +343,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
             ) : items.length === 0 ? (
               <div className="py-8 text-center space-y-1">
                 <p className="text-xs text-muted-foreground">No hotels found</p>
-                {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
+                {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly || radiusKm !== DEFAULT_RADIUS_KM) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
               </div>
             ) : (
               items.map((room) => {
