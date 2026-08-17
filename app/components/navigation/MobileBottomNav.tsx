@@ -28,7 +28,7 @@ import { useModal } from '@/app/hooks/useModals'
 const HIDDEN_PREFIXES = [
   '/book/',            // quote checkout
   '/bookings/',        // confirmation, payment, status
-  '/custom-package/',  // has CustomMobileFooterBar
+  '/custom-package/',  // the published itinerary owns the bottom edge (BookingBar)
   '/offers/',          // has its own sm:hidden bottom bar
   '/hotels/',          // detail + book; the /hotels list itself still shows it
   '/packages/',        // stay detail; the /packages list itself still shows it

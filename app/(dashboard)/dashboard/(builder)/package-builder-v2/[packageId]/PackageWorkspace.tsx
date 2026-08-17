@@ -412,6 +412,17 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   // /dashboard/hotels/meal-types, fetched once here and shared by every day.
   const [mealTypes, setMealTypes] = useState<{ id: number; name: string }[]>([]);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  // How much the A4 document has to shrink to fit the phone it is being
+  // previewed on. 794px is 210mm at 96dpi; 32px covers the overlay's padding.
+  // Recomputed on rotate/resize, and only ever while the overlay is open.
+  const [previewZoom, setPreviewZoom] = useState(1);
+  useEffect(() => {
+    if (!mobilePreviewOpen) return;
+    const fit = () => setPreviewZoom(Math.min(1, (window.innerWidth - 32) / 794));
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [mobilePreviewOpen]);
   const [activeTab, setActiveTab] = useState("client");
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
@@ -1996,7 +2007,7 @@ Rules:
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
       <header className="no-print sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
-        <div className="flex items-center justify-between px-4 h-14 gap-3">
+        <div className="flex items-center justify-between gap-3 px-4 h-14">
           {/* Left */}
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -2028,7 +2039,13 @@ Rules:
           </div>
 
           {/* Right */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Scrolls sideways rather than clipping. At 375px these controls are
+              wider than the viewport, and the ones on the end — export, the
+              client link — were simply cut off with nothing to indicate they
+              were there. min-w-0 lets the flex row actually shrink; the
+              children keep their own shrink-0 so they scroll instead of
+              squashing into each other. */}
+          <div className="flex items-center gap-2 min-w-0 overflow-x-auto overscroll-x-contain [&>*]:shrink-0 py-1">
             <Button
               variant="outline"
               size="sm"
@@ -2293,7 +2310,17 @@ Rules:
                 <EyeOff size={16} className="text-dashboard-base-content/50" />
               </button>
             </div>
-            <div className="px-4 py-6">
+            {/* The document is a fixed 210mm — about 794px — so on a phone it
+                ran off the side and the client's page could not actually be
+                previewed there at all, which is the one thing this overlay is
+                for. Scaled to fit the viewport instead of cropped: `zoom`
+                rather than `transform: scale`, because zoom reflows, so the
+                overlay's scroll height matches the scaled document instead of
+                leaving a page of dead space beneath it. Capped at 1 so it never
+                magnifies on a tablet. overflow-x-auto is the safety net for
+                anything inside the document that refuses to shrink. */}
+            <div className="px-4 py-6 overflow-x-auto">
+              <div style={{ zoom: previewZoom }}>
               <ItineraryDocument
                 form={previewForm}
                 onCoverImageChange={!canEditDoc ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
@@ -2302,6 +2329,7 @@ Rules:
               onActivityCaptionChange={!canEditDoc ? undefined : handleActivityCaptionChange}
               variant="flat"
               />
+              </div>
             </div>
           </div>
         )}

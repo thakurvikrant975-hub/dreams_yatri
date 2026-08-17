@@ -194,9 +194,14 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
   }
 
   return (
-    <div className="no-print flex h-full shrink-0">
+    // Full width on a phone, intrinsic on desktop. Fixed widths (336 + 68)
+    // exceeded a 375px viewport, so the rail was pushed off-screen entirely —
+    // the tabs were there, just past the right edge with no way to reach them.
+    <div className="no-print flex h-full w-full lg:w-auto lg:shrink-0 min-w-0">
       {open && (
-        <section className="w-[336px] xl:w-[380px] shrink-0 h-full flex flex-col border-l border-dashboard-base-300 bg-dashboard-base-100">
+        // Takes what is left beside the rail on a phone; fixed beside the
+        // document on desktop.
+        <section className="flex-1 min-w-0 lg:flex-none lg:w-[336px] xl:w-[380px] h-full flex flex-col border-l border-dashboard-base-300 bg-dashboard-base-100">
           <header className="px-4 pt-4 pb-3 border-b border-dashboard-base-300 shrink-0">
             <div className="flex items-start gap-2">
               {/* A drawer is a detour from wherever the rail was — this returns
@@ -244,7 +249,10 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
 
       <nav
         aria-label="Builder sections"
-        className="w-[68px] shrink-0 h-full flex flex-col items-center gap-1 border-l border-dashboard-base-300 bg-dashboard-base-100 py-3"
+        // overflow-y-auto: eleven sections do not fit the 667px of an iPhone
+        // SE, and without it the last few were unreachable rather than merely
+        // below the fold.
+        className="w-[68px] shrink-0 h-full flex flex-col items-center gap-1 border-l border-dashboard-base-300 bg-dashboard-base-100 py-3 overflow-y-auto overscroll-contain"
       >
         {/* Costing sits at the top of the rail, separated — for the reviewer it
             is the job, not one section among several. Absent entirely when no

@@ -11,6 +11,13 @@ import { db } from "@/app/lib/db";
 import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { discountLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
+import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
+// The v2 document's shape, because the v2 document is what this page now
+// renders — the same component the builder previews and the PDF captures.
+// Type-only, so nothing from that client module is pulled into this server
+// file at runtime.
+import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
+import type { ThemeOverrides } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/doc-theme-data";
 
 /** Mirrors ExtraPolicyItems in package-builder/action.ts — can't import it
  * directly since that's a "use server" file (only async function exports
@@ -68,11 +75,16 @@ function resolveSharedDiscount(
   };
 }
 
-export async function getSharedPackage(packageId: string) {
+export async function getSharedPackage(packageId: string): Promise<PreviewData | null> {
   const pkg = await db.custom_packages.findFirst({
     where: { id: packageId, status: "SENT" },
     select: {
       queryId: true,
+      // The package's own document template and colour/font tweaks. Without
+      // these the client's page falls back to the house template and renders
+      // a different-looking document than the PDF the exec was designing —
+      // the whole point of publishing the template is that the two match.
+      template: true, themeOverrides: true,
       title: true, description: true, coverImage: true, coverImagePosition: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
       pricePerPerson: true, totalPrice: true, currency: true,
@@ -138,12 +150,36 @@ export async function getSharedPackage(packageId: string) {
   // here (server-side) so the client-facing link shows real photos too, not
   // just the internal builder preview.
   const stopNames = [...new Set(pkg.stops.map((s) => s.name.trim()).filter(Boolean))];
-  const stopImageEntries = await Promise.all(
-    stopNames.map(async (name) => [name, await getDestinationCoverImage(name)] as const),
-  );
+  const [stopImageEntries, settings] = await Promise.all([
+    Promise.all(stopNames.map(async (name) => [name, await getDestinationCoverImage(name)] as const)),
+    // Header/footer contact block, the disclaimer, the admin's extra policy
+    // blocks, and the house template this package's own choice layers over.
+    // Unauthenticated on purpose — getItinerarySettings has no session gate,
+    // and everything read from it here is already printed on the PDF the
+    // client is sent anyway.
+    getItinerarySettings(),
+  ]);
   const stopImages = Object.fromEntries(stopImageEntries);
 
   return {
+    // Template first, then the house default underneath it — resolveDocTheme
+    // in the document itself validates both and falls back to the house
+    // template if either id no longer exists.
+    template:        pkg.template,
+    themeOverrides:  (pkg.themeOverrides as ThemeOverrides | null) ?? null,
+    companySettings: {
+      phone:           settings.companyPhone,
+      email:           settings.companyEmail,
+      address:         settings.companyAddress,
+      description:     settings.companyDescription,
+      disclaimer:      settings.documentDisclaimer,
+      defaultTemplate: settings.defaultTemplate,
+      themeOverrides:  settings.themeOverrides,
+    },
+    // The admin's extra policy blocks. Unlike inclusions/exclusions these are
+    // not frozen onto the package row, so they read live — same as they do in
+    // the builder's own preview and in the PDF.
+    customPolicySections: settings.customPolicySections,
     title:           pkg.title,
     description:     pkg.description ?? "",
     coverImage:      pkg.coverImage ?? "",

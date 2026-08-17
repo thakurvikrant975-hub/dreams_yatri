@@ -3092,8 +3092,23 @@ const PRINT_STYLES = `
      never evaluates print media, so a rule hidden in @media print would not
      apply and this content would land in the client's PDF. The exporter sets
      data-exporting on the root for the duration of the capture instead.
-     Browser print (Cmd-P) is covered by the .no-print rule further down. */
-  .itinerary-print-area[data-exporting] .builder-only { display: none !important; }
+     Browser print (Cmd-P) is covered by the .no-print rule further down.
+
+     data-published is the third output: the same document served as a live web
+     page on the client's share link (/custom-package/[id]). It is on screen,
+     not printing and not being captured, so neither of the other two hooks
+     reaches it — but it is just as much the client's copy as the PDF is, and
+     has to hide exactly the same chrome. */
+  .itinerary-print-area[data-exporting] .builder-only,
+  .itinerary-print-area[data-published] .builder-only { display: none !important; }
+
+  /* Edit affordances that survive on screen because they're gated on the
+     editable flag rather than marked .builder-only. None of them render
+     without the builder's
+     callbacks, so this is belt-and-braces — but the published page is the one
+     render nobody internal ever looks at, and a stray control there is seen
+     first by the client. */
+  .itinerary-print-area[data-published] .no-print { display: none !important; }
 
   /* The inverse: content that stands in for builder chrome once it's hidden.
      The day-wise summary needs it — an empty cell offers "+ Add hotel" while
@@ -3101,7 +3116,8 @@ const PRINT_STYLES = `
      and there is no way to express that with .builder-only alone. Hidden on
      screen, shown for both output paths. */
   .export-only { display: none; }
-  .itinerary-print-area[data-exporting] .export-only { display: inline; }
+  .itinerary-print-area[data-exporting] .export-only,
+  .itinerary-print-area[data-published] .export-only { display: inline; }
   @media print {
     .export-only { display: inline; }
     body * { visibility: hidden; }
@@ -3149,6 +3165,7 @@ const PRINT_STYLES = `
 
 export function ItineraryDocument({
   form, onCoverImageChange, onCoverImagePositionChange, onImageChange, onActivityCaptionChange, variant = "card",
+  published = false,
 }: {
   form: PreviewData;
   /** Present only in the internal builder's live preview — enables dropping
@@ -3168,6 +3185,11 @@ export function ItineraryDocument({
    * both so the on-screen preview reads as a plain A4 page — matching exactly
    * what window.print() produces, where these are already stripped. */
   variant?: "card" | "flat";
+  /** Rendered as the client's live page on the public share link, rather than
+   * inside the builder. Hides every builder affordance and swaps in the same
+   * export-only fallbacks the PDF gets (see PRINT_STYLES), so the page and the
+   * PDF are the same document rather than two things that drift apart. */
+  published?: boolean;
 }) {
   const travelDateStr = form.travelDate
     ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
@@ -3229,6 +3251,10 @@ export function ItineraryDocument({
             "itinerary-print-area mx-auto overflow-hidden",
             variant === "flat" ? "border" : "rounded-lg shadow-xl",
           )}
+          // Empty-string attribute rather than a boolean: the CSS above keys
+          // off presence ([data-published]), and React drops the attribute
+          // entirely when the value is undefined.
+          data-published={published ? "" : undefined}
           style={{
             width: "210mm",
             minHeight: "297mm",

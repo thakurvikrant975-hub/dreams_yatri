@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
 import { getSharedPackage } from "@/app/actions/packages/fetch-shared-package";
-import PackagePolicy from "@/app/(website)/packages/[slug]/[duration]/[route]/[stay]/policy/policy";
 import { ViewTracker } from "./ViewTracker";
-import { CustomPackageHero } from "./components/CustomPackageHero";
-import { ClientDetailsStrip } from "./components/ClientDetailsStrip";
-import { CustomPackageTabs } from "./components/CustomPackageTabs";
-import { CustomPricingCard } from "./components/CustomPricingCard";
-import { CustomMobileFooterBar } from "./components/CustomMobileFooterBar";
-import { CustomItinerarySection } from "./components/CustomItinerarySection";
-import { CustomHighlightsTab } from "./components/CustomHighlightsTab";
+import { PublishedItinerary } from "./components/PublishedItinerary";
 
 export const metadata: Metadata = {
   title: "Your Itinerary",
   robots: { index: false, follow: false },
 };
 
+// The client's live copy of the itinerary. What renders here is the package
+// builder's own document — the same component the exec designs against and the
+// same one the PDF is captured from — so the template, colours and fonts they
+// chose are what the client opens. See components/PublishedItinerary.
+//
+// Still gated on status === "SENT" inside getSharedPackage: a draft is not
+// visible to someone who merely knows the id, and a price costing hasn't
+// approved never reaches this page.
 export default async function CustomPackagePage({
   params,
 }: {
@@ -37,17 +38,11 @@ export default async function CustomPackagePage({
   }
 
   return (
-    <div className="screen-space pt-6 pb-10">
+    // Tight horizontal padding on purpose: the document carries its own 10mm
+    // page margin, and anything more here just shrinks the scale it fits at.
+    <div className="bg-neutral-100 px-2 sm:px-4 pt-4 pb-2">
       <ViewTracker packageId={id} />
-      <CustomPackageHero form={data} />
-      <ClientDetailsStrip form={data} />
-      <CustomPackageTabs
-        pricing={<CustomPricingCard form={data} packageId={id} />}
-        itinerary={<CustomItinerarySection form={data} />}
-        highlights={<CustomHighlightsTab form={data} />}
-        policies={<PackagePolicy />}
-        mobileFooter={<CustomMobileFooterBar form={data} packageId={id} />}
-      />
+      <PublishedItinerary form={data} packageId={id} />
     </div>
   );
 }
