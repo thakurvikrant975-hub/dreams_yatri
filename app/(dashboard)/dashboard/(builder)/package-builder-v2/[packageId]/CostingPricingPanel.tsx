@@ -27,6 +27,7 @@
 
 import { AlertOctagon, Users } from "lucide-react";
 import { travellersLine } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { StayOptionsComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionsComparison";
 import { useBuilder } from "./builder-context";
 import { scrollToDay } from "./builder-context";
 import type {
@@ -65,8 +66,12 @@ function Section({ title, meta, subtotal, children }: {
 }
 
 export function CostingPricingPanel({
-  hotelPricing, cabPricing, computed,
+  packageId, hotelPricing, cabPricing, computed,
 }: {
+  /** For the stay-option comparison, which reads from the server rather than
+   * the editor's form state — a reviewer has to see what is saved, not what
+   * someone is typing. */
+  packageId: string;
   hotelPricing: BuilderHotelPricingResult | null;
   cabPricing: BuilderCabPricingResult | null;
   computed: {
@@ -101,6 +106,11 @@ export function CostingPricingPanel({
         <Users className="size-3.5 shrink-0 mt-0.5 text-dashboard-neutral" />
         <p className="text-[11px] text-dashboard-base-content">{travellersLine(form)}</p>
       </div>
+
+      {/* The options side by side, when there is more than one. Above the
+          breakdown on purpose: which option is being priced is the first thing
+          to establish, and the breakdown below describes the recommended one. */}
+      <StayOptionsComparison packageId={packageId} />
 
       {gaps > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">

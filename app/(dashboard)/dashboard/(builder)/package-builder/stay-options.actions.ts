@@ -371,3 +371,40 @@ export async function getStayOptionsForDocument(packageId: string) {
     }])),
   }));
 }
+
+/** Everything the costing manager needs to check the options in one look: each
+ * one's price, and the hotel it puts on every single night.
+ *
+ * This is the "several hotels to verify for the same night" view. A reviewer
+ * checking two options is checking two hotels against the same night, and
+ * reading that as two separate itineraries is how a night gets approved at one
+ * standard and priced at the other.
+ *
+ * Prices are the LIVE computation rather than the frozen figure: costing is
+ * reviewing what the trip costs now, against rates they may be about to
+ * correct, not what was quoted last week.
+ */
+export async function getStayOptionComparison(packageId: string) {
+  const [options, days, priced] = await Promise.all([
+    getStayOptionsForDocument(packageId),
+    db.custom_itineraries.findMany({
+      where: { customPackageId: packageId },
+      select: { day: true, title: true },
+      orderBy: { day: "asc" },
+    }),
+    computeStayOptionPricing(packageId).catch(() => []),
+  ]);
+  const live = new Map(priced.map((p) => [p.id, p]));
+
+  return {
+    days: days.map((d) => ({ day: d.day, title: d.title })),
+    options: options.map((o) => ({
+      ...o,
+      totalPrice: live.get(o.id)?.totalPrice ?? o.totalPrice ?? null,
+      pricePerPerson: live.get(o.id)?.pricePerPerson ?? o.pricePerPerson ?? null,
+      hotelSubtotal: live.get(o.id)?.hotelSubtotal ?? null,
+      hotelSubtotalOverridden: live.get(o.id)?.hotelSubtotalOverridden ?? false,
+      gapDays: live.get(o.id)?.gapDays ?? [],
+    })),
+  };
+}

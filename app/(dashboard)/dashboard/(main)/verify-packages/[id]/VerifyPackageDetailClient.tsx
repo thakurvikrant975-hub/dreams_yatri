@@ -21,6 +21,7 @@ import { RejectPricingDialog } from "./RejectPricingDialog";
 import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
 import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
+import { StayOptionsComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionsComparison";
 import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/builder-context";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
@@ -570,6 +571,12 @@ export function VerifyPackageDetailClient({
                                 </div>
                             </div>
                         )}
+
+                        {/* Every option's hotels, night by night, above the
+                            hotel breakdown — which describes the recommended
+                            option only. Renders nothing on a single-stay
+                            package. */}
+                        <StayOptionsComparison packageId={pkg.id} />
 
                         {(s.hotel.lines.length > 0 || editMode) && (
                             <BreakdownCard
