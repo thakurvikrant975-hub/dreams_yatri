@@ -23,6 +23,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
+import { PackageSwitcher } from "../PackageSwitcher";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
 import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
@@ -4280,6 +4281,13 @@ Rules:
                 {j?.destinations?.join(" › ") ?? query.destination ?? "—"}
               </p>
             </div>
+            {/* Duplicating a package used to strand the original: the query
+                row links one package, and the builder knew nothing of the
+                rest. Renders only when there is more than one. */}
+            <PackageSwitcher
+              packageId={packageId}
+              basePath="/dashboard/package-builder"
+            />
           </div>
 
           {/* Right */}

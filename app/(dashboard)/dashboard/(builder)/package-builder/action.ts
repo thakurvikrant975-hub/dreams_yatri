@@ -1977,6 +1977,86 @@ export async function getQueryLeadInfo(queryId: string): Promise<QueryDetail | n
   };
 }
 
+/** Every package built for the same query as this one, newest first.
+ *
+ * A query can carry more than one package — an exec duplicates a draft to
+ * quote the same trip a second way, and both are real, sendable quotes. The
+ * sales-query row only ever links one of them (whichever needs attention,
+ * else the newest), so once you are inside a builder the other one is
+ * unreachable without going back out and opening the query's detail sheet.
+ * This is what the header switcher reads so it never gets that far.
+ *
+ * Returns the current package too — the switcher marks it rather than hiding
+ * it, so "1 of 2" is legible without counting.
+ *
+ * Access follows the same rule as the rest of the workspace: ownership runs
+ * through the query, so a sibling built by a colleague on a lead assigned to
+ * you is yours to see. Costing sees all of them, since a review covers
+ * whatever the exec sent. A package with no query has no siblings by
+ * definition and returns just itself.
+ */
+export type SiblingPackage = {
+  id: string;
+  title: string;
+  status: string;
+  createdAt: Date;
+  verified: boolean;
+  rejectedAt: Date | null;
+  sentAt: Date | null;
+  pricePerPerson: number | null;
+  builtByName: string | null;
+  isCurrent: boolean;
+};
+
+export async function getSiblingPackages(packageId: string): Promise<SiblingPackage[]> {
+  const viewer = await getEffectiveMember();
+  if (!viewer?.member?.id) return [];
+
+  const current = await db.custom_packages.findUnique({
+    where:  { id: packageId },
+    select: { id: true, queryId: true },
+  });
+  if (!current) return [];
+  if (!current.queryId) return [];
+
+  const query = await db.package_queries.findUnique({
+    where:  { id: current.queryId },
+    select: {
+      assignedTo:      true,
+      custom_packages: {
+        select: {
+          id: true, title: true, status: true, createdAt: true, verified: true,
+          rejectedAt: true, sentAt: true, pricePerPerson: true,
+          builtBy: true, builtByName: true,
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  if (!query) return [];
+
+  const role = workspaceRoleOf(viewer.member?.teamRole?.name);
+  const rows = query.custom_packages.filter((p) =>
+    role === "costing" ||
+    p.id === packageId ||
+    ownsPackage({
+      viewerId:        viewer.member?.id,
+      viewerRoleName:  viewer.member?.teamRole?.name,
+      builtBy:         p.builtBy,
+      queryAssignedTo: query.assignedTo,
+    }),
+  );
+
+  // One package is not a choice, and a lone entry in a switcher reads as a
+  // menu that failed to load. The caller renders nothing for this.
+  if (rows.length < 2) return [];
+
+  return rows.map(({ builtBy: _builtBy, ...p }) => ({
+    ...p,
+    isCurrent: p.id === packageId,
+  }));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Save (create or update) a custom package with itineraries
 // ─────────────────────────────────────────────────────────────────────────────

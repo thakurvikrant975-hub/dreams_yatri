@@ -20,6 +20,7 @@ import {
   ShieldCheck, ChatText, Wand2, Copy, AlertTriangle,
 } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
+import { PackageSwitcher } from "@/app/(dashboard)/dashboard/(builder)/package-builder/PackageSwitcher";
 import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
 import { cn } from "@/app/lib/utils";
 import {
@@ -1976,6 +1977,14 @@ Rules:
                 {j?.destinations?.join(" › ") ?? query.destination ?? "—"}
               </p>
             </div>
+            {/* Only when the query carries more than one package — see
+                PackageSwitcher. The lead's name above is shared by all of
+                them, so without this the header cannot tell two quotes for
+                the same client apart. */}
+            <PackageSwitcher
+              packageId={packageId}
+              basePath="/dashboard/package-builder-v2"
+            />
           </div>
 
           {/* Right */}
