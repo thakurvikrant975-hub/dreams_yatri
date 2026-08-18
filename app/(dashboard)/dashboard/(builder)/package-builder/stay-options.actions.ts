@@ -304,10 +304,16 @@ export async function setRecommendedStayOption(packageId: string, optionId: stri
  * day row when the category written is the recommended one. */
 export async function saveStayForDay(
   packageId: string, optionId: string,
-  /** Day NUMBER, not the row id. saveCustomPackage deletes and recreates the
-   * day rows on every save, so an id read into the browser a minute ago may
-   * already be gone; the day number is what survives. */
-  day: number,
+  /** Day NUMBERS, not row ids. saveCustomPackage deletes and recreates the day
+   * rows on every save, so an id read into the browser a minute ago may already
+   * be gone; the day number is what survives.
+   *
+   * Takes the whole run at once. A stay is one hotel over N nights, so picking
+   * one used to fire N calls — each re-checking permissions, re-resolving the
+   * option, opening its own transaction and revalidating the route. A ten-night
+   * stay was ten round-trips for one click, and a failure halfway left the run
+   * half-written. */
+  days: number | number[],
   fields: Record<string, unknown>,
 ): Promise<Result> {
   try {
@@ -320,30 +326,43 @@ export async function saveStayForDay(
     });
     if (!option) return { success: false, error: "That stay option no longer exists." };
 
-    const itinerary = await db.custom_itineraries.findFirst({
-      where: { customPackageId: packageId, day },
-      select: { id: true },
+    const wanted = Array.isArray(days) ? days : [days];
+    if (wanted.length === 0) return { success: true };
+
+    const itineraries = await db.custom_itineraries.findMany({
+      where: { customPackageId: packageId, day: { in: wanted } },
+      select: { id: true, day: true },
     });
-    if (!itinerary) return { success: false, error: `Day ${day} isn't part of this package any more — reload and try again.` };
-    const itineraryId = itinerary.id;
+    const missing = wanted.filter((d) => !itineraries.some((it) => it.day === d));
+    if (missing.length > 0) {
+      return {
+        success: false,
+        error: `Day ${missing.join(", ")} isn't part of this package any more — reload and try again.`,
+      };
+    }
 
     // Only the stay columns, whatever else the caller passed — this must not
     // become a back door into the rest of the day row.
     const data = pickStayFields(fields);
 
+    // One transaction for the whole run: either every night of the stay moves
+    // to the new hotel or none does. Written night by night, a failure on the
+    // third left a stay describing two hotels.
     await db.$transaction(async (tx) => {
-      await tx.custom_itinerary_stays.upsert({
-        where: { itineraryId_stayOptionId: { itineraryId, stayOptionId: optionId } },
-        create: { itineraryId, stayOptionId: optionId, ...data } as Prisma.custom_itinerary_staysUncheckedCreateInput,
-        update: data as Prisma.custom_itinerary_staysUncheckedUpdateInput,
-      });
-      if (option.isRecommended) {
-        await tx.custom_itineraries.update({
-          where: { id: itineraryId },
-          data: data as Prisma.custom_itinerariesUpdateInput,
+      for (const it of itineraries) {
+        await tx.custom_itinerary_stays.upsert({
+          where: { itineraryId_stayOptionId: { itineraryId: it.id, stayOptionId: optionId } },
+          create: { itineraryId: it.id, stayOptionId: optionId, ...data } as Prisma.custom_itinerary_staysUncheckedCreateInput,
+          update: data as Prisma.custom_itinerary_staysUncheckedUpdateInput,
         });
+        if (option.isRecommended) {
+          await tx.custom_itineraries.update({
+            where: { id: it.id },
+            data: data as Prisma.custom_itinerariesUpdateInput,
+          });
+        }
       }
-    });
+    }, { timeout: 20_000, maxWait: 8_000 });
 
     revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     return { success: true };

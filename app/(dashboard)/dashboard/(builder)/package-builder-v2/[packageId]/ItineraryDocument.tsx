@@ -2286,25 +2286,23 @@ function StayColumnPicker({
             manualExtraBeds: null,
             manualExtraBedRate: null,
           };
-          // Every night of the block, so the column names one hotel for the
-          // whole stay rather than splitting it after night one.
-          for (let d = fromDay; d < fromDay + nights; d++) {
-            const r = await saveStayForDay(packageId, optionId, d, fields);
-            if (!r.success) { toast.error(r.error); break; }
-          }
+          // Every night of the block in one call, so the column names one
+          // hotel for the whole stay and the run lands atomically rather than
+          // one night at a time.
+          const blockDays = Array.from({ length: nights }, (_, i) => fromDay + i);
+          const r = await saveStayForDay(packageId, optionId, blockDays, fields);
+          if (!r.success) toast.error(r.error);
           setSaving(false);
           await onSaved();
         }}
         onClear={async () => {
           setSaving(true);
-          for (let d = fromDay; d < fromDay + nights; d++) {
-            await saveStayForDay(packageId, optionId, d, {
-              accommodation: null, accommodationPhoto: null, accommodationRoomPhotos: [],
-              accommodationLocation: null, accommodationRoomSpecs: null, accommodationStarRating: null,
-              roomPricingId: null, roomsCount: null, hotelMealPlan: null,
-              manualHotelPricePerNight: null,
-            });
-          }
+          await saveStayForDay(packageId, optionId, Array.from({ length: nights }, (_, i) => fromDay + i), {
+            accommodation: null, accommodationPhoto: null, accommodationRoomPhotos: [],
+            accommodationLocation: null, accommodationRoomSpecs: null, accommodationStarRating: null,
+            roomPricingId: null, roomsCount: null, hotelMealPlan: null,
+            manualHotelPricePerNight: null,
+          });
           setSaving(false);
           await onSaved();
         }}

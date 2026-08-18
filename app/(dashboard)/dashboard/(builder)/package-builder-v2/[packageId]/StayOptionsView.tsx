@@ -104,12 +104,12 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
     });
   }
 
-  /** Writes one option's hotel across every night of this stay. */
+  /** Writes one option's hotel across every night of this stay — in a single
+   * call, so the run lands as one transaction rather than one per night. */
   async function writeStay(optionId: string, fields: Record<string, unknown>) {
-    for (let i = 0; i < nightCount; i++) {
-      const r = await saveStayForDay(packageId, optionId, fromDay + i, fields);
-      if (!r.success) { toast.error(r.error); return false; }
-    }
+    const days = Array.from({ length: nightCount }, (_, i) => fromDay + i);
+    const r = await saveStayForDay(packageId, optionId, days, fields);
+    if (!r.success) { toast.error(r.error); return false; }
     await load();
     return true;
   }
