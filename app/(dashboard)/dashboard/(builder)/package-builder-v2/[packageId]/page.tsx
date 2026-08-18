@@ -65,6 +65,7 @@ import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { getStayOptionsForDocument, cloneStayOptionsInto } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
+import { stayOptionGaps, stayOptionGapError } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
@@ -1321,7 +1322,27 @@ Rules:
     if (validationError) {
       toast.error(validationError);
       return;
-    }    const pendingDay = form.itineraries.find((it) => it.hotelPending);
+    }    // The same rule markPackageReady enforces, checked here so the exec is told
+    // at the button instead of after a save round-trip. Reads the loaded
+    // options rather than form state, since only the recommended one lives
+    // there.
+    const gapError = stayOptionGapError(stayOptionGaps(
+      (stayOptions ?? []).map((o) => ({
+        label: o.label,
+        stays: form.itineraries.map((d) => ({
+          day: d.day,
+          accommodation: o.byDay?.[d.day]?.hotel,
+          roomPricingId: o.byDay?.[d.day]?.roomPricingId,
+          hotelPending: o.byDay?.[d.day]?.pending,
+        })),
+      })),
+    ));
+    if (gapError) {
+      toast.error(gapError);
+      return;
+    }
+
+    const pendingDay = form.itineraries.find((it) => it.hotelPending);
     if (pendingDay) {
       toast.error(`Day ${pendingDay.day} is still awaiting the hotel team — fill in or undo the pending hotel request before submitting for review.`);
       return;

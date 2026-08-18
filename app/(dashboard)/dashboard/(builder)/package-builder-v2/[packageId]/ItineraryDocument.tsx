@@ -482,6 +482,12 @@ export interface PreviewData {
       rooms?: number | null;
       checkIn?: string | null;
       checkOut?: string | null;
+      /** Editor-only: which source this cell came from, and whether the hotel
+       * team still owes it. The document ignores both — they are here so the
+       * builder's submit gate can tell an unbooked night from a requested one
+       * without a second read. */
+      roomPricingId?: number | null;
+      pending?: boolean;
     }>;
   }[];
   /** Which document template this package renders with (see doc-theme's

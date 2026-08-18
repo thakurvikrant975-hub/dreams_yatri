@@ -153,3 +153,50 @@ export function buildStayRuns(days: StayDay[], optionIds: string[]): StayRun[] {
 
   return runs;
 }
+
+// ── Completeness ─────────────────────────────────────────────────────────────
+
+export type StayOptionGap = { label: string; days: number[] };
+
+/** Options with a night nobody has booked and nobody has asked the hotel team
+ * for.
+ *
+ * Those nights price at zero, so an unfinished option arrives at costing
+ * looking like the cheapest one on offer — which is the opposite of what it is.
+ * A half-filled option is the dangerous case, but a completely empty one counts
+ * too: an option nobody is actually offering should be removed rather than
+ * submitted.
+ *
+ * A night awaiting the hotel team is NOT a gap. That is a known, tracked state
+ * with its own queue, and the existing submit path already refuses on it
+ * separately. */
+export function stayOptionGaps(
+  options: {
+    label: string;
+    stays: { day: number; accommodation?: string | null; roomPricingId?: number | null; hotelPending?: boolean }[];
+  }[],
+): StayOptionGap[] {
+  return options
+    .map((o) => ({
+      label: o.label,
+      days: o.stays
+        .filter((s) => !s.hotelPending && !s.accommodation?.trim() && s.roomPricingId == null)
+        .map((s) => s.day)
+        .sort((a, b) => a - b),
+    }))
+    .filter((g) => g.days.length > 0);
+}
+
+/** The blocking message for the submit path, or null when every option is
+ * complete. Names them all at once: fixing one per rejected submit is the same
+ * work spread over five rounds. */
+export function stayOptionGapError(gaps: StayOptionGap[]): string | null {
+  if (gaps.length === 0) return null;
+  const parts = gaps.map((g) => `${g.label} (day ${g.days.join(", ")})`);
+  const who = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return (
+    `${who} still ${gaps.length === 1 ? "has a night" : "have nights"} with no hotel. ` +
+    `Those nights price at zero, so the option reaches costing looking like the cheapest one — ` +
+    `pick a hotel, ask the hotel team, or remove the option.`
+  );
+}
