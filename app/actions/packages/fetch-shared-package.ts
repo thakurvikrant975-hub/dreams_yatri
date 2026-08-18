@@ -162,7 +162,13 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     // The stay standards this trip is quoted at, for the columns in each stay
     // block. Never throws the page: a package with none simply renders the
     // original single-hotel layout.
-    getStayCategoriesForDocument(packageId).catch(() => []),
+    getStayCategoriesForDocument(packageId)
+      // Only standards that are actually filled reach the client. One with no
+      // hotel on any night is an unfinished thought, not an option — quoting
+      // it would print an empty column and an "On request" price the exec
+      // never meant to offer.
+      .then((cats) => cats.filter((c) => Object.values(c.byDay).some((cell) => cell.hotel?.trim())))
+      .catch(() => []),
   ]);
   const stopImages = Object.fromEntries(stopImageEntries);
 

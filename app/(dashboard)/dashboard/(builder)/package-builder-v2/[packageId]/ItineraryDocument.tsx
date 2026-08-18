@@ -2329,7 +2329,15 @@ function StayColumns({
   checkOut: string;
 }) {
   const DOC = useDocTheme();
-  const shown = categories.filter((c) => c.byDay?.[day]?.hotel?.trim());
+  const editing = !!packageId && !!onCategoriesChanged;
+  // In the builder EVERY standard gets a column, even one with no hotel yet —
+  // an empty column is how the exec sees the gap and where they fill it, and
+  // filtering it out made a newly added standard invisible and therefore
+  // unfillable.
+  //
+  // The client's copy still only shows the standards that have a hotel: an
+  // empty column on a quote is not an option, it is an unfinished sentence.
+  const shown = editing ? categories : categories.filter((c) => c.byDay?.[day]?.hotel?.trim());
   if (shown.length === 0) return null;
 
   return (
@@ -2366,7 +2374,7 @@ function StayColumns({
           anything, which is why the category list is capped at three. */}
       <div className={cn("grid gap-2.5", shown.length === 1 ? "grid-cols-1" : shown.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
         {shown.map((c) => {
-          const cell = c.byDay[day]!;
+          const cell = c.byDay?.[day] ?? { hotel: null };
           const { manualHotelName: hotelName, manualRoomName: roomName } = splitManualHotelName(cell.hotel ?? "");
           return (
             <div
@@ -2412,8 +2420,8 @@ function StayColumns({
                 <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: c.isRecommended ? DOC.accentInk : DOC.inkMuted }}>
                   {stayCategoryLabel(c.category)}
                 </p>
-                <p className="text-[11.5px] font-semibold leading-tight" style={{ color: DOC.ink }}>
-                  {titleCase(hotelName ?? cell.hotel ?? "")}
+                <p className="text-[11.5px] font-semibold leading-tight" style={{ color: cell.hotel ? DOC.ink : DOC.inkMuted }}>
+                  {cell.hotel ? titleCase(hotelName ?? cell.hotel) : "No hotel picked yet"}
                 </p>
                 {roomName && (
                   <p className="text-[10px] leading-tight" style={{ color: DOC.inkSoft }}>{roomName}</p>
