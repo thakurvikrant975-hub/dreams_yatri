@@ -28,7 +28,7 @@ import { useBuilder } from "./builder-context";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { applyHotelRoomSelection, emptyDay, stayRun } from "./day-mutations";
 import {
-  SUGGESTED_STAY_LABELS, MAX_STAY_OPTIONS,
+  SUGGESTED_STAY_LABELS, MAX_STAY_OPTIONS, buildStayRuns,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import {
   addStayOption, renameStayOption, removeStayOption,
@@ -67,9 +67,33 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
 
   // The nights this stay covers. Picking a hotel applies to all of them,
   // because that is what a stay is — one hotel, N nights.
-  const nights = stayRun(form.itineraries, day);
-  const nightCount = nights.length || 1;
-  const fromDay = nights[0] ?? day;
+  //
+  // Computed from the OPTIONS, the same way the document computes the block it
+  // draws. stayRun() reads the day rows, which carry the recommended option
+  // alone, so it would have said three nights where the document — which breaks
+  // a block the moment ANY option changes hotel — was showing two. The exec
+  // would have picked a hotel for the block in front of them and silently
+  // written a night beyond it.
+  //
+  // Falls back to the day rows before the options have loaded, and for a
+  // package quoting one stay, where the two agree by definition.
+  const optionRun = (() => {
+    if (!options || options.length < 2) return null;
+    const runs = buildStayRuns(
+      form.itineraries.map((d) => ({
+        day: d.day,
+        byOption: Object.fromEntries(
+          options.map((o) => [o.id, { hotel: o.byDay?.[d.day]?.hotel ?? null }]),
+        ),
+      })),
+      options.map((o) => o.id),
+    );
+    return runs.find((r) => day >= r.fromDay && day <= r.toDay) ?? null;
+  })();
+
+  const dayRowRun = stayRun(form.itineraries, day);
+  const nightCount = optionRun?.nights ?? (dayRowRun.length || 1);
+  const fromDay = optionRun?.fromDay ?? dayRowRun[0] ?? day;
   const searchCity = form.itineraries.find((d) => d.day === day)?.accommodationLocation || form.destination || "";
 
   function run(fn: () => Promise<{ success: boolean; error?: string }>) {
