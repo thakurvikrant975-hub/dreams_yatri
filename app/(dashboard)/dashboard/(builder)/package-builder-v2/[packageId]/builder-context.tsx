@@ -170,6 +170,9 @@ export type PanelTab =
   // is gated on the caller supplying a costing panel at all, so an exec's
   // sidebar has no such tab to find.
   | "costing"
+  // Flat hotel and cab tables — the exec's own check that the package carries
+  // what they meant, before it goes to costing. Internal; not in the document.
+  | "tables"
   // The live calculation — every line's arithmetic, and the walkthrough from
   // base cost to per-person. Costing's, like "costing" above.
   | "pricing";

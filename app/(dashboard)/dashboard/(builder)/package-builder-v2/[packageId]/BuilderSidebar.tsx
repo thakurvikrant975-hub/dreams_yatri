@@ -22,7 +22,7 @@
 
 import {
   User, CalendarDays, MapPin, ListOrdered, Plane, Gift, Hotel, Sparkles, Car,
-  PanelRightClose, PanelRightOpen, ArrowLeft, IndianRupee, Calculator,
+  PanelRightClose, PanelRightOpen, ArrowLeft, IndianRupee, Calculator, ListChecks,
 } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type PanelTab, type DrawerTarget } from "./builder-context";
@@ -43,6 +43,7 @@ const RAIL: { tab: PanelTab; icon: React.ElementType; label: string }[] = [
   { tab: "itinerary", icon: ListOrdered, label: "Itinerary" },
   { tab: "tickets", icon: Plane, label: "Travel" },
   { tab: "addons", icon: Gift, label: "Add-ons" },
+  { tab: "tables", icon: ListChecks, label: "Tables" },
 ];
 
 /** The catalog half of the rail, separated by a rule. These behave differently
@@ -113,6 +114,7 @@ function drawerBody(target: DrawerTarget) {
 function headingForTab(tab: PanelTab): { title: string; description: string } {
   switch (tab) {
     case "client": return { title: "Client", description: "Who this itinerary is for, and what they asked for." };
+    case "tables": return { title: "Hotels & cabs", description: "Every day's stay and vehicle in one list — check the data before costing sees it." };
     case "trip": return { title: "Trip setup", description: "Dates, travellers and margin — what the whole document is built from." };
     case "stops": return { title: "Destinations", description: "Where the trip goes and how many nights at each." };
     case "itinerary": return { title: "Itinerary", description: "Drag to reorder days. Dots show what each one is still missing." };
@@ -172,7 +174,7 @@ function RailButton({ entry }: {
   );
 }
 
-export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPanel }: {
+export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPanel, tablesPanel }: {
   /** Costing's own section. Supplied only by the review route — its presence
    * is what puts the tab in the rail, so an exec never sees one. */
   costingPanel?: React.ReactNode;
@@ -183,6 +185,8 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
   clientPanel: React.ReactNode;
   /** Trip Setup, which needs pricing props page.tsx computes. */
   tripPanel: React.ReactNode;
+  /** Hotel and cab tables — the exec's data check. */
+  tablesPanel: React.ReactNode;
 }) {
   const { drawer, closeDrawer, panelTab, setPanelTab } = useBuilder();
 
@@ -193,6 +197,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
     if (drawer) return drawerBody(drawer);
     switch (panelTab) {
       case "client": return clientPanel;
+      case "tables": return tablesPanel;
       case "trip": return tripPanel;
       case "costing": return costingPanel ?? null;
       case "pricing": return pricingPanel ?? null;

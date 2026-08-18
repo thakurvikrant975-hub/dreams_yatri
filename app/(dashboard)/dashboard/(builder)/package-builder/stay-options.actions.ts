@@ -432,6 +432,7 @@ export async function getStayOptionsForDocument(packageId: string) {
       // team still owes it. The document ignores both.
       roomPricingId: s.roomPricingId,
       pending: s.hotelPending,
+      extraBeds: s.manualExtraBeds,
     }])),
   }));
 }

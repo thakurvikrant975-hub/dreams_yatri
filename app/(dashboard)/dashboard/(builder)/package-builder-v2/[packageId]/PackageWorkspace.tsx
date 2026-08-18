@@ -75,6 +75,7 @@ import { applyDiscount, discountLabel } from "@/app/(dashboard)/dashboard/(build
 import { listReviewNotes, type ReviewNote } from "@/app/(dashboard)/dashboard/(builder)/package-builder/review-notes.actions";
 import { reviewKey, type ReviewContext } from "./builder-context";
 import { TripSetupPanel } from "./TripSetupPanel";
+import { DataTablesPanel } from "./DataTablesPanel";
 import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
@@ -2572,6 +2573,13 @@ Rules:
             )}
               </div>
             </fieldset>
+          }
+          tablesPanel={
+            <DataTablesPanel
+              packageId={packageId}
+              hotelPricing={hotelPricing}
+              cabPricing={cabPricing}
+            />
           }
           tripPanel={
             <fieldset disabled={!canEditDoc} className="contents">

@@ -71,6 +71,7 @@ import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
 import { TripSetupPanel } from "./TripSetupPanel";
+import { DataTablesPanel } from "./DataTablesPanel";
 import { useUndoableState } from "./use-undoable-state";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
@@ -2359,6 +2360,13 @@ Rules:
             )}
               </div>
             </fieldset>
+          }
+          tablesPanel={
+            <DataTablesPanel
+              packageId={packageId}
+              hotelPricing={hotelPricing}
+              cabPricing={cabPricing}
+            />
           }
           tripPanel={
             <fieldset disabled={isLocked} className="contents">

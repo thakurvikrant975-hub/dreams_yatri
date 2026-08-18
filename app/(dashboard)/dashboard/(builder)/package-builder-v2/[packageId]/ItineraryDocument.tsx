@@ -488,6 +488,7 @@ export interface PreviewData {
        * without a second read. */
       roomPricingId?: number | null;
       pending?: boolean;
+      extraBeds?: number | null;
     }>;
   }[];
   /** Which document template this package renders with (see doc-theme's
