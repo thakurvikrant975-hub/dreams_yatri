@@ -6,7 +6,7 @@ import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayCategoryPricing } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
@@ -2894,6 +2894,17 @@ export async function markPackageReady(
         rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,
         execNotifiedAt: null,
       },
+    });
+
+    // Freeze each standard's price at the moment it goes for review, the same
+    // way the package's own figure is frozen. From here the prices the client
+    // compares are settled numbers, not ones recomputed against catalog rates
+    // that may have moved since.
+    await persistStayCategoryPricing(packageId).catch((err) => {
+      // Never block a submission on this: the package's own price is already
+      // authoritative, and a standard with no stored figure falls back to a
+      // live computation wherever it is shown.
+      console.error("[markPackageReady] stay category pricing", err);
     });
 
     await logTimeline(pkg.queryId, `Package marked ready for costing review by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined);

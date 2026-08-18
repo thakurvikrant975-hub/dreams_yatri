@@ -3429,8 +3429,16 @@ export function ItineraryDocument({
     (form.children ? `, ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "") +
     (form.infants ? `, ${form.infants} Infant${form.infants !== 1 ? "s" : ""}` : "");
 
-  const priceStr = form.totalPrice
-    ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}`
+  // The headline figure. With several standards quoted this is the recommended
+  // one's, so the big number and the badge below it never name different
+  // prices; with one, it is the package's own as before.
+  const recommendedCategory = (form.stayCategories ?? []).find((c) => c.isRecommended)
+    ?? (form.stayCategories ?? [])[0];
+  const headlineTotal = (form.stayCategories?.length ?? 0) > 1 && (recommendedCategory?.totalPrice ?? 0) > 0
+    ? recommendedCategory!.totalPrice!
+    : form.totalPrice ? Number(form.totalPrice) : null;
+  const priceStr = headlineTotal != null
+    ? `${form.currency} ${headlineTotal.toLocaleString("en-IN")}`
     : "To be confirmed";
 
   // Per-person is the total divided by paying heads and rounded, so it does not
@@ -3438,12 +3446,19 @@ export function ItineraryDocument({
   // side, which invites exactly that multiplication, so where it cannot
   // reconcile the number is marked approximate.
   const payingPax = form.adults + form.children;
+  // Both figures describe the SAME standard. Left as the package's own while
+  // the headline followed the recommended one, the card read "INR 15,750" next
+  // to "~INR 5,513 per person" — two different standards, side by side, with
+  // nothing to say so.
+  const headlinePerPerson = (form.stayCategories?.length ?? 0) > 1 && (recommendedCategory?.pricePerPerson ?? 0) > 0
+    ? recommendedCategory!.pricePerPerson!
+    : form.pricePerPerson ? Number(form.pricePerPerson) : null;
   const perPersonExact =
-    !!form.pricePerPerson && !!form.totalPrice && payingPax > 0 &&
-    Number(form.pricePerPerson) * payingPax === Number(form.totalPrice);
+    headlinePerPerson != null && headlineTotal != null && payingPax > 0 &&
+    headlinePerPerson * payingPax === headlineTotal;
 
-  const perPersonStr = form.pricePerPerson
-    ? `${perPersonExact ? "" : "~"}${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
+  const perPersonStr = headlinePerPerson
+    ? `${perPersonExact ? "" : "~"}${form.currency} ${Math.round(headlinePerPerson).toLocaleString("en-IN")} per person`
     : null;
 
   // Route map legs derived straight from the ticket list — see the module
@@ -3796,6 +3811,58 @@ export function ItineraryDocument({
                       </p>
                     </div>
                   </div>
+
+                  {/* A price per standard, when the trip is quoted at more than
+                      one. The recommended figure is the large one above; these
+                      are the alternatives, on the same card rather than on a
+                      page of their own, because the client is choosing between
+                      them and a choice split across two pages is not one.
+                      Absent entirely on a package quoted at one standard. */}
+                  {(form.stayCategories?.length ?? 0) > 1 && (
+                    <div className="mt-3 pt-3 grid gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.14)" }}>
+                      <div className={cn(
+                        "grid gap-2",
+                        (form.stayCategories?.length ?? 0) === 2 ? "grid-cols-2" : "grid-cols-3",
+                      )}>
+                        {(form.stayCategories ?? []).map((c) => (
+                          <div
+                            key={c.category}
+                            className="rounded-lg px-2.5 py-2"
+                            style={{
+                              backgroundColor: c.isRecommended ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.05)",
+                              border: `1px solid ${c.isRecommended ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)"}`,
+                            }}
+                          >
+                            <p className="flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-widest text-white/60">
+                              {stayCategoryLabel(c.category)}
+                              {c.isRecommended && (
+                                <span className="rounded-full bg-white/85 px-1.5 py-px text-[7.5px] font-bold text-neutral-900">
+                                  Recommended
+                                </span>
+                              )}
+                            </p>
+                            <p className={cn(DISPLAY, "font-bold text-white leading-tight font-heading mt-0.5")} style={{ fontSize: "15px" }}>
+                              {/* Zero means no rate behind those nights yet,
+                                  not a free stay — saying "on request" is the
+                                  only honest reading, and printing 0 would
+                                  make the unfinished column look cheapest. */}
+                              {(c.totalPrice ?? 0) > 0
+                                ? `${form.currency} ${Math.round(c.totalPrice!).toLocaleString("en-IN")}`
+                                : "On request"}
+                            </p>
+                            {(c.pricePerPerson ?? 0) > 0 && (
+                              <p className="text-[9.5px] text-white/55">
+                                {form.currency} {Math.round(c.pricePerPerson!).toLocaleString("en-IN")} per person
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[9px] text-white/45">
+                        The itinerary above is the same for every standard — only the hotels change.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -18,6 +18,7 @@ import type { Prisma, StayCategory } from "@/app/generated/prisma";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { sortStayCategories, type StayCategoryName } from "./stay-categories";
+import { computeStayCategoryPricing } from "@/app/services/package-pricing.service";
 
 type Result<T = undefined> = { success: true; data?: T } | { success: false; error: string };
 
@@ -288,12 +289,18 @@ export async function saveStayForDay(
  * hotel for every night. Shaped to drop straight into PreviewData.stayCategories.
  */
 export async function getStayCategoriesForDocument(packageId: string) {
-  const options = await db.custom_package_stay_options.findMany({
-    where: { customPackageId: packageId },
-    include: {
-      stays: { include: { itinerary: { select: { day: true } } } },
-    },
-  });
+  const [options, priced] = await Promise.all([
+    db.custom_package_stay_options.findMany({
+      where: { customPackageId: packageId },
+      include: { stays: { include: { itinerary: { select: { day: true } } } } },
+    }),
+    // Live figures, for the standards not yet frozen. A stored price always
+    // wins where there is one: it is what the client was quoted, and
+    // recomputing at read time would quietly restate an old quote at today's
+    // catalog rates.
+    computeStayCategoryPricing(packageId).catch(() => []),
+  ]);
+  const livePrice = new Map(priced.map((p) => [p.id, p]));
 
   return sortStayCategories(
     options.map((o) => ({ ...o, category: o.category as StayCategoryName })),
@@ -301,8 +308,8 @@ export async function getStayCategoriesForDocument(packageId: string) {
     id: o.id,
     category: o.category,
     isRecommended: o.isRecommended,
-    totalPrice: o.totalPrice,
-    pricePerPerson: o.pricePerPerson,
+    totalPrice: o.totalPrice ?? livePrice.get(o.id)?.totalPrice ?? null,
+    pricePerPerson: o.pricePerPerson ?? livePrice.get(o.id)?.pricePerPerson ?? null,
     byDay: Object.fromEntries(o.stays.map((s) => [s.itinerary.day, {
       hotel: s.accommodation,
       photo: s.accommodationPhoto,
