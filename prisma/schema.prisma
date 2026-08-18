@@ -318,6 +318,17 @@ model ManualDocument {
   @@map("manual_documents")
 }
 
+/// The stay standards a package can be quoted at, cheapest first. Fixed rather
+/// than free text: the client reads the same three words on every quote, the
+/// order is inherent, and "Deluxe" means the same thing across packages. Three
+/// is the cap — a document that puts four hotels side by side on an A4 column
+/// stops being readable.
+enum StayCategory {
+  STANDARD
+  DELUXE
+  PREMIUM
+}
+
 enum ManualDocumentType {
   INVOICE
   VOUCHER
@@ -790,7 +801,8 @@ model TeamMember {
    * auth is stateless JWT (no server-side session row to delete), so a
    * mismatch between this and the value embedded in a member's token at
    * sign-in is what actually signs them out, checked on every request in
-   * auth-dashboard.ts's jwt callback. */
+   * auth-dashboard.ts's jwt callback.
+   */
   sessionVersion         Int               @default(0)
   joiningDate            DateTime?
   lastLoginAt            DateTime?
@@ -2591,7 +2603,7 @@ model package_queries {
 }
 
 model custom_packages {
-  id                      String                   @id @default(cuid())
+  id                      String                        @id @default(cuid())
   /**
    * Nullable + non-unique — a query can have multiple packages built for it
    * (e.g. two different budget options sent to the same client), and a
@@ -2607,15 +2619,15 @@ model custom_packages {
    * 50 = center, 100 = bottom) — lets the exec re-center an image that
    * object-cover crops awkwardly, without re-uploading/re-cropping it.
    */
-  coverImagePosition      Float                    @default(50)
+  coverImagePosition      Float                         @default(50)
   destination             String
   startingPoint           String?
   totalDays               Int
   totalNights             Int
   travelDate              DateTime?
-  adults                  Int                      @default(1)
-  children                Int                      @default(0)
-  infants                 Int                      @default(0)
+  adults                  Int                           @default(1)
+  children                Int                           @default(0)
+  infants                 Int                           @default(0)
   /**
    * Per-traveller ages, entered by the sales exec on the Package tab —
    * costing sometimes needs the actual age (not just the count) to check
@@ -2624,13 +2636,13 @@ model custom_packages {
    * not enforced to always match its length — a count change resizes the
    * array client-side, this is just whatever was last saved.
    */
-  childrenAges            Int[]                    @default([])
-  infantAges              Int[]                    @default([])
+  childrenAges            Int[]                         @default([])
+  infantAges              Int[]                         @default([])
   pricePerPerson          Float?
   totalPrice              Float?
-  currency                String                   @default("INR")
-  marginPercentage        Float                    @default(25)
-  gstPercentage           Float                    @default(5)
+  currency                String                        @default("INR")
+  marginPercentage        Float                         @default(25)
+  gstPercentage           Float                         @default(5)
   /**
    * Costing-team correction, set during pre-send review (verify-packages'
    * updatePackagePricing) when the live-computed hotel/cab subtotal is
@@ -2657,8 +2669,8 @@ model custom_packages {
    * (verify-packages/actions.ts), so an exec's builder save can't clobber a
    * costing edit made while the package sits in READY review.
    */
-  removedInclusions       String[]                 @default([])
-  removedExclusions       String[]                 @default([])
+  removedInclusions       String[]                      @default([])
+  removedExclusions       String[]                      @default([])
   termsNotes              String?
   /**
    * Short, removable bullet points — seeded with company-wide defaults the
@@ -2706,7 +2718,7 @@ model custom_packages {
   sentAt                  DateTime?
   pdfUrl                  String?
   viewedAt                DateTime?
-  viewCount               Int                      @default(0)
+  viewCount               Int                           @default(0)
   previousSnapshot        Json?
   /**
    * Set when a sales exec clicks "Mark Ready" — the moment pricing edits
@@ -2730,7 +2742,7 @@ model custom_packages {
    * cleared between cycles, just overwritten by the next Mark Ready, so it
    * always reflects the message that came with the CURRENT review cycle.
    */
-  readyNote             String?
+  readyNote               String?
   /**
    * Costing's pricing sign-off, independent of the client-facing status
    * (accepted/declined) and of whether it's actually been sent — a reviewer
@@ -2740,7 +2752,7 @@ model custom_packages {
    * doesn't trigger it. status only flips to SENT and pricingSnapshot gets
    * locked once the exec actually sends it.
    */
-  verified                Boolean                  @default(false)
+  verified                Boolean                       @default(false)
   verifiedAt              DateTime?
   verifiedBy              String?
   verifiedByName          String?
@@ -2757,7 +2769,7 @@ model custom_packages {
   rejectedByName          String?
   rejectionReasonId       String?
   rejectionNote           String?
-  rejectionReason         RejectionReason?         @relation(fields: [rejectionReasonId], references: [id])
+  rejectionReason         RejectionReason?              @relation(fields: [rejectionReasonId], references: [id])
   /**
    * The exec's own equivalent of a rejection, in reverse — set when they
    * pull an already-verified package back out of "ready to share" (e.g. the
@@ -2786,7 +2798,7 @@ model custom_packages {
    * app/api/cron/package-followups) from being created twice for the same
    * send — set true the moment that follow-up is created, never reset.
    */
-  followUpAutoCreated     Boolean                  @default(false)
+  followUpAutoCreated     Boolean                       @default(false)
   /**
    * Exec-pasted payment link (e.g. a Razorpay Payment Link created for this
    * exact locked total) — the client-facing "Pay Now" button opens this.
@@ -2824,22 +2836,23 @@ model custom_packages {
    * exec needs to match. Null for the overwhelming majority.
    */
   themeOverrides          Json?
-  flightsIncluded         Boolean                  @default(false)
+  flightsIncluded         Boolean                       @default(false)
   flightNotes             String?
   flightFrom              String?
   flightTo                String?
-  trainIncluded           Boolean                  @default(false)
+  trainIncluded           Boolean                       @default(false)
   trainNotes              String?
   trainFrom               String?
   trainTo                 String?
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
   itineraries             custom_itineraries[]
+  stayOptions             custom_package_stay_options[]
   stops                   custom_package_stops[]
   tickets                 custom_package_tickets[]
   addOns                  custom_package_addons[]
   reviewNotes             package_review_notes[]
-  query                   package_queries?         @relation(fields: [queryId], references: [id])
+  query                   package_queries?              @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
@@ -3313,6 +3326,7 @@ model custom_itineraries {
   updatedAt                     DateTime                      @updatedAt
   package                       custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
   activities                    custom_itinerary_activities[]
+  stays                         custom_itinerary_stays[]
 
   @@index([customPackageId])
   @@index([day])
@@ -4017,4 +4031,90 @@ enum DiscountType {
   FLAT
   /// A percentage of the final price, recomputed whenever that price moves.
   PERCENT
+}
+
+/// One stay standard a package is quoted at — Standard, Deluxe or Premium.
+///
+/// All of them appear together in ONE document: each stay block lists every
+/// category's hotel side by side, and the pricing block lists every category's
+/// price, with the recommended one highlighted. There is no per-category
+/// document and no per-category PDF — the client gets a single page showing
+/// every option and picks from it.
+///
+/// Only the hotels differ between categories. The day plan, activities, cabs,
+/// tickets and meals are shared, which is what makes one document able to carry
+/// all three without repeating itself.
+model custom_package_stay_options {
+  id              String       @id @default(cuid())
+  customPackageId String
+  category        StayCategory
+
+  /// The one the client is steered toward: it carries the "Recommended" badge
+  /// on its hotel column and its price is the highlighted, default figure.
+  /// Exactly one per package, enforced in application code.
+  isRecommended Boolean @default(false)
+
+  /// This category's own price. Different hotels mean a different hotel
+  /// subtotal, margin and GST, so the package-level total can only ever
+  /// describe one of them. Null until priced.
+  pricePerPerson        Float?
+  totalPrice            Float?
+  pricingSnapshot       Json?
+  /// Costing's flat correction to this category's whole hotel subtotal.
+  hotelSubtotalOverride Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  package custom_packages          @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  stays   custom_itinerary_stays[]
+
+  @@unique([customPackageId, category])
+  @@index([customPackageId])
+}
+
+/// The hotel for one night, under one category — the (day × category) cell.
+///
+/// The columns mirror the ones still sitting inline on custom_itineraries. The
+/// day row goes on holding the RECOMMENDED category's stay, so everything not
+/// yet taught about categories (the v1 builder, the hotel-request workflow, the
+/// pricing service's package-level path) keeps reading what it always did.
+model custom_itinerary_stays {
+  id           String @id @default(cuid())
+  itineraryId  String
+  stayOptionId String
+
+  accommodation                 String?
+  accommodationPhoto            String?
+  accommodationRoomPhotos       String[] @default([])
+  accommodationLocation         String?
+  accommodationRoomSpecs        String?
+  accommodationStarRating       String?
+  accommodationRoomCapacity     Int?
+  accommodationMaxAdults        Int?
+  accommodationMaxChildren      Int?
+  accommodationExtraBedCapacity Int?
+
+  roomPricingId            Int?
+  roomsCount               Int?
+  extraRooms               Json?
+  hotelCheckIn             String?
+  hotelCheckOut            String?
+  hotelMealPlan            String?
+  manualHotelPricePerNight Float?
+  manualExtraBeds          Int?
+  manualExtraBedRate       Float?
+  hotelPriceOverride       Float?
+
+  hotelPending     Boolean @default(false)
+  hotelPendingNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  itinerary  custom_itineraries          @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  stayOption custom_package_stay_options @relation(fields: [stayOptionId], references: [id], onDelete: Cascade)
+
+  @@unique([itineraryId, stayOptionId])
+  @@index([stayOptionId])
 }
