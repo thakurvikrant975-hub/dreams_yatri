@@ -1649,9 +1649,10 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{
 // All of these end up on ONE document: the pricing block prints a figure per
 // standard with the recommended one highlighted. Nothing here picks a winner.
 
-export type StayCategoryPrice = {
+export type StayOptionPrice = {
   id: string;
-  category: "STANDARD" | "DELUXE" | "PREMIUM";
+  label: string;
+  sortOrder: number;
   isRecommended: boolean;
   /** Priced from this category's own stays. */
   hotelSubtotal: number;
@@ -1665,7 +1666,7 @@ export type StayCategoryPrice = {
   gapDays: number[];
 };
 
-export async function computeStayCategoryPricing(packageId: string): Promise<StayCategoryPrice[]> {
+export async function computeStayOptionPricing(packageId: string): Promise<StayOptionPrice[]> {
   const pkg = await db.custom_packages.findUnique({
     where: { id: packageId },
     select: {
@@ -1684,7 +1685,7 @@ export async function computeStayCategoryPricing(packageId: string): Promise<Sta
       },
       stayOptions: {
         select: {
-          id: true, category: true, isRecommended: true, hotelSubtotalOverride: true,
+          id: true, label: true, sortOrder: true, isRecommended: true, hotelSubtotalOverride: true,
           stays: {
             select: {
               itineraryId: true,
@@ -1742,7 +1743,8 @@ export async function computeStayCategoryPricing(packageId: string): Promise<Sta
 
     return {
       id: option.id,
-      category: option.category,
+      label: option.label,
+      sortOrder: option.sortOrder,
       isRecommended: option.isRecommended,
       hotelSubtotal,
       hotelSubtotalOverridden: option.hotelSubtotalOverride != null,
@@ -1757,15 +1759,15 @@ export async function computeStayCategoryPricing(packageId: string): Promise<Sta
     };
   }));
 
-  const ORDER = ["STANDARD", "DELUXE", "PREMIUM"];
-  return priced.sort((a, b) => ORDER.indexOf(a.category) - ORDER.indexOf(b.category));
+  // Display order, cheapest first by convention — names carry no rank now.
+  return priced.sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label));
 }
 
 /** Freezes each standard's price onto its row, so the document, costing and the
  * client all read one settled figure rather than recomputing against catalog
  * rates that may have moved since the quote was made. */
-export async function persistStayCategoryPricing(packageId: string): Promise<void> {
-  const priced = await computeStayCategoryPricing(packageId);
+export async function persistStayOptionPricing(packageId: string): Promise<void> {
+  const priced = await computeStayOptionPricing(packageId);
   await Promise.all(priced.map((o) =>
     db.custom_package_stay_options.update({
       where: { id: o.id },

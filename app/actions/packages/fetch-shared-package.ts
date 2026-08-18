@@ -12,7 +12,7 @@ import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { discountLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
-import { getStayCategoriesForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-categories.actions";
+import { getStayOptionsForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 // The v2 document's shape, because the v2 document is what this page now
 // renders — the same component the builder previews and the PDF captures.
 // Type-only, so nothing from that client module is pulled into this server
@@ -151,7 +151,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
   // here (server-side) so the client-facing link shows real photos too, not
   // just the internal builder preview.
   const stopNames = [...new Set(pkg.stops.map((s) => s.name.trim()).filter(Boolean))];
-  const [stopImageEntries, settings, stayCategories] = await Promise.all([
+  const [stopImageEntries, settings, stayOptions] = await Promise.all([
     Promise.all(stopNames.map(async (name) => [name, await getDestinationCoverImage(name)] as const)),
     // Header/footer contact block, the disclaimer, the admin's extra policy
     // blocks, and the house template this package's own choice layers over.
@@ -162,7 +162,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     // The stay standards this trip is quoted at, for the columns in each stay
     // block. Never throws the page: a package with none simply renders the
     // original single-hotel layout.
-    getStayCategoriesForDocument(packageId)
+    getStayOptionsForDocument(packageId)
       // Only standards that are actually filled reach the client. One with no
       // hotel on any night is an unfinished thought, not an option — quoting
       // it would print an empty column and an "On request" price the exec
@@ -191,7 +191,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     // not frozen onto the package row, so they read live — same as they do in
     // the builder's own preview and in the PDF.
     customPolicySections: settings.customPolicySections,
-    stayCategories,
+    stayOptions,
     title:           pkg.title,
     description:     pkg.description ?? "",
     coverImage:      pkg.coverImage ?? "",

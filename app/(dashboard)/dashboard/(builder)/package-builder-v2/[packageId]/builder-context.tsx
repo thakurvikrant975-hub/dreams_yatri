@@ -104,6 +104,11 @@ export interface PackageForm {
   execDesignation: string;
 }
 
+/** Re-read the package's stay options after the drawer changes them, so the
+ * document's columns and price cards follow. Supplied by the page that owns
+ * that state; absent wherever the document is read-only. */
+export type StayOptionsRefresh = () => void | Promise<void>;
+
 export type SetPackageForm = React.Dispatch<React.SetStateAction<PackageForm>>;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,6 +123,10 @@ export type SetPackageForm = React.Dispatch<React.SetStateAction<PackageForm>>;
 
 export type DrawerTarget =
   /** Swap the day's hotel for another nearby one. */
+  /** Every stay option for this night — add, name, recommend, and fill each
+   * one from the catalog, by hand, or via the hotel team. One stay is the
+   * normal case; the rest are optional. */
+  | { kind: "stay-options"; day: number }
   | { kind: "hotel-replace"; day: number }
   /** Edit what an exec is allowed to change about the picked room — rooms
    * needed, meal plan, check-in/out — never catalog data. */

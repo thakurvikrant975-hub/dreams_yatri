@@ -318,17 +318,6 @@ model ManualDocument {
   @@map("manual_documents")
 }
 
-/// The stay standards a package can be quoted at, cheapest first. Fixed rather
-/// than free text: the client reads the same three words on every quote, the
-/// order is inherent, and "Deluxe" means the same thing across packages. Three
-/// is the cap — a document that puts four hotels side by side on an A4 column
-/// stops being readable.
-enum StayCategory {
-  STANDARD
-  DELUXE
-  PREMIUM
-}
-
 enum ManualDocumentType {
   INVOICE
   VOUCHER
@@ -4045,9 +4034,17 @@ enum DiscountType {
 /// tickets and meals are shared, which is what makes one document able to carry
 /// all three without repeating itself.
 model custom_package_stay_options {
-  id              String       @id @default(cuid())
+  id              String @id @default(cuid())
   customPackageId String
-  category        StayCategory
+  /// What the exec called it — "Standard", "Deluxe", "Premium" are offered as
+  /// suggestions but anything is allowed ("Beachfront", "Lake View Wing").
+  /// Free text rather than an enum because the standards a trip is quoted at
+  /// are the exec's own distinction, and a fixed ladder cannot express
+  /// "same class, better view".
+  label           String
+  /// Display order, cheapest first by convention — the order the client
+  /// compares in. Assigned on creation and stable thereafter.
+  sortOrder       Int    @default(0)
 
   /// The one the client is steered toward: it carries the "Recommended" badge
   /// on its hotel column and its price is the highlighted, default figure.
@@ -4069,7 +4066,7 @@ model custom_package_stay_options {
   package custom_packages          @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
   stays   custom_itinerary_stays[]
 
-  @@unique([customPackageId, category])
+  @@unique([customPackageId, label])
   @@index([customPackageId])
 }
 

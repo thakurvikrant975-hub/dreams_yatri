@@ -21,14 +21,12 @@
 // So this is the block that survives when the six tabs go.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { CalendarDays, Users, MapPin, Percent, Baby, IndianRupee, Hotel } from "./builder-icons";
+import { CalendarDays, Users, MapPin, Percent, Baby, IndianRupee } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { useBuilder, type PackageForm } from "./builder-context";
 import { RouteStopsEditor } from "./RouteStopsEditor";
-import { StayCategoryControls } from "./StayCategoryControls";
-import type { StayCategoryName } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-categories";
 import { recalcFromStops } from "./day-mutations";
 import {
   resizeAges, ageInputValue, parseAgeInput, travellersMissingAges,
@@ -48,14 +46,7 @@ function Block({ icon: Icon, title, children }: {
   );
 }
 
-export function TripSetupPanel({ computed, onApplyPrice, stayCategories, stayEditing }: {
-  /** The stay standards this package is quoted at, for the Stay options block.
-   * The same control also sits on each stay block in the document; it is here
-   * as well because this panel is where an exec looks for package-level
-   * settings, and a control only reachable by finding the right night in the
-   * preview is a control most people never find. */
-  stayCategories?: { id: string; category: StayCategoryName; isRecommended: boolean }[];
-  stayEditing?: { packageId: string; onCategoriesChanged: () => void | Promise<void> };
+export function TripSetupPanel({ computed, onApplyPrice }: {
   /** What the trip currently costs, all margins and tax applied. */
   computed: { finalPrice: number; perPerson: number };
   /** Writes perPerson into the package. Explicit rather than automatic: the
@@ -124,22 +115,6 @@ export function TripSetupPanel({ computed, onApplyPrice, stayCategories, stayEdi
           getting these right saves typing a city on every day.
         </p>
       </Block>
-
-      {stayEditing && (stayCategories?.length ?? 0) > 0 && (
-        <Block icon={Hotel} title="Stay options">
-          <StayCategoryControls
-            packageId={stayEditing.packageId}
-            categories={stayCategories!}
-            onChanged={stayEditing.onCategoriesChanged}
-          />
-          <p className="text-[11px] text-dashboard-base-content/45">
-            Quote this trip at up to three standards. Every one of them appears in the same
-            document — a column per standard on each stay, and a price for each — so the client
-            gets one PDF and picks from it. Only the hotels differ; the days, activities and
-            cabs are shared.
-          </p>
-        </Block>
-      )}
 
       <Block icon={Users} title="Travellers">
         <div className="grid grid-cols-3 gap-3">

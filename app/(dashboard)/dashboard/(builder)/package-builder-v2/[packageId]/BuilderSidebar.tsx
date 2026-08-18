@@ -27,6 +27,8 @@ import {
 import { cn } from "@/app/lib/utils";
 import { useBuilder, type PanelTab, type DrawerTarget } from "./builder-context";
 import { HotelReplaceView, HotelEditView, HotelRequestView } from "./HotelDrawer";
+import { StayOptionsView } from "./StayOptionsView";
+import { useParams } from "next/navigation";
 import { TransferView, ActivitiesView } from "./DayDrawers";
 import { MealsView, AddonsView, TicketsView, NoteView, StopsView } from "./ExtrasDrawers";
 import { TICKET_TYPE_LABELS } from "./day-mutations";
@@ -52,8 +54,19 @@ const CATALOG_RAIL: { tab: PanelTab; icon: React.ElementType; label: string }[] 
   { tab: "cabs", icon: Car, label: "Cabs" },
 ];
 
+/** The drawer body needs the package id — stay options are saved per package,
+ * server-side, not through the editor's form state. */
+function StayOptionsViewBound({ day }: { day: number }) {
+  const params = useParams<{ packageId: string }>();
+  const packageId = params?.packageId;
+  if (!packageId) return null;
+  return <StayOptionsView packageId={packageId} day={day} />;
+}
+
 function headingForDrawer(target: DrawerTarget): { title: string; description: string } {
   switch (target.kind) {
+    case "stay-options":
+      return { title: `Day ${target.day} — stay options`, description: "One stay, or up to three for the client to choose between. Only the hotels differ." };
     case "hotel-replace":
       return { title: `Day ${target.day} — choose a stay`, description: "Properties near this day's stop. Picking one prices the night from its real rate." };
     case "hotel-edit":
@@ -83,6 +96,7 @@ function headingForDrawer(target: DrawerTarget): { title: string; description: s
 
 function drawerBody(target: DrawerTarget) {
   switch (target.kind) {
+    case "stay-options": return <StayOptionsViewBound day={target.day} />;
     case "hotel-replace": return <HotelReplaceView day={target.day} />;
     case "hotel-edit": return <HotelEditView day={target.day} />;
     case "hotel-request": return <HotelRequestView day={target.day} />;

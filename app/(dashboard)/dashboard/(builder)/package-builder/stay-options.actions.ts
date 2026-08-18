@@ -14,11 +14,13 @@
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
 import type { TransactionClient } from "@/app/lib/db";
-import type { Prisma, StayCategory } from "@/app/generated/prisma";
+import type { Prisma } from "@/app/generated/prisma";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
-import { sortStayCategories, type StayCategoryName } from "./stay-categories";
-import { computeStayCategoryPricing } from "@/app/services/package-pricing.service";
+import {
+  sortStayOptions, normaliseStayLabel, stayLabelProblem, MAX_STAY_OPTIONS,
+} from "./stay-options";
+import { computeStayOptionPricing } from "@/app/services/package-pricing.service";
 
 type Result<T = undefined> = { success: true; data?: T } | { success: false; error: string };
 
@@ -111,7 +113,7 @@ export async function syncRecommendedStayFromDays(packageId: string): Promise<vo
           where: { id: existing.id }, data: { isRecommended: true }, select: { id: true },
         })
       : await db.custom_package_stay_options.create({
-          data: { customPackageId: packageId, category: "STANDARD", isRecommended: true },
+          data: { customPackageId: packageId, label: "Standard", sortOrder: 0, isRecommended: true },
           select: { id: true },
         });
   }
@@ -126,31 +128,39 @@ export async function syncRecommendedStayFromDays(packageId: string): Promise<vo
   }
 }
 
-/** Adds a standard, with an empty stay row per day.
+/** Adds an option, with an empty stay row per day.
  *
  * Empty rather than copied from the recommended one on purpose: a Premium
  * column pre-filled with the Standard hotel is a quote that looks finished and
- * is wrong, and every night would have to be noticed to fix it. */
-export async function addStayCategory(packageId: string, category: StayCategoryName): Promise<Result<{ id: string }>> {
+ * is wrong, and every night would have to be noticed to fix it.
+ *
+ * Adding is always optional — a package quotes one stay until someone asks for
+ * more, and nothing in the builder requires a second. */
+export async function addStayOption(packageId: string, rawLabel: string): Promise<Result<{ id: string }>> {
   try {
     const gate = await assertCanEdit(packageId);
     if (!gate.ok) return { success: false, error: gate.error };
 
-    const existing = await db.custom_package_stay_options.findFirst({
-      where: { customPackageId: packageId, category: category as StayCategory },
-      select: { id: true },
+    const existing = await db.custom_package_stay_options.findMany({
+      where: { customPackageId: packageId },
+      select: { id: true, label: true, sortOrder: true },
     });
-    if (existing) return { success: false, error: `This package already has a ${category.toLowerCase()} option.` };
+    if (existing.length >= MAX_STAY_OPTIONS) {
+      return { success: false, error: `Three stay options is the most a document can show side by side.` };
+    }
+    const problem = stayLabelProblem(rawLabel, existing);
+    if (problem) return { success: false, error: problem };
+    const label = normaliseStayLabel(rawLabel);
 
     const created = await db.$transaction(async (tx) => {
-      const count = await tx.custom_package_stay_options.count({ where: { customPackageId: packageId } });
       const option = await tx.custom_package_stay_options.create({
         data: {
           customPackageId: packageId,
-          category: category as StayCategory,
-          // The first category on a package is the one recommended, so the
-          // document always has a badge to show and a price to lead with.
-          isRecommended: count === 0,
+          label,
+          sortOrder: existing.reduce((max, o) => Math.max(max, o.sortOrder), -1) + 1,
+          // The first option on a package is the one recommended, so the
+          // document always has something to badge and a price to lead with.
+          isRecommended: existing.length === 0,
         },
         select: { id: true },
       });
@@ -162,28 +172,55 @@ export async function addStayCategory(packageId: string, category: StayCategoryN
           data: days.map((d) => ({ itineraryId: d.id, stayOptionId: option.id })),
         });
       }
-      if (count === 0) await mirrorRecommendedOntoDays(tx, packageId);
+      if (existing.length === 0) await mirrorRecommendedOntoDays(tx, packageId);
       return option;
     });
 
     revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     return { success: true, data: created };
   } catch (err) {
-    console.error("[addStayCategory]", err);
+    console.error("[addStayOption]", err);
     return { success: false, error: "Couldn't add that stay option." };
+  }
+}
+
+/** Renames an option. The label is what the client reads as the column
+ * heading, so it has to be present and unique within the package. */
+export async function renameStayOption(packageId: string, optionId: string, rawLabel: string): Promise<Result> {
+  try {
+    const gate = await assertCanEdit(packageId);
+    if (!gate.ok) return { success: false, error: gate.error };
+
+    const existing = await db.custom_package_stay_options.findMany({
+      where: { customPackageId: packageId }, select: { id: true, label: true },
+    });
+    if (!existing.some((o) => o.id === optionId)) {
+      return { success: false, error: "That stay option no longer exists." };
+    }
+    const problem = stayLabelProblem(rawLabel, existing, optionId);
+    if (problem) return { success: false, error: problem };
+
+    await db.custom_package_stay_options.update({
+      where: { id: optionId }, data: { label: normaliseStayLabel(rawLabel) },
+    });
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("[renameStayOption]", err);
+    return { success: false, error: "Couldn't rename that stay option." };
   }
 }
 
 /** Removes a standard and everything quoted under it. Never the last one —
  * the document has to have a stay to print. */
-export async function removeStayCategory(packageId: string, optionId: string): Promise<Result> {
+export async function removeStayOption(packageId: string, optionId: string): Promise<Result> {
   try {
     const gate = await assertCanEdit(packageId);
     if (!gate.ok) return { success: false, error: gate.error };
 
     const options = await db.custom_package_stay_options.findMany({
       where: { customPackageId: packageId },
-      select: { id: true, category: true, isRecommended: true },
+      select: { id: true, label: true, sortOrder: true, isRecommended: true },
     });
     const target = options.find((o) => o.id === optionId);
     if (!target) return { success: false, error: "That stay option no longer exists." };
@@ -195,10 +232,7 @@ export async function removeStayCategory(packageId: string, optionId: string): P
       await tx.custom_package_stay_options.delete({ where: { id: optionId } });
       if (target.isRecommended) {
         // The badge has to land somewhere, so the cheapest survivor takes it.
-        const next = sortStayCategories(
-          options.filter((o) => o.id !== optionId)
-            .map((o) => ({ ...o, category: o.category as StayCategoryName })),
-        )[0];
+        const next = sortStayOptions(options.filter((o) => o.id !== optionId))[0];
         await tx.custom_package_stay_options.update({
           where: { id: next.id }, data: { isRecommended: true },
         });
@@ -209,14 +243,14 @@ export async function removeStayCategory(packageId: string, optionId: string): P
     revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     return { success: true };
   } catch (err) {
-    console.error("[removeStayCategory]", err);
+    console.error("[removeStayOption]", err);
     return { success: false, error: "Couldn't remove that stay option." };
   }
 }
 
 /** Moves the badge — and with it the highlighted price and what the day rows
  * mirror, since the recommended stay is the one everything else reads. */
-export async function setRecommendedStayCategory(packageId: string, optionId: string): Promise<Result> {
+export async function setRecommendedStayOption(packageId: string, optionId: string): Promise<Result> {
   try {
     const gate = await assertCanEdit(packageId);
     if (!gate.ok) return { success: false, error: gate.error };
@@ -239,7 +273,7 @@ export async function setRecommendedStayCategory(packageId: string, optionId: st
     revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     return { success: true };
   } catch (err) {
-    console.error("[setRecommendedStayCategory]", err);
+    console.error("[setRecommendedStayOption]", err);
     return { success: false, error: "Couldn't change the recommended option." };
   }
 }
@@ -300,7 +334,7 @@ export async function saveStayForDay(
 /** The categories as the document wants them: each standard, its price, and its
  * hotel for every night. Shaped to drop straight into PreviewData.stayCategories.
  */
-export async function getStayCategoriesForDocument(packageId: string) {
+export async function getStayOptionsForDocument(packageId: string) {
   const [options, priced] = await Promise.all([
     db.custom_package_stay_options.findMany({
       where: { customPackageId: packageId },
@@ -310,15 +344,14 @@ export async function getStayCategoriesForDocument(packageId: string) {
     // wins where there is one: it is what the client was quoted, and
     // recomputing at read time would quietly restate an old quote at today's
     // catalog rates.
-    computeStayCategoryPricing(packageId).catch(() => []),
+    computeStayOptionPricing(packageId).catch(() => []),
   ]);
   const livePrice = new Map(priced.map((p) => [p.id, p]));
 
-  return sortStayCategories(
-    options.map((o) => ({ ...o, category: o.category as StayCategoryName })),
-  ).map((o) => ({
+  return sortStayOptions(options).map((o) => ({
     id: o.id,
-    category: o.category,
+    label: o.label,
+    sortOrder: o.sortOrder,
     isRecommended: o.isRecommended,
     totalPrice: o.totalPrice ?? livePrice.get(o.id)?.totalPrice ?? null,
     pricePerPerson: o.pricePerPerson ?? livePrice.get(o.id)?.pricePerPerson ?? null,
@@ -331,6 +364,10 @@ export async function getStayCategoriesForDocument(packageId: string) {
       rooms: s.roomsCount,
       checkIn: s.hotelCheckIn,
       checkOut: s.hotelCheckOut,
+      // Editor-only: which source this cell came from, and whether the hotel
+      // team still owes it. The document ignores both.
+      roomPricingId: s.roomPricingId,
+      pending: s.hotelPending,
     }])),
   }));
 }

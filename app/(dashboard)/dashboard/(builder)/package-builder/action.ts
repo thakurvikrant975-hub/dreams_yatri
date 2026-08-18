@@ -6,7 +6,7 @@ import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayCategoryPricing } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
@@ -20,7 +20,7 @@ import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-c
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
 import { missingTravellerAgesError } from "./traveller-ages";
-import { syncRecommendedStayFromDays } from "./stay-categories.actions";
+import { syncRecommendedStayFromDays } from "./stay-options.actions";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -2955,7 +2955,7 @@ export async function markPackageReady(
     // way the package's own figure is frozen. From here the prices the client
     // compares are settled numbers, not ones recomputed against catalog rates
     // that may have moved since.
-    await persistStayCategoryPricing(packageId).catch((err) => {
+    await persistStayOptionPricing(packageId).catch((err) => {
       // Never block a submission on this: the package's own price is already
       // authoritative, and a standard with no stored figure falls back to a
       // live computation wherever it is shown.

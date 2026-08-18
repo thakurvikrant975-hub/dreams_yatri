@@ -64,7 +64,7 @@ import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
-import { getStayCategoriesForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-categories.actions";
+import { getStayOptionsForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
@@ -434,12 +434,12 @@ export default function PackageBuilderDetailPage() {
       Kept beside the form rather than in it: they are saved per standard,
       server-side, while `form` only ever describes the recommended one (which
       is what the day rows carry). */
-  const [stayCategories, setStayCategories] = useState<PreviewData["stayCategories"]>([]);
-  const reloadStayCategories = useCallback(async () => {
-    try { setStayCategories(await getStayCategoriesForDocument(packageId)); }
+  const [stayOptions, setStayOptions] = useState<PreviewData["stayOptions"]>([]);
+  const reloadStayOptions = useCallback(async () => {
+    try { setStayOptions(await getStayOptionsForDocument(packageId)); }
     catch { /* the columns are one section; a failed read must not blank the editor */ }
   }, [packageId]);
-  useEffect(() => { void reloadStayCategories(); }, [reloadStayCategories]);
+  useEffect(() => { void reloadStayOptions(); }, [reloadStayOptions]);
   // Optional message for costing, shown on verify-packages — cleared each
   // time the dialog opens so it never carries a stale note from a previous
   // cycle into a new submission by accident.
@@ -1815,7 +1815,7 @@ Rules:
     amendmentPolicy: [...form.amendmentPolicy, ...form.extraPolicyItems.amendmentPolicy],
     travelBenefits: [...form.travelBenefits, ...form.extraPolicyItems.travelBenefits],
     stopImages,
-    stayCategories,
+    stayOptions,
     clientName: query.name ?? "",
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",
@@ -2145,7 +2145,7 @@ Rules:
               onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={isLocked ? undefined : handleItineraryImageChange}
               onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
-              stayEditing={isLocked ? undefined : { packageId, onCategoriesChanged: reloadStayCategories }}
+              stayEditing={isLocked ? undefined : { packageId, onStayOptionsChanged: reloadStayOptions }}
               variant="flat"
             />
             </BuilderErrorBoundary>
@@ -2168,7 +2168,7 @@ Rules:
               onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={isLocked ? undefined : handleItineraryImageChange}
               onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
-              stayEditing={isLocked ? undefined : { packageId, onCategoriesChanged: reloadStayCategories }}
+              stayEditing={isLocked ? undefined : { packageId, onStayOptionsChanged: reloadStayOptions }}
               variant="flat"
               />
             </div>
@@ -2305,8 +2305,6 @@ Rules:
               <TripSetupPanel
                 computed={computeFinalPricing()}
                 onApplyPrice={applyComputedPricing}
-                stayCategories={(stayCategories ?? []).map((c) => ({ id: c.id, category: c.category, isRecommended: c.isRecommended }))}
-                stayEditing={{ packageId, onCategoriesChanged: reloadStayCategories }}
               />
             </fieldset>
           }

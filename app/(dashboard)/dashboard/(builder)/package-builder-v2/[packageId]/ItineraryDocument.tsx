@@ -391,12 +391,10 @@ import SavingsBadge from "@/app/components/packages/SavingBadge";
 import type { DayItinerary, ActivityInput, StopInput, TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
-import { StayCategoryControls } from "./StayCategoryControls";
-import { saveStayForDay } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-categories.actions";
+import { saveStayForDay } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import {
-  stayCategoryLabel, buildStayRuns, STAY_CATEGORIES,
-  type StayCategoryName, type StayRun,
-} from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-categories";
+  buildStayRuns, type StayRun, type StayCell,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 
 export interface PreviewData {
   title: string;
@@ -466,9 +464,11 @@ export interface PreviewData {
    * is no per-category document and no per-category PDF. Absent or
    * single-entry on a package quoted at one standard, where the original
    * single-hotel layout renders instead and nothing changes. */
-  stayCategories?: {
+  stayOptions?: {
     id: string;
-    category: StayCategoryName;
+    /** The exec's own name for it — the client's column heading. */
+    label: string;
+    sortOrder: number;
     isRecommended: boolean;
     totalPrice: number | null;
     pricePerPerson: number | null;
@@ -2313,15 +2313,15 @@ function StayColumnPicker({
 }
 
 function StayColumns({
-  categories, day, nights, checkIn, checkOut, packageId, searchCity, onCategoriesChanged,
+  categories, day, nights, checkIn, checkOut, packageId, searchCity, onStayOptionsChanged,
 }: {
   /** Present only in the builder — that is what turns the columns editable.
    * Absent on the client's page and in the PDF, which stay read-only. */
   packageId?: string;
   searchCity?: string;
-  onCategoriesChanged?: () => void | Promise<void>;
+  onStayOptionsChanged?: () => void | Promise<void>;
   /** Cheapest first, already sorted by the caller. */
-  categories: NonNullable<PreviewData["stayCategories"]>;
+  categories: NonNullable<PreviewData["stayOptions"]>;
   /** The night this block starts on — which cell of each category to show. */
   day: number;
   nights: number;
@@ -2329,7 +2329,7 @@ function StayColumns({
   checkOut: string;
 }) {
   const DOC = useDocTheme();
-  const editing = !!packageId && !!onCategoriesChanged;
+  const editing = !!packageId && !!onStayOptionsChanged;
   // In the builder EVERY standard gets a column, even one with no hotel yet —
   // an empty column is how the exec sees the gap and where they fill it, and
   // filtering it out made a newly added standard invisible and therefore
@@ -2378,7 +2378,7 @@ function StayColumns({
           const { manualHotelName: hotelName, manualRoomName: roomName } = splitManualHotelName(cell.hotel ?? "");
           return (
             <div
-              key={c.category}
+              key={c.id}
               className="rounded-lg overflow-hidden flex flex-col"
               style={{
                 border: `1px solid ${c.isRecommended ? DOC.accent : DOC.rule}`,
@@ -2418,7 +2418,7 @@ function StayColumns({
 
               <div className="px-2.5 py-2 space-y-0.5 flex-1">
                 <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: c.isRecommended ? DOC.accentInk : DOC.inkMuted }}>
-                  {stayCategoryLabel(c.category)}
+                  {c.label}
                 </p>
                 <p className="text-[11.5px] font-semibold leading-tight" style={{ color: cell.hotel ? DOC.ink : DOC.inkMuted }}>
                   {cell.hotel ? titleCase(hotelName ?? cell.hotel) : "No hotel picked yet"}
@@ -2440,7 +2440,7 @@ function StayColumns({
                 )}
               </div>
 
-              {packageId && onCategoriesChanged && (
+              {packageId && onStayOptionsChanged && (
                 <StayColumnPicker
                   packageId={packageId}
                   optionId={c.id}
@@ -2448,7 +2448,7 @@ function StayColumns({
                   nights={nights}
                   currentLabel={cell.hotel}
                   searchCity={searchCity ?? ""}
-                  onSaved={onCategoriesChanged}
+                  onSaved={onStayOptionsChanged}
                 />
               )}
             </div>
@@ -2462,15 +2462,15 @@ function StayColumns({
 
 function DayCardPreview({
   day, allDays, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals, addOns,
-  stayCategories, stayRun: stayBlock, stayContinues, stayEditing,
+  stayOptions, stayRun: stayBlock, stayContinues, stayEditing,
 }: {
   day: DayItinerary;
   /** The stay standards this package is quoted at. Two or more and this day's
    * stay renders as columns (see StayColumns); one or none and the original
    * single-hotel layout runs, unchanged. */
-  stayCategories?: PreviewData["stayCategories"];
+  stayOptions?: PreviewData["stayOptions"];
   /** Present only in the builder — turns the stay columns editable. */
-  stayEditing?: { packageId: string; onCategoriesChanged: () => void | Promise<void> };
+  stayEditing?: { packageId: string; onStayOptionsChanged: () => void | Promise<void> };
   /** The stay block that STARTS on this night, when one does — the whole run
    * of nights, with every category's hotel. Null on a night that continues a
    * block or has no stay. */
@@ -2519,6 +2519,14 @@ function DayCardPreview({
   // Per-section toolbars. Deletes don't confirm: undo covers them now (⌘Z),
   // and a modal on every clear would cost more than the mistake does.
   const stayActions: SectionAction[] | undefined = canEditDoc ? [
+    {
+      // The way in to quoting this night at more than one standard, and to
+      // filling each one — from the catalog, by hand, or via the hotel team.
+      // First in the list because "what are we offering for this night" comes
+      // before "what are the details of this one hotel".
+      icon: Hotel, label: "Stay options",
+      onClick: () => builder!.openDrawer({ kind: "stay-options", day: day.day }),
+    },
     {
       icon: Pencil, label: "Edit stay",
       onClick: () => builder!.openDrawer(day.hotelPending
@@ -2696,20 +2704,6 @@ function DayCardPreview({
             section, exactly as before. */}
 
         {/* Hotel info */}
-        {/* The standards this package is quoted at. Outside the hasHotel gate
-            on purpose: it is a property of the package, not of this day's
-            stay, and gating it on a hotel already being picked put it out of
-            reach on exactly the packages that have none yet. Shown on the
-            night a stay starts (or on any hotel-less day, where there is no
-            run to start), never repeated mid-run. */}
-        {stayEditing && continuesFrom == null && !stayContinues && (stayCategories?.length ?? 0) > 0 && (
-          <StayCategoryControls
-            packageId={stayEditing.packageId}
-            categories={stayCategories!.map((c) => ({ id: c.id, category: c.category, isRecommended: c.isRecommended }))}
-            onChanged={stayEditing.onCategoriesChanged}
-          />
-        )}
-
         {hasHotel && (
           <DaySlot day={day.day} accepts="hotel">
             <EditableSection actions={stayActions}>
@@ -2721,14 +2715,14 @@ function DayCardPreview({
                   <DaySubHead icon={Hotel} label="Stay At" />
                   <div className={SUBHEAD_INDENT}>
                     <StayColumns
-                      categories={stayCategories!}
+                      categories={stayOptions!}
                       day={day.day}
                       nights={stayBlock.nights}
                       checkIn={stayBlock.checkIn ?? day.hotelCheckIn}
                       checkOut={stayBlock.checkOut ?? day.hotelCheckOut}
                       packageId={stayEditing?.packageId}
                       searchCity={day.accommodationLocation || ""}
-                      onCategoriesChanged={stayEditing?.onCategoriesChanged}
+                      onStayOptionsChanged={stayEditing?.onStayOptionsChanged}
                     />
                   </div>
                 </div>
@@ -3527,7 +3521,7 @@ export function ItineraryDocument({
    * pick each standard's hotel, move the Recommended badge, add or drop a
    * standard. Absent on the client's page and in the PDF, which stay
    * read-only, so the same component serves all three. */
-  stayEditing?: { packageId: string; onCategoriesChanged: () => void | Promise<void> };
+  stayEditing?: { packageId: string; onStayOptionsChanged: () => void | Promise<void> };
   /** Rendered as the client's live page on the public share link, rather than
    * inside the builder. Hides every builder affordance and swaps in the same
    * export-only fallbacks the PDF gets (see PRINT_STYLES), so the page and the
@@ -3542,28 +3536,30 @@ export function ItineraryDocument({
 
   const routeSteps = buildRouteSteps(form);
 
-  // Stay blocks, computed from the categories rather than from the day rows.
-  // The day row only ever carries the recommended stay, so a run derived from
-  // it would be wrong the moment Deluxe changed hotel on a night Standard did
+  // Stay blocks, computed from the options rather than from the day rows. The
+  // day row only ever carries the recommended stay, so a run derived from it
+  // would be wrong the moment one option changed hotel on a night another did
   // not — the block would claim more nights than every column actually holds.
-  const stayCategories = form.stayCategories ?? [];
-  const stayRuns: StayRun[] = stayCategories.length > 1
+  const stayOptions = form.stayOptions ?? [];
+  const stayOptionIds = stayOptions.map((o) => o.id);
+  const recommendedStay = stayOptions.find((o) => o.isRecommended) ?? stayOptions[0];
+  const stayRuns: StayRun[] = stayOptions.length > 1
     ? buildStayRuns(form.itineraries.map((d) => {
-        const byCategory: Partial<Record<StayCategoryName, { hotel: string | null; photo?: string | null; location?: string | null; starRating?: string | null; mealPlan?: string | null; rooms?: number | null }>> = {};
-        for (const c of stayCategories) {
-          const cell = c.byDay?.[d.day];
-          if (cell) byCategory[c.category] = cell;
+        const byOption: Record<string, StayCell> = {};
+        for (const o of stayOptions) {
+          const cell = o.byDay?.[d.day];
+          if (cell) byOption[o.id] = cell;
         }
         return {
           day: d.day,
           // Check-in/out belong to the stay, so they come off the recommended
-          // category's own cell first; the day row is the fallback for a
-          // package whose categories predate those fields being filled in.
-          checkIn: stayCategories.find((c) => c.isRecommended)?.byDay?.[d.day]?.checkIn ?? d.hotelCheckIn,
-          checkOut: stayCategories.find((c) => c.isRecommended)?.byDay?.[d.day]?.checkOut ?? d.hotelCheckOut,
-          byCategory,
+          // option's own cell first; the day row is the fallback for a package
+          // whose options predate those fields being filled in.
+          checkIn: recommendedStay?.byDay?.[d.day]?.checkIn ?? d.hotelCheckIn,
+          checkOut: recommendedStay?.byDay?.[d.day]?.checkOut ?? d.hotelCheckOut,
+          byOption,
         };
-      }))
+      }), stayOptionIds)
     : [];
 
   const detailedShiftedMeals = computeShiftedMeals(form.itineraries);
@@ -3576,9 +3572,9 @@ export function ItineraryDocument({
   // The headline figure. With several standards quoted this is the recommended
   // one's, so the big number and the badge below it never name different
   // prices; with one, it is the package's own as before.
-  const recommendedCategory = (form.stayCategories ?? []).find((c) => c.isRecommended)
-    ?? (form.stayCategories ?? [])[0];
-  const headlineTotal = (form.stayCategories?.length ?? 0) > 1 && (recommendedCategory?.totalPrice ?? 0) > 0
+  const recommendedCategory = (form.stayOptions ?? []).find((c) => c.isRecommended)
+    ?? (form.stayOptions ?? [])[0];
+  const headlineTotal = (form.stayOptions?.length ?? 0) > 1 && (recommendedCategory?.totalPrice ?? 0) > 0
     ? recommendedCategory!.totalPrice!
     : form.totalPrice ? Number(form.totalPrice) : null;
   const priceStr = headlineTotal != null
@@ -3594,7 +3590,7 @@ export function ItineraryDocument({
   // the headline followed the recommended one, the card read "INR 15,750" next
   // to "~INR 5,513 per person" — two different standards, side by side, with
   // nothing to say so.
-  const headlinePerPerson = (form.stayCategories?.length ?? 0) > 1 && (recommendedCategory?.pricePerPerson ?? 0) > 0
+  const headlinePerPerson = (form.stayOptions?.length ?? 0) > 1 && (recommendedCategory?.pricePerPerson ?? 0) > 0
     ? recommendedCategory!.pricePerPerson!
     : form.pricePerPerson ? Number(form.pricePerPerson) : null;
   const perPersonExact =
@@ -3801,7 +3797,7 @@ export function ItineraryDocument({
                     onActivityCaptionChange={onActivityCaptionChange}
                     shiftedMeals={detailedShiftedMeals[i]}
                     addOns={form.addOns}
-                    stayCategories={form.stayCategories}
+                    stayOptions={form.stayOptions}
                     stayEditing={stayEditing}
                     stayRun={stayRuns.find((r) => r.fromDay === d.day) ?? null}
                     stayContinues={stayRuns.some((r) => r.fromDay < d.day && d.day <= r.toDay)}
@@ -3963,15 +3959,15 @@ export function ItineraryDocument({
                       page of their own, because the client is choosing between
                       them and a choice split across two pages is not one.
                       Absent entirely on a package quoted at one standard. */}
-                  {(form.stayCategories?.length ?? 0) > 1 && (
+                  {(form.stayOptions?.length ?? 0) > 1 && (
                     <div className="mt-3 pt-3 grid gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.14)" }}>
                       <div className={cn(
                         "grid gap-2",
-                        (form.stayCategories?.length ?? 0) === 2 ? "grid-cols-2" : "grid-cols-3",
+                        (form.stayOptions?.length ?? 0) === 2 ? "grid-cols-2" : "grid-cols-3",
                       )}>
-                        {(form.stayCategories ?? []).map((c) => (
+                        {(form.stayOptions ?? []).map((c) => (
                           <div
-                            key={c.category}
+                            key={c.id}
                             className="rounded-lg px-2.5 py-2"
                             style={{
                               backgroundColor: c.isRecommended ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.05)",
@@ -3979,7 +3975,7 @@ export function ItineraryDocument({
                             }}
                           >
                             <p className="flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-widest text-white/60">
-                              {stayCategoryLabel(c.category)}
+                              {c.label}
                               {c.isRecommended && (
                                 <span className="rounded-full bg-white/85 px-1.5 py-px text-[7.5px] font-bold text-neutral-900">
                                   Recommended
