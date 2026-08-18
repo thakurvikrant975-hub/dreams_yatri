@@ -30,6 +30,7 @@ import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import {
   continuesStayFrom, stayRun, removeStay, removeTransport, moveActivityTo, removeActivity,
   emptyTicket, emptyAddon, stopLimitReason, recalcFromStops,
+  applyHotelRoomSelection, emptyDay,
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
 import {
@@ -389,6 +390,9 @@ import DyLogo from "@/app/components/ui/DyLogo";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import type { DayItinerary, ActivityInput, StopInput, TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
+import { HotelRoomPicker } from "./HotelRoomPicker";
+import { StayCategoryControls } from "./StayCategoryControls";
+import { saveStayForDay } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-categories.actions";
 import {
   stayCategoryLabel, buildStayRuns, STAY_CATEGORIES,
   type StayCategoryName, type StayRun,
@@ -2217,9 +2221,105 @@ function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }
  * with one stay standard keeps the original single-hotel layout below,
  * untouched — which is every package built before categories existed.
  */
-function StayColumns({
-  categories, day, nights, checkIn, checkOut,
+
+/** Picks the hotel for one column — one standard, one block of nights.
+ *
+ * Uses the same catalog search the day's own stay uses, and the same field
+ * mapping (applyHotelRoomSelection against a blank day), so a Deluxe column and
+ * a recommended stay picked from the same room end up describing it identically
+ * — right down to the occupancy caps the price is computed from.
+ *
+ * Writes straight through to the category rather than into form state: only the
+ * recommended standard lives on the day row, so there is nowhere in `form` for
+ * a Deluxe hotel to sit. Applied to every night of the block, because that is
+ * what a stay is — one hotel, N nights.
+ */
+function StayColumnPicker({
+  packageId, optionId, fromDay, nights, currentLabel, searchCity, onSaved,
 }: {
+  packageId: string;
+  optionId: string;
+  fromDay: number;
+  nights: number;
+  currentLabel: string | null;
+  searchCity: string;
+  onSaved: () => void | Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  return (
+    <div className="builder-only no-print px-2.5 pb-2">
+      <HotelRoomPicker
+        value={null}
+        initialLabel={currentLabel ?? ""}
+        searchCity={searchCity}
+        refCoords={null}
+        placeholder={currentLabel ? "Change hotel…" : "Pick this standard's hotel…"}
+        onSelect={async (room) => {
+          setSaving(true);
+          // Through the same mapping the day's own stay uses, so the two can't
+          // describe the same room differently.
+          const mapped = applyHotelRoomSelection(emptyDay(fromDay), room);
+          const fields = {
+            accommodation: mapped.accommodation,
+            accommodationPhoto: mapped.accommodationPhoto,
+            accommodationRoomPhotos: mapped.accommodationRoomPhotos,
+            accommodationLocation: mapped.accommodationLocation,
+            accommodationRoomSpecs: mapped.accommodationRoomSpecs,
+            accommodationStarRating: mapped.accommodationStarRating,
+            accommodationRoomCapacity: mapped.accommodationRoomCapacity,
+            accommodationMaxAdults: mapped.accommodationMaxAdults,
+            accommodationMaxChildren: mapped.accommodationMaxChildren,
+            accommodationExtraBedCapacity: mapped.accommodationExtraBedCapacity,
+            roomPricingId: mapped.roomPricingId,
+            roomsCount: mapped.roomsCount,
+            hotelCheckIn: mapped.hotelCheckIn,
+            hotelCheckOut: mapped.hotelCheckOut,
+            hotelMealPlan: mapped.hotelMealPlan,
+            manualHotelPricePerNight: null,
+            manualExtraBeds: null,
+            manualExtraBedRate: null,
+          };
+          // Every night of the block, so the column names one hotel for the
+          // whole stay rather than splitting it after night one.
+          for (let d = fromDay; d < fromDay + nights; d++) {
+            const r = await saveStayForDay(packageId, optionId, d, fields);
+            if (!r.success) { toast.error(r.error); break; }
+          }
+          setSaving(false);
+          await onSaved();
+        }}
+        onClear={async () => {
+          setSaving(true);
+          for (let d = fromDay; d < fromDay + nights; d++) {
+            await saveStayForDay(packageId, optionId, d, {
+              accommodation: null, accommodationPhoto: null, accommodationRoomPhotos: [],
+              accommodationLocation: null, accommodationRoomSpecs: null, accommodationStarRating: null,
+              roomPricingId: null, roomsCount: null, hotelMealPlan: null,
+              manualHotelPricePerNight: null,
+            });
+          }
+          setSaving(false);
+          await onSaved();
+        }}
+      />
+      {saving && (
+        <p className="flex items-center gap-1 pt-1 text-[10px] text-dashboard-base-content/50">
+          <Loader2 size={9} className="animate-spin" /> Saving all {nights} night{nights !== 1 ? "s" : ""}…
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StayColumns({
+  categories, day, nights, checkIn, checkOut, packageId, searchCity, onCategoriesChanged,
+}: {
+  /** Present only in the builder — that is what turns the columns editable.
+   * Absent on the client's page and in the PDF, which stay read-only. */
+  packageId?: string;
+  searchCity?: string;
+  onCategoriesChanged?: () => void | Promise<void>;
   /** Cheapest first, already sorted by the caller. */
   categories: NonNullable<PreviewData["stayCategories"]>;
   /** The night this block starts on — which cell of each category to show. */
@@ -2256,6 +2356,14 @@ function StayColumns({
           <p className="text-[11.5px] font-semibold" style={{ color: DOC.ink }}>{checkOut || "—"}</p>
         </div>
       </div>
+
+      {packageId && onCategoriesChanged && (
+        <StayCategoryControls
+          packageId={packageId}
+          categories={categories.map((c) => ({ id: c.id, category: c.category, isRecommended: c.isRecommended }))}
+          onChanged={onCategoriesChanged}
+        />
+      )}
 
       <p className="text-[10.5px] font-medium" style={{ color: DOC.accentInk }}>
         Stays will be allocated based on availability or a similar category
@@ -2331,6 +2439,18 @@ function StayColumns({
                   </p>
                 )}
               </div>
+
+              {packageId && onCategoriesChanged && (
+                <StayColumnPicker
+                  packageId={packageId}
+                  optionId={c.id}
+                  fromDay={day}
+                  nights={nights}
+                  currentLabel={cell.hotel}
+                  searchCity={searchCity ?? ""}
+                  onSaved={onCategoriesChanged}
+                />
+              )}
             </div>
           );
         })}
@@ -2342,13 +2462,15 @@ function StayColumns({
 
 function DayCardPreview({
   day, allDays, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals, addOns,
-  stayCategories, stayRun: stayBlock, stayContinues,
+  stayCategories, stayRun: stayBlock, stayContinues, stayEditing,
 }: {
   day: DayItinerary;
   /** The stay standards this package is quoted at. Two or more and this day's
    * stay renders as columns (see StayColumns); one or none and the original
    * single-hotel layout runs, unchanged. */
   stayCategories?: PreviewData["stayCategories"];
+  /** Present only in the builder — turns the stay columns editable. */
+  stayEditing?: { packageId: string; onCategoriesChanged: () => void | Promise<void> };
   /** The stay block that STARTS on this night, when one does — the whole run
    * of nights, with every category's hotel. Null on a night that continues a
    * block or has no stay. */
@@ -2590,6 +2712,9 @@ function DayCardPreview({
                       nights={stayBlock.nights}
                       checkIn={stayBlock.checkIn ?? day.hotelCheckIn}
                       checkOut={stayBlock.checkOut ?? day.hotelCheckOut}
+                      packageId={stayEditing?.packageId}
+                      searchCity={day.accommodationLocation || ""}
+                      onCategoriesChanged={stayEditing?.onCategoriesChanged}
                     />
                   </div>
                 </div>
@@ -3364,7 +3489,7 @@ const PRINT_STYLES = `
 
 export function ItineraryDocument({
   form, onCoverImageChange, onCoverImagePositionChange, onImageChange, onActivityCaptionChange, variant = "card",
-  published = false,
+  published = false, stayEditing,
 }: {
   form: PreviewData;
   /** Present only in the internal builder's live preview — enables dropping
@@ -3384,6 +3509,11 @@ export function ItineraryDocument({
    * both so the on-screen preview reads as a plain A4 page — matching exactly
    * what window.print() produces, where these are already stripped. */
   variant?: "card" | "flat";
+  /** Present only in the builder: makes the stay columns editable in place —
+   * pick each standard's hotel, move the Recommended badge, add or drop a
+   * standard. Absent on the client's page and in the PDF, which stay
+   * read-only, so the same component serves all three. */
+  stayEditing?: { packageId: string; onCategoriesChanged: () => void | Promise<void> };
   /** Rendered as the client's live page on the public share link, rather than
    * inside the builder. Hides every builder affordance and swaps in the same
    * export-only fallbacks the PDF gets (see PRINT_STYLES), so the page and the
@@ -3658,6 +3788,7 @@ export function ItineraryDocument({
                     shiftedMeals={detailedShiftedMeals[i]}
                     addOns={form.addOns}
                     stayCategories={form.stayCategories}
+                    stayEditing={stayEditing}
                     stayRun={stayRuns.find((r) => r.fromDay === d.day) ?? null}
                     stayContinues={stayRuns.some((r) => r.fromDay < d.day && d.day <= r.toDay)}
                   />

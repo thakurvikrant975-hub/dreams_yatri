@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -64,6 +64,7 @@ import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
+import { getStayCategoriesForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-categories.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
@@ -429,6 +430,16 @@ export default function PackageBuilderDetailPage() {
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
+  /** The stay standards, as the document's columns and price cards read them.
+      Kept beside the form rather than in it: they are saved per standard,
+      server-side, while `form` only ever describes the recommended one (which
+      is what the day rows carry). */
+  const [stayCategories, setStayCategories] = useState<PreviewData["stayCategories"]>([]);
+  const reloadStayCategories = useCallback(async () => {
+    try { setStayCategories(await getStayCategoriesForDocument(packageId)); }
+    catch { /* the columns are one section; a failed read must not blank the editor */ }
+  }, [packageId]);
+  useEffect(() => { void reloadStayCategories(); }, [reloadStayCategories]);
   // Optional message for costing, shown on verify-packages — cleared each
   // time the dialog opens so it never carries a stale note from a previous
   // cycle into a new submission by accident.
@@ -1804,6 +1815,7 @@ Rules:
     amendmentPolicy: [...form.amendmentPolicy, ...form.extraPolicyItems.amendmentPolicy],
     travelBenefits: [...form.travelBenefits, ...form.extraPolicyItems.travelBenefits],
     stopImages,
+    stayCategories,
     clientName: query.name ?? "",
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",
@@ -2133,6 +2145,7 @@ Rules:
               onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={isLocked ? undefined : handleItineraryImageChange}
               onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
+              stayEditing={isLocked ? undefined : { packageId, onCategoriesChanged: reloadStayCategories }}
               variant="flat"
             />
             </BuilderErrorBoundary>

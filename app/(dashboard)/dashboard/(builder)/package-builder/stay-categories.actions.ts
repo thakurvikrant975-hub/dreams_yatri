@@ -247,7 +247,12 @@ export async function setRecommendedStayCategory(packageId: string, optionId: st
 /** Writes one (day x category) cell — the hotel pick itself. Mirrors onto the
  * day row when the category written is the recommended one. */
 export async function saveStayForDay(
-  packageId: string, optionId: string, itineraryId: string, fields: Record<string, unknown>,
+  packageId: string, optionId: string,
+  /** Day NUMBER, not the row id. saveCustomPackage deletes and recreates the
+   * day rows on every save, so an id read into the browser a minute ago may
+   * already be gone; the day number is what survives. */
+  day: number,
+  fields: Record<string, unknown>,
 ): Promise<Result> {
   try {
     const gate = await assertCanEdit(packageId);
@@ -258,6 +263,13 @@ export async function saveStayForDay(
       select: { id: true, isRecommended: true },
     });
     if (!option) return { success: false, error: "That stay option no longer exists." };
+
+    const itinerary = await db.custom_itineraries.findFirst({
+      where: { customPackageId: packageId, day },
+      select: { id: true },
+    });
+    if (!itinerary) return { success: false, error: `Day ${day} isn't part of this package any more — reload and try again.` };
+    const itineraryId = itinerary.id;
 
     // Only the stay columns, whatever else the caller passed — this must not
     // become a back door into the rest of the day row.

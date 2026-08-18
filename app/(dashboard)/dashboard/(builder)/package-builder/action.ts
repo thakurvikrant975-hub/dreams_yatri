@@ -20,6 +20,7 @@ import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-c
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
 import { missingTravellerAgesError } from "./traveller-ages";
+import { syncRecommendedStayFromDays } from "./stay-categories.actions";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
@@ -2311,6 +2312,20 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       || existing.cabQuantity !== (it.cabQuantity ?? null)
       || JSON.stringify(existing.extraCabs ?? []) !== JSON.stringify(filteredExtraCabs(it));
 
+    // Stay categories hang off the day rows about to be deleted, and
+    // custom_itinerary_stays cascades on itineraryId — so an ordinary save
+    // would take every standard's hotels with it. Read them out keyed by DAY
+    // NUMBER, which is what survives the recreate, and put them back below.
+    //
+    // Not fixed by making the save upsert instead: the delete/recreate is
+    // load-bearing here (day renumbering, the activities cascade, the
+    // hotel-request guards), and rebuilding that is a far larger change than
+    // carrying the stays across.
+    const carriedStays = await db.custom_itinerary_stays.findMany({
+      where: { itinerary: { customPackageId: pkg.id } },
+      include: { itinerary: { select: { day: true } } },
+    });
+
     await db.custom_itineraries.deleteMany({
       where: { customPackageId: pkg.id },
     });
@@ -2447,6 +2462,46 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         { timeout: 25_000, maxWait: 10_000 },
       );
     }
+
+    // Re-attach each standard's hotels to the rows that just replaced the ones
+    // they hung from, matching on day number. A day the save dropped takes its
+    // stays with it, which is right — the day is gone.
+    //
+    // The RECOMMENDED standard is skipped: its columns live on the day row
+    // itself and have just been written from the form, so restoring the
+    // pre-save copy would put the old hotel back and undo the edit that caused
+    // the save. It is re-derived from the day row instead, which is the
+    // direction the mirror runs everywhere else.
+    if (carriedStays.length > 0) {
+      const freshDays = await db.custom_itineraries.findMany({
+        where: { customPackageId: pkg.id },
+        select: { id: true, day: true },
+      });
+      const idByDay = new Map(freshDays.map((d) => [d.day, d.id]));
+      const recommended = await db.custom_package_stay_options.findFirst({
+        where: { customPackageId: pkg.id, isRecommended: true },
+        select: { id: true },
+      });
+
+      const restored = carriedStays
+        .filter((st) => idByDay.has(st.itinerary.day))
+        .filter((st) => st.stayOptionId !== recommended?.id)
+        .map((st) => {
+          const { id: _id, itineraryId: _itineraryId, itinerary: _itinerary, createdAt: _c, updatedAt: _u, ...fields } = st;
+          return {
+            ...fields,
+            // Prisma reads Json as JsonValue (null included) but will not take
+            // a bare null on write; undefined leaves the column at its default.
+            extraRooms: (fields.extraRooms ?? undefined) as Prisma.InputJsonValue | undefined,
+            itineraryId: idByDay.get(st.itinerary.day)!,
+          };
+        });
+      if (restored.length > 0) {
+        await db.custom_itinerary_stays.createMany({ data: restored, skipDuplicates: true });
+      }
+    }
+    // The recommended standard, rebuilt from the day rows the form just wrote.
+    await syncRecommendedStayFromDays(pkg.id);
 
     // Tickets — reconciled by id, not replaced wholesale.
     //
