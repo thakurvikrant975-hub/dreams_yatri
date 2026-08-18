@@ -1213,6 +1213,36 @@ Rules:
   }
 
   // ── Save ───────────────────────────────────────────────────────────────────
+  /** Runs after any successful save.
+   *
+   * Two jobs, both about stay options, which live server-side and so cannot
+   * ride along in the save payload:
+   *
+   *   - a duplicate's options are cloned once this draft has an id of its own
+   *     (the payload only describes the day rows, which carry the recommended
+   *     option and nothing else);
+   *   - the document re-reads them, because a save re-mirrors the recommended
+   *     option from the day rows and the copy held here would otherwise keep
+   *     showing the hotel that was just replaced.
+   *
+   * The re-read is skipped below two options, where nothing in the document
+   * reads them — the columns and the per-option price cards both require more
+   * than one — so an ordinary single-stay package pays nothing for this.
+   */
+  async function afterSuccessfulSave() {
+    if (cloneStayOptionsFrom) {
+      const from = cloneStayOptionsFrom;
+      // Cleared first and unconditionally: a failure reports itself rather than
+      // retrying on every subsequent save.
+      setCloneStayOptionsFrom(null);
+      const cloned = await cloneStayOptionsInto(from, packageId);
+      if (!cloned.success) toast.error(cloned.error ?? "Couldn't copy the stay options across.");
+      await reloadStayOptions();
+      return;
+    }
+    if ((stayOptions?.length ?? 0) > 1) await reloadStayOptions();
+  }
+
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
       const result = await saveCustomPackage({
@@ -1234,6 +1264,7 @@ Rules:
         setSavedOk(true);
         setTimeout(() => setSavedOk(false), 3000);
         warnStaleHotelRequests(result.staleHotelRequestDays);
+        await afterSuccessfulSave();
       } else {
         toast.error(result.error ?? "Failed to save");
       }
@@ -1375,6 +1406,7 @@ Rules:
         return;
       }
       warnStaleHotelRequests(result.staleHotelRequestDays);
+      await afterSuccessfulSave();
 
       const result2 = await markPackageReady(packageId, readyNote);
       if (result2.success) {
