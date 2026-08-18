@@ -28,7 +28,7 @@ import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { StarAndCrescentIcon, MapPinIcon, RoadHorizonIcon } from "@phosphor-icons/react";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import {
-  continuesStayFrom, removeStay, removeTransport, moveActivityTo, removeActivity,
+  continuesStayFrom, stayRun, removeStay, removeTransport, moveActivityTo, removeActivity,
   emptyTicket, emptyAddon, stopLimitReason, recalcFromStops,
 } from "./day-mutations";
 import { EditableText } from "./EditableText";
@@ -389,6 +389,10 @@ import DyLogo from "@/app/components/ui/DyLogo";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import type { DayItinerary, ActivityInput, StopInput, TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
+import {
+  stayCategoryLabel, buildStayRuns, STAY_CATEGORIES,
+  type StayCategoryName, type StayRun,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-categories";
 
 export interface PreviewData {
   title: string;
@@ -450,6 +454,32 @@ export interface PreviewData {
    * show the saving rather than just a smaller number. Absent on every package
    * without one, which is most of them. */
   discount?: { originalPrice: number; amount: number; label: string } | null;
+  /** The stay standards this trip is quoted at — Standard, Deluxe, Premium —
+   * with each one's hotel for every night and its own price.
+   *
+   * All of them render together: the stay block prints a column per category
+   * and the pricing block prints a price per category, in ONE document. There
+   * is no per-category document and no per-category PDF. Absent or
+   * single-entry on a package quoted at one standard, where the original
+   * single-hotel layout renders instead and nothing changes. */
+  stayCategories?: {
+    id: string;
+    category: StayCategoryName;
+    isRecommended: boolean;
+    totalPrice: number | null;
+    pricePerPerson: number | null;
+    /** Day number to that night's hotel under this category. */
+    byDay: Record<number, {
+      hotel: string | null;
+      photo?: string | null;
+      location?: string | null;
+      starRating?: string | null;
+      mealPlan?: string | null;
+      rooms?: number | null;
+      checkIn?: string | null;
+      checkOut?: string | null;
+    }>;
+  }[];
   /** Which document template this package renders with (see doc-theme's
    * TEMPLATES). Null/absent falls back to the company default, then to the
    * house template — so a package written before templates existed, or one
@@ -2175,10 +2205,157 @@ function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }
   );
 }
 
+/** The stay options for one block of nights, side by side.
+ *
+ * This is the shape the client reads: one check-in, one check-out, N nights,
+ * and every category's hotel in its own column with the recommended one
+ * badged. All of it in the SAME document — there is no per-category page and
+ * no per-category PDF, so this table is where the whole difference between
+ * Standard, Deluxe and Premium is expressed.
+ *
+ * Rendered only when a package is quoted at more than one category. A package
+ * with one stay standard keeps the original single-hotel layout below,
+ * untouched — which is every package built before categories existed.
+ */
+function StayColumns({
+  categories, day, nights, checkIn, checkOut,
+}: {
+  /** Cheapest first, already sorted by the caller. */
+  categories: NonNullable<PreviewData["stayCategories"]>;
+  /** The night this block starts on — which cell of each category to show. */
+  day: number;
+  nights: number;
+  checkIn: string;
+  checkOut: string;
+}) {
+  const DOC = useDocTheme();
+  const shown = categories.filter((c) => c.byDay?.[day]?.hotel?.trim());
+  if (shown.length === 0) return null;
+
+  return (
+    <div className="space-y-2.5" style={{ breakInside: "avoid" }}>
+      {/* Check-in / nights / check-out, once for the whole block. */}
+      <div
+        className="flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+        style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
+      >
+        <div className="min-w-0">
+          <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: DOC.inkMuted }}>Check In</p>
+          <p className="text-[11.5px] font-semibold" style={{ color: DOC.ink }}>{checkIn || "—"}</p>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="h-px w-8" style={{ backgroundColor: DOC.rule }} />
+          <span className="text-[11px] font-bold whitespace-nowrap" style={{ color: DOC.ink }}>
+            {nights}N
+          </span>
+          <MoonStar size={11} color={DOC.accent} />
+          <span className="h-px w-8" style={{ backgroundColor: DOC.rule }} />
+        </div>
+        <div className="min-w-0 text-right">
+          <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: DOC.inkMuted }}>Check Out</p>
+          <p className="text-[11.5px] font-semibold" style={{ color: DOC.ink }}>{checkOut || "—"}</p>
+        </div>
+      </div>
+
+      <p className="text-[10.5px] font-medium" style={{ color: DOC.accentInk }}>
+        Stays will be allocated based on availability or a similar category
+      </p>
+
+      {/* Evenly split, so one category reads as a full-width stay and three
+          share the page. Four would leave each photo too narrow to show
+          anything, which is why the category list is capped at three. */}
+      <div className={cn("grid gap-2.5", shown.length === 1 ? "grid-cols-1" : shown.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+        {shown.map((c) => {
+          const cell = c.byDay[day]!;
+          const { manualHotelName: hotelName, manualRoomName: roomName } = splitManualHotelName(cell.hotel ?? "");
+          return (
+            <div
+              key={c.category}
+              className="rounded-lg overflow-hidden flex flex-col"
+              style={{
+                border: `1px solid ${c.isRecommended ? DOC.accent : DOC.rule}`,
+                backgroundColor: DOC.card,
+              }}
+            >
+              <div className="relative">
+                {cell.photo ? (
+                  /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                  <img src={cell.photo} alt={hotelName ?? ""} className="w-full aspect-video object-cover" />
+                ) : (
+                  <div className="w-full aspect-video flex items-center justify-center" style={{ backgroundColor: DOC.paper }}>
+                    <Hotel size={16} style={{ color: DOC.inkMuted }} />
+                  </div>
+                )}
+
+                {/* The badge the client is steered by. On the photo rather than
+                    under it so it reads before the hotel's name does. */}
+                {c.isRecommended && (
+                  <span
+                    className="absolute top-1.5 left-1.5 rounded-full px-2 py-0.5 text-[8.5px] font-bold uppercase tracking-wide text-white"
+                    style={{ backgroundColor: DOC.accent }}
+                  >
+                    Recommended
+                  </span>
+                )}
+
+                {cell.starRating && (
+                  <span
+                    className="absolute bottom-1.5 left-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold text-white"
+                    style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+                  >
+                    ★ {cell.starRating}
+                  </span>
+                )}
+              </div>
+
+              <div className="px-2.5 py-2 space-y-0.5 flex-1">
+                <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: c.isRecommended ? DOC.accentInk : DOC.inkMuted }}>
+                  {stayCategoryLabel(c.category)}
+                </p>
+                <p className="text-[11.5px] font-semibold leading-tight" style={{ color: DOC.ink }}>
+                  {titleCase(hotelName ?? cell.hotel ?? "")}
+                </p>
+                {roomName && (
+                  <p className="text-[10px] leading-tight" style={{ color: DOC.inkSoft }}>{roomName}</p>
+                )}
+                {cell.location && (
+                  <p className="text-[10px] leading-tight" style={{ color: DOC.inkMuted }}>{cell.location}</p>
+                )}
+                {/* The board is a property of the hotel, not of the day, so it
+                    belongs in the column — a Premium stay can include dinner
+                    where the Standard one does not. The day's own MEALS
+                    section still covers what the trip includes. */}
+                {cell.mealPlan && (
+                  <p className="flex items-center gap-1 text-[10px] leading-tight pt-0.5" style={{ color: DOC.positive }}>
+                    <Utensils size={9} /> {cell.mealPlan}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+    </div>
+  );
+}
+
 function DayCardPreview({
   day, allDays, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals, addOns,
+  stayCategories, stayRun: stayBlock, stayContinues,
 }: {
   day: DayItinerary;
+  /** The stay standards this package is quoted at. Two or more and this day's
+   * stay renders as columns (see StayColumns); one or none and the original
+   * single-hotel layout runs, unchanged. */
+  stayCategories?: PreviewData["stayCategories"];
+  /** The stay block that STARTS on this night, when one does — the whole run
+   * of nights, with every category's hotel. Null on a night that continues a
+   * block or has no stay. */
+  stayRun?: StayRun | null;
+  /** Night 2+ of a block, computed from the categories rather than the day
+   * row — see the note where these are built. */
+  stayContinues?: boolean;
   /** Every day, so this one can tell whether it continues a multi-night stay
    * that began earlier — see continuesStayFrom. */
   allDays: DayItinerary[];
@@ -2400,7 +2577,29 @@ function DayCardPreview({
         {hasHotel && (
           <DaySlot day={day.day} accepts="hotel">
             <EditableSection actions={stayActions}>
-              {continuesFrom != null ? (
+              {stayBlock ? (
+                // More than one standard quoted, and this is the night the
+                // block starts: every category's hotel for these nights, side
+                // by side, in the one document.
+                <div className="space-y-2">
+                  <DaySubHead icon={Hotel} label="Stay At" />
+                  <div className={SUBHEAD_INDENT}>
+                    <StayColumns
+                      categories={stayCategories!}
+                      day={day.day}
+                      nights={stayBlock.nights}
+                      checkIn={stayBlock.checkIn ?? day.hotelCheckIn}
+                      checkOut={stayBlock.checkOut ?? day.hotelCheckOut}
+                    />
+                  </div>
+                </div>
+              ) : stayContinues ? (
+                // Night 2+ of a block whose hotels were already listed. Nothing
+                // to add: the columns above cover every standard for these
+                // nights, and repeating three hotels per night is the noise
+                // this layout exists to remove.
+                null
+              ) : continuesFrom != null ? (
                 // Night 2+ of the same stay: the client already read the hotel's
                 // details on the night it started, so repeating them is noise.
                 // One line saying where they are and that nothing has changed.
@@ -3199,6 +3398,30 @@ export function ItineraryDocument({
 
   const routeSteps = buildRouteSteps(form);
 
+  // Stay blocks, computed from the categories rather than from the day rows.
+  // The day row only ever carries the recommended stay, so a run derived from
+  // it would be wrong the moment Deluxe changed hotel on a night Standard did
+  // not — the block would claim more nights than every column actually holds.
+  const stayCategories = form.stayCategories ?? [];
+  const stayRuns: StayRun[] = stayCategories.length > 1
+    ? buildStayRuns(form.itineraries.map((d) => {
+        const byCategory: Partial<Record<StayCategoryName, { hotel: string | null; photo?: string | null; location?: string | null; starRating?: string | null; mealPlan?: string | null; rooms?: number | null }>> = {};
+        for (const c of stayCategories) {
+          const cell = c.byDay?.[d.day];
+          if (cell) byCategory[c.category] = cell;
+        }
+        return {
+          day: d.day,
+          // Check-in/out belong to the stay, so they come off the recommended
+          // category's own cell first; the day row is the fallback for a
+          // package whose categories predate those fields being filled in.
+          checkIn: stayCategories.find((c) => c.isRecommended)?.byDay?.[d.day]?.checkIn ?? d.hotelCheckIn,
+          checkOut: stayCategories.find((c) => c.isRecommended)?.byDay?.[d.day]?.checkOut ?? d.hotelCheckOut,
+          byCategory,
+        };
+      }))
+    : [];
+
   const detailedShiftedMeals = computeShiftedMeals(form.itineraries);
 
   const paxLine =
@@ -3419,6 +3642,9 @@ export function ItineraryDocument({
                     onActivityCaptionChange={onActivityCaptionChange}
                     shiftedMeals={detailedShiftedMeals[i]}
                     addOns={form.addOns}
+                    stayCategories={form.stayCategories}
+                    stayRun={stayRuns.find((r) => r.fromDay === d.day) ?? null}
+                    stayContinues={stayRuns.some((r) => r.fromDay < d.day && d.day <= r.toDay)}
                   />
                 ))}
                 <AddDayButton />
