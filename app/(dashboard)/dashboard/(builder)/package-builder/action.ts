@@ -2638,7 +2638,22 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Mark package as SENT → update query status → return WhatsApp URL
 // ─────────────────────────────────────────────────────────────────────────────
-export async function sendPackageToClient(packageId: string): Promise<{
+/**
+ * NOT exported, deliberately.
+ *
+ * This file carries "use server", so every export is a callable endpoint. This
+ * function flips a package to SENT, freezes its pricing snapshot and hands back
+ * the client's share URL — and it checks the package's STATE (verified, READY)
+ * without ever checking who is asking. Exported, it was a way to publish
+ * somebody else's package to their client, from outside the builder, with no
+ * permission check anywhere in the path.
+ *
+ * The only caller is shareCustomPackageWithClient below, which resolves
+ * caps.send first — sending belongs to the exec who owns the client
+ * relationship, even after costing has approved. Keeping this private means
+ * that gate cannot be walked around rather than merely being the polite route.
+ */
+async function sendPackageToClient(packageId: string): Promise<{
   success:      boolean;
   whatsappUrl?: string;
   shareUrl?:    string;
