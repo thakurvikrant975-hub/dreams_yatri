@@ -1915,6 +1915,7 @@ Rules:
     <PackageBuilderProvider
       form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}
       requestSaveNow={() => setPendingImmediateSave(true)}
+      refreshStayOptions={reloadStayOptions}
     >
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}

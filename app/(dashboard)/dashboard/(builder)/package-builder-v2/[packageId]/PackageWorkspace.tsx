@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -488,6 +488,10 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
       these a reviewer's copy — and any PDF exported from this route — shows
       only the recommended stay, while the exec's copy shows all of them. */
   const [stayOptions, setStayOptions] = useState<PreviewData["stayOptions"]>([]);
+  const reloadStayOptions = useCallback(async () => {
+    try { setStayOptions(await getStayOptionsForDocument(packageId)); }
+    catch { /* one panel; a failed read must not blank the workspace */ }
+  }, [packageId]);
   useEffect(() => {
     let cancelled = false;
     getStayOptionsForDocument(packageId)
@@ -1975,7 +1979,8 @@ Rules:
     // document on the left edit the itinerary directly. canEdit carries the
     // same lock the right-hand panel has always honoured, from one place.
     <PackageBuilderProvider
-      review={reviewContext} form={form} setForm={setForm} canEdit={canEditDoc} dayCosts={dayCosts}>
+      review={reviewContext} form={form} setForm={setForm} canEdit={canEditDoc} dayCosts={dayCosts}
+      refreshStayOptions={reloadStayOptions}>
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
 

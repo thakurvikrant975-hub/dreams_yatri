@@ -278,6 +278,14 @@ type BuilderContextValue = {
    * A no-op where nothing wired up a real save (e.g. the reviewer's
    * workspace, which doesn't submit hotel requests). */
   requestSaveNow: () => void;
+  /** Re-read the package's stay options.
+   *
+   * Options are saved server-side, per package, so nothing about them lives in
+   * `form` — which means a drawer that changes one has no way to tell the
+   * document, and the document went on rendering the copy it was handed until
+   * the page was reloaded. Whoever owns that copy supplies this; a surface with
+   * no such state defaults to a no-op. */
+  refreshStayOptions: () => void | Promise<void>;
 };
 
 /** The one way a day changes.
@@ -302,7 +310,7 @@ function replaceDay(
 const BuilderContext = createContext<BuilderContextValue | null>(null);
 
 export function PackageBuilderProvider({
-  form, setForm, canEdit, dayCosts, review, children, requestSaveNow,
+  form, setForm, canEdit, dayCosts, review, children, requestSaveNow, refreshStayOptions,
 }: {
   form: PackageForm;
   setForm: SetPackageForm;
@@ -313,6 +321,8 @@ export function PackageBuilderProvider({
   /** See BuilderContextValue.requestSaveNow. Omit where there's no real
    * save to trigger (e.g. the reviewer's workspace) — defaults to a no-op. */
   requestSaveNow?: () => void;
+  /** See BuilderContextValue.refreshStayOptions. */
+  refreshStayOptions?: () => void | Promise<void>;
 }) {
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab | null>("client");
@@ -351,7 +361,8 @@ export function PackageBuilderProvider({
     selectedDay: safeSelectedDay,
     setSelectedDay,
     requestSaveNow: requestSaveNow ?? (() => {}),
-  }), [form, setForm, review, canEdit, dayCosts, drawer, panelTab, safeSelectedDay, requestSaveNow]);
+    refreshStayOptions: refreshStayOptions ?? (() => {}),
+  }), [form, setForm, review, canEdit, dayCosts, drawer, panelTab, safeSelectedDay, requestSaveNow, refreshStayOptions]);
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }

@@ -39,7 +39,7 @@ import {
 type LoadedOption = Awaited<ReturnType<typeof getStayOptionsForDocument>>[number];
 
 export function StayOptionsView({ packageId, day }: { packageId: string; day: number }) {
-  const { form, canEdit, openDrawer } = useBuilder();
+  const { form, canEdit, openDrawer, refreshStayOptions } = useBuilder();
   const [options, setOptions] = useState<LoadedOption[] | null>(null);
   const [busy, startBusy] = useTransition();
   const [newLabel, setNewLabel] = useState("");
@@ -110,6 +110,11 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
       const r = await fn();
       if (!r.success) { toast.error(r.error ?? "That didn't work."); return; }
       await load();
+      // The drawer's own list is not the one the document renders — that copy
+      // lives on the page. Without this, adding, renaming or removing an option
+      // here updated this panel and nothing else, and the itinerary beside it
+      // kept showing the old columns until a reload.
+      await refreshStayOptions();
     });
   }
 
@@ -120,6 +125,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
     const r = await saveStayForDay(packageId, optionId, days, fields);
     if (!r.success) { toast.error(r.error); return false; }
     await load();
+    await refreshStayOptions();
     return true;
   }
 
