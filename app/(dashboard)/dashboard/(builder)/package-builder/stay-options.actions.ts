@@ -362,6 +362,20 @@ export async function getStayOptionsForDocument(packageId: string) {
   // the old layout instead of breaking the page.
   if (!await canReadStayOptions(packageId)) return [];
 
+  // Which figure wins: the one frozen on the option, or a live recomputation.
+  //
+  // A settled package (out for review, sent, or answered) must show what was
+  // quoted — recomputing would restate an old quote at today's catalog rates,
+  // and on a SENT package that is the number the client agreed to. A DRAFT is
+  // the opposite: it is being edited, so the price has to follow the hotels
+  // being changed. Without this a rejected package — which returns to DRAFT —
+  // sat in the builder showing the prices frozen when it was submitted, beside
+  // hotels the exec had since replaced.
+  const pkgState = await db.custom_packages.findUnique({
+    where: { id: packageId }, select: { status: true },
+  });
+  const editable = pkgState?.status === "DRAFT";
+
   const [options, priced] = await Promise.all([
     db.custom_package_stay_options.findMany({
       where: { customPackageId: packageId },
@@ -380,8 +394,12 @@ export async function getStayOptionsForDocument(packageId: string) {
     label: o.label,
     sortOrder: o.sortOrder,
     isRecommended: o.isRecommended,
-    totalPrice: o.totalPrice ?? livePrice.get(o.id)?.totalPrice ?? null,
-    pricePerPerson: o.pricePerPerson ?? livePrice.get(o.id)?.pricePerPerson ?? null,
+    totalPrice: editable
+      ? livePrice.get(o.id)?.totalPrice ?? o.totalPrice ?? null
+      : o.totalPrice ?? livePrice.get(o.id)?.totalPrice ?? null,
+    pricePerPerson: editable
+      ? livePrice.get(o.id)?.pricePerPerson ?? o.pricePerPerson ?? null
+      : o.pricePerPerson ?? livePrice.get(o.id)?.pricePerPerson ?? null,
     byDay: Object.fromEntries(o.stays.map((s) => [s.itinerary.day, {
       hotel: s.accommodation,
       photo: s.accommodationPhoto,
