@@ -2514,7 +2514,12 @@ function DayCardPreview({
   const checkInDate = dayCalendarDate(travelDate, day.day);
   const checkOutDate = dayCalendarDate(travelDate, day.day + 1);
   const mealText = mealIncludedText(day.hotelMealPlan);
-  const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0 || !!onImageChange;
+  // One photo per stay. The room-photo strip under it was removed — three
+  // pictures of the same hotel is a gallery, and the itinerary is not one; the
+  // room's own detail is already in the specs line. Room photos are still
+  // stored (the catalog fills them in), just not printed here, so nothing is
+  // lost if they are wanted back.
+  const hasPhotos = !!day.accommodationPhoto || !!onImageChange;
   const canEditDoc = !!builder?.canEdit;
   // Per-section toolbars. Deletes don't confirm: undo covers them now (⌘Z),
   // and a modal on every clear would cost more than the mistake does.
@@ -2882,24 +2887,6 @@ function DayCardPreview({
                                 className="top-1 right-1 size-6"
                               />
                             )}
-                          </div>
-                        )}
-                        {day.accommodationRoomPhotos.length > 0 && (
-                          <div className="grid grid-cols-2 gap-1">
-                            {day.accommodationRoomPhotos.slice(0, 2).map((src, i) => (
-                              <div key={i} className="group/img relative">
-                                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                                <img src={src} alt={`Room ${i + 1}`} className="h-14 w-full rounded-md object-cover" />
-                                {onImageChange && (
-                                  <ImageEditButton
-                                    value={src}
-                                    onChange={(url) => onImageChange({ kind: "roomPhoto", day: day.day, photoIndex: i }, url)}
-                                    dialogTitle={`Room Photo ${i + 1}`}
-                                    className="top-0.5 right-0.5 size-5"
-                                  />
-                                )}
-                              </div>
-                            ))}
                           </div>
                         )}
                       </div>
