@@ -18,7 +18,7 @@ import { getCurrentActor, logTimeline, type ActionResult } from "../(marketing)/
 import { actionError } from "@/app/lib/action-error";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { createLog } from "../lib/logger";
-import { computeFinalPackagePricing } from "@/app/services/package-pricing.service";
+import { computeFinalPackagePricing, persistStayOptionPricing } from "@/app/services/package-pricing.service";
 import { getItinerarySettings } from "../itinerary-settings/actions";
 import { getEffectiveMember } from "../lib/get-current-member";
 import {
@@ -93,6 +93,18 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
         // the moment catalog rates change) or falling back to whatever stale
         // price the exec typed in before this review even started.
         const finalPricing = await computeFinalPackagePricing(packageId);
+
+        // Every stay option re-priced against the same margin, GST and
+        // corrections this approval locks in. Without it the options keep the
+        // figures frozen when the exec submitted, so the client's comparison
+        // would quote standards priced on the pre-review numbers while the
+        // headline showed the approved one.
+        await persistStayOptionPricing(packageId).catch((err) => {
+            // Never block an approval on this: the package's own price is
+            // authoritative, and an option with no stored figure falls back to
+            // a live computation wherever it is shown.
+            console.error("[approveCustomPackage] stay option pricing", err);
+        });
 
         await db.custom_packages.update({
             where: { id: packageId },
@@ -382,6 +394,14 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
                 data: { pricePerPerson: finalPricing.pricePerPerson, totalPrice: finalPricing.totalPrice },
             });
         }
+
+        // The same correction applies to every option — margin, GST and the
+        // discount are shared across them, only the hotels differ — so they are
+        // re-frozen here too. Otherwise a margin change moved the headline and
+        // left the alternatives quoting the old one.
+        await persistStayOptionPricing(packageId).catch((err) => {
+            console.error("[updatePackagePricing] stay option pricing", err);
+        });
 
         if (pkg.queryId) {
             await logTimeline(
