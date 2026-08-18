@@ -1109,6 +1109,11 @@ export interface PaginatedQueries {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface PackageCopyPayload {
+  /** The custom package this was duplicated from, when it was — so the stay
+   * options can be cloned once the duplicate has an id of its own. Absent for
+   * a catalog template, which has no stay options to carry. See
+   * cloneStayOptionsInto. */
+  sourceCustomPackageId?: string;
   title:         string;
   description:   string;
   coverImage:    string;
@@ -1440,6 +1445,10 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
   });
 
   return {
+    // Carried so the duplicate can clone the source's stay options once it has
+    // an id of its own — the payload itself only describes the day rows, which
+    // hold the recommended option and nothing else.
+    sourceCustomPackageId: sourcePackageId,
     title:         `${cp.title} (Copy)`,
     description:   cp.description ?? "",
     coverImage:    cp.coverImage ?? "",

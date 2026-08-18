@@ -440,3 +440,79 @@ export async function getStayOptionComparison(packageId: string) {
     })),
   };
 }
+
+/** Copies a package's stay options onto another package.
+ *
+ * Duplicating a package returns a payload describing its DAY rows, and the day
+ * row carries only the recommended option — so a duplicate of a package quoted
+ * at three standards silently arrived quoting one. This runs once the duplicate
+ * has an id of its own and puts the rest back.
+ *
+ * Matched on day number, which is safe here in a way it is not during a save: a
+ * duplicate is a straight copy, so its days are the source's days in the same
+ * order, and nothing has been renumbered in between.
+ *
+ * Refuses if the target already has more than the one option it was created
+ * with, so re-running it cannot double up.
+ */
+export async function cloneStayOptionsInto(sourcePackageId: string, targetPackageId: string): Promise<Result> {
+  try {
+    const gate = await assertCanEdit(targetPackageId);
+    if (!gate.ok) return { success: false, error: gate.error };
+
+    const [source, targetOptions, targetDays] = await Promise.all([
+      db.custom_package_stay_options.findMany({
+        where: { customPackageId: sourcePackageId },
+        include: { stays: { include: { itinerary: { select: { day: true } } } } },
+      }),
+      db.custom_package_stay_options.findMany({
+        where: { customPackageId: targetPackageId }, select: { id: true, label: true },
+      }),
+      db.custom_itineraries.findMany({
+        where: { customPackageId: targetPackageId }, select: { id: true, day: true },
+      }),
+    ]);
+    if (source.length === 0) return { success: true };
+    if (targetOptions.length > 1) return { success: true };
+
+    const idByDay = new Map(targetDays.map((d) => [d.day, d.id]));
+    const existingLabels = new Set(targetOptions.map((o) => o.label.toLowerCase()));
+
+    for (const option of sortStayOptions(source)) {
+      // The recommended option is already on the duplicate — it came across on
+      // the day rows — so only the others are recreated.
+      if (option.isRecommended || existingLabels.has(option.label.toLowerCase())) continue;
+
+      const created = await db.custom_package_stay_options.create({
+        data: {
+          customPackageId: targetPackageId,
+          label: option.label,
+          sortOrder: option.sortOrder,
+          isRecommended: false,
+        },
+        select: { id: true },
+      });
+
+      const rows = option.stays
+        .filter((st) => idByDay.has(st.itinerary.day))
+        .map((st) => {
+          const { id: _id, itineraryId: _i, itinerary: _it, stayOptionId: _s, createdAt: _c, updatedAt: _u, ...fields } = st;
+          return {
+            ...fields,
+            extraRooms: (fields.extraRooms ?? undefined) as Prisma.InputJsonValue | undefined,
+            itineraryId: idByDay.get(st.itinerary.day)!,
+            stayOptionId: created.id,
+          };
+        });
+      if (rows.length > 0) {
+        await db.custom_itinerary_stays.createMany({ data: rows, skipDuplicates: true });
+      }
+    }
+
+    revalidatePath(`/dashboard/package-builder-v2/${targetPackageId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("[cloneStayOptionsInto]", err);
+    return { success: false, error: "Couldn't copy the stay options across." };
+  }
+}

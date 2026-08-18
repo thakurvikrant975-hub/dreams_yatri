@@ -64,7 +64,7 @@ import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
-import { getStayOptionsForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
+import { getStayOptionsForDocument, cloneStayOptionsInto } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
@@ -435,6 +435,10 @@ export default function PackageBuilderDetailPage() {
       server-side, while `form` only ever describes the recommended one (which
       is what the day rows carry). */
   const [stayOptions, setStayOptions] = useState<PreviewData["stayOptions"]>([]);
+  /** Set while a duplicate is waiting for its first save. Stay options live
+      server-side, keyed to a package id, so a duplicate cannot carry them in
+      its payload — they are cloned once this draft has an id of its own. */
+  const [cloneStayOptionsFrom, setCloneStayOptionsFrom] = useState<string | null>(null);
   const reloadStayOptions = useCallback(async () => {
     try { setStayOptions(await getStayOptionsForDocument(packageId)); }
     catch { /* the columns are one section; a failed read must not blank the editor */ }
@@ -733,6 +737,9 @@ export default function PackageBuilderDetailPage() {
               coverImage: payload.coverImage || f.coverImage,
               startingPoint: payload.startingPoint || f.startingPoint,
             }));
+            // The payload describes the day rows, which carry the recommended
+            // option only. The rest are cloned after the first save.
+            if (payload.sourceCustomPackageId) setCloneStayOptionsFrom(payload.sourceCustomPackageId);
             toast.success(`Copied "${payload.title}" into this draft`);
           } catch (err) {
             console.error("Failed to apply copied package payload", err);
