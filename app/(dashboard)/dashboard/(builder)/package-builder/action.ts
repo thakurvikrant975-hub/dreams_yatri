@@ -2483,19 +2483,41 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         select: { id: true },
       });
 
+      // Where each carried stay belongs AFTER the save.
+      //
+      // Not its old day number. Moving, inserting or deleting a day renumbers
+      // every day from that point on (see renumber() in builder-context), so a
+      // stay carried by number lands on whatever now happens to hold that
+      // number — a different night. The row id is what survives a reorder: the
+      // form keeps it on the day it belongs to while the number changes
+      // underneath, so the payload maps old row id to new day number.
+      //
+      // Add-ons already work this way (renumber rebases them through mapDay);
+      // this is the same problem, and it was the one thing the stay carry-across
+      // did not account for.
+      const newDayByOldRowId = new Map(
+        itineraries.filter((it) => it.id).map((it) => [it.id!, it.day]),
+      );
+
       const restored = carriedStays
-        .filter((st) => idByDay.has(st.itinerary.day))
         .filter((st) => st.stayOptionId !== recommended?.id)
         .map((st) => {
+          // Falls back to the old number only for a stay whose day reached the
+          // save with no id — a day added in this very save, which cannot have
+          // moved.
+          const targetDay = newDayByOldRowId.get(st.itineraryId) ?? st.itinerary.day;
+          const targetId = idByDay.get(targetDay);
+          if (!targetId) return null;
           const { id: _id, itineraryId: _itineraryId, itinerary: _itinerary, createdAt: _c, updatedAt: _u, ...fields } = st;
           return {
             ...fields,
             // Prisma reads Json as JsonValue (null included) but will not take
             // a bare null on write; undefined leaves the column at its default.
             extraRooms: (fields.extraRooms ?? undefined) as Prisma.InputJsonValue | undefined,
-            itineraryId: idByDay.get(st.itinerary.day)!,
+            itineraryId: targetId,
           };
-        });
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
       if (restored.length > 0) {
         await db.custom_itinerary_stays.createMany({ data: restored, skipDuplicates: true });
       }
