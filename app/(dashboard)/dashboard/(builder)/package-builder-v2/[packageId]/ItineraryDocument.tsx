@@ -2688,24 +2688,23 @@ function DayCardPreview({
             section, exactly as before. */}
 
         {/* Hotel info */}
+        {/* The standards this package is quoted at. Outside the hasHotel gate
+            on purpose: it is a property of the package, not of this day's
+            stay, and gating it on a hotel already being picked put it out of
+            reach on exactly the packages that have none yet. Shown on the
+            night a stay starts (or on any hotel-less day, where there is no
+            run to start), never repeated mid-run. */}
+        {stayEditing && continuesFrom == null && !stayContinues && (stayCategories?.length ?? 0) > 0 && (
+          <StayCategoryControls
+            packageId={stayEditing.packageId}
+            categories={stayCategories!.map((c) => ({ id: c.id, category: c.category, isRecommended: c.isRecommended }))}
+            onChanged={stayEditing.onCategoriesChanged}
+          />
+        )}
+
         {hasHotel && (
           <DaySlot day={day.day} accepts="hotel">
             <EditableSection actions={stayActions}>
-              {/* Offered on the night a stay starts, whatever it is quoted at
-                  — including a package quoted at one standard, which is every
-                  package until someone adds a second. This used to sit inside
-                  the columns, which only render at two or more standards, so
-                  there was no way to get from one to two. */}
-              {stayEditing && continuesFrom == null && !stayContinues && (stayCategories?.length ?? 0) > 0 && (
-                <div className={SUBHEAD_INDENT}>
-                  <StayCategoryControls
-                    packageId={stayEditing.packageId}
-                    categories={stayCategories!.map((c) => ({ id: c.id, category: c.category, isRecommended: c.isRecommended }))}
-                    onChanged={stayEditing.onCategoriesChanged}
-                  />
-                </div>
-              )}
-
               {stayBlock ? (
                 // More than one standard quoted, and this is the night the
                 // block starts: every category's hotel for these nights, side

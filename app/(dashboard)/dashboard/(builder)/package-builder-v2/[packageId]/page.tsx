@@ -2168,6 +2168,7 @@ Rules:
               onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={isLocked ? undefined : handleItineraryImageChange}
               onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
+              stayEditing={isLocked ? undefined : { packageId, onCategoriesChanged: reloadStayCategories }}
               variant="flat"
               />
             </div>
@@ -2304,6 +2305,8 @@ Rules:
               <TripSetupPanel
                 computed={computeFinalPricing()}
                 onApplyPrice={applyComputedPricing}
+                stayCategories={(stayCategories ?? []).map((c) => ({ id: c.id, category: c.category, isRecommended: c.isRecommended }))}
+                stayEditing={{ packageId, onCategoriesChanged: reloadStayCategories }}
               />
             </fieldset>
           }
