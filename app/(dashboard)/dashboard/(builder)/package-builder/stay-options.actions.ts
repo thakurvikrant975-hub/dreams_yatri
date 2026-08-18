@@ -128,6 +128,28 @@ export async function syncRecommendedStayFromDays(packageId: string): Promise<vo
   }
 }
 
+/** Who is allowed to read a package's stay options.
+ *
+ * Every export in a "use server" file is a callable endpoint, so these reads
+ * were reachable by anyone who knew a package id — handing out the hotels and
+ * per-option pricing of packages that had never been sent.
+ *
+ * Two ways in, and they mirror the visibility rule the client page already
+ * enforces (see getSharedPackage): a signed-in team member may read any
+ * package, and everyone else may read one only once it has been SENT — which
+ * is exactly the state at which those options are already printed on the
+ * client's own document.
+ */
+async function canReadStayOptions(packageId: string): Promise<boolean> {
+  const member = await getEffectiveMember();
+  if (member?.member?.id) return true;
+  const sent = await db.custom_packages.findFirst({
+    where: { id: packageId, status: "SENT" },
+    select: { id: true },
+  });
+  return !!sent;
+}
+
 /** Adds an option, with an empty stay row per day.
  *
  * Empty rather than copied from the recommended one on purpose: a Premium
@@ -335,6 +357,11 @@ export async function saveStayForDay(
  * hotel for every night. Shaped to drop straight into PreviewData.stayCategories.
  */
 export async function getStayOptionsForDocument(packageId: string) {
+  // Returns nothing rather than throwing: every caller already renders a
+  // single-stay document when the list is empty, so a refused read degrades to
+  // the old layout instead of breaking the page.
+  if (!await canReadStayOptions(packageId)) return [];
+
   const [options, priced] = await Promise.all([
     db.custom_package_stay_options.findMany({
       where: { customPackageId: packageId },
@@ -385,6 +412,11 @@ export async function getStayOptionsForDocument(packageId: string) {
  * correct, not what was quoted last week.
  */
 export async function getStayOptionComparison(packageId: string) {
+  // Staff only — this one has no public caller, and it carries the internal
+  // hotel subtotals and costing's own corrections.
+  const member = await getEffectiveMember();
+  if (!member?.member?.id) return { days: [], options: [] };
+
   const [options, days, priced] = await Promise.all([
     getStayOptionsForDocument(packageId),
     db.custom_itineraries.findMany({

@@ -1739,6 +1739,17 @@ async function resolveExecInfo(assignedTo: string | null) {
 // getQueryLeadInfo below, used to prefill that brand-new draft).
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getPackageDetail(packageId: string): Promise<QueryDetail | null> {
+  // Staff only. This returns the whole internal picture of a package — costing's
+  // rejection notes, the pricing snapshot, the lead's name, phone and email —
+  // and every export in a "use server" file is a callable endpoint, so without
+  // this it handed all of that to anyone who knew a package id. Every caller is
+  // a dashboard screen; nothing public reads it.
+  //
+  // Null rather than a throw, matching the not-found path each caller already
+  // handles.
+  const viewer = await getEffectiveMember();
+  if (!viewer?.member?.id) return null;
+
   const pkg = await db.custom_packages.findUnique({
     where: { id: packageId },
     select: {
