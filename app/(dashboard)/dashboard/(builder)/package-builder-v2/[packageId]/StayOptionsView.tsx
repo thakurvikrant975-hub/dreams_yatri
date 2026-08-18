@@ -27,6 +27,7 @@ import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { useBuilder } from "./builder-context";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { applyHotelRoomSelection, emptyDay, stayRun } from "./day-mutations";
+import { dayCalendarDate } from "./ItineraryDocument";
 import {
   SUGGESTED_STAY_LABELS, MAX_STAY_OPTIONS, buildStayRuns,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
@@ -95,6 +96,14 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
   const nightCount = optionRun?.nights ?? (dayRowRun.length || 1);
   const fromDay = optionRun?.fromDay ?? dayRowRun[0] ?? day;
   const searchCity = form.itineraries.find((d) => d.day === day)?.accommodationLocation || form.destination || "";
+  // The calendar date of the first night in this block — what the season
+  // lookup has to be evaluated against.
+  const nightDate = form.travelDate ? dayCalendarDate(form.travelDate, fromDay) : null;
+  // Local, not toISOString(): that shifts to UTC and can hand the search the
+  // night before for anyone east of Greenwich.
+  const nightISO = nightDate
+    ? `${nightDate.getFullYear()}-${String(nightDate.getMonth() + 1).padStart(2, "0")}-${String(nightDate.getDate()).padStart(2, "0")}`
+    : null;
 
   function run(fn: () => Promise<{ success: boolean; error?: string }>) {
     startBusy(async () => {
@@ -228,6 +237,10 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                     initialLabel={cell?.hotel ?? ""}
                     searchCity={searchCity}
                     refCoords={null}
+                    // Prices this room for the night it is actually being
+                    // picked for, and keeps rooms with no rate for that date
+                    // out of the list entirely.
+                    travelDate={nightISO}
                     placeholder={cell?.hotel ? "Change hotel…" : "Search the hotel catalog…"}
                     onSelect={async (room) => {
                       const m = applyHotelRoomSelection(emptyDay(fromDay), room);

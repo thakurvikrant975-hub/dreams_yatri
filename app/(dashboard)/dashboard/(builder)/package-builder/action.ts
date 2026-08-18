@@ -293,10 +293,10 @@ export async function searchHotelRoomsForBuilder(
    * geo fallback (refCoords set, no typed query); a typed search never used
    * a radius to begin with. */
   radiusKm?: number | null,
-): Promise<{ rows: HotelRoomResult[]; total: number }> {
+): Promise<{ rows: HotelRoomResult[]; total: number; hiddenNoSeasonRate: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
-  if (!city && !q) return { rows: [], total: 0 };
+  if (!city && !q) return { rows: [], total: 0, hiddenNoSeasonRate: 0 };
 
   const mealClause = noMealsOnly
     ? { OR: [{ meal_type_id: null }, { meal_type: { covered_meals: { isEmpty: true } } }] }
@@ -377,13 +377,38 @@ export async function searchHotelRoomsForBuilder(
     });
   }
 
-  const combined = sortHotelResults(
+  const mapped = sortHotelResults(
     [...textMatches, ...geoMatches].map((item) => mapHotelRoomRow(item, refCoords, date)),
     sortBy ?? "name_asc",
   );
 
+  // A room with no season covering this night is not offered.
+  //
+  // resolveHotelSeasonPricing falls back to the room's base rate when no season
+  // matches — which is right for showing a catalogue, and wrong for quoting a
+  // date. Seasons are stored year-agnostically, so a rate set once covers that
+  // window every year; a date that matches nothing means nobody has priced that
+  // part of the calendar at all. Quoting it at the base rate produced a
+  // confident number for a night the hotel has never given us a price for, and
+  // the exec had no way to tell that apart from a real rate.
+  //
+  // Only filtered when a date is actually known. Searching before the trip has
+  // a travel date cannot evaluate a season, and hiding everything then would
+  // leave an exec staring at an empty catalogue for a reason nothing on screen
+  // explains.
+  const dated = !!date && !Number.isNaN(new Date(date).getTime());
+  const combined = dated ? mapped.filter((r) => r.isSeasonalRate) : mapped;
+  const hiddenNoSeasonRate = dated ? mapped.length - combined.length : 0;
+
   const start = (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE;
-  return { rows: combined.slice(start, start + HOTEL_SEARCH_PAGE_SIZE), total: combined.length };
+  return {
+    rows: combined.slice(start, start + HOTEL_SEARCH_PAGE_SIZE),
+    total: combined.length,
+    /** How many rooms were dropped for having no rate on this date — so the
+     * picker can say why a hotel someone expected is missing, instead of
+     * looking simply absent. */
+    hiddenNoSeasonRate,
+  };
 }
 
 /** Looks up a single room by its `hotel_room_pricing` id — used by the hotel
