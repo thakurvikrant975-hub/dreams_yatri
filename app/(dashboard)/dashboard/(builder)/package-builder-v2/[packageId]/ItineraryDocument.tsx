@@ -2383,7 +2383,11 @@ function StayColumns({
           return (
             <div
               key={c.id}
-              className="rounded-lg overflow-hidden flex flex-col"
+              // group/stay + relative: the edit controls float over the card and
+              // appear on hover, the same way a section's own actions do. In the
+              // flow they read as part of the stay the client is being offered,
+              // which is exactly what they are not.
+              className="group/stay relative rounded-lg overflow-hidden flex flex-col"
               style={{
                 border: `1px solid ${c.isRecommended ? DOC.accent : DOC.rule}`,
                 backgroundColor: DOC.card,
@@ -2446,20 +2450,31 @@ function StayColumns({
 
               {packageId && onStayOptionsChanged && (
                 cell.hotel ? (
-                  // Filled: the two things you do to a stay you already have.
-                  // The picker below is for choosing one, which is a different
-                  // job and only clutters a column that is already answered.
-                  <div className="builder-only no-print flex items-center gap-1 px-2.5 pb-2">
+                  // Floating, not in the flow — see the card's group/stay above.
+                  // Mirrors EditableSection's own action cluster: same corner,
+                  // same reveal, same shape, so an exec learns one gesture for
+                  // "act on this thing" rather than one per surface.
+                  <div
+                    className={cn(
+                      "builder-only no-print absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5",
+                      "rounded-lg ring-1 ring-inset ring-neutral-200 bg-white p-0.5 shadow-xl shadow-neutral-200/80",
+                      "opacity-0 pointer-events-none transition-opacity duration-[120ms]",
+                      "group-hover/stay:opacity-100 group-hover/stay:pointer-events-auto",
+                      "focus-within:opacity-100 focus-within:pointer-events-auto",
+                    )}
+                  >
                     <button
                       type="button"
+                      aria-label={`Change the ${c.label} hotel`}
                       title={`Change the ${c.label} hotel for ${nights === 1 ? "this night" : `these ${nights} nights`}`}
                       onClick={() => builderCtx?.openDrawer({ kind: "stay-options", day })}
-                      className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-dashboard-base-300 px-2 py-1 text-[10px] font-medium text-dashboard-base-content/70 hover:border-dashboard-primary hover:text-dashboard-primary"
+                      className="flex items-center justify-center size-6 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/75 transition-colors duration-[120ms]"
                     >
-                      <Pencil size={9} /> Edit
+                      <Pencil size={13} />
                     </button>
                     <button
                       type="button"
+                      aria-label={`Remove the ${c.label} hotel`}
                       title={`Remove the ${c.label} hotel from ${nights === 1 ? "this night" : `these ${nights} nights`} — the option itself stays`}
                       onClick={async () => {
                         // Clears the stay across the whole block, because a
@@ -2477,9 +2492,9 @@ function StayColumns({
                         );
                         await onStayOptionsChanged?.();
                       }}
-                      className="inline-flex items-center justify-center rounded-md border border-dashboard-base-300 px-2 py-1 text-dashboard-base-content/50 hover:border-dashboard-error hover:text-dashboard-error"
+                      className="flex items-center justify-center size-6 rounded-md text-dashboard-error/60 hover:bg-dashboard-error/10 hover:text-dashboard-error transition-colors duration-[120ms]"
                     >
-                      <Trash2 size={9} />
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 ) : (
