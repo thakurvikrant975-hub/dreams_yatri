@@ -56,7 +56,8 @@ const STATUS_FILTER_OPTIONS = [
 const SOURCE_FILTER_OPTIONS = [
     { label: "Website Form", value: "WEBSITE_FORM" },
     { label: "Landing Page", value: "LANDING_PAGE" },
-    { label: "WhatsApp", value: "WHATSAPP" },
+    { label: "WhatsApp Meta", value: "WHATSAPP" },
+    { label: "WhatsApp Google", value: "WHATSAPP_GOOGLE" },
     { label: "Phone Call", value: "PHONE_CALL" },
     { label: "Referral", value: "REFERRAL" },
     { label: "Other", value: "OTHER" },

@@ -137,3 +137,103 @@ export async function fillPendingHotel(
 
     return { success: true, advancedToReview };
 }
+
+type RejectResult = { success: boolean; error?: string; count?: number };
+
+async function afterReject(packageId: string) {
+    await broadcastVerificationCounts();
+    revalidatePath("/dashboard/hotel-requests");
+    revalidatePath(`/dashboard/hotel-requests/${packageId}`);
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath("/dashboard/sales-query");
+}
+
+/** Declines a single pending day — the hotel team couldn't source anything
+ * that fits. Deliberately leaves hotelPending true (see the field's doc
+ * comment in schema.prisma): the day stays in this queue, flagged rejected,
+ * until the sales exec edits and resubmits the request from the builder. */
+export async function rejectPendingHotel(
+    packageId: string,
+    day: number,
+    reason: string,
+): Promise<RejectResult> {
+    const auth = await requireMember();
+    if (!auth.ok) return { success: false, error: auth.error };
+
+    const note = reason.trim();
+    if (!note) return { success: false, error: "A reason is required to reject a hotel request." };
+
+    const row = await db.custom_itineraries.findFirst({
+        where: { customPackageId: packageId, day },
+        select: { id: true, hotelPending: true },
+    });
+    if (!row) return { success: false, error: "This day couldn't be found." };
+    if (!row.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
+
+    await db.custom_itineraries.update({
+        where: { id: row.id },
+        data: {
+            hotelRejectedAt: new Date(),
+            hotelRejectedById: auth.member.id,
+            hotelRejectedByName: auth.member.name,
+            hotelRejectionNote: note,
+            hotelRejectedNotifiedAt: null,
+        },
+    });
+
+    const pkg = await db.custom_packages.findUnique({ where: { id: packageId }, select: { queryId: true } });
+    if (pkg?.queryId) {
+        await logTimeline(
+            pkg.queryId,
+            `Hotel request rejected for day ${day} by ${auth.member.name}: ${note}`,
+            auth.member.id, auth.member.name,
+        );
+    }
+
+    await afterReject(packageId);
+    return { success: true };
+}
+
+/** Declines every currently-pending day on the package at once, with one
+ * shared reason — for when nothing in the whole request is fulfillable
+ * (wrong budget, wrong destination entirely) rather than a single day. */
+export async function rejectAllPendingHotels(
+    packageId: string,
+    reason: string,
+): Promise<RejectResult> {
+    const auth = await requireMember();
+    if (!auth.ok) return { success: false, error: auth.error };
+
+    const note = reason.trim();
+    if (!note) return { success: false, error: "A reason is required to reject these hotel requests." };
+
+    const rows = await db.custom_itineraries.findMany({
+        where: { customPackageId: packageId, hotelPending: true, hotelRejectedAt: null },
+        select: { id: true, day: true },
+    });
+    if (rows.length === 0) return { success: false, error: "No pending hotel requests on this package." };
+
+    await db.custom_itineraries.updateMany({
+        where: { id: { in: rows.map((r) => r.id) } },
+        data: {
+            hotelRejectedAt: new Date(),
+            hotelRejectedById: auth.member.id,
+            hotelRejectedByName: auth.member.name,
+            hotelRejectionNote: note,
+            hotelRejectedNotifiedAt: null,
+        },
+    });
+
+    const pkg = await db.custom_packages.findUnique({ where: { id: packageId }, select: { queryId: true } });
+    if (pkg?.queryId) {
+        const days = rows.map((r) => r.day).sort((a, b) => a - b).join(", ");
+        await logTimeline(
+            pkg.queryId,
+            `Hotel requests rejected for ${rows.length} day${rows.length !== 1 ? "s" : ""} (Day ${days}) by ${auth.member.name}: ${note}`,
+            auth.member.id, auth.member.name,
+        );
+    }
+
+    await afterReject(packageId);
+    return { success: true, count: rows.length };
+}

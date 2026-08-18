@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList, ResponsiveContainer } from "recharts";
 
 export type RankedBar = { name: string; value: number; color?: string };
 
@@ -9,6 +9,8 @@ type Props = {
   height?: number;
   defaultColor?: string;
   barHeight?: number;
+  /** Print the value at the end of each bar so it reads at a glance, no hover needed. */
+  showValues?: boolean;
 };
 
 function RankedTooltip({ active, payload }: {
@@ -25,7 +27,7 @@ function RankedTooltip({ active, payload }: {
   );
 }
 
-export function RankedBarChart({ data, height, defaultColor = "var(--color-dashboard-primary)", barHeight = 28 }: Props) {
+export function RankedBarChart({ data, height, defaultColor = "var(--color-dashboard-primary)", barHeight = 28, showValues = false }: Props) {
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center text-sm text-dashboard-base-content/40" style={{ height: height ?? 200 }}>
@@ -38,7 +40,7 @@ export function RankedBarChart({ data, height, defaultColor = "var(--color-dashb
 
   return (
     <ResponsiveContainer width="100%" height={resolvedHeight}>
-      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+      <BarChart data={data} layout="vertical" margin={{ top: 0, right: showValues ? 32 : 16, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-dashboard-base-300)" horizontal={false} />
         <XAxis
           type="number"
@@ -60,6 +62,13 @@ export function RankedBarChart({ data, height, defaultColor = "var(--color-dashb
           {data.map((d) => (
             <Cell key={d.name} fill={d.color ?? defaultColor} />
           ))}
+          {showValues && (
+            <LabelList
+              dataKey="value"
+              position="right"
+              style={{ fontSize: 11, fontWeight: 600, fill: "var(--color-dashboard-base-content)" }}
+            />
+          )}
         </Bar>
       </BarChart>
     </ResponsiveContainer>

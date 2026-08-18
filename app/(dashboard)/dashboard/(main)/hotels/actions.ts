@@ -15,6 +15,7 @@ import { hotelOwnerMigrationWelcomeTemplate } from "@/app/lib/functions/emailTem
 import { totalTabsFor } from "@/app/(hotel-connect)/hotel-connect/(main)/properties/[id]/edit/wizard-progress";
 import { createLog } from "../lib/logger";
 import { PLAN_NOTES_MAX_LEN } from "./constants";
+import { haversineMeters } from "@/app/lib/hotel-inventory/geo";
 
 // ── Auth helper ────────────────────────────────────────────────
 
@@ -109,11 +110,32 @@ export type GetHotelsParams = {
   category?:    string | "all";
   status?:      "active" | "inactive" | "all";
   approval?:    HotelApprovalFilter;
+  /** Switches from text search to proximity search: every other filter
+   * (destination/category/status/approval) still applies, but results are
+   * hotels with a mapped location, ranked nearest-first from this point —
+   * `search` is ignored while this is set. See the "near" branch below. */
+  near?:        { lat: number; lng: number } | null;
+  /** Only meaningful alongside `near` — "distance" (default) keeps the
+   * nearest-first ranking, "price" re-sorts the same candidate set by each
+   * hotel's cheapest active room instead. A hotel with no priced room at all
+   * sorts last under "price" rather than being dropped, since it's still a
+   * real nearby option — just one costing needs to fill in. */
+  nearSort?:    "distance" | "price";
+  /** `teamMember.id` of whoever added the hotel (`hotels.created_by`). Applies
+   * in both search modes. */
+  uploadedBy?:  string | "all";
+  /** Exact `hotels.stay_type` match, e.g. "3 Star" — see STAY_TYPES. */
+  stayType?:    string | "all";
 };
 
 const HOTEL_INCLUDE = {
   destination: { select: { id: true, name: true } },
-  location: { select: { name: true, city: { select: { name: true } }, state: { select: { name: true } }, country: { select: { name: true } } } },
+  location: {
+    select: {
+      name: true, latitude: true, longitude: true,
+      city: { select: { name: true } }, state: { select: { name: true } }, country: { select: { name: true } },
+    },
+  },
   _count: {
     select: {
       hotelRooms: true,
@@ -132,6 +154,10 @@ export async function getHotels(params: GetHotelsParams = {}) {
     category    = "all",
     status      = "all",
     approval    = "all",
+    near        = null,
+    nearSort    = "distance",
+    uploadedBy  = "all",
+    stayType    = "all",
   } = params;
 
   const skip = (page - 1) * limit;
@@ -144,7 +170,20 @@ export async function getHotels(params: GetHotelsParams = {}) {
     : approval === "changes"  ? { approval_status: "CHANGES_REQUESTED" as const }
     : {};
 
+  // Every filter except text search — near-mode ranks by distance instead
+  // of matching a typed name, so `search` doesn't apply there (see below).
+  const baseWhere = {
+    ...(destination !== "all" ? { destination_id: destination as number } : {}),
+    ...(category    !== "all" ? { category: category as string }           : {}),
+    ...(status === "active"   ? { is_active: true }                        : {}),
+    ...(status === "inactive" ? { is_active: false }                       : {}),
+    ...(uploadedBy  !== "all" ? { created_by: uploadedBy }                 : {}),
+    ...(stayType    !== "all" ? { stay_type: stayType as string }          : {}),
+    ...approvalWhere,
+  };
+
   const where = {
+    ...baseWhere,
     ...(search ? {
       OR: [
         { name:     { contains: search, mode: "insensitive" as const } },
@@ -157,25 +196,71 @@ export async function getHotels(params: GetHotelsParams = {}) {
         { location: { country: { name: { contains: search, mode: "insensitive" as const } } } },
       ],
     } : {}),
-    ...(destination !== "all" ? { destination_id: destination as number } : {}),
-    ...(category    !== "all" ? { category: category as string }           : {}),
-    ...(status === "active"   ? { is_active: true }                        : {}),
-    ...(status === "inactive" ? { is_active: false }                       : {}),
-    ...approvalWhere,
   };
 
   type HotelRow = Awaited<ReturnType<typeof db.hotels.findMany<{ include: typeof HOTEL_INCLUDE }>>>[number];
 
-  const rows = await db.hotels.findMany({
-    where,
-    orderBy: { created_at: "desc" },
-    skip,
-    take: limit,
-    select: { ...SAFE_HOTEL_SCALARS, ...HOTEL_INCLUDE },
-  }) as HotelRow[];
+  let rows: HotelRow[];
+  let totalCount: number;
+  // Populated only in near-mode — index-aligned with `rows` after sorting,
+  // read back by the caller to show "X km away" / "from ₹N" per hotel.
+  let distancesKm: number[] | null = null;
+  let pricesFrom: (number | null)[] | null = null;
 
-  const [totalCount, statsTotal, statsActive, totalRooms, statsApproved, statsPendingApproval] = await Promise.all([
-    db.hotels.count({ where }),
+  if (near) {
+    // No SQL geo support here (no PostGIS), and the inventory is small enough
+    // (low thousands) that computing every distance in memory and sorting is
+    // simpler and just as fast as maintaining a spatial index would be.
+    // Hotels with no mapped location can't be placed on the ranking, so they
+    // drop out of near-mode entirely rather than showing up unsorted.
+    const candidates = await db.hotels.findMany({
+      where: { ...baseWhere, location: { latitude: { not: null }, longitude: { not: null } } },
+      select: { ...SAFE_HOTEL_SCALARS, ...HOTEL_INCLUDE },
+    }) as HotelRow[];
+
+    const minPriceByHotel = candidates.length > 0
+      ? await db.hotel_room_pricing.groupBy({
+          by: ["hotel_id"],
+          where: { hotel_id: { in: candidates.map((h) => h.id) }, is_active: true },
+          _min: { price_per_night: true },
+        })
+      : [];
+    const priceMap = new Map(minPriceByHotel.map((p) => [p.hotel_id, p._min.price_per_night]));
+
+    const ranked = candidates
+      .map((h) => ({
+        hotel: h,
+        distanceKm: haversineMeters(
+          near.lat, near.lng,
+          Number(h.location!.latitude), Number(h.location!.longitude),
+        ) / 1000,
+        priceFrom: priceMap.has(h.id) ? Number(priceMap.get(h.id)) : null,
+      }))
+      .sort((a, b) => nearSort === "price"
+        // No priced room yet sorts last, not first — a null "cheapest" isn't
+        // actually cheap, it's just unpriced.
+        ? (a.priceFrom ?? Infinity) - (b.priceFrom ?? Infinity) || a.distanceKm - b.distanceKm
+        : a.distanceKm - b.distanceKm);
+
+    totalCount = ranked.length;
+    const page_ = ranked.slice(skip, skip + limit);
+    rows = page_.map((r) => r.hotel);
+    distancesKm = page_.map((r) => Math.round(r.distanceKm * 10) / 10);
+    pricesFrom = page_.map((r) => r.priceFrom);
+  } else {
+    [rows, totalCount] = await Promise.all([
+      db.hotels.findMany({
+        where,
+        orderBy: { created_at: "desc" },
+        skip,
+        take: limit,
+        select: { ...SAFE_HOTEL_SCALARS, ...HOTEL_INCLUDE },
+      }) as Promise<HotelRow[]>,
+      db.hotels.count({ where }),
+    ]);
+  }
+
+  const [statsTotal, statsActive, totalRooms, statsApproved, statsPendingApproval] = await Promise.all([
     db.hotels.count(),
     db.hotels.count({ where: { is_active: true } }),
     db.hotel_rooms.count(),
@@ -183,10 +268,20 @@ export async function getHotels(params: GetHotelsParams = {}) {
     db.hotels.count({ where: { approval_status: { in: ["PENDING", "CHANGES_REQUESTED"] } } }),
   ]);
 
-  const hotels = rows.map((h) => ({
+  const hotels = rows.map((h, i) => ({
     ...h,
     margin_percentage: Number(h.margin_percentage),
     gst_percentage:    Number(h.gst_percentage),
+    distanceKm:        distancesKm ? distancesKm[i] : null,
+    priceFrom:         pricesFrom ? pricesFrom[i] : null,
+    // location.latitude/longitude come back as Prisma Decimal instances,
+    // which aren't plain objects — React errors passing them from this
+    // Server Component data fetcher to the client table below.
+    location: h.location ? {
+      ...h.location,
+      latitude:  h.location.latitude  != null ? Number(h.location.latitude)  : null,
+      longitude: h.location.longitude != null ? Number(h.location.longitude) : null,
+    } : h.location,
   }));
 
   const actorIds = [...new Set(
@@ -209,6 +304,35 @@ export async function getHotels(params: GetHotelsParams = {}) {
       pendingApproval: statsPendingApproval,
     },
   };
+}
+
+/** Every team member who has ever added a hotel — populates the "Uploaded
+ * by" filter. Independent of any current search/filter state (unlike
+ * `memberNames` above, which only covers the current page) so the dropdown's
+ * options don't shrink or reorder as the exec filters. */
+export async function getHotelUploaders(
+  /** Restricts the list to members holding one of these TeamRole names
+   * (e.g. ["Platform Manager", "Hotel Department"] on /dashboard/hotels,
+   * where hotel data entry is actually done) — omit for every uploader
+   * regardless of role (hotel-inventory's read-only view). */
+  roleNames?: string[],
+): Promise<{ id: string; name: string }[]> {
+  const rows = await db.hotels.findMany({
+    where: { created_by: { not: null } },
+    select: { created_by: true },
+    distinct: ["created_by"],
+  });
+  const ids = rows.map((r) => r.created_by).filter((id): id is string => !!id);
+  if (ids.length === 0) return [];
+  const members = await db.teamMember.findMany({
+    where: {
+      id: { in: ids },
+      ...(roleNames?.length ? { teamRole: { name: { in: roleNames } } } : {}),
+    },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  return members;
 }
 
 export async function getAllHotelsForOverview() {

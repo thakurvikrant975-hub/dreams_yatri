@@ -13,6 +13,32 @@ export type ActionFailure = {
   message: string;
 };
 
+/** Field name(s) a Prisma error is actually about, when Prisma tells us —
+ * `meta` on known-request errors, or parsed out of a validation error's
+ * message, which is the only place that error carries the field at all. */
+function fieldFrom(meta: unknown, key: string): string | null {
+  const v = (meta as Record<string, unknown> | undefined)?.[key];
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) return v.join(", ");
+  return null;
+}
+
+/** Prisma's validation error message embeds the offending argument(s) as
+ * `Argument \`field\`: Invalid value provided. Expected Float, provided
+ * String.` (or `Argument \`field\` is missing.`) rather than exposing them
+ * as structured data — regexing them out is the only way to name the field
+ * back to the user instead of a dead-end "invalid data" message. */
+function fieldsFromValidationMessage(message: string): string[] {
+  const found: string[] = [];
+  for (const m of message.matchAll(/Argument `([^`]+)`: Invalid value provided\. Expected ([^,]+), provided ([^.]+)\./g)) {
+    found.push(`"${m[1]}" (expected ${m[2].trim()}, got ${m[3].trim()})`);
+  }
+  for (const m of message.matchAll(/Argument `([^`]+)` is missing\.?/g)) {
+    found.push(`"${m[1]}" (required, but missing)`);
+  }
+  return found;
+}
+
 export function classifyActionError(error: unknown): { errorType: ActionErrorType; message: string } {
   // ── Prisma known request errors ──────────────────────────────────────────
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -25,12 +51,22 @@ export function classifyActionError(error: unknown): { errorType: ActionErrorTyp
         return { errorType: "NETWORK",     message: "Cannot reach the database — please try again." };
 
       // Constraint violations
-      case "P2002":
-        return { errorType: "CONSTRAINT",  message: "This value already exists — try a different one." };
-      case "P2003":
-        return { errorType: "CONSTRAINT",  message: "A related record is missing — check your selections." };
-      case "P2011":
-        return { errorType: "CONSTRAINT",  message: "A required field is missing." };
+      case "P2000": {
+        const column = fieldFrom(error.meta, "column_name");
+        return { errorType: "CONSTRAINT", message: column ? `"${column}" is too long — please shorten it and try again.` : "One of the values is too long — please shorten it and try again." };
+      }
+      case "P2002": {
+        const target = fieldFrom(error.meta, "target");
+        return { errorType: "CONSTRAINT", message: target ? `"${target}" already exists — try a different value.` : "This value already exists — try a different one." };
+      }
+      case "P2003": {
+        const field = fieldFrom(error.meta, "field_name");
+        return { errorType: "CONSTRAINT", message: field ? `The related record for "${field}" is missing — check your selections.` : "A related record is missing — check your selections." };
+      }
+      case "P2011": {
+        const constraint = fieldFrom(error.meta, "constraint");
+        return { errorType: "CONSTRAINT", message: constraint ? `"${constraint}" is required but missing.` : "A required field is missing." };
+      }
       case "P2014":
         return { errorType: "CONSTRAINT",  message: "This change would violate a required relationship." };
 
@@ -42,7 +78,13 @@ export function classifyActionError(error: unknown): { errorType: ActionErrorTyp
 
   // ── Prisma validation error (bad query / schema mismatch) ────────────────
   if (error instanceof Prisma.PrismaClientValidationError) {
-    return { errorType: "VALIDATION", message: "Invalid data — please check your inputs and try again." };
+    const fields = fieldsFromValidationMessage(error.message);
+    return {
+      errorType: "VALIDATION",
+      message: fields.length > 0
+        ? `Invalid value for ${fields.join(", ")} — please check that and try again.`
+        : "Invalid data — please check your inputs and try again.",
+    };
   }
 
   // ── Prisma initialization / connection error ─────────────────────────────

@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 };
 
 const VALID_LIMITS = [10, 20, 50] as const;
+const VALID_NEAR_SORT = ["distance", "price"] as const;
 
 export default async function Page({
     searchParams,
@@ -34,6 +35,19 @@ export default async function Page({
     const approval = (["pending", "approved", "changes"].includes(sp.approval ?? "")
         ? sp.approval : "all") as HotelApprovalFilter;
 
+    // "Near a location" mode — an alternative to text search, picked from the
+    // map/location catalog rather than typed. Same pattern as hotel-inventory.
+    const nearLat = parseFloat(sp.nearLat ?? "");
+    const nearLng = parseFloat(sp.nearLng ?? "");
+    const near = (sp.nearName && Number.isFinite(nearLat) && Number.isFinite(nearLng))
+        ? { id: sp.nearId ?? "0", name: sp.nearName, type: sp.nearType ?? "CITY", lat: nearLat, lng: nearLng }
+        : null;
+    const nearSort = (VALID_NEAR_SORT as readonly string[]).includes(sp.nearSort ?? "")
+        ? (sp.nearSort as typeof VALID_NEAR_SORT[number])
+        : "distance";
+    const uploadedBy = (sp.uploadedBy ?? "all").trim() || "all";
+    const stayType = (sp.stayType ?? "all").trim() || "all";
+
     return (
         <HotelsPageServer
             page={page}
@@ -43,6 +57,10 @@ export default async function Page({
             destination={destination}
             category={category}
             approval={approval}
+            near={near}
+            nearSort={nearSort}
+            uploadedBy={uploadedBy}
+            stayType={stayType}
         />
     );
 }

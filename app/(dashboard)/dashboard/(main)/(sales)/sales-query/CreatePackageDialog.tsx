@@ -95,7 +95,7 @@ function newPackageId(): string {
         : `pkg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export type ExistingPackageOption = { id: string; title: string; status: string };
+export type ExistingPackageOption = { id: string; title: string; status: string; builtByName?: string | null };
 
 export function CreatePackageDialog({ queryId, packageId, existingPackages, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
     /** Query to attach a brand-new package to — pass this from a "Create
@@ -366,7 +366,14 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
                                 >
                                     <span className="flex items-center gap-1.5 min-w-0">
                                         <Package size={12} className="shrink-0 text-muted-foreground" />
-                                        <span className="truncate font-medium text-foreground">{pkg.title}</span>
+                                        <span className="min-w-0">
+                                            <span className="block truncate font-medium text-foreground">{pkg.title}</span>
+                                            {pkg.builtByName && (
+                                                <span className="block truncate text-[10px] font-normal text-muted-foreground">
+                                                    by {pkg.builtByName}
+                                                </span>
+                                            )}
+                                        </span>
                                     </span>
                                     <span className="flex items-center gap-1 shrink-0 font-medium text-primary">
                                         {applyingDuplicateId === pkg.id ? (

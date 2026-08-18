@@ -8,10 +8,11 @@ const CHECK_INTERVAL_MS = 20 * 1000;
 
 /**
  * Surfaces "your package was approved" / "…was rejected — <reason>" /
- * "hotel added for <package>" as a toast without the exec needing to
- * refresh — polled, not pushed (no generic in-app notification bus exists
- * in this dashboard yet; see getMyUnseenPackageEvents for why this stays
- * narrowly scoped to just these events rather than building one).
+ * "hotel added for <package>" / "hotel request rejected for <client>" as a
+ * toast without the exec needing to refresh — polled, not pushed (no
+ * generic in-app notification bus exists in this dashboard yet; see
+ * getMyUnseenPackageEvents for why this stays narrowly scoped to just these
+ * events rather than building one).
  */
 export function PackageStatusNotifier() {
     useEffect(() => {
@@ -33,7 +34,7 @@ export function PackageStatusNotifier() {
                         description: [e.reasonLabel, e.note].filter(Boolean).join(" — ") || "See the package for details.",
                         duration: 15000,
                     });
-                } else {
+                } else if (e.kind === "hotel_filled") {
                     const dayLines = e.days
                         .map((d) => [`Day ${d.day}`, d.hotelName].filter(Boolean).join(" · "))
                         .join(", ");
@@ -45,6 +46,21 @@ export function PackageStatusNotifier() {
                         ].filter(Boolean).join(" — "),
                         duration: 12000,
                     });
+                } else {
+                    const dayLines = e.days
+                        .map((d) => [`Day ${d.day}`, d.note].filter(Boolean).join(" · "))
+                        .join(", ");
+                    toast.error(
+                        `Hotel request rejected for ${e.clientName ?? e.title}`,
+                        {
+                            description: [
+                                dayLines,
+                                e.rejectedByName ? `by ${e.rejectedByName}` : null,
+                                "Open the package to update the request.",
+                            ].filter(Boolean).join(" — "),
+                            duration: 15000,
+                        },
+                    );
                 }
             }
         }

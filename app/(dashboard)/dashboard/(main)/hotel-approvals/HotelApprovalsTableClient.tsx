@@ -17,6 +17,7 @@ import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import { ApprovalBadge, ReadinessBar } from "./ApprovalBadge";
 import { summarizeChecklist, SECTION_LABELS, type ApprovalSectionKey } from "./approval-checklist";
 import type { ApprovalStatusFilter, HotelApprovalListItem } from "./actions";
+import { RATE_WINDOWS, DATA_ISSUES, type RateWindow, type DataIssue } from "./filters";
 
 const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
@@ -30,6 +31,8 @@ export function HotelApprovalsTableClient({
   search,
   status,
   destination,
+  rateWindow,
+  dataIssue,
 }: {
   hotels: HotelApprovalListItem[];
   reviewers: Record<string, string>;
@@ -40,6 +43,8 @@ export function HotelApprovalsTableClient({
   search: string;
   status: ApprovalStatusFilter;
   destination: number | "all";
+  rateWindow: RateWindow;
+  dataIssue: DataIssue;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -173,13 +178,12 @@ export function HotelApprovalsTableClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <TableFilters
-          className="flex-1 min-w-0"
-          search={search}
-          onSearchChange={(v) => updateParam("search", v)}
-          searchPlaceholder="Search by hotel, city or state…"
-          filters={[
+      <TableFilters
+        collapsible
+        search={search}
+        onSearchChange={(v) => updateParam("search", v)}
+        searchPlaceholder="Search by hotel, city or state…"
+        filters={[
             {
               value: status,
               onChange: (v) => updateParam("status", v),
@@ -199,11 +203,26 @@ export function HotelApprovalsTableClient({
               width: "w-44",
               options: destinations.map((d) => ({ label: d.name, value: String(d.id) })),
             },
+            {
+              value: rateWindow,
+              onChange: (v) => updateParam("rateWindow", v),
+              placeholder: "Any rate status",
+              width: "w-52",
+              options: RATE_WINDOWS.map((w) => ({ label: w.label, value: w.value })),
+            },
+            {
+              value: dataIssue,
+              onChange: (v) => updateParam("dataIssue", v),
+              placeholder: "Any data issue",
+              width: "w-56",
+              options: DATA_ISSUES.map((d) => ({ label: d.label, value: d.value })),
+            },
           ]}
-          filteredCount={hotels.length}
-          totalCount={totalCount}
-        />
+        filteredCount={hotels.length}
+        totalCount={totalCount}
+      >
         <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-dashboard-base-content/50 whitespace-nowrap">Rows</span>
           <Select value={String(limit)} onValueChange={(v) => updateParam("limit", v)}>
             <SelectTrigger className="w-20 h-10 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg">
               <SelectValue />
@@ -215,7 +234,7 @@ export function HotelApprovalsTableClient({
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </TableFilters>
 
       {hotels.length === 0 ? (
         <TableEmptyState

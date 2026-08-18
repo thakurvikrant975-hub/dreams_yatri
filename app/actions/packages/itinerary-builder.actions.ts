@@ -19,6 +19,7 @@ import {
   reorderDayItems,
   searchActivities,
   searchRoomPricings,
+  type RoomSearchSort,
   getRoomPricingById,
   getActivityVariants,
   getStayCategories,
@@ -305,13 +306,22 @@ export async function handleSearchRoomPricings(
   itineraryId?: number,
   stayBlockOrder?: number,
   stopIndex?: number,
+  page?: number,
+  sortBy?: RoomSearchSort | null,
+  starFilter?: string | null,
+  catFilter?: string | null,
+  mealFilter?: string[] | null,
+  noMealsOnly?: boolean | null,
 ) {
   try {
-    const data = await searchRoomPricings(destinationId, query, itineraryId, stayBlockOrder, stopIndex);
+    const data = await searchRoomPricings(
+      destinationId, query, itineraryId, stayBlockOrder, stopIndex,
+      page, sortBy, starFilter, catFilter, mealFilter, noMealsOnly,
+    );
     return { success: true as const, data };
   } catch (e) {
     console.error(e);
-    return { success: false as const, data: { items: [], has_more: false }, message: "Search failed" };
+    return { success: false as const, data: { items: [], has_more: false, total: 0 }, message: "Search failed" };
   }
 }
 

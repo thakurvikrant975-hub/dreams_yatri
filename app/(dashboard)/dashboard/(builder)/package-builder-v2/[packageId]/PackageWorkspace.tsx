@@ -64,7 +64,6 @@ import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-
 import { CostingDecisionButtons } from "./CostingDecisionButtons";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
-import { missingTravellerAgesError } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
@@ -1147,16 +1146,7 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     if (validationError) {
       toast.error(validationError);
       return;
-    }
-    // Same rule markPackageReady enforces server-side — checked here too so
-    // the exec is told in the builder, with the Trip Setup panel one click
-    // away, rather than after a save round-trip.
-    const agesError = missingTravellerAgesError(form);
-    if (agesError) {
-      toast.error(agesError);
-      return;
-    }
-    const pendingDay = form.itineraries.find((it) => it.hotelPending);
+    }    const pendingDay = form.itineraries.find((it) => it.hotelPending);
     if (pendingDay) {
       toast.error(`Day ${pendingDay.day} is still awaiting the hotel team — fill in or undo the pending hotel request before submitting for review.`);
       return;
@@ -2300,7 +2290,7 @@ Rules:
                 className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
                 onClick={handleMarkReadyClick}
                 disabled={isSending || isSaving}
-                title={validateItineraryRequiredFields(form) ?? missingTravellerAgesError(form) ?? undefined}
+                title={validateItineraryRequiredFields(form) ?? undefined}
               >
                 {isSending
                   ? <Loader2 size={13} className="animate-spin" />
@@ -2559,7 +2549,7 @@ Rules:
                     className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                     onClick={handleMarkReadyClick}
                     disabled={isSending || isSaving}
-                    title={validateItineraryRequiredFields(form) ?? missingTravellerAgesError(form) ?? undefined}
+                    title={validateItineraryRequiredFields(form) ?? undefined}
                   >
                     {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                     Mark Ready

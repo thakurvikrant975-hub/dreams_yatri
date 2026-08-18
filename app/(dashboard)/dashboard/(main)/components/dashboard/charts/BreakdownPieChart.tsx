@@ -7,6 +7,8 @@ export type PieSlice = { name: string; value: number; color: string };
 type Props = {
   data: PieSlice[];
   height?: number;
+  /** Print "name: value" directly on/around each slice so it reads at a glance, no hover needed. */
+  showLabels?: boolean;
 };
 
 function PieTooltip({ active, payload }: {
@@ -26,7 +28,7 @@ function PieTooltip({ active, payload }: {
   );
 }
 
-export function BreakdownPieChart({ data, height = 260 }: Props) {
+export function BreakdownPieChart({ data, height = 260, showLabels = false }: Props) {
   const filtered = data.filter((d) => d.value > 0);
 
   if (filtered.length === 0) {
@@ -38,30 +40,34 @@ export function BreakdownPieChart({ data, height = 260 }: Props) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <PieChart>
+    <ResponsiveContainer width="100%" height={showLabels ? height + 20 : height}>
+      <PieChart margin={showLabels ? { top: 10, right: 40, bottom: 10, left: 40 } : undefined}>
         <Pie
           data={filtered}
           dataKey="value"
           nameKey="name"
-          innerRadius="55%"
-          outerRadius="80%"
+          innerRadius="45%"
+          outerRadius={showLabels ? "65%" : "80%"}
           paddingAngle={2}
           strokeWidth={0}
+          label={showLabels ? ({ name, value }) => `${name}: ${value}` : undefined}
+          labelLine={showLabels ? { stroke: "var(--color-dashboard-base-content)", strokeOpacity: 0.35 } : false}
         >
           {filtered.map((slice) => (
             <Cell key={slice.name} fill={slice.color} />
           ))}
         </Pie>
         <Tooltip content={<PieTooltip />} />
-        <Legend
-          layout="vertical"
-          verticalAlign="middle"
-          align="right"
-          iconType="circle"
-          iconSize={8}
-          wrapperStyle={{ fontSize: 12, lineHeight: "20px" }}
-        />
+        {!showLabels && (
+          <Legend
+            layout="vertical"
+            verticalAlign="middle"
+            align="right"
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{ fontSize: 12, lineHeight: "20px" }}
+          />
+        )}
       </PieChart>
     </ResponsiveContainer>
   );

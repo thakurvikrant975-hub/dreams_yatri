@@ -75,7 +75,7 @@ import { ClientLinkButton } from "../ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import {
-  resizeAges, ageInputValue, parseAgeInput, missingTravellerAgesError,
+  resizeAges, ageInputValue, parseAgeInput,
   CHILD_AGE_MIN, CHILD_AGE_MAX, INFANT_AGE_MIN, INFANT_AGE_MAX,
 } from "../traveller-ages";
 import { HotelRoomPicker } from "./HotelRoomPicker";
@@ -88,6 +88,13 @@ import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions"
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner", "Tea & Snacks"];
+
+// Mirrors the private CAB_SEARCH_PAGE_SIZE in ../action.ts (can't be
+// imported — that's a "use server" file and only async functions may be
+// exported from one). Only used to size the SearchSelect "Load more"
+// heuristic (a page counts as full, and more may follow, once it comes
+// back with this many rows) — keep in sync if the server value changes.
+const CAB_SEARCH_PAGE_SIZE = 20;
 
 // hotel_room_pricing's meal_type.covered_meals comes back as lowercase keys
 // ("breakfast", "lunch", "dinner") — map to the same labels MEAL_OPTIONS uses
@@ -150,16 +157,40 @@ const TRIP_TYPE_LABELS: Record<string, string> = {
   BUSINESS: "Business", CORPORATE: "Corporate / MICE", OTHER: "Other",
 };
 
-// Geocodes the day's search-city text (Mapbox, India-scoped) so hotel search
-// results can show "X km from {city}" — cached in module scope, same pattern
-// as ItineraryMap.tsx, since the same city gets searched repeatedly across days.
+// Geocodes the day's search-city text so hotel search results can show "X km
+// from {city}" — cached in module scope, same pattern as ItineraryMap.tsx,
+// since the same city gets searched repeatedly across days.
 const cityGeocodeCache = new Map<string, { lat: number; lng: number } | null>();
 async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
   const key = query.trim().toLowerCase();
   if (!key) return null;
   if (cityGeocodeCache.has(key)) return cityGeocodeCache.get(key) ?? null;
+
+  // The app's own Location catalog first — real coordinates for anywhere
+  // already in it (added via the location picker, manual entry, or an
+  // earlier Mapbox save), and it covers places Mapbox's `mapbox.places`
+  // dataset can return NOTHING for even with a correct token — "Cherrapunji"
+  // itself is a confirmed case, despite the catalog having it at the right
+  // coordinates all along (it's how the hotel-inventory "near a location"
+  // search already finds hotels there). Mapbox stays as the fallback for a
+  // place that's genuinely not in the catalog yet.
+  try {
+    const res = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}&limit=1`);
+    if (res.ok) {
+      const rows = await res.json() as { latitude: number | null; longitude: number | null }[];
+      const hit = rows[0];
+      if (hit?.latitude != null && hit?.longitude != null) {
+        const result = { lat: hit.latitude, lng: hit.longitude };
+        cityGeocodeCache.set(key, result);
+        return result;
+      }
+    }
+  } catch {
+    // Falls through to Mapbox below.
+  }
+
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  if (!token) return null;
+  if (!token) { cityGeocodeCache.set(key, null); return null; }
   try {
     const res = await fetch(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
@@ -1092,12 +1123,22 @@ function HotelRequestPanel({
 
     return (
       <div className="space-y-2">
-        {/* The hotel-rejection workflow (hotelRejectedAt/hotelRejectionNote/
-            hotelRejectedByName) exists on production's schema but not yet on
-            this branch's — see the package-builder-v2 split plan. Nothing on
-            this branch's DayItinerary carries those fields, so this banner
-            is deliberately omitted here rather than referencing data that
-            can never actually be present. */}
+        {data.hotelRejectedAt && (
+          <div className="rounded-lg border border-red-300 bg-red-50 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-red-800 text-sm font-semibold">
+              <XCircle size={14} /> Hotel team couldn&apos;t fulfil this request
+            </div>
+            {data.hotelRejectionNote && (
+              <p className="text-[11px] text-red-800/90 bg-white/70 border border-red-200 rounded-md px-2 py-1.5">
+                &quot;{data.hotelRejectionNote}&quot;
+              </p>
+            )}
+            <p className="text-[11px] text-red-700/80">
+              {data.hotelRejectedByName ? `— ${data.hotelRejectedByName}. ` : ""}
+              Edit the request below and resubmit, or search for a hotel yourself.
+            </p>
+          </div>
+        )}
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
@@ -1225,6 +1266,7 @@ function DayCard({
   onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
   focusSection, shiftedMeals, mealTypes,
   dayAddons, onAddAddon, onUpdateAddon, onRemoveAddon,
+  onHotelRequestSubmitted,
 }: {
   /** dnd-kit's stable identity for this row — see dayDndIds on the parent. */
   dndId: string;
@@ -1271,6 +1313,10 @@ function DayCard({
   onAddAddon: () => void;
   onUpdateAddon: (idx: number, patch: Partial<AddonInput>) => void;
   onRemoveAddon: (idx: number) => void;
+  /** Saves the whole package right away — a hotel request is meant to
+   * reach the hotel team's queue the moment it's submitted, not whenever
+   * the exec next happens to hit Save Draft. See its call site. */
+  onHotelRequestSubmitted: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dndId });
@@ -1439,9 +1485,12 @@ function DayCard({
   // city nor an exact pickup point to price against yet (e.g. route stops
   // not filled in) — once either is available, cab_pricing (real, bookable
   // rates) takes over.
-  async function fetchCabOptions(query: string): Promise<Option[]> {
+  async function fetchCabOptions(query: string, page: number = 1): Promise<Option[]> {
     const hasPickupPoint = data.transportPickupLat != null && data.transportPickupLng != null;
     if (!searchCabCity && !hasPickupPoint) {
+      // Unscoped fleet catalog fallback (no destination/pickup to price
+      // against yet) — capped at 20 server-side with no page param, so
+      // there's nothing further to load here.
       const results = await searchVehiclesForBuilder(query);
       return results.map((v): Option & { raw: VehicleResult } => ({
         id: v.id,
@@ -1461,7 +1510,7 @@ function DayCard({
       : cabCityCoords;
     const distanceRefLabel = hasPickupPoint ? data.transportPickup : searchCabCity;
 
-    const { rows: results } = await searchCabsForBuilder(searchCabCity, query, refCoords);
+    const { rows: results } = await searchCabsForBuilder(searchCabCity, query, refCoords, page);
     return results.map((r): Option & { raw: CabPricingResult } => ({
       id: r.id,
       label: r.vehicleName,
@@ -1619,11 +1668,17 @@ function DayCard({
                 composing={hotelRequestComposing}
                 onStartEdit={() => setHotelRequestComposing(true)}
                 onSubmit={() => {
-                  // No hotelRejectionAcknowledged/hotelRejectedAt fields on
-                  // this branch's DayItinerary yet — see the rejection-banner
-                  // comment above.
-                  onChange({ ...data, hotelPending: true });
+                  onChange({
+                    ...data,
+                    hotelPending: true,
+                    // Proof to saveCustomPackage that the exec actually saw
+                    // this rejection before resubmitting — see
+                    // hotelRejectionAcknowledged's doc comment in action.ts.
+                    hotelRejectionAcknowledged: true,
+                    hotelRejectedAt: null, hotelRejectedByName: null, hotelRejectionNote: null,
+                  });
                   setHotelRequestComposing(false);
+                  onHotelRequestSubmitted();
                 }}
                 onCancelEdit={() => setHotelRequestComposing(false)}
                 onRemoveRequest={() => {
@@ -1633,6 +1688,7 @@ function DayCard({
                     roomsCount: null, manualExtraBeds: null, hotelMealPlan: "",
                   });
                   setHotelRequestComposing(false);
+                  onHotelRequestSubmitted();
                 }}
               />
             ) : (
@@ -2073,6 +2129,7 @@ function DayCard({
                 value={null}
                 onChange={handleCabSelect}
                 fetchOptions={fetchCabOptions}
+                pageSize={CAB_SEARCH_PAGE_SIZE}
                 placeholder={
                   searchCabCity ? `Search cabs in ${searchCabCity}…`
                     : data.transportPickup ? `Search cabs near ${data.transportPickup}…`
@@ -2130,6 +2187,7 @@ function DayCard({
                           onChange({ ...data, extraCabs: next });
                         }}
                         fetchOptions={fetchCabOptions}
+                        pageSize={CAB_SEARCH_PAGE_SIZE}
                         placeholder={cab.label || "Search another cab…"}
                       />
                     </div>
@@ -2782,6 +2840,18 @@ export default function PackageBuilderDetailPage() {
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
   const [confirmShareOpen, setConfirmShareOpen] = useState(false);
 
+  // There's no autosave in this builder (unlike v2) — every other edit
+  // waits for an explicit Save Draft click, which is fine for most fields
+  // since nothing outside this tab is watching them. A hotel request is
+  // different: submitting one is supposed to put the day in the hotel
+  // team's queue (/dashboard/hotel-requests) right away, not whenever the
+  // exec next happens to save. A plain `handleSave()` call from inside the
+  // submit handler would still read the pre-update `form` (setForm's
+  // update hasn't committed yet in the same tick) — so this fires from an
+  // effect instead, which only runs after the state it depends on has
+  // actually landed.
+  const [pendingHotelRequestSave, setPendingHotelRequestSave] = useState(false);
+
   const [form, setForm] = useState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
@@ -3304,6 +3374,17 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
+  // Fires the save `pendingHotelRequestSave` above queued up, now that
+  // `form` has actually picked up the hotel-request change that requested
+  // it. Deliberately not a plain call inside the submit handler — see that
+  // state's own comment.
+  useEffect(() => {
+    if (!pendingHotelRequestSave) return;
+    setPendingHotelRequestSave(false);
+    handleSave("DRAFT");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingHotelRequestSave]);
+
   // ── Mark ready for costing review ───────────────────────────────────────────
   // The ONLY way a package moves forward from the builder into review — no
   // direct "send to client" from here. This locks nothing and notifies no
@@ -3320,16 +3401,7 @@ export default function PackageBuilderDetailPage() {
     if (validationError) {
       toast.error(validationError);
       return;
-    }
-    // Same rule markPackageReady enforces server-side — checked here so the
-    // exec is turned back at the button, next to the Travellers block that
-    // fixes it, instead of after the save round-trip.
-    const agesError = missingTravellerAgesError(form);
-    if (agesError) {
-      toast.error(agesError);
-      return;
-    }
-    const pendingDay = form.itineraries.find((it) => it.hotelPending);
+    }    const pendingDay = form.itineraries.find((it) => it.hotelPending);
     if (pendingDay) {
       toast.error(`Day ${pendingDay.day} is still awaiting the hotel team — fill in or undo the pending hotel request before submitting for review.`);
       return;
@@ -4332,7 +4404,7 @@ Rules:
                 className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
                 onClick={handleMarkReadyClick}
                 disabled={isSending || isSaving}
-                title={validateItineraryRequiredFields(form) ?? missingTravellerAgesError(form) ?? undefined}
+                title={validateItineraryRequiredFields(form) ?? undefined}
               >
                 {isSending
                   ? <Loader2 size={13} className="animate-spin" />
@@ -4666,7 +4738,7 @@ Rules:
                       {form.children > 0 && (
                         <div className="pt-3">
                           <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
-                            Children&apos;s Ages
+                            Children&apos;s Ages <span className="text-dashboard-error">*</span>
                           </label>
                           <div className="flex flex-wrap gap-1.5">
                             {form.childrenAges.map((age, i) => (
@@ -4694,7 +4766,7 @@ Rules:
                       {form.infants > 0 && (
                         <div className="pt-3">
                           <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
-                            Infants&apos; Ages
+                            Infants&apos; Ages <span className="text-dashboard-error">*</span>
                           </label>
                           <div className="flex flex-wrap gap-1.5">
                             {form.infantAges.map((age, i) => (
@@ -5013,6 +5085,7 @@ Rules:
                         onAddAddon={() => addAddon(day.day)}
                         onUpdateAddon={updateAddon}
                         onRemoveAddon={removeAddon}
+                        onHotelRequestSubmitted={() => setPendingHotelRequestSave(true)}
                       />
                     ))}
                   </SortableContext>
@@ -5655,7 +5728,7 @@ Rules:
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleMarkReadyClick}
                   disabled={isSending || isSaving}
-                  title={validateItineraryRequiredFields(form) ?? missingTravellerAgesError(form) ?? undefined}
+                  title={validateItineraryRequiredFields(form) ?? undefined}
                 >
                   {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   Mark Ready

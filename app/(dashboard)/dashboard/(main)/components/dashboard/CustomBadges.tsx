@@ -43,6 +43,7 @@ export type QuerySource =
   | "WEBSITE_FORM"
   | "LANDING_PAGE"
   | "WHATSAPP"
+  | "WHATSAPP_GOOGLE"
   | "PHONE_CALL"
   | "PACKAGE_FORM"
   | "CONTACT_FORM"
@@ -170,10 +171,16 @@ const SOURCE_CONFIG: Record<
       "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-cyan-700",
   },
   WHATSAPP: {
-    label: "WhatsApp",
+    label: "WhatsApp Meta",
     icon: MessageCircle,
     className:
       "bg-green-50 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700",
+  },
+  WHATSAPP_GOOGLE: {
+    label: "WhatsApp Google",
+    icon: MessageCircle,
+    className:
+      "bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-700",
   },
   META: {
     label: "Meta",

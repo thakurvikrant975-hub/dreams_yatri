@@ -1,3 +1,4 @@
+import { missingTravellerAgesError } from "../traveller-ages";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
@@ -30,11 +31,28 @@ export function validateItineraryRequiredFields(form: {
   adults: number;
   children: number;
   infants: number;
+  /** -1 = not yet entered — see resizeAges. Only present once
+   * children/infants > 0, since that's what grows these arrays. */
+  childrenAges?: number[];
+  infantAges?: number[];
 }): string | null {
   if (!form.travelDate) return "Add a travel date before generating the PDF or sending to the client.";
   if ((form.adults || 0) + (form.children || 0) + (form.infants || 0) < 1) {
     return "Add at least one traveller before generating the PDF or sending to the client.";
   }
+  // Ages go through the shared rule rather than being re-tested here. Two
+  // implementations of "does every child have an age" arrived independently —
+  // one in this function, one in traveller-ages.ts behind Mark Ready and
+  // markPackageReady's server-side guard — and they agreed on the -1 sentinel
+  // but not on their thresholds. One of them had to win, and it has to be the
+  // one the server also enforces, or the builder and the submit could disagree.
+  const agesError = missingTravellerAgesError({
+    children: form.children || 0,
+    infants: form.infants || 0,
+    childrenAges: form.childrenAges ?? [],
+    infantAges: form.infantAges ?? [],
+  });
+  if (agesError) return agesError;
   return null;
 }
 

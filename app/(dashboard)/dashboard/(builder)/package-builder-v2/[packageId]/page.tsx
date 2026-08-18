@@ -15,11 +15,13 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
-  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
+  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Ticket,
-  ShieldCheck, ChatText,
+  ShieldCheck, ChatText, Wand2, Copy, AlertTriangle,
 } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
+import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
+import { cn } from "@/app/lib/utils";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
@@ -62,7 +64,6 @@ import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
-import { missingTravellerAgesError } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
@@ -322,19 +323,6 @@ function formatDuration(ms: number): string {
   return `${mins}m`;
 }
 
-/** Detects the "[label](https://...)" markdown-link/citation pattern
- * sometimes left behind when copying a JSON response out of ChatGPT's chat
- * bubble (as opposed to its code block's own copy button) — a link wrapped
- * around plain text inside a JSON string is still syntactically valid JSON,
- * so JSON.parse succeeds but every wrapped field ends up garbled. Recurses
- * through the whole parsed value looking for the tell-tale "](http" bytes. */
-function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
-  if (typeof value === "string") return /\]\(https?:\/\//.test(value);
-  if (Array.isArray(value)) return value.some(looksLikeMarkdownLinkCorruption);
-  if (value && typeof value === "object") return Object.values(value).some(looksLikeMarkdownLinkCorruption);
-  return false;
-}
-
 const TICKET_TYPE_ICONS: Record<TicketInput["type"], React.ElementType> = {
   FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
   BUS: Bus, OTHER: Ticket,
@@ -356,6 +344,36 @@ const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
   OTHER: "Booking no.",
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Itinerary Builder — see the functions inside the component for the
+// build/copy/apply flow itself; these are just the module-scope pieces that
+// don't need `form`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Detects the "[label](https://...)" markdown-link/citation pattern
+ * sometimes left behind when copying a JSON response out of ChatGPT's chat
+ * bubble (as opposed to its code block's own copy button) — a link wrapped
+ * around plain text inside a JSON string is still syntactically valid JSON,
+ * so JSON.parse succeeds but every wrapped field ends up garbled. Recurses
+ * through the whole parsed value looking for the tell-tale "](http" bytes. */
+function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
+  if (typeof value === "string") return /\]\(https?:\/\//.test(value);
+  if (Array.isArray(value)) return value.some(looksLikeMarkdownLinkCorruption);
+  if (value && typeof value === "object") return Object.values(value).some(looksLikeMarkdownLinkCorruption);
+  return false;
+}
+
+type AIItineraryActivity = { title?: string; description?: string; photos?: string[] };
+type AIItineraryDay = {
+  day?: number; title?: string; description?: string;
+  transportPickup?: string; transportDrop?: string; transportDistanceKm?: number;
+  travelTimeApprox?: string; activities?: AIItineraryActivity[];
+};
+type AIItineraryResponse = {
+  description?: string; coverImage?: string;
+  stops?: { name?: string; image?: string }[];
+  days?: AIItineraryDay[];
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
@@ -394,13 +412,19 @@ export default function PackageBuilderDetailPage() {
   // photo with no upload. A per-tile override still wins (see StopTile).
   const [stopImages, setStopImages] = useState<Record<string, string | null>>({});
   const [computingCabPrice, setComputingCabPrice] = useState(false);
-  // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (external
-  // LLM, no direct API call from here). See buildAIPrompt/applyAIItinerary.
-  const [aiDialogOpen, setAiDialogOpen] = useState(false);
-  const [aiJsonInput, setAiJsonInput] = useState("");
 
   // Itinerary tab "focus mode" — see FOCUS_SECTIONS.
   const [focusSection, setFocusSection] = useState<FocusSection>("all");
+
+  // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (no
+  // direct LLM API call from this app). Lives at the top level rather than
+  // inside a panel because its trigger sits in the top toolbar, next to
+  // Change Template — see buildAIPrompt/applyAIItinerary and the button
+  // below. aiParseError is shown inline in the dialog (not just a toast)
+  // so the exec can see exactly what's wrong while they fix the paste.
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiJsonInput, setAiJsonInput] = useState("");
+  const [aiParseError, setAiParseError] = useState<string | null>(null);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -945,6 +969,238 @@ export default function PackageBuilderDetailPage() {
     }
   }
 
+  // ── AI Itinerary Builder ─────────────────────────────────────────────────
+  // Copy-a-prompt / paste-back-JSON workflow: no direct LLM API call from
+  // this app — the exec copies the generated prompt into their own ChatGPT
+  // session, pastes the JSON it returns back here, and we parse + merge it
+  // into the form. Kept strictly additive (never overwrites a day/field the
+  // exec has already filled in).
+  //
+  // Gated behind validateBeforeAIBuilder: the prompt is built FROM the
+  // trip's own setup (dates, destinations, travellers, margin) — opening it
+  // before those exist would just generate a prompt full of placeholders,
+  // which is worse than not offering the button at all.
+  function validateBeforeAIBuilder(): string | null {
+    if (!form.travelDate) return "Add a travel date before using the AI Itinerary Builder.";
+    if (form.stops.length === 0 && !form.destination.trim()) {
+      return "Add at least one destination (Route: Destinations & Nights) before using the AI Itinerary Builder.";
+    }
+    if (form.totalNights < 1) return "Add at least one night's stay before using the AI Itinerary Builder.";
+    if (form.adults + form.children < 1) return "Add at least one traveller before using the AI Itinerary Builder.";
+    const margin = parseFloat(form.marginPercentage);
+    if (!form.marginPercentage.trim() || Number.isNaN(margin) || margin <= 0) {
+      return "Set a margin percentage before using the AI Itinerary Builder.";
+    }
+    return null;
+  }
+
+  function openAIBuilder() {
+    const error = validateBeforeAIBuilder();
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    setAiJsonInput("");
+    setAiParseError(null);
+    setAiDialogOpen(true);
+  }
+
+  /** Builds the copy-paste prompt from the package's current state — title,
+   * day count, destinations with night counts (falls back to the single
+   * `destination` + total nights when no stops have been added yet), pickup
+   * point, and the last day's drop point. */
+  function buildAIPrompt(): string {
+    const destinationsLine = form.stops.length > 0
+      ? form.stops.map((s) => `${s.name} (${s.nights} Night${s.nights !== 1 ? "s" : ""})`).join(", ")
+      : `${form.destination || "the destination"} (${Math.max(form.totalNights, 1)} Night${Math.max(form.totalNights, 1) !== 1 ? "s" : ""})`;
+    const pickup = form.startingPoint.trim() || "(not specified — choose a sensible pickup point for this destination)";
+    const lastDay = form.itineraries[form.itineraries.length - 1];
+    const drop = lastDay?.transportDrop.trim() || "(not specified — same as the pickup point unless the route suggests otherwise)";
+    const totalPax = form.adults + form.children;
+    const paxLine = `${form.adults} Adult${form.adults !== 1 ? "s" : ""}` +
+      (form.children > 0 ? ` + ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "");
+
+    return `AI Itinerary Builder Prompt
+
+Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
+
+Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). If you look anything up (e.g. to find real image URLs), still write the result as a plain string value, not a hyperlink/citation. A markdown link anywhere inside the JSON will break the import.
+
+Package: "${form.title || "Untitled Package"}" — ${form.totalDays} Day${form.totalDays !== 1 ? "s" : ""} / ${form.totalNights} Night${form.totalNights !== 1 ? "s" : ""}
+Destinations (in order, with nights at each): ${destinationsLine}
+Travellers: ${paxLine}${totalPax === 0 ? " (assume 2 adults if unspecified)" : ""}
+Pickup point: ${pickup}
+Drop point: ${drop}
+
+Spend the itinerary days in the order the destinations are listed, matching the night count at each one.
+
+Return exactly this JSON shape:
+
+{
+  "description": "2-3 sentence overview of the whole trip",
+  "coverImage": "<a real, working, high-quality landscape photo URL representing the overall trip>",
+  "stops": [
+    { "name": "<destination name, matching the list above>", "image": "<real landscape photo URL of this destination>" }
+  ],
+  "days": [
+    {
+      "day": 1,
+      "title": "<day title, under 10 words>",
+      "description": "<day description, 35-55 words — see style example below>",
+      "transportPickup": "<pickup point for this day's transfer>",
+      "transportDrop": "<drop point for this day's transfer>",
+      "transportDistanceKm": <approximate distance in km as a number>,
+      "travelTimeApprox": "<approx travel time, e.g. \\"2h 30m\\">",
+      "activities": [
+        {
+          "title": "<activity title, a short descriptive phrase — see style example below>",
+          "description": "<activity description, 25-40 words — see style example below>",
+          "photos": ["<real landscape photo URL 1>", "<real landscape photo URL 2>", "<real landscape photo URL 3>"]
+        }
+      ]
+    }
+  ]
+}
+
+Style examples (match this tone, level of detail, and length — not generic one-liners):
+
+Day description:
+"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
+
+Activity title + description:
+"Tea Garden Walk in Munnar" — "Take a refreshing walk through Munnar's sprawling tea plantations, surrounded by rolling green hills and fresh mountain air. Enjoy scenic views, learn about tea cultivation, and experience the tranquil beauty of Kerala's famous hill station."
+
+Note activity titles are a full descriptive phrase naming the place (e.g. "Tea Garden Walk in Munnar", "Fort Kochi Heritage Walk") — never a bare noun like "Tea Gardens" or "Fort Kochi" alone.
+
+Rules:
+- Exactly one "days" entry per day (${form.totalDays} total), numbered sequentially from 1.
+- 2-3 activities per day is enough — don't overload the day.
+- Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
+- Do not include hotel or cab pricing/selection — that's handled separately, manually.
+- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.
+- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
+  }
+
+  function copyAIPrompt() {
+    navigator.clipboard.writeText(buildAIPrompt());
+    toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
+  }
+
+  /** Parses the pasted JSON and merges it into the form — fills only empty
+   * fields (title/description/pickup/drop/distance), replaces a day's
+   * activities only when that day currently has none, and extends the
+   * itinerary if the response has more days than currently exist. Never
+   * touches hotel/cab selection (roomPricingId/cabPricingId untouched).
+   * Every failure sets aiParseError with a specific, actionable message
+   * instead of a generic "something went wrong" — shown inline in the
+   * dialog so it stays visible while the exec fixes the paste. */
+  function applyAIItinerary() {
+    setAiParseError(null);
+    const raw = aiJsonInput.trim();
+    if (!raw) {
+      setAiParseError("Paste the JSON response before generating.");
+      return;
+    }
+
+    let parsed: AIItineraryResponse;
+    try {
+      const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "the JSON couldn't be parsed";
+      setAiParseError(`That doesn't look like valid JSON — ${detail}. Make sure you copied the whole response, including the opening and closing braces.`);
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setAiParseError('Unexpected response shape — expected a JSON object with "description", "stops", and "days", but got something else.');
+      return;
+    }
+    if (!Array.isArray(parsed.days) || parsed.days.length === 0) {
+      setAiParseError('The response has no "days" array, so there\'s nothing to apply — ask it to resend using the exact JSON shape from the prompt.');
+      return;
+    }
+    if (looksLikeMarkdownLinkCorruption(parsed)) {
+      setAiParseError(
+        "This response looks corrupted — it has markdown links mixed into the text (a common artifact of copying from ChatGPT's chat bubble instead of its code block). Ask it to resend as a single ```json code block with no citations, then paste that instead.",
+      );
+      return;
+    }
+
+    try {
+      setForm((f) => {
+        const next = { ...f };
+
+        if (parsed.description && !next.description.trim()) next.description = parsed.description;
+        if (parsed.coverImage && !next.coverImage.trim()) next.coverImage = parsed.coverImage;
+
+        if (Array.isArray(parsed.stops) && parsed.stops.length > 0) {
+          const validStops = parsed.stops.filter((s): s is { name: string; image?: string } => !!s?.name);
+          if (next.stops.length === 0 && validStops.length > 0) {
+            const perStopNights = Math.max(1, Math.round((next.totalNights || validStops.length) / validStops.length));
+            next.stops = validStops.map((s) => ({ name: s.name, nights: perStopNights, image: s.image || undefined }));
+          } else {
+            next.stops = next.stops.map((st) => {
+              if (st.image) return st;
+              const match = validStops.find((s) => s.name.trim().toLowerCase() === st.name.trim().toLowerCase());
+              return match?.image ? { ...st, image: match.image } : st;
+            });
+          }
+        }
+
+        const byDayNum = new Map<number, AIItineraryDay>();
+        parsed.days!.forEach((d, i) => { if (d) byDayNum.set(d.day ?? i + 1, d); });
+
+        let itineraries = next.itineraries;
+        if (parsed.days!.length > itineraries.length) {
+          const extra = Array.from(
+            { length: parsed.days!.length - itineraries.length },
+            (_, i) => emptyDay(itineraries.length + i + 1),
+          );
+          itineraries = [...itineraries, ...extra];
+          next.totalDays = itineraries.length;
+          next.totalNights = Math.max(0, itineraries.length - 1);
+        }
+
+        next.itineraries = itineraries.map((day) => {
+          const src = byDayNum.get(day.day);
+          if (!src) return day;
+          const updated = { ...day };
+          if (src.title && !updated.title.trim()) updated.title = src.title;
+          if (src.description && !updated.description.trim()) updated.description = src.description;
+          if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
+          if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
+          if (src.transportDistanceKm != null && updated.transportDistanceKm == null) updated.transportDistanceKm = src.transportDistanceKm;
+          if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
+          if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
+            updated.activities = src.activities
+              .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
+              .map((a) => {
+                const photos = Array.isArray(a.photos) ? a.photos.filter((p): p is string => !!p).slice(0, 3) : [];
+                return {
+                  title: a.title,
+                  description: a.description ?? "",
+                  photo: photos[0] ?? "",
+                  photos,
+                  photoLabels: photos.map(() => a.title),
+                };
+              });
+          }
+          return updated;
+        });
+
+        return next;
+      });
+    } catch (err) {
+      setAiParseError(`Couldn't apply that response — ${err instanceof Error ? err.message : "its shape didn't match what was expected"}.`);
+      return;
+    }
+
+    setAiJsonInput("");
+    setAiParseError(null);
+    setAiDialogOpen(false);
+    toast.success("Itinerary generated from the AI response.");
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
   /** The save itself, awaitable. Split out of handleSave because switching stay
    * tiers has to persist the tier being left before its hotels are replaced in
@@ -1039,6 +1295,20 @@ export default function PackageBuilderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, loading, query]);
 
+  // See BuilderContextValue.requestSaveNow — bypasses the autosave debounce
+  // above for an edit meant to take effect immediately (a submitted hotel
+  // request). Deferred to an effect rather than called straight from the
+  // trigger site for the same reason autosave itself reads `form` from a
+  // dependency array instead of a closure: the setForm that made the change
+  // hasn't committed yet in the same tick it was requested.
+  const [pendingImmediateSave, setPendingImmediateSave] = useState(false);
+  useEffect(() => {
+    if (!pendingImmediateSave) return;
+    setPendingImmediateSave(false);
+    handleSave("DRAFT");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingImmediateSave]);
+
   // The ONLY way a package moves forward from the builder into review — no
   // direct "send to client" from here. This locks nothing and notifies no
   // one; it just hands the package to /dashboard/verify-packages, where
@@ -1054,16 +1324,7 @@ export default function PackageBuilderDetailPage() {
     if (validationError) {
       toast.error(validationError);
       return;
-    }
-    // Same rule markPackageReady enforces server-side — checked here too so
-    // the exec is told in the builder, with the Trip Setup panel one click
-    // away, rather than after a save round-trip.
-    const agesError = missingTravellerAgesError(form);
-    if (agesError) {
-      toast.error(agesError);
-      return;
-    }
-    const pendingDay = form.itineraries.find((it) => it.hotelPending);
+    }    const pendingDay = form.itineraries.find((it) => it.hotelPending);
     if (pendingDay) {
       toast.error(`Day ${pendingDay.day} is still awaiting the hotel team — fill in or undo the pending hotel request before submitting for review.`);
       return;
@@ -1436,208 +1697,6 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
-  // ── AI Itinerary Builder ────────────────────────────────────────────────────
-  // Copy-a-prompt / paste-back-JSON workflow: no direct LLM API call from this
-  // app — the exec copies the generated prompt into their own ChatGPT session,
-  // pastes the JSON it returns back here, and we parse + merge it into the
-  // form. Kept strictly additive (never overwrites a day/field the exec has
-  // already filled in), same philosophy as autoFillDayTitles/autoFillPickupDrop.
-
-  /** Builds the copy-paste prompt from the package's current state — title,
-   * day count, destinations with night counts (falls back to the single
-   * `destination` + total nights when no stops have been added yet), pickup
-   * point, and the last day's drop point. */
-  function buildAIPrompt(): string {
-    const destinationsLine = form.stops.length > 0
-      ? form.stops.map((s) => `${s.name} (${s.nights} Night${s.nights !== 1 ? "s" : ""})`).join(", ")
-      : `${form.destination || "the destination"} (${Math.max(form.totalNights, 1)} Night${Math.max(form.totalNights, 1) !== 1 ? "s" : ""})`;
-    const pickup = form.startingPoint.trim() || "(not specified — choose a sensible pickup point for this destination)";
-    const lastDay = form.itineraries[form.itineraries.length - 1];
-    const drop = lastDay?.transportDrop.trim() || "(not specified — same as the pickup point unless the route suggests otherwise)";
-    const totalPax = form.adults + form.children;
-    const paxLine = `${form.adults} Adult${form.adults !== 1 ? "s" : ""}` +
-      (form.children > 0 ? ` + ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "");
-
-    return `AI Itinerary Builder Prompt
-
-Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
-
-Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). If you look anything up (e.g. to find real image URLs), still write the result as a plain string value, not a hyperlink/citation. A markdown link anywhere inside the JSON will break the import.
-
-Package: "${form.title || "Untitled Package"}" — ${form.totalDays} Day${form.totalDays !== 1 ? "s" : ""} / ${form.totalNights} Night${form.totalNights !== 1 ? "s" : ""}
-Destinations (in order, with nights at each): ${destinationsLine}
-Travellers: ${paxLine}${totalPax === 0 ? " (assume 2 adults if unspecified)" : ""}
-Pickup point: ${pickup}
-Drop point: ${drop}
-
-Spend the itinerary days in the order the destinations are listed, matching the night count at each one.
-
-Return exactly this JSON shape:
-
-{
-  "description": "2-3 sentence overview of the whole trip",
-  "coverImage": "<a real, working, high-quality landscape photo URL representing the overall trip>",
-  "stops": [
-    { "name": "<destination name, matching the list above>", "image": "<real landscape photo URL of this destination>" }
-  ],
-  "days": [
-    {
-      "day": 1,
-      "title": "<day title, under 10 words>",
-      "description": "<day description, 35-55 words — see style example below>",
-      "transportPickup": "<pickup point for this day's transfer>",
-      "transportDrop": "<drop point for this day's transfer>",
-      "transportDistanceKm": <approximate distance in km as a number>,
-      "travelTimeApprox": "<approx travel time, e.g. \\"2h 30m\\">",
-      "activities": [
-        {
-          "title": "<activity title, a short descriptive phrase — see style example below>",
-          "description": "<activity description, 25-40 words — see style example below>",
-          "photos": ["<real landscape photo URL 1>", "<real landscape photo URL 2>", "<real landscape photo URL 3>"]
-        }
-      ]
-    }
-  ]
-}
-
-Style examples (match this tone, level of detail, and length — not generic one-liners):
-
-Day description:
-"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
-
-Activity title + description:
-"Tea Garden Walk in Munnar" — "Take a refreshing walk through Munnar's sprawling tea plantations, surrounded by rolling green hills and fresh mountain air. Enjoy scenic views, learn about tea cultivation, and experience the tranquil beauty of Kerala's famous hill station."
-
-Note activity titles are a full descriptive phrase naming the place (e.g. "Tea Garden Walk in Munnar", "Fort Kochi Heritage Walk") — never a bare noun like "Tea Gardens" or "Fort Kochi" alone.
-
-Rules:
-- Exactly one "days" entry per day (${form.totalDays} total), numbered sequentially from 1.
-- 2-3 activities per day is enough — don't overload the day.
-- Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
-- Do not include hotel or cab pricing/selection — that's handled separately, manually.
-- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.
-- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
-  }
-
-  function copyAIPrompt() {
-    navigator.clipboard.writeText(buildAIPrompt());
-    toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
-  }
-
-  type AIItineraryActivity = { title?: string; description?: string; photos?: string[] };
-  type AIItineraryDay = {
-    day?: number; title?: string; description?: string;
-    transportPickup?: string; transportDrop?: string; transportDistanceKm?: number;
-    travelTimeApprox?: string; activities?: AIItineraryActivity[];
-  };
-  type AIItineraryResponse = {
-    description?: string; coverImage?: string;
-    stops?: { name?: string; image?: string }[];
-    days?: AIItineraryDay[];
-  };
-
-  /** Parses the pasted JSON and merges it into the form — fills only empty
-   * fields (title/description/pickup/drop/distance), replaces a day's
-   * activities only when that day currently has none, and extends the
-   * itinerary if the response has more days than currently exist. Never
-   * touches hotel/cab selection (roomPricingId/cabPricingId untouched). */
-  function applyAIItinerary() {
-    let parsed: AIItineraryResponse;
-    try {
-      const cleaned = aiJsonInput.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      toast.error("That doesn't look like valid JSON — check the format and try again.");
-      return;
-    }
-    if (!parsed || typeof parsed !== "object") {
-      toast.error("Unexpected response shape — please try again.");
-      return;
-    }
-    if (looksLikeMarkdownLinkCorruption(parsed)) {
-      toast.error(
-        "This response looks corrupted — it has markdown links mixed into the text (a common artifact of copying from ChatGPT's chat bubble instead of its code block). Ask it to resend as a single ```json code block with no citations, then paste that instead.",
-        { duration: 9000 },
-      );
-      return;
-    }
-
-    try {
-      setForm((f) => {
-        const next = { ...f };
-
-        if (parsed.description && !next.description.trim()) next.description = parsed.description;
-        if (parsed.coverImage && !next.coverImage.trim()) next.coverImage = parsed.coverImage;
-
-        if (Array.isArray(parsed.stops) && parsed.stops.length > 0) {
-          const validStops = parsed.stops.filter((s): s is { name: string; image?: string } => !!s?.name);
-          if (next.stops.length === 0 && validStops.length > 0) {
-            const perStopNights = Math.max(1, Math.round((next.totalNights || validStops.length) / validStops.length));
-            next.stops = validStops.map((s) => ({ name: s.name, nights: perStopNights, image: s.image || undefined }));
-          } else {
-            next.stops = next.stops.map((st) => {
-              if (st.image) return st;
-              const match = validStops.find((s) => s.name.trim().toLowerCase() === st.name.trim().toLowerCase());
-              return match?.image ? { ...st, image: match.image } : st;
-            });
-          }
-        }
-
-        if (Array.isArray(parsed.days) && parsed.days.length > 0) {
-          const byDayNum = new Map<number, AIItineraryDay>();
-          parsed.days.forEach((d, i) => { if (d) byDayNum.set(d.day ?? i + 1, d); });
-
-          let itineraries = next.itineraries;
-          if (parsed.days.length > itineraries.length) {
-            const extra = Array.from(
-              { length: parsed.days.length - itineraries.length },
-              (_, i) => emptyDay(itineraries.length + i + 1),
-            );
-            itineraries = [...itineraries, ...extra];
-            next.totalDays = itineraries.length;
-            next.totalNights = Math.max(0, itineraries.length - 1);
-          }
-
-          next.itineraries = itineraries.map((day) => {
-            const src = byDayNum.get(day.day);
-            if (!src) return day;
-            const updated = { ...day };
-            if (src.title && !updated.title.trim()) updated.title = src.title;
-            if (src.description && !updated.description.trim()) updated.description = src.description;
-            if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
-            if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
-            if (src.transportDistanceKm != null && updated.transportDistanceKm == null) updated.transportDistanceKm = src.transportDistanceKm;
-            if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
-            if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
-              updated.activities = src.activities
-                .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
-                .map((a) => {
-                  const photos = Array.isArray(a.photos) ? a.photos.filter((p): p is string => !!p).slice(0, 3) : [];
-                  return {
-                    title: a.title,
-                    description: a.description ?? "",
-                    photo: photos[0] ?? "",
-                    photos,
-                    photoLabels: photos.map(() => a.title),
-                  };
-                });
-            }
-            return updated;
-          });
-        }
-
-        return next;
-      });
-    } catch {
-      toast.error("Couldn't apply that response — its shape didn't match what was expected.");
-      return;
-    }
-
-    setAiJsonInput("");
-    setAiDialogOpen(false);
-    toast.success("Itinerary generated from the AI response.");
-  }
-
   function field<K extends keyof PackageForm>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -1788,7 +1847,10 @@ Rules:
     // having it threaded down as props — which is what lets the preview
     // document on the left edit the itinerary directly. canEdit carries the
     // same lock the right-hand panel has always honoured, from one place.
-    <PackageBuilderProvider form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}>
+    <PackageBuilderProvider
+      form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}
+      requestSaveNow={() => setPendingImmediateSave(true)}
+    >
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
 
@@ -1882,6 +1944,18 @@ Rules:
                   <span className="hidden sm:inline text-xs">Change Template</span>
                 </Button>
               </CreatePackageDialog>
+            )}
+
+            {!isLocked && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10 rounded-md"
+                onClick={openAIBuilder}
+              >
+                <Wand2 size={13} />
+                <span className="hidden sm:inline text-xs">AI Itinerary Builder</span>
+              </Button>
             )}
 
             {pkgSent ? (
@@ -2021,7 +2095,7 @@ Rules:
                 className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
                 onClick={handleMarkReadyClick}
                 disabled={isSending || isSaving}
-                title={validateItineraryRequiredFields(form) ?? missingTravellerAgesError(form) ?? undefined}
+                title={validateItineraryRequiredFields(form) ?? undefined}
               >
                 {isSending
                   ? <Loader2 size={13} className="animate-spin" />
@@ -2210,7 +2284,7 @@ Rules:
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleMarkReadyClick}
                   disabled={isSending || isSaving}
-                  title={validateItineraryRequiredFields(form) ?? missingTravellerAgesError(form) ?? undefined}
+                  title={validateItineraryRequiredFields(form) ?? undefined}
                 >
                   {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   Mark Ready
@@ -2309,6 +2383,86 @@ Rules:
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={aiDialogOpen} onOpenChange={(o) => { setAiDialogOpen(o); if (!o) setAiParseError(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-dashboard-base-300">
+            <div className="flex items-center gap-2.5">
+              <span className="flex items-center justify-center size-8 rounded-lg bg-dashboard-primary/10 text-dashboard-primary shrink-0">
+                <Wand2 size={16} />
+              </span>
+              <div>
+                <DialogTitle className="text-sm font-semibold">AI Itinerary Builder</DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  Copy the prompt into ChatGPT (or any LLM), then paste its JSON reply back here.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="px-6 py-5 space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center size-5 rounded-full bg-dashboard-base-200 text-dashboard-base-content/70 text-[10px] font-bold shrink-0">1</span>
+                  <span className="text-xs font-semibold text-dashboard-base-content">Copy this prompt</span>
+                </div>
+                <Button variant="outline" size="sm" onClick={copyAIPrompt} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
+                  <Copy size={11} /> Copy Prompt
+                </Button>
+              </div>
+              <Textarea
+                readOnly
+                value={buildAIPrompt()}
+                rows={7}
+                className="text-[11px] font-mono resize-none border-dashboard-base-300 bg-dashboard-base-200/40 rounded-lg"
+              />
+              <p className="text-[10.5px] text-dashboard-base-content/45">
+                Built from this package&apos;s travel date, destinations &amp; nights, travellers, and pickup/drop — fill those in first if this looks thin.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center size-5 rounded-full bg-dashboard-base-200 text-dashboard-base-content/70 text-[10px] font-bold shrink-0">2</span>
+                <span className="text-xs font-semibold text-dashboard-base-content">Paste the JSON response here</span>
+              </div>
+              <Textarea
+                value={aiJsonInput}
+                onChange={(e) => { setAiJsonInput(e.target.value); if (aiParseError) setAiParseError(null); }}
+                rows={9}
+                placeholder="Paste the JSON the AI gave you…"
+                className={cn(
+                  "text-[11px] font-mono resize-none rounded-lg",
+                  aiParseError
+                    ? "border-dashboard-error focus-visible:ring-dashboard-error/20 focus-visible:border-dashboard-error"
+                    : "border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary",
+                )}
+              />
+              {aiParseError && (
+                <div className="flex items-start gap-2 rounded-lg border border-dashboard-error/30 bg-dashboard-error/5 px-3 py-2">
+                  <AlertTriangle size={13} className="mt-0.5 text-dashboard-error shrink-0" />
+                  <p className="text-[11px] leading-relaxed text-dashboard-error">{aiParseError}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 px-6 py-4 border-t border-dashboard-base-300 bg-dashboard-base-100">
+            <Button variant="outline" size="sm" onClick={() => setAiDialogOpen(false)} className="border-dashboard-base-300 rounded-md">
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={applyAIItinerary}
+              disabled={!aiJsonInput.trim()}
+              className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md"
+            >
+              <Wand2 size={13} /> Generate Itinerary
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
     </PackageBuilderProvider>
   );

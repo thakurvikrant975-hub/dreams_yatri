@@ -42,9 +42,15 @@ export async function computeVerificationCounts(): Promise<VerificationCounts> {
             where: { readyAt: { not: null }, status: "READY", verified: false },
         }),
         // Hotel Requests sidebar badge — packages with at least one day the
-        // sales exec flagged as needing a hotel from the team.
+        // sales exec flagged as needing a hotel from the team AND still
+        // awaiting one. hotelPending stays true after a reject (see the
+        // field's doc comment in schema.prisma — that's for the exec's own
+        // queue/notifications), so it alone isn't "needs the hotel team":
+        // excluding rejectedAt keeps this in sync with what HotelRequestsClient
+        // actually lists — a package where every flagged day ended up either
+        // filled or rejected must drop out of this count too.
         db.custom_packages.count({
-            where: { itineraries: { some: { hotelPending: true } } },
+            where: { itineraries: { some: { hotelPending: true, hotelRejectedAt: null } } },
         }),
     ]);
     return { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending };

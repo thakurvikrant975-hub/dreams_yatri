@@ -15,6 +15,7 @@ import type { Prisma, VehicleType } from "@/app/generated/prisma";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { emailPackageToClient } from "./email-package";
+import { classifyActionError } from "@/app/lib/action-error";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
@@ -252,8 +253,9 @@ function sortHotelResults(rows: HotelRoomResult[], sortBy: HotelSortOption): Hot
   return sorted;
 }
 
-/** Hotels within this straight-line radius of the searched/geocoded point
- * count as "near here" for the coordinate-based blend below. */
+/** Default straight-line radius (km) of the searched/geocoded point that
+ * counts as "near here" for the coordinate-based blend below — used
+ * whenever a caller doesn't pass its own `radiusKm`. */
 const HOTEL_NEARBY_RADIUS_KM = 25;
 
 export async function searchHotelRoomsForBuilder(
@@ -285,6 +287,12 @@ export async function searchHotelRoomsForBuilder(
   /** The day's actual travel date (ISO) — when given, pricePerNight reflects
    * that specific date's season/weekend rate instead of the flat base rate. */
   date?: string | null,
+  /** Overrides HOTEL_NEARBY_RADIUS_KM for the coordinate-based blend — lets
+   * an exec widen the search past 25km for a sparsely-covered destination,
+   * or narrow it to rule out a distant same-named place. Only affects the
+   * geo fallback (refCoords set, no typed query); a typed search never used
+   * a radius to begin with. */
+  radiusKm?: number | null,
 ): Promise<{ rows: HotelRoomResult[]; total: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
@@ -360,11 +368,12 @@ export async function searchHotelRoomsForBuilder(
       },
       select: HOTEL_ROOM_SELECT,
     });
+    const effectiveRadiusKm = radiusKm ?? HOTEL_NEARBY_RADIUS_KM;
     geoMatches = nearby.filter((item) => {
       const lat = item.hotel.location?.latitude != null ? Number(item.hotel.location.latitude) : null;
       const lng = item.hotel.location?.longitude != null ? Number(item.hotel.location.longitude) : null;
       if (lat == null || lng == null) return false;
-      return haversineKm(refCoords.lat, refCoords.lng, lat, lng) <= HOTEL_NEARBY_RADIUS_KM;
+      return haversineKm(refCoords.lat, refCoords.lng, lat, lng) <= effectiveRadiusKm;
     });
   }
 
@@ -541,7 +550,17 @@ const CAB_PRICING_SELECT = {
 
 export type CabSortOption = "price_asc" | "price_desc" | "seats_desc" | "seats_asc" | "distance_asc" | "name_asc";
 
-const CAB_SEARCH_PAGE_SIZE = 10;
+// Sorted cheapest-first by default, so a city split across two same-named
+// location rows (e.g. two "Goa" rows — a state-wide entry and an unrelated
+// duplicate — see the package-builder-v2 split investigation) can have an
+// entirely cheaper vehicle group (bikes) fill the whole page and permanently
+// hide a pricier group (cars/buses). The classic "Search cabs in <city>"
+// combobox now paginates properly (SearchSelect's "Load more" button), so
+// this is back to a normal page size — kept small so the popup opens fast
+// and "Load more" is the way to see the rest, not a giant first fetch.
+// Not exported: this is a "use server" file, and only async functions may
+// be exported from one — callers mirror this value locally (see page.tsx).
+const CAB_SEARCH_PAGE_SIZE = 20;
 
 function sortCabResults(rows: CabPricingResult[], sortBy: CabSortOption): CabPricingResult[] {
   const byName = (a: CabPricingResult, b: CabPricingResult) => a.vehicleName.localeCompare(b.vehicleName);
@@ -893,6 +912,22 @@ export interface DayItinerary {
    * in, for display only (not written back by saveCustomPackage, and never
    * included in the itinerary PDF — see ItineraryDocument.tsx). */
   hotelFillNote?:     string | null;
+  /** Read-only — set when the hotel team couldn't fulfil a pending request
+   * (see /dashboard/hotel-requests). hotelPending stays true while this is
+   * set: the day stays in the team's queue as "rejected, needs the exec's
+   * attention" rather than silently clearing. Ignored on save — saveCustomPackage
+   * derives these from the DB row it fetched itself, the same "never trust
+   * the client's stale snapshot" treatment as hotelFilledAt above, so a
+   * background autosave from an older tab can never silently erase a
+   * rejection the exec hasn't seen yet. */
+  hotelRejectedAt?:     Date | null;
+  hotelRejectedByName?: string | null;
+  hotelRejectionNote?:  string | null;
+  /** Set (only) by the "Update Request"/"Request Room" submit action to say
+   * "the exec has seen this rejection and is knowingly resubmitting" — the
+   * one explicit gesture saveCustomPackage accepts as proof this isn't a
+   * stale save, and clears hotelRejectedAt/etc above. Not persisted itself. */
+  hotelRejectionAcknowledged?: boolean;
   /** Read-only — costing's per-day price correction (see
    * /dashboard/verify-packages), set only from the review screen. Carried
    * forward untouched by saveCustomPackage; feeds computeBuilderHotelPricing/
@@ -1350,6 +1385,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
           hotelPending: true, hotelPendingNote: true, hotelRequestType: true, manualHotelPricePerNight: true, manualExtraBedRate: true,
           hotelFilledAt: true, hotelFilledByName: true, hotelFillNote: true,
+          hotelRejectedAt: true, hotelRejectedByName: true, hotelRejectionNote: true,
           hotelPriceOverride: true, cabPriceOverride: true,
           transport: true, transportPhoto: true, transportVehicleType: true,
           transportSeats: true, transportPickup: true,
@@ -1388,6 +1424,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       manualHotelPricePerNight: n.manualHotelPricePerNight,
       manualExtraBedRate: n.manualExtraBedRate,
       hotelFilledAt: null, hotelFilledByName: null, hotelFillNote: null,
+      hotelRejectedAt: null, hotelRejectedByName: null, hotelRejectionNote: null,
       hotelPriceOverride: null, cabPriceOverride: null,
       transport: n.transport, transportPhoto: n.transportPhoto, transportVehicleType: n.transportVehicleType,
       transportSeats: n.transportSeats, transportPickup: n.transportPickup,
@@ -1562,6 +1599,7 @@ function normalizeItinerary(it: {
   manualHotelPricePerNight: number | null;
   manualExtraBedRate: number | null;
   hotelFilledAt: Date | null; hotelFilledByName: string | null; hotelFillNote: string | null;
+  hotelRejectedAt: Date | null; hotelRejectedByName: string | null; hotelRejectionNote: string | null;
   hotelPriceOverride: number | null; cabPriceOverride: number | null;
   transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
   transportSeats: number | null; transportPickup: string | null;
@@ -1606,6 +1644,9 @@ function normalizeItinerary(it: {
     hotelFilledAt:             it.hotelFilledAt,
     hotelFilledByName:         it.hotelFilledByName,
     hotelFillNote:             it.hotelFillNote,
+    hotelRejectedAt:           it.hotelRejectedAt,
+    hotelRejectedByName:       it.hotelRejectedByName,
+    hotelRejectionNote:        it.hotelRejectionNote,
     hotelPriceOverride:        it.hotelPriceOverride ?? null,
     cabPriceOverride:          it.cabPriceOverride ?? null,
     transport:                 it.transport ?? "",
@@ -1811,6 +1852,9 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           hotelFilledAt:      true,
           hotelFilledByName:  true,
           hotelFillNote:      true,
+          hotelRejectedAt:    true,
+          hotelRejectedByName: true,
+          hotelRejectionNote: true,
           hotelPriceOverride: true,
           cabPriceOverride:   true,
           transport:          true,
@@ -1917,8 +1961,10 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
       discountType, discountValue, discountNote,
       termsNotes, extraPolicyItems,
-      status, stops, itineraries, tickets, addOns,
+      stops, itineraries, tickets, addOns,
     } = input;
+    // input.status is deliberately never read — see nextStatus below, which
+    // is the only thing allowed to decide this row's status on a save.
 
     // flightsIncluded/flightFrom/... aren't edited directly anymore — they're
     // derived from the ticket list so the map legs (ItineraryMap) and the
@@ -2034,7 +2080,15 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     // own submit check then ran against a package that was no longer a draft,
     // failed, and left the row at READY with no readyAt. Locked to the exec,
     // and invisible to costing, whose queue is keyed on readyAt.
-    const nextStatus = existing == null ? status : existing.status;
+    //
+    // The create branch had the same hole a level up: a brand-new package's
+    // very first save can BE the Mark Ready save (duplicate, then submit
+    // before anything else autosaves) — `existing` is null there too, so
+    // trusting `status` let the row get created at READY directly, with the
+    // exact same downstream failure the moment markPackageReady re-fetched
+    // it. A new package is always a DRAFT; nothing about creating one is
+    // costing's or a reviewer's decision to make.
+    const nextStatus = existing == null ? "DRAFT" : existing.status;
 
     // True while the package is out for review, when the quoted total is
     // costing's to set — through approve and updatePackagePricing, both of
@@ -2234,6 +2288,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       select: {
         day: true, hotelPending: true, hotelRequestedAt: true, hotelFilledAt: true, hotelFilledById: true, hotelFilledByName: true,
         hotelFillNote: true,
+        hotelRejectedAt: true, hotelRejectedById: true, hotelRejectedByName: true, hotelRejectionNote: true, hotelRejectedNotifiedAt: true,
         hotelPriceOverride: true, cabPriceOverride: true,
         roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
@@ -2315,6 +2370,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime();
           const staleResurrection = alreadyFilled && !clientSawThisFill;
           if (it.hotelPending && staleResurrection) staleHotelRequestDays.push(it.day);
+          const clearedRejection = !!existing?.hotelRejectedAt && it.hotelRejectionAcknowledged === true;
           const hotelPending = it.hotelPending && !staleResurrection;
           const hotelRequestedAt = hotelPending
             ? (existing?.hotelPending ? existing.hotelRequestedAt : new Date())
@@ -2353,6 +2409,15 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               hotelFilledById:    hotelPending ? null : (existing?.hotelFilledById ?? null),
               hotelFilledByName:  hotelPending ? null : (existing?.hotelFilledByName ?? null),
               hotelFillNote:      hotelPending ? null : (existing?.hotelFillNote ?? null),
+              // The exec's own payload for these is never trusted (see the
+              // DayItinerary doc comment) — only hotelRejectionAcknowledged,
+              // set by the "Update Request" submit action, is proof the exec
+              // actually saw this rejection before resubmitting.
+              hotelRejectedAt:         clearedRejection ? null : (existing?.hotelRejectedAt ?? null),
+              hotelRejectedById:       clearedRejection ? null : (existing?.hotelRejectedById ?? null),
+              hotelRejectedByName:     clearedRejection ? null : (existing?.hotelRejectedByName ?? null),
+              hotelRejectionNote:      clearedRejection ? null : (existing?.hotelRejectionNote ?? null),
+              hotelRejectedNotifiedAt: clearedRejection ? null : (existing?.hotelRejectedNotifiedAt ?? null),
               manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
               manualExtraBedRate: it.manualExtraBedRate ?? null,
               // Costing-only corrections — never sourced from the exec's own
@@ -2608,7 +2673,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     };
   } catch (err) {
     console.error("[saveCustomPackage]", err);
-    return { id: "", success: false, error: "Failed to save package" };
+    const { message } = classifyActionError(err);
+    return { id: "", success: false, error: message };
   }
 }
 
@@ -3091,6 +3157,54 @@ export async function requestPackageRevision(packageId: string, note: string): P
 }
 
 /**
+ * Permanently removes a package the exec doesn't want anymore — a hard
+ * delete, cascading to its stops/tickets/addons/itineraries (all four
+ * relations are onDelete: Cascade — see prisma/schema.prisma). Unlike
+ * deleteQuery, custom_packages has no deletedAt/soft-delete field, so this
+ * can't be undone: blocked outright once the package has actually gone out
+ * to a client (its PDF/shared link may already be in their hands) or the
+ * query it belongs to has converted to a real booking.
+ */
+export async function deleteCustomPackage(packageId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { actor } = await getCurrentActor();
+
+    const pkg = await db.custom_packages.findUnique({
+      where: { id: packageId },
+      select: {
+        title: true, sentAt: true, queryId: true,
+        query: { select: { booking: { select: { id: true } } } },
+      },
+    });
+    if (!pkg) return { success: false, error: "Package not found — it may already have been deleted." };
+
+    if (pkg.sentAt) {
+      return { success: false, error: "Can't delete — this package has already been sent to the client." };
+    }
+    if (pkg.query?.booking) {
+      return { success: false, error: "Can't delete — this client's query has a booking linked to it." };
+    }
+
+    await db.custom_packages.delete({ where: { id: packageId } });
+
+    if (pkg.queryId) {
+      await logTimeline(pkg.queryId, `${actor?.name ?? "Sales exec"} deleted the package "${pkg.title}"`, actor?.id, actor?.name ?? undefined);
+    }
+    await broadcastVerificationCounts();
+
+    revalidatePath("/dashboard/package-builder");
+    revalidatePath("/dashboard/verify-packages");
+    revalidatePath("/dashboard/hotel-requests");
+    revalidatePath("/dashboard/sales-query");
+    return { success: true };
+  } catch (err) {
+    console.error("[deleteCustomPackage]", err);
+    const { message } = classifyActionError(err);
+    return { success: false, error: message };
+  }
+}
+
+/**
  * The exec's own send step — only reachable once costing has approved the
  * pricing (verified: true). sendPackageToClient still separately enforces
  * status === "READY" (its own long-standing guard), so this adds the one
@@ -3183,6 +3297,17 @@ export type PackageStatusEvent = {
   kind: "hotel_filled";
   days: { day: number; hotelName: string | null }[];
   filledByName: string | null;
+} | {
+  id: string;
+  title: string;
+  kind: "hotel_rejected";
+  /** The client's name, e.g. "Rejected for Priya Sharma" — this is the one
+   * event where the toast names the client rather than just the package
+   * title, per how the hotel-requests queue itself is organized (by
+   * client), not the package title an exec may not have front-of-mind. */
+  clientName: string | null;
+  days: { day: number; note: string | null }[];
+  rejectedByName: string | null;
 };
 
 /**
@@ -3206,7 +3331,7 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
   const { teamMemberId } = await getCurrentActor();
   if (!teamMemberId) return [];
 
-  const [statusRows, hotelFillPackages] = await Promise.all([
+  const [statusRows, hotelFillPackages, hotelRejectPackages] = await Promise.all([
     db.custom_packages.findMany({
       where: {
         builtBy: teamMemberId,
@@ -3237,10 +3362,27 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
       },
       take: 20,
     }),
+    db.custom_packages.findMany({
+      where: {
+        builtBy: teamMemberId,
+        itineraries: { some: { hotelRejectedAt: { not: null }, hotelRejectedNotifiedAt: null } },
+      },
+      select: {
+        id: true, title: true,
+        query: { select: { name: true } },
+        itineraries: {
+          where: { hotelRejectedAt: { not: null }, hotelRejectedNotifiedAt: null },
+          orderBy: { day: "asc" },
+          select: { id: true, day: true, hotelRejectionNote: true, hotelRejectedByName: true },
+        },
+      },
+      take: 20,
+    }),
   ]);
-  if (statusRows.length === 0 && hotelFillPackages.length === 0) return [];
+  if (statusRows.length === 0 && hotelFillPackages.length === 0 && hotelRejectPackages.length === 0) return [];
 
   const hotelFillItineraryIds = hotelFillPackages.flatMap((p) => p.itineraries.map((it) => it.id));
+  const hotelRejectItineraryIds = hotelRejectPackages.flatMap((p) => p.itineraries.map((it) => it.id));
 
   await Promise.all([
     statusRows.length > 0
@@ -3253,6 +3395,12 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
       ? db.custom_itineraries.updateMany({
           where: { id: { in: hotelFillItineraryIds } },
           data: { hotelFillNotifiedAt: new Date() },
+        })
+      : Promise.resolve(),
+    hotelRejectItineraryIds.length > 0
+      ? db.custom_itineraries.updateMany({
+          where: { id: { in: hotelRejectItineraryIds } },
+          data: { hotelRejectedNotifiedAt: new Date() },
         })
       : Promise.resolve(),
   ]);
@@ -3271,6 +3419,14 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
       kind: "hotel_filled" as const,
       days: p.itineraries.map((it) => ({ day: it.day, hotelName: it.accommodation })),
       filledByName: p.itineraries[0]?.hotelFilledByName ?? null,
+    })),
+    ...hotelRejectPackages.map((p) => ({
+      id: p.id,
+      title: p.title,
+      kind: "hotel_rejected" as const,
+      clientName: p.query?.name ?? null,
+      days: p.itineraries.map((it) => ({ day: it.day, note: it.hotelRejectionNote })),
+      rejectedByName: p.itineraries[0]?.hotelRejectedByName ?? null,
     })),
   ];
 }

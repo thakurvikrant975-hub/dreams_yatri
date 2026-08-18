@@ -24,6 +24,8 @@ import { CloseQueryDialog } from "./Closequerydialog";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
+import { PackageVerificationBadge, PackageSentBadge, HotelRequestBadge } from "./Salesquerybadges";
+import { DeletePackageDialog } from "./Deletepackagedialog";
 import { reopenSalesQuery } from "./actions";
 import type { SentPackageInfo } from "./actions";
 import { PackageRequirements } from "../../(marketing)/queries/actions";
@@ -277,38 +279,61 @@ export function SalesQueryDetailSheet({
                             {query.customPackages.map((pkg) => (
                                 <div
                                     key={pkg.id}
-                                    className={`rounded-lg border px-3 py-2 ${
-                                        pkg.status === "SENT"
+                                    className={`rounded-lg border px-3 py-2.5 ${
+                                        pkg.verified
                                             ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30"
-                                            : "border-border bg-muted/40"
+                                            : pkg.rejectedAt
+                                                ? "border-red-200 bg-red-50/70 dark:border-red-900 dark:bg-red-950/20"
+                                                : "border-border bg-muted/40"
                                     }`}
                                 >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <p
-                                            className={`text-[11px] font-semibold uppercase tracking-wide mb-0.5 flex items-center gap-1 ${
-                                                pkg.status === "SENT"
-                                                    ? "text-green-700 dark:text-green-400"
-                                                    : "text-muted-foreground"
-                                            }`}
-                                        >
-                                            {pkg.status === "SENT" ? (
-                                                <CheckCircle2 className="h-3 w-3" />
-                                            ) : (
-                                                <Package className="h-3 w-3" />
-                                            )}
-                                            {pkg.status === "SENT" ? "Package Sent" : "Package Draft"}
-                                        </p>
-                                        <a
-                                            href={`/dashboard/package-builder/${pkg.id}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[11px] text-primary hover:underline shrink-0"
-                                        >
-                                            Open Builder
-                                        </a>
+                                    <div className="flex items-start justify-between gap-2">
+                                        <p className="text-sm font-medium min-w-0 truncate">{pkg.title}</p>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <a
+                                                href={`/dashboard/package-builder/${pkg.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[11px] text-primary hover:underline"
+                                            >
+                                                Open Builder
+                                            </a>
+                                            <DeletePackageDialog
+                                                packageId={pkg.id}
+                                                packageTitle={pkg.title}
+                                                onDone={onRefresh}
+                                            />
+                                        </div>
                                     </div>
-                                    <p className="text-sm font-medium">{pkg.title}</p>
-                                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                    <p className="flex items-center gap-1 mt-0.5 text-[11px] text-muted-foreground">
+                                        <CalendarClock className="h-3 w-3 shrink-0" />
+                                        Created {format(new Date(pkg.createdAt), "dd MMM yyyy")} at{" "}
+                                        {format(new Date(pkg.createdAt), "hh:mm a")}
+                                    </p>
+
+                                    {/* Every package on a lead gets its own status here — five
+                                        drafts on one query used to all read the same generic
+                                        "Package Draft" label with no way to tell which one had
+                                        actually cleared costing, so this reuses the same badges
+                                        the sales-query table already shows per-row. */}
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                        {pkg.readyAt ? (
+                                            <>
+                                                <PackageVerificationBadge pkg={pkg} />
+                                                <PackageSentBadge pkg={pkg} />
+                                            </>
+                                        ) : (
+                                            <Badge
+                                                variant="outline"
+                                                className="gap-1 text-[11px] font-medium py-0.5 rounded-md text-muted-foreground"
+                                            >
+                                                <Package className="h-3 w-3" /> Draft
+                                            </Badge>
+                                        )}
+                                        <HotelRequestBadge pkg={pkg} />
+                                    </div>
+
+                                    <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
                                         {pkg.totalPrice != null && (
                                             <span>₹{Number(pkg.totalPrice).toLocaleString("en-IN")}</span>
                                         )}
@@ -326,6 +351,23 @@ export function SalesQueryDetailSheet({
                                             </a>
                                         )}
                                     </div>
+
+                                    {pkg.verified && pkg.verifiedAt && (
+                                        <p className="flex items-center gap-1 mt-1.5 text-[11px] text-green-700 dark:text-green-400">
+                                            <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                            Approved {format(new Date(pkg.verifiedAt), "dd MMM yyyy")} at{" "}
+                                            {format(new Date(pkg.verifiedAt), "hh:mm a")}
+                                            {pkg.verifiedByName && ` · ${pkg.verifiedByName}`}
+                                        </p>
+                                    )}
+                                    {!pkg.verified && pkg.rejectedAt && (
+                                        <p className="flex items-center gap-1 mt-1.5 text-[11px] text-red-700 dark:text-red-400">
+                                            <XCircle className="h-3 w-3 shrink-0" />
+                                            Rejected {format(new Date(pkg.rejectedAt), "dd MMM yyyy")} at{" "}
+                                            {format(new Date(pkg.rejectedAt), "hh:mm a")}
+                                            {pkg.rejectedByName && ` · ${pkg.rejectedByName}`}
+                                        </p>
+                                    )}
                                 </div>
                             ))}
                         </div>

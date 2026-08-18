@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { Pencil, MapPin, Users, Calendar, Globe, MessageSquare, User, Loader2 } from "lucide-react";
+import { Pencil, MapPin, Users, Calendar, Globe, MessageSquare, User, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
+import { Switch } from "../../components/ui/switch";
 import {
     Dialog, DialogContent, DialogHeader,
     DialogTitle, DialogTrigger, DialogDescription,
@@ -46,13 +47,14 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
 }
 
 const SOURCES = [
-    { label: "Phone Call",    value: "PHONE_CALL" },
-    { label: "WhatsApp",      value: "WHATSAPP" },
-    { label: "Meta",          value: "META" },
-    { label: "Website Form",  value: "WEBSITE_FORM" },
-    { label: "Landing Page",  value: "LANDING_PAGE" },
-    { label: "Referral",      value: "REFERRAL" },
-    { label: "Other",         value: "OTHER" },
+    { label: "Phone Call",       value: "PHONE_CALL" },
+    { label: "WhatsApp Meta",    value: "WHATSAPP" },
+    { label: "WhatsApp Google",  value: "WHATSAPP_GOOGLE" },
+    { label: "Meta",             value: "META" },
+    { label: "Website Form",     value: "WEBSITE_FORM" },
+    { label: "Landing Page",     value: "LANDING_PAGE" },
+    { label: "Referral",         value: "REFERRAL" },
+    { label: "Other",            value: "OTHER" },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -70,6 +72,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
     const [isPending, startTransition]  = useTransition();
     const [errors, setErrors]           = useState<Record<string, string[]>>({});
     const [source, setSource]           = useState(query.source);
+    const [differentWhatsapp, setDifferentWhatsapp] = useState(!query.whatsappSameAsPhone);
 
     const [destinations, setDestinations] = useState<DestinationOption[]>([]);
     const [packages, setPackages]         = useState<PackageOption[]>([]);
@@ -111,6 +114,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
         setLoadingPkgs(false);
         setErrors({});
         setSource(query.source);
+        setDifferentWhatsapp(!query.whatsappSameAsPhone);
 
         setLoadingDests(true);
         getDestinationsForQuery().then((dests) => {
@@ -256,6 +260,27 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                             <Label>Phone <span className="text-destructive">*</span></Label>
                             <PhoneInput name="phone" defaultValue={query.phone} />
                             <FieldError errors={errors} field="phone" />
+                        </div>
+                        <div className="col-span-2 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <Label className="flex items-center gap-1">
+                                    <MessageCircle className="h-3 w-3" /> WhatsApp number is different
+                                </Label>
+                                <Switch
+                                    size="sm"
+                                    checked={differentWhatsapp}
+                                    onCheckedChange={setDifferentWhatsapp}
+                                />
+                            </div>
+                            <input type="hidden" name="whatsappSameAsPhone" value={String(!differentWhatsapp)} />
+                            {differentWhatsapp ? (
+                                <>
+                                    <PhoneInput name="whatsapp" defaultValue={query.whatsapp ?? ""} placeholder="WhatsApp number" />
+                                    <FieldError errors={errors} field="whatsapp" />
+                                </>
+                            ) : (
+                                <p className="text-xs text-muted-foreground">Same as phone number</p>
+                            )}
                         </div>
                         <div className="col-span-2 space-y-1.5">
                             <Label htmlFor="edit-email">Email</Label>

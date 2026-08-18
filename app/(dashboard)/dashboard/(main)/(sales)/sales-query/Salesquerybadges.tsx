@@ -5,7 +5,7 @@ import {
     Inbox, PhoneCall, XCircle, UserCheck,
     ClipboardList, Send, ThumbsUp, ThumbsDown,
     CreditCard, CheckCircle2, Lock, CalendarClock, Clock, ShieldCheck,
-    CircleDashed,
+    CircleDashed, Bed,
 } from "lucide-react";
 import type { QueryStatus } from "./query-status";
 import type { SentPackageInfo } from "./actions";
@@ -137,6 +137,54 @@ export function PackageVerificationBadge({ pkg }: { pkg: SentPackageInfo }) {
             className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
         >
             <Clock className="h-3 w-3" /> Pricing Pending
+        </Badge>
+    );
+}
+
+/**
+ * Whether the /dashboard/hotel-requests queue has (or had) something to say
+ * about this package — independent of PackageVerificationBadge/PackageSentBadge
+ * above, which are costing/send-side states. Unlike those two, this can be
+ * true well before the package is ever marked ready (a hotel request can be
+ * rejected while the package still sits in DRAFT), so it's rendered without
+ * a readyAt gate.
+ */
+export function HotelRequestBadge({ pkg }: { pkg: SentPackageInfo }) {
+    if (!pkg.hotelRequestStatus) return null;
+
+    const dayLabel = pkg.hotelRequestDays.length > 0
+        ? `Day ${pkg.hotelRequestDays.join(", ")}`
+        : undefined;
+
+    if (pkg.hotelRequestStatus === "rejected") {
+        return (
+            <Badge
+                variant="outline"
+                title={[dayLabel, pkg.hotelRequestNote].filter(Boolean).join(" — ") || undefined}
+                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-red-500/10 text-red-600 border-red-200 dark:border-red-800"
+            >
+                <Bed className="h-3 w-3" /> Hotel Rejected
+            </Badge>
+        );
+    }
+    if (pkg.hotelRequestStatus === "pending") {
+        return (
+            <Badge
+                variant="outline"
+                title={dayLabel}
+                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
+            >
+                <Clock className="h-3 w-3" /> Hotel Request Pending
+            </Badge>
+        );
+    }
+    return (
+        <Badge
+            variant="outline"
+            title={dayLabel}
+            className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-green-500/10 text-green-600 border-green-200 dark:border-green-800"
+        >
+            <Bed className="h-3 w-3" /> Hotel Approved
         </Badge>
     );
 }

@@ -8,7 +8,7 @@ import { z } from "zod";
 import { Prisma, QuerySource as QuerySourceEnum } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
-import { autoAssignLead } from "@/app/lib/queries/auto-assign";
+import { autoAssignLead, ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
 
 // Normalizes a name to Title Case regardless of how it was typed/pasted in
 // ("MAYANK SHARMA", "mayank sharma", "mayank Sharma" all become "Mayank
@@ -129,6 +129,8 @@ export type PackageQuery = {
     email: string | null;
     phone: string;
     countryCode: string;
+    whatsapp: string | null;
+    whatsappSameAsPhone: boolean;
     leadProfileId: string | null;
     message: string | null;
     packageName: string | null;
@@ -498,6 +500,73 @@ export async function setAutoAssignSetting(enabled: boolean): Promise<ActionResu
     }
 }
 
+// ── Auto-assign per-member limits ───────────────────────────────────────────
+// See app/lib/queries/auto-assign.ts for how these are actually consumed.
+
+export type AutoAssignMemberSetting = {
+    id:          string;
+    name:        string;
+    email:       string;
+    active:      boolean;
+    min:         number | null;
+    max:         number | null;
+    /** Current active-pipeline lead count — same figure the round robin
+     * itself ranks by, shown for context next to the min/max inputs so an
+     * admin can see at a glance who's already at/near their limit. */
+    activeCount: number;
+};
+
+export async function getAutoAssignMemberSettings(): Promise<AutoAssignMemberSetting[]> {
+    const members = await db.teamMember.findMany({
+        where: { teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } } },
+        select: {
+            id: true, name: true, email: true, isActive: true,
+            autoAssignActive: true, autoAssignMin: true, autoAssignMax: true,
+        },
+        orderBy: { name: "asc" },
+    });
+    if (members.length === 0) return [];
+
+    const counts = await db.package_queries.groupBy({
+        by: ["assignedTo"],
+        where: { assignedTo: { in: members.map((m) => m.id) }, status: { in: [...ACTIVE_PIPELINE_STATUSES] } },
+        _count: { id: true },
+    });
+    const countMap = new Map(counts.map((c) => [c.assignedTo as string, c._count.id]));
+
+    return members.map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        active: m.autoAssignActive,
+        min: m.autoAssignMin,
+        max: m.autoAssignMax,
+        activeCount: countMap.get(m.id) ?? 0,
+    }));
+}
+
+export async function updateAutoAssignMemberSetting(
+    memberId: string,
+    input: { active: boolean; min: number | null; max: number | null },
+): Promise<ActionResult> {
+    try {
+        if (input.min != null && input.min < 0) return { success: false, message: "Min can't be negative" };
+        if (input.max != null && input.max < 0) return { success: false, message: "Max can't be negative" };
+        if (input.min != null && input.max != null && input.min > input.max) {
+            return { success: false, message: "Min can't be greater than max" };
+        }
+        await db.teamMember.update({
+            where: { id: memberId },
+            data: { autoAssignActive: input.active, autoAssignMin: input.min, autoAssignMax: input.max },
+        });
+        revalidatePath("/dashboard/queries");
+        return { success: true, data: undefined, message: "Saved" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
+    }
+}
+
 // ── Marketing READ ────────────────────────────────────────────────────────────
 
 export async function getQueries(): Promise<PackageQuery[]> {
@@ -795,6 +864,11 @@ const manualQuerySchema = z.object({
     name: z.string().max(100).optional(),
     phone: z.string().min(6, "Valid phone number required").max(20),
     countryCode: z.string().default("IN"),
+    // Hidden input sends the literal string "false" when the exec flips the
+    // "different WhatsApp number" switch on — anything else (missing field,
+    // "true") means "same as phone".
+    whatsappSameAsPhone: z.string().optional().transform((v) => v !== "false"),
+    whatsapp: z.string().max(20).optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().optional(),
     packageName: z.string().optional(),
@@ -802,7 +876,10 @@ const manualQuerySchema = z.object({
     travelDate: z.string().optional(),
     message: z.string().max(2000).optional(),
     source: z.nativeEnum(QuerySourceEnum).default("PHONE_CALL"),
-});
+}).refine(
+    (data) => data.whatsappSameAsPhone || (data.whatsapp?.trim().length ?? 0) >= 6,
+    { message: "Enter a valid WhatsApp number", path: ["whatsapp"] },
+);
 
 export async function createManualQuery(
     _prev: ManualQueryFormState,
@@ -812,6 +889,8 @@ export async function createManualQuery(
         name: formData.get("name"),
         phone: formData.get("phone"),
         countryCode: (formData.get("countryCode") as string) || "IN",
+        whatsappSameAsPhone: formData.get("whatsappSameAsPhone") || undefined,
+        whatsapp: formData.get("whatsapp") || undefined,
         email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
@@ -852,10 +931,17 @@ export async function createManualQuery(
             create: { phone: normalizedPhone, name: displayName, email: parsed.data.email || null },
         });
 
+        // Same last-line-of-defense stripping as cleanPhone above — PhoneInput
+        // already submits a clean value, but this is what actually lands in
+        // the column.
+        const cleanWhatsapp = parsed.data.whatsapp?.replace(/\s+/g, "") || null;
+
         const query = await db.package_queries.create({
             data: {
                 name: displayName,
                 phone: cleanPhone,
+                whatsapp: parsed.data.whatsappSameAsPhone ? null : cleanWhatsapp,
+                whatsappSameAsPhone: parsed.data.whatsappSameAsPhone,
                 email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,
@@ -885,6 +971,8 @@ const updateQuerySchema = z.object({
     name: z.string().max(100).optional(),
     phone: z.string().min(6, "Valid phone required").max(20),
     countryCode: z.string().default("IN"),
+    whatsappSameAsPhone: z.string().optional().transform((v) => v !== "false"),
+    whatsapp: z.string().max(20).optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().optional(),
     packageName: z.string().optional(),
@@ -892,13 +980,18 @@ const updateQuerySchema = z.object({
     travelDate: z.string().optional(),
     message: z.string().max(2000).optional(),
     source: z.nativeEnum(QuerySourceEnum),
-});
+}).refine(
+    (data) => data.whatsappSameAsPhone || (data.whatsapp?.trim().length ?? 0) >= 6,
+    { message: "Enter a valid WhatsApp number", path: ["whatsapp"] },
+);
 
 export async function updateQuery(queryId: string, formData: FormData): Promise<ActionResult> {
     const parsed = updateQuerySchema.safeParse({
         name: formData.get("name"),
         phone: formData.get("phone"),
         countryCode: (formData.get("countryCode") as string) || "IN",
+        whatsappSameAsPhone: formData.get("whatsappSameAsPhone") || undefined,
+        whatsapp: formData.get("whatsapp") || undefined,
         email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
@@ -931,6 +1024,8 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
                 name: displayName,
                 phone: cleanPhone,
                 countryCode: parsed.data.countryCode,
+                whatsapp: parsed.data.whatsappSameAsPhone ? null : (parsed.data.whatsapp || null),
+                whatsappSameAsPhone: parsed.data.whatsappSameAsPhone,
                 email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,

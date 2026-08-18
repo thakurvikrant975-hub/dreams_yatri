@@ -146,7 +146,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             {form.children > 0 && (
               <div className="space-y-1">
                 <span className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1">
-                  <Baby size={11} /> Children&apos;s ages
+                  <Baby size={11} /> Children&apos;s ages <span className="text-red-500">*</span>
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {form.childrenAges.map((age, i) => (
@@ -177,7 +177,9 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             )}
             {form.infants > 0 && (
               <div className="space-y-1">
-                <span className="text-[11px] text-dashboard-base-content/60">Infants&apos; ages</span>
+                <span className="text-[11px] text-dashboard-base-content/60">
+                  Infants&apos; ages <span className="text-red-500">*</span>
+                </span>
                 <div className="flex flex-wrap gap-2">
                   {form.infantAges.map((age, i) => (
                     <Input

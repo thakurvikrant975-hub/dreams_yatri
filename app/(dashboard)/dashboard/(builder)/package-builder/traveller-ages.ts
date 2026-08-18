@@ -23,10 +23,12 @@
 /** No age entered yet. Not 0 — an infant of 0 is a real, common answer. */
 export const AGE_UNSET = -1;
 
-/** A "child" is 1–17 here. A traveller under 1 is an infant, and an age of 0 in
- * the children list is nearly always a legacy row padded with zeroes rather
- * than a deliberate answer — see the module note. */
-export const CHILD_AGE_MIN = 1;
+/** A child is 0–17. 0 is permitted rather than treated as "must be an infant":
+ * this rule also gates PDF preview (see validateItineraryRequiredFields), and
+ * the stricter version would have stopped old drafts — the ones padded with
+ * zeroes before the -1 sentinel existed — from previewing at all. The sentinel
+ * is what "not answered" means now, so 0 no longer has to carry that job. */
+export const CHILD_AGE_MIN = 0;
 export const CHILD_AGE_MAX = 17;
 /** Airlines and hotels both cut infancy at 2. */
 export const INFANT_AGE_MIN = 0;
@@ -93,8 +95,7 @@ export function missingTravellerAgesError(t: TravellerAges): string | null {
     : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
   return (
     `${who} still ${missing.length === 1 ? "needs an age" : "need ages"} before this goes to costing — ` +
-    `hotel child policies (free under 5, extra bed under 12) are priced off the age, not the head count. ` +
-    `Children are ${CHILD_AGE_MIN}–${CHILD_AGE_MAX}; anyone under ${CHILD_AGE_MIN} counts as an infant.`
+    `hotel child policies (free under 5, extra bed under 12) are priced off the age, not the head count.`
   );
 }
 
