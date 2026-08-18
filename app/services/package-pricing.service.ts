@@ -9,7 +9,7 @@ import {
 import { splitManualHotelName } from "./hotel-name-utils";
 import { resolveHotelSeasonPricing } from "../lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
-import { composePackagePrice } from "./package-price-utils";
+import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -1562,6 +1562,8 @@ export async function computeBuilderCabPricing(input: {
 // put the FULL price back on the row. `totalPrice` is what the public package
 // page renders and what the Book Now charge is built from, so the client was
 // quoted a saving and billed without it.
+const TICKET_MARGIN_PCT = 5;
+
 export async function computeFinalPackagePricing(packageId: string): Promise<{
   pricePerPerson: number;
   totalPrice: number;
@@ -1616,187 +1618,29 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{
     }),
   ]);
 
-  // The discount is applied after GST, for the reason spelled out in
-  // discount.ts: a concession on what the client pays, not a change to what the
-  // trip costs us. Netting it off earlier would shrink the margin figure
-  // costing reviews and hide the concession inside it. See composePackagePrice.
-  const priced = composePackagePrice({
-    hotelSubtotal: pkg.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal,
-    cabSubtotal: pkg.cabSubtotalOverride ?? cabPricing.cabSubtotal,
-    ticketsSubtotal: pkg.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0),
-    addonsSubtotal: pkg.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0),
-    marginPercentage: pkg.marginPercentage,
-    gstPercentage: pkg.gstPercentage,
-    discountType: pkg.discountType,
-    discountValue: pkg.discountValue,
-    payingPax: pkg.adults + pkg.children,
-  });
-
-  return {
-    pricePerPerson: priced.pricePerPerson,
-    totalPrice: priced.totalPrice,
-    listPrice: priced.listPrice,
-    discountAmount: priced.discountAmount,
-  };
-}
-
-// ── Per-tier pricing ────────────────────────────────────────────────────────
-// The same trip, priced once per stay option. Only the hotel subtotal moves
-// between tiers — cabs, tickets, add-ons, margin, GST and any concession are
-// shared, because only hotels differ between options (see the schema comment on
-// custom_package_stay_options). So the shared half is computed once and each
-// tier's hotels are run through the same composePackagePrice as the package's
-// own price, which is what keeps a tier's number and the package's number
-// answering the same question.
-//
-// Costing's corrections are honoured per tier: a flat hotelSubtotalOverride on
-// the option wins over the computed subtotal, exactly as the package-level one
-// does for a single-option package.
-
-export type StayOptionPrice = {
-  id: string;
-  starRating: number;
-  label: string | null;
-  isDefault: boolean;
-  sortOrder: number;
-  /** Priced from this tier's own stays. */
-  hotelSubtotal: number;
-  /** True when costing's flat correction replaced the computed subtotal. */
-  hotelSubtotalOverridden: boolean;
-  pricePerPerson: number;
-  totalPrice: number;
-  listPrice: number;
-  discountAmount: number;
-  /** Days in this tier with no hotel and no pending request behind them —
-   * nights that would otherwise be quoted at ₹0. A tier with gaps is not
-   * finished, and neither the client nor costing should be shown its price as
-   * though it were. */
-  gapDays: number[];
-};
-
-export async function computeStayOptionPricing(packageId: string): Promise<StayOptionPrice[]> {
-  const pkg = await db.custom_packages.findUnique({
-    where: { id: packageId },
-    select: {
-      travelDate: true, adults: true, children: true,
-      marginPercentage: true, gstPercentage: true,
-      discountType: true, discountValue: true,
-      cabSubtotalOverride: true,
-      tickets: { select: { fare: true } },
-      addOns: { select: { price: true, quantity: true } },
-      itineraries: {
-        select: {
-          id: true, day: true,
-          cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
-          cabPriceOverride: true,
-        },
-      },
-      stayOptions: {
-        select: {
-          id: true, starRating: true, label: true, isDefault: true, sortOrder: true,
-          hotelSubtotalOverride: true,
-          stays: {
-            select: {
-              itineraryId: true,
-              accommodation: true, roomPricingId: true, roomsCount: true, extraRooms: true,
-              manualHotelPricePerNight: true, manualExtraBeds: true, manualExtraBedRate: true,
-              hotelPriceOverride: true, hotelPending: true,
-            },
-          },
-        },
-      },
-    },
-  });
-  if (!pkg || pkg.stayOptions.length === 0) return [];
-
-  const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
-  const dayNumberOf = new Map(pkg.itineraries.map((it) => [it.id, it.day]));
-
-  // Shared across every tier — computed once rather than per option.
-  const cabPricing = await computeBuilderCabPricing({
-    travelDate: travelDateIso,
-    days: pkg.itineraries.map((it) => ({
-      day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
-      cabQuantity: it.cabQuantity, extraCabs: parseCabSelections(it.extraCabs),
-      cabPriceOverride: it.cabPriceOverride,
-    })),
-  });
+  const hotelSubtotal = pkg.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal;
   const cabSubtotal = pkg.cabSubtotalOverride ?? cabPricing.cabSubtotal;
   const ticketsSubtotal = pkg.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
   const addonsSubtotal = pkg.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0);
-  const payingPax = pkg.adults + pkg.children;
+  const hotelCabBase = hotelSubtotal + cabSubtotal;
+  const baseCost = hotelCabBase + addonsSubtotal + ticketsSubtotal;
+  const hotelCabMarginAmount = Math.round((hotelCabBase + addonsSubtotal) * pkg.marginPercentage / 100);
+  const ticketsMarginAmount = Math.round(ticketsSubtotal * TICKET_MARGIN_PCT / 100);
+  const marginAmount = hotelCabMarginAmount + ticketsMarginAmount;
+  const taxable = baseCost + marginAmount;
+  const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
+  const listPrice = taxable + gstAmount;
+  // Applied after GST, for the reason spelled out in discount.ts: a discount is
+  // a concession on what the client pays, not a change to what the trip costs
+  // us. Netting it off earlier would shrink the margin figure costing reviews
+  // and hide the concession inside it.
+  const discount = applyDiscount(listPrice, {
+    type: pkg.discountType,
+    value: pkg.discountValue,
+  });
+  const finalPrice = discount.finalPrice;
+  const totalPax = pkg.adults + pkg.children;
+  const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
-  const priced = await Promise.all(pkg.stayOptions.map(async (option) => {
-    const hotelPricing = await computeBuilderHotelPricing({
-      travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
-      days: option.stays.map((s) => ({
-        day: dayNumberOf.get(s.itineraryId) ?? 0,
-        roomPricingId: s.roomPricingId, roomsCount: s.roomsCount,
-        manualExtraBeds: s.manualExtraBeds, manualExtraBedRate: s.manualExtraBedRate,
-        extraRooms: parseRoomSelections(s.extraRooms),
-        manualHotelPricePerNight: s.manualHotelPricePerNight,
-        hotelPriceOverride: s.hotelPriceOverride,
-        ...splitManualHotelName(s.accommodation),
-      })),
-    });
-
-    const composed = composePackagePrice({
-      hotelSubtotal: option.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal,
-      cabSubtotal, ticketsSubtotal, addonsSubtotal,
-      marginPercentage: pkg.marginPercentage,
-      gstPercentage: pkg.gstPercentage,
-      discountType: pkg.discountType,
-      discountValue: pkg.discountValue,
-      payingPax,
-    });
-
-    return {
-      id: option.id,
-      starRating: option.starRating,
-      label: option.label,
-      isDefault: option.isDefault,
-      sortOrder: option.sortOrder,
-      hotelSubtotal: option.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal,
-      hotelSubtotalOverridden: option.hotelSubtotalOverride != null,
-      pricePerPerson: composed.pricePerPerson,
-      totalPrice: composed.totalPrice,
-      listPrice: composed.listPrice,
-      discountAmount: composed.discountAmount,
-      gapDays: option.stays
-        .filter((s) => !s.hotelPending && !s.accommodation?.trim() && s.roomPricingId == null)
-        .map((s) => dayNumberOf.get(s.itineraryId) ?? 0)
-        .sort((a, b) => a - b),
-    };
-  }));
-
-  // Up the ladder, same rule as sortStayOptions — star rating leads, since
-  // sortOrder is only creation order and every backfilled option shares a 0.
-  return priced.sort((a, b) => a.starRating - b.starRating || a.sortOrder - b.sortOrder);
-}
-
-/** Freezes each tier's price onto its row, so costing, the comparison table and
- * the client's page all read one settled number rather than recomputing against
- * catalog rates that may have moved since. Mirrors what approve/re-lock already
- * do for the package as a whole. */
-export async function persistStayOptionPricing(packageId: string): Promise<void> {
-  const priced = await computeStayOptionPricing(packageId);
-  await Promise.all(priced.map((o) =>
-    db.custom_package_stay_options.update({
-      where: { id: o.id },
-      data: {
-        pricePerPerson: o.pricePerPerson,
-        totalPrice: o.totalPrice,
-        pricingSnapshot: {
-          hotelSubtotal: o.hotelSubtotal,
-          hotelSubtotalOverridden: o.hotelSubtotalOverridden,
-          listPrice: o.listPrice,
-          discountAmount: o.discountAmount,
-          finalPrice: o.totalPrice,
-          perPerson: o.pricePerPerson,
-          gapDays: o.gapDays,
-          pricedAt: new Date().toISOString(),
-        },
-      },
-    }),
-  ));
+  return { pricePerPerson, totalPrice: finalPrice, listPrice, discountAmount: discount.amount };
 }

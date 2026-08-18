@@ -21,7 +21,6 @@ import { RejectPricingDialog } from "./RejectPricingDialog";
 import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
 import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
-import { StayOptionComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionComparison";
 import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/builder-context";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
@@ -571,11 +570,6 @@ export function VerifyPackageDetailClient({
                                 </div>
                             </div>
                         )}
-
-                        {/* Every tier's hotels, day by day, before the hotel
-                            breakdown below — which describes the default tier
-                            only. Renders nothing on a single-option package. */}
-                        <StayOptionComparison packageId={pkg.id} />
 
                         {(s.hotel.lines.length > 0 || editMode) && (
                             <BreakdownCard

@@ -33,13 +33,8 @@ function isoDate(d: Date): string {
 export async function createBookingFromCustomPackage(params: {
     customPackageId: string;
     userId: string;
-    /** Which stay tier the client chose, on a package quoted at several. Absent
-     * means the default one — a single-option package, or a client who never
-     * touched the selector. Validated below against the package rather than
-     * trusted: it arrives from a public page. */
-    stayOptionId?: string | null;
 }): Promise<CreateBookingResult> {
-    const { customPackageId, userId, stayOptionId } = params;
+    const { customPackageId, userId } = params;
 
     const cp = await db.custom_packages.findUnique({
         where: { id: customPackageId },
@@ -70,36 +65,7 @@ export async function createBookingFromCustomPackage(params: {
     // ── Gate: same visibility rule getSharedPackage already enforces, plus a
     // fully-priced, dated package (both required to compute a payment schedule) ──
     if (cp.status !== "SENT") return { success: false, reason: "not_found" };
-
-    // ── The chosen stay tier ────────────────────────────────────────────────
-    // Its price, not the package's, is what the client agreed to when they
-    // picked 4★ out of a table of three. Re-read here rather than taken from
-    // the request: the id comes off a public page, and the amount charged can
-    // only ever come from the database.
-    //
-    // The stored figure is used as-is — it was frozen when the package went
-    // for costing review, and it is what the client was shown. Recomputing at
-    // booking time would quietly charge today's catalog rates for yesterday's
-    // quote.
-    const chosenOption = stayOptionId
-        ? await db.custom_package_stay_options.findFirst({
-            where: { id: stayOptionId, customPackageId },
-            select: { id: true, starRating: true, label: true, totalPrice: true, isDefault: true },
-        })
-        : null;
-    if (stayOptionId && !chosenOption) {
-        return { success: false, reason: "error", message: "That stay option isn't available on this package any more — please refresh and try again." };
-    }
-    if (chosenOption && (chosenOption.totalPrice == null || chosenOption.totalPrice <= 0)) {
-        return { success: false, reason: "error", message: "That option isn't priced yet — please contact your travel manager." };
-    }
-
-    // A non-default tier is charged at its own price; the default one keeps
-    // using the package row, which is the figure every other part of the
-    // system (the PDF, the exec's copy, ops) already treats as the quote.
-    const bookedPrice = chosenOption && !chosenOption.isDefault ? chosenOption.totalPrice! : cp.totalPrice;
-
-    if (bookedPrice == null || bookedPrice <= 0) {
+    if (cp.totalPrice == null || cp.totalPrice <= 0) {
         return { success: false, reason: "error", message: "This package doesn't have a price set yet — please contact your travel manager." };
     }
     if (!cp.travelDate) {
@@ -120,7 +86,7 @@ export async function createBookingFromCustomPackage(params: {
 
     // ── Server-derived payment schedule — same pure-function call createBooking
     // makes, same global deposit/cutoff config, no per-package override. ──
-    const totalPaise = rupeesToPaise(bookedPrice);
+    const totalPaise = rupeesToPaise(cp.totalPrice);
     const schedule = computePaymentSchedule({ totalPaise, travelDate: isoDate(cp.travelDate) });
 
     const useFull = schedule.plan === "FULL";
@@ -152,7 +118,7 @@ export async function createBookingFromCustomPackage(params: {
                 endDate,
                 duration: cp.totalDays,
                 travellers: cp.adults + cp.children + cp.infants,
-                totalAmount: bookedPrice.toString(),
+                totalAmount: cp.totalPrice!.toString(),
                 totalAmount_paise: totalPaise,
                 advanceAmount_paise: effDepositPaise,
                 balanceAmount_paise: effBalancePaise,
@@ -164,12 +130,6 @@ export async function createBookingFromCustomPackage(params: {
                 priceSnapshot: cp.pricingSnapshot ?? undefined,
                 packageUrl: `/custom-package/${cp.id}`,
                 sourceQueryId: query.id,
-                // What was sold, frozen — the tier can be edited or removed on
-                // the package afterwards. See the schema comment.
-                stayOptionId: chosenOption?.id ?? null,
-                stayOptionLabel: chosenOption
-                    ? (chosenOption.label?.trim() || `${chosenOption.starRating} Star`)
-                    : null,
                 convertedAt: new Date(),
                 contactEmail: query.email ?? undefined,
                 contactPhone: query.phone ?? undefined,

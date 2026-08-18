@@ -22,7 +22,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, Loader2, Printer } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
-import { stayOptionLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 
 /** Undoes the scaler for window.print(): the document's own PRINT_STYLES
@@ -126,62 +125,19 @@ export function PublishedItinerary({ form, packageId }: { form: PreviewData; pac
  * at the bottom on every size — the document is long, and the client reaching
  * the end of day 6 shouldn't have to scroll back up to act on it. */
 function BookingBar({ form, packageId }: { form: PreviewData; packageId: string }) {
-  // The tiers, and which one the client is buying. Starts on the default —
-  // the one the day-by-day above describes — so a client who never touches
-  // this books exactly what they read.
-  const options = form.stayOptions ?? [];
-  const multi = options.length > 1;
-  const [chosenId, setChosenId] = useState<string | null>(
-    multi ? (options.find((o) => o.isDefault) ?? options[0]).id : null,
-  );
-  const chosen = options.find((o) => o.id === chosenId) ?? null;
-
-  const { handleBookNow, submitting, error } = useBookCustomPackage(packageId, chosenId);
+  const { handleBookNow, submitting, error } = useBookCustomPackage(packageId);
   const totalPax = form.adults + form.children;
-
-  // The chosen tier's price leads once there is a choice to make, because that
-  // is the number this button is about to charge. Falls back to the package's
-  // own figure, which is the only one a single-option package has.
-  const priceValue = chosen?.totalPrice ?? (form.totalPrice ? Number(form.totalPrice) : null);
-  const priceStr = priceValue
-    ? `${form.currency} ${priceValue.toLocaleString("en-IN")}`
+  const priceStr = form.totalPrice
+    ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}`
     : "To be confirmed";
-  const bookingTier = multi && chosen ? stayOptionLabel(chosen) : null;
 
   return (
     <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
-      {multi && (
-        <div className="mx-auto max-w-3xl pb-2 flex flex-wrap items-center gap-1.5">
-          {options.map((o) => {
-            const on = o.id === chosenId;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setChosenId(o.id)}
-                aria-pressed={on}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  on
-                    ? "border-primary-500 bg-primary-50 font-semibold text-primary-600"
-                    : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                }`}
-              >
-                {stayOptionLabel(o)}
-                <span className="ml-1.5 tabular-nums opacity-80">
-                  {form.currency} {o.totalPrice.toLocaleString("en-IN")}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="font-heading text-lg font-bold tracking-tight text-primary-500 truncate">{priceStr}</p>
           <p className="text-xs text-neutral-500">
             Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
-            {bookingTier && <> · <span className="font-medium text-neutral-700">{bookingTier}</span></>}
           </p>
         </div>
 
@@ -199,16 +155,14 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
             <span className="hidden sm:inline">Save as PDF</span>
           </button>
 
-          {priceValue ? (
+          {form.totalPrice ? (
             <button
               type="button"
               onClick={handleBookNow}
               disabled={submitting}
               className="flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:opacity-60"
             >
-              {submitting
-                ? <Loader2 size={14} className="animate-spin" />
-                : <>Book {bookingTier ?? "Now"} <ArrowRight size={14} /></>}
+              {submitting ? <Loader2 size={14} className="animate-spin" /> : <>Book Now <ArrowRight size={14} /></>}
             </button>
           ) : null}
         </div>

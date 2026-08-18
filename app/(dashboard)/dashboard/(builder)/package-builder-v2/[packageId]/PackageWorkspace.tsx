@@ -2375,7 +2375,6 @@ Rules:
               // numbers as they were when the page loaded.
               pricingPanel={caps.seeMargin ? (
                 <CostingPricingPanel
-                  packageId={packageId}
                   hotelPricing={hotelPricing}
                   cabPricing={cabPricing}
                   computed={computeFinalPricing()}

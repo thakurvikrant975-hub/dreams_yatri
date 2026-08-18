@@ -389,7 +389,6 @@ import DyLogo from "@/app/components/ui/DyLogo";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import type { DayItinerary, ActivityInput, StopInput, TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { stayOptionLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 
 export interface PreviewData {
   title: string;
@@ -451,22 +450,6 @@ export interface PreviewData {
    * show the saving rather than just a smaller number. Absent on every package
    * without one, which is most of them. */
   discount?: { originalPrice: number; amount: number; label: string } | null;
-  /** The stay tiers this trip is quoted at, when it is quoted at more than
-   * one. The day-by-day below always describes the DEFAULT tier — swapping the
-   * detail as well would mean printing the itinerary three times — so this is
-   * the one place the alternatives appear: what each standard costs and which
-   * hotel it puts on each night. Absent or single-entry on every package that
-   * offers one standard, where the table is simply not rendered. */
-  stayOptions?: {
-    id: string;
-    starRating: number;
-    label: string | null;
-    isDefault: boolean;
-    totalPrice: number;
-    pricePerPerson: number;
-    /** Day number → hotel name, or null where nothing is booked yet. */
-    hotelByDay: Record<number, string | null>;
-  }[];
   /** Which document template this package renders with (see doc-theme's
    * TEMPLATES). Null/absent falls back to the company default, then to the
    * house template — so a package written before templates existed, or one
@@ -3021,89 +3004,6 @@ function StatCell({ icon: Icon, label, value }: { icon: React.ElementType; label
  * (neutral-950) and contact details as the live site's footer
  * (app/components/navigation/Footer.tsx), scaled down to what makes sense in
  * a static, per-client document (no nav links, no social icons). */
-
-/** The stay options, side by side — what each standard costs and where the
- * client sleeps under it.
- *
- * The one place in the document where the alternatives appear at all: the
- * day-by-day below is the default tier's, because printing the whole itinerary
- * once per standard would treble a document nobody would then read. So this
- * table has to carry the entire difference between the options, which is why it
- * lists every night's hotel rather than just the three prices.
- *
- * Not rendered at all for a trip quoted at one standard, which is most of them.
- */
-function StayOptionsTable({ form }: { form: PreviewData }) {
-  const DOC = useDocTheme();
-  const options = form.stayOptions ?? [];
-  if (options.length < 2) return null;
-
-  const days = form.itineraries.map((d) => d.day);
-  const cheapest = Math.min(...options.map((o) => o.totalPrice).filter((n) => n > 0));
-
-  return (
-    <div className="space-y-3" style={{ breakInside: "avoid" }}>
-      <SectionHeader icon={Hotel} label="Your Options" />
-      <p className="text-[11px] leading-relaxed" style={{ color: DOC.inkSoft }}>
-        The same trip at {options.length} standards — the days, sightseeing and transfers are identical,
-        only the hotels change. The detailed itinerary that follows shows the{" "}
-        {stayOptionLabel(options.find((o) => o.isDefault) ?? options[0])} stay.
-      </p>
-
-      <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${DOC.rule}` }}>
-        <table className="w-full border-collapse text-[10.5px]">
-          <thead>
-            <tr style={{ backgroundColor: DOC.accent }}>
-              <th className="text-left font-semibold px-2.5 py-2 text-white whitespace-nowrap">Night</th>
-              {options.map((o) => (
-                <th key={o.id} className="text-left font-semibold px-2.5 py-2 text-white align-top">
-                  <span className="block">{stayOptionLabel(o)}</span>
-                  <span className="block font-normal opacity-90 tabular-nums">
-                    {o.totalPrice > 0 ? `${form.currency} ${o.totalPrice.toLocaleString("en-IN")}` : "On request"}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {days.map((day, i) => (
-              <tr key={day} style={{ backgroundColor: i % 2 ? DOC.card : undefined }}>
-                <td className="px-2.5 py-2 whitespace-nowrap font-medium" style={{ borderTop: `1px solid ${DOC.rule}` }}>
-                  Day {day}
-                </td>
-                {options.map((o) => (
-                  <td key={o.id} className="px-2.5 py-2" style={{ borderTop: `1px solid ${DOC.rule}`, color: DOC.inkSoft }}>
-                    {/* An em dash, not "no hotel": on the client's copy a blank
-                        night is a night with no stay in it (a departure day),
-                        not an unfinished quote — the exec is stopped from
-                        sending one of those long before this renders. */}
-                    {o.hotelByDay[day] ?? "—"}
-                  </td>
-                ))}
-              </tr>
-            ))}
-            <tr style={{ backgroundColor: DOC.card }}>
-              <td className="px-2.5 py-2 font-semibold" style={{ borderTop: `1px solid ${DOC.rule}` }}>
-                Per person
-              </td>
-              {options.map((o) => (
-                <td key={o.id} className="px-2.5 py-2 font-semibold tabular-nums" style={{ borderTop: `1px solid ${DOC.rule}` }}>
-                  {o.pricePerPerson > 0 ? `${form.currency} ${o.pricePerPerson.toLocaleString("en-IN")}` : "—"}
-                  {o.totalPrice > 0 && o.totalPrice === cheapest && (
-                    <span className="ml-1 text-[8.5px] font-bold uppercase tracking-wide" style={{ color: DOC.positive }}>
-                      best value
-                    </span>
-                  )}
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function DocumentFooter({ form }: { form: PreviewData }) {
   const cs = form.companySettings;
   const phone = cs?.phone ?? COMPANY_PHONE;
@@ -3492,9 +3392,6 @@ export function ItineraryDocument({
               placeholder="Describe this package for the client — click to add…"
               className="block text-sm text-neutral-600/90 leading-relaxed"
             />
-
-            {/* The alternatives, before the detail they all share. */}
-            <StayOptionsTable form={form} />
 
             <TicketsSection
               tickets={form.tickets}
