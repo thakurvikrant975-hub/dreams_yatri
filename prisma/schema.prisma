@@ -4082,6 +4082,20 @@ model custom_package_stay_options {
   stays   custom_itinerary_stays[]
 
   @@unique([customPackageId, label])
+  // Two further invariants live in SQL, because Prisma's schema language cannot
+  // describe a partial or functional index — see the
+  // 20260818180000_stay_option_invariants migration:
+  //
+  //   one_recommended  a unique index on (customPackageId) WHERE isRecommended,
+  //                    so a package can never carry two recommended options.
+  //   label_ci         a unique index on (customPackageId, lower(label)), so
+  //                    "Deluxe" and "deluxe" cannot sit side by side as two
+  //                    columns the client is asked to choose between.
+  //
+  // The three-option cap is deliberately NOT among them. It is a layout
+  // constraint — a fourth column leaves each hotel too narrow to show anything
+  // — rather than a fact about the data, so it is enforced where the layout
+  // decision lives (addStayOption) instead of by a trigger.
   @@index([customPackageId])
 }
 

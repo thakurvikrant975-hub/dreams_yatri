@@ -977,7 +977,13 @@ export function HotelRequestView({ day }: { day: number }) {
 
   useEffect(() => {
     let cancelled = false;
-    getMealTypes().then((rows) => { if (!cancelled) setMealTypes(rows); }).catch(() => {});
+    getMealTypes()
+      .then((rows) => { if (!cancelled) setMealTypes(rows); })
+      // The meal list is a convenience — the plan can still be typed by hand —
+      // so a failure must not take the drawer down. It is logged rather than
+      // swallowed: silently empty meal options look identical to a hotel that
+      // genuinely offers none, and there was nothing to tell them apart by.
+      .catch((err) => { console.error("[HotelDrawer] meal types failed to load", err); });
     return () => { cancelled = true; };
   }, []);
 
