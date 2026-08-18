@@ -201,6 +201,21 @@ model Booking {
   balanceDueAmount        Decimal               @default(0) @db.Decimal(10, 2)
   balanceDueDate          DateTime?
   sourceQueryId           String?               @unique
+  /**
+   * Which stay option the client actually booked, on a package quoted at
+   * several (see custom_package_stay_options). Ops needs it to know which
+   * hotels to hold — the same trip at two standards is a different set of
+   * bookings — and it records which of the quoted prices was accepted. Null
+   * for a single-stay package or a catalog booking, which carries its stay in
+   * stay_slug instead.
+   *
+   * Deliberately not a foreign key: the option can be renamed or removed on
+   * the package afterwards, and a booking must neither cascade away with it
+   * nor block its deletion. The label is frozen alongside the id for the same
+   * reason — it is what was sold.
+   */
+  stayOptionId            String?
+  stayOptionLabel         String?
   convertedAt             DateTime?
   salesAgentId            String?
   salesAgentName          String?

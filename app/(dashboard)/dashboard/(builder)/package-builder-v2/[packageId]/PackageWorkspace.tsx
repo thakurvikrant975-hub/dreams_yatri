@@ -64,6 +64,7 @@ import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-
 import { CostingDecisionButtons } from "./CostingDecisionButtons";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
+import { getStayOptionsForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
@@ -482,6 +483,17 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
+  /** The stay options, for the document's columns and price cards. Without
+      these a reviewer's copy — and any PDF exported from this route — shows
+      only the recommended stay, while the exec's copy shows all of them. */
+  const [stayOptions, setStayOptions] = useState<PreviewData["stayOptions"]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getStayOptionsForDocument(packageId)
+      .then((rows) => { if (!cancelled) setStayOptions(rows); })
+      .catch(() => { if (!cancelled) setStayOptions([]); });
+    return () => { cancelled = true; };
+  }, [packageId]);
   const [confirmShareOpen, setConfirmShareOpen] = useState(false);
 
   // useState with history — see use-undoable-state.ts. Same signature, so
@@ -1925,6 +1937,7 @@ Rules:
     amendmentPolicy: [...form.amendmentPolicy, ...form.extraPolicyItems.amendmentPolicy],
     travelBenefits: [...form.travelBenefits, ...form.extraPolicyItems.travelBenefits],
     stopImages,
+    stayOptions,
     clientName: query.name ?? "",
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",

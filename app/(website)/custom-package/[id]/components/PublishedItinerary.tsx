@@ -125,19 +125,64 @@ export function PublishedItinerary({ form, packageId }: { form: PreviewData; pac
  * at the bottom on every size — the document is long, and the client reaching
  * the end of day 6 shouldn't have to scroll back up to act on it. */
 function BookingBar({ form, packageId }: { form: PreviewData; packageId: string }) {
-  const { handleBookNow, submitting, error } = useBookCustomPackage(packageId);
+  // The options, and which one the client is buying. Starts on the recommended
+  // one — the stay the document's columns badge — so a client who never touches
+  // this books exactly what they read.
+  const options = form.stayOptions ?? [];
+  const multi = options.length > 1;
+  const [chosenId, setChosenId] = useState<string | null>(
+    multi ? (options.find((o) => o.isRecommended) ?? options[0]).id : null,
+  );
+  const chosen = options.find((o) => o.id === chosenId) ?? null;
+
+  const { handleBookNow, submitting, error } = useBookCustomPackage(packageId, chosenId);
   const totalPax = form.adults + form.children;
-  const priceStr = form.totalPrice
-    ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}`
+
+  // The chosen option's price leads once there is a choice, because that is the
+  // number this button is about to charge. Falls back to the package's own,
+  // which is all a single-stay package has.
+  const priceValue = chosen?.totalPrice ?? (form.totalPrice ? Number(form.totalPrice) : null);
+  const priceStr = priceValue
+    ? `${form.currency} ${priceValue.toLocaleString("en-IN")}`
     : "To be confirmed";
 
   return (
     <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
+      {multi && (
+        <div className="mx-auto max-w-3xl pb-2 flex flex-wrap items-center gap-1.5">
+          {options.map((o) => {
+            const on = o.id === chosenId;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setChosenId(o.id)}
+                aria-pressed={on}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  on
+                    ? "border-primary-500 bg-primary-50 font-semibold text-primary-600"
+                    : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                }`}
+              >
+                {o.label}
+                {o.isRecommended && <span className="ml-1 text-[10px] opacity-70">recommended</span>}
+                {o.totalPrice != null && (
+                  <span className="ml-1.5 tabular-nums opacity-80">
+                    {form.currency} {Math.round(o.totalPrice).toLocaleString("en-IN")}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="font-heading text-lg font-bold tracking-tight text-primary-500 truncate">{priceStr}</p>
           <p className="text-xs text-neutral-500">
             Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
+            {chosen && multi && <> · <span className="font-medium text-neutral-700">{chosen.label}</span></>}
           </p>
         </div>
 
@@ -155,14 +200,18 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
             <span className="hidden sm:inline">Save as PDF</span>
           </button>
 
-          {form.totalPrice ? (
+          {priceValue ? (
             <button
               type="button"
               onClick={handleBookNow}
               disabled={submitting}
               className="flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:opacity-60"
             >
-              {submitting ? <Loader2 size={14} className="animate-spin" /> : <>Book Now <ArrowRight size={14} /></>}
+              {/* Names the option being bought, so what is about to be charged
+                  is stated rather than inferred from a chip further up. */}
+              {submitting
+                ? <Loader2 size={14} className="animate-spin" />
+                : <>Book {multi && chosen ? chosen.label : "Now"} <ArrowRight size={14} /></>}
             </button>
           ) : null}
         </div>

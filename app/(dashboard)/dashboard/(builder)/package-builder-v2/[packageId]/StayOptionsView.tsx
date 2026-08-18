@@ -38,7 +38,7 @@ import {
 type LoadedOption = Awaited<ReturnType<typeof getStayOptionsForDocument>>[number];
 
 export function StayOptionsView({ packageId, day }: { packageId: string; day: number }) {
-  const { form, canEdit } = useBuilder();
+  const { form, canEdit, openDrawer } = useBuilder();
   const [options, setOptions] = useState<LoadedOption[] | null>(null);
   const [busy, startBusy] = useTransition();
   const [newLabel, setNewLabel] = useState("");
@@ -248,24 +248,29 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                     })}
                   />
 
-                  {/* Handing the night to the hotel team. Marks the option as
-                      awaiting them, which is what stops it being quoted as if
-                      it were finished. */}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => startBusy(async () => {
-                      await writeStay(o.id, {
-                        hotelPending: true,
-                        hotelPendingNote: `Requested for ${o.label}`,
-                        accommodation: null, roomPricingId: null,
-                      });
-                      toast.success(`${o.label}: handed to the hotel team.`);
-                    })}
-                    className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1.5 text-[11px] text-dashboard-base-content/60 hover:border-dashboard-primary hover:text-dashboard-primary"
-                  >
-                    Ask the hotel team to source this one
-                  </button>
+                  {/* Handing the night to the hotel team.
+                      Offered on the recommended option only, and that is a
+                      limitation rather than a decision: the hotel team's queue
+                      is built from the day rows, which mirror the recommended
+                      stay, and the fill/reject flow writes back to them. A
+                      request raised on another option would set a flag nobody
+                      reads — the button would report success and the team
+                      would never see it, which is worse than not offering it.
+                      Says so, rather than failing quietly. */}
+                  {o.isRecommended ? (
+                    <button
+                      type="button"
+                      onClick={() => openDrawer({ kind: "hotel-request", day })}
+                      className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1.5 text-[11px] text-dashboard-base-content/60 hover:border-dashboard-primary hover:text-dashboard-primary"
+                    >
+                      Ask the hotel team to source this one
+                    </button>
+                  ) : (
+                    <p className="rounded-lg bg-dashboard-base-200/60 px-2 py-1.5 text-[10.5px] text-dashboard-base-content/50">
+                      The hotel team&apos;s queue only picks up the recommended stay. To have them
+                      source this one, recommend it first — or pick its hotel here.
+                    </p>
+                  )}
                 </>
               )}
             </div>

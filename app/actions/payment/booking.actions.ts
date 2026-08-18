@@ -65,12 +65,18 @@ export async function createHotelBookingDraft(params: {
  * details/payment-choice here: pax counts and contact info are already fixed
  * on the sales query, and the payment plan is always policy-derived.
  */
-export async function createCustomPackageBookingDraft(customPackageId: string): Promise<CreateBookingResult> {
+export async function createCustomPackageBookingDraft(
+    customPackageId: string,
+    /** The stay option the client picked on the published itinerary. Validated
+     * inside the service — it arrives from a public page and decides the
+     * amount charged. */
+    stayOptionId?: string | null,
+): Promise<CreateBookingResult> {
     const user = await getAuthenticatedUser();
     if (!user?.id) return { success: false, reason: "unauthenticated" };
 
     try {
-        return await createBookingFromCustomPackage({ customPackageId, userId: user.id });
+        return await createBookingFromCustomPackage({ customPackageId, userId: user.id, stayOptionId });
     } catch (err) {
         console.error("[createCustomPackageBookingDraft] failed", err);
         return { success: false, reason: "error", message: "Could not start your booking. Please try again." };

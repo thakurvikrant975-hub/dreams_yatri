@@ -12,7 +12,7 @@ import { createCustomPackageBookingDraft } from "@/app/actions/payment/booking.a
  * sales exec). Used by both CustomPricingCard and CustomMobileFooterBar so
  * the logic lives once.
  */
-export function useBookCustomPackage(packageId: string) {
+export function useBookCustomPackage(packageId: string, stayOptionId?: string | null) {
   const router = useRouter();
   const { openModal } = useModal();
   const [submitting, setSubmitting] = useState(false);
@@ -22,7 +22,7 @@ export function useBookCustomPackage(packageId: string) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await createCustomPackageBookingDraft(packageId);
+      const res = await createCustomPackageBookingDraft(packageId, stayOptionId);
       if (!res.success) {
         setSubmitting(false);
         if (res.reason === "unauthenticated") {
