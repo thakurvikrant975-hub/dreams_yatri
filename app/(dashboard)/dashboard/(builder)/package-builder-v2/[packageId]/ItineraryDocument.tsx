@@ -635,7 +635,7 @@ function PolicyBlock({ label, items, listKey }: {
         <EditablePolicyList
           items={items}
           listKey={listKey}
-          itemClassName="text-[11px] pl-0.5 !p-0 space-y-1.5 text-neutral-600/90"
+          itemClassName="text-[11px] pl-0.5 !p-0 space-y-1.5 text-neutral-800"
           marker={() => (
             <span
               className="mt-1.5 size-0.75 rounded-full shrink-0"
@@ -883,7 +883,7 @@ function StayTimeline({ day, checkInDate, checkOutDate }: {
           <CheckInIcon />
         </span>
         <span className="flex flex-col items-start gap-0.5">
-          <span className="text-[9px] font-medium text-neutral-600/90 font-heading whitespace-nowrap">Check In:</span>
+          <span className="text-[9px] font-medium text-neutral-700/90 font-heading whitespace-nowrap">Check In:</span>
           <EditableText
             value={day.hotelCheckIn}
             field={{ scope: "day", day: day.day, key: "hotelCheckIn" }}
@@ -903,7 +903,7 @@ function StayTimeline({ day, checkInDate, checkOutDate }: {
       <div className="flex-1 flex items-center gap-1 min-w-0 px-1">
         <span className="flex-1 min-w-0 border-b-[0.15em] border-dashed border-neutral-300/70" />
         <span className="flex items-center gap-1 shrink-0 rounded-md bg-neutral-50 ring-1 ring-inset ring-neutral-300 px-2 py-0.5">
-          <span className="text-[11px] font-medium text-neutral-600/90">1N</span>
+          <span className="text-[11px] font-medium text-neutral-800">1N</span>
           <StarAndCrescentIcon weight="duotone" className="size-3 text-neutral-400/90 -rotate-20" />
         </span>
         <span className="flex-1 min-w-0 border-b-[0.15em] border-dashed border-neutral-300/70" />
@@ -914,7 +914,7 @@ function StayTimeline({ day, checkInDate, checkOutDate }: {
           <CheckOutIcon />
         </span>
         <span className="flex flex-col items-end gap-0.5">
-          <span className="text-[9px] font-medium text-neutral-600/90 font-heading whitespace-nowrap">Check Out:</span>
+          <span className="text-[9px] font-medium text-neutral-700/90 font-heading whitespace-nowrap">Check Out:</span>
           <EditableText
             value={day.hotelCheckOut}
             field={{ scope: "day", day: day.day, key: "hotelCheckOut" }}
@@ -966,7 +966,7 @@ function TransferTimeline({ day }: { day: DayItinerary }) {
             <MapPinIcon weight="duotone" className="size-4.5 text-neutral-400/90" />
           </span>
           <span className="flex items-baseline gap-2 min-w-0">
-            <span className="text-[11px] text-neutral-600/90 font-heading shrink-0">Pickup Point:</span>
+            <span className="text-[11px] text-neutral-700/90 font-heading shrink-0">Pickup Point:</span>
             <EditableText
               value={day.transportPickup}
               field={{ scope: "day", day: day.day, key: "transportPickup" }}
@@ -1008,7 +1008,7 @@ function TransferTimeline({ day }: { day: DayItinerary }) {
             <MapPinIcon weight="duotone" className="size-4.5 text-neutral-400/90" />
           </span>
           <span className="flex items-baseline gap-2 min-w-0">
-            <span className="text-[11px] text-neutral-600/90 font-heading shrink-0">Drop Point:</span>
+            <span className="text-[11px] text-neutral-700/90 font-heading shrink-0">Drop Point:</span>
             <EditableText
               value={day.transportDrop}
               field={{ scope: "day", day: day.day, key: "transportDrop" }}
@@ -1063,7 +1063,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
     <>
       <Icon size={16} className="shrink-0 text-neutral-400/90" />
       <span
-        className="text-[11px] font-semibold uppercase tracking-[0.14em] shrink-0 text-neutral-600/90 "
+        className="text-[11px] font-semibold uppercase tracking-[0.14em] shrink-0 text-neutral-700/90 "
       >
         {label}
       </span>
@@ -1161,7 +1161,7 @@ function ActivityRow({
                 value={activity.description}
                 field={{ scope: "activity", day: dayNumber, index: activityIndex, key: "description" }}
                 placeholder="Describe this experience…"
-                className="block text-xs text-neutral-600/90 mt-0.5"
+                className="block text-xs text-neutral-700/90 mt-0.5"
               />
             </>
           ) : (
@@ -1290,7 +1290,7 @@ function TermsAndConditions({ text }: { text: string }) {
             {block.isList ? (
               <ul className="space-y-1">
                 {block.items.map((item, j) => (
-                  <li key={j} className="flex items-start gap-2 text-xs text-neutral-600/90 leading-relaxed">
+                  <li key={j} className="flex items-start gap-2 text-xs text-neutral-700/90 leading-relaxed">
                     <span className="mt-1.75 size-1 rounded-full bg-primary-400 shrink-0" />
                     <span>{item}</span>
                   </li>
@@ -1417,7 +1417,7 @@ export function DaySummaryTable({
   const CELL_BORDER = `1px solid ${DOC.rule}`;
   const HEAD_BORDER = "1px solid rgba(255,255,255,0.28)";
   const headCell = "text-left font-semibold px-3 py-2.5";
-  const bodyCell = "px-3 py-3 text-neutral-600/90";
+  const bodyCell = "px-3 py-3 text-neutral-800";
   /** Sub-lines under a cell's main value — the day's date, the final drop. */
   const mutedLine = "block text-[10px] text-neutral-500/90";
   /** Icon tint for the meal line. A literal hex passed as a `color` PROP, not
@@ -1550,7 +1550,11 @@ export function DaySummaryTable({
                     value={d.accommodation ? (
                       <>
                         <span className="flex items-center gap-1.5 flex-wrap">
-                          <span>{titleCase(hotelName ?? d.accommodation)}</span>
+                          {/* A step darker than the cell around it: the hotel
+                              is the thing being checked in this row, and the
+                              room, occupancy and meal lines beneath it are
+                              already muted against it. */}
+                          <span className="text-neutral-900">{titleCase(hotelName ?? d.accommodation)}</span>
                           <StayStars raw={d.accommodationStarRating} />
                         </span>
                         {roomName && (
@@ -1889,7 +1893,7 @@ function TicketCard({ ticket, index, packagePax }: {
           <div className="flex items-center gap-2 shrink-0">
             {/* Dates and times stay drawer-only — see TicketTextKey. */}
             {ticket.travelDate && (
-              <span className="text-[10px] font-semibold text-neutral-600/90">{formatTicketDate(ticket.travelDate)}</span>
+              <span className="text-[10px] font-semibold text-neutral-800">{formatTicketDate(ticket.travelDate)}</span>
             )}
           </div>
         </div>
@@ -1943,7 +1947,7 @@ function TicketCard({ ticket, index, packagePax }: {
             value={ticket.notes ?? ""}
             field={f("notes")}
             placeholder="Add a note about this leg…"
-            className="block text-[11px] text-neutral-600/90 italic"
+            className="block text-[11px] text-neutral-800 italic"
           />
         </div>
       </div>
@@ -2768,7 +2772,7 @@ function DayCardPreview({
           value={day.description}
           field={{ scope: "day", day: day.day, key: "description" }}
           placeholder="Add a description for this day…"
-          className="block text-xs text-neutral-600/90 leading-relaxed"
+          className="block text-xs text-neutral-700/90 leading-relaxed"
         />
 
         {/* A day with no stay yet. Only ever rendered in the builder, where a
@@ -3785,7 +3789,7 @@ export function ItineraryDocument({
 
                     {/* Your Travel Manager — the exec who built it */}
                     <div className="p-3.5">
-                      <p className="text-[9px] font-bold text-neutral-600/90 uppercase tracking-widest mb-1.5">Your Travel Manager</p>
+                      <p className="text-[9px] font-bold text-neutral-700/90 uppercase tracking-widest mb-1.5">Your Travel Manager</p>
                       {form.execName ? (
                         <>
                           <p className={cn(DISPLAY, "text-xl font-bold font-heading text-neutral-900 truncate")}>
@@ -3793,7 +3797,7 @@ export function ItineraryDocument({
                             {form.execDesignation && <span className="font-normal text-neutral-500"> · {form.execDesignation}</span>}
                           </p>
                           {form.execEmail && (
-                            <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-neutral-600/90 text-[11px] mt-1.5 hover:underline w-fit">
+                            <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-neutral-700/90 text-[11px] mt-1.5 hover:underline w-fit">
                               <Mail size={16} className="text-neutral-400/90" /> {form.execEmail}
                             </a>
                           )}
@@ -3822,7 +3826,7 @@ export function ItineraryDocument({
               value={form.description}
               field={{ scope: "package", key: "description" }}
               placeholder="Describe this package for the client — click to add…"
-              className="block text-sm text-neutral-600/90 leading-relaxed"
+              className="block text-sm text-neutral-800 leading-relaxed"
             />
 
             <TicketsSection
@@ -3896,7 +3900,7 @@ export function ItineraryDocument({
                 <EditablePolicyList
                   items={form.inclusions}
                   listKey="inclusions"
-                  itemClassName="text-[11.5px] text-neutral-600/90"
+                  itemClassName="text-[11.5px] text-neutral-700/90"
                   marker={() => <CheckCircle size={12} color={DOC.positive} className="shrink-0 mt-0.5" />}
                 />
               </div>
@@ -3912,7 +3916,7 @@ export function ItineraryDocument({
                 <EditablePolicyList
                   items={form.exclusions}
                   listKey="exclusions"
-                  itemClassName="text-[11.5px] text-neutral-600/90"
+                  itemClassName="text-[11.5px] text-neutral-700/90"
                   marker={() => <XCircle size={12} color="#D98B7F" className="shrink-0 mt-0.5" />}
                 />
               </div>
@@ -4097,7 +4101,7 @@ export function ItineraryDocument({
                   listKey="travelBenefits"
                   // pt-3.5 is the ask: the list sat hard against the header rule
                   // with only the marker's own margin holding it off.
-                  itemClassName="!p-0 !px-4 !pt-3.5 !pb-3.5 text-[11px] space-y-1.5 text-neutral-600/90"
+                  itemClassName="!p-0 !px-4 !pt-3.5 !pb-3.5 text-[11px] space-y-1.5 text-neutral-700/90"
                   marker={() => (
                     <span
                       className="mt-1.5 size-1 rounded-full shrink-0 ring-2 ring-primary-100"
@@ -4132,7 +4136,7 @@ export function ItineraryDocument({
                   value={form.termsNotes}
                   field={{ scope: "package", key: "termsNotes" }}
                   placeholder="Additional terms or notes for this package — click to add…"
-                  className="block text-[11px] leading-relaxed text-neutral-600/90"
+                  className="block text-[11px] leading-relaxed text-neutral-800"
                 />
               )}
 
