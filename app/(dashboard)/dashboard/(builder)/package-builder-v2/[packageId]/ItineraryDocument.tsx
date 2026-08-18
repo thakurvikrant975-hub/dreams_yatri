@@ -2334,6 +2334,9 @@ function StayColumns({
   checkOut: string;
 }) {
   const DOC = useDocTheme();
+  // Optional: the document also renders outside the builder (the client's page
+  // and the PDF), where there is no context and no editing.
+  const builderCtx = useOptionalBuilder();
   const editing = !!packageId && !!onStayOptionsChanged;
   // In the builder EVERY standard gets a column, even one with no hotel yet —
   // an empty column is how the exec sees the gap and where they fill it, and
@@ -2369,10 +2372,6 @@ function StayColumns({
           <p className="text-[11.5px] font-semibold" style={{ color: DOC.ink }}>{checkOut || "—"}</p>
         </div>
       </div>
-
-      <p className="text-[10.5px] font-medium" style={{ color: DOC.accentInk }}>
-        Stays will be allocated based on availability or a similar category
-      </p>
 
       {/* Evenly split, so one category reads as a full-width stay and three
           share the page. Four would leave each photo too narrow to show
@@ -2411,22 +2410,22 @@ function StayColumns({
                   </span>
                 )}
 
-                {cell.starRating && (
-                  <span
-                    className="absolute bottom-1.5 left-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold text-white"
-                    style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
-                  >
-                    ★ {cell.starRating}
-                  </span>
-                )}
               </div>
 
               <div className="px-2.5 py-2 space-y-0.5 flex-1">
                 <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: c.isRecommended ? DOC.accentInk : DOC.inkMuted }}>
                   {c.label}
                 </p>
-                <p className="text-[11.5px] font-semibold leading-tight" style={{ color: cell.hotel ? DOC.ink : DOC.inkMuted }}>
-                  {cell.hotel ? titleCase(hotelName ?? cell.hotel) : "No hotel picked yet"}
+                <p
+                  className="text-[11.5px] font-semibold leading-tight flex items-start gap-1"
+                  style={{ color: cell.hotel ? DOC.ink : DOC.inkMuted }}
+                >
+                  <span className="min-w-0">{cell.hotel ? titleCase(hotelName ?? cell.hotel) : "No hotel picked yet"}</span>
+                  {/* The class beside the name, where it is read with the
+                      hotel rather than as a mark on the photo — the column
+                      heading is the exec's own label ("Beachfront"), which
+                      says nothing about the property's rating. */}
+                  {cell.hotel && cell.starRating ? <StayStars raw={cell.starRating} /> : null}
                 </p>
                 {roomName && (
                   <p className="text-[10px] leading-tight" style={{ color: DOC.inkSoft }}>{roomName}</p>
@@ -2446,15 +2445,54 @@ function StayColumns({
               </div>
 
               {packageId && onStayOptionsChanged && (
-                <StayColumnPicker
-                  packageId={packageId}
-                  optionId={c.id}
-                  fromDay={day}
-                  nights={nights}
-                  currentLabel={cell.hotel}
-                  searchCity={searchCity ?? ""}
-                  onSaved={onStayOptionsChanged}
-                />
+                cell.hotel ? (
+                  // Filled: the two things you do to a stay you already have.
+                  // The picker below is for choosing one, which is a different
+                  // job and only clutters a column that is already answered.
+                  <div className="builder-only no-print flex items-center gap-1 px-2.5 pb-2">
+                    <button
+                      type="button"
+                      title={`Change the ${c.label} hotel for ${nights === 1 ? "this night" : `these ${nights} nights`}`}
+                      onClick={() => builderCtx?.openDrawer({ kind: "stay-options", day })}
+                      className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-dashboard-base-300 px-2 py-1 text-[10px] font-medium text-dashboard-base-content/70 hover:border-dashboard-primary hover:text-dashboard-primary"
+                    >
+                      <Pencil size={9} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      title={`Remove the ${c.label} hotel from ${nights === 1 ? "this night" : `these ${nights} nights`} — the option itself stays`}
+                      onClick={async () => {
+                        // Clears the stay across the whole block, because a
+                        // stay IS the block; clearing one night of it would
+                        // split the column into two hotels.
+                        await saveStayForDay(
+                          packageId!, c.id,
+                          Array.from({ length: nights }, (_, i) => day + i),
+                          {
+                            accommodation: null, accommodationPhoto: null, accommodationRoomPhotos: [],
+                            accommodationLocation: null, accommodationRoomSpecs: null,
+                            accommodationStarRating: null, roomPricingId: null, roomsCount: null,
+                            hotelMealPlan: null, manualHotelPricePerNight: null,
+                          },
+                        );
+                        await onStayOptionsChanged?.();
+                      }}
+                      className="inline-flex items-center justify-center rounded-md border border-dashboard-base-300 px-2 py-1 text-dashboard-base-content/50 hover:border-dashboard-error hover:text-dashboard-error"
+                    >
+                      <Trash2 size={9} />
+                    </button>
+                  </div>
+                ) : (
+                  <StayColumnPicker
+                    packageId={packageId}
+                    optionId={c.id}
+                    fromDay={day}
+                    nights={nights}
+                    currentLabel={cell.hotel}
+                    searchCity={searchCity ?? ""}
+                    onSaved={onStayOptionsChanged}
+                  />
+                )
               )}
             </div>
           );
