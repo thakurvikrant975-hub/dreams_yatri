@@ -2357,14 +2357,6 @@ function StayColumns({
         </div>
       </div>
 
-      {packageId && onCategoriesChanged && (
-        <StayCategoryControls
-          packageId={packageId}
-          categories={categories.map((c) => ({ id: c.id, category: c.category, isRecommended: c.isRecommended }))}
-          onChanged={onCategoriesChanged}
-        />
-      )}
-
       <p className="text-[10.5px] font-medium" style={{ color: DOC.accentInk }}>
         Stays will be allocated based on availability or a similar category
       </p>
@@ -2699,6 +2691,21 @@ function DayCardPreview({
         {hasHotel && (
           <DaySlot day={day.day} accepts="hotel">
             <EditableSection actions={stayActions}>
+              {/* Offered on the night a stay starts, whatever it is quoted at
+                  — including a package quoted at one standard, which is every
+                  package until someone adds a second. This used to sit inside
+                  the columns, which only render at two or more standards, so
+                  there was no way to get from one to two. */}
+              {stayEditing && continuesFrom == null && !stayContinues && (stayCategories?.length ?? 0) > 0 && (
+                <div className={SUBHEAD_INDENT}>
+                  <StayCategoryControls
+                    packageId={stayEditing.packageId}
+                    categories={stayCategories!.map((c) => ({ id: c.id, category: c.category, isRecommended: c.isRecommended }))}
+                    onChanged={stayEditing.onCategoriesChanged}
+                  />
+                </div>
+              )}
+
               {stayBlock ? (
                 // More than one standard quoted, and this is the night the
                 // block starts: every category's hotel for these nights, side
