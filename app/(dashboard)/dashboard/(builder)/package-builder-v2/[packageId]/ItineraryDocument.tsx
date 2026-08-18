@@ -391,7 +391,7 @@ import SavingsBadge from "@/app/components/packages/SavingBadge";
 import type { DayItinerary, ActivityInput, StopInput, TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import { HotelRoomPicker } from "./HotelRoomPicker";
-import { saveStayForDay } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
+import { saveStayForDay, removeStayOption } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import {
   buildStayRuns, type StayRun, type StayCell,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
@@ -2449,11 +2449,12 @@ function StayColumns({
               </div>
 
               {packageId && onStayOptionsChanged && (
-                cell.hotel ? (
-                  // Floating, not in the flow — see the card's group/stay above.
-                  // Mirrors EditableSection's own action cluster: same corner,
-                  // same reveal, same shape, so an exec learns one gesture for
-                  // "act on this thing" rather than one per surface.
+                <>
+                  {/* Floating, not in the flow — see the card's group/stay
+                      above. Mirrors EditableSection's own action cluster: same
+                      corner, same reveal, same shape, so an exec learns one
+                      gesture for "act on this thing" rather than one per
+                      surface. */}
                   <div
                     className={cn(
                       "builder-only no-print absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5",
@@ -2472,42 +2473,50 @@ function StayColumns({
                     >
                       <Pencil size={13} />
                     </button>
+                    {categories.length > 1 && (
                     <button
                       type="button"
-                      aria-label={`Remove the ${c.label} hotel`}
-                      title={`Remove the ${c.label} hotel from ${nights === 1 ? "this night" : `these ${nights} nights`} — the option itself stays`}
+                      aria-label={`Remove the ${c.label} stay option`}
+                      title={`Remove "${c.label}" from this package entirely — the other stays stay`}
                       onClick={async () => {
-                        // Clears the stay across the whole block, because a
-                        // stay IS the block; clearing one night of it would
-                        // split the column into two hotels.
-                        await saveStayForDay(
-                          packageId!, c.id,
-                          Array.from({ length: nights }, (_, i) => day + i),
-                          {
-                            accommodation: null, accommodationPhoto: null, accommodationRoomPhotos: [],
-                            accommodationLocation: null, accommodationRoomSpecs: null,
-                            accommodationStarRating: null, roomPricingId: null, roomsCount: null,
-                            hotelMealPlan: null, manualHotelPricePerNight: null,
-                          },
-                        );
+                        // Removes the OPTION, not just the hotel on it.
+                        //
+                        // Clearing the fields left the column standing — an
+                        // empty card with a picker in it — which is not what
+                        // "delete this stay" means to anyone looking at it, and
+                        // the remaining stay stayed squeezed into half the row.
+                        // Dropping the option is what makes the row reflow to
+                        // full width, because the grid sizes off how many there
+                        // are.
+                        //
+                        // Emptying a column without removing it is still
+                        // available: that is what the picker's own clear does.
+                        const r = await removeStayOption(packageId!, c.id);
+                        if (!r.success) { toast.error(r.error); return; }
                         await onStayOptionsChanged?.();
                       }}
                       className="flex items-center justify-center size-6 rounded-md text-dashboard-error/60 hover:bg-dashboard-error/10 hover:text-dashboard-error transition-colors duration-[120ms]"
                     >
                       <Trash2 size={13} />
                     </button>
+                    )}
                   </div>
-                ) : (
-                  <StayColumnPicker
-                    packageId={packageId}
-                    optionId={c.id}
-                    fromDay={day}
-                    nights={nights}
-                    currentLabel={cell.hotel}
-                    searchCity={searchCity ?? ""}
-                    onSaved={onStayOptionsChanged}
-                  />
-                )
+
+                  {/* Only where there is nothing yet: choosing a first hotel is
+                      the column's whole job then. A filled column is changed
+                      through Edit above. */}
+                  {!cell.hotel && (
+                    <StayColumnPicker
+                      packageId={packageId}
+                      optionId={c.id}
+                      fromDay={day}
+                      nights={nights}
+                      currentLabel={cell.hotel}
+                      searchCity={searchCity ?? ""}
+                      onSaved={onStayOptionsChanged}
+                    />
+                  )}
+                </>
               )}
             </div>
           );
