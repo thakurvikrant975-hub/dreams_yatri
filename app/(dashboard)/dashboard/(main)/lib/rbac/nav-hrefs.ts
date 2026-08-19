@@ -86,6 +86,18 @@ export const ALL_HREFS = [
 export function resolveNavHref(pathname: string): string | null {
   if (ALL_HREFS.includes(pathname)) return pathname;
 
+  // The second builder is the same page as far as permission goes, but its
+  // path is "-v2", not a child of "/dashboard/package-builder" — so the
+  // prefix loop below matched nothing and the layout let it through without
+  // consulting page access at all. Harmless while v2 was a side door; not
+  // once it is the only one the dashboard opens, at which point a role
+  // denied Package Builder could still walk into it.
+  //
+  // Aliased rather than listed as its own href: an admin who grants Package
+  // Builder means both, and a second checkbox for the same feature is a way
+  // to get them out of step.
+  if (pathname.startsWith("/dashboard/package-builder-v2")) return "/dashboard/package-builder";
+
   let best: string | null = null;
   for (const href of ALL_HREFS) {
     if (href === "/dashboard") continue;

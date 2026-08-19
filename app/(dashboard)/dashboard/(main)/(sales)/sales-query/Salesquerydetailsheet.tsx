@@ -291,7 +291,7 @@ export function SalesQueryDetailSheet({
                                         <p className="text-sm font-medium min-w-0 truncate">{pkg.title}</p>
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             <a
-                                                href={`/dashboard/package-builder/${pkg.id}`}
+                                                href={`/dashboard/package-builder-v2/${pkg.id}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-[11px] text-primary hover:underline"

@@ -135,6 +135,7 @@ export async function addReviewNote(input: {
 
     revalidatePath(`/dashboard/verify-packages/${input.packageId}`);
     revalidatePath(`/dashboard/package-builder/${input.packageId}`);
+    revalidatePath(`/dashboard/package-builder-v2/${input.packageId}`);
     return { success: true, data: undefined, message: "Finding added" };
   } catch (e) {
     console.error("[addReviewNote] FAILED:", e);
@@ -172,6 +173,7 @@ export async function resolveReviewNote(packageId: string, noteId: string): Prom
 
     revalidatePath(`/dashboard/verify-packages/${packageId}`);
     revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     return { success: true, data: undefined, message: "Finding closed" };
   } catch (e) {
     console.error("[resolveReviewNote] FAILED:", e);
@@ -234,6 +236,8 @@ export async function toggleStandardPolicyLine(
     });
 
     revalidatePath(`/dashboard/package-builder/${packageId}`);
+
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     return {
       success: true,
       data: undefined,

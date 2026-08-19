@@ -97,10 +97,16 @@ function newPackageId(): string {
 
 export type ExistingPackageOption = { id: string; title: string; status: string; builtByName?: string | null };
 
-export function CreatePackageDialog({ queryId, packageId, existingPackages, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, children }: {
+export function CreatePackageDialog({ queryId, packageId, existingPackages, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, builderBasePath = "/dashboard/package-builder-v2", children }: {
     /** Query to attach a brand-new package to — pass this from a "Create
      * Package" entry point (Sales Query table/sheet) where no package
      * exists yet. Exactly one of queryId/packageId should be given. */
+    /** Which builder to land in. Defaults to v2, which is where every
+     * dashboard entry point now goes. The old builder passes its own path so
+     * that an exec working there — usually because they were sent there
+     * deliberately — is not thrown into the other one by changing a
+     * template. */
+    builderBasePath?: string;
     queryId?: string;
     /** An already-existing package's own id — pass this from inside the
      * builder itself ("Change Template" on the current draft), which swaps
@@ -220,8 +226,8 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
     // persists it on the first Save, same as starting fully blank.
     function targetUrl(id: string): string {
         return queryId && !packageId
-            ? `/dashboard/package-builder/${id}?fromQuery=${queryId}`
-            : `/dashboard/package-builder/${id}`;
+            ? `${builderBasePath}/${id}?fromQuery=${queryId}`
+            : `${builderBasePath}/${id}`;
     }
 
     async function handleUseTemplate(pkg: TemplatePackage) {

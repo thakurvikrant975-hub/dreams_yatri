@@ -132,6 +132,7 @@ export async function fillPendingHotel(
     revalidatePath("/dashboard/hotel-requests");
     revalidatePath(`/dashboard/hotel-requests/${packageId}`);
     revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
     revalidatePath("/dashboard/sales-query");
 
@@ -145,6 +146,7 @@ async function afterReject(packageId: string) {
     revalidatePath("/dashboard/hotel-requests");
     revalidatePath(`/dashboard/hotel-requests/${packageId}`);
     revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     revalidatePath("/dashboard/sales-query");
 }
 

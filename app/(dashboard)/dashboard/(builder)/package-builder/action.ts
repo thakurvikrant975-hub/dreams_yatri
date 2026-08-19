@@ -3196,6 +3196,7 @@ export async function markPackageReady(
 
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
     // The detail page specifically — costing's own actions (approve/reject
     // in verify-packages/actions.ts) already revalidate this, but a
@@ -3310,6 +3311,7 @@ export async function requestPackageRevision(packageId: string, note: string): P
 
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
     revalidatePath(`/dashboard/verify-packages/${packageId}`);
     revalidatePath("/dashboard/sales-query");
@@ -3435,6 +3437,7 @@ export async function shareCustomPackageWithClient(packageId: string): Promise<{
     revalidatePath("/dashboard/sales-query");
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
 
     return { success: true, whatsappUrl: sendResult.whatsappUrl, shareUrl: sendResult.shareUrl };
   } catch (err) {

@@ -88,7 +88,7 @@ export function UsePackageDialog({ pkg, pendingQueries, children }: {
                 return;
             }
             sessionStorage.setItem(`pkgCopyPayload:${selectedQueryId}`, JSON.stringify(payload));
-            router.push(`/dashboard/package-builder/${selectedQueryId}`);
+            router.push(`/dashboard/package-builder-v2/${selectedQueryId}`);
         } finally {
             setApplying(false);
         }

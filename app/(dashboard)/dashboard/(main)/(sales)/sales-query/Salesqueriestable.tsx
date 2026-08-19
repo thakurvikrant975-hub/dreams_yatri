@@ -346,7 +346,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                             ) : (
                                 <>
                                     <a
-                                        href={`/dashboard/package-builder/${latest.id}`}
+                                        href={`/dashboard/package-builder-v2/${latest.id}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className={cn(
