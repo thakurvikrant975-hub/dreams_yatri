@@ -6,7 +6,7 @@ import {
     Phone, Mail, MapPin, Users, Calendar,
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
-    Package, CheckCircle2, FileText, Heart, Plus,
+    Package, CheckCircle2, FileText, Heart, Plus, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -305,8 +305,9 @@ export function SalesQueryDetailSheet({
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 title="Open in the new builder"
-                                                className="text-[10px] font-semibold text-primary/80 hover:text-primary hover:underline"
+                                                className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
                                             >
+                                                <Sparkles className="h-2.5 w-2.5" />
                                                 v2
                                             </a>
                                             <DeletePackageDialog
