@@ -65,15 +65,19 @@ async function assertCanEdit(packageId: string): Promise<{ ok: true } | { ok: fa
  * package, and everyone else may read one only once it has been SENT — which
  * is exactly the state at which those options are already printed on the
  * client's own document.
+ *
+ * Which way in is the answer, not just whether: the two are allowed to see
+ * different things. Everything the client's own document prints goes to
+ * both; the fields only the editor uses go to staff alone.
  */
-async function canReadStayOptions(packageId: string): Promise<boolean> {
+async function stayOptionAccess(packageId: string): Promise<"staff" | "client" | null> {
   const member = await getEffectiveMember();
-  if (member?.member?.id) return true;
+  if (member?.member?.id) return "staff";
   const sent = await db.custom_packages.findFirst({
     where: { id: packageId, status: "SENT" },
     select: { id: true },
   });
-  return !!sent;
+  return sent ? "client" : null;
 }
 
 /** Adds an option, with an empty stay row per day.
@@ -305,7 +309,9 @@ export async function getStayOptionsForDocument(packageId: string) {
   // Returns nothing rather than throwing: every caller already renders a
   // single-stay document when the list is empty, so a refused read degrades to
   // the old layout instead of breaking the page.
-  if (!await canReadStayOptions(packageId)) return [];
+  const access = await stayOptionAccess(packageId);
+  if (!access) return [];
+  const isStaff = access === "staff";
 
   // Which figure wins: the one frozen on the option, or a live recomputation.
   //
@@ -354,10 +360,14 @@ export async function getStayOptionsForDocument(packageId: string) {
       rooms: s.roomsCount,
       checkIn: s.hotelCheckIn,
       checkOut: s.hotelCheckOut,
-      // Editor-only: which source this cell came from, and whether the hotel
-      // team still owes it. The document ignores both.
-      roomPricingId: s.roomPricingId,
-      pending: s.hotelPending,
+      // Editor-only, and withheld from the client outright rather than just
+      // left unread. This action is reachable by anyone once the package is
+      // SENT, and the published page hands whatever it returns straight to
+      // the browser — so roomPricingId was publishing an internal catalog id,
+      // and hotelPending was telling the client which of their nights the
+      // hotel team has not actually secured yet. The document reads neither.
+      roomPricingId: isStaff ? s.roomPricingId : null,
+      pending: isStaff ? s.hotelPending : false,
       extraBeds: s.manualExtraBeds,
     }])),
   }));
