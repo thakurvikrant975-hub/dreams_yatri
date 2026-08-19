@@ -8,6 +8,7 @@ import {
   Coffee, Sun, Moon, UtensilsCrossed,
 } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
+import { geocodeCity } from "./geocode-city";
 import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 // Mirrors the admin catalog's HOTEL_CAT_LABEL (ItineraryDaySidebar.tsx) — kept
@@ -22,6 +23,12 @@ const HOTEL_CAT_LABEL: Record<string, string> = {
 };
 
 const STAR_CHIPS = ["2 Star", "3 Star", "4 Star", "5 Star"];
+/** How far out to look, once the search has a point to look from. 25km is
+ * the default because it covers a hill station and the villages around it —
+ * Shimla out to Kufri and Chail — without dragging in the next district. */
+const DEFAULT_RADIUS_KM = 25;
+const RADIUS_CHIPS = [10, 25, 50, 100, 200];
+
 const CAT_CHIPS = [
   { value: "hotel", label: "Hotel" },
   { value: "resort", label: "Resort" },
@@ -66,6 +73,34 @@ type Props = {
 };
 
 export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, onSelect, onClear, placeholder, travelDate }: Props) {
+  // Where to search FROM, in coordinates.
+  //
+  // The catalog matches a hotel two ways: by text, and by straight-line
+  // distance from a reference point. The second is the one that matters here —
+  // hotel records are tagged by whoever entered them, so a property fifteen
+  // minutes outside Shimla is filed under Kufri, or Chail, or the resort's own
+  // name, and no amount of typing "Shimla" will surface it. Distance does not
+  // care what anyone called the place.
+  //
+  // But it only runs when the search is given a point, and both of this
+  // builder's pickers passed null — so v2 had been doing text matching alone
+  // while v1, which geocodes its city, found the neighbours. Resolved here
+  // rather than at each call site: every caller already knows the city, none
+  // of them should have to know that coordinates are what makes the search
+  // work. An explicitly supplied refCoords still wins — that is a real pickup
+  // point, better than a guess from a city name.
+  const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
+  const [cityCoords, setCityCoords] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (refCoords || !searchCity?.trim()) { setCityCoords(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const c = await geocodeCity(searchCity);
+      if (!cancelled) setCityCoords(c);
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchCity, refCoords]);
+  const anchor = refCoords ?? cityCoords;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<HotelRoomResult[]>([]);
@@ -95,11 +130,11 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
   useEffect(() => {
     if (value == null) { setCurrentRoom(null); return; }
     let cancelled = false;
-    getHotelRoomByIdForBuilder(value, refCoords).then((room) => {
+    getHotelRoomByIdForBuilder(value, anchor).then((room) => {
       if (!cancelled) setCurrentRoom(room);
     });
     return () => { cancelled = true; };
-  }, [value, refCoords]);
+  }, [value, anchor]);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50);
@@ -117,7 +152,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     const timer = setTimeout(async () => {
       try {
         const { rows, hiddenNoSeasonRate } = await searchHotelRoomsForBuilder(
-          searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null,
+          searchCity, query, anchor, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null, radiusKm,
         );
         if (!cancelled) {
           setItems(rows);
@@ -133,7 +168,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy]);
+  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy, anchor?.lat, anchor?.lng, radiusKm, travelDate]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
@@ -141,7 +176,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     const nextPage = page + 1;
     try {
       const { rows } = await searchHotelRoomsForBuilder(
-        searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null,
+        searchCity, query, anchor, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null, radiusKm,
       );
       setItems((prev) => [...prev, ...rows]);
       setPage(nextPage);
@@ -237,6 +272,25 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                 )}
               >
                 ★ {star}
+              </button>
+            ))}
+            {/* Only worth offering once there is a point to measure from —
+                without one the catalog is doing text matching and a radius
+                means nothing. */}
+            {anchor && RADIUS_CHIPS.map((km) => (
+              <button
+                key={km}
+                type="button"
+                onClick={() => setRadiusKm(km)}
+                title={`Include stays within ${km} km`}
+                className={cn(
+                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                  radiusKm === km
+                    ? "bg-sky-600 text-white border-sky-600"
+                    : "bg-background text-muted-foreground border-border hover:border-sky-400 hover:text-sky-700",
+                )}
+              >
+                {km} km
               </button>
             ))}
             {CAT_CHIPS.map((c) => (
