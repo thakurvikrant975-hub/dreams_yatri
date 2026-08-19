@@ -298,6 +298,17 @@ export function SalesQueryDetailSheet({
                                             >
                                                 Open Builder
                                             </a>
+                                            {/* Same escape hatch as the query
+                                                table's — see the note there. */}
+                                            <a
+                                                href={`/dashboard/package-builder/${pkg.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title="Open in the previous builder"
+                                                className="text-[10px] text-muted-foreground hover:text-foreground hover:underline"
+                                            >
+                                                v1
+                                            </a>
                                             <DeletePackageDialog
                                                 packageId={pkg.id}
                                                 packageTitle={pkg.title}

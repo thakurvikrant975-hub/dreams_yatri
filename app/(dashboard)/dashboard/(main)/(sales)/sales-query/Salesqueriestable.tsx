@@ -359,6 +359,20 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                         <Eye className="h-3 w-3" />
                                         View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
                                     </a>
+                                    {/* The previous builder, kept reachable
+                                        while the new one is being proven on
+                                        real work. Deliberately small and
+                                        unstyled next to the button above: it
+                                        is the way out, not the way in. */}
+                                    <a
+                                        href={`/dashboard/package-builder/${latest.id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Open in the previous builder"
+                                        className="text-[10px] font-medium text-muted-foreground hover:text-foreground hover:underline px-1"
+                                    >
+                                        v1
+                                    </a>
                                     {/* Says which of the several this row is
                                         showing, so "in review" isn't something
                                         you have to open the package to find. */}
