@@ -322,22 +322,29 @@ export async function getStayOptionsForDocument(packageId: string) {
   // being changed. Without this a rejected package — which returns to DRAFT —
   // sat in the builder showing the prices frozen when it was submitted, beside
   // hotels the exec had since replaced.
-  const pkgState = await db.custom_packages.findUnique({
-    where: { id: packageId }, select: { status: true },
-  });
-  const editable = pkgState?.status === "DRAFT";
-
-  const [options, priced] = await Promise.all([
+  const [pkgState, options] = await Promise.all([
+    db.custom_packages.findUnique({ where: { id: packageId }, select: { status: true } }),
     db.custom_package_stay_options.findMany({
       where: { customPackageId: packageId },
       include: { stays: { include: { itinerary: { select: { day: true } } } } },
     }),
-    // Live figures, for the standards not yet frozen. A stored price always
-    // wins where there is one: it is what the client was quoted, and
-    // recomputing at read time would quietly restate an old quote at today's
-    // catalog rates.
-    computeStayOptionPricing(packageId).catch(() => []),
   ]);
+  const editable = pkgState?.status === "DRAFT";
+
+  // Live figures, for the options not yet frozen — and ONLY for those. A
+  // stored price always wins where there is one, so on a settled package with
+  // every option priced the result was computed and then thrown away.
+  //
+  // That is the whole cost of this read. computeStayOptionPricing prices the
+  // cabs once and then every option's hotels, night by night, against the
+  // catalog — and this action is what the client's published page calls, on a
+  // route that renders per request. Every view of a sent quote ran the pricing
+  // engine to answer a question the stored figures had already answered.
+  const needsLive = editable
+    || options.some((o) => o.totalPrice == null || o.pricePerPerson == null);
+  const priced = needsLive
+    ? await computeStayOptionPricing(packageId).catch(() => [])
+    : [];
   const livePrice = new Map(priced.map((p) => [p.id, p]));
 
   return sortStayOptions(options).map((o) => ({
