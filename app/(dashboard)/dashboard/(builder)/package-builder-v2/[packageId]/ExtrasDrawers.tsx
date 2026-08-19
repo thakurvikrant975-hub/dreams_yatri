@@ -40,6 +40,24 @@ const MEAL_KEY_LABELS: Record<string, string> = {
 export function MealsView({ day }: { day: number }) {
   const { form, updateDay } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
+
+  // Breakfast is eaten on the morning of day N but SERVED by the night N-1
+  // hotel, so it is stored against day N-1 — see computeShiftedMeals, which is
+  // what the document draws from.
+  //
+  // This drawer used to read and write day N's own row for all three meals,
+  // which meant the breakfast an exec could see on day 3 was not the
+  // breakfast day 3's toggle controlled. It showed "Not included" beside a
+  // breakfast printed right there on the document, and switching it on added
+  // a SECOND one, to day 4. The only way to remove what you were looking at
+  // was to guess that it lived on the day before.
+  //
+  // So breakfast now reads and writes where it actually lives, and the rest
+  // stay on this day. What the drawer says is now what the document shows.
+  const prevItin = day > 1 ? form.itineraries.find((it) => it.day === day - 1) : undefined;
+  /** Which day's row holds this meal. */
+  const rowFor = (meal: string) => (meal === "Breakfast" ? prevItin : itin);
+
   const roomPricingId = itin?.roomPricingId ?? null;
 
   // A catalog room's meal plan is ground truth for what's actually served —
@@ -71,35 +89,51 @@ export function MealsView({ day }: { day: number }) {
 
   const hasCatalogRoom = roomPricingId != null;
 
+  /** Is this meal on, as the DOCUMENT shows it for this day? */
+  const isOn = (meal: string) => rowFor(meal)?.meals.includes(meal) ?? false;
+
+  /** Whether this meal is fixed by a catalog room's plan rather than set by
+   * hand — and it is the room on the night that SERVES it, so breakfast
+   * follows the previous day's room, not this one's. Without this a day with
+   * no room of its own offered a hand toggle for a breakfast the night before
+   * had already decided, and that night's sync would quietly undo it. */
+  const lockedByRoom = (meal: string) => (rowFor(meal)?.roomPricingId ?? null) != null;
+
   function toggle(meal: string) {
-    if (hasCatalogRoom) return;
-    const has = itin!.meals.includes(meal);
-    updateDay(day, {
-      meals: has ? itin!.meals.filter((m) => m !== meal) : [...itin!.meals, meal],
+    if (lockedByRoom(meal)) return;
+    const row = rowFor(meal);
+    // Day 1 has no night before it, so there is no breakfast to serve — the
+    // document does not print one either.
+    if (!row) return;
+    const has = row.meals.includes(meal);
+    updateDay(row.day, {
+      meals: has ? row.meals.filter((m) => m !== meal) : [...row.meals, meal],
     });
   }
 
-  const visibleMeals = hasCatalogRoom
-    ? STANDARD_MEALS.filter((meal) => itin.meals.includes(meal))
-    : STANDARD_MEALS;
+  // A meal fixed by a room is shown only when that room actually includes it;
+  // a hand-set meal is always offered so it can be switched on.
+  const visibleMeals = STANDARD_MEALS
+    .filter((meal) => rowFor(meal) != null)
+    .filter((meal) => !lockedByRoom(meal) || isOn(meal));
 
   return (
     <div className="p-5 space-y-4">
       <div className="space-y-2">
         {visibleMeals.map((meal) => {
-          const on = itin.meals.includes(meal);
+          const on = isOn(meal);
           return (
             <button
               key={meal}
               type="button"
-              disabled={hasCatalogRoom}
+              disabled={lockedByRoom(meal)}
               onClick={() => toggle(meal)}
               className={cn(
                 "w-full flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors",
                 on
                   ? "border-dashboard-primary bg-dashboard-primary/5"
                   : "border-dashboard-base-300 hover:bg-dashboard-base-200/50",
-                hasCatalogRoom && "cursor-default",
+                lockedByRoom(meal) && "cursor-default",
               )}
             >
               <Utensils size={13} className={on ? "text-dashboard-primary" : "text-dashboard-base-content/40"} />

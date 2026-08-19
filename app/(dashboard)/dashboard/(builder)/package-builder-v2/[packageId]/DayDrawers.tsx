@@ -120,20 +120,37 @@ export function TransferView({ day }: { day: number }) {
           derivedCity, query, coords, 1, vehicleTypeFilter, minSeats, sortBy,
         );
         if (token !== reqRef.current) return;
-        if (rows.length > 0) {
-          setResults(rows);
-          setPage(1);
-          setTotal(t);
-        } else if (query.trim()) {
+
+        // The fleet is searched ALONGSIDE the priced rows, not only when there
+        // are none.
+        //
+        // A destination is priced per vehicle, so "Meghalaya" can have a rate
+        // for a 12- and 14-seater and none for the 20 — and an exec searching
+        // "tempo" got the two priced ones and no hint the 20 existed, because
+        // any priced hit at all suppressed the fallback. v1 had no such gap:
+        // it dropped to the whole catalog whenever it had no city to price
+        // against, so the exec saw the vehicle and could pick it.
+        //
+        // Only while something is typed. With an empty box this is a browse of
+        // what is actually bookable here, and padding it with every unpriced
+        // vehicle in the fleet would bury that.
+        let merged: AnyVehicleHit[] = rows;
+        if (query.trim()) {
           const fleet = await searchVehiclesForBuilder(query);
           if (token !== reqRef.current) return;
-          setResults(fleet);
-          setPage(1);
-          setTotal(0);
-        } else {
-          setResults([]);
-          setTotal(0);
+          const pricedNames = new Set(
+            rows.map((r) => r.vehicleName.trim().toLowerCase()),
+          );
+          merged = [
+            ...rows,
+            ...fleet.filter((v) => !pricedNames.has(v.name.trim().toLowerCase())),
+          ];
         }
+        setResults(merged);
+        setPage(1);
+        // Paging counts the priced rows only — the fleet arrives whole and has
+        // nothing further to fetch.
+        setTotal(t);
       } catch {
         if (token === reqRef.current) toast.error("Couldn't load vehicles. Try again.");
       } finally {
@@ -144,7 +161,11 @@ export function TransferView({ day }: { day: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noDestinations, derivedCity, query, coords?.lat, coords?.lng, vehicleTypeFilter, minSeats, sortBy]);
 
-  const hasMore = results.length < total;
+  // Counts the priced rows only. `results` may also carry unpriced fleet
+  // matches (see the merge above), and including those made a short priced
+  // list look complete and hid the Load more button.
+  const pricedCount = results.filter(isPricedVehicle).length;
+  const hasMore = pricedCount < total;
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
@@ -154,7 +175,13 @@ export function TransferView({ day }: { day: number }) {
       const { rows, total: t } = await searchCabsForBuilder(
         derivedCity, query, coords, nextPage, vehicleTypeFilter, minSeats, sortBy,
       );
-      setResults((prev) => [...prev, ...rows]);
+      // Spliced in after the priced rows rather than appended, so the next
+      // page does not land underneath the unpriced fleet matches.
+      setResults((prev) => {
+        const priced = prev.filter(isPricedVehicle);
+        const fleet = prev.filter((h) => !isPricedVehicle(h));
+        return [...priced, ...rows, ...fleet];
+      });
       setPage(nextPage);
       setTotal(t);
     } finally {
