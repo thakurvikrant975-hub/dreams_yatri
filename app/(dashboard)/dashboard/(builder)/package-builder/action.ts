@@ -6,7 +6,8 @@ import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing, computeStayOptionPricing } from "@/app/services/package-pricing.service";
+import { baseRatePricingError } from "@/app/services/package-price-utils";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
@@ -3122,6 +3123,30 @@ export async function markPackageReady(
       })),
     ));
     if (gapError) return { success: false, error: gapError };
+
+    // A night with no season rate behind it. The hotel catalog already refuses
+    // to show rooms whose seasons miss the travel date, so this catches the
+    // case that filter cannot: a room picked while it was in season, and a
+    // travel date moved out of it afterwards — or seasons that lapsed while
+    // the package sat in a drawer. resolveHotelSeasonPricing falls back to the
+    // room's base rate without saying so, which is how a quote goes out at
+    // last year's price and reaches costing looking settled.
+    //
+    // Checked across every option, not just the recommended one: each column
+    // is a price the client may pick.
+    const optionPricing = await computeStayOptionPricing(packageId).catch(() => []);
+    const baseRateOption = optionPricing.find((o) => o.baseRateDays.length > 0);
+    if (baseRateOption) {
+      const error = baseRatePricingError(
+        baseRateOption.baseRateDays.map((day) => ({ day, baseRate: true })),
+      );
+      if (error) {
+        return {
+          success: false,
+          error: optionPricing.length > 1 ? `${baseRateOption.label}: ${error}` : error,
+        };
+      }
+    }
 
     // Per-day hotel/cab corrections from a prior review cycle are left as-is
     // here — saveCustomPackage already invalidates a given day's correction

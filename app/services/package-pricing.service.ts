@@ -9,7 +9,7 @@ import {
 import { splitManualHotelName } from "./hotel-name-utils";
 import { resolveHotelSeasonPricing } from "../lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
-import { composePackagePrice } from "./package-price-utils";
+import { composePackagePrice, baseRateDays } from "./package-price-utils";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -1127,6 +1127,18 @@ export type BuilderHotelDayLine = {
    * which is the worst possible failure for a review screen. Such a day now
    * emits a ₹0 line carrying the reason instead of vanishing. */
   gap?: "no-room-price" | "no-mattress-rate";
+  /** True when this line priced off the room's BASE rate because no season
+   * covers its date.
+   *
+   * The catalog hides rooms whose seasons don't reach the travel date, so a
+   * room can only get here two ways: it was picked while in season and the
+   * travel date later moved out of it, or its seasons lapsed while the package
+   * sat in a drawer. Either way resolveHotelSeasonPricing quietly returns the
+   * base rate — a rate nobody set for these dates, and usually last year's.
+   *
+   * Only ever set when a date is actually known: with no travel date there is
+   * no season to be outside of, and every line would carry this. */
+  baseRate?: boolean;
 };
 
 export type BuilderHotelPricingResult = {
@@ -1295,7 +1307,7 @@ export async function computeBuilderHotelPricing(input: {
           ? d.manualExtraBedRate
           : rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
 
-        const { basePrice, occPrices } = resolveHotelSeasonPricing(rp, dayDate);
+        const { basePrice, occPrices, isSeasonal } = resolveHotelSeasonPricing(rp, dayDate);
         // Each room is priced at ITS OWN occupancy tier, matching the stay
         // pricing path above — a single trip-wide tier (min(adults, beds))
         // mispriced any uneven split.
@@ -1325,6 +1337,7 @@ export async function computeBuilderHotelPricing(input: {
           mattresses,
           extraBedRate,
           total,
+          baseRate: dayDate != null && !isSeasonal,
         });
       }
     } else if (d.manualHotelPricePerNight != null) {
@@ -1375,7 +1388,7 @@ export async function computeBuilderHotelPricing(input: {
       const rp = byId.get(extra.roomPricingId);
       if (!rp) continue;
       const quantity = Math.max(1, extra.quantity);
-      const { basePrice } = resolveHotelSeasonPricing(rp, dayDate);
+      const { basePrice, isSeasonal } = resolveHotelSeasonPricing(rp, dayDate);
       const total = quantity * basePrice;
       hotelSubtotal += total;
 
@@ -1389,6 +1402,7 @@ export async function computeBuilderHotelPricing(input: {
         mattresses: 0,
         extraBedRate: 0,
         total,
+        baseRate: dayDate != null && !isSeasonal,
       });
     }
   }
@@ -1664,6 +1678,10 @@ export type StayOptionPrice = {
   /** Nights this category has no hotel behind and no pending request — nights
    * that would otherwise price at zero and make it look like the cheap one. */
   gapDays: number[];
+  /** Nights priced off the room's base rate because no season covers them —
+   * a figure nobody set for these dates. Blocks submission; see
+   * baseRatePricingError. */
+  baseRateDays: number[];
 };
 
 export async function computeStayOptionPricing(packageId: string): Promise<StayOptionPrice[]> {
@@ -1756,6 +1774,10 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
         .filter((s) => !s.hotelPending && !s.accommodation?.trim() && s.roomPricingId == null)
         .map((s) => dayNumberOf.get(s.itineraryId) ?? 0)
         .sort((a, b) => a - b),
+      // Nights this option prices off a base rate rather than a season rate.
+      // Sits beside gapDays because it is the same kind of fact: a figure the
+      // column is quoting that nobody actually set for these dates.
+      baseRateDays: baseRateDays(hotelPricing.days),
     };
   }));
 

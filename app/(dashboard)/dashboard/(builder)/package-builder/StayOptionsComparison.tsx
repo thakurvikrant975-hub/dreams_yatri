@@ -119,6 +119,15 @@ export function StayOptionsComparison({ packageId, className }: { packageId: str
         </table>
       </div>
 
+      {options.some((o) => o.baseRateDays.length > 0) && (
+        <p className="px-3 py-2 text-[11px] text-dashboard-warning border-t border-dashboard-base-300">
+          {options.filter((o) => o.baseRateDays.length > 0)
+            .map((o) => `${o.label}: day ${o.baseRateDays.join(", ")}`)
+            .join(" · ")}
+          {" — no season rate covers those dates, so they price off the room's base rate."}
+        </p>
+      )}
+
       {options.some((o) => o.gapDays.length > 0) && (
         <p className="px-3 py-2 text-[11px] text-dashboard-warning border-t border-dashboard-base-300">
           {options.filter((o) => o.gapDays.length > 0)

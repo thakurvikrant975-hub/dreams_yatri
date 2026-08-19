@@ -401,6 +401,7 @@ export async function getStayOptionComparison(packageId: string) {
       hotelSubtotal: live.get(o.id)?.hotelSubtotal ?? null,
       hotelSubtotalOverridden: live.get(o.id)?.hotelSubtotalOverridden ?? false,
       gapDays: live.get(o.id)?.gapDays ?? [],
+      baseRateDays: live.get(o.id)?.baseRateDays ?? [],
     })),
   };
 }

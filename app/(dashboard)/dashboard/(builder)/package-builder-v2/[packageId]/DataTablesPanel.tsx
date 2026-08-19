@@ -52,6 +52,7 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
   }, [packageId]);
 
   const hotelLines = hotelPricing?.days ?? [];
+  const baseRateLines = hotelLines.filter((l) => l.baseRate);
   const cabLines = cabPricing?.days ?? [];
   const multi = options.length > 1;
   const recommended = options.find((o) => o.isRecommended) ?? options[0];
@@ -105,6 +106,14 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
                     <td className={TD}>
                       {l.hotelName}
                       {l.roomName ? <span className="text-dashboard-base-content/55"> — {l.roomName}</span> : null}
+                      {/* Said on the row, not only in the toast that turns the
+                          exec away at Mark Ready — this is the table they came
+                          here to check the data on. */}
+                      {l.baseRate && (
+                        <span className="mt-0.5 block text-[10px] font-medium text-dashboard-warning">
+                          no season rate for this date — priced off the base rate
+                        </span>
+                      )}
                     </td>
                     <td className={`${TD} text-right tabular-nums`}>{l.roomsNeeded}</td>
                     <td className={`${TD} text-right tabular-nums`}>{l.mattresses > 0 ? l.mattresses : "—"}</td>
@@ -113,6 +122,16 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
               </tbody>
             </table>
           </div>
+        )}
+
+        {baseRateLines.length > 0 && (
+          <p className="border-t border-dashboard-base-300 px-2.5 py-2 text-[11px] text-dashboard-warning">
+            {baseRateLines.length === 1 ? "Day" : "Days"}{" "}
+            {[...new Set(baseRateLines.map((l) => l.day))].sort((a, b) => a - b).join(", ")}{" "}
+            {baseRateLines.length === 1 ? "has" : "have"} no season rate covering the travel date. The base rate
+            is whatever was set when the room was first entered, so this can&apos;t go to costing until the season
+            is added, a different room is picked, or the rate is typed in by hand.
+          </p>
         )}
 
         {/* The table above describes the stay being quoted. When the package

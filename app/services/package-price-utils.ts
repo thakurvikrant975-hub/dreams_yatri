@@ -55,3 +55,33 @@ export function composePackagePrice(input: {
   };
 }
 
+
+/** The days whose hotel priced off the base rate, and the sentence that
+ * refuses to let them through review.
+ *
+ * The catalog already hides rooms with no season covering the travel date, so
+ * this is the other half of that rule: a room picked while in season, then
+ * left behind when the date moved — or whose seasons lapsed while the package
+ * sat unsent. Nothing flagged it, because falling back to the base rate is
+ * exactly what resolveHotelSeasonPricing is built to do.
+ *
+ * A base rate is not a rate for these dates. It is usually the figure the
+ * hotel gave when the room was first entered, so quoting off it sends the
+ * client last year's price and hands costing a number the hotel will not
+ * honour. Blocking at submit rather than at save keeps a draft workable while
+ * the exec sorts the dates out.
+ */
+export function baseRateDays(lines: { day: number; baseRate?: boolean }[]): number[] {
+  return [...new Set(lines.filter((l) => l.baseRate).map((l) => l.day))].sort((a, b) => a - b);
+}
+
+export function baseRatePricingError(lines: { day: number; baseRate?: boolean }[]): string | null {
+  const days = baseRateDays(lines);
+  if (days.length === 0) return null;
+  const isOne = days.length === 1;
+  return (
+    `No season rate covers ${isOne ? "day" : "days"} ${days.join(", ")}, so ${isOne ? "that night is" : "those nights are"} ` +
+    `priced off the room's base rate — not a rate anyone set for these dates. ` +
+    `Ask the hotel team to add the season, pick a room that covers the travel date, or type the rate in by hand.`
+  );
+}
