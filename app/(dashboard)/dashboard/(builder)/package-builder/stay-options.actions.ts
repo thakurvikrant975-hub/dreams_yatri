@@ -21,27 +21,9 @@ import {
   sortStayOptions, normaliseStayLabel, stayLabelProblem, MAX_STAY_OPTIONS,
 } from "./stay-options";
 import { computeStayOptionPricing } from "@/app/services/package-pricing.service";
+import { mirrorRecommendedOntoDays, pickStayFields } from "./stay-options.sync";
 
 type Result<T = undefined> = { success: true; data?: T } | { success: false; error: string };
-
-/** The hotel columns a stay row and a day row share. One list, so a column
- * added to one side can't quietly go missing from the other. */
-const STAY_FIELDS = [
-  "accommodation", "accommodationPhoto", "accommodationRoomPhotos", "accommodationLocation",
-  "accommodationRoomSpecs", "accommodationStarRating", "accommodationRoomCapacity",
-  "accommodationMaxAdults", "accommodationMaxChildren", "accommodationExtraBedCapacity",
-  "roomPricingId", "roomsCount", "extraRooms", "hotelCheckIn", "hotelCheckOut", "hotelMealPlan",
-  "manualHotelPricePerNight", "manualExtraBeds", "manualExtraBedRate", "hotelPriceOverride",
-  "hotelPending", "hotelPendingNote",
-] as const;
-
-type StayFields = Partial<Record<(typeof STAY_FIELDS)[number], unknown>>;
-
-function pickStayFields<T extends StayFields>(source: T): StayFields {
-  const out: StayFields = {};
-  for (const key of STAY_FIELDS) if (key in source) out[key] = source[key];
-  return out;
-}
 
 async function assertCanEdit(packageId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const [pkg, memberCtx] = await Promise.all([
@@ -70,62 +52,6 @@ async function assertCanEdit(packageId: string): Promise<{ ok: true } | { ok: fa
   return caps.editItinerary
     ? { ok: true }
     : { ok: false, error: "This package isn't yours to edit right now." };
-}
-
-/** Copies the recommended category's stays onto their day rows — the
- * compatibility surface everything that predates categories still reads. */
-async function mirrorRecommendedOntoDays(tx: TransactionClient, packageId: string): Promise<void> {
-  const recommended = await tx.custom_package_stay_options.findFirst({
-    where: { customPackageId: packageId, isRecommended: true },
-    select: { id: true },
-  });
-  if (!recommended) return;
-
-  const stays = await tx.custom_itinerary_stays.findMany({ where: { stayOptionId: recommended.id } });
-  for (const stay of stays) {
-    await tx.custom_itineraries.update({
-      where: { id: stay.itineraryId },
-      data: pickStayFields(stay) as Prisma.custom_itinerariesUpdateInput,
-    });
-  }
-}
-
-/** The mirror run backwards: day rows to the recommended category's stays.
- *
- * Also gives a package its first category, so one created after this existed —
- * createCustomPackage knows nothing about categories — still has the Standard
- * the document needs to render. Safe on every save: it converges. */
-export async function syncRecommendedStayFromDays(packageId: string): Promise<void> {
-  const days = await db.custom_itineraries.findMany({ where: { customPackageId: packageId } });
-
-  let recommended = await db.custom_package_stay_options.findFirst({
-    where: { customPackageId: packageId, isRecommended: true },
-    select: { id: true },
-  });
-
-  if (!recommended) {
-    const existing = await db.custom_package_stay_options.findFirst({
-      where: { customPackageId: packageId },
-      select: { id: true },
-    });
-    recommended = existing
-      ? await db.custom_package_stay_options.update({
-          where: { id: existing.id }, data: { isRecommended: true }, select: { id: true },
-        })
-      : await db.custom_package_stay_options.create({
-          data: { customPackageId: packageId, label: "Standard", sortOrder: 0, isRecommended: true },
-          select: { id: true },
-        });
-  }
-
-  for (const day of days) {
-    const data = pickStayFields(day);
-    await db.custom_itinerary_stays.upsert({
-      where: { itineraryId_stayOptionId: { itineraryId: day.id, stayOptionId: recommended.id } },
-      create: { itineraryId: day.id, stayOptionId: recommended.id, ...data } as Prisma.custom_itinerary_staysUncheckedCreateInput,
-      update: data as Prisma.custom_itinerary_staysUncheckedUpdateInput,
-    });
-  }
 }
 
 /** Who is allowed to read a package's stay options.

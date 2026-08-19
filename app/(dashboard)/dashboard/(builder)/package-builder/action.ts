@@ -21,7 +21,7 @@ import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-
 import { applyDiscount, discountLabel } from "./discount";
 import { missingTravellerAgesError } from "./traveller-ages";
 import { stayOptionGaps, stayOptionGapError } from "./stay-options";
-import { syncRecommendedStayFromDays } from "./stay-options.actions";
+import { syncRecommendedStayFromDays } from "./stay-options.sync";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
 // keys ("breakfast", "lunch", "dinner") — mapped to the same labels the
