@@ -25,6 +25,11 @@ import { mirrorRecommendedOntoDays, pickStayFields } from "./stay-options.sync";
 
 type Result<T = undefined> = { success: true; data?: T } | { success: false; error: string };
 
+/** A rule the exec broke, thrown so it can unwind a transaction and still
+ * reach them as a sentence. Distinguished from a genuine failure, which gets
+ * the generic message and a log line. */
+class StayOptionRefusal extends Error {}
+
 async function assertCanEdit(packageId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const [pkg, memberCtx] = await Promise.all([
     db.custom_packages.findUnique({
@@ -93,18 +98,27 @@ export async function addStayOption(packageId: string, rawLabel: string): Promis
     const gate = await assertCanEdit(packageId);
     if (!gate.ok) return { success: false, error: gate.error };
 
-    const existing = await db.custom_package_stay_options.findMany({
-      where: { customPackageId: packageId },
-      select: { id: true, label: true, sortOrder: true },
-    });
-    if (existing.length >= MAX_STAY_OPTIONS) {
-      return { success: false, error: `Three stay options is the most a document can show side by side.` };
-    }
-    const problem = stayLabelProblem(rawLabel, existing);
-    if (problem) return { success: false, error: problem };
-    const label = normaliseStayLabel(rawLabel);
-
     const created = await db.$transaction(async (tx) => {
+      // Counted and named INSIDE the transaction, at Serializable. Read
+      // outside it, this was check-then-act: two adds landing together both
+      // saw two options, both passed, and the package ended up with four —
+      // one more than the document can lay out. Nothing in the schema catches
+      // that, because "at most three rows per package" is not a constraint
+      // Postgres can express as an index.
+      //
+      // Serializable makes the second one fail rather than succeed wrongly.
+      // The exec retries and is told three is the limit, which is the truth.
+      const existing = await tx.custom_package_stay_options.findMany({
+        where: { customPackageId: packageId },
+        select: { id: true, label: true, sortOrder: true },
+      });
+      if (existing.length >= MAX_STAY_OPTIONS) {
+        throw new StayOptionRefusal("Three stay options is the most a document can show side by side.");
+      }
+      const problem = stayLabelProblem(rawLabel, existing);
+      if (problem) throw new StayOptionRefusal(problem);
+      const label = normaliseStayLabel(rawLabel);
+
       const option = await tx.custom_package_stay_options.create({
         data: {
           customPackageId: packageId,
@@ -126,11 +140,14 @@ export async function addStayOption(packageId: string, rawLabel: string): Promis
       }
       if (existing.length === 0) await mirrorRecommendedOntoDays(tx, packageId);
       return option;
-    });
+    }, { isolationLevel: "Serializable" });
 
     revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     return { success: true, data: created };
   } catch (err) {
+    // A refusal is the answer, not a failure — it carries the sentence the
+    // exec needs to read.
+    if (err instanceof StayOptionRefusal) return { success: false, error: err.message };
     console.error("[addStayOption]", err);
     return { success: false, error: "Couldn't add that stay option." };
   }
@@ -183,7 +200,11 @@ export async function removeStayOption(packageId: string, optionId: string): Pro
     await db.$transaction(async (tx) => {
       await tx.custom_package_stay_options.delete({ where: { id: optionId } });
       if (target.isRecommended) {
-        // The badge has to land somewhere, so the cheapest survivor takes it.
+        // The badge has to land somewhere, and it lands on the first surviving
+        // column — the same order the document prints them in, so the exec
+        // sees it move to the place they were already looking. Not the
+        // cheapest: prices are not loaded here, and half of them are usually
+        // unset while a package is still being built.
         const next = sortStayOptions(options.filter((o) => o.id !== optionId))[0];
         await tx.custom_package_stay_options.update({
           where: { id: next.id }, data: { isRecommended: true },

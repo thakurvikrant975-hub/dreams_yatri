@@ -95,12 +95,29 @@ export async function syncRecommendedStayFromDays(packageId: string): Promise<vo
         });
   }
 
-  for (const day of days) {
-    const data = pickStayFields(day);
-    await db.custom_itinerary_stays.upsert({
-      where: { itineraryId_stayOptionId: { itineraryId: day.id, stayOptionId: recommended.id } },
-      create: { itineraryId: day.id, stayOptionId: recommended.id, ...data } as Prisma.custom_itinerary_staysUncheckedCreateInput,
-      update: data as Prisma.custom_itinerary_staysUncheckedUpdateInput,
-    });
-  }
+  // Replaced wholesale rather than upserted one day at a time.
+  //
+  // This ran on every save, and a save is what the builder does constantly —
+  // so a fifteen-day package paid fifteen sequential round trips to Neon
+  // before it could return, every time. Two queries now, whatever the length.
+  //
+  // Safe here in a way it is emphatically NOT for day rows: this option's
+  // stays are BY DEFINITION a copy of the day rows, every column of them is
+  // about to be rewritten from those rows anyway, and nothing anywhere
+  // references a stay row by id — the table has no inbound foreign keys and
+  // bookings record the option, not the row. There is nothing in these rows
+  // to preserve that the next line does not immediately put back.
+  //
+  // In one transaction, so a save that fails midway cannot leave the
+  // recommended option with no stays at all.
+  await db.$transaction([
+    db.custom_itinerary_stays.deleteMany({ where: { stayOptionId: recommended.id } }),
+    db.custom_itinerary_stays.createMany({
+      data: days.map((day) => ({
+        itineraryId: day.id,
+        stayOptionId: recommended!.id,
+        ...pickStayFields(day),
+      })) as Prisma.custom_itinerary_staysUncheckedCreateInput[],
+    }),
+  ]);
 }
