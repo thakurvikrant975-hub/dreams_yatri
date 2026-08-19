@@ -612,6 +612,13 @@ export default function PackageBuilderDetailPage() {
         adults: t?.adults ?? 1,
         children: t?.children ?? 0,
         infants: t?.infants ?? 0,
+        // Grown to match, or the age boxes never render: the counts arrive
+        // from the client's query while the arrays stay empty, and an empty
+        // array maps to nothing at all. The exec then sees "2 Children" with
+        // nowhere to put their ages until they nudge the count — which they
+        // have no reason to do, because the count is already right.
+        childrenAges: resizeAges([], t?.children ?? 0),
+        infantAges: resizeAges([], t?.infants ?? 0),
         // Seed a blank ticket of the right type when the client asked for
         // flights/train on the original query and there's no draft (and no
         // tickets) yet — a nudge to fill it in on the Tickets tab, not a

@@ -80,6 +80,7 @@ import {
   CHILD_AGE_MIN, CHILD_AGE_MAX, INFANT_AGE_MIN, INFANT_AGE_MAX,
 } from "../traveller-ages";
 import { HotelRoomPicker } from "./HotelRoomPicker";
+import { nightISOForDay } from "../night-date";
 import { ImageDropField } from "./ImageDropField";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings, type PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
@@ -1263,7 +1264,7 @@ function HotelRequestPanel({
 // Day Itinerary Card
 // ─────────────────────────────────────────────────────────────────────────────
 function DayCard({
-  dndId, day, data, location, totalDays, adults, childrenCount, onChange, onRemove,
+  dndId, day, data, location, totalDays, travelDate, adults, childrenCount, onChange, onRemove,
   onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
   focusSection, shiftedMeals, mealTypes,
   dayAddons, onAddAddon, onUpdateAddon, onRemoveAddon,
@@ -1275,6 +1276,9 @@ function DayCard({
   data: DayItinerary;
   location?: string;
   totalDays: number;
+  /** The package's start date, so this day can work out which night it is and
+   * ask the catalog for rooms that actually have a rate for it. */
+  travelDate?: string | null;
   /** Party size — feeds the "rooms & mattresses needed" readout in the
    * Hotel Info card (see RoomCapacitySummary), same adults/children the
    * pricing engine itself uses. Named childrenCount, not children — that
@@ -1735,6 +1739,7 @@ function DayCard({
                 onSelect={handleHotelRoomSelect}
                 onClear={handleHotelRoomClear}
                 placeholder={searchCity ? `Search hotels near ${searchCity}…` : "Search hotels by name, city, or state…"}
+                travelDate={nightISOForDay(travelDate, day)}
               />
               <p className="text-[10px] text-dashboard-base-content/40 mt-1">
                 {data.accommodation ? `Currently: ${data.accommodation} — click above to change it. ` : ""}
@@ -1785,6 +1790,7 @@ function DayCard({
                         initialLabel={room.label}
                         searchCity={searchCity}
                         refCoords={cityCoords}
+                        travelDate={nightISOForDay(travelDate, day)}
                         onSelect={(r) => {
                           const next = [...(data.extraRooms ?? [])];
                           next[i] = {
@@ -2984,6 +2990,13 @@ export default function PackageBuilderDetailPage() {
         adults: t?.adults ?? 1,
         children: t?.children ?? 0,
         infants: t?.infants ?? 0,
+        // Grown to match, or the age boxes never render: the counts arrive
+        // from the client's query while the arrays stay empty, and an empty
+        // array maps to nothing at all. The exec then sees "2 Children" with
+        // nowhere to put their ages until they nudge the count — which they
+        // have no reason to do, because the count is already right.
+        childrenAges: resizeAges([], t?.children ?? 0),
+        infantAges: resizeAges([], t?.infants ?? 0),
         // Seed a blank ticket of the right type when the client asked for
         // flights/train on the original query and there's no draft (and no
         // tickets) yet — a nudge to fill it in on the Tickets tab, not a
@@ -5115,6 +5128,7 @@ Rules:
                         data={day}
                         location={dayLocations[idx]}
                         totalDays={form.itineraries.length}
+                        travelDate={form.travelDate}
                         adults={form.adults}
                         childrenCount={form.children}
                         onChange={(d) => updateDay(idx, d)}

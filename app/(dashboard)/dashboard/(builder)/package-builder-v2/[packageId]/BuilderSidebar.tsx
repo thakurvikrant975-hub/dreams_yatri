@@ -38,7 +38,9 @@ import { HotelSuggestionsView, ActivitySuggestionsView, CabSuggestionsView } fro
 
 const RAIL: { tab: PanelTab; icon: React.ElementType; label: string }[] = [
   { tab: "client", icon: User, label: "Client" },
-  { tab: "trip", icon: CalendarDays, label: "Trip" },
+  // "Trip" alone hid the traveller counts and the children's ages, which are
+  // the fields execs most often go looking for and could not name a tab for.
+  { tab: "trip", icon: CalendarDays, label: "Trip & Guests" },
   { tab: "stops", icon: MapPin, label: "Destinations" },
   { tab: "itinerary", icon: ListOrdered, label: "Itinerary" },
   { tab: "tickets", icon: Plane, label: "Travel" },

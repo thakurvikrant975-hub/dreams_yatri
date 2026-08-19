@@ -63,12 +63,21 @@ type Props = {
   onSelect: (room: HotelRoomResult) => void;
   onClear: () => void;
   placeholder?: string;
+  /** The night being booked, `YYYY-MM-DD`. Rooms whose seasons do not cover
+   * it are left out of the results — a rate nobody set for these dates is not
+   * an option, and finding that out at Mark Ready costs the exec the whole
+   * package. Null while no travel date is set, which shows everything:
+   * nothing is yet known to be out of season. */
+  travelDate?: string | null;
 };
 
-export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, onSelect, onClear, placeholder }: Props) {
+export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, onSelect, onClear, placeholder, travelDate }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<HotelRoomResult[]>([]);
+  /** Rooms left out because no season covers this night — worth saying, or the
+   * exec just sees a hotel they know exists refusing to appear. */
+  const [hiddenNoRate, setHiddenNoRate] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -114,9 +123,10 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     const delay = query === "" ? 0 : 300;
     const timer = setTimeout(async () => {
       try {
-        const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, undefined, radiusKm);
+        const { rows, hiddenNoSeasonRate } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null, radiusKm);
         if (!cancelled) {
           setItems(rows);
+          setHiddenNoRate(hiddenNoSeasonRate);
           setPage(1);
           setHasMore(rows.length >= PAGE_SIZE);
         }
@@ -146,7 +156,7 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, undefined, radiusKm);
+      const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null, radiusKm);
       setItems((prev) => [...prev, ...rows]);
       setPage(nextPage);
       setHasMore(rows.length >= PAGE_SIZE);
@@ -343,7 +353,12 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
             ) : items.length === 0 ? (
               <div className="py-8 text-center space-y-1">
                 <p className="text-xs text-muted-foreground">No hotels found</p>
-                {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly || radiusKm !== DEFAULT_RADIUS_KM) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
+                {hiddenNoRate > 0 ? (
+                  <p className="text-[10px] text-muted-foreground/60">
+                    {hiddenNoRate} {hiddenNoRate === 1 ? "room has" : "rooms have"} no rate set for this date — ask the hotel
+                    team to add one before quoting them.
+                  </p>
+                ) : (starFilter || catFilter || mealFilter.length > 0 || noMealsOnly || radiusKm !== DEFAULT_RADIUS_KM) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
               </div>
             ) : (
               items.map((room) => {

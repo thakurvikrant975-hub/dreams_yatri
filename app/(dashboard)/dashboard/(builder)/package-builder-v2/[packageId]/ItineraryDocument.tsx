@@ -41,6 +41,7 @@ import { EditablePolicyList } from "./EditablePolicyList";
 import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 import { DaySlot } from "./builder-dnd";
 import { ticketGaps, addonGaps, stayGaps, transportGaps, type Gaps } from "./pricing-gaps";
+import { nightISOForDay } from "@/app/(dashboard)/dashboard/(builder)/package-builder/night-date";
 import { ADD_CONTROL_CLASS } from "./doc-tokens";
 import {
   CLASSIC, DocThemeProvider, resolveDocTheme, useDocTheme,
@@ -2246,7 +2247,7 @@ function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }
  * what a stay is — one hotel, N nights.
  */
 function StayColumnPicker({
-  packageId, optionId, fromDay, nights, currentLabel, searchCity, onSaved,
+  packageId, optionId, fromDay, nights, currentLabel, searchCity, travelDate, onSaved,
 }: {
   packageId: string;
   optionId: string;
@@ -2254,6 +2255,9 @@ function StayColumnPicker({
   nights: number;
   currentLabel: string | null;
   searchCity: string;
+  /** The trip's start date — with fromDay it gives the night this column is
+   * booking, which is what keeps out-of-season rooms out of the results. */
+  travelDate?: string | null;
   onSaved: () => void | Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
@@ -2266,6 +2270,7 @@ function StayColumnPicker({
         searchCity={searchCity}
         refCoords={null}
         placeholder={currentLabel ? "Change hotel…" : "Pick this standard's hotel…"}
+        travelDate={nightISOForDay(travelDate, fromDay)}
         onSelect={async (room) => {
           setSaving(true);
           // Through the same mapping the day's own stay uses, so the two can't
@@ -2322,12 +2327,15 @@ function StayColumnPicker({
 }
 
 function StayColumns({
-  categories, day, nights, checkIn, checkOut, packageId, searchCity, onStayOptionsChanged,
+  categories, day, nights, checkIn, checkOut, packageId, searchCity, travelDate, onStayOptionsChanged,
 }: {
   /** Present only in the builder — that is what turns the columns editable.
    * Absent on the client's page and in the PDF, which stay read-only. */
   packageId?: string;
   searchCity?: string;
+  /** Trip start date, passed down so each column's picker can ask the catalog
+   * for rooms priced for the night it is actually booking. */
+  travelDate?: string | null;
   onStayOptionsChanged?: () => void | Promise<void>;
   /** Cheapest first, already sorted by the caller. */
   categories: NonNullable<PreviewData["stayOptions"]>;
@@ -2517,6 +2525,7 @@ function StayColumns({
                       nights={nights}
                       currentLabel={cell.hotel}
                       searchCity={searchCity ?? ""}
+                      travelDate={travelDate}
                       onSaved={onStayOptionsChanged}
                     />
                   )}
@@ -2798,6 +2807,7 @@ function DayCardPreview({
                       checkOut={stayBlock.checkOut ?? day.hotelCheckOut}
                       packageId={stayEditing?.packageId}
                       searchCity={day.accommodationLocation || ""}
+                      travelDate={travelDate}
                       onStayOptionsChanged={stayEditing?.onStayOptionsChanged}
                     />
                   </div>
@@ -3372,10 +3382,36 @@ function HeroCover({
  * uppercase the document used to put on every micro-label — at this size
  * uppercase costs legibility and reads as dashboard chrome. The value carries
  * the emphasis instead, in the display face. */
-function StatCell({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+function StatCell({ icon: Icon, label, value, onOpen }: {
+  icon: React.ElementType; label: string; value: string;
+  /** Makes the cell the way in to whatever panel owns this figure. Travellers
+   * are the case that needed it: the count and the children's ages live in
+   * the Trip panel, and "Trip" is not a word anyone searches when they want
+   * to say how many children are coming — so execs read "2 Children" on the
+   * document and had nowhere to click. Only ever supplied inside the builder;
+   * the client's document gets a plain cell. */
+  onOpen?: () => void;
+}) {
   const DOC = useDocTheme();
   return (
-    <div className="px-4 py-3.5 flex flex-col justify-center min-w-0">
+    <div
+      className={cn(
+        "px-4 py-3.5 flex flex-col justify-center min-w-0 relative",
+        onOpen && "builder-only-interactive cursor-pointer transition-colors hover:bg-dashboard-primary/8 group/stat",
+      )}
+      onClick={onOpen}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={onOpen ? (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); }
+      } : undefined}
+      title={onOpen ? `Edit ${label.toLowerCase()}` : undefined}
+    >
+      {onOpen && (
+        <span className="builder-only no-print absolute top-1.5 right-2 text-[9px] font-semibold uppercase tracking-wide text-dashboard-primary opacity-0 group-hover/stat:opacity-100 transition-opacity">
+          edit
+        </span>
+      )}
       <p
         className="flex items-center gap-1.5 mb-1 text-[11px] font-medium whitespace-nowrap text-neutral-500/90"
       >
@@ -3586,6 +3622,10 @@ export function ItineraryDocument({
    * PDF are the same document rather than two things that drift apart. */
   published?: boolean;
 }) {
+  // Optional: this same document renders on the client's published page, where
+  // there is no provider and nothing is clickable.
+  const builder = useOptionalBuilder();
+
   const travelDateStr = form.travelDate
     ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
     : "TBD";
@@ -3745,7 +3785,12 @@ export function ItineraryDocument({
             >
               <StatCell icon={Calendar} label="Travel date" value={travelDateStr} />
               <StatCell icon={Moon} label="Duration" value={durationLabel} />
-              <StatCell icon={Users} label="Travellers" value={paxLine} />
+              <StatCell
+                icon={Users}
+                label="Travellers"
+                value={paxLine}
+                onOpen={builder?.canEdit ? () => builder.setPanelTab("trip") : undefined}
+              />
             </div>
           </div>
 
