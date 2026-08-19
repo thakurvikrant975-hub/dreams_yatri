@@ -291,23 +291,23 @@ export function SalesQueryDetailSheet({
                                         <p className="text-sm font-medium min-w-0 truncate">{pkg.title}</p>
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             <a
-                                                href={`/dashboard/package-builder-v2/${pkg.id}`}
+                                                href={`/dashboard/package-builder/${pkg.id}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-[11px] text-primary hover:underline"
                                             >
                                                 Open Builder
                                             </a>
-                                            {/* Same escape hatch as the query
-                                                table's — see the note there. */}
+                                            {/* Offered, not imposed — see the
+                                                note in the query table. */}
                                             <a
-                                                href={`/dashboard/package-builder/${pkg.id}`}
+                                                href={`/dashboard/package-builder-v2/${pkg.id}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                title="Open in the previous builder"
-                                                className="text-[10px] text-muted-foreground hover:text-foreground hover:underline"
+                                                title="Open in the new builder"
+                                                className="text-[10px] font-semibold text-primary/80 hover:text-primary hover:underline"
                                             >
-                                                v1
+                                                v2
                                             </a>
                                             <DeletePackageDialog
                                                 packageId={pkg.id}

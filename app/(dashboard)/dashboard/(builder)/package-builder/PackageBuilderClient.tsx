@@ -339,7 +339,7 @@ export default function PackageBuilderClientPage() {
                         variant="outline"
                         size="sm"
                         className="gap-1.5"
-                        onClick={() => window.open(`/dashboard/package-builder-v2/${newPackageId()}`, "_blank")}
+                        onClick={() => window.open(`/dashboard/package-builder/${newPackageId()}`, "_blank")}
                     >
                         <Plus size={14} /> Blank Package
                     </Button>
@@ -390,8 +390,8 @@ export default function PackageBuilderClientPage() {
                     // brand-new one prefilled from this query's requirements.
                     const latest = row.customPackages[0];
                     const url = latest
-                        ? `/dashboard/package-builder-v2/${latest.id}`
-                        : `/dashboard/package-builder-v2/${newPackageId()}?fromQuery=${row.id}`;
+                        ? `/dashboard/package-builder/${latest.id}`
+                        : `/dashboard/package-builder/${newPackageId()}?fromQuery=${row.id}`;
                     window.open(url, "_blank");
                 }}
                 emptyState={

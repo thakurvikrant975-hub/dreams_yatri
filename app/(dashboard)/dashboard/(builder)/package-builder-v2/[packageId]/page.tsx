@@ -2001,6 +2001,8 @@ Rules:
 
             {!isLocked && (
               <CreatePackageDialog
+                // Stay in this builder — see builderBasePath.
+                builderBasePath="/dashboard/package-builder-v2"
                 packageId={packageId}
                 destination={j?.destinations?.join(", ") ?? query.destination ?? null}
                 packageUrl={query.packageUrl}

@@ -97,15 +97,14 @@ function newPackageId(): string {
 
 export type ExistingPackageOption = { id: string; title: string; status: string; builtByName?: string | null };
 
-export function CreatePackageDialog({ queryId, packageId, existingPackages, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, builderBasePath = "/dashboard/package-builder-v2", children }: {
+export function CreatePackageDialog({ queryId, packageId, existingPackages, destination, packageUrl, travelDate, travellers, budget, duration, queryReceivedAt, builderBasePath = "/dashboard/package-builder", children }: {
     /** Query to attach a brand-new package to — pass this from a "Create
      * Package" entry point (Sales Query table/sheet) where no package
      * exists yet. Exactly one of queryId/packageId should be given. */
-    /** Which builder to land in. Defaults to v2, which is where every
-     * dashboard entry point now goes. The old builder passes its own path so
-     * that an exec working there — usually because they were sent there
-     * deliberately — is not thrown into the other one by changing a
-     * template. */
+    /** Which builder to land in. Defaults to v1, which is still where the
+     * sales team works by default while they are being moved onto v2 one
+     * person at a time. Each builder passes its own path, so changing a
+     * template never throws an exec out of the one they are working in. */
     builderBasePath?: string;
     queryId?: string;
     /** An already-existing package's own id — pass this from inside the

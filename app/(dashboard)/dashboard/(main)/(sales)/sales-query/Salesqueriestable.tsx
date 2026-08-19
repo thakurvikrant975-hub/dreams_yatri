@@ -346,7 +346,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                             ) : (
                                 <>
                                     <a
-                                        href={`/dashboard/package-builder-v2/${latest.id}`}
+                                        href={`/dashboard/package-builder/${latest.id}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className={cn(
@@ -359,19 +359,20 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                         <Eye className="h-3 w-3" />
                                         View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
                                     </a>
-                                    {/* The previous builder, kept reachable
-                                        while the new one is being proven on
-                                        real work. Deliberately small and
-                                        unstyled next to the button above: it
-                                        is the way out, not the way in. */}
+                                    {/* The new builder, offered rather than
+                                        imposed: the sales team is being moved
+                                        onto it one person at a time, so the
+                                        button above stays where their habit
+                                        already is until they have been shown
+                                        this one. */}
                                     <a
-                                        href={`/dashboard/package-builder/${latest.id}`}
+                                        href={`/dashboard/package-builder-v2/${latest.id}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        title="Open in the previous builder"
-                                        className="text-[10px] font-medium text-muted-foreground hover:text-foreground hover:underline px-1"
+                                        title="Open in the new builder"
+                                        className="text-[10px] font-semibold text-primary/80 hover:text-primary hover:underline px-1"
                                     >
-                                        v1
+                                        v2
                                     </a>
                                     {/* Says which of the several this row is
                                         showing, so "in review" isn't something
