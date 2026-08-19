@@ -66,8 +66,13 @@ function Section({ title, meta, subtotal, children }: {
 }
 
 export function CostingPricingPanel({
-  packageId, hotelPricing, cabPricing, computed,
+  packageId, hotelPricing, cabPricing, computed, canEditCost = false,
 }: {
+  /** Whether this reviewer may correct a night's price on the option
+   * comparison. Passed rather than read from context: the builder context
+   * carries the exec's canEdit, and costing's capability is a different
+   * question with a different answer at the same moment. */
+  canEditCost?: boolean;
   /** For the stay-option comparison, which reads from the server rather than
    * the editor's form state — a reviewer has to see what is saved, not what
    * someone is typing. */
@@ -110,7 +115,7 @@ export function CostingPricingPanel({
       {/* The options side by side, when there is more than one. Above the
           breakdown on purpose: which option is being priced is the first thing
           to establish, and the breakdown below describes the recommended one. */}
-      <StayOptionsComparison packageId={packageId} />
+      <StayOptionsComparison packageId={packageId} canEdit={canEditCost} />
 
       {gaps > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">

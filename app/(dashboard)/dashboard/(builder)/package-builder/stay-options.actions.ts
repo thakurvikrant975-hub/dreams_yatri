@@ -20,7 +20,7 @@ import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-
 import {
   sortStayOptions, normaliseStayLabel, stayLabelProblem, MAX_STAY_OPTIONS,
 } from "./stay-options";
-import { computeStayOptionPricing } from "@/app/services/package-pricing.service";
+import { computeStayOptionPricing, persistStayOptionPricing } from "@/app/services/package-pricing.service";
 import { mirrorRecommendedOntoDays, pickStayFields } from "./stay-options.sync";
 
 type Result<T = undefined> = { success: true; data?: T } | { success: false; error: string };
@@ -401,6 +401,130 @@ export async function getStayOptionsForDocument(packageId: string) {
   }));
 }
 
+/** Puts one option's stay on other days as well.
+ *
+ * Single hotels have had this since the beginning (ApplyToDays on the day
+ * card); options did not, so quoting the same Deluxe hotel across a four-night
+ * block meant opening four days and picking it four times — and any night
+ * missed left that column priced at zero without saying so.
+ *
+ * Copies the whole stay row, not just the hotel name: the room, its capacity,
+ * the meal plan, the mattress counts and any hand-typed rate all travel
+ * together, because a hotel without its room prices at nothing.
+ *
+ * Deliberately does NOT carry hotelPriceOverride or the pending-request flags.
+ * A correction costing made against one night, and a request the hotel team
+ * owes on one night, are both about that night — copying them would silently
+ * apply a price nobody agreed to on the other days.
+ */
+export async function copyStayToDays(
+  packageId: string, optionId: string, fromDay: number, toDays: number[],
+): Promise<Result> {
+  try {
+    const gate = await assertCanEdit(packageId);
+    if (!gate.ok) return { success: false, error: gate.error };
+
+    const targets = [...new Set(toDays)].filter((d) => d !== fromDay);
+    if (targets.length === 0) return { success: true };
+
+    const source = await db.custom_itinerary_stays.findFirst({
+      where: {
+        stayOptionId: optionId,
+        stayOption: { customPackageId: packageId },
+        itinerary: { day: fromDay, customPackageId: packageId },
+      },
+    });
+    if (!source) return { success: false, error: "That stay no longer exists." };
+
+    const fields = pickStayFields(source);
+    delete (fields as Record<string, unknown>).hotelPriceOverride;
+    delete (fields as Record<string, unknown>).hotelPending;
+    delete (fields as Record<string, unknown>).hotelPendingNote;
+
+    return await saveStayForDay(packageId, optionId, targets, fields);
+  } catch (err) {
+    console.error("[copyStayToDays]", err);
+    return { success: false, error: "Couldn't apply that stay to the other days." };
+  }
+}
+
+/** Costing's correction to one night of one option.
+ *
+ * The package's own nights already work this way — custom_itineraries
+ * .hotelPriceOverride, set from the pricing breakdown — and the stay row
+ * carries the same column. It just had no way in, so a reviewer looking at
+ * three quoted options could correct the recommended one and nothing else.
+ *
+ * null clears back to the catalog-computed figure for that night.
+ *
+ * Gated on editCost rather than editItinerary: this is the reviewer's
+ * capability, and it is live exactly while the package sits with them.
+ */
+export async function setStayOptionDayPrice(
+  packageId: string, optionId: string, day: number, amount: number | null,
+): Promise<Result> {
+  try {
+    const [pkg, memberCtx] = await Promise.all([
+      db.custom_packages.findUnique({
+        where: { id: packageId },
+        select: {
+          status: true, verified: true, rejectedAt: true, revisionRequestedAt: true,
+          builtBy: true, query: { select: { assignedTo: true } },
+        },
+      }),
+      getEffectiveMember(),
+    ]);
+    if (!pkg) return { success: false, error: "Package not found" };
+
+    const caps = resolveWorkspaceCaps(workspaceRoleOf(memberCtx?.member?.teamRole?.name), {
+      status: pkg.status, verified: pkg.verified,
+      rejectedAt: pkg.rejectedAt, revisionRequestedAt: pkg.revisionRequestedAt,
+    }, {
+      isOwner: ownsPackage({
+        viewerId: memberCtx?.member?.id,
+        viewerRoleName: memberCtx?.member?.teamRole?.name,
+        builtBy: pkg.builtBy,
+        queryAssignedTo: pkg.query?.assignedTo,
+      }),
+    });
+    if (!caps.editCost) {
+      return { success: false, error: "This package isn't open for pricing corrections right now." };
+    }
+    if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
+      return { success: false, error: "That isn't a valid amount." };
+    }
+
+    const stay = await db.custom_itinerary_stays.findFirst({
+      where: {
+        stayOptionId: optionId,
+        stayOption: { customPackageId: packageId },
+        itinerary: { day, customPackageId: packageId },
+      },
+      select: { id: true },
+    });
+    if (!stay) return { success: false, error: "That night no longer exists." };
+
+    await db.custom_itinerary_stays.update({
+      where: { id: stay.id },
+      data: { hotelPriceOverride: amount },
+    });
+
+    // Re-freeze the option's stored figures against the correction, the same
+    // way approving re-freezes the package's own. Without this the reviewer
+    // corrects a night and the column keeps showing the total it had before.
+    await persistStayOptionPricing(packageId).catch((err) => {
+      console.error("[setStayOptionDayPrice] re-pricing", err);
+    });
+
+    revalidatePath(`/dashboard/package-builder-v2/${packageId}/review`);
+    revalidatePath(`/dashboard/verify-packages/${packageId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("[setStayOptionDayPrice]", err);
+    return { success: false, error: "Couldn't save that correction." };
+  }
+}
+
 /** Everything the costing manager needs to check the options in one look: each
  * one's price, and the hotel it puts on every single night.
  *
@@ -440,6 +564,7 @@ export async function getStayOptionComparison(packageId: string) {
       hotelSubtotalOverridden: live.get(o.id)?.hotelSubtotalOverridden ?? false,
       gapDays: live.get(o.id)?.gapDays ?? [],
       baseRateDays: live.get(o.id)?.baseRateDays ?? [],
+      dayLines: live.get(o.id)?.dayLines ?? [],
     })),
   };
 }

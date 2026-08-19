@@ -1682,6 +1682,11 @@ export type StayOptionPrice = {
    * a figure nobody set for these dates. Blocks submission; see
    * baseRatePricingError. */
   baseRateDays: number[];
+  /** What each night of this option costs, so a reviewer can see where an
+   * option's total comes from instead of only what it adds up to — and
+   * correct the one night that is wrong rather than the whole column.
+   * `overridden` marks a night costing has already hand-corrected. */
+  dayLines: { day: number; hotelName: string; roomName: string; total: number; overridden: boolean }[];
 };
 
 export async function computeStayOptionPricing(packageId: string): Promise<StayOptionPrice[]> {
@@ -1786,6 +1791,13 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
       // Sits beside gapDays because it is the same kind of fact: a figure the
       // column is quoting that nobody actually set for these dates.
       baseRateDays: baseRateDays(hotelPricing.days),
+      dayLines: hotelPricing.days.map((l) => ({
+        day: l.day,
+        hotelName: l.hotelName,
+        roomName: l.roomName,
+        total: l.total,
+        overridden: l.overridden ?? false,
+      })),
     };
   }));
 

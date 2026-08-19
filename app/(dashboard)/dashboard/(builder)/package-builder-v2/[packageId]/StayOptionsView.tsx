@@ -26,6 +26,7 @@ import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { useBuilder } from "./builder-context";
 import { HotelRoomPicker } from "./HotelRoomPicker";
+import { ApplyToDays } from "./ApplyToDays";
 import { applyHotelRoomSelection, emptyDay, stayRun } from "./day-mutations";
 import { dayCalendarDate } from "./ItineraryDocument";
 import {
@@ -33,10 +34,17 @@ import {
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import {
   addStayOption, renameStayOption, removeStayOption,
-  setRecommendedStayOption, saveStayForDay, getStayOptionsForDocument,
+  setRecommendedStayOption, saveStayForDay, getStayOptionsForDocument, copyStayToDays,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 
 type LoadedOption = Awaited<ReturnType<typeof getStayOptionsForDocument>>[number];
+
+/** "1, 2 and 4" — the nights a stay covers, read out the way an exec says it. */
+function formatDayList(days: number[]): string {
+  if (days.length === 0) return "";
+  if (days.length === 1) return String(days[0]);
+  return `${days.slice(0, -1).join(", ")} and ${days[days.length - 1]}`;
+}
 
 export function StayOptionsView({ packageId, day }: { packageId: string; day: number }) {
   const { form, canEdit, openDrawer, refreshStayOptions } = useBuilder();
@@ -91,6 +99,10 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
     );
     return runs.find((r) => day >= r.fromDay && day <= r.toDay) ?? null;
   })();
+
+  /** The day everyone goes home carries no night, so it is never counted as
+   * missing a hotel — same rule the submit check uses. */
+  const departureDay = Math.max(...form.itineraries.map((d) => d.day), Number.NEGATIVE_INFINITY);
 
   const dayRowRun = stayRun(form.itineraries, day);
   const nightCount = optionRun?.nights ?? (dayRowRun.length || 1);
@@ -231,8 +243,48 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                   {cell?.mealPlan && (
                     <p className="text-[10px] text-dashboard-base-content/50">{cell.mealPlan}</p>
                   )}
+                  {/* Which nights this option's hotel is actually on. Adding a
+                      second standard used to say nothing about coverage, so an
+                      exec who filled one night believed the column was done —
+                      and the nights left empty priced at zero, quietly making
+                      that option look like the cheapest. */}
+                  <p className="mt-0.5 text-[10px] text-dashboard-base-content/55">
+                    {(() => {
+                      const on = form.itineraries
+                        .map((d) => d.day)
+                        .filter((dn) => o.byDay?.[dn]?.hotel?.trim());
+                      const missing = form.itineraries
+                        .map((d) => d.day)
+                        .filter((dn) => dn !== departureDay && !o.byDay?.[dn]?.hotel?.trim());
+                      if (on.length === 0) return "No nights assigned yet";
+                      return (
+                        <>
+                          <span className="text-dashboard-base-content/70">
+                            {on.length === 1 ? "Night" : "Nights"} {formatDayList(on)}
+                          </span>
+                          {missing.length > 0 && (
+                            <span className="text-dashboard-warning">
+                              {" · "}nothing on {missing.length === 1 ? "night" : "nights"} {formatDayList(missing)}
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </p>
                 </div>
               </div>
+
+              {/* The same "apply to other days" a single hotel has had all
+                  along. Without it, quoting one hotel across a four-night block
+                  meant opening four days and picking it four times. */}
+              {canEdit && cell?.hotel && (
+                <ApplyToDays
+                  sourceDay={day}
+                  label={`Also use ${cell.hotel.split(" — ")[0]} on…`}
+                  confirmLabel="Apply to selected nights"
+                  onApply={(days) => run(() => copyStayToDays(packageId, o.id, day, days))}
+                />
+              )}
 
               {canEdit && (
                 <>

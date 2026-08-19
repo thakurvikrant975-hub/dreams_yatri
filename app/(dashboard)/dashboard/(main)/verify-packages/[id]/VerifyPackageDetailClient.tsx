@@ -576,7 +576,7 @@ export function VerifyPackageDetailClient({
                             hotel breakdown — which describes the recommended
                             option only. Renders nothing on a single-stay
                             package. */}
-                        <StayOptionsComparison packageId={pkg.id} />
+                        <StayOptionsComparison packageId={pkg.id} canEdit={editMode} />
 
                         {(s.hotel.lines.length > 0 || editMode) && (
                             <BreakdownCard

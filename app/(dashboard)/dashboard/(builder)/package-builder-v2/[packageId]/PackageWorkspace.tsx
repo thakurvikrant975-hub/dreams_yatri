@@ -2414,6 +2414,7 @@ Rules:
                   hotelPricing={hotelPricing}
                   cabPricing={cabPricing}
                   computed={computeFinalPricing()}
+                  canEditCost={caps.editCost}
                 />
               ) : undefined}
           clientPanel={

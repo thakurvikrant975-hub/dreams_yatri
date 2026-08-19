@@ -13,27 +13,50 @@
 // every review screen in the system.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, Clock } from "lucide-react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { AlertTriangle, Clock, Pencil } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
-import { getStayOptionComparison } from "./stay-options.actions";
+import { getStayOptionComparison, setStayOptionDayPrice } from "./stay-options.actions";
 
 type Comparison = Awaited<ReturnType<typeof getStayOptionComparison>>;
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
-export function StayOptionsComparison({ packageId, className }: { packageId: string; className?: string }) {
+export function StayOptionsComparison({ packageId, canEdit = false, className }: {
+  packageId: string;
+  /** Whether this reviewer may correct a night's price. Off by default, so a
+   * screen that only shows the comparison cannot accidentally offer editing. */
+  canEdit?: boolean;
+  className?: string;
+}) {
   const [data, setData] = useState<Comparison | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [saving, startSaving] = useTransition();
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(() => {
     getStayOptionComparison(packageId)
-      .then((d) => { if (!cancelled) setData(d); })
+      .then(setData)
       // Silent: this supplements a screen whose main job is the package
       // itself, and a failed read here must not look like a broken review.
-      .catch(() => { if (!cancelled) setData(null); });
-    return () => { cancelled = true; };
+      .catch(() => setData(null));
   }, [packageId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  /** One night of one option, corrected. Empty clears back to the catalog
+   * figure — see setStayOptionDayPrice. */
+  function saveDayPrice(optionId: string, day: number, raw: string) {
+    setEditing(null);
+    const trimmed = raw.trim();
+    const amount = trimmed === "" ? null : Number(trimmed.replace(/[^0-9.]/g, ""));
+    if (amount != null && !Number.isFinite(amount)) return;
+    startSaving(async () => {
+      const r = await setStayOptionDayPrice(packageId, optionId, day, amount);
+      if (!r.success) { toast.error(r.error); return; }
+      load();
+    });
+  }
 
   if (!data || data.options.length < 2) return null;
 
@@ -47,6 +70,8 @@ export function StayOptionsComparison({ packageId, className }: { packageId: str
         <p className="text-xs font-semibold text-dashboard-base-content">Stay options</p>
         <p className="text-[11px] text-dashboard-base-content/55">
           The same trip at {options.length} standards — only the hotels differ. The client picks one.
+          {canEdit && " Click any night's price to correct it; empty clears it back to the catalog rate."}
+          {saving && <span className="ml-1 text-dashboard-primary">saving…</span>}
         </p>
       </div>
 
@@ -97,6 +122,48 @@ export function StayOptionsComparison({ packageId, className }: { packageId: str
                             {[cell.rooms ? `${cell.rooms} room${cell.rooms !== 1 ? "s" : ""}` : null, cell.mealPlan]
                               .filter(Boolean).join(" · ")}
                           </span>
+                          {/* What this night costs in THIS column. Without it a
+                              reviewer could see three hotels and one total per
+                              option, and no way to tell which night made the
+                              difference — or to correct just that night. */}
+                          {(() => {
+                            const line = o.dayLines.find((l) => l.day === d.day);
+                            const key = `${o.id}:${d.day}`;
+                            if (editing === key) {
+                              return (
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  inputMode="decimal"
+                                  defaultValue={line ? String(Math.round(line.total)) : ""}
+                                  placeholder="catalog"
+                                  className="mt-0.5 w-24 rounded border border-dashboard-primary/50 bg-dashboard-base-100 px-1 py-0.5 text-[11px] tabular-nums outline-none"
+                                  onBlur={(e) => saveDayPrice(o.id, d.day, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                    if (e.key === "Escape") setEditing(null);
+                                  }}
+                                />
+                              );
+                            }
+                            return (
+                              <span
+                                className={cn(
+                                  "mt-0.5 flex items-center gap-1 text-[11px] tabular-nums",
+                                  line?.overridden
+                                    ? "font-semibold text-dashboard-primary"
+                                    : "text-dashboard-base-content/70",
+                                  canEdit && "cursor-pointer hover:underline",
+                                )}
+                                onClick={canEdit ? () => setEditing(key) : undefined}
+                                title={canEdit ? "Correct this night's price" : undefined}
+                              >
+                                {line ? inr(line.total) : "—"}
+                                {line?.overridden && <span className="text-[9px] uppercase">corrected</span>}
+                                {canEdit && <Pencil size={9} className="opacity-50" />}
+                              </span>
+                            );
+                          })()}
                         </>
                       ) : cell?.pending ? (
                         <span className="inline-flex items-center gap-1 text-dashboard-base-content/55">
