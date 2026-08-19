@@ -2542,7 +2542,7 @@ function StayColumns({
 
 function DayCardPreview({
   day, allDays, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals, addOns,
-  stayOptions, stayRun: stayBlock, stayContinues, stayEditing,
+  stayOptions, stayRun: stayBlock, stayContinues, stayContinuesFrom, stayContinuesNights, stayEditing,
 }: {
   day: DayItinerary;
   /** The stay standards this package is quoted at. Two or more and this day's
@@ -2558,6 +2558,11 @@ function DayCardPreview({
   /** Night 2+ of a block, computed from the categories rather than the day
    * row — see the note where these are built. */
   stayContinues?: boolean;
+  /** First day of the block this night belongs to, and how many nights it
+   * runs — so the continues line can say where the stay started and how far
+   * through it this is. */
+  stayContinuesFrom?: number;
+  stayContinuesNights?: number;
   /** Every day, so this one can tell whether it continues a multi-night stay
    * that began earlier — see continuesStayFrom. */
   allDays: DayItinerary[];
@@ -2813,11 +2818,37 @@ function DayCardPreview({
                   </div>
                 </div>
               ) : stayContinues ? (
-                // Night 2+ of a block whose hotels were already listed. Nothing
-                // to add: the columns above cover every standard for these
-                // nights, and repeating three hotels per night is the noise
-                // this layout exists to remove.
-                null
+                // Night 2+ of a block whose columns were already listed.
+                //
+                // This used to render nothing at all, which read as a mistake:
+                // the day simply had no stay section, so an exec scrolling a
+                // five-night trip saw hotels on day 1 and a hole on days 2 and
+                // 3, and could not tell whether the stay carried over or had
+                // been forgotten. A single stay has always said so in one line.
+                //
+                // Repeating all three columns on every night is still the
+                // noise this layout removes — so it says the same one line,
+                // naming the block rather than the hotels.
+                <div className="space-y-2" style={{ breakInside: "avoid" }}>
+                  <DaySubHead icon={Hotel} label="Stay" />
+                  <div
+                    className={cn("flex items-center gap-2 rounded-lg px-3 py-2", SUBHEAD_INDENT)}
+                    style={{ backgroundColor: DOC.paper, border: `1px solid ${DOC.rule}` }}
+                  >
+                    <MoonStar size={12} color={DOC.accent} className="shrink-0" />
+                    <p className="text-[11.5px] flex-1 min-w-0" style={{ color: DOC.inkSoft }}>
+                      <span className="font-semibold" style={{ color: DOC.ink }}>
+                        {day.accommodationLocation?.trim() || "Your stay"}
+                      </span>
+                      <span>
+                        {stayContinuesFrom != null && ` — continuing from day ${stayContinuesFrom}`}
+                        {stayContinuesFrom != null && stayContinuesNights
+                          ? `, night ${day.day - stayContinuesFrom + 1} of ${stayContinuesNights}`
+                          : ""}
+                      </span>
+                    </p>
+                  </div>
+                </div>
               ) : continuesFrom != null ? (
                 // Night 2+ of the same stay: the client already read the hotel's
                 // details on the night it started, so repeating them is noise.
@@ -3640,6 +3671,10 @@ export function ItineraryDocument({
   // not — the block would claim more nights than every column actually holds.
   const stayOptions = form.stayOptions ?? [];
   const stayOptionIds = stayOptions.map((o) => o.id);
+  // Which stop each day falls under — the grouping the whole stay block now
+  // follows. Three nights in Shimla is one stay; the two in Manali after it
+  // are another.
+  const stayDayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const recommendedStay = stayOptions.find((o) => o.isRecommended) ?? stayOptions[0];
   const stayRuns: StayRun[] = stayOptions.length > 1
     ? buildStayRuns(form.itineraries.map((d) => {
@@ -3655,6 +3690,11 @@ export function ItineraryDocument({
           // whose options predate those fields being filled in.
           checkIn: recommendedStay?.byDay?.[d.day]?.checkIn ?? d.hotelCheckIn,
           checkOut: recommendedStay?.byDay?.[d.day]?.checkOut ?? d.hotelCheckOut,
+          // Where the day is spent — what actually decides where one stay
+          // ends. The day's own hotel location wins when it has one, since an
+          // exec who typed a town on the day meant that town; otherwise the
+          // route stop this day falls under.
+          location: d.accommodationLocation?.trim() || stayDayLocations[d.day - 1] || null,
           byOption,
         };
       }), stayOptionIds)
@@ -3904,6 +3944,8 @@ export function ItineraryDocument({
                     stayEditing={stayEditing}
                     stayRun={stayRuns.find((r) => r.fromDay === d.day) ?? null}
                     stayContinues={stayRuns.some((r) => r.fromDay < d.day && d.day <= r.toDay)}
+                    stayContinuesFrom={stayRuns.find((r) => r.fromDay < d.day && d.day <= r.toDay)?.fromDay}
+                    stayContinuesNights={stayRuns.find((r) => r.fromDay < d.day && d.day <= r.toDay)?.nights}
                   />
                 ))}
                 <AddDayButton />

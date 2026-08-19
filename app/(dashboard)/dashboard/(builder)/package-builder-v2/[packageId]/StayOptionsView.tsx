@@ -29,6 +29,7 @@ import { HotelRoomPicker } from "./HotelRoomPicker";
 import { ApplyToDays } from "./ApplyToDays";
 import { applyHotelRoomSelection, emptyDay, stayRun } from "./day-mutations";
 import { dayCalendarDate } from "./ItineraryDocument";
+import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import {
   SUGGESTED_STAY_LABELS, MAX_STAY_OPTIONS, buildStayRuns,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
@@ -86,11 +87,15 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
   //
   // Falls back to the day rows before the options have loaded, and for a
   // package quoting one stay, where the two agree by definition.
+  const stayDayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const optionRun = (() => {
     if (!options || options.length < 2) return null;
     const runs = buildStayRuns(
       form.itineraries.map((d) => ({
         day: d.day,
+        // Same grouping the document uses, or the drawer would offer to write
+        // a different set of nights than the block beside it is showing.
+        location: d.accommodationLocation?.trim() || stayDayLocations[d.day - 1] || null,
         byOption: Object.fromEntries(
           options.map((o) => [o.id, { hotel: o.byDay?.[d.day]?.hotel ?? null }]),
         ),

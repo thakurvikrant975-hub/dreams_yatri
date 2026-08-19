@@ -84,6 +84,10 @@ export type StayDay = {
   day: number;
   checkIn?: string | null;
   checkOut?: string | null;
+  /** Where this day is spent — the route stop it falls under, from
+   * deriveDayLocations. This is what decides where one stay ends and the next
+   * begins; see buildStayRuns. */
+  location?: string | null;
   /** Keyed by stay option id. */
   byOption: Record<string, StayCell>;
 };
@@ -100,7 +104,25 @@ export type StayRun = {
 
 /** What decides whether a night joins the block before it: every option's
  * hotel, in a stable order. */
+/** What makes two adjacent days the same stay.
+ *
+ * The destination, not the hotels. Three nights in Shimla is one stay whether
+ * the exec has picked its hotels yet or not — which is the whole point: they
+ * pick once, on the first night, and the rest of the block follows.
+ *
+ * Keyed on hotel identity before, this fragmented exactly when it was least
+ * helpful. An empty package had no hotels anywhere, so every day was its own
+ * block and the exec was asked to choose a hotel five times for a five-night
+ * trip. Filling one option and not another broke the block too, so the
+ * columns disagreed about where the stay even ended.
+ *
+ * Falls back to hotel identity only when there are no locations to group by —
+ * a package with no route stops yet, where the old behaviour is still the
+ * best guess available.
+ */
 function runKey(day: StayDay, optionIds: string[]): string {
+  const place = day.location?.trim();
+  if (place) return `@${place.toLowerCase()}`;
   return optionIds.map((id) => day.byOption[id]?.hotel?.trim() ?? "").join(" | ");
 }
 
@@ -123,8 +145,13 @@ export function buildStayRuns(days: StayDay[], optionIds: string[]): StayRun[] {
   let openDay: number | null = null;
 
   for (const day of ordered) {
+    // A day with no hotel in any option used to end the run and produce no
+    // block at all — so an unfilled trip had nothing to pick INTO, and the
+    // only way to get a block was to already have what the block was for.
+    // A day that belongs to a destination is part of that destination's stay
+    // whether or not anyone has chosen where to sleep yet.
     const hasHotel = optionIds.some((id) => day.byOption[id]?.hotel?.trim());
-    if (!hasHotel) {
+    if (!hasHotel && !day.location?.trim()) {
       openKey = null;
       openDay = null;
       continue;
