@@ -4425,6 +4425,38 @@ Rules:
         </div>
       </header>
 
+      {/* ── Quoted at more than one standard ──────────────────────────────────
+          This builder has no stay-option UI: it reads and writes the day row,
+          and the day row carries the RECOMMENDED option only. So a hotel
+          changed here changes that one column, and the others keep whatever
+          they had — which on the client's document is one trip with two
+          hotels that no longer agree.
+
+          Saving is not blocked: the rest of the package (days, tickets,
+          add-ons, pricing) is edited here exactly as before, and an exec sent
+          to v1 by a link or a habit should not be stranded. But it stops
+          being silent, which is the whole problem — the mismatch used to
+          surface on the client's page.
+
+          Renders only for the packages it applies to. One option is every
+          package built before this existed and most built since. */}
+      {(query?.customPackage?.stayOptions?.length ?? 0) > 1 && (
+        <div className="no-print border-b border-amber-200 bg-amber-50 px-4 py-2 dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="text-xs text-amber-900 dark:text-amber-200">
+            <span className="font-semibold">
+              This package quotes {query!.customPackage!.stayOptions!.length} stays
+            </span>{" "}
+            — {query!.customPackage!.stayOptions!.map((o) => o.label).join(", ")}. Hotel changes made here apply
+            only to{" "}
+            <span className="font-semibold">
+              {query!.customPackage!.stayOptions!.find((o) => o.isRecommended)?.label
+                ?? query!.customPackage!.stayOptions![0].label}
+            </span>
+            , the recommended one. Open this package in the new builder to edit the others.
+          </p>
+        </div>
+      )}
+
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
       {/* justify-center + the aside's max-w below keep the preview+editor pair
           from drifting apart into a big dead grey gap on wide screens — the

@@ -782,6 +782,11 @@ export interface QueryDetail {
     /** The linked query's id, or null for a blank package — immutable after
      * creation. */
     queryId:         string | null;
+    /** The stay standards this package quotes, in display order. Names only:
+     * a builder that cannot edit them still has to be able to say that it
+     * cannot — v1 writes the day row, which carries the recommended option
+     * alone. Empty for every package built before stay options existed. */
+    stayOptions:     { label: string; isRecommended: boolean }[];
     status:          string;
     sentAt:          Date | null;
     /** Set when the exec marks the package ready for costing review — see
@@ -1836,6 +1841,13 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       travelBenefits:  true,
       extraPolicyItems: true,
       pricingSnapshot: true,
+      // Only the names, and only so a builder that cannot edit them can say
+      // so — v1 has no stay-option UI and writes the day row, which carries
+      // the recommended option alone. See the notice in v1's page.
+      stayOptions: {
+        orderBy: { sortOrder: "asc" },
+        select: { label: true, isRecommended: true },
+      },
       stops: {
         orderBy: { sortOrder: "asc" },
         select: { id: true, name: true, nights: true, image: true },
