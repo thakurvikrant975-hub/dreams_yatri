@@ -200,7 +200,13 @@ export function EditableText({
         // keeps "Add a description…" out of the exported PDF and out of print.
         "cursor-text rounded-[3px] transition-colors",
         "hover:bg-dashboard-primary/8 focus-visible:outline-2 focus-visible:outline-dashboard-primary/60",
-        isEmpty && "builder-only no-print italic opacity-45",
+        // An explicit colour, NOT opacity. opacity-45 multiplied against text
+        // that is already neutral-700/90 or neutral-800, landing the prompt
+        // near #B2B2B2 — about 2.2:1 on the page, well under the 4.5:1 floor
+        // and invisible on the screens people actually build packages on.
+        // neutral-600 reads at ~7.5:1, and the italic is what still marks it
+        // as a prompt rather than something the client will read.
+        isEmpty && "builder-only no-print italic text-neutral-600",
       )}
     >
       {isEmpty ? (placeholder ?? "Click to add") : formatShown(value, true)}

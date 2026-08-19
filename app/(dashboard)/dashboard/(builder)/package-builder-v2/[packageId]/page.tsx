@@ -67,7 +67,6 @@ import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { getStayOptionsForDocument, cloneStayOptionsInto } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
-import { stayOptionGaps, stayOptionGapError } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
@@ -1362,25 +1361,9 @@ Rules:
     if (validationError) {
       toast.error(validationError);
       return;
-    }    // The same rule markPackageReady enforces, checked here so the exec is told
-    // at the button instead of after a save round-trip. Reads the loaded
-    // options rather than form state, since only the recommended one lives
-    // there.
-    const gapError = stayOptionGapError(stayOptionGaps(
-      (stayOptions ?? []).map((o) => ({
-        label: o.label,
-        stays: form.itineraries.map((d) => ({
-          day: d.day,
-          accommodation: o.byDay?.[d.day]?.hotel,
-          roomPricingId: o.byDay?.[d.day]?.roomPricingId,
-          hotelPending: o.byDay?.[d.day]?.pending,
-        })),
-      })),
-    ));
-    if (gapError) {
-      toast.error(gapError);
-      return;
     }
+    // Nights without a hotel no longer stop a submission — see the note in
+    // markPackageReady. A package with no stays at all is a legitimate quote.
 
     const pendingDay = form.itineraries.find((it) => it.hotelPending);
     if (pendingDay) {

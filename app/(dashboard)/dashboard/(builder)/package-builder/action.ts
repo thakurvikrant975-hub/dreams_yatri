@@ -21,7 +21,6 @@ import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-c
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
 import { missingTravellerAgesError } from "./traveller-ages";
-import { stayOptionGaps, stayOptionGapError } from "./stay-options";
 import { syncRecommendedStayFromDays } from "./stay-options.sync";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
@@ -3107,34 +3106,15 @@ export async function markPackageReady(
     const agesError = missingTravellerAgesError(pkg);
     if (agesError) return { success: false, error: agesError };
 
-    // Every stay option has to be complete before costing sees it. An option
-    // with an unbooked night prices those nights at zero, so it arrives looking
-    // like the cheapest thing on offer. Checked here because this is the single
-    // door into review — the builder checks the same rule for a faster answer.
-    const optionsForGaps = await db.custom_package_stay_options.findMany({
-      where: { customPackageId: packageId },
-      select: {
-        label: true,
-        stays: {
-          select: {
-            accommodation: true, roomPricingId: true, hotelPending: true,
-            itinerary: { select: { day: true } },
-          },
-        },
-      },
-    });
-    const gapError = stayOptionGapError(stayOptionGaps(
-      optionsForGaps.map((o) => ({
-        label: o.label,
-        stays: o.stays.map((st) => ({
-          day: st.itinerary.day,
-          accommodation: st.accommodation,
-          roomPricingId: st.roomPricingId,
-          hotelPending: st.hotelPending,
-        })),
-      })),
-    ));
-    if (gapError) return { success: false, error: gapError };
+    // A night with no hotel used to be refused here. It is not an error: a
+    // package quoted without stays, or without transport, is a real thing the
+    // client asked for — flights-only, land-only, a client with their own
+    // accommodation — and deciding that is the exec's job, not this
+    // function's. Costing still sees which nights are unpriced, on the
+    // comparison grid and the hotels table, and can send it back if it is
+    // actually a mistake. Being told beats being stopped.
+    //
+    // Cabs were never checked at all, and stay that way.
 
     // A night with no season rate behind it. The hotel catalog already refuses
     // to show rooms whose seasons miss the travel date, so this catches the

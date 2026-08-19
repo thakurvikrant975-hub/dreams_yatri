@@ -156,66 +156,9 @@ export function buildStayRuns(days: StayDay[], optionIds: string[]): StayRun[] {
 
 // ── Completeness ─────────────────────────────────────────────────────────────
 
-export type StayOptionGap = { label: string; days: number[] };
-
-/** Options with a night nobody has booked and nobody has asked the hotel team
- * for.
- *
- * Those nights price at zero, so an unfinished option arrives at costing
- * looking like the cheapest one on offer — which is the opposite of what it is.
- * A half-filled option is the dangerous case, but a completely empty one counts
- * too: an option nobody is actually offering should be removed rather than
- * submitted.
- *
- * A night awaiting the hotel team is NOT a gap. That is a known, tracked state
- * with its own queue, and the existing submit path already refuses on it
- * separately. */
-export function stayOptionGaps(
-  options: {
-    label: string;
-    stays: { day: number; accommodation?: string | null; roomPricingId?: number | null; hotelPending?: boolean }[];
-  }[],
-): StayOptionGap[] {
-  // The last day is the day everyone goes home, and nobody sleeps anywhere on
-  // it. A three-day trip is two nights: hotels on days 1 and 2, and a day 3
-  // that ends at the airport. Requiring one there refused every complete
-  // package in the system — the exec had nothing to add and no way past it.
-  //
-  // Taken from the days themselves rather than from totalDays or totalNights,
-  // because this list is what the stay rows actually cover, and the two can
-  // disagree while an itinerary is being reshaped.
-  //
-  // Only the requirement is lifted, never the ability: an exec who genuinely
-  // books the final night still can, and it prices and prints as usual.
-  const departureDay = Math.max(
-    ...options.flatMap((o) => o.stays.map((s) => s.day)),
-    // -Infinity when a package has no days yet, which would make every day
-    // look like the departure and silence the check entirely.
-    Number.NEGATIVE_INFINITY,
-  );
-
-  return options
-    .map((o) => ({
-      label: o.label,
-      days: o.stays
-        .filter((s) => s.day !== departureDay)
-        .filter((s) => !s.hotelPending && !s.accommodation?.trim() && s.roomPricingId == null)
-        .map((s) => s.day)
-        .sort((a, b) => a - b),
-    }))
-    .filter((g) => g.days.length > 0);
-}
-
-/** The blocking message for the submit path, or null when every option is
- * complete. Names them all at once: fixing one per rejected submit is the same
- * work spread over five rounds. */
-export function stayOptionGapError(gaps: StayOptionGap[]): string | null {
-  if (gaps.length === 0) return null;
-  const parts = gaps.map((g) => `${g.label} (day ${g.days.join(", ")})`);
-  const who = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-  return (
-    `${who} still ${gaps.length === 1 ? "has a night" : "have nights"} with no hotel. ` +
-    `Those nights price at zero, so the option reaches costing looking like the cheapest one — ` +
-    `pick a hotel, ask the hotel team, or remove the option.`
-  );
-}
+// stayOptionGaps/stayOptionGapError lived here and refused a submission when
+// any night had no hotel. Removed rather than left unused: a package quoted
+// without stays — or without transport — is a real thing clients ask for, so
+// an unbooked night is a fact about the quote, not an error in it. Costing
+// still sees which nights are unpriced, via gapDays on the option comparison
+// and the hotels table.
