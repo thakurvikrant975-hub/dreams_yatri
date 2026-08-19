@@ -176,10 +176,29 @@ export function stayOptionGaps(
     stays: { day: number; accommodation?: string | null; roomPricingId?: number | null; hotelPending?: boolean }[];
   }[],
 ): StayOptionGap[] {
+  // The last day is the day everyone goes home, and nobody sleeps anywhere on
+  // it. A three-day trip is two nights: hotels on days 1 and 2, and a day 3
+  // that ends at the airport. Requiring one there refused every complete
+  // package in the system — the exec had nothing to add and no way past it.
+  //
+  // Taken from the days themselves rather than from totalDays or totalNights,
+  // because this list is what the stay rows actually cover, and the two can
+  // disagree while an itinerary is being reshaped.
+  //
+  // Only the requirement is lifted, never the ability: an exec who genuinely
+  // books the final night still can, and it prices and prints as usual.
+  const departureDay = Math.max(
+    ...options.flatMap((o) => o.stays.map((s) => s.day)),
+    // -Infinity when a package has no days yet, which would make every day
+    // look like the departure and silence the check entirely.
+    Number.NEGATIVE_INFINITY,
+  );
+
   return options
     .map((o) => ({
       label: o.label,
       days: o.stays
+        .filter((s) => s.day !== departureDay)
         .filter((s) => !s.hotelPending && !s.accommodation?.trim() && s.roomPricingId == null)
         .map((s) => s.day)
         .sort((a, b) => a - b),

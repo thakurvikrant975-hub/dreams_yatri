@@ -1720,6 +1720,8 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
 
   const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
   const dayNumberOf = new Map(pkg.itineraries.map((it) => [it.id, it.day]));
+  /** The day everyone goes home — it carries no night, so it is never a gap. */
+  const departureDay = Math.max(...pkg.itineraries.map((it) => it.day), Number.NEGATIVE_INFINITY);
 
   // Shared by every category — computed once rather than per column.
   const cabPricing = await computeBuilderCabPricing({
@@ -1770,9 +1772,15 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
       totalPrice: composed.totalPrice,
       listPrice: composed.listPrice,
       discountAmount: composed.discountAmount,
+      // Departure day excluded — nobody sleeps anywhere on the day they fly
+      // home, so a three-day trip wants two hotels, not three. Same rule as
+      // stayOptionGaps, which is what actually blocks the submission.
       gapDays: option.stays
-        .filter((s) => !s.hotelPending && !s.accommodation?.trim() && s.roomPricingId == null)
-        .map((s) => dayNumberOf.get(s.itineraryId) ?? 0)
+        .map((s) => ({ s, day: dayNumberOf.get(s.itineraryId) ?? 0 }))
+        .filter(({ s, day }) =>
+          day !== departureDay
+          && !s.hotelPending && !s.accommodation?.trim() && s.roomPricingId == null)
+        .map(({ day }) => day)
         .sort((a, b) => a - b),
       // Nights this option prices off a base rate rather than a season rate.
       // Sits beside gapDays because it is the same kind of fact: a figure the

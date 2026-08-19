@@ -96,7 +96,17 @@ export function resolveNavHref(pathname: string): string | null {
   // Aliased rather than listed as its own href: an admin who grants Package
   // Builder means both, and a second checkbox for the same feature is a way
   // to get them out of step.
-  if (pathname.startsWith("/dashboard/package-builder-v2")) return "/dashboard/package-builder";
+  //
+  // The review route is the exception, and it matters: it is costing's screen,
+  // not an exec's. A Costing Manager is granted Verify Packages and NOT
+  // Package Builder, so sending /review to the builder's key locked the
+  // reviewers out of their own review — which is exactly what happened the
+  // first time this alias shipped.
+  if (pathname.startsWith("/dashboard/package-builder-v2")) {
+    return pathname.endsWith("/review")
+      ? "/dashboard/verify-packages"
+      : "/dashboard/package-builder";
+  }
 
   let best: string | null = null;
   for (const href of ALL_HREFS) {

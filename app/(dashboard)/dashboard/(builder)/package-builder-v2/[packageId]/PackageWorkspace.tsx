@@ -20,6 +20,7 @@ import {
 } from "./builder-icons";
 import { Menu } from "lucide-react";
 import { cn } from "@/app/lib/utils";
+import { resizeAges } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
@@ -694,8 +695,14 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
           adults: cp.adults,
           children: cp.children,
           infants: cp.infants,
-          childrenAges: cp.childrenAges ?? [],
-          infantAges: cp.infantAges ?? [],
+          // Resized against the traveller counts as they load, not left as
+          // whatever was stored. A package saved before ages were asked for —
+          // or one whose ages were never filled — arrives with three children
+          // and an empty array, and an empty array maps to no inputs at all.
+          // The boxes then appeared only once someone nudged the count, which
+          // is the one thing an exec has no reason to do.
+          childrenAges: resizeAges(cp.childrenAges ?? [], cp.children ?? 0),
+          infantAges: resizeAges(cp.infantAges ?? [], cp.infants ?? 0),
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
