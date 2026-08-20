@@ -27,10 +27,17 @@ import { useState } from "react";
 import { ArrowRight, Loader2, Printer } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
 import { useBookCustomPackage } from "./useBookCustomPackage";
+import { PUBLISHED_THEME } from "./published-theme";
 
 export function PublishedItinerary({ form, packageId }: { form: PreviewData; packageId: string }) {
   return (
     <>
+      {/* The website's own presentation of the document — its width, its
+          measure, its type scale. Injected here rather than by the document,
+          so the builder and both PDF exporters never load it and a change
+          made for this page cannot reach them. */}
+      <style>{PUBLISHED_THEME}</style>
+
       {/* No scaler any more.
           The document used to be a fixed 210mm sheet, so the only way to fit
           it on a phone was to measure it, scale it down and reserve the

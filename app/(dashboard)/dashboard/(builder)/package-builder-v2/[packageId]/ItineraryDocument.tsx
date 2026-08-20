@@ -3340,7 +3340,7 @@ function HeroCover({
             trip-stats card below carries them — nested the other way round
             the two would land a few millimetres apart on a wide window, which
             is worse than not aligning them at all. */}
-        <div className="screen-space px-[10mm]">
+        <div className="max-w-4xl m-auto ">
         {/* The client's own name, handwritten, sitting on top of the title —
             so the cover reads as one phrase, "Suraj's / Alleppey & Kochi
             Weekend Escape", and the document looks addressed to a person
@@ -3490,7 +3490,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
     <footer className="doc-footer bg-neutral-950 text-slate-300 mt-2" style={{ breakInside: "avoid" }}>
       {/* The dark ground reaches both window edges; the columns inside stop at
           the same measure the rest of the page uses. */}
-      <div className="screen-space px-[10mm] pt-9 pb-6">
+      <div className="max-w-4xl m-auto pt-9 pb-6">
         <div className="flex flex-wrap items-start justify-between gap-8 pb-7 border-b border-white/10">
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
             <DyLogo className="h-7 text-primary-500" />
@@ -3589,74 +3589,20 @@ const PRINT_STYLES = `
   .itinerary-print-area[data-exporting] .export-only,
   .itinerary-print-area[data-published] .export-only { display: inline; }
 
-  /* ── The published page takes the width it is given ──────────────────────
-     The document is 210mm wide by construction, because it is the PDF's own
-     DOM. That is right for the two output paths and wrong for the third: on
-     the client's link it made a phone show a whole A4 sheet shrunk to thumb
-     size, and a desktop show a narrow column stranded in the middle.
+  /* How the published page LOOKS is not here.
+     What data-published means — builder chrome hidden, export fallbacks shown
+     — is a property of the document and stays above. How that document is
+     then presented as a web page (its width, its measure, its type scale) is
+     the website's business, and lives in the website's own stylesheet:
+     app/(website)/custom-package/[id]/components/published-theme.ts
 
-     So on screen, and only there, the page stops being a sheet. It fills the
-     space it is given, up to a width that is still comfortable to read; and
-     anything that would sprawl at that width carries the screen-space class,
-     which caps it and centres it inside.
+     Kept apart on purpose. Those rules used to sit in this block, which meant
+     a change meant for the client's page was one typo away from the sheet
+     that prints and the PDF that is captured. The builder and both exporters
+     never load that file at all now, so a web-only change cannot reach them.
+     Anything added for the website — new spacing, an interaction's styling —
+     belongs there, not here. */
 
-     Scoped to @media screen so browser print reverts to A4 on its own, and
-     excluded while data-exporting because the PDF exporter rasterises this
-     same DOM and does evaluate screen media — without that, the capture would
-     come out at whatever width the reader's window happened to be. */
-  @media screen {
-    /* The page itself is edge to edge. No max-width here on purpose: capping
-       the root is what leaves a band of dead ground down either side and puts
-       the document back to looking like a sheet laid on a desk. Backgrounds,
-       the masthead rule and the footer all want to reach the window edge. */
-    /* Full width, unconditionally. */
-    .itinerary-print-area[data-published]:not([data-exporting]) {
-      width: 100% !important;
-      max-width: none !important;
-      min-height: 0 !important;
-    }
-    /* The measure lives INSIDE, the way the site's own header and sections do
-       it: the bar spans the window, its contents stop at a width you can read
-       across. The masthead row, the stats card, the body and the footer's
-       columns all carry this; the hero does not, because a cover photo should
-       fill the window. */
-    .itinerary-print-area[data-published]:not([data-exporting]) .screen-space {
-      max-width: var(--doc-content-width, 72rem);
-      margin-inline: auto;
-      width: 100%;
-    }
-
-    /* ── Type, one step up ────────────────────────────────────────────────
-       Every size in this document is a hard pixel value — around a hundred
-       of them — because it was drawn to print at 210mm. There is no base
-       font-size to raise: setting one moves nothing at all.
-       Set for paper, it also reads small on a screen, which is held further
-       away than a sheet is. So each size is restated a step larger, and only
-       here: the sheet that prints and the PDF that is captured keep the
-       sizes they were designed with. Listed rather than scaled so any one of
-       them can be tuned without moving the rest. */
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[7px\\] { font-size: 8px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[7\\.5px\\] { font-size: 8.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[8px\\] { font-size: 9px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[8\\.5px\\] { font-size: 9.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[9px\\] { font-size: 10px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[9\\.5px\\] { font-size: 10.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[10px\\] { font-size: 11px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[10\\.5px\\] { font-size: 11.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[11px\\] { font-size: 12.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[11\\.5px\\] { font-size: 13px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[12px\\] { font-size: 13.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[12\\.5px\\] { font-size: 14px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[13px\\] { font-size: 14.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[16px\\] { font-size: 18px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[32px\\] { font-size: 36px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[34px\\] { font-size: 38px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-xs { font-size: 13.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-sm { font-size: 15.5px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-base { font-size: 18px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-lg { font-size: 20px; }
-    .itinerary-print-area[data-published]:not([data-exporting]) .text-xl { font-size: 22px; }
-  }
   @media print {
     .export-only { display: inline; }
     body * { visibility: hidden; }
@@ -3887,7 +3833,7 @@ export function ItineraryDocument({
           >
             {/* The rule above spans the window; this row is what stops at the
                 measure. Same shape as the site's own header. */}
-            <div className="screen-space flex items-end justify-between h-full">
+            <div className="max-w-4xl flex items-end justify-between h-full m-auto">
               {/* Colour via className, not style: DyLogo forwards only className,
                 and its mask is painted with bg-current — a background-color,
                 which html2canvas-pro resolves from oklch just fine (it's the
@@ -3912,7 +3858,7 @@ export function ItineraryDocument({
           />
 
           {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-          <div className="screen-space relative z-10 px-[10mm] " style={{ marginTop: "-13mm" }}>
+          <div className="max-w-4xl m-auto relative z-10 " style={{ marginTop: "-13mm" }}>
             <div
               className="rounded-md grid grid-cols-3 overflow-hidden bg-white shadow-lg shadow-neutral-200/85"
 
@@ -3929,7 +3875,7 @@ export function ItineraryDocument({
           </div>
 
           {/* ── Body ──────────────────────────────────────────────────────────── */}
-          <main className="screen-space px-[10mm] pt-7 pb-2 space-y-7">
+          <main className="max-w-4xl m-auto  pt-7 pb-2 space-y-7">
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination) && (
               <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
                 {(form.clientName || form.execName) && (
