@@ -3477,7 +3477,9 @@ function DocumentFooter({ form }: { form: PreviewData }) {
 
   return (
     <footer className="doc-footer bg-neutral-950 text-slate-300 mt-2" style={{ breakInside: "avoid" }}>
-      <div className="px-[10mm] pt-9 pb-6">
+      {/* The dark ground reaches both window edges; the columns inside stop at
+          the same measure the rest of the page uses. */}
+      <div className="screen-space px-[10mm] pt-9 pb-6">
         <div className="flex flex-wrap items-start justify-between gap-8 pb-7 border-b border-white/10">
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
             <DyLogo className="h-7 text-primary-500" />
@@ -3592,17 +3594,24 @@ const PRINT_STYLES = `
      same DOM and does evaluate screen media — without that, the capture would
      come out at whatever width the reader's window happened to be. */
   @media screen {
+    /* The page itself is edge to edge. No max-width here on purpose: capping
+       the root is what leaves a band of dead ground down either side and puts
+       the document back to looking like a sheet laid on a desk. Backgrounds,
+       the masthead rule and the footer all want to reach the window edge. */
     .itinerary-print-area[data-published]:not([data-exporting]) {
       width: 100% !important;
-      max-width: var(--doc-page-width, 1080px) !important;
+      max-width: none !important;
       min-height: 0 !important;
     }
-    /* Blocks that read badly full-bleed — long prose, the policy columns —
-       stay at a measure the eye can track. Everything else, the cover and the
-       day cards and the tables, is happier with the room. */
+    /* The measure lives INSIDE, the way the website's own header and sections
+       do it: the bar spans the window, its contents stop at a width you can
+       still read across. Everything structural carries this — the masthead
+       row, the stats card, the body, the footer's columns — while the hero
+       stays full-bleed because a cover photo should fill the window. */
     .itinerary-print-area[data-published]:not([data-exporting]) .screen-space {
-      max-width: var(--doc-read-width, 820px);
+      max-width: var(--doc-content-width, 1200px);
       margin-inline: auto;
+      width: 100%;
     }
   }
   @media print {
@@ -3830,21 +3839,25 @@ export function ItineraryDocument({
             it gives the page a top edge to hang from, so the hero below reads
             as a plate set into the document rather than as the page itself. */}
           <header
-            className="flex items-end justify-between px-[10mm] pt-5 pb-3.5 h-full"
+            className="px-[10mm] pt-5 pb-3.5 h-full"
             style={{ borderBottom: `1px solid ${DOC.rule}` }}
           >
-            {/* Colour via className, not style: DyLogo forwards only className,
-              and its mask is painted with bg-current — a background-color,
-              which html2canvas-pro resolves from oklch just fine (it's the
-              inline-SVG *stroke* that doesn't, see SectionHeader). */}
-            <DyLogo className="h-9 text-primary-500" />
-            <div className="h-9  text-[10.5px] flex items-center gap-4 text-neutral-800" >
-              <p className="flex items-center justify-end gap-1.5">
-                <Phone size={16} className="text-neutral-400/90" /> {form.companySettings?.phone ?? COMPANY_PHONE}
-              </p>
-              <p className="flex items-center justify-end gap-1.5">
-                <Mail size={16} className="text-neutral-400/90" /> {form.companySettings?.email ?? COMPANY_EMAIL}
-              </p>
+            {/* The rule above spans the window; this row is what stops at the
+                measure. Same shape as the site's own header. */}
+            <div className="screen-space flex items-end justify-between h-full">
+              {/* Colour via className, not style: DyLogo forwards only className,
+                and its mask is painted with bg-current — a background-color,
+                which html2canvas-pro resolves from oklch just fine (it's the
+                inline-SVG *stroke* that doesn't, see SectionHeader). */}
+              <DyLogo className="h-9 text-primary-500" />
+              <div className="h-9  text-[10.5px] flex items-center gap-4 text-neutral-800" >
+                <p className="flex items-center justify-end gap-1.5">
+                  <Phone size={16} className="text-neutral-400/90" /> {form.companySettings?.phone ?? COMPANY_PHONE}
+                </p>
+                <p className="flex items-center justify-end gap-1.5">
+                  <Mail size={16} className="text-neutral-400/90" /> {form.companySettings?.email ?? COMPANY_EMAIL}
+                </p>
+              </div>
             </div>
           </header>
 
@@ -3856,7 +3869,7 @@ export function ItineraryDocument({
           />
 
           {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-          <div className="relative z-10 px-[10mm] " style={{ marginTop: "-13mm" }}>
+          <div className="screen-space relative z-10 px-[10mm] " style={{ marginTop: "-13mm" }}>
             <div
               className="rounded-md grid grid-cols-3 overflow-hidden bg-white shadow-lg shadow-neutral-200/85"
 
@@ -3873,7 +3886,7 @@ export function ItineraryDocument({
           </div>
 
           {/* ── Body ──────────────────────────────────────────────────────────── */}
-          <main className="px-[10mm] pt-7 pb-2 space-y-7">
+          <main className="screen-space px-[10mm] pt-7 pb-2 space-y-7">
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination) && (
               <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
                 {(form.clientName || form.execName) && (
@@ -3949,10 +3962,7 @@ export function ItineraryDocument({
               value={form.description}
               field={{ scope: "package", key: "description" }}
               placeholder="Describe this package for the client — click to add…"
-              // screen-space: prose set the full width of a wide desktop is
-              // a line the eye loses its place on. Capped and centred on the
-              // published page only — see PRINT_STYLES.
-              className="screen-space block text-sm text-neutral-800 leading-relaxed"
+              className="block text-sm text-neutral-800 leading-relaxed"
             />
 
             <TicketsSection
@@ -4264,7 +4274,7 @@ export function ItineraryDocument({
                   value={form.termsNotes}
                   field={{ scope: "package", key: "termsNotes" }}
                   placeholder="Additional terms or notes for this package — click to add…"
-                  className="screen-space block text-[11px] leading-relaxed text-neutral-800"
+                  className="block text-[11px] leading-relaxed text-neutral-800"
                 />
               )}
 
