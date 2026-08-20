@@ -29,6 +29,7 @@ import { db } from "@/app/lib/db";
 import { ensureHotelLocation } from "@/app/lib/hotel-location";
 import { getCurrentMember } from "../lib/get-current-member";
 import { updatePricingSeasonsOnly, type HotelSeasonInput } from "../hotels/actions";
+import { QUICK_HOTEL_LIMIT } from "./constants";
 
 type Actor = { id: string; name: string };
 
@@ -146,8 +147,27 @@ function provenanceNote(actor: Actor, packageId: string, day: number, validFrom?
  */
 async function writeSeasons(pricingId: number, hotelId: number, seasons?: HotelSeasonInput[]) {
     if (!seasons?.length) return;
+
+    // createPricingSeason guards its input; replaceSeasonsForPricing, which is
+    // what updatePricingSeasonsOnly calls, writes whatever it is handed. The
+    // calendar should never produce a bad range, but a season priced at zero or
+    // running backwards would be written unchecked and then quietly misprice a
+    // package, so it is checked here rather than trusted.
+    const valid = seasons.filter((s) => {
+        const from = new Date(s.valid_from);
+        const to = new Date(s.valid_to);
+        const ok = s.season_name?.trim()
+            && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())
+            && to >= from
+            && s.price_per_night > 0
+            && (s.weekend_price_per_night == null || s.weekend_price_per_night > 0);
+        if (!ok) console.error("[hotel-requests] dropping malformed season:", s);
+        return ok;
+    });
+    if (valid.length === 0) return;
+
     try {
-        await updatePricingSeasonsOnly(pricingId, hotelId, seasons);
+        await updatePricingSeasonsOnly(pricingId, hotelId, valid);
     } catch (e) {
         console.error("[hotel-requests] seasonal rates not saved:", e);
     }
@@ -199,6 +219,28 @@ export async function addRateToHotel(input: {
         select: { id: true },
     })).id;
 
+    // Fill the same hotel and room twice and the second call used to stack a
+    // second identical rate, so the picker then offered the same room at the
+    // same price several times over. An unchanged rate is reused instead; a
+    // genuinely different price is still a new row, which is what a rate
+    // actually changing looks like.
+    const identical = await db.hotel_room_pricing.findFirst({
+        where: {
+            hotel_id: hotel.id,
+            room_id: roomId,
+            is_active: true,
+            price_per_night: input.pricePerNight,
+            meal_type_id: input.mealTypeId ?? null,
+        },
+        select: { id: true },
+    });
+    if (identical) {
+        await writeSeasons(identical.id, hotel.id, input.seasons);
+        revalidatePath("/dashboard/hotels");
+        revalidatePath("/dashboard/hotel-requests/catalog");
+        return { success: true, roomPricingId: identical.id };
+    }
+
     const pricing = await db.hotel_room_pricing.create({
         data: {
             hotel_id: hotel.id,
@@ -222,6 +264,7 @@ export async function addRateToHotel(input: {
     await writeSeasons(pricing.id, hotel.id, input.seasons);
 
     revalidatePath("/dashboard/hotels");
+    revalidatePath("/dashboard/hotel-requests/catalog");
     return { success: true, roomPricingId: pricing.id };
 }
 
@@ -271,9 +314,31 @@ export async function quickCreateHotelRate(input: {
         return { success: false, error: "Pick the hotel's location so it can be found by distance later." };
     }
 
+    // The near-match list in the form is advice the admin can walk past; this is
+    // the one case worth refusing outright, because an exact name in the exact
+    // town is a duplicate essentially every time — and the form already offers
+    // "add this rate to it" for precisely this situation.
+    const exact = await db.hotels.findFirst({
+        where: {
+            is_active: true,
+            name: { equals: name, mode: "insensitive" },
+            city: { equals: city, mode: "insensitive" },
+        },
+        select: { id: true, name: true },
+    });
+    if (exact) {
+        return {
+            success: false,
+            error: `${exact.name} is already on file in ${city} — pick it from the matches above to add your rate to it.`,
+        };
+    }
+
     const slug = await uniqueHotelSlug(name, city);
 
-    const { hotelId, pricingId } = await db.$transaction(async (tx) => {
+    let hotelId: number;
+    let pricingId: number;
+    try {
+        ({ hotelId, pricingId } = await db.$transaction(async (tx) => {
         const hotel = await tx.hotels.create({
             data: {
                 name,
@@ -314,7 +379,21 @@ export async function quickCreateHotelRate(input: {
         });
 
         return { hotelId: hotel.id, pricingId: pricing.id };
-    });
+        }));
+    } catch (e) {
+        // Two admins creating the same property at the same moment both compute
+        // the same slug and one loses the unique constraint. Thrown out of a
+        // server action that reads as a crash to the caller, so it comes back as
+        // a message they can act on instead.
+        console.error("[hotel-requests] quick-create failed:", e);
+        const clash = e instanceof Error && /Unique constraint|slug/i.test(e.message);
+        return {
+            success: false,
+            error: clash
+                ? "A hotel with that name and town was just created — search for it above and add your rate to it."
+                : "Couldn't save this hotel. Nothing was written; try again.",
+        };
+    }
 
     // Outside the transaction: this reads the hotel back and writes the HOTEL-type
     // Location row the proximity search joins against. Failing here leaves a
@@ -329,6 +408,7 @@ export async function quickCreateHotelRate(input: {
     await writeSeasons(pricingId, hotelId, input.seasons);
 
     revalidatePath("/dashboard/hotels");
+    revalidatePath("/dashboard/hotel-requests/catalog");
     return { success: true, roomPricingId: pricingId, hotelId };
 }
 
@@ -377,7 +457,7 @@ export async function listQuickCreatedHotels(): Promise<QuickHotel[]> {
             _count: { select: { hotelRooms: true, room_pricing: true, images: true } },
         },
         orderBy: { created_at: "desc" },
-        take: 200,
+        take: QUICK_HOTEL_LIMIT,
     });
     if (hotels.length === 0) return [];
 

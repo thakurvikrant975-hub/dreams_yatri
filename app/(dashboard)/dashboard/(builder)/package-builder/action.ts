@@ -391,6 +391,20 @@ export async function searchHotelRoomsForBuilder(
    * geo fallback (refCoords set, no typed query); a typed search never used
    * a radius to begin with. */
   radiusKm?: number | null,
+  /**
+   * Whether a travel date should also RESTRICT results to rates that have a
+   * season covering it, rather than merely price them for it.
+   *
+   * True — the default, and what the builder wants — keeps the long-standing
+   * behaviour: an exec choosing a hotel for a date should only see rates
+   * actually priced for that date. False keeps the seasonal pricing but drops
+   * the filter, which is what the hotel-requests fill queue needs: the admin
+   * there is on the phone establishing a price rather than choosing between
+   * ones already agreed. Filtering there would hide every rate carrying only a
+   * base price — including every hotel the fill queue itself creates, so a
+   * property would be saved and then be invisible the next time it was needed.
+   */
+  requireSeasonalRate: boolean = true,
 ): Promise<{ rows: HotelRoomResult[]; total: number; hiddenNoSeasonRate: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
@@ -495,8 +509,9 @@ export async function searchHotelRoomsForBuilder(
   // leave an exec staring at an empty catalogue for a reason nothing on screen
   // explains.
   const dated = !!date && !Number.isNaN(new Date(date).getTime());
-  const combined = dated ? mapped.filter((r) => r.isSeasonalRate) : mapped;
-  const hiddenNoSeasonRate = dated ? mapped.length - combined.length : 0;
+  const filterToSeasonal = dated && requireSeasonalRate;
+  const combined = filterToSeasonal ? mapped.filter((r) => r.isSeasonalRate) : mapped;
+  const hiddenNoSeasonRate = filterToSeasonal ? mapped.length - combined.length : 0;
 
   const start = (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE;
   const pageRows = await annotateRoadDistances(refCoords, combined.slice(start, start + HOTEL_SEARCH_PAGE_SIZE));

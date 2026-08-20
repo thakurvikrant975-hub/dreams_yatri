@@ -120,7 +120,10 @@ export async function fillPendingHotel(
     const days = Array.from(new Set([day, ...(input.alsoDays ?? [])]));
     const rows = await db.custom_itineraries.findMany({
         where: { customPackageId: packageId, day: { in: days } },
-        select: { id: true, day: true, hotelPending: true, roomsCount: true, manualExtraBeds: true },
+        select: {
+            id: true, day: true, hotelPending: true,
+            roomsCount: true, manualExtraBeds: true, hotelMealPlan: true,
+        },
     });
     const primary = rows.find((r) => r.day === day);
     if (!primary) return { success: false, error: "This day couldn't be found." };
@@ -142,7 +145,12 @@ export async function fillPendingHotel(
             accommodationRoomPhotos: (input.roomPhotos ?? []).map((p) => p.trim()).filter(Boolean).slice(0, 3),
             hotelCheckIn: input.checkIn?.trim() || null,
             hotelCheckOut: input.checkOut?.trim() || null,
-            hotelMealPlan: input.mealPlan?.trim() || null,
+            // Same rule as the counts below: the meal plan is part of what the
+            // exec asked for on each night and can differ between them, so a day
+            // carried along keeps its own rather than inheriting this form's.
+            hotelMealPlan: target.day === day
+                ? (input.mealPlan?.trim() || null)
+                : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null),
             meals: input.meals ?? [],
             // The form's own day takes what was typed; a day carried along keeps
             // the count its own request asked for, falling back to the typed one.

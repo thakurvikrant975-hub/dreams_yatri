@@ -7,6 +7,7 @@ import {
 } from "../../components/ui/breadcrumb";
 import { PageHeader } from "../../components/dashboard/PageHeader";
 import { listQuickCreatedHotels } from "../catalog-actions";
+import { QUICK_HOTEL_LIMIT } from "../constants";
 import { QuickHotelRow } from "./QuickHotelRow";
 
 export const metadata: Metadata = {
@@ -85,6 +86,12 @@ export default async function CatalogFollowUpPage() {
                 <div className="space-y-2">
                     {hotels.map((h) => <QuickHotelRow key={h.id} hotel={h} />)}
                 </div>
+            )}
+
+            {hotels.length >= QUICK_HOTEL_LIMIT && (
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+                    Showing the {QUICK_HOTEL_LIMIT} most recent. Finish some of these to see the rest.
+                </p>
             )}
 
             <p className="text-[11px] text-dashboard-neutral flex items-center gap-1">

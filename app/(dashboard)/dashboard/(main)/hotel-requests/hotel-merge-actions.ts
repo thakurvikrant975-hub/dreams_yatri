@@ -154,7 +154,49 @@ export async function mergeHotels(
                 if (Number(n) > 0) throw new Error(`${fk.tbl} still references hotel ${loserId} — merge rolled back.`);
             }
 
+            // ── Fields that live on the hotels row itself ──────────────────
+            // Child rows move, but description, address, contact details and
+            // coordinates would die with the deleted record — including when the
+            // winner has none and the quick-created stub does. Only ever fills a
+            // blank on the winner; nothing it already has is overwritten.
+            const [w, l] = await Promise.all([winnerId, loserId].map((id) =>
+                tx.hotels.findUniqueOrThrow({
+                    where: { id },
+                    select: {
+                        description: true, address: true, city: true, state: true, country: true,
+                        pincode: true, thumbnail: true, stay_type: true, category: true,
+                        latitude: true, longitude: true, location_id: true,
+                        business_phone: true, business_email: true, whatsapp_number: true,
+                        check_in_time: true, check_out_time: true, destination_id: true,
+                    },
+                })));
+            const salvage: Record<string, unknown> = {};
+            for (const [k, loserValue] of Object.entries(l)) {
+                const winnerValue = (w as Record<string, unknown>)[k];
+                const winnerBlank = winnerValue === null || winnerValue === "";
+                const loserHas = loserValue !== null && loserValue !== "";
+                if (winnerBlank && loserHas) salvage[k] = loserValue;
+            }
+            // location_id is the one that must not be copied: it points at a
+            // Location row named for the loser, which is deleted just below.
+            delete salvage.location_id;
+            if (Object.keys(salvage).length > 0) {
+                await tx.hotels.update({ where: { id: winnerId }, data: salvage });
+            }
+
+            // The loser's own HOTEL-type Location row (slug "hotel-<id>") has
+            // nothing left pointing at it once the hotel goes, and this codebase
+            // already has more orphaned gazetteer rows than it wants.
+            const loserLocationId = l.location_id;
+
             await tx.hotels.delete({ where: { id: loserId } });
+
+            if (loserLocationId != null) {
+                const stillUsed = await tx.hotels.count({ where: { location_id: loserLocationId } });
+                if (stillUsed === 0) {
+                    await tx.location.deleteMany({ where: { id: loserLocationId, type: "HOTEL" } });
+                }
+            }
             return count;
         });
 

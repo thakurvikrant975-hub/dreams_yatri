@@ -164,6 +164,11 @@ export function FillHotelForm({
     // silently do nothing. A blanket weekend rate is one all-year band in the
     // calendar, which is also how the catalog already does it in practice.
     const [seasons, setSeasons] = useState<FillSeason[]>([]);
+    // A rate this form already wrote to the catalog. The catalog write comes
+    // first, so a fill that then fails would otherwise leave the hotel saved and
+    // create a second copy of it on the retry. Remembering it makes the retry
+    // reuse what is already there.
+    const [createdRateId, setCreatedRateId] = useState<number | null>(null);
     const [calendarOpen, setCalendarOpen] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
@@ -186,7 +191,11 @@ export function FillHotelForm({
             setSearching(true);
             searchHotelRoomsForBuilder(
                 city, q, null, 1, null, null, null, "price_asc", null,
-                dayDateISO ?? null, null,
+                // The date prices each rate for the night being sold, but must
+                // not also filter results down to rates that have a season
+                // covering it — that would hide every base-rate property,
+                // including the ones this very form creates.
+                dayDateISO ?? null, null, false,
             )
                 .then((res) => {
                     if (cancelled) return;
@@ -264,10 +273,17 @@ export function FillHotelForm({
             // The catalog write happens first: if it fails, the day stays pending
             // and the admin can retry or turn the switch off, rather than ending
             // up with a filled day and a silently lost hotel.
-            let linkId: number | null = linked?.id ?? null;
+            // One name for both sides. The catalog needs a room to hang the rate
+            // on, so a blank falls back to "Standard Room" — and the day has to
+            // say the same thing, or the itinerary and the catalog disagree
+            // about what was booked.
+            const willCreate = linked == null && createdRateId == null && saveToCatalog && !!hotelName.trim();
+            const effectiveRoomName = willCreate ? (roomName.trim() || "Standard Room") : roomName.trim();
+
+            let linkId: number | null = linked?.id ?? createdRateId;
             if (linkId == null && saveToCatalog && hotelName.trim()) {
                 const shared = {
-                    roomName: roomName.trim() || "Standard Room",
+                    roomName: effectiveRoomName,
                     pricePerNight: parseFloat(pricePerNight) || 0,
                     packageId,
                     day,
@@ -304,11 +320,12 @@ export function FillHotelForm({
                     return;
                 }
                 linkId = saved.roomPricingId ?? null;
+                setCreatedRateId(linkId);
             }
 
             const result = await fillPendingHotel(packageId, day, {
                 hotelName,
-                roomName,
+                roomName: effectiveRoomName,
                 roomsCount: parseInt(roomsCount, 10) || 1,
                 extraBeds: parseInt(extraBeds, 10) || 0,
                 extraBedRate: parseFloat(extraBedRate) || 0,
@@ -335,6 +352,11 @@ export function FillHotelForm({
                             : "Hotel filled for this day",
                 );
                 router.refresh();
+            } else if (linkId != null && !linked) {
+                toast.error(
+                    `${result.error ?? "Failed to save"} — the hotel and rate were saved to the catalog, `
+                    + "so trying again won't create a second copy.",
+                );
             } else {
                 toast.error(result.error ?? "Failed to save");
             }
@@ -594,6 +616,20 @@ export function FillHotelForm({
                                         {r.mealPlanName ? ` · ${r.mealPlanName}` : ""}
                                         {r.location ? ` · ${r.location}` : ""}
                                     </p>
+                                    {/* Whether this price is one the hotel has
+                                        actually agreed for these dates, or the
+                                        year-round fallback — worth confirming
+                                        on the call either way. */}
+                                    {dayDateISO && (
+                                        <p className={cn(
+                                            "text-[10px]",
+                                            r.isSeasonalRate ? "text-emerald-700" : "text-amber-700",
+                                        )}>
+                                            {r.isSeasonalRate
+                                                ? "priced for these dates"
+                                                : "base rate — no season set for these dates"}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className="text-xs font-bold text-dashboard-text tabular-nums">
