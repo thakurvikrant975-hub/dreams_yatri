@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, Search, Link2, Link2Off, Loader2, DatabaseZap, MapPin, AlertTriangle, CalendarRange } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, Search, Link2, Link2Off, Loader2, DatabaseZap, MapPin, AlertTriangle, CalendarRange, CalendarDays } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
@@ -13,6 +13,9 @@ import { searchHotelRoomsForBuilder, type HotelRoomResult } from "@/app/(dashboa
 import { findSimilarHotels, quickCreateHotelRate, addRateToHotel } from "../catalog-actions";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../components/location/location.types";
+import { SeasonalRateCalendar } from "../../components/ui/seasonal-rate-calendar";
+import { type RateSeasonBase, defaultRangeLabel } from "../../components/ui/seasonal-rate-calendar-logic";
+import type { HotelSeasonInput } from "../../hotels/actions";
 import { TimeSelect } from "./TimeSelect";
 import { ImageDropField } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ImageDropField";
 
@@ -45,6 +48,28 @@ const REQUEST_CATEGORY: Record<string, string> = {
 
 type MealType = { id: number; name: string; covered_meals: string[] };
 type SimilarHotel = Awaited<ReturnType<typeof findSimilarHotels>>[number];
+
+/**
+ * A season captured off the hotel's rate sheet, in the shape the shared
+ * SeasonalRateCalendar speaks — the same one the hotel dashboard's pricing tab
+ * uses, so a rate entered on a request is not a second, divergent idea of what
+ * seasonal pricing means.
+ *
+ * `rate` is the weekday price; the weekend override rides alongside it, because
+ * rate sheets routinely price Saturday and Sunday differently within the very
+ * same season.
+ */
+type FillSeason = RateSeasonBase & {
+    weekendPrice?: number | null;
+    extraBedRate?: number | null;
+    weekendExtraBedRate?: number | null;
+};
+
+/** The calendar edits one rate here, so the item id is a constant. */
+const FILL_ITEM_ID = "fill";
+
+const seasonExtraFieldClass =
+    "w-full h-8 rounded border border-dashboard-border px-2 text-xs bg-white";
 
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
@@ -131,6 +156,15 @@ export function FillHotelForm({
             .filter((d) => !!thisTown && (d.location ?? "").split(",")[0]?.trim().toLowerCase() === thisTown)
             .map((d) => d.day),
     );
+    // Weekend rates live on seasons here, and deliberately not on the rate row
+    // itself. Both resolvers — resolveHotelSeasonPricing and rates.ts's
+    // resolvePlanNight — only ever consult a weekend price inside a matched
+    // season; hotel_room_pricing.weekend_price_per_night is never read when no
+    // season covers the date, so a field for it would look like it worked and
+    // silently do nothing. A blanket weekend rate is one all-year band in the
+    // calendar, which is also how the catalog already does it in practice.
+    const [seasons, setSeasons] = useState<FillSeason[]>([]);
+    const [calendarOpen, setCalendarOpen] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
     const [rejectDone, setRejectDone] = useState(false);
@@ -241,6 +275,17 @@ export function FillHotelForm({
                     extraBedRate: parseFloat(extraBedRate) || null,
                     validFrom: validFrom || null,
                     validTo: validTo || null,
+                    seasons: seasons.map<HotelSeasonInput>((s) => ({
+                        season_name: s.label || defaultRangeLabel(s.startDate, s.endDate),
+                        valid_from: s.startDate,
+                        valid_to: s.endDate,
+                        price_per_night: s.rate,
+                        weekend_price_per_night: s.weekendPrice ?? null,
+                        extra_bed_rate: s.extraBedRate ?? null,
+                        weekend_extra_bed_rate: s.weekendExtraBedRate ?? null,
+                        color: s.color,
+                        is_active: true,
+                    })),
                 };
                 const saved = attachTo
                     ? await addRateToHotel({ ...shared, hotelId: attachTo.id })
@@ -363,6 +408,68 @@ export function FillHotelForm({
                     </p>
                 </div>
             )}
+
+            <SeasonalRateCalendar<FillSeason>
+                open={calendarOpen}
+                onOpenChange={setCalendarOpen}
+                title="Season rates"
+                subtitle={hotelName ? `${hotelName}${roomName ? ` — ${roomName}` : ""}` : `Day ${day}`}
+                items={[{
+                    id: FILL_ITEM_ID,
+                    label: roomName.trim() || "This room",
+                    baseRate: parseFloat(pricePerNight) || 0,
+                    baseWeekendRate: null,
+                }]}
+                activeItemId={FILL_ITEM_ID}
+                // Only ever one rate is being edited here, so there is nothing
+                // for the item switcher to switch to.
+                onActiveItemChange={() => {}}
+                seasons={seasons}
+                onSave={(next) => setSeasons(next)}
+                unitLabel="per night"
+                getDefaultDraft={(item) => ({ weekendPrice: item.baseWeekendRate ?? null })}
+                // Two ranges only share a colour when every rate on them matches,
+                // so a season that differs solely at the weekend still reads as
+                // its own band on the calendar.
+                getGroupKey={(sn) => `${sn.rate}|${sn.weekendPrice ?? sn.rate}|${sn.extraBedRate ?? "none"}`}
+                getSeasonWeekendRate={(sn) => sn.weekendPrice}
+                renderRateExtra={({ draft, onChange: onExtraChange }) => (
+                    <div>
+                        <label className="text-[10px] text-dashboard-neutral mb-0.5 block">Weekend price (₹)</label>
+                        <input
+                            type="number" min={0}
+                            placeholder="Same as weekday"
+                            value={(draft.weekendPrice as number | null | undefined) ?? ""}
+                            onChange={(e) => onExtraChange({ weekendPrice: e.target.value ? Number(e.target.value) : null })}
+                            className={seasonExtraFieldClass}
+                        />
+                    </div>
+                )}
+                renderExtraFields={({ draft, onChange: onExtraChange }) => (
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="text-[10px] text-dashboard-neutral mb-0.5 block">Extra bed (₹)</label>
+                            <input
+                                type="number" min={0}
+                                placeholder="optional"
+                                value={(draft.extraBedRate as number | null | undefined) ?? ""}
+                                onChange={(e) => onExtraChange({ extraBedRate: e.target.value ? Number(e.target.value) : null })}
+                                className={seasonExtraFieldClass}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-dashboard-neutral mb-0.5 block">Weekend extra bed (₹)</label>
+                            <input
+                                type="number" min={0}
+                                placeholder="Same as weekday"
+                                value={(draft.weekendExtraBedRate as number | null | undefined) ?? ""}
+                                onChange={(e) => onExtraChange({ weekendExtraBedRate: e.target.value ? Number(e.target.value) : null })}
+                                className={seasonExtraFieldClass}
+                            />
+                        </div>
+                    </div>
+                )}
+            />
 
             {rejecting && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 space-y-2">
@@ -653,6 +760,51 @@ export function FillHotelForm({
                                     </div>
                                 </>
                             )}
+
+                            {/* The sheet in front of the admin usually has a
+                                season grid on it. This is the same calendar the
+                                hotel dashboard's pricing tab uses, so whatever is
+                                captured here behaves identically to a rate
+                                entered there — and anything not captured simply
+                                falls back to the base rate above. */}
+                            <div className="rounded-md border border-dashboard-border bg-white px-2 py-1.5 space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[11px] font-semibold text-dashboard-text flex items-center gap-1">
+                                        <CalendarDays className="size-3" /> Season rates from the sheet
+                                    </p>
+                                    <Button
+                                        type="button" size="sm" variant="outline" className="h-7 text-[11px]"
+                                        onClick={() => setCalendarOpen(true)}
+                                        disabled={!(parseFloat(pricePerNight) > 0)}
+                                    >
+                                        {seasons.length > 0 ? "Edit seasons" : "Add seasons"}
+                                    </Button>
+                                </div>
+                                {seasons.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                        {seasons.map((sn) => (
+                                            <span
+                                                key={sn.id}
+                                                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]"
+                                                style={{ borderColor: sn.color, color: "inherit" }}
+                                            >
+                                                <span className="size-2 rounded-full" style={{ background: sn.color }} />
+                                                {sn.label || defaultRangeLabel(sn.startDate, sn.endDate)}
+                                                <span className="font-semibold">₹{sn.rate.toLocaleString("en-IN")}</span>
+                                                {sn.weekendPrice != null && sn.weekendPrice !== sn.rate && (
+                                                    <span className="opacity-70">/ ₹{sn.weekendPrice.toLocaleString("en-IN")} wknd</span>
+                                                )}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] text-dashboard-neutral">
+                                        {parseFloat(pricePerNight) > 0
+                                            ? "Optional. Any date not covered by a season uses the rate above."
+                                            : "Enter the base rate first."}
+                                    </p>
+                                )}
+                            </div>
 
                             <div className="grid grid-cols-2 gap-2">
                                 <div>

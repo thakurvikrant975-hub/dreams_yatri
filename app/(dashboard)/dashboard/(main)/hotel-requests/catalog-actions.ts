@@ -28,6 +28,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { ensureHotelLocation } from "@/app/lib/hotel-location";
 import { getCurrentMember } from "../lib/get-current-member";
+import { updatePricingSeasonsOnly, type HotelSeasonInput } from "../hotels/actions";
 
 type Actor = { id: string; name: string };
 
@@ -130,6 +131,29 @@ function provenanceNote(actor: Actor, packageId: string, day: number, validFrom?
 }
 
 /**
+ * Hands the season rows to the same writer the hotel dashboard's pricing tab
+ * uses, so a rate captured on a request behaves identically to one entered
+ * there — replaceSeasonsForPricing already handles overlap and ordering.
+ *
+ * Seasons are what actually make a rate sheet representable: the base price on
+ * hotel_room_pricing applies whenever nothing else covers a date, and
+ * resolveHotelSeasonPricing picks a season by month/day (so a range recurs
+ * year on year) and prefers its weekend price on a Saturday or Sunday.
+ *
+ * A failure here is deliberately not fatal. The rate itself is already saved and
+ * the day can be filled; losing the whole fill because one seasonal row was
+ * malformed would be a poor trade while somebody is waiting on the phone.
+ */
+async function writeSeasons(pricingId: number, hotelId: number, seasons?: HotelSeasonInput[]) {
+    if (!seasons?.length) return;
+    try {
+        await updatePricingSeasonsOnly(pricingId, hotelId, seasons);
+    } catch (e) {
+        console.error("[hotel-requests] seasonal rates not saved:", e);
+    }
+}
+
+/**
  * Writes the rate, and the room it hangs off, against a hotel already on file.
  *
  * An existing room is reused when the name matches, so filling three requests
@@ -145,6 +169,9 @@ export async function addRateToHotel(input: {
     extraBedRate?: number | null;
     validFrom?: string | null;
     validTo?: string | null;
+    weekendPrice?: number | null;
+    weekendExtraBedRate?: number | null;
+    seasons?: HotelSeasonInput[];
 }): Promise<{ success: boolean; roomPricingId?: number; error?: string }> {
     const auth = await requireActor();
     if (!auth.ok) return { success: false, error: auth.error };
@@ -185,10 +212,14 @@ export async function addRateToHotel(input: {
             // the next person can see how old the number is.
             valid_from: input.validFrom ? new Date(input.validFrom) : null,
             valid_to: input.validTo ? new Date(input.validTo) : null,
+            weekend_price_per_night: input.weekendPrice ?? null,
+            weekend_extra_bed_rate: input.weekendExtraBedRate ?? null,
             notes: provenanceNote(auth.actor, input.packageId, input.day, input.validFrom, input.validTo),
         },
         select: { id: true },
     });
+
+    await writeSeasons(pricing.id, hotel.id, input.seasons);
 
     revalidatePath("/dashboard/hotels");
     return { success: true, roomPricingId: pricing.id };
@@ -223,6 +254,9 @@ export async function quickCreateHotelRate(input: {
     extraBedRate?: number | null;
     validFrom?: string | null;
     validTo?: string | null;
+    weekendPrice?: number | null;
+    weekendExtraBedRate?: number | null;
+    seasons?: HotelSeasonInput[];
 }): Promise<{ success: boolean; roomPricingId?: number; hotelId?: number; error?: string }> {
     const auth = await requireActor();
     if (!auth.ok) return { success: false, error: auth.error };
@@ -272,6 +306,8 @@ export async function quickCreateHotelRate(input: {
                 extra_bed_rate: input.extraBedRate ?? null,
                 valid_from: input.validFrom ? new Date(input.validFrom) : null,
                 valid_to: input.validTo ? new Date(input.validTo) : null,
+                weekend_price_per_night: input.weekendPrice ?? null,
+                weekend_extra_bed_rate: input.weekendExtraBedRate ?? null,
                 notes: provenanceNote(auth.actor, input.packageId, input.day, input.validFrom, input.validTo),
             },
             select: { id: true },
@@ -289,6 +325,8 @@ export async function quickCreateHotelRate(input: {
     } catch {
         // Intentionally swallowed; see above.
     }
+
+    await writeSeasons(pricingId, hotelId, input.seasons);
 
     revalidatePath("/dashboard/hotels");
     return { success: true, roomPricingId: pricingId, hotelId };
