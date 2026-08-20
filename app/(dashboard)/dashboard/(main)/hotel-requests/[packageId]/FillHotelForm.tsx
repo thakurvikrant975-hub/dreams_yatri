@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, Search, Link2, Link2Off, Loader2, DatabaseZap, MapPin, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, Search, Link2, Link2Off, Loader2, DatabaseZap, MapPin, AlertTriangle, CalendarRange } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
@@ -49,7 +49,7 @@ type SimilarHotel = Awaited<ReturnType<typeof findSimilarHotels>>[number];
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
     requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypes,
-    rejectedAt, rejectedByName, rejectionNote, dayDateISO,
+    rejectedAt, rejectedByName, rejectionNote, dayDateISO, siblingDays = [],
 }: {
     packageId: string;
     day: number;
@@ -78,6 +78,9 @@ export function FillHotelForm({
     /** This day's travel date as YYYY-MM-DD, so a catalog rate is priced for
      * the night actually being sold rather than at its off-season base. */
     dayDateISO?: string | null;
+    /** The package's other still-pending days, so one stay covering several
+     * nights can be filled from a single submit instead of once per day. */
+    siblingDays?: { day: number; location: string | null }[];
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -119,6 +122,15 @@ export function FillHotelForm({
     // Set when the admin recognises one of the near-matches as the property on
     // the phone: the rate is added to that hotel instead of creating a second one.
     const [attachTo, setAttachTo] = useState<SimilarHotel | null>(null);
+    // Same town as this day is the strong signal for one stay across several
+    // nights, so those start ticked and anything else starts clear. The admin
+    // sees each day's town next to the box either way.
+    const thisTown = (location ?? "").split(",")[0]?.trim().toLowerCase();
+    const [alsoDays, setAlsoDays] = useState<number[]>(() =>
+        siblingDays
+            .filter((d) => !!thisTown && (d.location ?? "").split(",")[0]?.trim().toLowerCase() === thisTown)
+            .map((d) => d.day),
+    );
     const [rejecting, setRejecting] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
     const [rejectDone, setRejectDone] = useState(false);
@@ -265,13 +277,17 @@ export function FillHotelForm({
                 meals,
                 note: notes,
                 roomPricingId: linkId,
+                alsoDays,
             });
             if (result.success) {
                 setDone(true);
+                const filled = result.filledDays ?? [day];
                 toast.success(
                     result.advancedToReview
-                        ? "Hotel filled — all pending days done, package sent to costing review!"
-                        : "Hotel filled for this day",
+                        ? `Hotel filled for ${filled.length} day${filled.length === 1 ? "" : "s"} — package sent to costing review!`
+                        : filled.length > 1
+                            ? `Hotel filled for days ${filled.join(", ")}`
+                            : "Hotel filled for this day",
                 );
                 router.refresh();
             } else {
@@ -489,6 +505,46 @@ export function FillHotelForm({
                     </p>
                 ) : null}
             </div>
+
+            {siblingDays.length > 0 && (
+                <div className="rounded-md border border-dashboard-border bg-dashboard-muted/40 px-2.5 py-2 space-y-1.5">
+                    <p className="text-[11px] font-semibold text-dashboard-text flex items-center gap-1">
+                        <CalendarRange className="size-3" /> This stay also covers
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {siblingDays.map((sd) => {
+                            const on = alsoDays.includes(sd.day);
+                            return (
+                                <button
+                                    key={sd.day}
+                                    type="button"
+                                    onClick={() => setAlsoDays((prev) =>
+                                        prev.includes(sd.day) ? prev.filter((d) => d !== sd.day) : [...prev, sd.day])}
+                                    className={cn(
+                                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                                        on
+                                            ? "bg-emerald-600 border-emerald-600 text-white"
+                                            : "bg-white border-dashboard-border text-dashboard-neutral hover:border-emerald-400",
+                                    )}
+                                >
+                                    {on && <CheckCircle2 className="size-2.5" />}
+                                    Day {sd.day}
+                                    {sd.location && (
+                                        <span className={cn("font-normal", on ? "text-emerald-50" : "opacity-70")}>
+                                            · {sd.location.split(",")[0]}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="text-[10px] text-dashboard-neutral">
+                        {alsoDays.length > 0
+                            ? `Filled with the same hotel, room and rate. Rooms and mattresses follow each day's own request.`
+                            : "Only this day will be filled."}
+                    </p>
+                </div>
+            )}
 
             {/* Everything this needs beyond the fields above is four answers, so it
                 is a switch on the existing form rather than a second one. Off by

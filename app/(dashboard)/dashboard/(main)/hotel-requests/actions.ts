@@ -74,13 +74,26 @@ export type FillHotelInput = {
      * must not be silently replaced by the catalog price at costing time.
      */
     roomPricingId?: number | null;
+    /**
+     * Further pending days on the same package this stay also covers.
+     *
+     * One property booked for three nights is one phone call and one rate, but
+     * the queue renders a form per pending day, so it used to be three identical
+     * re-entries of the same hotel, room, price, meal plan and photos. The extra
+     * days are filled from the same submit and share the one catalog link.
+     *
+     * Rooms and mattresses are the exception: those come from what the exec
+     * asked for on each individual day, which can legitimately differ night to
+     * night, so each day keeps its own rather than inheriting this form's.
+     */
+    alsoDays?: number[];
 };
 
 export async function fillPendingHotel(
     packageId: string,
     day: number,
     input: FillHotelInput,
-): Promise<{ success: boolean; error?: string; advancedToReview?: boolean }> {
+): Promise<{ success: boolean; error?: string; advancedToReview?: boolean; filledDays?: number[] }> {
     const auth = await requireMember();
     if (!auth.ok) return { success: false, error: auth.error };
 
@@ -104,15 +117,24 @@ export async function fillPendingHotel(
         linkedPricingId = rate.id;
     }
 
-    const row = await db.custom_itineraries.findFirst({
-        where: { customPackageId: packageId, day },
-        select: { id: true, hotelPending: true },
+    const days = Array.from(new Set([day, ...(input.alsoDays ?? [])]));
+    const rows = await db.custom_itineraries.findMany({
+        where: { customPackageId: packageId, day: { in: days } },
+        select: { id: true, day: true, hotelPending: true, roomsCount: true, manualExtraBeds: true },
     });
-    if (!row) return { success: false, error: "This day couldn't be found." };
-    if (!row.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
+    const primary = rows.find((r) => r.day === day);
+    if (!primary) return { success: false, error: "This day couldn't be found." };
+    if (!primary.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
 
-    await db.custom_itineraries.update({
-        where: { id: row.id },
+    // A day that stopped being pending between render and submit — someone else
+    // in the queue got to it — is dropped rather than overwritten.
+    const targets = rows.filter((r) => r.hotelPending);
+
+    const typedRooms = Math.max(1, Math.round(input.roomsCount) || 1);
+    const typedBeds = Math.max(0, Math.round(input.extraBeds ?? 0));
+
+    await db.$transaction(targets.map((target) => db.custom_itineraries.update({
+        where: { id: target.id },
         data: {
             accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
             accommodationRoomSpecs: input.roomSpecs?.trim() || null,
@@ -122,8 +144,10 @@ export async function fillPendingHotel(
             hotelCheckOut: input.checkOut?.trim() || null,
             hotelMealPlan: input.mealPlan?.trim() || null,
             meals: input.meals ?? [],
-            roomsCount: Math.max(1, Math.round(input.roomsCount) || 1),
-            manualExtraBeds: Math.max(0, Math.round(input.extraBeds ?? 0)),
+            // The form's own day takes what was typed; a day carried along keeps
+            // the count its own request asked for, falling back to the typed one.
+            roomsCount: target.day === day ? typedRooms : (target.roomsCount ?? typedRooms),
+            manualExtraBeds: target.day === day ? typedBeds : (target.manualExtraBeds ?? typedBeds),
             manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
             manualHotelPricePerNight: input.pricePerNight,
             // Kept alongside the manual fields rather than instead of them:
@@ -137,7 +161,7 @@ export async function fillPendingHotel(
             hotelFilledByName: auth.member.name,
             hotelFillNote: input.note?.trim() || null,
         },
-    });
+    })));
 
     const pkg = await db.custom_packages.findUnique({
         where: { id: packageId },
@@ -160,7 +184,8 @@ export async function fillPendingHotel(
     if (pkg?.queryId) {
         await logTimeline(
             pkg.queryId,
-            `Hotel filled for day ${day} by ${auth.member.name}${advancedToReview ? " — package auto-submitted for costing review" : ""}`,
+            `Hotel filled for ${targets.length > 1 ? `days ${targets.map((t) => t.day).sort((a, b) => a - b).join(", ")}` : `day ${day}`}`
+            + ` by ${auth.member.name}${advancedToReview ? " — package auto-submitted for costing review" : ""}`,
             auth.member.id, auth.member.name,
         );
     }
@@ -173,7 +198,7 @@ export async function fillPendingHotel(
     revalidatePath("/dashboard/verify-packages");
     revalidatePath("/dashboard/sales-query");
 
-    return { success: true, advancedToReview };
+    return { success: true, advancedToReview, filledDays: targets.map((t) => t.day).sort((a, b) => a - b) };
 }
 
 type RejectResult = { success: boolean; error?: string; count?: number };

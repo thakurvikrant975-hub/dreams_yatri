@@ -73,6 +73,12 @@ const REQUESTS: {
       { day: 3, location: "Alleppey, Kerala", type: "BOUTIQUE", rooms: 2, mattresses: null,
         mealPlan: "AP(Breakfast + Lunch + Dinner)",
         note: "Premium houseboat, 2 bedrooms, upper deck. Catalog only has the shared-cruise operators." },
+      // Second night in the same town as day 3 on purpose: one property across
+      // consecutive nights is the ordinary case, and it is what the fill form's
+      // "this stay also covers" selector exists for.
+      { day: 4, location: "Alleppey, Kerala", type: "BOUTIQUE", rooms: 2, mattresses: null,
+        mealPlan: "AP(Breakfast + Lunch + Dinner)",
+        note: "Same property as day 3 if they have it for both nights." },
     ],
   },
   {
