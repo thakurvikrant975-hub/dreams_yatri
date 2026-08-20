@@ -38,9 +38,12 @@ export default async function CustomPackagePage({
   }
 
   return (
-    // Tight horizontal padding on purpose: the document carries its own 10mm
-    // page margin, and anything more here just shrinks the scale it fits at.
-    <div className="bg-neutral-100 px-2 sm:px-4 pt-4 pb-2">
+    // No gutter and no tray. The document is 210mm of its own paper with a
+    // 10mm margin already inside it; a grey surround with the sheet floating
+    // in the middle is what made this look like a PDF someone embedded rather
+    // than the page it is. The ground matches the document's own paper so the
+    // two meet without a seam on screens wider than the page.
+    <div className="min-h-screen bg-[#F9FAFB]">
       <ViewTracker packageId={id} />
       <PublishedItinerary form={data} packageId={id} />
     </div>

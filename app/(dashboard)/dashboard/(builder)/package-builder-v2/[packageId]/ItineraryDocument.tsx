@@ -3641,7 +3641,15 @@ export function ItineraryDocument({
    * the document on the public share page's colored background. "flat" drops
    * both so the on-screen preview reads as a plain A4 page — matching exactly
    * what window.print() produces, where these are already stripped. */
-  variant?: "card" | "flat";
+  /** How the page presents itself.
+   *
+   * "card" is the builder's preview — a sheet lifted off the workspace behind
+   * it. "flat" is the same sheet with a hairline instead of a shadow. "page"
+   * is for the client's own link, where the document IS the page: no corner
+   * radius, no shadow, no border, nothing framing it. A rounded, shadowed
+   * rectangle floating on a grey ground reads as a PDF someone embedded, and
+   * the whole point of that link is that it is a web page. */
+  variant?: "card" | "flat" | "page";
   /** Present only in the builder: makes the stay columns editable in place —
    * pick each standard's hotel, move the Recommended badge, add or drop a
    * standard. Absent on the client's page and in the PDF, which stay
@@ -3765,7 +3773,7 @@ export function ItineraryDocument({
         <div
           className={cn(
             "itinerary-print-area mx-auto overflow-hidden",
-            variant === "flat" ? "border" : "rounded-lg shadow-xl",
+            variant === "page" ? "" : variant === "flat" ? "border" : "rounded-lg shadow-xl",
           )}
           // Empty-string attribute rather than a boolean: the CSS above keys
           // off presence ([data-published]), and React drops the attribute

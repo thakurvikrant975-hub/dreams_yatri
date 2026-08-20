@@ -111,7 +111,10 @@ export function PublishedItinerary({ form, packageId }: { form: PreviewData; pac
               visibility: box ? undefined : "hidden",
             }}
           >
-            <ItineraryDocument form={form} published />
+            {/* No radius, no shadow, no border — see ItineraryDocument's
+                `variant`. On this route the document is not a preview OF a
+                page, it is the page. */}
+            <ItineraryDocument form={form} published variant="page" />
           </div>
         </div>
       </div>
