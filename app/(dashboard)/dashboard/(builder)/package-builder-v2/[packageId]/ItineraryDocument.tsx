@@ -18,6 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { cn } from "@/app/lib/utils";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { ItineraryMap } from "./ItineraryMap";
 import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
@@ -412,6 +413,11 @@ export interface PreviewData {
   adults: number;
   children: number;
   infants: number;
+  /** Needed to divide the total into a per-person figure: a child under five
+   * is not a head that pays a share. Optional because packages built before
+   * ages were collected have none — those divide by everyone, as they always
+   * did. See payingPaxOf. */
+  childrenAges?: number[];
   pricePerPerson: string;
   totalPrice: string;
   currency: string;
@@ -3759,7 +3765,9 @@ export function ItineraryDocument({
   // generally multiply back to the total. The document prints both side by
   // side, which invites exactly that multiplication, so where it cannot
   // reconcile the number is marked approximate.
-  const payingPax = form.adults + form.children;
+  // The heads the headline is divided by, which is not everyone travelling:
+  // a four-year-old is not paying a fifth of the trip. See payingPaxOf.
+  const payingPax = payingPaxOf(form);
   // Both figures describe the SAME standard. Left as the package's own while
   // the headline followed the recommended one, the card read "INR 15,750" next
   // to "~INR 5,513 per person" — two different standards, side by side, with

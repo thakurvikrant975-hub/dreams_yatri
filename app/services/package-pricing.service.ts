@@ -10,6 +10,7 @@ import { splitManualHotelName } from "./hotel-name-utils";
 import { resolveHotelSeasonPricing } from "../lib/hotel-season-pricing";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { composePackagePrice, baseRateDays } from "./package-price-utils";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -1588,7 +1589,7 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{
   const pkg = await db.custom_packages.findUnique({
     where: { id: packageId },
     select: {
-      travelDate: true, adults: true, children: true,
+      travelDate: true, adults: true, children: true, childrenAges: true,
       marginPercentage: true, gstPercentage: true,
       discountType: true, discountValue: true,
       hotelSubtotalOverride: true, cabSubtotalOverride: true,
@@ -1643,7 +1644,7 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{
     gstPercentage: pkg.gstPercentage,
     discountType: pkg.discountType,
     discountValue: pkg.discountValue,
-    payingPax: pkg.adults + pkg.children,
+    payingPax: payingPaxOf(pkg),
   });
   return {
     pricePerPerson: priced.pricePerPerson,
@@ -1693,7 +1694,7 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
   const pkg = await db.custom_packages.findUnique({
     where: { id: packageId },
     select: {
-      travelDate: true, adults: true, children: true,
+      travelDate: true, adults: true, children: true, childrenAges: true,
       marginPercentage: true, gstPercentage: true,
       discountType: true, discountValue: true,
       cabSubtotalOverride: true,
@@ -1740,7 +1741,7 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
   const cabSubtotal = pkg.cabSubtotalOverride ?? cabPricing.cabSubtotal;
   const ticketsSubtotal = pkg.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0);
   const addonsSubtotal = pkg.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0);
-  const payingPax = pkg.adults + pkg.children;
+  const payingPax = payingPaxOf(pkg);
 
   const priced = await Promise.all(pkg.stayOptions.map(async (option) => {
     const hotelPricing = await computeBuilderHotelPricing({

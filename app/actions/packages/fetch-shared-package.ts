@@ -88,6 +88,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       template: true, themeOverrides: true,
       title: true, description: true, coverImage: true, coverImagePosition: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
+      childrenAges: true,
       pricePerPerson: true, totalPrice: true, currency: true,
       discountType: true, discountValue: true, pricingSnapshot: true,
       inclusions: true, exclusions: true, removedInclusions: true, removedExclusions: true, termsNotes: true,
@@ -204,6 +205,9 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     adults:          pkg.adults,
     children:        pkg.children,
     infants:         pkg.infants,
+    // Without these the client's own page divided the total by every head
+    // including a toddler, and quoted a per-person figure nobody would pay.
+    childrenAges:    pkg.childrenAges ?? [],
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     currency:        pkg.currency,

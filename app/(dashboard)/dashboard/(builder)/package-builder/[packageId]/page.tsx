@@ -78,6 +78,7 @@ import { validateItineraryRequiredFields } from "./pdfExport";
 import {
   resizeAges, ageInputValue, parseAgeInput,
   CHILD_AGE_MIN, CHILD_AGE_MAX, INFANT_AGE_MIN, INFANT_AGE_MAX,
+  payingPaxOf,
 } from "../traveller-ages";
 import { HotelRoomPicker } from "./HotelRoomPicker";
 import { nightISOForDay } from "../night-date";
@@ -3311,7 +3312,9 @@ export default function PackageBuilderDetailPage() {
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
     const finalPrice = taxable + gstAmount;
-    const totalPax = form.adults + form.children;
+    // Children too young to count as a head — see payingPaxOf. The total is
+    // unchanged; this is only what it is divided by.
+    const totalPax = payingPaxOf(form);
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
     return {
       marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase, addonsSubtotal,

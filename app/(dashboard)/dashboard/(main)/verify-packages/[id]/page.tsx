@@ -7,6 +7,7 @@ import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/serv
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 export const metadata: Metadata = {
     title: "Package Verification - Dashboard",
@@ -128,7 +129,8 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
         const taxable = baseCost + marginAmount;
         const gstAmount = Math.round(taxable * pkg.gstPercentage / 100);
         const finalPrice = taxable + gstAmount;
-        const totalPax = pkg.adults + pkg.children;
+        // Same divisor the builder quotes with — see payingPaxOf.
+        const totalPax = payingPaxOf(pkg);
         const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
         snapshot = {

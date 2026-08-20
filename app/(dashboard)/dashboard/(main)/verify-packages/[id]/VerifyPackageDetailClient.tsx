@@ -23,6 +23,7 @@ import type { RejectionReason } from "../../(marketing)/queries/actions";
 import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 import { StayOptionsComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionsComparison";
 import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/builder-context";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
 // rather than an if/else chain — a ticket type that isn't FLIGHT/HELICOPTER
@@ -290,7 +291,8 @@ export function VerifyPackageDetailClient({
     const cabSubtotal = useMemo(() => Object.values(cabDayEdits).reduce((sum, v) => sum + (v || 0), 0), [cabDayEdits]);
     const ticketsSubtotal = useMemo(() => Object.values(ticketFares).reduce((sum, f) => sum + (f || 0), 0), [ticketFares]);
     const addonsSubtotal = useMemo(() => Object.values(addonEdits).reduce((sum, a) => sum + (a.price || 0) * (a.quantity || 1), 0), [addonEdits]);
-    const totalPax = pkg.adults + pkg.children;
+    // Same divisor the builder quotes with — see payingPaxOf.
+    const totalPax = payingPaxOf(pkg);
 
     const preview = useMemo(() => computeFinalPricing({
         hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal,

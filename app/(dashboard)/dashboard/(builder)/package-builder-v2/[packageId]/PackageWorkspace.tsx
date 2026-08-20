@@ -78,6 +78,7 @@ import { reviewKey, type ReviewContext } from "./builder-context";
 import { TripSetupPanel } from "./TripSetupPanel";
 import { DataTablesPanel } from "./DataTablesPanel";
 import { useUndoableState } from "./use-undoable-state";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
 import { BuilderSidebar } from "./BuilderSidebar";
@@ -964,7 +965,9 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
       value: form.discountValue ? parseFloat(form.discountValue) : null,
     });
     const finalPrice = disc.finalPrice;
-    const totalPax = form.adults + form.children;
+    // Children under five are not heads that pay a share — see payingPaxOf.
+    // The total is unchanged; this is only what it is divided by.
+    const totalPax = payingPaxOf(form);
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
     return {
       marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase, addonsSubtotal,

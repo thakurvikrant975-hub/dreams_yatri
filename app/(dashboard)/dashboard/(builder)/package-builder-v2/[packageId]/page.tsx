@@ -23,7 +23,7 @@ import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
 import { PackageSwitcher } from "@/app/(dashboard)/dashboard/(builder)/package-builder/PackageSwitcher";
 import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
 import { cn } from "@/app/lib/utils";
-import { resizeAges } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { resizeAges, payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
@@ -911,7 +911,9 @@ export default function PackageBuilderDetailPage() {
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
     const finalPrice = taxable + gstAmount;
-    const totalPax = form.adults + form.children;
+    // Children too young to count as a head — see payingPaxOf. The total is
+    // unchanged; this is only what it is divided by.
+    const totalPax = payingPaxOf(form);
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
     return {
       marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase, addonsSubtotal,

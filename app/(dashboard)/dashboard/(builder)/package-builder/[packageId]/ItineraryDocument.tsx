@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { cn } from "@/app/lib/utils";
+import { payingPaxOf } from "../traveller-ages";
 import { ItineraryMap } from "./ItineraryMap";
 import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
@@ -258,6 +259,10 @@ export interface PreviewData {
   adults: number;
   children: number;
   infants: number;
+  /** Divides the total into a per-person figure — a child under five is not a
+   * head that pays a share. Optional: packages built before ages were
+   * collected have none and divide by everyone, as they always did. */
+  childrenAges?: number[];
   pricePerPerson: string;
   totalPrice: string;
   currency: string;
@@ -1617,7 +1622,9 @@ export function ItineraryDocument({
   // Per-person is the total divided by paying heads and rounded, so it does not
   // generally multiply back to the total. Marked approximate where the two
   // cannot reconcile, since the document prints both.
-  const payingPax = form.adults + form.children;
+  // The heads the headline is divided by, which is not everyone travelling:
+  // a four-year-old is not paying a fifth of the trip. See payingPaxOf.
+  const payingPax = payingPaxOf(form);
   const perPersonExact =
     !!form.pricePerPerson && !!form.totalPrice && payingPax > 0 &&
     Number(form.pricePerPerson) * payingPax === Number(form.totalPrice);

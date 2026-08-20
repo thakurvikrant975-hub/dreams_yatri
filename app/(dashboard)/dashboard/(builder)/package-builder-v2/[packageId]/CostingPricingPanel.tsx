@@ -29,6 +29,7 @@ import { AlertOctagon, Users } from "lucide-react";
 import { travellersLine } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { StayOptionsComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionsComparison";
 import { useBuilder } from "./builder-context";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { scrollToDay } from "./builder-context";
 import type {
   BuilderHotelPricingResult, BuilderCabPricingResult,
@@ -266,7 +267,7 @@ export function CostingPricingPanel({
           )}
           <Row label="Final price" value={inr(computed.finalPrice)} strong />
           <Row
-            label={`Per person (${form.adults + form.children} paying)`}
+            label={`Per person (${payingPaxOf(form)} paying)`}
             value={inr(computed.perPerson)}
             muted
           />

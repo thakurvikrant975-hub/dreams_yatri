@@ -19,6 +19,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import type { PricingSnapshot } from "./VerifyPackageDetailClient";
 import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 /** Tickets carry a lower margin than hotels and cabs — same split
  * sendPackageToClient applies when it freezes the real snapshot. */
@@ -142,7 +143,8 @@ export async function loadCostingPanelData(id: string) {
         // Same helper, same order as everywhere else — see discount.ts.
         const discount = applyDiscount(listPrice, { type: pkg.discountType, value: pkg.discountValue });
         const finalPrice = discount.finalPrice;
-        const totalPax = pkg.adults + pkg.children;
+        // Same divisor the builder quotes with — see payingPaxOf.
+        const totalPax = payingPaxOf(pkg);
         const pricePerPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
         snapshot = {

@@ -31,6 +31,21 @@ export const AGE_UNSET = -1;
 export const CHILD_AGE_MIN = 0;
 export const CHILD_AGE_MAX = 17;
 /** Airlines and hotels both cut infancy at 2. */
+/** The oldest a child can be and still not count as a head when the package
+ * price is divided into a per-person figure.
+ *
+ * A four-year-old sharing their parents' bed is not a fifth person paying a
+ * fifth of the trip, and dividing by them makes the per-person number smaller
+ * than anyone will actually pay. The total is right either way — this only
+ * decides what the total is divided BY.
+ *
+ * Five is the line the sales team quotes to, and it is the age most hotel
+ * child policies start charging at. It is deliberately not read from those
+ * policies: a hotel's rule decides what a bed costs, this decides how a quote
+ * reads, and one hotel on one night should not change the headline figure of
+ * the whole trip. */
+export const PER_PERSON_FREE_CHILD_AGE_MAX = 4;
+
 export const INFANT_AGE_MIN = 0;
 export const INFANT_AGE_MAX = 2;
 
@@ -119,4 +134,29 @@ export function travellersLine(t: TravellerAges & { adults: number }): string {
       ? `${t.infants} Infant${t.infants !== 1 ? "s" : ""}${ages(t.infantAges, t.infants)}`
       : null,
   ].filter(Boolean).join(", ");
+}
+
+
+/** How many heads the package price is divided by.
+ *
+ * Adults, plus the children old enough to count — see
+ * PER_PERSON_FREE_CHILD_AGE_MAX. Infants were never counted; this brings the
+ * youngest children in line with them.
+ *
+ * A child whose age nobody has entered yet counts as paying. It cannot be
+ * shown to be under five, and the alternative — assuming it is — would quietly
+ * raise the headline price of every package still being built. Ages are
+ * required before a package can go to costing, so this only affects drafts.
+ */
+export function payingPaxOf(input: {
+  adults: number;
+  children: number;
+  childrenAges?: number[] | null;
+}): number {
+  const ages = input.childrenAges ?? [];
+  const freeChildren = ages
+    .slice(0, input.children)
+    .filter((age) => age != null && age >= 0 && age <= PER_PERSON_FREE_CHILD_AGE_MAX)
+    .length;
+  return Math.max(0, input.adults + input.children - freeChildren);
 }

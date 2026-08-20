@@ -20,7 +20,7 @@ import { classifyActionError } from "@/app/lib/action-error";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
-import { missingTravellerAgesError } from "./traveller-ages";
+import { missingTravellerAgesError, payingPaxOf } from "./traveller-ages";
 import { syncRecommendedStayFromDays } from "./stay-options.sync";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
@@ -3010,7 +3010,8 @@ async function sendPackageToClient(packageId: string): Promise<{
       value: pkg.discountValue,
     });
     const finalPrice = discount.finalPrice;
-    const totalPax = pkg.adults + pkg.children;
+    // Children under five are not heads that pay a share — see payingPaxOf.
+    const totalPax = payingPaxOf(pkg);
     const pricePerPersonComputed = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
 
     const pricingSnapshot = {
