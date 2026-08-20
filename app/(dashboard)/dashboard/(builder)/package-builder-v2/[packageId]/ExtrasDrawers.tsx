@@ -67,23 +67,30 @@ export function MealsView({ day }: { day: number }) {
   // stale hand-added meals from before this fix get fixed too, not just
   // blocked going forward.
   const [roomMeals, setRoomMeals] = useState<string[] | null>(null);
+  const [prevRoomMeals, setPrevRoomMeals] = useState<string[] | null>(null);
+  const prevRoomPricingId = prevItin?.roomPricingId ?? null;
   useEffect(() => {
-    if (roomPricingId == null) { setRoomMeals(null); return; }
     let cancelled = false;
-    getHotelRoomByIdForBuilder(roomPricingId, null).then((room) => {
-      if (cancelled || !room) return;
-      setRoomMeals(room.coveredMeals.map((k) => MEAL_KEY_LABELS[k]).filter((v): v is string => !!v));
-    });
+    const load = (id: number | null, set: (v: string[] | null) => void) => {
+      if (id == null) { set(null); return; }
+      getHotelRoomByIdForBuilder(id, null).then((room) => {
+        if (cancelled || !room) return;
+        set(room.coveredMeals.map((k) => MEAL_KEY_LABELS[k]).filter((v): v is string => !!v));
+      });
+    };
+    load(roomPricingId, setRoomMeals);
+    // Breakfast is served by the night before, so its plan is that room's.
+    load(prevRoomPricingId, setPrevRoomMeals);
     return () => { cancelled = true; };
-  }, [roomPricingId]);
+  }, [roomPricingId, prevRoomPricingId]);
 
-  useEffect(() => {
-    if (roomMeals == null || !itin) return;
-    const current = [...itin.meals].sort().join(",");
-    const real = [...roomMeals].sort().join(",");
-    if (current !== real) updateDay(day, { meals: roomMeals });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomMeals]);
+  // The room's plan is applied ONCE, when the room is picked —
+  // applyHotelRoomSelection writes meals along with the rest of the stay. It
+  // used to be re-applied here on every open, which is what made a meal
+  // impossible to remove: the exec switched dinner off, came back, and the
+  // room's plan had written it straight back.
+  //
+  // What the room covers is now shown rather than enforced.
 
   if (!itin) return null;
 
@@ -92,15 +99,14 @@ export function MealsView({ day }: { day: number }) {
   /** Is this meal on, as the DOCUMENT shows it for this day? */
   const isOn = (meal: string) => rowFor(meal)?.meals.includes(meal) ?? false;
 
-  /** Whether this meal is fixed by a catalog room's plan rather than set by
-   * hand — and it is the room on the night that SERVES it, so breakfast
-   * follows the previous day's room, not this one's. Without this a day with
-   * no room of its own offered a hand toggle for a breakfast the night before
-   * had already decided, and that night's sync would quietly undo it. */
-  const lockedByRoom = (meal: string) => (rowFor(meal)?.roomPricingId ?? null) != null;
+  /** Does the room's own rate cover this meal? Shown beside the toggle so a
+   * deviation is visible — never to prevent one. A rate that includes dinner
+   * is a fact about the rate, not a promise the client wants it, and the exec
+   * is the one talking to them. Breakfast reads the PREVIOUS night's room,
+   * since that is the kitchen that serves it. */
+  const inRoomPlan = (meal: string) => (meal === "Breakfast" ? prevRoomMeals : roomMeals)?.includes(meal) ?? false;
 
   function toggle(meal: string) {
-    if (lockedByRoom(meal)) return;
     const row = rowFor(meal);
     // Day 1 has no night before it, so there is no breakfast to serve — the
     // document does not print one either.
@@ -111,11 +117,9 @@ export function MealsView({ day }: { day: number }) {
     });
   }
 
-  // A meal fixed by a room is shown only when that room actually includes it;
-  // a hand-set meal is always offered so it can be switched on.
-  const visibleMeals = STANDARD_MEALS
-    .filter((meal) => rowFor(meal) != null)
-    .filter((meal) => !lockedByRoom(meal) || isOn(meal));
+  // Every meal the day can carry, always. Filtering to the room's plan meant a
+  // meal the exec switched off vanished from the drawer, leaving no way back.
+  const visibleMeals = STANDARD_MEALS.filter((meal) => rowFor(meal) != null);
 
   return (
     <div className="p-5 space-y-4">
@@ -126,31 +130,39 @@ export function MealsView({ day }: { day: number }) {
             <button
               key={meal}
               type="button"
-              disabled={lockedByRoom(meal)}
               onClick={() => toggle(meal)}
               className={cn(
                 "w-full flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors",
                 on
                   ? "border-dashboard-primary bg-dashboard-primary/5"
                   : "border-dashboard-base-300 hover:bg-dashboard-base-200/50",
-                lockedByRoom(meal) && "cursor-default",
               )}
             >
               <Utensils size={13} className={on ? "text-dashboard-primary" : "text-dashboard-base-content/40"} />
               <span className="text-sm font-medium flex-1">{meal}</span>
-              <span className="text-[11px] text-dashboard-base-content/50">{on ? "Included" : "Not included"}</span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                {/* What the rate covers, when it differs from what is being
+                    quoted — so an exec who drops a meal the room includes can
+                    see they have done it, and put it back. */}
+                {inRoomPlan(meal) !== on && (
+                  <span className={cn(
+                    "rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide",
+                    inRoomPlan(meal)
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                      : "bg-dashboard-base-300 text-dashboard-base-content/60",
+                  )}>
+                    {inRoomPlan(meal) ? "in room rate" : "extra"}
+                  </span>
+                )}
+                <span className="text-[11px] text-dashboard-base-content/50">{on ? "Included" : "Not included"}</span>
+              </span>
             </button>
           );
         })}
-        {hasCatalogRoom && visibleMeals.length === 0 && (
-          <p className="py-4 text-center text-[11px] text-dashboard-base-content/50">
-            This room&apos;s rate doesn&apos;t include any meals.
-          </p>
-        )}
       </div>
       <p className="text-[11px] text-dashboard-base-content/45">
         {hasCatalogRoom
-          ? "Set by the picked room's meal plan — replace the room (or switch it to a hand-typed stay) to change what's included here."
+          ? "The room's rate sets these when it's picked, and you can change them afterwards — a client who isn't taking dinner shouldn't be quoted one. Switching a meal off doesn't reduce the room rate, only what the itinerary promises."
           : "No catalog room is picked for this day, so meals are set by hand."}
       </p>
     </div>
