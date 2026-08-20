@@ -59,6 +59,7 @@ export const NAV_GROUPS = [
       { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: IdCardLanyard },
       { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },
       { title: "Hotel Requests", href: "/dashboard/hotel-requests", icon: ClockCheck },
+      { title: "Catalog Follow-up", href: "/dashboard/hotel-requests/catalog", icon: Bed },
       { title: "Hotel Bookings", href: "/dashboard/hotel-bookings", icon: BedDouble },
     ],
   },

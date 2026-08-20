@@ -117,12 +117,15 @@ export async function findSimilarHotels(name: string, city: string) {
         }));
 }
 
-/** Provenance, written where it needs no migration to live. */
+/** Provenance, written where it needs no migration to live. Also the marker the
+ * completion queue matches on to find what quick-create left behind. */
+const PROVENANCE_PREFIX = "Added from a hotel request by ";
+
 function provenanceNote(actor: Actor, packageId: string, day: number, validFrom?: string | null, validTo?: string | null) {
     const quoted = validFrom || validTo
         ? ` Quoted for ${validFrom || "?"} to ${validTo || "?"}.`
         : "";
-    return `Added from a hotel request by ${actor.name} on ${new Date().toISOString().slice(0, 10)} `
+    return `${PROVENANCE_PREFIX}${actor.name} on ${new Date().toISOString().slice(0, 10)} `
         + `(package ${packageId}, day ${day}).${quoted}`;
 }
 
@@ -289,4 +292,132 @@ export async function quickCreateHotelRate(input: {
 
     revalidatePath("/dashboard/hotels");
     return { success: true, roomPricingId: pricingId, hotelId };
+}
+
+// ── The second pass ─────────────────────────────────────────────────────────
+
+export type QuickHotel = {
+    id: number;
+    name: string;
+    location: string | null;
+    starRating: string | null;
+    createdAt: Date;
+    /** How many package days have been sold off this hotel's rates since it was
+     * created. A property four packages have leaned on has earned a full entry;
+     * one used once can wait, which is the whole ordering principle here. */
+    usedInDays: number;
+    rooms: number;
+    rates: number;
+    /** What a completing pass would have to supply. */
+    missing: string[];
+    /** Other active hotels sharing its name — the duplicate check, run over the
+     * queue rather than waiting for someone to notice. */
+    duplicateOf: { id: number; name: string; location: string | null }[];
+};
+
+/**
+ * Hotels created from the request queue, worst-first by how much use they are
+ * getting while still incomplete.
+ *
+ * Identified by the provenance note their first rate carries rather than by a
+ * new column: quick-created rates are stamped by provenanceNote above, which
+ * needs no migration and cannot drift out of sync with the thing it describes.
+ */
+export async function listQuickCreatedHotels(): Promise<QuickHotel[]> {
+    const member = await getCurrentMember();
+    if (!member?.isActive) return [];
+
+    const hotels = await db.hotels.findMany({
+        where: {
+            is_active: true,
+            room_pricing: { some: { notes: { startsWith: PROVENANCE_PREFIX } } },
+        },
+        select: {
+            id: true, name: true, city: true, state: true, stay_type: true,
+            created_at: true, location_id: true, description: true, address: true,
+            thumbnail: true,
+            _count: { select: { hotelRooms: true, room_pricing: true, images: true } },
+        },
+        orderBy: { created_at: "desc" },
+        take: 200,
+    });
+    if (hotels.length === 0) return [];
+
+    const ids = hotels.map((h) => h.id);
+
+    // Usage is counted through the rates, since that is what a day actually
+    // points at. Both the enforced and unenforced link columns are consulted —
+    // custom_itineraries.roomPricingId has no FK behind it.
+    const rates = await db.hotel_room_pricing.findMany({
+        where: { hotel_id: { in: ids } },
+        select: { id: true, hotel_id: true },
+    });
+    const hotelOfRate = new Map(rates.map((r) => [r.id, r.hotel_id]));
+    const rateIds = rates.map((r) => r.id);
+
+    const usage = new Map<number, number>();
+    if (rateIds.length > 0) {
+        const [custom, stays] = await Promise.all([
+            db.custom_itineraries.findMany({
+                where: { roomPricingId: { in: rateIds } },
+                select: { roomPricingId: true },
+            }),
+            db.itinerary_stays.findMany({
+                where: { room_pricing_id: { in: rateIds } },
+                select: { room_pricing_id: true },
+            }),
+        ]);
+        for (const row of custom) {
+            const h = row.roomPricingId != null ? hotelOfRate.get(row.roomPricingId) : undefined;
+            if (h != null) usage.set(h, (usage.get(h) ?? 0) + 1);
+        }
+        for (const row of stays) {
+            const h = hotelOfRate.get(row.room_pricing_id);
+            if (h != null) usage.set(h, (usage.get(h) ?? 0) + 1);
+        }
+    }
+
+    // One query for every same-name candidate, rather than one per hotel.
+    const names = hotels.map((h) => h.name);
+    const namesakes = await db.hotels.findMany({
+        where: { is_active: true, name: { in: names }, id: { notIn: ids } },
+        select: { id: true, name: true, city: true, state: true },
+    });
+    const byName = new Map<string, typeof namesakes>();
+    for (const n of namesakes) {
+        const key = n.name.toLowerCase();
+        byName.set(key, [...(byName.get(key) ?? []), n]);
+    }
+
+    return hotels
+        .map((h) => {
+            const missing: string[] = [];
+            if (!h.location_id) missing.push("location");
+            if (h._count.images === 0 && !h.thumbnail) missing.push("photos");
+            if (h._count.hotelRooms <= 1) missing.push("one room type");
+            if (!h.description) missing.push("description");
+            if (!h.address) missing.push("address");
+            return {
+                id: h.id,
+                name: h.name,
+                location: [h.city, h.state].filter(Boolean).join(", ") || null,
+                starRating: h.stay_type,
+                createdAt: h.created_at,
+                usedInDays: usage.get(h.id) ?? 0,
+                rooms: h._count.hotelRooms,
+                rates: h._count.room_pricing,
+                missing,
+                duplicateOf: (byName.get(h.name.toLowerCase()) ?? []).map((d) => ({
+                    id: d.id,
+                    name: d.name,
+                    location: [d.city, d.state].filter(Boolean).join(", ") || null,
+                })),
+            };
+        })
+        // Most-used first: that is what "earned a full entry" means, and a
+        // duplicate outranks everything because it is actively splitting data.
+        .sort((a, b) =>
+            (b.duplicateOf.length > 0 ? 1 : 0) - (a.duplicateOf.length > 0 ? 1 : 0)
+            || b.usedInDays - a.usedInDays
+            || b.createdAt.getTime() - a.createdAt.getTime());
 }
