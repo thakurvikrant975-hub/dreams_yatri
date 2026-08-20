@@ -344,13 +344,26 @@ export function FillHotelForm({
             if (result.success) {
                 setDone(true);
                 const filled = result.filledDays ?? [day];
-                toast.success(
-                    result.advancedToReview
-                        ? `Hotel filled for ${filled.length} day${filled.length === 1 ? "" : "s"} — package sent to costing review!`
-                        : filled.length > 1
-                            ? `Hotel filled for days ${filled.join(", ")}`
-                            : "Hotel filled for this day",
-                );
+                const unpriced = result.unpricedDays ?? [];
+                if (unpriced.length > 0) {
+                    // Saved, but costing would show this night at ₹0 — and the
+                    // person who just spoke to the hotel is the only one who can
+                    // put a price on it. Sticky, because it must not scroll past.
+                    toast.error(
+                        `Saved, but day${unpriced.length === 1 ? "" : "s"} ${unpriced.join(", ")} `
+                        + "still has no price for costing — reopen the day and set the B2B rate, "
+                        + "or costing will show it as ₹0.",
+                        { duration: Infinity },
+                    );
+                } else {
+                    toast.success(
+                        result.advancedToReview
+                            ? `Hotel filled for ${filled.length} day${filled.length === 1 ? "" : "s"} — package sent to costing review!`
+                            : filled.length > 1
+                                ? `Hotel filled for days ${filled.join(", ")}`
+                                : "Hotel filled for this day",
+                    );
+                }
                 router.refresh();
             } else if (linkId != null && !linked) {
                 toast.error(

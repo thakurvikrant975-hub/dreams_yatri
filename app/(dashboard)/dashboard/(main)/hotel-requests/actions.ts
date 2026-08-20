@@ -17,6 +17,7 @@ import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { markPackageReady } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { syncRecommendedStayFromDays } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.sync";
 
 type Member = NonNullable<Awaited<ReturnType<typeof getCurrentMember>>>;
 
@@ -93,7 +94,11 @@ export async function fillPendingHotel(
     packageId: string,
     day: number,
     input: FillHotelInput,
-): Promise<{ success: boolean; error?: string; advancedToReview?: boolean; filledDays?: number[] }> {
+): Promise<{
+    success: boolean; error?: string; advancedToReview?: boolean; filledDays?: number[];
+    /** Days that saved but still cannot be priced — costing would show ₹0. */
+    unpricedDays?: number[];
+}> {
     const auth = await requireMember();
     if (!auth.ok) return { success: false, error: auth.error };
 
@@ -171,6 +176,38 @@ export async function fillPendingHotel(
         },
     })));
 
+    // ── The day row is only half the story ──────────────────────────────────
+    //
+    // Costing prices a package from its stay OPTIONS (custom_itinerary_stays),
+    // not from the day rows this fill writes. stay-options.sync.ts says as much
+    // in its header: the day row is a compatibility surface for "everything not
+    // yet taught about options — the v1 builder, the hotel-request workflow…".
+    //
+    // Nothing was teaching it. A filled day left its stay row still pending with
+    // no price, and since every package in production uses stay options, the
+    // costing manager showed the night at ₹0 — the hotel was there on the day,
+    // and worth nothing where the money is added up. It only ever came right if
+    // an exec happened to re-save the package in the builder afterwards, which
+    // is exactly what a fill that auto-advances to costing skips.
+    await syncRecommendedStayFromDays(packageId);
+
+    // Belt and braces: prove the nights this fill just wrote can actually be
+    // priced, rather than trusting that they can. A stay row with no rate, no
+    // manual price and no override is the ₹0 the costing manager reports, and
+    // the admin who filled it is the only person able to put it right while the
+    // hotel is still on the phone.
+    const filledDayNumbers = targets.map((t) => t.day);
+    const unpriced = await db.custom_itinerary_stays.findMany({
+        where: {
+            itinerary: { customPackageId: packageId, day: { in: filledDayNumbers } },
+            stayOption: { isRecommended: true },
+            roomPricingId: null,
+            manualHotelPricePerNight: null,
+            hotelPriceOverride: null,
+        },
+        select: { itinerary: { select: { day: true } } },
+    });
+
     const pkg = await db.custom_packages.findUnique({
         where: { id: packageId },
         select: { queryId: true },
@@ -206,7 +243,11 @@ export async function fillPendingHotel(
     revalidatePath("/dashboard/verify-packages");
     revalidatePath("/dashboard/sales-query");
 
-    return { success: true, advancedToReview, filledDays: targets.map((t) => t.day).sort((a, b) => a - b) };
+    return {
+        success: true, advancedToReview,
+        filledDays: targets.map((t) => t.day).sort((a, b) => a - b),
+        unpricedDays: unpriced.map((u) => u.itinerary.day).sort((a, b) => a - b),
+    };
 }
 
 type RejectResult = { success: boolean; error?: string; count?: number };
