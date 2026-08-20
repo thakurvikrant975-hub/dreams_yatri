@@ -92,13 +92,6 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                                 day={it.day}
                                 location={location}
                                 dateLabel={dateLabel}
-                                dayDateISO={dayDate ? dayDate.toISOString().slice(0, 10) : null}
-                                siblingDays={pendingDays
-                                    .filter((o) => o.day !== it.day)
-                                    .map((o) => ({
-                                        day: o.day,
-                                        location: o.accommodationLocation || dayLocations[o.day - 1] || null,
-                                    }))}
                                 paxLabel={paxLabel}
                                 note={it.hotelPendingNote}
                                 requestedType={it.hotelRequestType}
