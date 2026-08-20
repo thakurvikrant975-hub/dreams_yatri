@@ -15,7 +15,7 @@
 // the styling of any interaction the web page grows that paper cannot have.
 //
 // Two knobs, both overridable per template:
-//   --doc-content-width  the measure content stops at   (default 72rem, max-w-6xl)
+//   --doc-content-width  the measure content stops at   (default 56rem, max-w-4xl)
 //   the type scale below  one step up from the printed sizes
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ export const PUBLISHED_THEME = `
      columns all carry this; the hero does not, because a cover photo should
      fill the window. */
   .itinerary-print-area[data-published]:not([data-exporting]) .screen-space {
-    max-width: var(--doc-content-width, 72rem);
+    max-width: var(--doc-content-width, 56rem);
     margin-inline: auto;
     width: 100%;
   }

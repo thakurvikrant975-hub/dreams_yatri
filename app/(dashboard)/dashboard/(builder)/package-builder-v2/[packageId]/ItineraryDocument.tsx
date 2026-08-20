@@ -3340,7 +3340,7 @@ function HeroCover({
             trip-stats card below carries them — nested the other way round
             the two would land a few millimetres apart on a wide window, which
             is worse than not aligning them at all. */}
-        <div className="max-w-4xl m-auto ">
+        <div className="screen-space px-[10mm]">
         {/* The client's own name, handwritten, sitting on top of the title —
             so the cover reads as one phrase, "Suraj's / Alleppey & Kochi
             Weekend Escape", and the document looks addressed to a person
@@ -3490,7 +3490,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
     <footer className="doc-footer bg-neutral-950 text-slate-300 mt-2" style={{ breakInside: "avoid" }}>
       {/* The dark ground reaches both window edges; the columns inside stop at
           the same measure the rest of the page uses. */}
-      <div className="max-w-4xl m-auto pt-9 pb-6">
+      <div className="screen-space px-[10mm] pt-9 pb-6">
         <div className="flex flex-wrap items-start justify-between gap-8 pb-7 border-b border-white/10">
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
             <DyLogo className="h-7 text-primary-500" />
@@ -3833,7 +3833,7 @@ export function ItineraryDocument({
           >
             {/* The rule above spans the window; this row is what stops at the
                 measure. Same shape as the site's own header. */}
-            <div className="max-w-4xl flex items-end justify-between h-full m-auto">
+            <div className="screen-space flex items-end justify-between h-full">
               {/* Colour via className, not style: DyLogo forwards only className,
                 and its mask is painted with bg-current — a background-color,
                 which html2canvas-pro resolves from oklch just fine (it's the
@@ -3858,7 +3858,7 @@ export function ItineraryDocument({
           />
 
           {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-          <div className="max-w-4xl m-auto relative z-10 " style={{ marginTop: "-13mm" }}>
+          <div className="screen-space relative z-10 px-[10mm]" style={{ marginTop: "-13mm" }}>
             <div
               className="rounded-md grid grid-cols-3 overflow-hidden bg-white shadow-lg shadow-neutral-200/85"
 
@@ -3875,7 +3875,7 @@ export function ItineraryDocument({
           </div>
 
           {/* ── Body ──────────────────────────────────────────────────────────── */}
-          <main className="max-w-4xl m-auto  pt-7 pb-2 space-y-7">
+          <main className="screen-space px-[10mm] pt-7 pb-2 space-y-7">
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination) && (
               <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
                 {(form.clientName || form.execName) && (
