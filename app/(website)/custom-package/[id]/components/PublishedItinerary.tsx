@@ -11,112 +11,38 @@
 // document itself, with `published` set so it drops every builder affordance
 // and uses the same export-only fallbacks the PDF does.
 //
-// The document is a fixed 210mm-wide A4 page by construction (it has to be —
-// it's the PDF's own DOM), so the only honest way to put it on a phone is to
-// scale it to the viewport and let the reader pinch-zoom, the way a browser
-// shows a PDF. That's what the scaler below does: measure the space we have,
-// measure the page's natural size, scale down to fit (never up), and reserve
-// exactly the scaled height so nothing below it floats in dead space.
+// The document is a fixed 210mm-wide A4 page by construction — it is the PDF's
+// own DOM. This route used to honour that literally, measuring the sheet and
+// scaling it down to fit the viewport, which on a phone produced an A4 page
+// shrunk to thumb size and a reader pinching at it. It was a PDF viewer built
+// out of divs.
+//
+// It is a web page, so it is laid out as one: PRINT_STYLES lets the document
+// take the width it is given whenever data-published is set and it is not
+// being captured, and the two output paths keep the fixed column they need.
+// Nothing here scales anything.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { ArrowRight, Loader2, Printer } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 
-/** Undoes the scaler for window.print(): the document's own PRINT_STYLES
- * already lay the page out at a true 210mm and hide everything around it, and
- * a CSS transform left on an ancestor would shrink that back down and print a
- * half-size page in the corner of the sheet. */
-const PUBLISHED_STYLES = `
-  @media print {
-    .published-doc-fit { width: auto !important; height: auto !important; }
-    .published-doc-scaler { transform: none !important; }
-  }
-`;
-
 export function PublishedItinerary({ form, packageId }: { form: PreviewData; packageId: string }) {
-  const frameRef = useRef<HTMLDivElement>(null);
-  const scalerRef = useRef<HTMLDivElement>(null);
-  // null until measured — the document renders at its full 210mm for one
-  // frame otherwise, which on a phone is a visible lurch sideways.
-  const [box, setBox] = useState<{ scale: number; width: number; height: number } | null>(null);
-
-  const measure = useCallback(() => {
-    const frame = frameRef.current;
-    const scaler = scalerRef.current;
-    if (!frame || !scaler) return;
-    // offsetWidth/Height are pre-transform, so these stay the page's natural
-    // A4 size no matter what scale is currently applied — measuring the
-    // scaled result instead would feed the scale back into itself.
-    const naturalWidth = scaler.offsetWidth;
-    const naturalHeight = scaler.offsetHeight;
-    if (!naturalWidth || !naturalHeight) return;
-    // Never scale up: on a wide desktop the page sits at 100%, the same size
-    // it prints at, rather than being blown up into a soft, oversized poster.
-    const scale = Math.min(1, frame.clientWidth / naturalWidth);
-    setBox((prev) =>
-      prev && prev.scale === scale && prev.height === naturalHeight && prev.width === naturalWidth
-        ? prev
-        : { scale, width: naturalWidth, height: naturalHeight },
-    );
-  }, []);
-
-  useLayoutEffect(measure, [measure]);
-
-  useEffect(() => {
-    const frame = frameRef.current;
-    const scaler = scalerRef.current;
-    if (!frame || !scaler) return;
-    // Both ends move: the frame on viewport resize / orientation change, and
-    // the document itself as photos finish loading and push it taller. A
-    // height change that isn't picked up leaves the footer overlapping the
-    // page or a band of empty space under it.
-    const ro = new ResizeObserver(measure);
-    ro.observe(frame);
-    ro.observe(scaler);
-    return () => ro.disconnect();
-  }, [measure]);
-
-  // Late-loading images inside the document don't always resize the observed
-  // box in a way ResizeObserver reports before layout settles, so re-measure
-  // once everything on the page has loaded too.
-  useEffect(() => {
-    if (document.readyState === "complete") return;
-    window.addEventListener("load", measure);
-    return () => window.removeEventListener("load", measure);
-  }, [measure]);
-
   return (
     <>
-      <style>{PUBLISHED_STYLES}</style>
-
-      <div ref={frameRef} className="w-full flex justify-center">
-        {/* Reserves the scaled footprint. The scaled child is transformed, so
-            it no longer occupies its own layout box — without this the page
-            would collapse to nothing and the site footer would ride up over
-            the itinerary. */}
-        <div
-          className="published-doc-fit"
-          style={box ? { width: box.width * box.scale, height: box.height * box.scale } : undefined}
-        >
-          <div
-            ref={scalerRef}
-            className="published-doc-scaler w-fit"
-            style={{
-              transform: box ? `scale(${box.scale})` : undefined,
-              transformOrigin: "top left",
-              // Hidden rather than unmounted for the first frame: it has to be
-              // in the DOM at full size to be measurable at all.
-              visibility: box ? undefined : "hidden",
-            }}
-          >
-            {/* No radius, no shadow, no border — see ItineraryDocument's
-                `variant`. On this route the document is not a preview OF a
-                page, it is the page. */}
-            <ItineraryDocument form={form} published variant="page" />
-          </div>
-        </div>
+      {/* No scaler any more.
+          The document used to be a fixed 210mm sheet, so the only way to fit
+          it on a phone was to measure it, scale it down and reserve the
+          scaled footprint — a whole apparatus of refs, a ResizeObserver and a
+          hidden first frame, all to make an A4 page legible on a 390px
+          screen. It never really was: it produced a shrunk sheet the reader
+          had to pinch at.
+          The document now takes the width it is given on this route (see the
+          data-published rules in PRINT_STYLES), so there is nothing left to
+          scale. */}
+      <div className="w-full">
+        <ItineraryDocument form={form} published variant="page" />
       </div>
 
       <BookingBar form={form} packageId={packageId} />

@@ -3575,6 +3575,36 @@ const PRINT_STYLES = `
   .export-only { display: none; }
   .itinerary-print-area[data-exporting] .export-only,
   .itinerary-print-area[data-published] .export-only { display: inline; }
+
+  /* ── The published page takes the width it is given ──────────────────────
+     The document is 210mm wide by construction, because it is the PDF's own
+     DOM. That is right for the two output paths and wrong for the third: on
+     the client's link it made a phone show a whole A4 sheet shrunk to thumb
+     size, and a desktop show a narrow column stranded in the middle.
+
+     So on screen, and only there, the page stops being a sheet. It fills the
+     space it is given, up to a width that is still comfortable to read; and
+     anything that would sprawl at that width carries the screen-space class,
+     which caps it and centres it inside.
+
+     Scoped to @media screen so browser print reverts to A4 on its own, and
+     excluded while data-exporting because the PDF exporter rasterises this
+     same DOM and does evaluate screen media — without that, the capture would
+     come out at whatever width the reader's window happened to be. */
+  @media screen {
+    .itinerary-print-area[data-published]:not([data-exporting]) {
+      width: 100% !important;
+      max-width: var(--doc-page-width, 1080px) !important;
+      min-height: 0 !important;
+    }
+    /* Blocks that read badly full-bleed — long prose, the policy columns —
+       stay at a measure the eye can track. Everything else, the cover and the
+       day cards and the tables, is happier with the room. */
+    .itinerary-print-area[data-published]:not([data-exporting]) .screen-space {
+      max-width: var(--doc-read-width, 820px);
+      margin-inline: auto;
+    }
+  }
   @media print {
     .export-only { display: inline; }
     body * { visibility: hidden; }
@@ -3919,7 +3949,10 @@ export function ItineraryDocument({
               value={form.description}
               field={{ scope: "package", key: "description" }}
               placeholder="Describe this package for the client — click to add…"
-              className="block text-sm text-neutral-800 leading-relaxed"
+              // screen-space: prose set the full width of a wide desktop is
+              // a line the eye loses its place on. Capped and centred on the
+              // published page only — see PRINT_STYLES.
+              className="screen-space block text-sm text-neutral-800 leading-relaxed"
             />
 
             <TicketsSection
@@ -4231,7 +4264,7 @@ export function ItineraryDocument({
                   value={form.termsNotes}
                   field={{ scope: "package", key: "termsNotes" }}
                   placeholder="Additional terms or notes for this package — click to add…"
-                  className="block text-[11px] leading-relaxed text-neutral-800"
+                  className="screen-space block text-[11px] leading-relaxed text-neutral-800"
                 />
               )}
 
