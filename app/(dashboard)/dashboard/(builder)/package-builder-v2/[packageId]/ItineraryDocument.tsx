@@ -3330,7 +3330,17 @@ function HeroCover({
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 px-[10mm] pb-[15mm]">
+      {/* The photo is full-bleed; the words on it are not. Without the inner
+          measure the client's name and the title sat hard against the window
+          edge while the trip-stats card directly below them started at the
+          content margin — the two most prominent things on the page, out of
+          line with each other by an inch. */}
+      <div className="absolute inset-x-0 bottom-0 pb-[15mm]">
+        {/* screen-space and the page margin on ONE element, exactly as the
+            trip-stats card below carries them — nested the other way round
+            the two would land a few millimetres apart on a wide window, which
+            is worse than not aligning them at all. */}
+        <div className="screen-space px-[10mm]">
         {/* The client's own name, handwritten, sitting on top of the title —
             so the cover reads as one phrase, "Suraj's / Alleppey & Kochi
             Weekend Escape", and the document looks addressed to a person
@@ -3395,6 +3405,7 @@ function HeroCover({
             chips fought the scrim for legibility and a long itinerary wrapped to
             three lines that pushed the whole lockup off the cover. On paper it
             reads as document meta, next to who the trip is for. */}
+        </div>
       </div>
 
       {/* Wave transition into the body below — filled with the paper tone,
