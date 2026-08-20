@@ -3,13 +3,16 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, Search, Link2, Link2Off, Loader2 } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, Search, Link2, Link2Off, Loader2, DatabaseZap, MapPin, AlertTriangle } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { cn } from "@/app/lib/utils";
 import { fillPendingHotel, rejectPendingHotel } from "../actions";
 import { searchHotelRoomsForBuilder, type HotelRoomResult } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { findSimilarHotels, quickCreateHotelRate, addRateToHotel } from "../catalog-actions";
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import type { LocationValue } from "../../components/location/location.types";
 import { TimeSelect } from "./TimeSelect";
 import { ImageDropField } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ImageDropField";
 
@@ -29,7 +32,19 @@ const MEAL_KEY_LABELS: Record<string, string> = {
     breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
 };
 
+// The exec's request keys aren't the catalog's vocabulary: hotels.stay_type is
+// free text ("4 Star") and hotels.category is a slug ("resort"). Mapping them
+// here means a quick-created property arrives already classified the way the
+// rest of the catalog is, instead of blank.
+const REQUEST_STAY_TYPE: Record<string, string> = {
+    STAR_3: "3 Star", STAR_4: "4 Star", STAR_5: "5 Star",
+};
+const REQUEST_CATEGORY: Record<string, string> = {
+    RESORT: "resort", HOMESTAY: "homestay", CAMP: "camp", BOUTIQUE: "boutique_hotel",
+};
+
 type MealType = { id: number; name: string; covered_meals: string[] };
+type SimilarHotel = Awaited<ReturnType<typeof findSimilarHotels>>[number];
 
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
@@ -92,6 +107,18 @@ export function FillHotelForm({
     const [results, setResults] = useState<HotelRoomResult[]>([]);
     const [searching, setSearching] = useState(false);
     const [searched, setSearched] = useState(false);
+    // Saving to the catalog is the default, not an extra step someone has to
+    // remember — leaving it off is what produced a catalog that never grew.
+    const [saveToCatalog, setSaveToCatalog] = useState(true);
+    const [city, setCity] = useState((location ?? "").split(",")[0]?.trim() ?? "");
+    const [stayType, setStayType] = useState(requestedType ? (REQUEST_STAY_TYPE[requestedType] ?? "") : "");
+    const [pin, setPin] = useState<LocationValue | null>(null);
+    const [validFrom, setValidFrom] = useState(dayDateISO ?? "");
+    const [validTo, setValidTo] = useState("");
+    const [similar, setSimilar] = useState<SimilarHotel[]>([]);
+    // Set when the admin recognises one of the near-matches as the property on
+    // the phone: the rate is added to that hotel instead of creating a second one.
+    const [attachTo, setAttachTo] = useState<SimilarHotel | null>(null);
     const [rejecting, setRejecting] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
     const [rejectDone, setRejectDone] = useState(false);
@@ -125,6 +152,21 @@ export function FillHotelForm({
         }, 250);
         return () => { cancelled = true; clearTimeout(t); };
     }, [catalogQuery, location, dayDateISO]);
+
+    // Runs off the hotel name as it is typed, so the warning is in front of the
+    // admin before they commit — after the fact it is just a duplicate.
+    useEffect(() => {
+        const n = hotelName.trim();
+        let cancelled = false;
+        const t = setTimeout(() => {
+            if (cancelled) return;
+            if (linked || !saveToCatalog || n.length < 3) { setSimilar([]); return; }
+            findSimilarHotels(n, city)
+                .then((rows) => { if (!cancelled) setSimilar(rows); })
+                .catch(() => { if (!cancelled) setSimilar([]); });
+        }, 350);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [hotelName, city, linked, saveToCatalog]);
 
     /** Copies a catalog rate into the form and remembers what it came from. */
     function pickRate(r: HotelRoomResult) {
@@ -173,6 +215,40 @@ export function FillHotelForm({
 
     function handleSubmit() {
         startTransition(async () => {
+            // The catalog write happens first: if it fails, the day stays pending
+            // and the admin can retry or turn the switch off, rather than ending
+            // up with a filled day and a silently lost hotel.
+            let linkId: number | null = linked?.id ?? null;
+            if (linkId == null && saveToCatalog && hotelName.trim()) {
+                const shared = {
+                    roomName: roomName.trim() || "Standard Room",
+                    pricePerNight: parseFloat(pricePerNight) || 0,
+                    packageId,
+                    day,
+                    mealTypeId: mealTypes.find((m) => m.name === mealPlan)?.id ?? null,
+                    extraBedRate: parseFloat(extraBedRate) || null,
+                    validFrom: validFrom || null,
+                    validTo: validTo || null,
+                };
+                const saved = attachTo
+                    ? await addRateToHotel({ ...shared, hotelId: attachTo.id })
+                    : await quickCreateHotelRate({
+                        ...shared,
+                        name: hotelName.trim(),
+                        city: city.trim(),
+                        state: pin?.state_name ?? null,
+                        stayType: stayType || null,
+                        category: requestedType ? (REQUEST_CATEGORY[requestedType] ?? null) : null,
+                        latitude: pin?.latitude ?? NaN,
+                        longitude: pin?.longitude ?? NaN,
+                    });
+                if (!saved.success) {
+                    toast.error(saved.error ?? "Couldn't save this hotel to the catalog.");
+                    return;
+                }
+                linkId = saved.roomPricingId ?? null;
+            }
+
             const result = await fillPendingHotel(packageId, day, {
                 hotelName,
                 roomName,
@@ -188,7 +264,7 @@ export function FillHotelForm({
                 mealPlan,
                 meals,
                 note: notes,
-                roomPricingId: linked?.id ?? null,
+                roomPricingId: linkId,
             });
             if (result.success) {
                 setDone(true);
@@ -414,6 +490,137 @@ export function FillHotelForm({
                 ) : null}
             </div>
 
+            {/* Everything this needs beyond the fields above is four answers, so it
+                is a switch on the existing form rather than a second one. Off by
+                exception only — a fill that saves nothing is how the catalog
+                stayed as thin as it was. */}
+            {!linked && (
+                <div className="rounded-md border border-dashboard-border bg-dashboard-muted/40 px-2.5 py-2 space-y-2">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={saveToCatalog}
+                            onChange={(e) => setSaveToCatalog(e.target.checked)}
+                            className="mt-0.5 size-3.5 accent-emerald-600"
+                        />
+                        <span className="min-w-0">
+                            <span className="text-[11px] font-semibold text-dashboard-text flex items-center gap-1">
+                                <DatabaseZap className="size-3" /> Save this hotel and rate to the catalog
+                            </span>
+                            <span className="text-[10px] text-dashboard-neutral block leading-snug">
+                                Every exec can pick it from the builder straight away. Stays off the public site until someone completes it.
+                            </span>
+                        </span>
+                    </label>
+
+                    {saveToCatalog && (
+                        <div className="space-y-2 pl-5">
+                            {similar.length > 0 && !attachTo && (
+                                <div className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 space-y-1">
+                                    <p className="text-[11px] font-semibold text-amber-900 flex items-center gap-1">
+                                        <AlertTriangle className="size-3" /> Already on file — is it one of these?
+                                    </p>
+                                    {similar.map((h) => (
+                                        <button
+                                            key={h.id}
+                                            type="button"
+                                            onClick={() => setAttachTo(h)}
+                                            className="w-full text-left rounded bg-white border border-amber-200 px-2 py-1 hover:border-amber-400 transition-colors"
+                                        >
+                                            <span className="text-[11px] font-medium text-dashboard-text">{h.name}</span>
+                                            <span className="text-[10px] text-dashboard-neutral block">
+                                                {h.location ?? "no town on file"}
+                                                {h.starRating ? ` · ${h.starRating}` : ""}
+                                                {` · ${h.rateCount} rate${h.rateCount === 1 ? "" : "s"}`}
+                                                {h.sameCity ? " · same town" : ""}
+                                            </span>
+                                        </button>
+                                    ))}
+                                    <p className="text-[10px] text-amber-800">
+                                        Pick one to add this rate to it, or carry on to create a new property.
+                                    </p>
+                                </div>
+                            )}
+
+                            {attachTo ? (
+                                <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5">
+                                    <Link2 className="size-3.5 text-emerald-700 mt-0.5 shrink-0" />
+                                    <p className="text-[11px] text-emerald-900 flex-1 leading-snug">
+                                        Adding this rate to <strong>{attachTo.name}</strong> — no new property will be created.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAttachTo(null)}
+                                        className="text-[10px] text-emerald-800 underline underline-offset-2 shrink-0"
+                                    >
+                                        Undo
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] text-dashboard-neutral mb-1 block">Town</label>
+                                            <Input
+                                                value={city}
+                                                onChange={(e) => setCity(e.target.value)}
+                                                placeholder="e.g. Rishikesh"
+                                                className="text-xs h-8 bg-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-dashboard-neutral mb-1 block">Star rating</label>
+                                            <Input
+                                                value={stayType}
+                                                onChange={(e) => setStayType(e.target.value)}
+                                                placeholder="e.g. 4 Star"
+                                                className="text-xs h-8 bg-white"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] text-dashboard-neutral mb-1 flex items-center gap-1">
+                                            <MapPin className="size-2.5" /> Where it is
+                                            <span className="text-red-600">*</span>
+                                        </label>
+                                        <LocationSearchSelect
+                                            value={pin}
+                                            onChange={setPin}
+                                            placeholder="Search the hotel or its area…"
+                                        />
+                                        {!pin && (
+                                            <p className="text-[10px] text-dashboard-neutral mt-1">
+                                                Without this the hotel won&apos;t turn up when an exec searches near a stop, or show a drive distance.
+                                            </p>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[10px] text-dashboard-neutral mb-1 block">Rate quoted from</label>
+                                    <Input
+                                        type="date" value={validFrom}
+                                        onChange={(e) => setValidFrom(e.target.value)}
+                                        className="text-xs h-8 bg-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-dashboard-neutral mb-1 block">…until</label>
+                                    <Input
+                                        type="date" value={validTo}
+                                        onChange={(e) => setValidTo(e.target.value)}
+                                        className="text-xs h-8 bg-white"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className="text-[11px] text-dashboard-neutral mb-1 block">Hotel Name</label>
@@ -609,7 +816,13 @@ export function FillHotelForm({
             <Button
                 size="sm"
                 className="h-9 text-sm"
-                disabled={isPending || !hotelName.trim() || !(parseFloat(pricePerNight) > 0)}
+                disabled={
+                    isPending || !hotelName.trim() || !(parseFloat(pricePerNight) > 0)
+                    // Creating a property without coordinates makes one nobody
+                    // can find by distance; adding a rate to an existing hotel
+                    // or linking one needs no pin.
+                    || (saveToCatalog && !linked && !attachTo && (!city.trim() || !pin))
+                }
                 onClick={handleSubmit}
             >
                 {isPending ? "Saving…" : "Save Hotel"}
