@@ -78,7 +78,7 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
   return (
     <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
       {multi && (
-        <div className="mx-auto w-full max-w-[var(--doc-content-width,1200px)] pb-2 flex flex-wrap items-center gap-1.5">
+        <div className="mx-auto w-full max-w-6xl pb-2 flex flex-wrap items-center gap-1.5">
           {options.map((o) => {
             const on = o.id === chosenId;
             return (
@@ -106,9 +106,12 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
         </div>
       )}
 
-      {/* Same measure the document's own sections use, so the price and the
-          Book button sit under the content rather than adrift of it. */}
-      <div className="mx-auto flex w-full max-w-[var(--doc-content-width,1200px)] items-center justify-between gap-4">
+      {/* max-w-6xl, the same measure the document's sections land at, so the
+          price and the Book button sit under the content rather than adrift of
+          it. Written plainly rather than through the document's custom
+          property: this bar is outside the document, so none of the zoom
+          compensation that property is divided by applies to it. */}
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="font-heading text-lg font-bold tracking-tight text-primary-500 truncate">{priceStr}</p>
           <p className="text-xs text-neutral-500">
