@@ -92,6 +92,7 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                                 day={it.day}
                                 location={location}
                                 dateLabel={dateLabel}
+                                dayDateISO={dayDate ? dayDate.toISOString().slice(0, 10) : null}
                                 paxLabel={paxLabel}
                                 note={it.hotelPendingNote}
                                 requestedType={it.hotelRequestType}

@@ -118,6 +118,18 @@ export interface HotelRoomResult {
   hotelPhoto:    string | null;
   /** Up to 3 photos of the specific room booked. */
   roomPhotos:    string[];
+  /**
+   * The same two photos as the storage keys they were built from, rather than
+   * as display URLs.
+   *
+   * custom_itineraries.accommodationPhoto/accommodationRoomPhotos hold keys and
+   * are prefixed with the bucket base at render time, so anything copying a
+   * picked rate's photos onto a day (the hotel-requests fill form) has to write
+   * the key — handing it the already-resolved URL above prefixes it twice and
+   * the image silently fails to load.
+   */
+  hotelPhotoKey: string | null;
+  roomPhotoKeys: string[];
   category:      string | null;
   /** Star rating as stored, e.g. "3 Star" — null when the hotel has none set. */
   starRating:    string | null;
@@ -138,6 +150,10 @@ export interface HotelRoomResult {
   maxChildren:   number | null;
   /** Extra mattress/rollaway beds the room can accommodate beyond its base occupancy — 0 if none. */
   extraBedCapacity: number;
+  /** Catalog rate per extra mattress — null when the rate sheet doesn't price
+   * one. Surfaced so the hotel-requests fill form can carry it across when an
+   * admin picks this rate, instead of leaving the mattress line unpriced. */
+  extraBedRate:  number | null;
   childCotAvailable: boolean;
   /** Straight-line distance in km from the searched destination — null when
    * either point couldn't be resolved (no ref coords given, or this hotel
@@ -282,6 +298,8 @@ function mapHotelRoomRow(
     thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
     hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
     roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
+    hotelPhotoKey: rawHotelPhoto,
+    roomPhotoKeys: rawRoomPhotos,
     category:      item.hotel.category,
     starRating:    item.hotel.stay_type,
     location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
@@ -292,6 +310,7 @@ function mapHotelRoomRow(
     maxAdults:     item.room?.max_adults ?? null,
     maxChildren:   item.room?.max_children ?? null,
     extraBedCapacity,
+    extraBedRate:  item.extra_bed_rate != null ? Number(item.extra_bed_rate) : null,
     childCotAvailable: item.room?.child_cot_available ?? false,
     distanceKm,
   };

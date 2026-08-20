@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, Search, Link2, Link2Off, Loader2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { cn } from "@/app/lib/utils";
 import { fillPendingHotel, rejectPendingHotel } from "../actions";
+import { searchHotelRoomsForBuilder, type HotelRoomResult } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { TimeSelect } from "./TimeSelect";
 import { ImageDropField } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ImageDropField";
 
@@ -33,7 +34,7 @@ type MealType = { id: number; name: string; covered_meals: string[] };
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
     requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypes,
-    rejectedAt, rejectedByName, rejectionNote,
+    rejectedAt, rejectedByName, rejectionNote, dayDateISO,
 }: {
     packageId: string;
     day: number;
@@ -59,6 +60,9 @@ export function FillHotelForm({
     rejectedAt?: Date | null;
     rejectedByName?: string | null;
     rejectionNote?: string | null;
+    /** This day's travel date as YYYY-MM-DD, so a catalog rate is priced for
+     * the night actually being sold rather than at its off-season base. */
+    dayDateISO?: string | null;
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -80,9 +84,79 @@ export function FillHotelForm({
         requestedPlanMatch ? requestedPlanMatch.covered_meals.map((k) => MEAL_KEY_LABELS[k] ?? k) : [],
     );
     const [done, setDone] = useState(false);
+    // The catalog rate this fill is linked to, when the admin picked one out of
+    // the search instead of typing a hotel in. Dropped the moment they edit the
+    // hotel, room or price away from it — see dropLink below.
+    const [linked, setLinked] = useState<HotelRoomResult | null>(null);
+    const [catalogQuery, setCatalogQuery] = useState("");
+    const [results, setResults] = useState<HotelRoomResult[]>([]);
+    const [searching, setSearching] = useState(false);
+    const [searched, setSearched] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
     const [rejectDone, setRejectDone] = useState(false);
+
+    // Scoped to the town the exec asked for, so the first thing the admin sees
+    // is what this catalog already has there. searchHotelRoomsForBuilder takes
+    // the city ahead of the comma, and a typed query reaches beyond it for a
+    // property that sits in the next town over.
+    useEffect(() => {
+        const city = location ?? "";
+        const q = catalogQuery.trim();
+        let cancelled = false;
+        // Every state change sits inside the timer rather than the effect body:
+        // the debounce is what this effect is for, and setting state up front
+        // would re-render on each keystroke to no purpose.
+        const t = setTimeout(() => {
+            if (cancelled) return;
+            if (!city && !q) { setResults([]); setSearched(false); return; }
+            setSearching(true);
+            searchHotelRoomsForBuilder(
+                city, q, null, 1, null, null, null, "price_asc", null,
+                dayDateISO ?? null, null,
+            )
+                .then((res) => {
+                    if (cancelled) return;
+                    setResults(res.rows.slice(0, 6));
+                    setSearched(true);
+                })
+                .catch(() => { if (!cancelled) setResults([]); })
+                .finally(() => { if (!cancelled) setSearching(false); });
+        }, 250);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [catalogQuery, location, dayDateISO]);
+
+    /** Copies a catalog rate into the form and remembers what it came from. */
+    function pickRate(r: HotelRoomResult) {
+        setLinked(r);
+        setHotelName(r.hotelName);
+        setRoomName(r.roomName);
+        setPricePerNight(String(r.pricePerNight));
+        if (r.extraBedRate != null) setExtraBedRate(String(r.extraBedRate));
+        if (r.roomSpecs) setRoomSpecs(r.roomSpecs);
+        if (r.checkInTime) setCheckIn(r.checkInTime);
+        if (r.checkOutTime) setCheckOut(r.checkOutTime);
+        // Keys, not the display URLs on the same object — the day prefixes
+        // these with the bucket base itself.
+        if (r.hotelPhotoKey) setHotelPhoto(r.hotelPhotoKey);
+        if (r.roomPhotoKeys.length) {
+            setRoomPhotos([r.roomPhotoKeys[0] ?? "", r.roomPhotoKeys[1] ?? "", r.roomPhotoKeys[2] ?? ""]);
+        }
+        if (r.mealPlanName) {
+            const plan = mealTypes.find((m) => m.name === r.mealPlanName);
+            if (plan) selectMealPlan(plan);
+            else setMealPlan(r.mealPlanName);
+        }
+        setCatalogQuery("");
+    }
+
+    /**
+     * Any edit to what the link asserts breaks it. Costing prefers the linked
+     * rate over the typed price, so a link left in place after the admin typed
+     * a different number would quietly sell at the catalog rate instead of the
+     * one they negotiated.
+     */
+    function dropLink() { setLinked(null); }
 
     function toggleMeal(m: string) {
         setMeals((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
@@ -114,6 +188,7 @@ export function FillHotelForm({
                 mealPlan,
                 meals,
                 note: notes,
+                roomPricingId: linked?.id ?? null,
             });
             if (result.success) {
                 setDone(true);
@@ -264,12 +339,87 @@ export function FillHotelForm({
                 </div>
             )}
 
+            {/* Search the catalog before typing anything. A hotel already on
+                file costs one click and links the day to its real rate; only a
+                property genuinely not in the catalog needs the fields below. */}
+            <div className="rounded-md border border-dashboard-border bg-dashboard-muted/40 px-2.5 py-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                    <label className="text-[11px] font-semibold text-dashboard-neutral flex items-center gap-1">
+                        <Search className="size-3" /> Search hotels already on file
+                        {location && <span className="font-normal opacity-70">in {location.split(",")[0]}</span>}
+                    </label>
+                    {searching && <Loader2 className="size-3 animate-spin text-dashboard-neutral" />}
+                </div>
+
+                <Input
+                    value={catalogQuery}
+                    onChange={(e) => setCatalogQuery(e.target.value)}
+                    placeholder={location ? `Hotel name — or another town` : "Hotel name or town"}
+                    className="text-sm h-9 bg-white"
+                />
+
+                {linked ? (
+                    <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5">
+                        <Link2 className="size-3.5 text-emerald-700 mt-0.5 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold text-emerald-900 leading-snug">
+                                Linked to {linked.hotelName} — {linked.roomName}
+                            </p>
+                            <p className="text-[10px] text-emerald-800">
+                                Priced from the catalog{linked.isSeasonalRate ? " at this date's season rate" : ""}. Saved to the package and reusable.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={dropLink}
+                            className="text-[10px] text-emerald-800 hover:text-emerald-950 underline underline-offset-2 shrink-0 inline-flex items-center gap-0.5"
+                        >
+                            <Link2Off className="size-3" /> Unlink
+                        </button>
+                    </div>
+                ) : results.length > 0 ? (
+                    <div className="divide-y divide-dashboard-border rounded-md border border-dashboard-border bg-white overflow-hidden">
+                        {results.map((r) => (
+                            <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => pickRate(r)}
+                                className="w-full text-left px-2.5 py-2 hover:bg-emerald-50/60 transition-colors flex items-start gap-2"
+                            >
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold text-dashboard-text leading-snug truncate">
+                                        {r.hotelName}
+                                    </p>
+                                    <p className="text-[10px] text-dashboard-neutral truncate">
+                                        {r.roomName}
+                                        {r.mealPlanName ? ` · ${r.mealPlanName}` : ""}
+                                        {r.location ? ` · ${r.location}` : ""}
+                                    </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <p className="text-xs font-bold text-dashboard-text tabular-nums">
+                                        ₹{r.pricePerNight.toLocaleString("en-IN")}
+                                    </p>
+                                    {r.starRating && (
+                                        <p className="text-[10px] text-amber-700">★ {r.starRating}</p>
+                                    )}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                ) : searched && !searching ? (
+                    <p className="text-[11px] text-dashboard-neutral">
+                        Nothing on file{location ? ` for ${location.split(",")[0]}` : ""} yet — fill it in below.
+                    </p>
+                ) : null}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className="text-[11px] text-dashboard-neutral mb-1 block">Hotel Name</label>
                     <Input
                         value={hotelName}
-                        onChange={(e) => setHotelName(e.target.value)}
+                        onChange={(e) => { setHotelName(e.target.value); dropLink(); }}
                         placeholder="Hotel name"
                         className="text-sm h-9"
                     />
@@ -278,7 +428,7 @@ export function FillHotelForm({
                     <label className="text-[11px] text-dashboard-neutral mb-1 block">Room Name</label>
                     <Input
                         value={roomName}
-                        onChange={(e) => setRoomName(e.target.value)}
+                        onChange={(e) => { setRoomName(e.target.value); dropLink(); }}
                         placeholder="e.g. Deluxe Room"
                         className="text-sm h-9"
                     />
@@ -318,7 +468,13 @@ export function FillHotelForm({
                     <Input
                         type="number" min={0}
                         value={pricePerNight}
-                        onChange={(e) => setPricePerNight(e.target.value)}
+                        onChange={(e) => {
+                            setPricePerNight(e.target.value);
+                            // A negotiated rate that isn't the catalog's is a
+                            // manual fill, not a link — costing would otherwise
+                            // prefer the catalog number over this one.
+                            if (linked && e.target.value !== String(linked.pricePerNight)) dropLink();
+                        }}
                         placeholder="e.g. 1000"
                         className="text-sm h-9"
                     />

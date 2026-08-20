@@ -57,6 +57,23 @@ export type FillHotelInput = {
      * check-in") — shown in the builder's Hotel Info card, never in the
      * itinerary PDF. See custom_itineraries.hotelFillNote. */
     note?: string;
+    /**
+     * The catalog rate this fill was taken from, when the admin picked one out
+     * of the hotel search rather than typing a hotel in by hand.
+     *
+     * Linking it is the whole point of searching first: the day stops being a
+     * name and a number that live only on this package and starts pointing at
+     * a real hotel_room_pricing row, so pricing runs through the catalog
+     * branch of computeBuilderHotelPricing (which takes precedence over
+     * manualHotelPricePerNight) and the property is already there the next
+     * time someone needs it.
+     *
+     * Only sent when the admin left the catalog's own price alone. The moment
+     * they type a different rate, the form drops the link and submits as a
+     * manual fill, because a negotiated price that isn't the catalog price
+     * must not be silently replaced by the catalog price at costing time.
+     */
+    roomPricingId?: number | null;
 };
 
 export async function fillPendingHotel(
@@ -71,6 +88,21 @@ export async function fillPendingHotel(
     const roomName = input.roomName.trim();
     if (!hotelName) return { success: false, error: "Hotel name is required." };
     if (!(input.pricePerNight > 0)) return { success: false, error: "Enter a valid B2B price." };
+
+    // A stale link is worse than no link: the picker's results could have been
+    // deactivated between the search and the submit, and a day pointing at a
+    // dead rate prices as zero rather than failing loudly.
+    let linkedPricingId: number | null = null;
+    if (input.roomPricingId != null) {
+        const rate = await db.hotel_room_pricing.findFirst({
+            where: { id: input.roomPricingId, is_active: true, hotel: { is_active: true } },
+            select: { id: true },
+        });
+        if (!rate) {
+            return { success: false, error: "That catalog rate is no longer available — search again or fill it in by hand." };
+        }
+        linkedPricingId = rate.id;
+    }
 
     const row = await db.custom_itineraries.findFirst({
         where: { customPackageId: packageId, day },
@@ -94,6 +126,11 @@ export async function fillPendingHotel(
             manualExtraBeds: Math.max(0, Math.round(input.extraBeds ?? 0)),
             manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
             manualHotelPricePerNight: input.pricePerNight,
+            // Kept alongside the manual fields rather than instead of them:
+            // computeBuilderHotelPricing prefers roomPricingId, so the manual
+            // price becomes an inert fallback, while the accommodation name and
+            // specs above stay as the snapshot the sold document renders from.
+            roomPricingId: linkedPricingId,
             hotelPending: false,
             hotelFilledAt: new Date(),
             hotelFilledById: auth.member.id,
