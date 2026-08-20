@@ -81,6 +81,7 @@ const HOTEL_ROOM_SELECT = {
       // `category` is the property TYPE (hotel/resort/homestay/…); the star
       // rating the user actually means by "3/4/5 star" lives in `stay_type`
       // as free text ("3 Star", "4 Star", …) — both are exposed separately.
+      id: true,
       name: true, category: true, stay_type: true, thumbnail: true, city: true, state: true,
       check_in_time: true, check_out_time: true,
       images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 1 },
@@ -140,12 +141,85 @@ export interface HotelRoomResult {
   childCotAvailable: boolean;
   /** Straight-line distance in km from the searched destination — null when
    * either point couldn't be resolved (no ref coords given, or this hotel
-   * has no stored location). */
+   * has no stored location). Used to rank and page results; never displayed,
+   * because in the hills it understates the drive several-fold. */
   distanceKm:    number | null;
+  /** Driving distance and time from the searched destination, resolved for the
+   * page being returned (see annotateRoadDistances). Null when routing had no
+   * answer — the picker then shows no distance at all rather than a
+   * straight-line figure a planner would read as a drive. */
+  roadKm:        number | null;
+  roadMin:       number | null;
+  /** Hotel identity/coordinates, carried so the page can be road-routed. */
+  hotelId:       number;
+  hotelLat:      number | null;
+  hotelLng:      number | null;
 }
 
-/** Haversine straight-line distance in km — good enough for "how far from
- * town" context; not a driving distance. */
+/**
+ * Fills roadKm/roadMin on one page of results with real driving figures, in a
+ * single OSRM table call.
+ *
+ * The picker used to badge each hotel with the straight-line `haversineKm`
+ * below, labelled only "km". That reads close to the drive on the plains, which
+ * is why it went unnoticed while the catalog was mostly southern; in the hills
+ * it does not. Measured against this routing data, Uttarakhand pairs 15-40km
+ * apart as the crow flies run a median 2.5x and up to 5.3x longer by road, and
+ * every hotel inside 50km of Uttarkashi is a 100km+, near-two-hour drive away
+ * in Mussoorie. A stay nobody could reach after a day's sightseeing looked like
+ * a short hop.
+ *
+ * Only the returned page is routed, not the whole result set, and hotels are
+ * de-duplicated by id because several priced rooms of one hotel share a pin.
+ */
+async function annotateRoadDistances(
+  refCoords: { lat: number; lng: number } | null | undefined,
+  rows: HotelRoomResult[],
+): Promise<HotelRoomResult[]> {
+  if (!refCoords || rows.length === 0) return rows;
+  const seen = new Set<number>();
+  const targets: { id: number; lat: number; lng: number }[] = [];
+  for (const r of rows) {
+    if (seen.has(r.hotelId) || r.hotelLat == null || r.hotelLng == null) continue;
+    seen.add(r.hotelId);
+    targets.push({ id: r.hotelId, lat: r.hotelLat, lng: r.hotelLng });
+  }
+  if (targets.length === 0) return rows;
+
+  const coords = [`${refCoords.lng},${refCoords.lat}`, ...targets.map((t) => `${t.lng},${t.lat}`)].join(";");
+  try {
+    const res = await fetch(
+      `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&annotations=distance,duration`,
+      // Road geometry barely moves; a day of caching keeps repeated picker
+      // opens off the public routing service entirely.
+      { next: { revalidate: 86400 } },
+    );
+    if (!res.ok) return rows;
+    const data = await res.json();
+    if (data.code !== "Ok" || !Array.isArray(data.distances?.[0])) return rows;
+    const dist: (number | null)[] = data.distances[0];
+    const dur: (number | null)[] | undefined = data.durations?.[0];
+    const byHotel = new Map<number, { km: number; min: number }>();
+    targets.forEach((t, i) => {
+      const m = dist[i + 1];
+      // OSRM returns null for a coordinate it cannot snap to the road network
+      // (an island, a bad pin) — those stay unbadged rather than guessed at.
+      if (m == null || m < 0) return;
+      const secs = dur?.[i + 1];
+      byHotel.set(t.id, { km: Math.round((m / 1000) * 10) / 10, min: secs != null ? Math.round(secs / 60) : 0 });
+    });
+    return rows.map((r) => {
+      const hit = byHotel.get(r.hotelId);
+      return hit ? { ...r, roadKm: hit.km, roadMin: hit.min } : r;
+    });
+  } catch {
+    // Network trouble leaves every badge hidden rather than wrong.
+    return rows;
+  }
+}
+
+/** Haversine straight-line distance in km — used only to rank and page results,
+ * never shown; see annotateRoadDistances for the figure a planner reads. */
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -194,6 +268,11 @@ function mapHotelRoomRow(
 
   return {
     id:            item.id,
+    hotelId:       item.hotel.id,
+    hotelLat:      hotelLat,
+    hotelLng:      hotelLng,
+    roadKm:        null,
+    roadMin:       null,
     hotelName:     item.hotel.name,
     roomName:      item.room?.name ?? "Room",
     mealPlanName:  item.meal_type?.name ?? null,
@@ -401,8 +480,9 @@ export async function searchHotelRoomsForBuilder(
   const hiddenNoSeasonRate = dated ? mapped.length - combined.length : 0;
 
   const start = (Math.max(page, 1) - 1) * HOTEL_SEARCH_PAGE_SIZE;
+  const pageRows = await annotateRoadDistances(refCoords, combined.slice(start, start + HOTEL_SEARCH_PAGE_SIZE));
   return {
-    rows: combined.slice(start, start + HOTEL_SEARCH_PAGE_SIZE),
+    rows: pageRows,
     total: combined.length,
     /** How many rooms were dropped for having no rate on this date — so the
      * picker can say why a hotel someone expected is missing, instead of

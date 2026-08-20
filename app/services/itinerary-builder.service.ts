@@ -786,9 +786,11 @@ function toItems(list: {
     max_occupancy: number | null; max_adults: number | null; child_cot_available: boolean | null;
     images: { url: string; thumbnail: string | null }[];
   } | null;
-  /** Straight-line km from the day's stop — see searchRoomPricings. Null
-   * when there's no stop location to measure from. */
-  distanceKm?: number | null;
+  /** Driving distance and time from the day's stop — see searchRoomPricings.
+   * Null when there's no stop location to measure from, or when the routing
+   * service didn't answer: a missing number is better than a misleading one. */
+  roadKm?: number | null;
+  roadMin?: number | null;
 }[]) {
   return list.map((p) => ({ ...p, price_per_night: Number(p.price_per_night) }));
 }
@@ -813,6 +815,62 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   const dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Real driving distance and time from one origin to many hotels, in a single
+ * OSRM table call (same service the hotel-verification screen uses).
+ *
+ * The picker used to badge each stay with `haversineKm` straight from the
+ * great-circle helper above, labelled only "km". On the plains that reads close
+ * enough to the drive, which is why it went unnoticed while the catalog was
+ * mostly southern; in the hills it is not close at all. Measured against this
+ * very routing data, Uttarakhand stop→hotel pairs in the 15-40km band run a
+ * median 2.5x and up to 5.3x longer by road — Uttarkashi to a hotel 27km away
+ * as the crow flies is 124km of driving. A stay nobody could reach after a full
+ * day's sightseeing looked like a short hop, which is exactly how one ends up
+ * in a package.
+ *
+ * Keyed by hotel id, not room-pricing id: a hotel usually has several priced
+ * rooms in the same result page and they all sit at the same coordinates, so
+ * de-duplicating keeps one page comfortably inside OSRM's coordinate limit.
+ */
+const ROAD_MATRIX_LIMIT = 90; // OSRM public table service, minus the origin
+
+async function roadDistances(
+  originLat: number,
+  originLng: number,
+  hotels: { id: number; lat: number; lng: number }[],
+): Promise<Map<number, { km: number; min: number }>> {
+  const out = new Map<number, { km: number; min: number }>();
+  if (hotels.length === 0) return out;
+  const limited = hotels.slice(0, ROAD_MATRIX_LIMIT);
+  const coords = [`${originLng},${originLat}`, ...limited.map((h) => `${h.lng},${h.lat}`)].join(";");
+  try {
+    const res = await fetch(
+      `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&annotations=distance,duration`,
+      // Road geometry barely moves; a day of caching keeps repeated picker
+      // opens off the public routing service entirely.
+      { next: { revalidate: 86400 } },
+    );
+    if (!res.ok) return out;
+    const data = await res.json();
+    if (data.code !== "Ok") return out;
+    const dist: (number | null)[] | undefined = data.distances?.[0];
+    const dur: (number | null)[] | undefined = data.durations?.[0];
+    if (!Array.isArray(dist)) return out;
+    limited.forEach((h, i) => {
+      const m = dist[i + 1];
+      // OSRM returns null for a coordinate it cannot snap to the road network
+      // (an island, a bad pin) — those stay unbadged rather than guessed at.
+      if (m == null || m < 0) return;
+      const secs = dur?.[i + 1];
+      out.set(h.id, { km: Math.round((m / 1000) * 10) / 10, min: secs != null ? Math.round(secs / 60) : 0 });
+    });
+  } catch {
+    // Network trouble leaves the map empty and every badge hidden.
+  }
+  return out;
 }
 
 export async function searchRoomPricings(
@@ -891,10 +949,14 @@ export async function searchRoomPricings(
       select: HOTEL_SELECT,
     });
 
+    // Great-circle distance still does the ordering and the paging: it needs no
+    // network call and it is monotonic enough to decide which twenty hotels are
+    // worth looking at. It is never shown — road distance below is what the
+    // planner actually sees.
     const withDistance = rows.map((r) => ({
       row: r,
-      distanceKm: (stopLat != null && stopLng != null && r.hotel.location?.latitude != null && r.hotel.location?.longitude != null)
-        ? Math.round(haversineKm(stopLat, stopLng, Number(r.hotel.location.latitude), Number(r.hotel.location.longitude)) * 10) / 10
+      crowKm: (stopLat != null && stopLng != null && r.hotel.location?.latitude != null && r.hotel.location?.longitude != null)
+        ? haversineKm(stopLat, stopLng, Number(r.hotel.location.latitude), Number(r.hotel.location.longitude))
         : null,
     }));
 
@@ -902,14 +964,44 @@ export async function searchRoomPricings(
     withDistance.sort((a, b) => {
       if (effectiveSort === "price_asc") return a.row.price_per_night.toString().localeCompare(b.row.price_per_night.toString(), undefined, { numeric: true }) || a.row.hotel.name.localeCompare(b.row.hotel.name);
       if (effectiveSort === "price_desc") return b.row.price_per_night.toString().localeCompare(a.row.price_per_night.toString(), undefined, { numeric: true }) || a.row.hotel.name.localeCompare(b.row.hotel.name);
-      if (effectiveSort === "distance") return (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || a.row.hotel.name.localeCompare(b.row.hotel.name);
+      if (effectiveSort === "distance") return (a.crowKm ?? Infinity) - (b.crowKm ?? Infinity) || a.row.hotel.name.localeCompare(b.row.hotel.name);
       return a.row.hotel.name.localeCompare(b.row.hotel.name);
     });
 
     const start = (Math.max(page, 1) - 1) * ROOM_SEARCH_PAGE_SIZE;
     const pageSlice = withDistance.slice(start, start + ROOM_SEARCH_PAGE_SIZE);
+
+    // One routing call for the page that is about to be rendered, rather than
+    // for the whole candidate set: the set can run to hundreds of rows, and
+    // only these twenty carry a number the planner will read.
+    let road = new Map<number, { km: number; min: number }>();
+    if (stopLat != null && stopLng != null) {
+      const seen = new Set<number>();
+      const targets: { id: number; lat: number; lng: number }[] = [];
+      for (const p of pageSlice) {
+        const h = p.row.hotel;
+        if (seen.has(h.id) || h.location?.latitude == null || h.location?.longitude == null) continue;
+        seen.add(h.id);
+        targets.push({ id: h.id, lat: Number(h.location.latitude), lng: Number(h.location.longitude) });
+      }
+      road = await roadDistances(stopLat, stopLng, targets);
+    }
+
+    const items = pageSlice.map((p) => {
+      const r = road.get(p.row.hotel.id);
+      return { ...p.row, roadKm: r?.km ?? null, roadMin: r?.min ?? null };
+    });
+
+    // Order the page by the number it displays. The candidate set was ranked by
+    // great-circle above, so this only reshuffles within the page — two hotels
+    // can still straddle a page boundary out of road order, which beats showing
+    // a list sorted by one distance and labelled with another.
+    if (effectiveSort === "distance") {
+      items.sort((a, b) => (a.roadKm ?? Infinity) - (b.roadKm ?? Infinity) || a.hotel.name.localeCompare(b.hotel.name));
+    }
+
     return {
-      items: toItems(pageSlice.map((p) => ({ ...p.row, distanceKm: p.distanceKm }))),
+      items: toItems(items),
       has_more: withDistance.length > start + ROOM_SEARCH_PAGE_SIZE,
       total: withDistance.length,
     };

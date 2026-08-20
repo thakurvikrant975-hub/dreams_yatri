@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from "react";
+import { fmtDriveTime } from "@/app/lib/drive-time";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
@@ -501,9 +502,10 @@ export function HotelReplaceView({ day }: { day: number }) {
               meta={
                 <>
                   {room.starRating && <span>{room.starRating}</span>}
-                  {room.distanceKm != null && (
+                  {room.roadKm != null && (
                     <span className="flex items-center gap-0.5">
-                      <MapPin size={9} /> {room.distanceKm.toFixed(1)} km
+                      <MapPin size={9} /> {room.roadKm.toFixed(1)} km by road
+                      {room.roadMin ? ` · ${fmtDriveTime(room.roadMin)}` : ""}
                     </span>
                   )}
                   {/* Room's own inventory — sleep + mattress capacity, so it

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { fmtDriveTime } from "@/app/lib/drive-time";
 import { Popover as PopoverPrimitive } from "radix-ui";
 import Image from "next/image";
 import {
@@ -396,9 +397,9 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                         </p>
                         <div className="flex items-center gap-1 shrink-0">
                           {isSelected && <CheckIcon className="h-3.5 w-3.5 text-primary" />}
-                          {room.distanceKm != null && (
+                          {room.roadKm != null && (
                             <span className="text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                              {room.distanceKm} km
+                              {room.roadKm} km by road{room.roadMin ? ` · ${fmtDriveTime(room.roadMin)}` : ""}
                             </span>
                           )}
                         </div>

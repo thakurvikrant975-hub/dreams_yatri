@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { fmtDriveTime } from "@/app/lib/drive-time";
 import { toast } from "sonner";
 import {
   DndContext,   
@@ -1181,7 +1182,11 @@ type SearchedRoom = {
     max_occupancy: number | null; max_adults: number | null; child_cot_available: boolean | null;
     images: { url: string; thumbnail: string | null }[];
   } | null;
-  distanceKm?: number | null;
+  /** Driving distance/time from the day's stop — not straight-line. Null when
+   * the stop has no coordinates or routing didn't answer, in which case the
+   * badge is hidden rather than filled with a guess. */
+  roadKm?: number | null;
+  roadMin?: number | null;
 };
 
 const HOTEL_CAT_LABEL: Record<string, string> = {
@@ -1411,7 +1416,8 @@ function HotelPickerPanel({
             {items.map((item) => {
               const roomImg = item.room?.images?.[0];
               const imgKey = roomImg ? (roomImg.thumbnail ?? roomImg.url) : item.hotel.thumbnail;
-              const distKm = item.distanceKm ?? null;
+              const roadKm = item.roadKm ?? null;
+              const roadMin = item.roadMin ?? null;
               const coveredMeals = item.meal_type?.covered_meals ?? [];
 
               return (
@@ -1441,9 +1447,9 @@ function HotelPickerPanel({
                     {/* Name + distance */}
                     <div className="flex items-start gap-1.5 justify-between">
                       <p className="text-xs font-semibold leading-snug text-foreground">{item.hotel.name}</p>
-                      {distKm != null && (
+                      {roadKm != null && (
                         <span className="text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-                          {distKm.toFixed(1)} km
+                          {roadKm.toFixed(1)} km by road{roadMin ? ` · ${fmtDriveTime(roadMin)}` : ""}
                         </span>
                       )}
                     </div>
