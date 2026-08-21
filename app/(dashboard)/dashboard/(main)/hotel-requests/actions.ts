@@ -14,6 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
+import { syncRecommendedStayFromDays } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.sync";
 import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
@@ -101,6 +102,17 @@ export async function fillPendingHotel(
             hotelFillNote: input.note?.trim() || null,
         },
     });
+
+    // Costing prices a package from its stay options (custom_itinerary_stays),
+    // not from the day row this fill writes. stay-options.sync.ts calls the day
+    // row a compatibility surface for "everything not yet taught about options
+    // — the v1 builder, the hotel-request workflow…", and nothing was teaching
+    // it: a filled night reached costing with no price and was added up as ₹0
+    // unless an exec happened to re-save the package in the builder.
+    //
+    // Observed in production on two nights, one of them filled through this
+    // very form, so the classic version needs the sync as much as the new one.
+    await syncRecommendedStayFromDays(packageId);
 
     const pkg = await db.custom_packages.findUnique({
         where: { id: packageId },
