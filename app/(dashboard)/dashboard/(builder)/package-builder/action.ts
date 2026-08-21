@@ -3169,10 +3169,17 @@ export async function markPackageReady(
   packageId: string,
   /** Optional message for costing, shown on verify-packages — e.g. context
    * on a manual hotel entry or a price-sensitive client. Omitted entirely
-   * (not just empty) by the hotel-requests auto-advance path, which has no
-   * exec input to draw one from. */
+   * (not just empty) when there is no exec input to draw one from. */
   note?: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  /** Set only when the submit was refused because hotels are still outstanding.
+   * Carried separately from `error` so the builders can show the exec something
+   * they can act on — which days, and whether those days are waiting on someone
+   * else or on them — rather than one long sentence that auto-dismisses. */
+  openHotelRequests?: { waiting: number[]; rejected: number[] };
+}> {
   try {
     const { actor } = await getCurrentActor();
 
@@ -3253,6 +3260,7 @@ export async function markPackageReady(
         success: false,
         error: `This package still has an open hotel request — ${parts.join(", and ")}. `
           + "Costing can't be edited once it's submitted, so finish the hotels first.",
+        openHotelRequests: { waiting, rejected },
       };
     }
 

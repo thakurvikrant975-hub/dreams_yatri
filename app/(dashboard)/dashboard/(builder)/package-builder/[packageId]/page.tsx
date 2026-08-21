@@ -3371,6 +3371,29 @@ export default function PackageBuilderDetailPage() {
     );
   }
 
+  /**
+   * The submit was refused because hotels are still outstanding.
+   *
+   * Deliberately richer than the plain error toast next to it: this is the one
+   * refusal the exec can actually do something about, and what they do differs
+   * per day — a day still with the hotel team is a wait, a day sent back is
+   * theirs to fix. Same shape and duration as warnStaleHotelRequests above, so
+   * hotel-request news at Mark Ready always looks the same.
+   */
+  function warnOpenHotelRequests(open: { waiting: number[]; rejected: number[] }) {
+    const lines: string[] = [];
+    if (open.waiting.length) {
+      lines.push(`Day ${open.waiting.join(", ")} still with the hotel team — they'll come back filled.`);
+    }
+    if (open.rejected.length) {
+      lines.push(`Day ${open.rejected.join(", ")} sent back to you — edit the request and resubmit, or pick a hotel yourself.`);
+    }
+    toast.warning("Not sent — this package still has an open hotel request", {
+      description: `${lines.join(" ")} Costing can't be edited once submitted, so the hotels have to be settled first.`,
+      duration: 12000,
+    });
+  }
+
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
       // saveCustomPackage normally returns {success:false, error} on a
@@ -3471,6 +3494,8 @@ export default function PackageBuilderDetailPage() {
           // out for costing review.
           const fresh = await retryAsync(() => getPackageDetail(packageId));
           if (fresh) syncPricingFromFresh(fresh);
+        } else if (result2.openHotelRequests) {
+          warnOpenHotelRequests(result2.openHotelRequests);
         } else {
           toast.error(result2.error ?? "Failed to mark package ready");
         }
