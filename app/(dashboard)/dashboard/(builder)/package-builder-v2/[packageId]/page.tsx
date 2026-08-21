@@ -832,15 +832,21 @@ export default function PackageBuilderDetailPage() {
   }, [hotelPricing, cabPricing]);
 
   const cabPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}:${it.cabPriceOverride ?? ""}`)
+    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}:${it.cabPriceOverride ?? ""}:${it.transport}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
       cabQuantity: it.cabQuantity, extraCabs: it.extraCabs,
       cabPriceOverride: it.cabPriceOverride,
+      // Not priced from — it's the evidence a day is meant to have a cab when
+      // nothing else here can price one. See the gap branch in
+      // computeBuilderCabPricing.
+      transport: it.transport,
     }));
-    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0 && d.cabPriceOverride == null)) {
+    // A day showing a vehicle still has to reach the engine, or a package
+    // whose cabs are all unpriced reports "no cabs" instead of "no rates".
+    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0 && d.cabPriceOverride == null && !d.transport.trim())) {
       setCabPricing(null);
       return;
     }

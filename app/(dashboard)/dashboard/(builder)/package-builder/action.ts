@@ -2979,6 +2979,7 @@ async function sendPackageToClient(packageId: string): Promise<{
           cabQuantity:         it.cabQuantity,
           extraCabs:           parseCabSelections(it.extraCabs),
           cabPriceOverride:    it.cabPriceOverride,
+          transport:           it.transport,
         })),
       }),
     ]);

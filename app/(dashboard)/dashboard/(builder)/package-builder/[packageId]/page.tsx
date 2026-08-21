@@ -3198,15 +3198,21 @@ export default function PackageBuilderDetailPage() {
   // that day's transportDistanceKm, so a multi-day cab hire naturally sums
   // across however many days it was applied to.
   const cabPricingKey = form.itineraries
-    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}:${it.cabPriceOverride ?? ""}`)
+    .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}:${it.cabPriceOverride ?? ""}:${it.transport}`)
     .join("|");
   useEffect(() => {
     const days = form.itineraries.map((it) => ({
       day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
       cabQuantity: it.cabQuantity, extraCabs: it.extraCabs,
       cabPriceOverride: it.cabPriceOverride,
+      // Not priced from — it's the evidence a day is meant to have a cab when
+      // nothing else here can price one. See the gap branch in
+      // computeBuilderCabPricing.
+      transport: it.transport,
     }));
-    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0 && d.cabPriceOverride == null)) {
+    // A day showing a vehicle still has to reach the engine, or a package
+    // whose cabs are all unpriced reports "no cabs" instead of "no rates".
+    if (days.every((d) => d.cabPricingId == null && (d.extraCabs ?? []).length === 0 && d.cabPriceOverride == null && !d.transport.trim())) {
       setCabPricing(null);
       return;
     }
@@ -5339,9 +5345,14 @@ Rules:
                                     ...lines.map((d, i) => (
                                       <tr key={`${day}-${i}`} className="border-t border-dashboard-base-300">
                                         <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
-                                        <td className="px-3 py-2 text-dashboard-base-content/70">{d.vehicleName}</td>
                                         <td className="px-3 py-2 text-dashboard-base-content/70">
-                                          {d.pricingType === "PER_KM" ? "Per KM" : "Per Day"}{d.isWeekend ? " · weekend" : ""}
+                                          {d.vehicleName}
+                                          {d.gap && <span className="ml-1.5 text-[10px] font-medium text-amber-600">no rate</span>}
+                                        </td>
+                                        <td className="px-3 py-2 text-dashboard-base-content/70">
+                                          {d.gap
+                                            ? "—"
+                                            : `${d.pricingType === "PER_KM" ? "Per KM" : "Per Day"}${d.isWeekend ? " · weekend" : ""}`}
                                         </td>
                                         <td className="px-3 py-2 text-right">₹{d.rate.toLocaleString("en-IN")}{d.pricingType === "PER_KM" ? "/km" : "/day"}</td>
                                         <td className="px-3 py-2 text-right">{d.pricingType === "PER_KM" && d.distanceKm != null ? `${d.distanceKm} km` : "—"}</td>

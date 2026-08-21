@@ -40,7 +40,7 @@ export type PricingSnapshot = {
     lockedAt: string;
     currency: string;
     hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: "no-room-price" | "no-mattress-rate" }[]; overridden?: boolean };
-    cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number; overridden?: boolean }[]; overridden?: boolean };
+    cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number; overridden?: boolean; gap?: "no-cab-rate" }[]; overridden?: boolean };
     tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
     addOns?: { subtotal: number; lines: { name: string; price: number; quantity: number; day: number | null }[] };
     baseCost: number;
@@ -655,12 +655,17 @@ export function VerifyPackageDetailClient({
                             >
                                 {groupByDay(s.cab.lines).map(({ day, lines, total }) => {
                                     const overridden = lines.some((l) => l.overridden);
+                                    // A day whose vehicle has no rate behind it. It reaches
+                                    // this list at ₹0 rather than not at all, which is the
+                                    // point — an absent row is a day nobody can correct.
+                                    const noRate = lines.some((l) => l.gap);
                                     return (
                                         <div key={day} className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
                                             <p className="text-dashboard-base-content min-w-0">
                                                 {lines.map((l) => `${l.vehicleName} (${l.pricingType})`).join(" + ")}
                                                 {" "}on Day {day}
                                                 {overridden && <span className="ml-1.5 text-[10px] font-medium text-amber-600">(corrected)</span>}
+                                                {!overridden && noRate && <span className="ml-1.5 text-[10px] font-medium text-amber-600">(no rate — set the price here)</span>}
                                             </p>
                                             {editMode ? (
                                                 <Input type="number" min={0} value={cabDayEdits[day] ?? total}

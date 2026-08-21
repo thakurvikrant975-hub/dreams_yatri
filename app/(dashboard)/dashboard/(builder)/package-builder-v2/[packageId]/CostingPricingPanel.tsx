@@ -98,6 +98,11 @@ export function CostingPricingPanel({
   const namedAddons = form.addOns.filter((a) => a.name.trim());
   const pricedTickets = form.tickets.filter((t) => (t.fare ?? 0) > 0);
   const gaps = hotelDays.filter((l) => l.gap).length;
+  // Days carrying a vehicle that nothing can price. These used to be absent
+  // from this panel entirely — not ₹0, not flagged, just gone — so a seven-day
+  // trip with a cab every day read as six days of cabs and nothing said which
+  // day was missing. See the gap branch in computeBuilderCabPricing.
+  const cabGapDays = cabDays.filter((l) => l.gap).map((l) => l.day);
 
   return (
     <div className="p-3 space-y-3">
@@ -124,6 +129,18 @@ export function CostingPricingPanel({
           <p className="text-[11px] text-amber-800">
             {gaps} stay {gaps === 1 ? "day has" : "days have"} no rate behind {gaps === 1 ? "it" : "them"} and
             {" "}{gaps === 1 ? "is" : "are"} pricing at ₹0.
+          </p>
+        </div>
+      )}
+
+      {cabGapDays.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+          <AlertOctagon className="size-3.5 shrink-0 mt-0.5 text-amber-600" />
+          <p className="text-[11px] text-amber-800">
+            Day{cabGapDays.length === 1 ? "" : "s"} {cabGapDays.join(", ")} show
+            {cabGapDays.length === 1 ? "s" : ""} a vehicle with no rate behind
+            {cabGapDays.length === 1 ? " it" : " them"} — pricing at ₹0. Correct
+            {cabGapDays.length === 1 ? " it" : " them"} under Costing → Edit Pricing.
           </p>
         </div>
       )}
@@ -174,12 +191,15 @@ export function CostingPricingPanel({
               </span>
             </div>
             <p className={`text-[10px] mt-0.5 ${l.overridden ? "line-through text-dashboard-neutral" : "text-dashboard-neutral"}`}>
-              {l.pricingType === "PER_KM"
-                ? `${l.distanceKm ?? 0} km × ${inr(l.rate)}/km`
-                : `Per day × ${inr(l.rate)}`}
-              {l.isWeekend && " · weekend rate"}
+              {l.gap
+                ? "On the itinerary, not in the catalog"
+                : l.pricingType === "PER_KM"
+                  ? `${l.distanceKm ?? 0} km × ${inr(l.rate)}/km`
+                  : `Per day × ${inr(l.rate)}`}
+              {!l.gap && l.isWeekend && " · weekend rate"}
             </p>
             {l.overridden && <p className="text-[10px] text-amber-700 mt-0.5">Corrected by costing</p>}
+            {l.gap && <p className="text-[10px] text-amber-700 mt-0.5">No cab rate set</p>}
           </div>
         ))}
       </Section>

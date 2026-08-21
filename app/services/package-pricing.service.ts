@@ -1430,6 +1430,12 @@ export type BuilderCabDayLine = {
   total: number;
   /** True when costing hand-corrected this day's price (cabPriceOverride). */
   overridden?: boolean;
+  /** The day carries a vehicle on the itinerary but nothing that can price it
+   * — no cab_pricing row behind the pick (the fleet catalog and a
+   * copied-from-catalog package both leave cabPricingId null) and no costing
+   * correction. Emitted at ₹0 rather than dropped, for the reason spelled out
+   * on the gap branch below. */
+  gap?: "no-cab-rate";
 };
 
 export type BuilderCabPricingResult = {
@@ -1455,6 +1461,11 @@ export async function computeBuilderCabPricing(input: {
      * custom_itineraries.cabPriceOverride) — replaces the primary +
      * extra-cabs total for this day with this single amount. */
     cabPriceOverride?: number | null;
+    /** The vehicle name shown on the itinerary (custom_itineraries.transport).
+     * Never priced from — it's a label — but it's the only evidence a day is
+     * meant to have a cab at all when nothing here can price one. See the gap
+     * branch in the loop below. */
+    transport?: string | null;
   }[];
 }): Promise<BuilderCabPricingResult> {
   const { travelDate, days } = input;
@@ -1467,11 +1478,15 @@ export async function computeBuilderCabPricing(input: {
     ]),
   ];
   const hasCabOverride = days.some((d) => d.cabPriceOverride != null);
-  if (cabPricingIds.length === 0 && !hasCabOverride) {
+  // A day showing a vehicle is a reason to keep going even when NOTHING here
+  // is priced — that package is exactly the one costing needs to see, and
+  // bailing out here reported it as "no cabs" instead of "no rates".
+  const hasTransportIntent = days.some((d) => d.transport?.trim());
+  if (cabPricingIds.length === 0 && !hasCabOverride && !hasTransportIntent) {
     return { days: [], cabSubtotal: 0, daysCounted: 0 };
   }
 
-  const rows = await db.cab_pricing.findMany({
+  const rows = cabPricingIds.length === 0 ? [] : await db.cab_pricing.findMany({
     where: { id: { in: cabPricingIds } },
     select: {
       id: true,
@@ -1497,6 +1512,7 @@ export async function computeBuilderCabPricing(input: {
       ? new Date(travelDateObj.getTime() + (d.day - 1) * 24 * 60 * 60 * 1000)
       : null;
     const isWeekend = dayDate ? (dayDate.getDay() === 0 || dayDate.getDay() === 6) : false;
+    const linesBefore = lines.length;
 
     if (d.cabPriceOverride != null) {
       const cp = d.cabPricingId != null ? byId.get(d.cabPricingId) : undefined;
@@ -1553,6 +1569,34 @@ export async function computeBuilderCabPricing(input: {
         rate,
         distanceKm: d.transportDistanceKm,
         total,
+      });
+    }
+
+    // A cab with nothing to price it by. Emits at ₹0 rather than dropping out
+    // — the same rule the hotel side already follows (see hasStayIntent).
+    //
+    // Dropping it is what produced the bug this branch exists for: a seven-day
+    // Uttarakhand package with a vehicle on every day priced six of them, and
+    // costing had no seventh row to notice was missing, let alone one to type
+    // a correction into. The last day is the usual victim — it carries no
+    // hotel, so it is the day nobody reopens, while still needing the drop
+    // transfer paid for.
+    //
+    // Reached three ways, all of them a real gap: a vehicle picked from the
+    // unscoped fleet catalog (no rate exists to reference), a package copied
+    // from a catalog package (fetchPackagePageData exposes no cab_pricing id,
+    // so every copied day lands here), and a cabPricingId whose rate row has
+    // since been deleted.
+    if (lines.length === linesBefore && d.transport?.trim()) {
+      lines.push({
+        day: d.day,
+        vehicleName: d.transport.trim(),
+        pricingType: "PER_DAY",
+        isWeekend,
+        rate: 0,
+        distanceKm: d.transportDistanceKm,
+        total: 0,
+        gap: "no-cab-rate",
       });
     }
   }
@@ -1704,7 +1748,7 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
         select: {
           id: true, day: true,
           cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
-          cabPriceOverride: true,
+          cabPriceOverride: true, transport: true,
         },
       },
       stayOptions: {
@@ -1735,7 +1779,7 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
     days: pkg.itineraries.map((it) => ({
       day: it.day, cabPricingId: it.cabPricingId, transportDistanceKm: it.transportDistanceKm,
       cabQuantity: it.cabQuantity, extraCabs: parseCabSelections(it.extraCabs),
-      cabPriceOverride: it.cabPriceOverride,
+      cabPriceOverride: it.cabPriceOverride, transport: it.transport,
     })),
   });
   const cabSubtotal = pkg.cabSubtotalOverride ?? cabPricing.cabSubtotal;
