@@ -14,6 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
+import { normalizeMealLabels } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { syncRecommendedStayFromDays } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.sync";
 import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
@@ -90,7 +91,7 @@ export async function fillPendingHotel(
             hotelCheckIn: input.checkIn?.trim() || null,
             hotelCheckOut: input.checkOut?.trim() || null,
             hotelMealPlan: input.mealPlan?.trim() || null,
-            meals: input.meals ?? [],
+            meals: normalizeMealLabels(input.meals),
             roomsCount: Math.max(1, Math.round(input.roomsCount) || 1),
             manualExtraBeds: Math.max(0, Math.round(input.extraBeds ?? 0)),
             manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,

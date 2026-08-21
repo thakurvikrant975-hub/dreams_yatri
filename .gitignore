@@ -58,6 +58,7 @@ hotel-stars-rollback.*.json
 destination-merge-rollback.*.json
 hotel-requests-seed-rollback.*.json
 unsynced-stays-rollback.*.json
+meal-casing-rollback.*.json
 
 # Test-clone manifests are per-database state, not source
 scripts/test-clone-manifest.*.json

@@ -14,6 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
+import { normalizeMealLabels } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
@@ -156,7 +157,7 @@ export async function fillPendingHotel(
             hotelMealPlan: target.day === day
                 ? (input.mealPlan?.trim() || null)
                 : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null),
-            meals: input.meals ?? [],
+            meals: normalizeMealLabels(input.meals),
             // The form's own day takes what was typed; a day carried along keeps
             // the count its own request asked for, falling back to the typed one.
             roomsCount: target.day === day ? typedRooms : (target.roomsCount ?? typedRooms),

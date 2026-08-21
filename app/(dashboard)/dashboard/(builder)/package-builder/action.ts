@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { normalizeMealLabels } from "./meals";
 import { getCurrentActor, logTimeline } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
@@ -29,6 +30,7 @@ import { syncRecommendedStayFromDays } from "./stay-options.sync";
 const MEAL_KEY_LABELS: Record<string, string> = {
   breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
 };
+
 
 /** Lets the client component gate edit access to the inclusions/exclusions/
  * policy bullet lists — those are company-wide standard content, not
@@ -1402,9 +1404,14 @@ export async function copyPackageIntoDraft(
       // Prefer the hotel's actual covered meals over the catalog day's
       // manually-added meal keys, when the hotel has them — same source of
       // truth the live builder search now uses.
-      meals: day.hotel?.active_meals && day.hotel.active_meals.length > 0
-        ? day.hotel.active_meals.map((k) => MEAL_KEY_LABELS[k] ?? k)
-        : day.meals,
+      // Both branches go through the canonicaliser. The hotel branch was
+      // already mapping keys to labels; the template fallback was not, which
+      // is where lowercase meals entered a draft in the first place.
+      meals: normalizeMealLabels(
+        day.hotel?.active_meals && day.hotel.active_meals.length > 0
+          ? day.hotel.active_meals
+          : day.meals,
+      ),
       accommodation:      day.hotel ? [day.hotel.name, day.hotel.room_name].filter(Boolean).join(" — ") : "",
       accommodationPhoto: rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : "",
       accommodationRoomPhotos: rawRoomPhotos.map((u) => getThumbnailImage(u)),
@@ -1760,7 +1767,7 @@ function normalizeItinerary(it: {
     title:                     it.title ?? "",
     description:               it.description ?? "",
     activities:                it.activities.map(normalizeActivity),
-    meals:                     it.meals ?? [],
+    meals:                     normalizeMealLabels(it.meals),
     accommodation:             it.accommodation ?? "",
     accommodationPhoto:        it.accommodationPhoto ?? "",
     accommodationRoomPhotos:   it.accommodationRoomPhotos ?? [],
@@ -2620,7 +2627,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               day:                it.day,
               title:              it.title,
               description:        it.description || null,
-              meals:              it.meals,
+              meals:              normalizeMealLabels(it.meals),
               accommodation:      it.accommodation || null,
               accommodationPhoto: it.accommodationPhoto || null,
               accommodationRoomPhotos: it.accommodationRoomPhotos ?? [],
