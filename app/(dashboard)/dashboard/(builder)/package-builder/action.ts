@@ -3248,11 +3248,24 @@ export async function markPackageReady(
     // one-way door: once the package is with costing the exec cannot edit it
     // again until it comes back approved or rejected. Sending while a request
     // is outstanding means the hotel lands on a package nobody can touch.
-    const outstanding = await db.custom_itineraries.findMany({
-      where: { customPackageId: packageId, hotelPending: true },
-      select: { day: true, hotelRejectedAt: true },
+    const allDays = await db.custom_itineraries.findMany({
+      where: { customPackageId: packageId },
+      select: { day: true, hotelPending: true, hotelRejectedAt: true },
       orderBy: { day: "asc" },
     });
+    // The day everyone goes home carries no night — the same rule the pricing
+    // service applies when it decides a day without a hotel is not a gap.
+    //
+    // It matters here because a departure-day request is one somebody usually
+    // wants turned down: the previous night's booking runs to a midday checkout,
+    // so the last day is billed to the night before and needs no room of its
+    // own. A rejection deliberately leaves hotelPending true (it is what keeps
+    // the day in the exec's queue), and the classic builder has no way to
+    // withdraw a request — only the new one does. Counting that day here would
+    // wedge the exec behind a request that was correctly refused and that they
+    // cannot clear, which is exactly what happened once already.
+    const departureDay = allDays.length > 0 ? Math.max(...allDays.map((d) => d.day)) : -1;
+    const outstanding = allDays.filter((d) => d.hotelPending && d.day !== departureDay);
     if (outstanding.length > 0) {
       const rejected = outstanding.filter((d) => d.hotelRejectedAt != null).map((d) => d.day);
       const waiting = outstanding.filter((d) => d.hotelRejectedAt == null).map((d) => d.day);

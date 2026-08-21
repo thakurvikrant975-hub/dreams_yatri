@@ -1283,64 +1283,76 @@ export async function computeBuilderHotelPricing(input: {
       continue;
     }
 
-    if (d.roomPricingId != null) {
-      const rp = byId.get(d.roomPricingId);
-      if (rp) {
-        // Rooms AND mattresses come from the one shared calculation
-        // (planRoomOccupancy in app/lib/room-capacity.ts) that the builder's
-        // "rooms & mattresses needed" readout and the itinerary document also
-        // use — so what the exec is quoted while building matches what the
-        // finished package charges. An exec-typed roomsCount used to zero the
-        // mattress count outright, silently dropping the extra-bed cost from
-        // every hand-adjusted package; it now only sets the room count and the
-        // mattresses are still derived from the resulting split — unless the
-        // exec also gave an explicit mattress count (manualExtraBeds), which
-        // wins outright since it's a direct statement of what the hotel needs
-        // to provide.
-        const { rooms: roomsNeeded, perRoomHeadcount, mattresses: autoMattresses } =
-          planRoomOccupancy(adults, children, rp.room, d.roomsCount);
-        const mattresses = d.manualExtraBeds != null ? Math.max(0, d.manualExtraBeds) : autoMattresses;
-        // The catalog room's own extra_bed_rate is often left unconfigured
-        // (0/null) for rooms that were never expected to need one — when the
-        // exec manually types a mattress price, that wins outright instead
-        // of silently pricing the mattresses at ₹0.
-        const extraBedRate = d.manualExtraBedRate != null
-          ? d.manualExtraBedRate
-          : rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
+    // Keyed on whether the rate RESOLVED, not on whether an id was stored.
+    //
+    // `if (d.roomPricingId != null)` took this branch on the id alone; when the
+    // rate behind it no longer existed the inner `if (rp)` failed and neither
+    // else-branch could run, so the night produced no line at all — no price, no
+    // gap marker, nothing in the breakdown. custom_itineraries.roomPricingId has
+    // no foreign key behind it, so a deleted rate leaves the id in place and
+    // nothing complains: 37 day rows in production point at rates that are gone,
+    // several on packages already sent, every one of them costed as ₹0 with no
+    // sign the night was ever there.
+    //
+    // Falling through instead means such a night uses its manual price if it has
+    // one, and otherwise emits the ₹0 gap line below — visible work rather than
+    // silence.
+    const rp = d.roomPricingId != null ? byId.get(d.roomPricingId) : undefined;
+    if (rp != null) {
+      // Rooms AND mattresses come from the one shared calculation
+      // (planRoomOccupancy in app/lib/room-capacity.ts) that the builder's
+      // "rooms & mattresses needed" readout and the itinerary document also
+      // use — so what the exec is quoted while building matches what the
+      // finished package charges. An exec-typed roomsCount used to zero the
+      // mattress count outright, silently dropping the extra-bed cost from
+      // every hand-adjusted package; it now only sets the room count and the
+      // mattresses are still derived from the resulting split — unless the
+      // exec also gave an explicit mattress count (manualExtraBeds), which
+      // wins outright since it's a direct statement of what the hotel needs
+      // to provide.
+      const { rooms: roomsNeeded, perRoomHeadcount, mattresses: autoMattresses } =
+        planRoomOccupancy(adults, children, rp.room, d.roomsCount);
+      const mattresses = d.manualExtraBeds != null ? Math.max(0, d.manualExtraBeds) : autoMattresses;
+      // The catalog room's own extra_bed_rate is often left unconfigured
+      // (0/null) for rooms that were never expected to need one — when the
+      // exec manually types a mattress price, that wins outright instead
+      // of silently pricing the mattresses at ₹0.
+      const extraBedRate = d.manualExtraBedRate != null
+        ? d.manualExtraBedRate
+        : rp.extra_bed_rate ? Number(rp.extra_bed_rate) : 0;
 
-        const { basePrice, occPrices, isSeasonal } = resolveHotelSeasonPricing(rp, dayDate);
-        // Each room is priced at ITS OWN occupancy tier, matching the stay
-        // pricing path above — a single trip-wide tier (min(adults, beds))
-        // mispriced any uneven split.
-        const sortedOccPrices = occPrices.length > 0
-          ? [...occPrices].sort((a, b) => b.occupancy - a.occupancy)
-          : null;
-        const priceForHeadcount = (headcount: number): number => {
-          if (!sortedOccPrices) return basePrice;
-          const match = sortedOccPrices.find((op) => op.occupancy <= headcount)
-            ?? sortedOccPrices[sortedOccPrices.length - 1];
-          return Number(match.price_per_night);
-        };
-        const roomsCost = perRoomHeadcount.reduce((sum, h) => sum + priceForHeadcount(h), 0);
-        // Headline per-room figure only; roomsCost above is the real total.
-        const pricePerRoom = roomsCost / roomsNeeded;
+      const { basePrice, occPrices, isSeasonal } = resolveHotelSeasonPricing(rp, dayDate);
+      // Each room is priced at ITS OWN occupancy tier, matching the stay
+      // pricing path above — a single trip-wide tier (min(adults, beds))
+      // mispriced any uneven split.
+      const sortedOccPrices = occPrices.length > 0
+        ? [...occPrices].sort((a, b) => b.occupancy - a.occupancy)
+        : null;
+      const priceForHeadcount = (headcount: number): number => {
+        if (!sortedOccPrices) return basePrice;
+        const match = sortedOccPrices.find((op) => op.occupancy <= headcount)
+          ?? sortedOccPrices[sortedOccPrices.length - 1];
+        return Number(match.price_per_night);
+      };
+      const roomsCost = perRoomHeadcount.reduce((sum, h) => sum + priceForHeadcount(h), 0);
+      // Headline per-room figure only; roomsCost above is the real total.
+      const pricePerRoom = roomsCost / roomsNeeded;
 
-        const total = roomsCost + mattresses * extraBedRate;
-        hotelSubtotal += total;
+      const total = roomsCost + mattresses * extraBedRate;
+      hotelSubtotal += total;
 
-        lines.push({
-          day: d.day,
-          hotelName: rp.hotel.name,
-          roomName: rp.room?.name ?? "Room",
-          planName: rp.plan_name,
-          pricePerRoom,
-          roomsNeeded,
-          mattresses,
-          extraBedRate,
-          total,
-          baseRate: dayDate != null && !isSeasonal,
-        });
-      }
+      lines.push({
+        day: d.day,
+        hotelName: rp.hotel.name,
+        roomName: rp.room?.name ?? "Room",
+        planName: rp.plan_name,
+        pricePerRoom,
+        roomsNeeded,
+        mattresses,
+        extraBedRate,
+        total,
+        baseRate: dayDate != null && !isSeasonal,
+      });
     } else if (d.manualHotelPricePerNight != null) {
       // Hand-typed (exec) or hotel-team-filled — no catalog room, so no
       // occupancy math, just the flat per-room price and room count entered

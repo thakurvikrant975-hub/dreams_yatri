@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, Search, Link2, Link2Off, Loader2, DatabaseZap, MapPin, AlertTriangle, CalendarRange, CalendarDays } from "lucide-react";
@@ -142,7 +142,12 @@ export function FillHotelForm({
     const [stayType, setStayType] = useState(requestedType ? (REQUEST_STAY_TYPE[requestedType] ?? "") : "");
     const [pin, setPin] = useState<LocationValue | null>(null);
     const [validFrom, setValidFrom] = useState(dayDateISO ?? "");
+    // Defaults to the last night this fill covers, not just this one. The window
+    // becomes the rate's season (see quotedSeason), and a season that stopped at
+    // the first night would leave every other night it was quoted for priced off
+    // the base rate — which is exactly what markPackageReady refuses.
     const [validTo, setValidTo] = useState("");
+    const [validToTouched, setValidToTouched] = useState(false);
     const [similar, setSimilar] = useState<SimilarHotel[]>([]);
     // Set when the admin recognises one of the near-matches as the property on
     // the phone: the rate is added to that hotel instead of creating a second one.
@@ -156,6 +161,16 @@ export function FillHotelForm({
             .filter((d) => !!thisTown && (d.location ?? "").split(",")[0]?.trim().toLowerCase() === thisTown)
             .map((d) => d.day),
     );
+    // Derived rather than stored, so it follows the day selection without an
+    // effect writing state on every change — until the admin types their own,
+    // which wins from then on.
+    const defaultValidTo = useMemo(() => {
+        if (!dayDateISO) return "";
+        const end = new Date(`${dayDateISO}T00:00:00Z`);
+        end.setUTCDate(end.getUTCDate() + (Math.max(day, ...alsoDays) - day));
+        return end.toISOString().slice(0, 10);
+    }, [dayDateISO, day, alsoDays]);
+    const effectiveValidTo = validToTouched ? validTo : defaultValidTo;
     // Weekend rates live on seasons here, and deliberately not on the rate row
     // itself. Both resolvers — resolveHotelSeasonPricing and rates.ts's
     // resolvePlanNight — only ever consult a weekend price inside a matched
@@ -290,7 +305,7 @@ export function FillHotelForm({
                     mealTypeId: mealTypes.find((m) => m.name === mealPlan)?.id ?? null,
                     extraBedRate: parseFloat(extraBedRate) || null,
                     validFrom: validFrom || null,
-                    validTo: validTo || null,
+                    validTo: effectiveValidTo || null,
                     seasons: seasons.map<HotelSeasonInput>((s) => ({
                         season_name: s.label || defaultRangeLabel(s.startDate, s.endDate),
                         valid_from: s.startDate,
@@ -867,8 +882,8 @@ export function FillHotelForm({
                                 <div>
                                     <label className="text-[10px] text-dashboard-neutral mb-1 block">…until</label>
                                     <Input
-                                        type="date" value={validTo}
-                                        onChange={(e) => setValidTo(e.target.value)}
+                                        type="date" value={effectiveValidTo}
+                                        onChange={(e) => { setValidTo(e.target.value); setValidToTouched(true); }}
                                         className="text-xs h-8 bg-white"
                                     />
                                 </div>

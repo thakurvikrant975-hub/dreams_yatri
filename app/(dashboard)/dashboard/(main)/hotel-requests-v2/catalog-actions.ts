@@ -132,6 +132,43 @@ function provenanceNote(actor: Actor, packageId: string, day: number, validFrom?
 }
 
 /**
+ * A rate quoted for particular dates IS a season for those dates.
+ *
+ * Without this, quick-create left a rate carrying only a base price, and
+ * markPackageReady refuses any night priced off a base rate — see
+ * baseRatePricingError. The hotel team filled the request and the exec was then
+ * blocked from submitting, by two of our own rules disagreeing. All three
+ * quick-created rates in production have no season and every one of them blocks
+ * its package.
+ *
+ * So the window the admin was quoted becomes a real season carrying the same
+ * price. That is not a workaround: the hotel gave this rate for these dates, and
+ * a season is exactly how this schema records that. Outside the window the base
+ * rate still applies and is still flagged, which is correct — nobody quoted it.
+ */
+function quotedSeason(
+    validFrom: string | null | undefined,
+    validTo: string | null | undefined,
+    pricePerNight: number,
+    weekendPrice: number | null | undefined,
+    extraBedRate: number | null | undefined,
+): HotelSeasonInput[] {
+    if (!validFrom || !validTo) return [];
+    const from = new Date(validFrom);
+    const to = new Date(validTo);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return [];
+    return [{
+        season_name: `Quoted ${validFrom} to ${validTo}`,
+        valid_from: validFrom,
+        valid_to: validTo,
+        price_per_night: pricePerNight,
+        weekend_price_per_night: weekendPrice ?? null,
+        extra_bed_rate: extraBedRate ?? null,
+        is_active: true,
+    }];
+}
+
+/**
  * Hands the season rows to the same writer the hotel dashboard's pricing tab
  * uses, so a rate captured on a request behaves identically to one entered
  * there — replaceSeasonsForPricing already handles overlap and ordering.
@@ -235,7 +272,9 @@ export async function addRateToHotel(input: {
         select: { id: true },
     });
     if (identical) {
-        await writeSeasons(identical.id, hotel.id, input.seasons);
+        await writeSeasons(identical.id, hotel.id, input.seasons?.length
+            ? input.seasons
+            : quotedSeason(input.validFrom, input.validTo, input.pricePerNight, input.weekendPrice, input.extraBedRate));
         revalidatePath("/dashboard/hotels");
         revalidatePath("/dashboard/hotel-requests-v2/catalog");
         return { success: true, roomPricingId: identical.id };
@@ -261,7 +300,9 @@ export async function addRateToHotel(input: {
         select: { id: true },
     });
 
-    await writeSeasons(pricing.id, hotel.id, input.seasons);
+    await writeSeasons(pricing.id, hotel.id, input.seasons?.length
+        ? input.seasons
+        : quotedSeason(input.validFrom, input.validTo, input.pricePerNight, input.weekendPrice, input.extraBedRate));
 
     revalidatePath("/dashboard/hotels");
     revalidatePath("/dashboard/hotel-requests-v2/catalog");
@@ -405,7 +446,9 @@ export async function quickCreateHotelRate(input: {
         // Intentionally swallowed; see above.
     }
 
-    await writeSeasons(pricingId, hotelId, input.seasons);
+    await writeSeasons(pricingId, hotelId, input.seasons?.length
+        ? input.seasons
+        : quotedSeason(input.validFrom, input.validTo, input.pricePerNight, input.weekendPrice, input.extraBedRate));
 
     revalidatePath("/dashboard/hotels");
     revalidatePath("/dashboard/hotel-requests-v2/catalog");
