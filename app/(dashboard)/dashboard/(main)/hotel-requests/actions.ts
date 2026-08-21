@@ -134,6 +134,7 @@ export async function fillPendingHotel(
 
     await broadcastVerificationCounts();
     revalidatePath("/dashboard/hotel-requests");
+    revalidatePath("/dashboard/hotel-requests-v2");
     revalidatePath(`/dashboard/hotel-requests/${packageId}`);
     revalidatePath(`/dashboard/package-builder/${packageId}`);
     revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
@@ -148,6 +149,7 @@ type RejectResult = { success: boolean; error?: string; count?: number };
 async function afterReject(packageId: string) {
     await broadcastVerificationCounts();
     revalidatePath("/dashboard/hotel-requests");
+    revalidatePath("/dashboard/hotel-requests-v2");
     revalidatePath(`/dashboard/hotel-requests/${packageId}`);
     revalidatePath(`/dashboard/package-builder/${packageId}`);
     revalidatePath(`/dashboard/package-builder-v2/${packageId}`);

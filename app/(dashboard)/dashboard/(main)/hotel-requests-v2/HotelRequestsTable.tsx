@@ -130,7 +130,7 @@ export function HotelRequestsTable({
             width: "w-[130px]",
             cell: (r) => (
                 <Link
-                    href={`/dashboard/hotel-requests/${r.id}`}
+                    href={`/dashboard/hotel-requests-v2/${r.id}`}
                     className="inline-flex items-center gap-1 rounded-md bg-dashboard-primary text-white text-xs font-semibold px-3 py-1.5 hover:opacity-90"
                 >
                     Fill Hotels <ArrowRight className="size-3" />
