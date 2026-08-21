@@ -32,6 +32,8 @@ export const ALL_HREFS = [
   "/dashboard/hotels/diet-types",
   "/dashboard/verify-hotels",
   "/dashboard/hotel-requests",
+  "/dashboard/hotel-requests-v2",
+  "/dashboard/hotel-requests-v2/catalog",
   "/dashboard/hotel-bookings",
   // Packages
   "/dashboard/packages",

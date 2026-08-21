@@ -3221,6 +3221,40 @@ export async function markPackageReady(
     const agesError = missingTravellerAgesError(pkg);
     if (agesError) return { success: false, error: agesError };
 
+    // A hotel request still out with the hotel team stops the submit.
+    //
+    // Distinct from the "night with no hotel" case below, which is allowed on
+    // purpose: choosing to quote a trip without stays is the exec's to make. An
+    // outstanding request is the opposite — the exec has already said they want
+    // a hotel there and asked someone to find one, so the package is by their
+    // own account unfinished.
+    //
+    // It matters more than an ordinary validation because submitting is a
+    // one-way door: once the package is with costing the exec cannot edit it
+    // again until it comes back approved or rejected. Sending while a request
+    // is outstanding means the hotel lands on a package nobody can touch.
+    const outstanding = await db.custom_itineraries.findMany({
+      where: { customPackageId: packageId, hotelPending: true },
+      select: { day: true, hotelRejectedAt: true },
+      orderBy: { day: "asc" },
+    });
+    if (outstanding.length > 0) {
+      const rejected = outstanding.filter((d) => d.hotelRejectedAt != null).map((d) => d.day);
+      const waiting = outstanding.filter((d) => d.hotelRejectedAt == null).map((d) => d.day);
+      const parts: string[] = [];
+      if (waiting.length) {
+        parts.push(`day${waiting.length === 1 ? "" : "s"} ${waiting.join(", ")} ${waiting.length === 1 ? "is" : "are"} still with the hotel team`);
+      }
+      if (rejected.length) {
+        parts.push(`day${rejected.length === 1 ? "" : "s"} ${rejected.join(", ")} ${rejected.length === 1 ? "was" : "were"} sent back and needs your attention`);
+      }
+      return {
+        success: false,
+        error: `This package still has an open hotel request — ${parts.join(", and ")}. `
+          + "Costing can't be edited once it's submitted, so finish the hotels first.",
+      };
+    }
+
     // A night with no hotel used to be refused here. It is not an error: a
     // package quoted without stays, or without transport, is a real thing the
     // client asked for — flights-only, land-only, a client with their own

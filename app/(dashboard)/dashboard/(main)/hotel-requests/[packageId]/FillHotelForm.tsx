@@ -118,8 +118,8 @@ export function FillHotelForm({
             if (result.success) {
                 setDone(true);
                 toast.success(
-                    result.advancedToReview
-                        ? "Hotel filled — all pending days done, package sent to costing review!"
+                    result.allDaysFilled
+                        ? "Hotel filled — every day on this package is done. Back to the sales exec to submit."
                         : "Hotel filled for this day",
                 );
                 router.refresh();

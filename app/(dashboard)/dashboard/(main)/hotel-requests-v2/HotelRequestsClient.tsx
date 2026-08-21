@@ -136,11 +136,11 @@ export default function HotelRequestsClient({
 
             <PageHeader
                 title="Hotel Requests"
-                description="Fill in hotels the sales team couldn't find in the catalog"
+                description="Fill in hotels the sales team couldn't find — with catalog search and seasonal rates"
                 icon={Bed}
             />
 
-            <HotelRequestsVersionSwitch current="v1" />
+            <HotelRequestsVersionSwitch current="v2" />
 
             <Suspense
                 fallback={
