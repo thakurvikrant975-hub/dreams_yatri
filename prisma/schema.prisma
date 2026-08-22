@@ -754,6 +754,23 @@ model TeamRole {
   @@map("team_roles")
 }
 
+/// A sales team is an org-chart grouping of TeamMembers with an optional
+/// leader pointer — the leader keeps their normal TeamRole (this is not a
+/// role, just a flag on the team record). A member belongs to at most one
+/// team at a time (plain FK on TeamMember, not a join table).
+model SalesTeam {
+  id          String       @id @default(cuid())
+  name        String       @unique @db.VarChar(100)
+  leaderId    String?      @unique
+  leader      TeamMember?  @relation("SalesTeamLeader", fields: [leaderId], references: [id])
+  members     TeamMember[] @relation("SalesTeamMembers")
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("sales_teams")
+}
+
 model TeamMember {
   id                     String            @id @default(cuid())
   name                   String            @db.VarChar(255)
@@ -761,6 +778,7 @@ model TeamMember {
   password               String?
   departmentId           String?
   teamRoleId             String?
+  salesTeamId            String?
   isActive               Boolean           @default(true)
   /** Per-member override for the round-robin auto-assign (see
    * app/lib/queries/auto-assign.ts) — independent of isActive, so an exec
@@ -817,11 +835,14 @@ model TeamMember {
   manualDocuments        ManualDocument[]  @relation("ManualDocumentAuthor")
   department             Department?       @relation(fields: [departmentId], references: [id])
   teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
+  salesTeam              SalesTeam?        @relation("SalesTeamMembers", fields: [salesTeamId], references: [id])
+  ledSalesTeam           SalesTeam?        @relation("SalesTeamLeader")
 
   @@index([email])
   @@index([employeeId])
   @@index([departmentId])
   @@index([teamRoleId])
+  @@index([salesTeamId])
   @@map("team_members")
 }
 

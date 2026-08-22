@@ -9,7 +9,7 @@ import {
 
 /** Trip-level overview content — description, inclusions/exclusions, the
  * day-wise summary table, ticket details, and the route map. Mirrors the
- * catalog page's Highlights tab role (non-day-specific trip content),
+ * catalog page's Highlights tab role (non-day-specific trip content), 
  * reusing the exact same day-summary/ticket components the internal
  * PDF/preview document already uses so the meal-shift logic never drifts
  * between the two views. */
