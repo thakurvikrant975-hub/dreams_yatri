@@ -72,5 +72,42 @@ export const PUBLISHED_THEME = `
   .itinerary-print-area[data-published]:not([data-exporting]) .text-base { font-size: 18px; }
   .itinerary-print-area[data-published]:not([data-exporting]) .text-lg { font-size: 20px; }
   .itinerary-print-area[data-published]:not([data-exporting]) .text-xl { font-size: 22px; }
+
+  /* ── Masthead contacts, collapsed on a phone ──────────────────────────
+     The helpline and email sit beside the logo on paper, where the measure
+     is 210mm and there is always room. At 390px they wrap onto their own
+     line under the logo, so the first thing the client sees on opening
+     their itinerary is two lines of our contact details. Collapsed behind
+     a toggle instead, one tap from the reader who wants them.
+
+     Screen only, by sitting inside the @media screen block above: the
+     sheet this page prints (there is a Print button on it) is untouched
+     and still carries the contacts inline, open or closed. */
+  @media (max-width: 639.98px) {
+    .itinerary-print-area[data-published] .masthead-contact {
+      width: 100%;
+      height: auto;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.375rem;
+      padding-top: 0.625rem;
+    }
+    .itinerary-print-area[data-published] .masthead-contact:not([data-open]) {
+      display: none;
+    }
+  }
+
+  /* Above the phone breakpoint the contacts are simply always there, so the
+     button has nothing to do. */
+  @media (min-width: 640px) {
+    .itinerary-print-area[data-published] .masthead-contact-toggle { display: none; }
+  }
+}
+
+/* The toggle is an affordance of this page, not of the document, so paper
+   never shows it — including the sheet printed from this very page, which is
+   why this rule sits outside the @media screen block above rather than in it. */
+@media print {
+  .masthead-contact-toggle { display: none !important; }
 }
 `;

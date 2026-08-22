@@ -3699,6 +3699,12 @@ export function ItineraryDocument({
   // there is no provider and nothing is clickable.
   const builder = useOptionalBuilder();
 
+  // Masthead contacts, collapsed behind a toggle on a phone. Published page
+  // only: the toggle isn't rendered anywhere else, so the builder's preview
+  // and both exporters keep the masthead they already had. Where it collapses
+  // (and that it only collapses on screen) is published-theme.ts.
+  const [contactsOpen, setContactsOpen] = useState(false);
+
   const travelDateStr = form.travelDate
     ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
     : "TBD";
@@ -3836,18 +3842,46 @@ export function ItineraryDocument({
             it gives the page a top edge to hang from, so the hero below reads
             as a plate set into the document rather than as the page itself. */}
           <header
-            className="px-[10mm] pt-5 pb-3.5 h-full"
+            className="px-[6mm] sm:px-[10mm] pt-5 pb-3.5 h-full"
             style={{ borderBottom: `1px solid ${DOC.rule}` }}
           >
             {/* The rule above spans the window; this row is what stops at the
                 measure. Same shape as the site's own header. */}
-            <div className="screen-space flex items-end justify-between h-full">
-              {/* Colour via className, not style: DyLogo forwards only className,
-                and its mask is painted with bg-current — a background-color,
-                which html2canvas-pro resolves from oklch just fine (it's the
-                inline-SVG *stroke* that doesn't, see SectionHeader). */}
-              <DyLogo className="h-9 text-primary-500" />
-              <div className="h-9  text-[10.5px] flex items-center gap-4 text-neutral-800" >
+            <div className="screen-space flex flex-col sm:flex-row items-start sm:items-end sm:justify-between h-full">
+              {/* The logo shares its line with the contacts toggle on a phone.
+                  Above sm the toggle is hidden, leaving this wrapper holding
+                  the logo alone — the layout the masthead always had. */}
+              <div className="flex w-full items-center justify-between sm:w-auto sm:block">
+                {/* Colour via className, not style: DyLogo forwards only className,
+                  and its mask is painted with bg-current — a background-color,
+                  which html2canvas-pro resolves from oklch just fine (it's the
+                  inline-SVG *stroke* that doesn't, see SectionHeader). */}
+                <DyLogo className="h-9 text-primary-500" />
+                {/* Deliberately NOT .no-print: that class is hidden outright on
+                    the published page (see PRINT_STYLES), which is the one place
+                    this button has to exist. published-theme.ts hides it on paper
+                    and above the phone breakpoint instead. */}
+                {published && (
+                  <button
+                    type="button"
+                    onClick={() => setContactsOpen((open) => !open)}
+                    aria-expanded={contactsOpen}
+                    aria-controls="masthead-contact"
+                    className="masthead-contact-toggle flex items-center gap-1 rounded-full border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600"
+                  >
+                    Contact
+                    <ChevronDown
+                      size={13}
+                      className={cn("transition-transform", contactsOpen && "rotate-180")}
+                    />
+                  </button>
+                )}
+              </div>
+              <div
+                id="masthead-contact"
+                data-open={contactsOpen ? "" : undefined}
+                className="masthead-contact h-9  text-[10.5px] flex items-center gap-4 text-neutral-800"
+              >
                 <p className="flex items-center justify-end gap-1.5">
                   <Phone size={16} className="text-neutral-400/90" /> {form.companySettings?.phone ?? COMPANY_PHONE}
                 </p>
