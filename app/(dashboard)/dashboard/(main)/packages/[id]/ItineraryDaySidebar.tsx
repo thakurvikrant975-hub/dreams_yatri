@@ -66,6 +66,8 @@ import {
   handleAddActivityPrimaryImage,
 } from "@/app/actions/packages/itinerary-builder.actions";
 import type { HotelMealOption, RoomSearchSort } from "@/app/services/itinerary-builder.service";
+import { DISTANCE_BANDS } from "@/app/services/itinerary-builder.service";
+import { STAY_TYPES, CATEGORIES } from "../../hotels/constants";
 import MealsEditor from "./MealsEditor";
 import { CopyFromPackageDialog } from "./CopyFromPackageDialog";
 import type {
@@ -1202,6 +1204,39 @@ const MEAL_SHORT: Record<string, string> = {
   MORNING_SNACKS: "AM Snack", EVENING_SNACKS: "PM Snack", CUSTOM: "Meals",
 };
 
+/** The picker's filter controls are all the same shape: a tiny caps label and
+ *  a select narrow enough for the day sidebar. */
+function FilterSelect({
+  label, value, onChange, options, disabled, disabledHint,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  disabled?: boolean;
+  disabledHint?: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block mb-0.5">
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        title={disabled ? disabledHint : undefined}
+        className={cn(
+          "h-7 w-full min-w-0 text-[11px] rounded-md border border-border bg-background px-1.5 outline-none",
+          disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+        )}
+      >
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function HotelPickerPanel({
   destinationId, itineraryId, stayBlockOrder, stopIndex, stopCoords, onSelect, onCancel, isSaving,
 }: {
@@ -1226,6 +1261,9 @@ function HotelPickerPanel({
   const [mealFilter, setMealFilter] = useState<string[]>([]);
   const [noMealsOnly, setNoMealsOnly] = useState(false);
   const [sortBy, setSortBy] = useState<RoomSearchSort>(stopCoords ? "distance" : "name");
+  // Road distance is measured from the day's stop, so with no stop coordinates
+  // there is nothing to measure from and the filter stays off.
+  const [distanceBand, setDistanceBand] = useState<string | null>(null);
   const mealFilterKey = mealFilter.join(",");
 
   useEffect(() => {
@@ -1242,7 +1280,7 @@ function HotelPickerPanel({
     setLoading(true);
     handleSearchRoomPricings(
       destinationId, debouncedQuery, itineraryId ?? undefined, stayBlockOrder, stopIndex,
-      1, sortBy, starFilter, catFilter, mealFilter, noMealsOnly,
+      1, sortBy, starFilter, catFilter, mealFilter, noMealsOnly, distanceBand,
     )
       .then((res) => {
         if (cancelled) return;
@@ -1259,7 +1297,7 @@ function HotelPickerPanel({
     // itself would re-fire on every render that hands it a new array
     // reference with the same contents.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, destinationId, itineraryId, stayBlockOrder, stopIndex, sortBy, starFilter, catFilter, mealFilterKey, noMealsOnly]);
+  }, [debouncedQuery, destinationId, itineraryId, stayBlockOrder, stopIndex, sortBy, starFilter, catFilter, mealFilterKey, noMealsOnly, distanceBand]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
@@ -1268,7 +1306,7 @@ function HotelPickerPanel({
       const nextPage = page + 1;
       const res = await handleSearchRoomPricings(
         destinationId, debouncedQuery, itineraryId ?? undefined, stayBlockOrder, stopIndex,
-        nextPage, sortBy, starFilter, catFilter, mealFilter, noMealsOnly,
+        nextPage, sortBy, starFilter, catFilter, mealFilter, noMealsOnly, distanceBand,
       );
       if (res.success) {
         setItems((prev) => [...prev, ...(res.data.items as unknown as SearchedRoom[])]);
@@ -1281,13 +1319,21 @@ function HotelPickerPanel({
   }
 
   const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
-  const STAR_CHIPS = ["3 Star", "4 Star", "5 Star"];
-  const CAT_CHIPS = [
-    { value: "hotel", label: "Hotel" },
-    { value: "resort", label: "Resort" },
-    { value: "homestay", label: "Homestay" },
-    { value: "houseboat", label: "Houseboat" },
-    { value: "camp", label: "Camp" },
+  // Both lists come from the hotel form's own constants rather than a hand-
+  // picked subset: the chips these replaced offered 3 of 5 star ratings and 5
+  // of ~28 stay types, so a 2-star hotel or a villa simply could not be
+  // filtered to, however many of them the destination had.
+  const STAR_OPTIONS = [
+    { value: "", label: "Any rating" },
+    ...STAY_TYPES.map((t) => ({ value: t, label: `★ ${t}` })),
+  ];
+  const CAT_OPTIONS = [
+    { value: "", label: "Any stay type" },
+    ...CATEGORIES.map((c) => ({ value: c.value, label: c.label })),
+  ];
+  const DISTANCE_OPTIONS = [
+    { value: "", label: "Any distance" },
+    ...DISTANCE_BANDS.map((b) => ({ value: b.slug, label: b.label })),
   ];
   const MEAL_CHIPS = [
     { value: "breakfast", label: "Breakfast" },
@@ -1321,46 +1367,38 @@ function HotelPickerPanel({
         )}
       </div>
 
-      {/* Sort */}
-      <div className="flex items-center gap-2">
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Sort</label>
-        <select
+      {/* Sort + filters */}
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+        <FilterSelect
+          label="Sort"
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as RoomSearchSort)}
-          className="h-7 flex-1 min-w-0 text-[11px] rounded-md border border-border cursor-pointer bg-background px-1.5 outline-none"
-        >
-          {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+          onChange={(v) => setSortBy(v as RoomSearchSort)}
+          options={SORT_OPTIONS}
+        />
+        <FilterSelect
+          label="Distance (road)"
+          value={distanceBand ?? ""}
+          onChange={(v) => setDistanceBand(v || null)}
+          options={DISTANCE_OPTIONS}
+          disabled={!stopCoords}
+          disabledHint="This day's stop has no coordinates, so road distance can't be measured"
+        />
+        <FilterSelect
+          label="Star rating"
+          value={starFilter ?? ""}
+          onChange={(v) => setStarFilter(v || null)}
+          options={STAR_OPTIONS}
+        />
+        <FilterSelect
+          label="Stay type"
+          value={catFilter ?? ""}
+          onChange={(v) => setCatFilter(v || null)}
+          options={CAT_OPTIONS}
+        />
       </div>
 
-      {/* Filter chips */}
+      {/* Meal chips */}
       <div className="flex flex-wrap gap-1.5">
-        {STAR_CHIPS.map((star) => (
-          <button key={star} type="button"
-            onClick={() => setStarFilter(starFilter === star ? null : star)}
-            className={cn(
-              "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
-              starFilter === star
-                ? "bg-amber-500 text-white border-amber-500"
-                : "bg-muted/50 text-muted-foreground border-border hover:border-amber-400 hover:text-amber-700",
-            )}
-          >
-            ★ {star}
-          </button>
-        ))}
-        {CAT_CHIPS.map((c) => (
-          <button key={c.value} type="button"
-            onClick={() => setCatFilter(catFilter === c.value ? null : c.value)}
-            className={cn(
-              "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
-              catFilter === c.value
-                ? "bg-violet-600 text-white border-violet-600"
-                : "bg-muted/50 text-muted-foreground border-border hover:border-violet-400 hover:text-violet-700",
-            )}
-          >
-            {c.label}
-          </button>
-        ))}
         {MEAL_CHIPS.map((m) => (
           <button key={m.value} type="button"
             onClick={() => {
@@ -1388,9 +1426,12 @@ function HotelPickerPanel({
         >
           No meals
         </button>
-        {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
+        {(starFilter || catFilter || distanceBand || mealFilter.length > 0 || noMealsOnly) && (
           <button type="button"
-            onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); setNoMealsOnly(false); }}
+            onClick={() => {
+              setStarFilter(null); setCatFilter(null); setDistanceBand(null);
+              setMealFilter([]); setNoMealsOnly(false);
+            }}
             className="text-[10px] text-destructive/70 hover:text-destructive px-1"
           >
             Clear
@@ -1407,8 +1448,12 @@ function HotelPickerPanel({
         ) : items.length === 0 ? (
           <div className="py-8 text-center space-y-1">
             <p className="text-xs text-muted-foreground">No hotels found</p>
-            {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
-              <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>
+            {(starFilter || catFilter || distanceBand || mealFilter.length > 0 || noMealsOnly) && (
+              <p className="text-[10px] text-muted-foreground/60">
+                {distanceBand
+                  ? "No stays in that distance band — try a wider one, or remove a filter"
+                  : "Try removing a filter"}
+              </p>
             )}
           </div>
         ) : (

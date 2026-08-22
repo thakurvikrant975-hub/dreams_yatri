@@ -803,7 +803,41 @@ export async function getRoomPricingById(id: number) {
 
 const ROOM_SEARCH_PAGE_SIZE = 20;
 
+/** How far out, as the crow flies, the picker looks for candidate hotels.
+ *  Road distance is only ever longer, so this is a ceiling on road distance
+ *  too — which is why a band reaching past it has to widen the net. */
+const NEARBY_RADIUS_KM = 50;
+/** Hard ceiling on that widening: past this a "stay near the stop" search
+ *  stops being about the stop at all. */
+const MAX_NEARBY_RADIUS_KM = 200;
+
 export type RoomSearchSort = "distance" | "price_asc" | "price_desc" | "name";
+
+/**
+ * Road-distance bands for the picker's distance filter.
+ *
+ * Half-open [minKm, maxKm) on purpose: a hotel exactly 10.0 km out belongs to
+ * "10 – 25 km" and nowhere else, so the bands partition the results instead of
+ * double-counting the boundary. The last band is open-ended above.
+ *
+ * These are DRIVING kilometres, like the badge on each result — the whole point
+ * of the filter is that a crow-flies band would lie in the hills, where the same
+ * pairs run a median 2.5x longer by road (see roadDistances).
+ */
+export type DistanceBand = { slug: string; label: string; minKm: number; maxKm: number };
+
+export const DISTANCE_BANDS: DistanceBand[] = [
+  { slug: "0-5",   label: "0 – 5 km",   minKm: 0,  maxKm: 5 },
+  { slug: "5-10",  label: "5 – 10 km",  minKm: 5,  maxKm: 10 },
+  { slug: "10-25", label: "10 – 25 km", minKm: 10, maxKm: 25 },
+  { slug: "25-50", label: "25 – 50 km", minKm: 25, maxKm: 50 },
+  { slug: "50+",   label: "50+ km",     minKm: 50, maxKm: Number.POSITIVE_INFINITY },
+];
+
+function findDistanceBand(slug?: string | null): DistanceBand | null {
+  if (!slug) return null;
+  return DISTANCE_BANDS.find((b) => b.slug === slug) ?? null;
+}
 
 /** Great-circle distance in km — mirrors the raw-SQL haversine used to find
  * the nearby hotel ID set below, just run in JS once per already-fetched
@@ -834,18 +868,26 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
  * Keyed by hotel id, not room-pricing id: a hotel usually has several priced
  * rooms in the same result page and they all sit at the same coordinates, so
  * de-duplicating keeps one page comfortably inside OSRM's coordinate limit.
+ *
+ * Measures every hotel handed to it, in chunks, rather than the first 90 —
+ * badging a page only ever needed the page, but FILTERING by road distance
+ * needs the whole candidate set, since a hotel that never gets a number can
+ * never be shown to be inside the band.
  */
 const ROAD_MATRIX_LIMIT = 90; // OSRM public table service, minus the origin
+/** Ceiling on one search's routing work. Beyond this the tail stays unmeasured
+ *  (and so unbadged, and excluded from a band filter) rather than fanning out
+ *  into an unbounded number of calls against a public service. */
+const ROAD_MATRIX_MAX_HOTELS = ROAD_MATRIX_LIMIT * 5;
 
-async function roadDistances(
+/** One OSRM table call: origin → up to ROAD_MATRIX_LIMIT hotels. */
+async function roadDistanceChunk(
   originLat: number,
   originLng: number,
   hotels: { id: number; lat: number; lng: number }[],
-): Promise<Map<number, { km: number; min: number }>> {
-  const out = new Map<number, { km: number; min: number }>();
-  if (hotels.length === 0) return out;
-  const limited = hotels.slice(0, ROAD_MATRIX_LIMIT);
-  const coords = [`${originLng},${originLat}`, ...limited.map((h) => `${h.lng},${h.lat}`)].join(";");
+  out: Map<number, { km: number; min: number }>,
+): Promise<void> {
+  const coords = [`${originLng},${originLat}`, ...hotels.map((h) => `${h.lng},${h.lat}`)].join(";");
   try {
     const res = await fetch(
       `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&annotations=distance,duration`,
@@ -853,13 +895,13 @@ async function roadDistances(
       // opens off the public routing service entirely.
       { next: { revalidate: 86400 } },
     );
-    if (!res.ok) return out;
+    if (!res.ok) return;
     const data = await res.json();
-    if (data.code !== "Ok") return out;
+    if (data.code !== "Ok") return;
     const dist: (number | null)[] | undefined = data.distances?.[0];
     const dur: (number | null)[] | undefined = data.durations?.[0];
-    if (!Array.isArray(dist)) return out;
-    limited.forEach((h, i) => {
+    if (!Array.isArray(dist)) return;
+    hotels.forEach((h, i) => {
       const m = dist[i + 1];
       // OSRM returns null for a coordinate it cannot snap to the road network
       // (an island, a bad pin) — those stay unbadged rather than guessed at.
@@ -868,7 +910,22 @@ async function roadDistances(
       out.set(h.id, { km: Math.round((m / 1000) * 10) / 10, min: secs != null ? Math.round(secs / 60) : 0 });
     });
   } catch {
-    // Network trouble leaves the map empty and every badge hidden.
+    // Network trouble leaves this chunk unmeasured and its badges hidden.
+  }
+}
+
+async function roadDistances(
+  originLat: number,
+  originLng: number,
+  hotels: { id: number; lat: number; lng: number }[],
+): Promise<Map<number, { km: number; min: number }>> {
+  const out = new Map<number, { km: number; min: number }>();
+  if (hotels.length === 0) return out;
+  const limited = hotels.slice(0, ROAD_MATRIX_MAX_HOTELS);
+  // Sequential, not parallel: this is a free public routing service, and a
+  // day-cached chunk returns without touching the network anyway.
+  for (let i = 0; i < limited.length; i += ROAD_MATRIX_LIMIT) {
+    await roadDistanceChunk(originLat, originLng, limited.slice(i, i + ROAD_MATRIX_LIMIT), out);
   }
   return out;
 }
@@ -889,8 +946,23 @@ export async function searchRoomPricings(
    * must cover ALL of — ignored when noMealsOnly is set. */
   mealFilter?: string[] | null,
   noMealsOnly?: boolean | null,
+  /** A DISTANCE_BANDS slug, e.g. "10-25". Needs the stop's coordinates to mean
+   *  anything, so it is ignored when the day's stop has none. */
+  distanceBand?: string | null,
 ) {
   const lookupOrder = stopIndex ?? stayBlockOrder;
+  const band = findDistanceBand(distanceBand);
+  // The default radius already covers every band up to 50 km, since a road is
+  // never shorter than the straight line it follows. Only the open-ended top
+  // band reaches past it — and without widening here it could never find the
+  // very hotels that define it, because the candidate query would have cut
+  // them before road distance was ever measured.
+  const searchRadiusKm = band
+    ? Math.min(
+        Math.max(NEARBY_RADIUS_KM, Number.isFinite(band.maxKm) ? band.maxKm : MAX_NEARBY_RADIUS_KM),
+        MAX_NEARBY_RADIUS_KM,
+      )
+    : NEARBY_RADIUS_KM;
 
   // Resolve the current stop when we have itinerary context
   let stopPlaceName: string | null = null;
@@ -960,22 +1032,73 @@ export async function searchRoomPricings(
         : null,
     }));
 
+    // ── Distance band ─────────────────────────────────────────────────────
+    // Filtering by road distance has to happen BEFORE paging, which means
+    // measuring every candidate rather than just the twenty about to render:
+    // a hotel with no number can't be shown to be inside the band, and one
+    // measured only after paging would be filtered out of a page it had
+    // already displaced someone from.
+    let candidates = withDistance;
+    // Populated only on the band path; the default path still measures just
+    // the page it is about to render, as it always has.
+    let candidateRoad: Map<number, { km: number; min: number }> | null = null;
+
+    if (band != null && stopLat != null && stopLng != null) {
+      // A road can't be shorter than the straight line, so nothing further out
+      // than the band's outer edge as the crow flies can land inside it by
+      // road. Pruning on that keeps the routing matrix small without changing
+      // a single result. (Open-ended bands have nothing to prune against.)
+      const inRangeByCrow = Number.isFinite(band.maxKm)
+        ? withDistance.filter((p) => p.crowKm != null && p.crowKm <= band.maxKm)
+        : withDistance;
+
+      // Nearest-first so that if the candidate set ever runs past the routing
+      // ceiling, it's the far tail that goes unmeasured rather than an
+      // arbitrary slice of it.
+      const seen = new Set<number>();
+      const targets: { id: number; lat: number; lng: number }[] = [];
+      for (const p of [...inRangeByCrow].sort((a, b) => (a.crowKm ?? Infinity) - (b.crowKm ?? Infinity))) {
+        const h = p.row.hotel;
+        if (seen.has(h.id) || h.location?.latitude == null || h.location?.longitude == null) continue;
+        seen.add(h.id);
+        targets.push({ id: h.id, lat: Number(h.location.latitude), lng: Number(h.location.longitude) });
+      }
+      candidateRoad = await roadDistances(stopLat, stopLng, targets);
+
+      const measured = candidateRoad;
+      candidates = inRangeByCrow.filter((p) => {
+        const km = measured.get(p.row.hotel.id)?.km;
+        if (km == null) return false; // unroutable or past the ceiling
+        return km >= band.minKm && km < band.maxKm;
+      });
+    }
+
     const effectiveSort = sortBy ?? (stopLat != null && stopLng != null ? "distance" : "name");
-    withDistance.sort((a, b) => {
+    candidates.sort((a, b) => {
       if (effectiveSort === "price_asc") return a.row.price_per_night.toString().localeCompare(b.row.price_per_night.toString(), undefined, { numeric: true }) || a.row.hotel.name.localeCompare(b.row.hotel.name);
       if (effectiveSort === "price_desc") return b.row.price_per_night.toString().localeCompare(a.row.price_per_night.toString(), undefined, { numeric: true }) || a.row.hotel.name.localeCompare(b.row.hotel.name);
-      if (effectiveSort === "distance") return (a.crowKm ?? Infinity) - (b.crowKm ?? Infinity) || a.row.hotel.name.localeCompare(b.row.hotel.name);
+      if (effectiveSort === "distance") {
+        // On the band path every candidate already has a road number, so the
+        // whole set can be ranked by the distance it will actually display —
+        // no page-boundary straddling (see below).
+        if (candidateRoad) {
+          const ak = candidateRoad.get(a.row.hotel.id)?.km ?? Infinity;
+          const bk = candidateRoad.get(b.row.hotel.id)?.km ?? Infinity;
+          return ak - bk || a.row.hotel.name.localeCompare(b.row.hotel.name);
+        }
+        return (a.crowKm ?? Infinity) - (b.crowKm ?? Infinity) || a.row.hotel.name.localeCompare(b.row.hotel.name);
+      }
       return a.row.hotel.name.localeCompare(b.row.hotel.name);
     });
 
     const start = (Math.max(page, 1) - 1) * ROOM_SEARCH_PAGE_SIZE;
-    const pageSlice = withDistance.slice(start, start + ROOM_SEARCH_PAGE_SIZE);
+    const pageSlice = candidates.slice(start, start + ROOM_SEARCH_PAGE_SIZE);
 
     // One routing call for the page that is about to be rendered, rather than
     // for the whole candidate set: the set can run to hundreds of rows, and
     // only these twenty carry a number the planner will read.
-    let road = new Map<number, { km: number; min: number }>();
-    if (stopLat != null && stopLng != null) {
+    let road = candidateRoad ?? new Map<number, { km: number; min: number }>();
+    if (candidateRoad == null && stopLat != null && stopLng != null) {
       const seen = new Set<number>();
       const targets: { id: number; lat: number; lng: number }[] = [];
       for (const p of pageSlice) {
@@ -996,14 +1119,14 @@ export async function searchRoomPricings(
     // great-circle above, so this only reshuffles within the page — two hotels
     // can still straddle a page boundary out of road order, which beats showing
     // a list sorted by one distance and labelled with another.
-    if (effectiveSort === "distance") {
+    if (effectiveSort === "distance" && candidateRoad == null) {
       items.sort((a, b) => (a.roadKm ?? Infinity) - (b.roadKm ?? Infinity) || a.hotel.name.localeCompare(b.hotel.name));
     }
 
     return {
       items: toItems(items),
-      has_more: withDistance.length > start + ROOM_SEARCH_PAGE_SIZE,
-      total: withDistance.length,
+      has_more: candidates.length > start + ROOM_SEARCH_PAGE_SIZE,
+      total: candidates.length,
     };
   }
 
@@ -1012,7 +1135,7 @@ export async function searchRoomPricings(
     type HotelId = { id: number };
     const haversine = `6371 * acos(LEAST(1.0, cos(radians(${stopLat})) * cos(radians(l.latitude::float)) * cos(radians(l.longitude::float) - radians(${stopLng})) + sin(radians(${stopLat})) * sin(radians(l.latitude::float))))`;
     const nearby: HotelId[] = await db.$queryRawUnsafe<HotelId[]>(
-      `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND (${haversine}) <= 50`,
+      `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND (${haversine}) <= ${searchRadiusKm}`,
     );
     const nearbyIds = nearby.map((r) => r.id);
     if (nearbyIds.length > 0) {

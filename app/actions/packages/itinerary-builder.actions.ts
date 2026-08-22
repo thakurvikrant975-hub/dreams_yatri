@@ -312,11 +312,13 @@ export async function handleSearchRoomPricings(
   catFilter?: string | null,
   mealFilter?: string[] | null,
   noMealsOnly?: boolean | null,
+  /** A DISTANCE_BANDS slug, e.g. "10-25" — road distance from the day's stop. */
+  distanceBand?: string | null,
 ) {
   try {
     const data = await searchRoomPricings(
       destinationId, query, itineraryId, stayBlockOrder, stopIndex,
-      page, sortBy, starFilter, catFilter, mealFilter, noMealsOnly,
+      page, sortBy, starFilter, catFilter, mealFilter, noMealsOnly, distanceBand,
     );
     return { success: true as const, data };
   } catch (e) {
