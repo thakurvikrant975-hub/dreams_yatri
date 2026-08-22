@@ -224,6 +224,13 @@ function DurationMarginSection({
     ),
   );
   const [calendarFor, setCalendarFor] = useState<number | null>(null);
+  // Saving a season upserts the parent config row, so a category that showed
+  // "Not configured" genuinely is configured afterwards (at the same 10%/5%
+  // the inputs were already displaying). Track it so the label doesn't lie
+  // until the next reload.
+  const [configuredIds, setConfiguredIds] = useState<Set<number>>(
+    () => new Set(pricings.map((p) => p.stay_category_id)),
+  );
 
   const items: SeasonalRateCalendarItem[] = stayCategories.map((c) => ({
     id: String(c.id),
@@ -252,6 +259,7 @@ function DurationMarginSection({
         })),
     });
     if (result.success) {
+      setConfiguredIds((prev) => prev.has(stayCategoryId) ? prev : new Set(prev).add(stayCategoryId));
       toast.success("Seasonal margin saved");
     } else {
       setSeasons(previous);
@@ -278,7 +286,7 @@ function DurationMarginSection({
               stayCategory={cat}
               initialMargin={existing?.margin_percentage ?? 10}
               initialGst={existing?.gst_percentage ?? 5}
-              hasConfig={!!existing}
+              hasConfig={configuredIds.has(cat.id)}
               seasonCount={seasons.filter((s) => s.itemId === String(cat.id)).length}
               onOpenSeasons={() => setCalendarFor(cat.id)}
               onSavedMargin={(m) => setSavedMargins((prev) => ({ ...prev, [cat.id]: m }))}
@@ -301,6 +309,8 @@ function DurationMarginSection({
           currencySymbol=""
           rateSuffix="%"
           rateFieldLabel="Margin %"
+          rateMax={100}
+          showBaseRateWhenZero
         />
       )}
     </Card>

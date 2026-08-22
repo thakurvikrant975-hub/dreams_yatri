@@ -49,6 +49,43 @@ function rangeLabel(from: Date, to: Date): string {
  * FIRST travel date and that decides the whole quote. With no date (a catalog
  * page listing a price before anyone has picked one), the base margin applies.
  */
+/** The day-of-year intervals a year-agnostic range covers — two when it wraps
+ *  the new year, one otherwise. Encoded as month*100+day so plain integer
+ *  comparison orders them and no Date (or timezone) is involved. */
+function intervalsFor(fromISO: string, toISO: string): [number, number][] {
+  const md = (iso: string) => Number(iso.slice(5, 7)) * 100 + Number(iso.slice(8, 10));
+  const from = md(fromISO);
+  const to = md(toISO);
+  return from <= to ? [[from, to]] : [[from, 1231], [101, to]];
+}
+
+/**
+ * The first pair of seasons whose dates collide, or null when none do.
+ *
+ * Overlapping ranges aren't a crash — resolution just takes the first match by
+ * sort order — but they make a package's margin depend on row order, which is
+ * not something anyone chose. The calendar already trims overlaps client-side;
+ * this is the server's own invariant, so a direct call can't install a set the
+ * UI would never have produced.
+ *
+ * Compared year-agnostically, exactly as resolvePackageMargin matches: a range
+ * wrapping the new year collides with anything touching either end of it.
+ */
+export function findMarginSeasonOverlap(
+  seasons: { valid_from: string; valid_to: string }[],
+): { a: number; b: number } | null {
+  for (let i = 0; i < seasons.length; i++) {
+    for (let j = i + 1; j < seasons.length; j++) {
+      for (const [aStart, aEnd] of intervalsFor(seasons[i].valid_from, seasons[i].valid_to)) {
+        for (const [bStart, bEnd] of intervalsFor(seasons[j].valid_from, seasons[j].valid_to)) {
+          if (aStart <= bEnd && bStart <= aEnd) return { a: i, b: j };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export function resolvePackageMargin(
   config: MarginPricingConfig,
   travelDate: Date | null,

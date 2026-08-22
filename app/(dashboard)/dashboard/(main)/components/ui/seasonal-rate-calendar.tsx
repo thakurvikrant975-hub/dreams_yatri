@@ -82,6 +82,14 @@ export interface SeasonalRateCalendarProps<T extends RateSeasonBase> {
   /** Label on the rate input in the add/edit form. Defaults to
    *  "Rate (<currencySymbol>)". */
   rateFieldLabel?: string;
+  /** Upper bound on the rate, enforced in the form rather than only by the
+   *  caller's server. Domains priced as a percentage have a real ceiling; an
+   *  amount usually doesn't, so this is off by default. */
+  rateMax?: number;
+  /** Show the base-rate card even when the base is 0. Off by default, because
+   *  for an amount 0 means "no rate set" and the card would be noise — but a
+   *  0% margin is a deliberate, meaningful setting. */
+  showBaseRateWhenZero?: boolean;
   /** e.g. "per night", "per day" — shown after the base rate in the item dropdown. */
   unitLabel?: string;
   /** Extra domain-specific inputs (e.g. extra bed rate, per-km vs per-day)
@@ -135,7 +143,7 @@ function useMounted(): boolean {
 export function SeasonalRateCalendar<T extends RateSeasonBase>({
   open, onOpenChange, title = "Seasonal Rate Calendar", subtitle,
   items, activeItemId, seasons, onSave,
-  currencySymbol = "₹", rateSuffix = "", rateFieldLabel,
+  currencySymbol = "₹", rateSuffix = "", rateFieldLabel, rateMax, showBaseRateWhenZero = false,
   unitLabel, renderExtraFields, renderRateExtra, getDefaultDraft,
   getGroupKey = (s: T) => String(s.rate),
   getSeasonWeekendRate,
@@ -421,7 +429,7 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
                 </p>
 
                 <div className="flex-1 overflow-y-auto space-y-3 -mr-2 pr-2">
-                  {activeItem && activeItem.baseRate > 0 && (
+                  {activeItem && (activeItem.baseRate > 0 || showBaseRateWhenZero) && (
                     <BaseRateCard item={activeItem} fmtRate={fmtRate} unitLabel={unitLabel} year={year} />
                   )}
                   {groups.length === 0 ? (
@@ -502,6 +510,7 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
                         )}
                         fmtRate={fmtRate}
                         rateFieldLabel={rateFieldLabel ?? `Rate (${currencySymbol})`}
+                        rateMax={rateMax}
                         onChange={(patch) => updateItemDraft(item.id, patch)}
                         onSave={() => handleSaveItem(item.id)}
                         onDelete={() => handleDeleteItemSeason(item.id)}
@@ -705,7 +714,7 @@ const fieldClass =
 
 function ItemPriceSection<T extends RateSeasonBase>({
   item, isPrimary, draft, editingSeasonId, range, otherSeasonsForItem,
-  fmtRate, rateFieldLabel, onChange, onSave, onDelete, renderExtraFields, renderRateExtra, getGroupKey,
+  fmtRate, rateFieldLabel, rateMax, onChange, onSave, onDelete, renderExtraFields, renderRateExtra, getGroupKey,
 }: {
   item: SeasonalRateCalendarItem;
   /** The top/calling plan — pinned first, visually distinguished. */
@@ -716,6 +725,7 @@ function ItemPriceSection<T extends RateSeasonBase>({
   otherSeasonsForItem: T[];
   fmtRate: (rate: number) => string;
   rateFieldLabel: string;
+  rateMax?: number;
   onChange: (patch: Partial<Draft>) => void;
   onSave: () => void;
   onDelete: () => void;
@@ -742,7 +752,12 @@ function ItemPriceSection<T extends RateSeasonBase>({
     ? `Overlaps ${overlapping.map((s) => s.label || defaultRangeLabel(s.startDate, s.endDate)).join(", ")} — will be trimmed automatically so dates never overlap.`
     : null;
 
-  const canSave = draft.rate != null;
+  // Out of range is caught here rather than only by the caller's server: the
+  // caller applies the season optimistically, so a server rejection reads as
+  // "saved, then silently undone".
+  const rateOutOfRange =
+    draft.rate != null && (draft.rate < 0 || (rateMax != null && draft.rate > rateMax));
+  const canSave = draft.rate != null && !rateOutOfRange;
 
   return (
     <div className={cn(
@@ -776,10 +791,16 @@ function ItemPriceSection<T extends RateSeasonBase>({
           <input
             type="number"
             min={0}
+            max={rateMax}
             value={draft.rate ?? ""}
             onChange={(e) => onChange({ rate: e.target.value ? Number(e.target.value) : undefined })}
-            className={fieldClass}
+            className={cn(fieldClass, rateOutOfRange && "border-red-400 focus:ring-red-500/30")}
           />
+          {rateOutOfRange && (
+            <p className="text-[10px] text-red-600 mt-0.5">
+              Must be between 0 and {fmtRate(rateMax ?? 0)}
+            </p>
+          )}
         </div>
         {renderRateExtra?.({ draft: draft as Partial<T>, onChange: onChange as (patch: Partial<T>) => void })}
       </div>

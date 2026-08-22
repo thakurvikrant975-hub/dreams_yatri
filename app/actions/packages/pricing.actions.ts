@@ -7,6 +7,7 @@ import {
   type PricingInput,
 } from "@/app/services/package-pricing.service";
 import { roomTotalCapacity } from "@/app/lib/room-capacity";
+import { findMarginSeasonOverlap } from "@/app/lib/package-margin-season";
 import {
   ReplaceMarginSeasonsSchema,
   type ReplaceMarginSeasonsDTO,
@@ -79,6 +80,20 @@ export async function handleReplaceMarginSeasons(raw: ReplaceMarginSeasonsDTO) {
     };
   }
   const input = parsed.data;
+
+  // Note the calendar is year-scoped while these dates are not, so this can
+  // fire on two ranges the UI drew in different years — hence spelling out
+  // why they collide rather than just saying they do.
+  const overlap = findMarginSeasonOverlap(input.seasons);
+  if (overlap) {
+    const range = (i: number) => `${input.seasons[i].valid_from} – ${input.seasons[i].valid_to}`;
+    return {
+      success: false as const,
+      error:
+        `Two margin seasons cover the same dates (${range(overlap.a)} and ${range(overlap.b)}). ` +
+        `Season dates repeat every year, so ranges can't overlap even when their years differ.`,
+    };
+  }
 
   try {
     await db.$transaction(async (tx) => {
