@@ -929,6 +929,10 @@ export async function fetchPackagePageData(
     selectedStay,
     itinerary,
     cabTypes,
+    // The BASE margin, deliberately — this page is rendered before anyone has
+    // picked a travel date, and margin seasons resolve from that date. Every
+    // real price the visitor sees comes from computePackagePrice, which does
+    // apply the season once a date exists (see resolvePackageMargin).
     pricingConfig: pricingConfig
       ? {
           margin_percentage: Number(pricingConfig.margin_percentage),

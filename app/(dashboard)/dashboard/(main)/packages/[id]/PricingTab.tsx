@@ -25,7 +25,15 @@ import {
 } from "lucide-react"; 
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
-import { handleUpsertPackagePricing } from "@/app/actions/packages/pricing.actions";
+import {
+  handleUpsertPackagePricing, handleReplaceMarginSeasons,
+} from "@/app/actions/packages/pricing.actions";
+import {
+  SeasonalRateCalendar, type SeasonalRateCalendarItem,
+} from "../../components/ui/seasonal-rate-calendar";
+import {
+  type RateSeasonBase, CURATED_PALETTE,
+} from "../../components/ui/seasonal-rate-calendar-logic";
 import {
   createCabType, updateCabType, deleteCabType,
   upsertCabSegment, setDefaultCabType,
@@ -46,13 +54,30 @@ import { SearchSelect, type Option } from "../../components/dashboard/SearchSele
 
 type Duration = { id: number; label: string; days: number; nights: number };
 type StayCategory = { id: number; label: string; slug: string };
+/** A saved date-ranged margin override, as it comes off the server. Dates are
+ *  plain "YYYY-MM-DD"; only their month/day matter, since the engine matches
+ *  year-agnostically so a season recurs every year. */
+type MarginSeason = {
+  id: string;
+  season_name: string | null;
+  valid_from: string;
+  valid_to: string;
+  margin_percentage: number;
+  color: string | null;
+};
+
 type SavedPricing = {
   id: number;
   duration_id: number;
   stay_category_id: number;
   margin_percentage: number;
   gst_percentage: number;
+  seasons: MarginSeason[];
 };
+
+/** The same season in the shape the shared Seasonal Rate Calendar speaks:
+ *  `rate` is the margin percentage, `itemId` the stay category it belongs to. */
+type MarginRateSeason = RateSeasonBase;
 
 type CabSeason = {
   id: number;
@@ -141,6 +166,147 @@ function groupCabTypesByRange(cabTypes: CabType[]): CabGroup[] {
 let _uidSeq = 0;
 function uid() { return String(++_uidSeq); }
 
+// ── Seasonal margin ────────────────────────────────────────────────────────
+// The base margin below is the floor: it applies on every date no season
+// covers. Seasons layer date ranges on top of it, exactly like a hotel's
+// seasonal room rates — same calendar, same overlap-trimming rules — so a
+// package can take a fatter cut over Christmas without anyone having to
+// remember to change it back in January.
+
+function marginSeasonsToRateSeasons(
+  seasons: MarginSeason[],
+  stayCategoryId: number,
+): MarginRateSeason[] {
+  return seasons.map((s) => ({
+    id: s.id,
+    itemId: String(stayCategoryId),
+    label: s.season_name ?? undefined,
+    startDate: s.valid_from,
+    endDate: s.valid_to,
+    color: s.color ?? CURATED_PALETTE[0],
+    rate: s.margin_percentage,
+  }));
+}
+
+/** One duration's margin block — every stay category's base margin/GST row,
+ *  plus the one seasonal calendar they share. The calendar is owned here
+ *  rather than per row so opening it from any row still shows (and can edit)
+ *  every category's seasons side by side for the same dates, which is how the
+ *  hotel Pricing tab's version behaves too. */
+function DurationMarginSection({
+  packageId,
+  duration,
+  stayCategories,
+  pricings,
+}: {
+  packageId: number;
+  duration: Duration;
+  stayCategories: StayCategory[];
+  pricings: SavedPricing[];
+}) {
+  // Last SAVED base margin per category — what the calendar must show as the
+  // base, since an unsaved edit in the input isn't what the engine is pricing
+  // with yet.
+  const [savedMargins, setSavedMargins] = useState<Record<number, number>>(() =>
+    Object.fromEntries(
+      stayCategories.map((c) => [
+        c.id,
+        pricings.find((p) => p.stay_category_id === c.id)?.margin_percentage ?? 10,
+      ]),
+    ),
+  );
+  const [seasons, setSeasons] = useState<MarginRateSeason[]>(() =>
+    stayCategories.flatMap((c) =>
+      marginSeasonsToRateSeasons(
+        pricings.find((p) => p.stay_category_id === c.id)?.seasons ?? [],
+        c.id,
+      ),
+    ),
+  );
+  const [calendarFor, setCalendarFor] = useState<number | null>(null);
+
+  const items: SeasonalRateCalendarItem[] = stayCategories.map((c) => ({
+    id: String(c.id),
+    label: c.label,
+    baseRate: savedMargins[c.id] ?? 10,
+  }));
+
+  async function handleSaveSeasons(next: MarginRateSeason[], changedItemId: string) {
+    const previous = seasons;
+    setSeasons(next); // optimistic — the calendar stays responsive mid-edit
+    const stayCategoryId = Number(changedItemId);
+    const result = await handleReplaceMarginSeasons({
+      package_id: packageId,
+      duration_id: duration.id,
+      stay_category_id: stayCategoryId,
+      // The server assigns its own ids on every replace, so the client-side
+      // ones (including the ones overlap-trimming just invented) aren't sent.
+      seasons: next
+        .filter((s) => s.itemId === changedItemId)
+        .map((s) => ({
+          season_name: s.label?.trim() || null,
+          valid_from: s.startDate,
+          valid_to: s.endDate,
+          margin_percentage: s.rate,
+          color: s.color,
+        })),
+    });
+    if (result.success) {
+      toast.success("Seasonal margin saved");
+    } else {
+      setSeasons(previous);
+      toast.error(result.error);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="py-3 px-4">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold">{duration.label}</CardTitle>
+          <Badge variant="outline" className="text-xs">{duration.nights}N / {duration.days}D</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 pt-0 pb-1">
+        {stayCategories.map((cat) => {
+          const existing = pricings.find((p) => p.stay_category_id === cat.id);
+          return (
+            <PricingRow
+              key={`${duration.id}-${cat.id}`}
+              packageId={packageId}
+              durationId={duration.id}
+              stayCategory={cat}
+              initialMargin={existing?.margin_percentage ?? 10}
+              initialGst={existing?.gst_percentage ?? 5}
+              hasConfig={!!existing}
+              seasonCount={seasons.filter((s) => s.itemId === String(cat.id)).length}
+              onOpenSeasons={() => setCalendarFor(cat.id)}
+              onSavedMargin={(m) => setSavedMargins((prev) => ({ ...prev, [cat.id]: m }))}
+            />
+          );
+        })}
+      </CardContent>
+
+      {calendarFor != null && (
+        <SeasonalRateCalendar<MarginRateSeason>
+          open
+          onOpenChange={(o) => { if (!o) setCalendarFor(null); }}
+          title="Seasonal Margin"
+          subtitle={`${duration.label} · margin applied on top of the base cost`}
+          items={items}
+          activeItemId={String(calendarFor)}
+          onActiveItemChange={(id) => setCalendarFor(Number(id))}
+          seasons={seasons}
+          onSave={handleSaveSeasons}
+          currencySymbol=""
+          rateSuffix="%"
+          rateFieldLabel="Margin %"
+        />
+      )}
+    </Card>
+  );
+}
+
 // ── Margin/GST row ─────────────────────────────────────────────────────────
 
 function PricingRow({
@@ -150,6 +316,9 @@ function PricingRow({
   initialMargin,
   initialGst,
   hasConfig,
+  seasonCount,
+  onOpenSeasons,
+  onSavedMargin,
 }: {
   packageId: number;
   durationId: number;
@@ -157,6 +326,9 @@ function PricingRow({
   initialMargin: number;
   initialGst: number;
   hasConfig: boolean;
+  seasonCount: number;
+  onOpenSeasons: () => void;
+  onSavedMargin: (margin: number) => void;
 }) {
   const [margin, setMargin] = useState(String(initialMargin));
   const [gst, setGst] = useState(String(initialGst));
@@ -180,6 +352,7 @@ function PricingRow({
       });
       if (result.success) {
         setSaved(true);
+        onSavedMargin(m);
         toast.success(`${stayCategory.label} pricing saved`);
       } else {
         toast.error(result.error);
@@ -228,6 +401,21 @@ function PricingRow({
           ) : saved ? (
             <><Check className="h-3.5 w-3.5 mr-1 text-green-600" /><span className="text-green-600">Saved</span></>
           ) : "Save"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onOpenSeasons}
+          className="h-8 shrink-0 gap-1.5"
+          title="Override this margin for specific date ranges"
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Seasons</span>
+          {seasonCount > 0 && (
+            <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-semibold">
+              {seasonCount}
+            </Badge>
+          )}
         </Button>
       </div>
     </div>
@@ -2151,46 +2339,31 @@ export function PricingTab({
         <div>
           <h2 className="text-base font-semibold">Margin &amp; GST Configuration</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Set the margin percentage and GST rate for each duration &amp; stay category combination.
+            Set the base margin and GST rate for each duration &amp; stay category combination.
+            The base margin applies on every date no season covers — use{" "}
+            <span className="font-medium">Seasons</span> to charge a different margin over
+            specific date ranges (peak, shoulder, off-season). Seasons repeat every year, so
+            one set of dates keeps applying until you change it.
           </p>
         </div>
 
         <div className="flex items-center gap-3 px-4 py-2 bg-muted/40 rounded-lg text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           <span className="w-36 shrink-0">Stay Category</span>
           <div className="flex items-center gap-2 flex-1">
-            <span className="w-28 text-center">Margin %</span>
+            <span className="w-28 text-center">Base Margin %</span>
             <span className="w-5" />
             <span className="w-28 text-center">GST %</span>
           </div>
         </div>
 
         {durations.map((duration) => (
-          <Card key={duration.id}>
-            <CardHeader className="py-3 px-4">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-semibold">{duration.label}</CardTitle>
-                <Badge variant="outline" className="text-xs">{duration.nights}N / {duration.days}D</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pt-0 pb-1">
-              {stayCategories.map((cat) => {
-                const existing = initialPricings.find(
-                  (p) => p.duration_id === duration.id && p.stay_category_id === cat.id,
-                );
-                return (
-                  <PricingRow
-                    key={`${duration.id}-${cat.id}`}
-                    packageId={packageId}
-                    durationId={duration.id}
-                    stayCategory={cat}
-                    initialMargin={existing?.margin_percentage ?? 10}
-                    initialGst={existing?.gst_percentage ?? 5}
-                    hasConfig={!!existing}
-                  />
-                );
-              })}
-            </CardContent>
-          </Card>
+          <DurationMarginSection
+            key={duration.id}
+            packageId={packageId}
+            duration={duration}
+            stayCategories={stayCategories}
+            pricings={initialPricings.filter((p) => p.duration_id === duration.id)}
+          />
         ))}
       </div>
 

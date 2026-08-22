@@ -690,6 +690,13 @@ function SummaryCard({ breakdown, roomsConfigured }: { breakdown: FullPricingBre
             <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
             Margin
             <Chip color="blue">{breakdown.margin_percentage}%</Chip>
+            {/* Which margin season the travel date landed in — without this the
+                preview shows a percentage nobody can trace back to a setting. */}
+            {breakdown.margin_season_label && (
+              <span className="text-[10px] text-blue-600 truncate max-w-40">
+                {breakdown.margin_season_label}
+              </span>
+            )}
           </span>
           <span className="text-xs font-medium text-blue-700">+ ₹{fmt(breakdown.margin_amount)}</span>
         </div>

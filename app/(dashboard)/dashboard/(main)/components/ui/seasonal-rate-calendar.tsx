@@ -75,6 +75,13 @@ export interface SeasonalRateCalendarProps<T extends RateSeasonBase> {
   seasons: T[];
   onSave: (next: T[], changedItemId: string) => void | Promise<void>;
   currencySymbol?: string;
+  /** Written straight after the number wherever a rate is shown — for domains
+   *  priced as a percentage rather than an amount (e.g. "%"), where a prefixed
+   *  currency symbol is the wrong shape entirely. */
+  rateSuffix?: string;
+  /** Label on the rate input in the add/edit form. Defaults to
+   *  "Rate (<currencySymbol>)". */
+  rateFieldLabel?: string;
   /** e.g. "per night", "per day" — shown after the base rate in the item dropdown. */
   unitLabel?: string;
   /** Extra domain-specific inputs (e.g. extra bed rate, per-km vs per-day)
@@ -128,13 +135,18 @@ function useMounted(): boolean {
 export function SeasonalRateCalendar<T extends RateSeasonBase>({
   open, onOpenChange, title = "Seasonal Rate Calendar", subtitle,
   items, activeItemId, seasons, onSave,
-  currencySymbol = "₹", unitLabel, renderExtraFields, renderRateExtra, getDefaultDraft,
+  currencySymbol = "₹", rateSuffix = "", rateFieldLabel,
+  unitLabel, renderExtraFields, renderRateExtra, getDefaultDraft,
   getGroupKey = (s: T) => String(s.rate),
   getSeasonWeekendRate,
   renderGroupExtra,
 }: SeasonalRateCalendarProps<T>) {
   const [year, setYear] = useState(() => new Date().getFullYear());
   const mounted = useMounted();
+  const fmtRate = useMemo(
+    () => (r: number) => `${currencySymbol}${r.toLocaleString("en-IN")}${rateSuffix}`,
+    [currencySymbol, rateSuffix],
+  );
 
   // The shared date range currently being defined/edited — once both dates
   // are set, every item (not just one "active" one) gets its own pricing
@@ -344,12 +356,12 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
           <div className="flex items-center gap-4 px-6 py-2.5 border-b border-neutral-100 text-[11px] text-neutral-500 shrink-0">
             <span className="flex items-center gap-1.5">
               <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: BASE_RATE_WEEKDAY_COLOR }} />
-              Base rate · {currencySymbol}{activeItem.baseRate.toLocaleString("en-IN")}
+              Base rate · {fmtRate(activeItem.baseRate)}
             </span>
             {activeItem.baseWeekendRate != null && activeItem.baseWeekendRate !== activeItem.baseRate && (
               <span className="flex items-center gap-1.5">
                 <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: BASE_RATE_WEEKEND_COLOR }} />
-                Weekend · {currencySymbol}{activeItem.baseWeekendRate.toLocaleString("en-IN")}
+                Weekend · {fmtRate(activeItem.baseWeekendRate)}
               </span>
             )}
             <span className="text-neutral-400">Colored dates below are custom seasons</span>
@@ -410,7 +422,7 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
 
                 <div className="flex-1 overflow-y-auto space-y-3 -mr-2 pr-2">
                   {activeItem && activeItem.baseRate > 0 && (
-                    <BaseRateCard item={activeItem} currencySymbol={currencySymbol} unitLabel={unitLabel} year={year} />
+                    <BaseRateCard item={activeItem} fmtRate={fmtRate} unitLabel={unitLabel} year={year} />
                   )}
                   {groups.length === 0 ? (
                     <p className="text-xs text-neutral-400 italic px-1">
@@ -421,7 +433,7 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
                       <RateGroupCard
                         key={g.key}
                         group={g}
-                        currencySymbol={currencySymbol}
+                        fmtRate={fmtRate}
                         unitLabel={unitLabel}
                         onEdit={handleEditExistingSeason}
                         onDelete={handleDeleteSeason}
@@ -442,7 +454,7 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-xs font-bold text-neutral-800 truncate">{item.label}</p>
                               <span className="text-[10px] text-neutral-400 shrink-0">
-                                {currencySymbol}{item.baseRate.toLocaleString("en-IN")}{unitLabel ? ` ${unitLabel}` : ""}
+                                {fmtRate(item.baseRate)}{unitLabel ? ` ${unitLabel}` : ""}
                               </span>
                             </div>
                             <p className="text-[10px] text-neutral-400 mt-0.5">
@@ -488,7 +500,8 @@ export function SeasonalRateCalendar<T extends RateSeasonBase>({
                         otherSeasonsForItem={seasons.filter(
                           (s) => s.itemId === item.id && s.id !== itemEditingId[item.id],
                         )}
-                        currencySymbol={currencySymbol}
+                        fmtRate={fmtRate}
+                        rateFieldLabel={rateFieldLabel ?? `Rate (${currencySymbol})`}
                         onChange={(patch) => updateItemDraft(item.id, patch)}
                         onSave={() => handleSaveItem(item.id)}
                         onDelete={() => handleDeleteItemSeason(item.id)}
@@ -591,10 +604,10 @@ function MonthGrid<T extends RateSeasonBase>({
 // visually matches the gray fill shown on the calendar itself.
 
 function BaseRateCard({
-  item, currencySymbol, unitLabel, year,
+  item, fmtRate, unitLabel, year,
 }: {
   item: SeasonalRateCalendarItem;
-  currencySymbol: string;
+  fmtRate: (rate: number) => string;
   unitLabel?: string;
   year: number;
 }) {
@@ -605,7 +618,7 @@ function BaseRateCard({
         <div className="flex items-center gap-2 min-w-0">
           <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: BASE_RATE_WEEKDAY_COLOR }} />
           <span className="text-sm font-bold text-neutral-900 whitespace-nowrap">
-            {currencySymbol}{item.baseRate.toLocaleString("en-IN")}{unitLabel ? <span className="font-normal text-neutral-400 text-xs"> {unitLabel}</span> : null}
+            {fmtRate(item.baseRate)}{unitLabel ? <span className="font-normal text-neutral-400 text-xs"> {unitLabel}</span> : null}
           </span>
           <span className="text-xs text-neutral-400 truncate">— Base Rate</span>
         </div>
@@ -616,7 +629,7 @@ function BaseRateCard({
         {hasDistinctWeekend && (
           <span className="flex items-center gap-1.5 text-[10px] text-neutral-400 shrink-0">
             <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: BASE_RATE_WEEKEND_COLOR }} />
-            Weekend {currencySymbol}{item.baseWeekendRate!.toLocaleString("en-IN")}
+            Weekend {fmtRate(item.baseWeekendRate!)}
           </span>
         )}
       </div>
@@ -627,10 +640,10 @@ function BaseRateCard({
 // ── Grouped rate list ─────────────────────────────────────────────────────
 
 function RateGroupCard<T extends RateSeasonBase>({
-  group, currencySymbol, unitLabel, onEdit, onDelete, renderGroupExtra,
+  group, fmtRate, unitLabel, onEdit, onDelete, renderGroupExtra,
 }: {
   group: RateGroup<T>;
-  currencySymbol: string;
+  fmtRate: (rate: number) => string;
   unitLabel?: string;
   onEdit: (season: T) => void;
   onDelete: (season: T) => void;
@@ -643,7 +656,7 @@ function RateGroupCard<T extends RateSeasonBase>({
           <div className="flex items-center gap-2 min-w-0">
             <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
             <span className="text-sm font-bold text-neutral-900 whitespace-nowrap">
-              {currencySymbol}{group.rate.toLocaleString("en-IN")}{unitLabel ? <span className="font-normal text-neutral-400 text-xs"> {unitLabel}</span> : null}
+              {fmtRate(group.rate)}{unitLabel ? <span className="font-normal text-neutral-400 text-xs"> {unitLabel}</span> : null}
             </span>
             {group.label && <span className="text-xs text-neutral-400 truncate">— {group.label}</span>}
           </div>
@@ -692,7 +705,7 @@ const fieldClass =
 
 function ItemPriceSection<T extends RateSeasonBase>({
   item, isPrimary, draft, editingSeasonId, range, otherSeasonsForItem,
-  currencySymbol, onChange, onSave, onDelete, renderExtraFields, renderRateExtra, getGroupKey,
+  fmtRate, rateFieldLabel, onChange, onSave, onDelete, renderExtraFields, renderRateExtra, getGroupKey,
 }: {
   item: SeasonalRateCalendarItem;
   /** The top/calling plan — pinned first, visually distinguished. */
@@ -701,7 +714,8 @@ function ItemPriceSection<T extends RateSeasonBase>({
   editingSeasonId: string | null;
   range: { startDate: string; endDate: string };
   otherSeasonsForItem: T[];
-  currencySymbol: string;
+  fmtRate: (rate: number) => string;
+  rateFieldLabel: string;
   onChange: (patch: Partial<Draft>) => void;
   onSave: () => void;
   onDelete: () => void;
@@ -739,7 +753,7 @@ function ItemPriceSection<T extends RateSeasonBase>({
         <div className="min-w-0">
           <p className="text-xs font-bold text-neutral-800 wrap-break-word">{item.label}</p>
           <p className="text-[10px] text-neutral-400">
-            Base {currencySymbol}{item.baseRate.toLocaleString("en-IN")} · {editingSeasonId ? "editing existing season" : "new season"}
+            Base {fmtRate(item.baseRate)} · {editingSeasonId ? "editing existing season" : "new season"}
           </p>
         </div>
         {isPrimary && (
@@ -758,7 +772,7 @@ function ItemPriceSection<T extends RateSeasonBase>({
 
       <div className={renderRateExtra ? "grid grid-cols-2 gap-2" : undefined}>
         <div>
-          <label className="text-[10px] text-neutral-500 mb-0.5 block">Rate ({currencySymbol})</label>
+          <label className="text-[10px] text-neutral-500 mb-0.5 block">{rateFieldLabel}</label>
           <input
             type="number"
             min={0}
@@ -778,7 +792,7 @@ function ItemPriceSection<T extends RateSeasonBase>({
           <div className="flex items-center gap-2">
             <span className="size-5 rounded-full border-2 border-white shadow shrink-0" style={{ backgroundColor: colorAssignment.lockedColor }} />
             <p className="text-[10px] text-neutral-500 leading-snug">
-              Locked — every season priced at {currencySymbol}{(draft.rate ?? 0).toLocaleString("en-IN")} shares this color.
+              Locked — every season priced at {fmtRate(draft.rate ?? 0)} shares this color.
             </p>
           </div>
         ) : (

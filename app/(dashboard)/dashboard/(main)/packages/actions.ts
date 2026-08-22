@@ -55,6 +55,17 @@ export async function getPackageForBuilder(id: number) {
           stay_category_id: true,
           margin_percentage: true,
           gst_percentage: true,
+          seasons: {
+            orderBy: { sort_order: "asc" },
+            select: {
+              id: true,
+              season_name: true,
+              valid_from: true,
+              valid_to: true,
+              margin_percentage: true,
+              color: true,
+            },
+          },
         },
       },
       permits: {
@@ -140,6 +151,17 @@ export async function getPackageForBuilder(id: number) {
       stay_category_id: p.stay_category_id,
       margin_percentage: Number(p.margin_percentage),
       gst_percentage: Number(p.gst_percentage),
+      // Dates flattened to "YYYY-MM-DD" here rather than crossing the RSC
+      // boundary as Date objects — the calendar compares them as plain strings,
+      // and the engine only ever reads their month/day.
+      seasons: p.seasons.map((s) => ({
+        id: String(s.id),
+        season_name: s.season_name,
+        valid_from: s.valid_from.toISOString().slice(0, 10),
+        valid_to: s.valid_to.toISOString().slice(0, 10),
+        margin_percentage: Number(s.margin_percentage),
+        color: s.color,
+      })),
     })),
     permits: pkg.permits.map((p) => {
       const vehicleId = p.cabType?.vehicle.id ?? null;

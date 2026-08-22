@@ -2366,13 +2366,40 @@ model package_pricing {
   duration_id       Int
   stay_category_id  Int
   gst_percentage    Decimal                 @default(5) @db.Decimal(5, 2)
+  /// The margin that applies on every date no season covers — the floor the
+  /// seasonal calendar below is layered on top of, never replaced by it.
   margin_percentage Decimal                 @default(10) @db.Decimal(5, 2)
   duration          package_durations       @relation(fields: [duration_id], references: [id])
   package           packages                @relation(fields: [package_id], references: [id])
   stay_category     package_stay_categories @relation(fields: [stay_category_id], references: [id])
+  seasons           package_pricing_season[]
 
   @@unique([package_id, duration_id, stay_category_id])
   @@index([package_id])
+}
+
+/// Date-ranged margin overrides for one package x duration x stay category.
+/// Stored year-agnostically (the year in valid_from/valid_to is ignored when
+/// matching, exactly like hotel_room_pricing_season), so a season entered once
+/// keeps applying every year until someone edits it. A trip's margin is
+/// resolved from its FIRST travel date — margin is a single percentage over
+/// the whole base cost, so unlike a room rate it can't be split per night.
+model package_pricing_season {
+  id                Int             @id @default(autoincrement())
+  pricing_id        Int
+  season_name       String?
+  valid_from        DateTime
+  valid_to          DateTime
+  margin_percentage Decimal         @db.Decimal(5, 2)
+  color             String?
+  is_active         Boolean         @default(true)
+  sort_order        Int             @default(0)
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+  pricing           package_pricing @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
+
+  @@index([pricing_id])
+  @@map("package_pricing_seasons")
 }
 
 model package_quote {

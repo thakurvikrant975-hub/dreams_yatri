@@ -21,6 +21,35 @@ export const SetPricingSchema = z.object({
   gst_percentage: PercentageSchema,
 });
 
+// ── Seasonal margin ───────────────────────────────────────────────────────────
+// A date-ranged override of the base margin above. The year in the dates is
+// stored but ignored when the engine matches (resolvePackageMargin), so a
+// season recurs every year — which is also why a range may legitimately end
+// "before" it starts (20 Dec → 5 Jan wraps the new year) and isn't rejected
+// here on that basis alone.
+
+const IsoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
+
+export const MarginSeasonSchema = z.object({
+  season_name: z.string().trim().max(80, "Season name is too long").nullable(),
+  valid_from: IsoDateSchema,
+  valid_to: IsoDateSchema,
+  margin_percentage: PercentageSchema,
+  color: z.string().max(32).nullable(),
+});
+
+export const ReplaceMarginSeasonsSchema = z.object({
+  package_id: z.number().int().positive(),
+  duration_id: z.number().int().positive("Duration is required"),
+  stay_category_id: z.number().int().positive("Stay category is required"),
+  seasons: z.array(MarginSeasonSchema).max(60, "Too many seasons for one combination"),
+});
+
+export type MarginSeasonDTO = z.infer<typeof MarginSeasonSchema>;
+export type ReplaceMarginSeasonsDTO = z.infer<typeof ReplaceMarginSeasonsSchema>;
+
 export const UpdatePricingSchema = SetPricingSchema.omit({
   package_id: true,
   duration_id: true,

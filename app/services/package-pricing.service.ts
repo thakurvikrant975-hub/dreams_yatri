@@ -8,6 +8,7 @@ import {
 } from "../lib/room-capacity";
 import { splitManualHotelName } from "./hotel-name-utils";
 import { resolveHotelSeasonPricing } from "../lib/hotel-season-pricing";
+import { resolvePackageMargin } from "../lib/package-margin-season";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { composePackagePrice, baseRateDays } from "./package-price-utils";
 import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
@@ -162,6 +163,9 @@ export type FullPricingBreakdown = {
   permits: { name: string; unit_price: number; price_type: string; quantity: number; total: number }[];
   base_cost: number;
   margin_percentage: number;
+  /** Which margin season the travel date landed in, or null when the package's
+   *  base margin applied. Display only — the percentage above is the truth. */
+  margin_season_label: string | null;
   margin_amount: number;
   gst_percentage: number;
   gst_amount: number;
@@ -380,6 +384,12 @@ export async function computePackagePrice(
       where: {
         package_id_duration_id_stay_category_id: { package_id, duration_id, stay_category_id },
       },
+      include: {
+        seasons: {
+          where: { is_active: true },
+          orderBy: { sort_order: "asc" },
+        },
+      },
     }),
     db.package_durations.findUnique({ where: { id: duration_id }, select: { label: true } }),
     db.package_stay_categories.findUnique({ where: { id: stay_category_id }, select: { label: true } }),
@@ -530,7 +540,13 @@ export async function computePackagePrice(
     }
   }
 
-  const margin_percentage = Number(pricingConfig?.margin_percentage ?? 10);
+  // Margin is seasonal: a date-ranged override wins over the config's base
+  // margin. Resolved from day 1 of the trip, since one percentage covers the
+  // whole base cost and can't be split per night the way a room rate is.
+  const { margin_percentage, margin_season_label } = resolvePackageMargin(
+    pricingConfig,
+    travelDateObj,
+  );
   const gst_percentage = Number(pricingConfig?.gst_percentage ?? 5);
 
   // ── Fetch hotel meal pricings for all hotels in stays ─────────────────────
@@ -1089,6 +1105,7 @@ export async function computePackagePrice(
     permits,
     base_cost,
     margin_percentage,
+    margin_season_label,
     margin_amount,
     gst_percentage,
     gst_amount,
