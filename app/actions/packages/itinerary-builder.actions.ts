@@ -323,7 +323,11 @@ export async function handleSearchRoomPricings(
     return { success: true as const, data };
   } catch (e) {
     console.error(e);
-    return { success: false as const, data: { items: [], has_more: false, total: 0 }, message: "Search failed" };
+    return {
+      success: false as const,
+      data: { items: [], has_more: false, total: 0, distanceFilter: null },
+      message: "Search failed",
+    };
   }
 }
 

@@ -66,7 +66,7 @@ import {
   handleAddActivityPrimaryImage,
 } from "@/app/actions/packages/itinerary-builder.actions";
 import type { HotelMealOption, RoomSearchSort } from "@/app/services/itinerary-builder.service";
-import { DISTANCE_BANDS } from "@/app/lib/stay-distance-bands";
+import { DISTANCE_BANDS, type DistanceFilterStatus } from "@/app/lib/stay-distance-bands";
 import { STAY_TYPES, CATEGORIES } from "../../hotels/constants";
 import MealsEditor from "./MealsEditor";
 import { CopyFromPackageDialog } from "./CopyFromPackageDialog";
@@ -1264,6 +1264,11 @@ function HotelPickerPanel({
   // Road distance is measured from the day's stop, so with no stop coordinates
   // there is nothing to measure from and the filter stays off.
   const [distanceBand, setDistanceBand] = useState<string | null>(null);
+  const [distanceStatus, setDistanceStatus] = useState<DistanceFilterStatus | null>(null);
+  // The server resolves the stop from the itinerary row, not from stopCoords —
+  // an unsaved day has coordinates on screen but no row to look them up
+  // through, and the band would be quietly ignored. Gate on both.
+  const canFilterByDistance = !!stopCoords && itineraryId != null;
   const mealFilterKey = mealFilter.join(",");
 
   useEffect(() => {
@@ -1289,6 +1294,7 @@ function HotelPickerPanel({
           setItems(res.data.items as unknown as SearchedRoom[]);
           setPage(1);
           setHasMore(res.data.has_more);
+          setDistanceStatus(res.data.distanceFilter ?? null);
         }
       })
       .catch(() => { if (!cancelled) setLoading(false); });
@@ -1312,6 +1318,7 @@ function HotelPickerPanel({
         setItems((prev) => [...prev, ...(res.data.items as unknown as SearchedRoom[])]);
         setPage(nextPage);
         setHasMore(res.data.has_more);
+        setDistanceStatus(res.data.distanceFilter ?? null);
       }
     } finally {
       setLoadingMore(false);
@@ -1380,8 +1387,12 @@ function HotelPickerPanel({
           value={distanceBand ?? ""}
           onChange={(v) => setDistanceBand(v || null)}
           options={DISTANCE_OPTIONS}
-          disabled={!stopCoords}
-          disabledHint="This day's stop has no coordinates, so road distance can't be measured"
+          disabled={!canFilterByDistance}
+          disabledHint={
+            stopCoords
+              ? "Save this day first — road distance is measured from its saved stop"
+              : "This day's stop has no coordinates, so road distance can't be measured"
+          }
         />
         <FilterSelect
           label="Star rating"
@@ -1439,6 +1450,27 @@ function HotelPickerPanel({
         )}
       </div>
 
+      {/* Distance filter status — an empty list has three very different
+          causes and they must not all read as "no hotels found". */}
+      {distanceStatus && !distanceStatus.applied && (
+        <p className="text-[10px] rounded-md px-2 py-1.5 bg-amber-50 border border-amber-200 text-amber-800">
+          Distance filter not applied — this day has no saved stop to measure from.
+          Showing every stay regardless of distance.
+        </p>
+      )}
+      {distanceStatus?.applied && distanceStatus.routingFailed && (
+        <p className="text-[10px] rounded-md px-2 py-1.5 bg-red-50 border border-red-200 text-red-800">
+          Couldn&apos;t reach the routing service, so road distances are unavailable right now.
+          These results are incomplete — try again in a moment, or clear the distance filter.
+        </p>
+      )}
+      {distanceStatus?.applied && !distanceStatus.routingFailed && distanceStatus.excludedUnmeasured > 0 && (
+        <p className="text-[10px] rounded-md px-2 py-1.5 bg-muted/60 border text-muted-foreground">
+          {distanceStatus.excludedUnmeasured} stay{distanceStatus.excludedUnmeasured !== 1 ? "s" : ""} hidden —
+          no driving route could be found to {distanceStatus.excludedUnmeasured !== 1 ? "them" : "it"}.
+        </p>
+      )}
+
       {/* Results */}
       <div className="rounded-xl border overflow-hidden">
         {loading ? (
@@ -1448,9 +1480,13 @@ function HotelPickerPanel({
         ) : items.length === 0 ? (
           <div className="py-8 text-center space-y-1">
             <p className="text-xs text-muted-foreground">No hotels found</p>
-            {(starFilter || catFilter || distanceBand || mealFilter.length > 0 || noMealsOnly) && (
+            {distanceStatus?.applied && distanceStatus.routingFailed ? (
               <p className="text-[10px] text-muted-foreground/60">
-                {distanceBand
+                Nothing could be measured by road — this is a routing outage, not an empty band
+              </p>
+            ) : (starFilter || catFilter || distanceBand || mealFilter.length > 0 || noMealsOnly) && (
+              <p className="text-[10px] text-muted-foreground/60">
+                {distanceStatus?.applied
                   ? "No stays in that distance band — try a wider one, or remove a filter"
                   : "Try removing a filter"}
               </p>

@@ -25,6 +25,24 @@ export const DISTANCE_BANDS: DistanceBand[] = [
   { slug: "50+",   label: "50+ km",     minKm: 50, maxKm: Number.POSITIVE_INFINITY },
 ];
 
+/** What actually happened to a requested distance band. Without this the
+ *  picker cannot tell three very different situations apart: the band is
+ *  genuinely empty, the routing service didn't answer, or the filter never
+ *  ran because there was no stop to measure from. All three used to render
+ *  as the same "no hotels found". */
+export type DistanceFilterStatus = {
+  band: string;
+  /** False when the band could not be applied at all — the day's stop has no
+   *  coordinates — in which case THE LIST IS UNFILTERED. */
+  applied: boolean;
+  /** Routing failed for some or all of the candidate set. When this is set an
+   *  empty list means "we could not measure", never "nothing is in range". */
+  routingFailed: boolean;
+  /** Stays dropped because no road distance could be obtained for them —
+   *  unroutable pins, or a set past the routing ceiling. */
+  excludedUnmeasured: number;
+};
+
 export function findDistanceBand(slug?: string | null): DistanceBand | null {
   if (!slug) return null;
   return DISTANCE_BANDS.find((b) => b.slug === slug) ?? null;

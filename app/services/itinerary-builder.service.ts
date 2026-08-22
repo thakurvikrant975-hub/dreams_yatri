@@ -2,7 +2,7 @@
 
 import { db } from "../lib/db";
 import { upsertRouteVariant, type StopInput } from "./route-builder.service";
-import { findDistanceBand } from "../lib/stay-distance-bands";
+import { findDistanceBand, type DistanceFilterStatus } from "../lib/stay-distance-bands";
 
 // ── Exported types ─────────────────────────────────────────────────────────
 
@@ -854,13 +854,15 @@ const ROAD_MATRIX_LIMIT = 90; // OSRM public table service, minus the origin
  *  into an unbounded number of calls against a public service. */
 const ROAD_MATRIX_MAX_HOTELS = ROAD_MATRIX_LIMIT * 5;
 
-/** One OSRM table call: origin → up to ROAD_MATRIX_LIMIT hotels. */
+/** One OSRM table call: origin → up to ROAD_MATRIX_LIMIT hotels.
+ *  Returns false when the service didn't answer usefully, so the caller can
+ *  tell "these hotels are far" apart from "we never found out". */
 async function roadDistanceChunk(
   originLat: number,
   originLng: number,
   hotels: { id: number; lat: number; lng: number }[],
   out: Map<number, { km: number; min: number }>,
-): Promise<void> {
+): Promise<boolean> {
   const coords = [`${originLng},${originLat}`, ...hotels.map((h) => `${h.lng},${h.lat}`)].join(";");
   try {
     const res = await fetch(
@@ -869,12 +871,12 @@ async function roadDistanceChunk(
       // opens off the public routing service entirely.
       { next: { revalidate: 86400 } },
     );
-    if (!res.ok) return;
+    if (!res.ok) return false;
     const data = await res.json();
-    if (data.code !== "Ok") return;
+    if (data.code !== "Ok") return false;
     const dist: (number | null)[] | undefined = data.distances?.[0];
     const dur: (number | null)[] | undefined = data.durations?.[0];
-    if (!Array.isArray(dist)) return;
+    if (!Array.isArray(dist)) return false;
     hotels.forEach((h, i) => {
       const m = dist[i + 1];
       // OSRM returns null for a coordinate it cannot snap to the road network
@@ -883,25 +885,38 @@ async function roadDistanceChunk(
       const secs = dur?.[i + 1];
       out.set(h.id, { km: Math.round((m / 1000) * 10) / 10, min: secs != null ? Math.round(secs / 60) : 0 });
     });
+    return true;
   } catch {
     // Network trouble leaves this chunk unmeasured and its badges hidden.
+    return false;
   }
 }
+
+type RoadMeasurement = {
+  distances: Map<number, { km: number; min: number }>;
+  /** Routing requests that failed outright — service down, rate-limiting us,
+   *  or refusing the coordinate set. */
+  failedChunks: number;
+  /** Hotels never submitted because the set ran past the routing ceiling. */
+  skipped: number;
+};
 
 async function roadDistances(
   originLat: number,
   originLng: number,
   hotels: { id: number; lat: number; lng: number }[],
-): Promise<Map<number, { km: number; min: number }>> {
-  const out = new Map<number, { km: number; min: number }>();
-  if (hotels.length === 0) return out;
+): Promise<RoadMeasurement> {
+  const distances = new Map<number, { km: number; min: number }>();
+  if (hotels.length === 0) return { distances, failedChunks: 0, skipped: 0 };
   const limited = hotels.slice(0, ROAD_MATRIX_MAX_HOTELS);
+  let failedChunks = 0;
   // Sequential, not parallel: this is a free public routing service, and a
   // day-cached chunk returns without touching the network anyway.
   for (let i = 0; i < limited.length; i += ROAD_MATRIX_LIMIT) {
-    await roadDistanceChunk(originLat, originLng, limited.slice(i, i + ROAD_MATRIX_LIMIT), out);
+    const ok = await roadDistanceChunk(originLat, originLng, limited.slice(i, i + ROAD_MATRIX_LIMIT), distances);
+    if (!ok) failedChunks++;
   }
-  return out;
+  return { distances, failedChunks, skipped: hotels.length - limited.length };
 }
 
 export async function searchRoomPricings(
@@ -1016,6 +1031,12 @@ export async function searchRoomPricings(
     // Populated only on the band path; the default path still measures just
     // the page it is about to render, as it always has.
     let candidateRoad: Map<number, { km: number; min: number }> | null = null;
+    // A band asked for but not applicable (no stop coordinates to measure
+    // from) is reported as such, never silently dropped — the picker is
+    // showing the planner a band and must not imply it was honoured.
+    let distanceFilter: DistanceFilterStatus | null = band
+      ? { band: band.slug, applied: false, routingFailed: false, excludedUnmeasured: 0 }
+      : null;
 
     if (band != null && stopLat != null && stopLng != null) {
       // A road can't be shorter than the straight line, so nothing further out
@@ -1037,14 +1058,25 @@ export async function searchRoomPricings(
         seen.add(h.id);
         targets.push({ id: h.id, lat: Number(h.location.latitude), lng: Number(h.location.longitude) });
       }
-      candidateRoad = await roadDistances(stopLat, stopLng, targets);
+      const measurement = await roadDistances(stopLat, stopLng, targets);
+      candidateRoad = measurement.distances;
 
-      const measured = candidateRoad;
+      const unmeasured = new Set<number>();
       candidates = inRangeByCrow.filter((p) => {
-        const km = measured.get(p.row.hotel.id)?.km;
-        if (km == null) return false; // unroutable or past the ceiling
+        const km = measurement.distances.get(p.row.hotel.id)?.km;
+        if (km == null) {
+          unmeasured.add(p.row.hotel.id);
+          return false; // unroutable, routing failed, or past the ceiling
+        }
         return km >= band.minKm && km < band.maxKm;
       });
+
+      distanceFilter = {
+        band: band.slug,
+        applied: true,
+        routingFailed: measurement.failedChunks > 0,
+        excludedUnmeasured: unmeasured.size,
+      };
     }
 
     const effectiveSort = sortBy ?? (stopLat != null && stopLng != null ? "distance" : "name");
@@ -1081,7 +1113,7 @@ export async function searchRoomPricings(
         seen.add(h.id);
         targets.push({ id: h.id, lat: Number(h.location.latitude), lng: Number(h.location.longitude) });
       }
-      road = await roadDistances(stopLat, stopLng, targets);
+      road = (await roadDistances(stopLat, stopLng, targets)).distances;
     }
 
     const items = pageSlice.map((p) => {
@@ -1101,6 +1133,7 @@ export async function searchRoomPricings(
       items: toItems(items),
       has_more: candidates.length > start + ROOM_SEARCH_PAGE_SIZE,
       total: candidates.length,
+      distanceFilter,
     };
   }
 
@@ -1114,7 +1147,10 @@ export async function searchRoomPricings(
     const nearbyIds = nearby.map((r) => r.id);
     if (nearbyIds.length > 0) {
       const result = await fetchAndPage(nearbyIds);
-      if (result.total > 0) return result;
+      // A routing failure is not "nothing nearby". Falling through would run
+      // the two wider branches, fail in exactly the same way, and turn one
+      // outage into three round trips before saying so.
+      if (result.total > 0 || result.distanceFilter?.routingFailed) return result;
     }
   }
 
@@ -1136,7 +1172,7 @@ export async function searchRoomPricings(
     });
     if (rows.length > 0) {
       const result = await fetchAndPage(rows.map((r) => r.hotel.id));
-      if (result.total > 0) return result;
+      if (result.total > 0 || result.distanceFilter?.routingFailed) return result;
     }
   }
 
