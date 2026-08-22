@@ -2,6 +2,7 @@
 
 import { db } from "../lib/db";
 import { upsertRouteVariant, type StopInput } from "./route-builder.service";
+import { findDistanceBand } from "../lib/stay-distance-bands";
 
 // ── Exported types ─────────────────────────────────────────────────────────
 
@@ -812,33 +813,6 @@ const NEARBY_RADIUS_KM = 50;
 const MAX_NEARBY_RADIUS_KM = 200;
 
 export type RoomSearchSort = "distance" | "price_asc" | "price_desc" | "name";
-
-/**
- * Road-distance bands for the picker's distance filter.
- *
- * Half-open [minKm, maxKm) on purpose: a hotel exactly 10.0 km out belongs to
- * "10 – 25 km" and nowhere else, so the bands partition the results instead of
- * double-counting the boundary. The last band is open-ended above.
- *
- * These are DRIVING kilometres, like the badge on each result — the whole point
- * of the filter is that a crow-flies band would lie in the hills, where the same
- * pairs run a median 2.5x longer by road (see roadDistances).
- */
-export type DistanceBand = { slug: string; label: string; minKm: number; maxKm: number };
-
-export const DISTANCE_BANDS: DistanceBand[] = [
-  { slug: "0-5",   label: "0 – 5 km",   minKm: 0,  maxKm: 5 },
-  { slug: "5-10",  label: "5 – 10 km",  minKm: 5,  maxKm: 10 },
-  { slug: "10-25", label: "10 – 25 km", minKm: 10, maxKm: 25 },
-  { slug: "25-50", label: "25 – 50 km", minKm: 25, maxKm: 50 },
-  { slug: "50+",   label: "50+ km",     minKm: 50, maxKm: Number.POSITIVE_INFINITY },
-];
-
-function findDistanceBand(slug?: string | null): DistanceBand | null {
-  if (!slug) return null;
-  return DISTANCE_BANDS.find((b) => b.slug === slug) ?? null;
-}
-
 /** Great-circle distance in km — mirrors the raw-SQL haversine used to find
  * the nearby hotel ID set below, just run in JS once per already-fetched
  * item instead of a second DB round-trip. */

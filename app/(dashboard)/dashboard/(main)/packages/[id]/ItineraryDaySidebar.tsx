@@ -66,7 +66,7 @@ import {
   handleAddActivityPrimaryImage,
 } from "@/app/actions/packages/itinerary-builder.actions";
 import type { HotelMealOption, RoomSearchSort } from "@/app/services/itinerary-builder.service";
-import { DISTANCE_BANDS } from "@/app/services/itinerary-builder.service";
+import { DISTANCE_BANDS } from "@/app/lib/stay-distance-bands";
 import { STAY_TYPES, CATEGORIES } from "../../hotels/constants";
 import MealsEditor from "./MealsEditor";
 import { CopyFromPackageDialog } from "./CopyFromPackageDialog";
