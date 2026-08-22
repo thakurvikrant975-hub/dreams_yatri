@@ -162,11 +162,22 @@ async function toCanvasSafeUrl(url: string): Promise<{ url: string; warning?: st
 
 async function inlineCrossOriginImages(root: HTMLElement): Promise<string[]> {
   const images = Array.from(root.querySelectorAll("img"));
+  // Same photo can appear more than once (a hotel's image reused as both the
+  // cover and a stop tile, the same photo across multiple days, etc.) — proxy
+  // each distinct URL once and let every <img> sharing it await the same
+  // in-flight request, instead of re-fetching (and re-hitting R2 through the
+  // server) once per occurrence.
+  const cache = new Map<string, Promise<{ url: string; warning?: string }>>();
   const resolved = await Promise.all(
     images.map(async (img) => {
       const src = img.getAttribute("src");
       if (!src) return null;
-      const { url: safeUrl, warning } = await toCanvasSafeUrl(src);
+      let pending = cache.get(src);
+      if (!pending) {
+        pending = toCanvasSafeUrl(src);
+        cache.set(src, pending);
+      }
+      const { url: safeUrl, warning } = await pending;
       return { img, safeUrl, warning };
     }),
   );
