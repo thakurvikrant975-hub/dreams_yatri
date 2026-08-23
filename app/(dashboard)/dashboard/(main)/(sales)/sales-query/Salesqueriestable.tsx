@@ -6,7 +6,7 @@ import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
-    CircleX, Package, Plus,
+    CircleX, Package, Plus, Flame,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -22,7 +22,8 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
-import { reopenSalesQuery, getSalesQueryById } from "./actions";
+import { reopenSalesQuery, getSalesQueryById, toggleQueryHot } from "./actions";
+import { STATUS_LABELS } from "@/app/lib/queries/status-labels";
 import { mapCustomPackage } from "./package-status";
 import type { SalesQueryRow } from "./actions";
 import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
@@ -78,6 +79,7 @@ function ActionCell({
     onView: () => void;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
+    const [isPendingHot, startHot] = useTransition();
     const closed = isClosedStatus(query.status as SalesQueryStatus);
     const converted = isConvertedStatus(query.status as SalesQueryStatus);
     function handleReopen(e: React.MouseEvent) {
@@ -88,10 +90,38 @@ function ActionCell({
             else toast.error(r.message);
         });
     }
+    function handleToggleHot(e: React.MouseEvent) {
+        e.stopPropagation();
+        const next = !query.isHot;
+        startHot(async () => {
+            const r = await toggleQueryHot(query.id, next);
+            if (r.success) toast.success(r.message);
+            else toast.error(r.message);
+        });
+    }
 
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
+
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost" size="icon"
+                            className={cn(
+                                "h-8 w-8",
+                                query.isHot
+                                    ? "text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                                    : "text-muted-foreground hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-950/30",
+                            )}
+                            onClick={handleToggleHot}
+                            disabled={isPendingHot}
+                        >
+                            <Flame className={cn("h-3.5 w-3.5", query.isHot && "fill-orange-500")} />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{query.isHot ? "Unmark as Hot" : "Mark as Hot"}</TooltipContent>
+                </Tooltip>
 
                 {!closed && !converted && (
                     <>
@@ -161,6 +191,7 @@ function ActionCell({
 export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: Props) {
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
+    const [filterHot, setFilterHot] = useState<"all" | "hot">("all");
     const [page, setPage] = useState(1);
 
     // Detail sheet
@@ -201,14 +232,15 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
             || (q.packageName ?? "").toLowerCase().includes(s);
 
         const matchStatus = filterStatus === "all" || q.status === filterStatus;
+        const matchHot = filterHot === "all" || q.isHot;
 
-        return matchSearch && matchStatus;
+        return matchSearch && matchStatus && matchHot;
     });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-    const isFiltering = search !== "" || filterStatus !== "all";
+    const isFiltering = search !== "" || filterStatus !== "all" || filterHot !== "all";
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const totalCount = queries.length;
@@ -590,15 +622,28 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                             width: "w-52",
                             options: [
                                 { label: "All Queries", value: "all" },
-                                { label: "In Progress", value: "IN_PROGRESS" },
-                                { label: "Follow Up", value: "FOLLOW_UP" },
-                                { label: "Package Sent", value: "PACKAGE_SENT" },
-                                { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
-                                { label: "Client Declined", value: "CLIENT_DECLINED" },
-                                { label: "Payment Initiated", value: "PAYMENT_INITIATED" },
-                                { label: "Converted", value: "CONVERTED" },
-                                { label: "Closed", value: "CLOSED" },
-                                { label: "Rejected", value: "REJECTED" },
+                                { label: STATUS_LABELS.IN_PROGRESS, value: "IN_PROGRESS" },
+                                { label: STATUS_LABELS.FOLLOW_UP, value: "FOLLOW_UP" },
+                                { label: STATUS_LABELS.PACKAGE_SENT, value: "PACKAGE_SENT" },
+                                { label: STATUS_LABELS.CLIENT_ACCEPTED, value: "CLIENT_ACCEPTED" },
+                                { label: STATUS_LABELS.CLIENT_DECLINED, value: "CLIENT_DECLINED" },
+                                { label: STATUS_LABELS.PAYMENT_INITIATED, value: "PAYMENT_INITIATED" },
+                                { label: STATUS_LABELS.CONVERTED, value: "CONVERTED" },
+                                { label: STATUS_LABELS.CLOSED, value: "CLOSED" },
+                                { label: STATUS_LABELS.REJECTED, value: "REJECTED" },
+                            ],
+                        },
+                        {
+                            value: filterHot,
+                            onChange: (v) => {
+                                setFilterHot(v as "all" | "hot");
+                                setPage(1);
+                            },
+                            placeholder: "All Leads",
+                            width: "w-40",
+                            options: [
+                                { label: "All Leads", value: "all" },
+                                { label: "🔥 Hot Only", value: "hot" },
                             ],
                         },
                     ]}

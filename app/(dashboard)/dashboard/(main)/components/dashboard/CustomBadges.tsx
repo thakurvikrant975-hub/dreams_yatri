@@ -22,6 +22,7 @@ import {
   CalendarClock,
   Megaphone,
 } from "lucide-react";
+import { STATUS_LABELS } from "@/app/lib/queries/status-labels";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,73 +63,73 @@ const STATUS_CONFIG: Record<
   }
 > = {
   SUBMITTED: {
-    label: "Submitted",
+    label: STATUS_LABELS.SUBMITTED,
     icon: Inbox,
     className:
       "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-600",
   },
   VERIFIED: {
-    label: "Verified",
+    label: STATUS_LABELS.VERIFIED,
     icon: CheckCircle2,
     className:
       "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700",
   },
   REJECTED: {
-    label: "Rejected",
+    label: STATUS_LABELS.REJECTED,
     icon: XCircle,
     className:
       "bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700",
   },
   ASSIGNED: {
-    label: "Assigned",
+    label: STATUS_LABELS.ASSIGNED,
     icon: UserCheck,
     className:
       "bg-violet-50 text-violet-700 border-violet-300 dark:bg-violet-900/30 dark:text-violet-400 dark:border-violet-700",
   },
   IN_PROGRESS: {
-    label: "In Progress",
+    label: STATUS_LABELS.IN_PROGRESS,
     icon: Clock,
     className:
       "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700",
   },
   FOLLOW_UP: {
-    label: "Follow Up",
+    label: STATUS_LABELS.FOLLOW_UP,
     icon: CalendarClock,
     className:
       "bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-700",
   },
   PACKAGE_SENT: {
-    label: "Package Sent",
+    label: STATUS_LABELS.PACKAGE_SENT,
     icon: Send,
     className:
       "bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-700",
   },
   CLIENT_ACCEPTED: {
-    label: "Client Accepted",
+    label: STATUS_LABELS.CLIENT_ACCEPTED,
     icon: ThumbsUp,
     className:
       "bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-700",
   },
   CLIENT_DECLINED: {
-    label: "Client Declined",
+    label: STATUS_LABELS.CLIENT_DECLINED,
     icon: ThumbsDown,
     className:
       "bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-700",
   },
   PAYMENT_INITIATED: {
-    label: "Payment Initiated",
+    label: STATUS_LABELS.PAYMENT_INITIATED,
     icon: CreditCard,
     className:
       "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700",
   },
   CONVERTED: {
-    label: "Converted",
+    label: STATUS_LABELS.CONVERTED,
     icon: Star,
     className:
       "bg-green-50 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700",
   },
   CLOSED: {
-    label: "Closed",
+    label: STATUS_LABELS.CLOSED,
     icon: Lock,
     className:
       "bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800/40 dark:text-zinc-400 dark:border-zinc-600",

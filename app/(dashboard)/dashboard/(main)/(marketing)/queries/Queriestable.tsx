@@ -17,14 +17,17 @@ import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
 import { QueryStatusBadge, QuerySourceBadge } from "../../components/dashboard/CustomBadges";
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { QueryTimelineSheet } from "./QueryTimelineSheet";
-import { getQueryById } from "./actions";
+import { getQueryById, toggleQueryHot } from "./actions";
 import type { PackageQuery, RejectionReason } from "./actions";
-import { Pencil } from "lucide-react";
+import { Pencil, Flame } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/app/lib/utils";
 import { EditQueryDialog } from "./Editquerydialog";
 import { AssignQueryDropdown } from "./Assignquerydropdown";
 import { DeleteQueryDialog } from "./Deletequerydialog";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 import { TodaysAssignmentDialog } from "./TodaysAssignmentDialog";
+import { STATUS_LABELS } from "@/app/lib/queries/status-labels";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,18 +42,18 @@ const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 const STATUS_FILTER_OPTIONS = [
-    { label: "Submitted", value: "SUBMITTED" },
-    { label: "Verified", value: "VERIFIED" },
-    { label: "Rejected", value: "REJECTED" },
-    { label: "Assigned", value: "ASSIGNED" },
-    { label: "In Progress", value: "IN_PROGRESS" },
-    { label: "Follow Up", value: "FOLLOW_UP" },
-    { label: "Package Sent", value: "PACKAGE_SENT" },
-    { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
-    { label: "Client Declined", value: "CLIENT_DECLINED" },
-    { label: "Payment Initiated", value: "PAYMENT_INITIATED" },
-    { label: "Converted", value: "CONVERTED" },
-    { label: "Closed", value: "CLOSED" },
+    { label: STATUS_LABELS.SUBMITTED, value: "SUBMITTED" },
+    { label: STATUS_LABELS.VERIFIED, value: "VERIFIED" },
+    { label: STATUS_LABELS.REJECTED, value: "REJECTED" },
+    { label: STATUS_LABELS.ASSIGNED, value: "ASSIGNED" },
+    { label: STATUS_LABELS.IN_PROGRESS, value: "IN_PROGRESS" },
+    { label: STATUS_LABELS.FOLLOW_UP, value: "FOLLOW_UP" },
+    { label: STATUS_LABELS.PACKAGE_SENT, value: "PACKAGE_SENT" },
+    { label: STATUS_LABELS.CLIENT_ACCEPTED, value: "CLIENT_ACCEPTED" },
+    { label: STATUS_LABELS.CLIENT_DECLINED, value: "CLIENT_DECLINED" },
+    { label: STATUS_LABELS.PAYMENT_INITIATED, value: "PAYMENT_INITIATED" },
+    { label: STATUS_LABELS.CONVERTED, value: "CONVERTED" },
+    { label: STATUS_LABELS.CLOSED, value: "CLOSED" },
 ];
 
 const SOURCE_FILTER_OPTIONS = [
@@ -69,12 +72,43 @@ function ActionCell({
     query, onView, onDeleted,
 }: { query: PackageQuery; onView: () => void; onDeleted: (id: string) => void }) {
     const [isPendingP, startProgress] = useTransition();
+    const [isPendingHot, startHot] = useTransition();
 
     const isTerminal = query.status === "SUBMITTED";
+
+    function handleToggleHot(e: React.MouseEvent) {
+        e.stopPropagation();
+        const next = !query.isHot;
+        startHot(async () => {
+            const r = await toggleQueryHot(query.id, next);
+            if (r.success) toast.success(r.message);
+            else toast.error(r.message);
+        });
+    }
 
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
+
+                {/* Hot toggle */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost" size="icon"
+                            className={cn(
+                                "h-8 w-8",
+                                query.isHot
+                                    ? "text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                                    : "text-dashboard-base-content/50 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-950/30",
+                            )}
+                            onClick={handleToggleHot}
+                            disabled={isPendingHot}
+                        >
+                            <Flame className={cn("h-3.5 w-3.5", query.isHot && "fill-orange-500")} />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{query.isHot ? "Unmark as Hot" : "Mark as Hot"}</TooltipContent>
+                </Tooltip>
 
                 {/* Timeline */}
                 <Tooltip>
@@ -153,6 +187,10 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
     const [filterSource, setFilterSource] = useState("all");
     const [filterVerified, setFilterVerified] = useState("all");
     const [filterAssigned, setFilterAssigned] = useState("all");
+    const [filterAssignee, setFilterAssignee] = useState("all");
+    const [filterHot, setFilterHot] = useState<"all" | "hot">("all");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
@@ -196,9 +234,23 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         const matchAssigned = filterAssigned === "all"
             || (filterAssigned === "assigned" && !!q.assignedTo)
             || (filterAssigned === "unassigned" && !q.assignedTo);
+        const matchAssignee = filterAssignee === "all" || q.assignedTo === filterAssignee;
+        const matchHot = filterHot === "all" || q.isHot;
+        const created = q.createdAt ? new Date(q.createdAt) : null;
+        const matchDateFrom = !dateFrom || (created !== null && created >= new Date(`${dateFrom}T00:00:00`));
+        const matchDateTo = !dateTo || (created !== null && created <= new Date(`${dateTo}T23:59:59.999`));
 
-        return matchSearch && matchStatus && matchSource && matchVerified && matchAssigned;
+        return matchSearch && matchStatus && matchSource && matchVerified && matchAssigned
+            && matchAssignee && matchHot && matchDateFrom && matchDateTo;
     });
+
+    // Derived from the loaded rows — every distinct assignee currently
+    // showing up in the list, rather than a separate team-members fetch.
+    const assigneeOptions = [...new Map(
+        queries
+            .filter((q) => q.assignedTo)
+            .map((q) => [q.assignedTo as string, (q as any).assignedToName ?? q.assignedTo as string]),
+    ).entries()].sort((a, b) => a[1].localeCompare(b[1]));
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
     const safePage = Math.min(page, totalPages);
@@ -209,7 +261,8 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         setPage(1);
     }
     const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all"
-        || filterVerified !== "all" || filterAssigned !== "all";
+        || filterVerified !== "all" || filterAssigned !== "all" || filterAssignee !== "all"
+        || filterHot !== "all" || dateFrom !== "" || dateTo !== "";
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const submitted = queries.filter((q) => q.status === "SUBMITTED").length;
@@ -524,8 +577,51 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                                 { label: "Unassigned", value: "unassigned" },
                             ],
                         },
+                        {
+                            value: filterAssignee,
+                            onChange: (v) => { setFilterAssignee(v); setPage(1); },
+                            placeholder: "Person",
+                            width: "w-40",
+                            options: assigneeOptions.map(([id, name]) => ({ label: name, value: id })),
+                        },
+                        {
+                            value: filterHot,
+                            onChange: (v) => { setFilterHot(v as "all" | "hot"); setPage(1); },
+                            placeholder: "All Leads",
+                            width: "w-36",
+                            options: [{ label: "🔥 Hot Only", value: "hot" }],
+                        },
                     ]}
                 />
+
+                {/* ── Date range ── */}
+                <div className="flex items-center gap-2 px-1">
+                    <label className="text-xs text-dashboard-base-content/60">From</label>
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                        max={dateTo || undefined}
+                        className="h-8 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2 text-xs"
+                    />
+                    <label className="text-xs text-dashboard-base-content/60">To</label>
+                    <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                        min={dateFrom || undefined}
+                        className="h-8 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2 text-xs"
+                    />
+                    {(dateFrom || dateTo) && (
+                        <button
+                            type="button"
+                            onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                            className="text-xs text-dashboard-primary hover:underline"
+                        >
+                            Clear dates
+                        </button>
+                    )}
+                </div>
 
                 {/* ── Active search hint ── */}
                 {search && (

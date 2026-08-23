@@ -10,6 +10,7 @@ import { db } from "@/app/lib/db";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 import { tryCreateBookingFromConvertedQuery } from "@/app/lib/bookings/create-from-query";
+import { stampFirstResponded } from "@/app/lib/queries/sla-timestamps";
 
 // ── Import shared types from marketing actions ────────────────────────────────
 // Types are erased at runtime so this import is safe even across route groups.
@@ -48,6 +49,7 @@ import {
     getDestinationsForQuery  as _getDestinationsForQuery,
     getPackagesByDestination as _getPackagesByDestination,
     assignQuery        as _assignQuery,
+    toggleQueryHot     as _toggleQueryHot,
 } from "../../(marketing)/queries/actions";
 
 // Async wrapper re-exports — satisfies "use server" (only async fns exported)
@@ -74,6 +76,9 @@ export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
 }
 export async function getPackagesByDestination(destinationId: number): Promise<PackageOption[]> {
     return _getPackagesByDestination(destinationId);
+}
+export async function toggleQueryHot(queryId: string, isHot: boolean) {
+    return _toggleQueryHot(queryId, isHot);
 }
 export async function assignQuery(
     queryId: string,
@@ -482,6 +487,7 @@ export async function savePackageRequirements(
                 ...(shouldSetInProgress ? { status: "IN_PROGRESS" as const } : {}),
             },
         });
+        if (shouldSetInProgress) await stampFirstResponded(packageQueryId);
 
         await logTimeline(
             packageQueryId,

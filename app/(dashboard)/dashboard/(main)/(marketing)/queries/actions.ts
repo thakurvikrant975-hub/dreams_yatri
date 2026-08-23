@@ -9,6 +9,7 @@ import { Prisma, QuerySource as QuerySourceEnum } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 import { autoAssignLead, ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
+import { stampFirstResponded } from "@/app/lib/queries/sla-timestamps";
 
 // Normalizes a name to Title Case regardless of how it was typed/pasted in
 // ("MAYANK SHARMA", "mayank sharma", "mayank Sharma" all become "Mayank
@@ -156,6 +157,7 @@ export type PackageQuery = {
     closeReasonOther: string | null;
     requirements: PackageRequirements | null;
     packageUrl: string | null;
+    isHot: boolean;
     createdAt: Date;
     updatedAt: Date;
     rejectionReason: { id: string; label: string } | null;
@@ -607,10 +609,32 @@ export async function markInProgress(queryId: string): Promise<ActionResult> {
                 lastAttemptAt: new Date(),
             },
         });
+        await stampFirstResponded(queryId);
 
         await logTimeline(queryId, "📞 Marked as In Progress — call attempted", actor?.id, actor?.name ?? undefined);
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query moved to In Progress" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
+    }
+}
+
+// Independent of `status` — see status-labels.ts for why "Hot" isn't folded
+// into the pipeline status. Toggleable at any stage.
+export async function toggleQueryHot(queryId: string, isHot: boolean): Promise<ActionResult> {
+    try {
+        const { actor } = await getCurrentActor();
+
+        await db.package_queries.update({
+            where: { id: queryId },
+            data: { isHot },
+        });
+
+        await logTimeline(queryId, isHot ? "🔥 Marked as Hot" : "Unmarked as Hot", actor?.id, actor?.name ?? undefined);
+        revalidatePath("/dashboard/queries");
+        revalidatePath("/dashboard/sales-query");
+        return { success: true, data: undefined, message: isHot ? "Marked as Hot" : "Unmarked as Hot" };
     } catch (e) {
         console.error(e);
         return actionError(e);
@@ -718,6 +742,7 @@ export async function logCallAttempt(
                 status: "IN_PROGRESS",
             },
         });
+        await stampFirstResponded(queryId);
 
         const updated = await db.package_queries.findUnique({ where: { id: queryId }, select: { callAttempts: true } });
         const outcomeLabel = outcome ? CALL_OUTCOME_LABELS[outcome] : "Call attempted";

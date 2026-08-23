@@ -2797,6 +2797,13 @@ export async function sendPackageToClient(packageId: string): Promise<{
         where: { id: pkg.query.id },
         data:  { status: "PACKAGE_SENT" },
       }),
+      // Only the FIRST send stamps firstPackageSentAt (the package-send-delay
+      // SLA in sla-sweep.service.ts keys off this) — a resend after edits
+      // shouldn't reset it.
+      db.package_queries.updateMany({
+        where: { id: pkg.query.id, firstPackageSentAt: null },
+        data:  { firstPackageSentAt: new Date() },
+      }),
     ]);
 
     revalidatePath("/dashboard/package-builder");

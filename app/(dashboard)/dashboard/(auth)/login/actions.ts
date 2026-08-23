@@ -49,6 +49,12 @@ export async function loginAction(
           if (code === "invalid_password") {
             return { error: "Incorrect password. Please try again." };
           }
+          if (code === "late_login_blocked") {
+            return { error: "Login after 10:05 AM needs your Sales Manager's approval. A request has been sent to them." };
+          }
+          if (code === "relogin_pending_approval") {
+            return { error: "You were logged out for inactivity — re-login needs your Sales Manager's approval. A request has been sent to them." };
+          }
           return { error: "Invalid email or password. Please check your credentials." };
         }
         case "AccessDenied":

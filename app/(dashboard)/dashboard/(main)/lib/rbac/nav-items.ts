@@ -93,6 +93,7 @@ export const NAV_GROUPS = [
       { title: "Queries", href: "/dashboard/sales-query", icon: ChartNoAxesGantt },
       { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
       { title: "Sales Teams", href: "/dashboard/sales-teams", icon: UsersRound },
+      { title: "Login Approvals", href: "/dashboard/login-approvals", icon: KeyRound },
       { title: "Package Library", href: "/dashboard/package-library", icon: BookOpen },
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },
       { title: "Verify Packages", href: "/dashboard/verify-packages", icon: ShieldCheck },

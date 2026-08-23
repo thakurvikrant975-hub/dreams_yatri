@@ -805,6 +805,15 @@ model TeamMember {
   sessionVersion         Int               @default(0)
   joiningDate            DateTime?
   lastLoginAt            DateTime?
+  /** Written by the client-side idle heartbeat while a dashboard tab is open
+   * and active — the dashboard-inactivity sweep (sla-sweep.service.ts) reads
+   * this to auto-logout after 15 min with no heartbeat. Null = no active
+   * session to watch (never logged in this cycle, or already logged out). */
+  lastHeartbeatAt        DateTime?
+  /** Set true when the inactivity sweep auto-logs this member out — blocks
+   * ordinary re-login until a Sales Manager approves a LoginApprovalRequest
+   * for today (see auth-dashboard.ts). */
+  pendingReloginApproval Boolean           @default(false)
   createdById            String?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
@@ -837,6 +846,9 @@ model TeamMember {
   teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
   salesTeam              SalesTeam?        @relation("SalesTeamMembers", fields: [salesTeamId], references: [id])
   ledSalesTeam           SalesTeam?        @relation("SalesTeamLeader")
+  notifications          TeamNotification[]
+  attendance             Attendance[]
+  loginApprovalRequests  LoginApprovalRequest[]
 
   @@index([email])
   @@index([employeeId])
@@ -1116,6 +1128,86 @@ model HotelOwnerNotification {
 
   @@index([owner_id, created_at])
   @@map("hotel_owner_notifications")
+}
+
+/** Generic in-app alert inbox for TeamMembers — the shared foundation for
+ * every SLA/exception alert (unattended lead, package-send delay, late
+ * login, dashboard inactivity, target shortfall, etc.) instead of a bespoke
+ * notifier per rule. Written by sla-sweep.service.ts and read by the
+ * dashboard's NotificationBell. Mirrors HotelOwnerNotification's shape. */
+model TeamNotification {
+  id         String           @id @default(cuid())
+  memberId   String
+  member     TeamMember       @relation(fields: [memberId], references: [id])
+  type       NotificationType
+  title      String
+  body       String
+  link       String?
+  entityType String?
+  entityId   String?
+  severity   LogSeverity      @default(MEDIUM)
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([memberId, createdAt])
+  @@index([memberId, readAt])
+  @@map("team_notifications")
+}
+
+/** One row per member per calendar day — login/logout/total-hours ledger
+ * (requirement #1). The event-level trail (every login/logout attempt,
+ * including failures) lives in the existing ActivityLog model; this is the
+ * per-day rollup the attendance UI actually reads. */
+model Attendance {
+  id        String     @id @default(cuid())
+  memberId  String
+  member    TeamMember @relation(fields: [memberId], references: [id])
+  /** Truncated to midnight — the calendar day this row covers. */
+  date      DateTime
+  /** First login of the day. */
+  loginAt   DateTime?
+  /** Most recent logout of the day (explicit sign-out or the inactivity
+   * auto-logout sweep) — a day can have several login/logout cycles. */
+  logoutAt  DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([memberId, date])
+  @@index([date])
+  @@map("attendance")
+}
+
+enum LoginApprovalReason {
+  LATE_LOGIN
+  AUTO_LOGOUT
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+/** A late-login (past the 10:05 AM cutoff) or a re-login after the
+ * inactivity auto-logout, waiting on a Sales Manager's sign-off — see
+ * requirements #1 and #3. One row per member/day/reason; re-triggering the
+ * same day updates the existing row rather than piling up duplicates. */
+model LoginApprovalRequest {
+  id          String              @id @default(cuid())
+  memberId    String
+  member      TeamMember          @relation(fields: [memberId], references: [id])
+  reason      LoginApprovalReason
+  /** Truncated to midnight — the calendar day this exception applies to. */
+  forDate     DateTime
+  status      ApprovalStatus      @default(PENDING)
+  requestedAt DateTime            @default(now())
+  decidedAt   DateTime?
+  decidedBy   String?
+  note        String?
+
+  @@unique([memberId, forDate, reason])
+  @@index([status])
+  @@map("login_approval_requests")
 }
 
 model HotelOwnerFeedback {
@@ -2566,6 +2658,19 @@ model package_queries {
   callAttempts      Int               @default(0)
   lastAttemptAt     DateTime?
   nextFollowUpAt    DateTime?
+  /** Independent priority tag — a lead can be "hot" at any pipeline stage,
+   * so this is deliberately not folded into `status` (see status-labels.ts). */
+  isHot             Boolean           @default(false)
+  /** First time this lead was actually opened/worked, distinct from
+   * `callAttempts` (which only counts dial attempts) — the basis for the
+   * "unattended lead" SLA (sla-sweep.service.ts). */
+  firstRespondedAt  DateTime?
+  /** Stamped when status first moves to PACKAGE_SENT — basis for the
+   * package-sending-delay SLA (sla-sweep.service.ts). Distinct from the
+   * `packageSentAt` computed field on the PackageQuery API type (which
+   * reads custom_packages.sentAt — when the doc actually reached the
+   * client) — this one is purely a pipeline-status timestamp. */
+  firstPackageSentAt DateTime?
   assignedTo        String?
   assignedAt        DateTime?
   createdAt         DateTime          @default(now())
@@ -3684,6 +3789,20 @@ enum LogSeverity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+/** Rule types the SLA sweep (sla-sweep.service.ts) files into
+ * TeamNotification — one entry per alert rule in the Sales Manager
+ * requirements doc. Kept as one enum (not one table per rule) so every
+ * alert lands in the same inbox and list/badge UI. */
+enum NotificationType {
+  UNATTENDED_LEAD
+  PACKAGE_SEND_DELAY
+  MISSED_FOLLOW_UP
+  LATE_LOGIN
+  LOGIN_APPROVAL_REQUEST
+  DASHBOARD_INACTIVITY
+  TARGET_SHORTFALL
 }
 
 enum QueryStatus {

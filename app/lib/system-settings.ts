@@ -4,6 +4,10 @@ import { Prisma } from "@/app/generated/prisma";
 
 export const SETTINGS_KEYS = {
   autoAssignQueries: "auto_assign_queries_enabled",
+  /** Shadow mode (default/false) logs late logins and notifies the Sales
+   * Manager without blocking anyone; flip to true once the 10:05 AM cutoff
+   * has been observed and trusted to actually enforce it. */
+  enforceLoginCutoff: "enforce_login_cutoff",
 } as const;
 
 export async function getBoolSetting(key: string, fallback: boolean): Promise<boolean> {

@@ -16,6 +16,9 @@ import { OfflineDetector } from "./components/dashboard/OfflineDetector";
 import { NumberInputScrollGuard } from "./components/dashboard/NumberInputScrollGuard";
 import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminderprovider";
 import { PackageStatusNotifier } from "./(sales)/sales-query/PackageStatusNotifier";
+import { NotificationBell } from "./components/dashboard/NotificationBell";
+import { getMyUnreadNotificationCount } from "./notifications-actions";
+import { IdleHeartbeat } from "./components/dashboard/IdleHeartbeat";
 
 function parsePageAccess(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((href): href is string => typeof href === "string") : [];
@@ -108,6 +111,11 @@ export default async function DashboardLayout({
       return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0 };
     });
 
+  const unreadNotifications = await getMyUnreadNotificationCount().catch((e) => {
+    console.error("[dashboard layout] unread notification count failed, defaulting to 0:", e);
+    return 0;
+  });
+
   return (
     <SidebarProvider>
       {/* Sidebar reflects the effective member's page access.
@@ -135,6 +143,7 @@ export default async function DashboardLayout({
 
           <div className="flex items-center gap-3 ml-auto">
             {isSales && <SalesTargetBadge memberId={realMember.id} />}
+            <NotificationBell initialUnreadCount={unreadNotifications} />
 {/* 
             <SalesStatusToggle
               memberId={realMember.id}
@@ -161,6 +170,7 @@ export default async function DashboardLayout({
       <Toaster position="top-center" />
       <OfflineDetector />
       <NumberInputScrollGuard />
+      <IdleHeartbeat />
       {isSales && <FollowUpReminderProvider />}
       {isSales && <PackageStatusNotifier />}
     </SidebarProvider>

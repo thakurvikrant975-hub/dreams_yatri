@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { QueryStatus } from "./query-status";
 import type { SentPackageInfo } from "./actions";
+import { STATUS_LABELS } from "@/app/lib/queries/status-labels";
 
 type StatusConfig = {
     label: string;
@@ -18,62 +19,62 @@ type StatusConfig = {
 
 const STATUS_CONFIG: Record<QueryStatus, StatusConfig> = {
     SUBMITTED: {
-        label: "Submitted",
+        label: STATUS_LABELS.SUBMITTED,
         icon: Inbox,
         className: "bg-slate-500/10 text-slate-600 border-slate-200 dark:border-slate-700",
     },
     VERIFIED: {
-        label: "Verified",
+        label: STATUS_LABELS.VERIFIED,
         icon: UserCheck,
         className: "bg-green-500/10 text-green-600 border-green-200 dark:border-green-800",
     },
     REJECTED: {
-        label: "Rejected",
+        label: STATUS_LABELS.REJECTED,
         icon: XCircle,
         className: "bg-red-500/10 text-red-600 border-red-200 dark:border-red-800",
     },
     ASSIGNED: {
-        label: "New / Assigned",
+        label: STATUS_LABELS.ASSIGNED,
         icon: Inbox,
         className: "bg-sky-500/10 text-sky-600 border-sky-200 dark:border-sky-800",
     },
     IN_PROGRESS: {
-        label: "In Progress",
+        label: STATUS_LABELS.IN_PROGRESS,
         icon: PhoneCall,
         className: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800",
     },
     FOLLOW_UP: {
-        label: "Follow Up",
+        label: STATUS_LABELS.FOLLOW_UP,
         icon: CalendarClock,
         className: "bg-orange-500/10 text-orange-600 border-orange-200 dark:border-orange-800",
     },
     PACKAGE_SENT: {
-        label: "Package Sent",
+        label: STATUS_LABELS.PACKAGE_SENT,
         icon: Send,
         className: "bg-cyan-500/10 text-cyan-600 border-cyan-200 dark:border-cyan-800",
     },
     CLIENT_ACCEPTED: {
-        label: "Client Accepted",
+        label: STATUS_LABELS.CLIENT_ACCEPTED,
         icon: ThumbsUp,
         className: "bg-green-500/10 text-green-600 border-green-200 dark:border-green-800",
     },
     CLIENT_DECLINED: {
-        label: "Client Declined",
+        label: STATUS_LABELS.CLIENT_DECLINED,
         icon: ThumbsDown,
         className: "bg-orange-500/10 text-orange-600 border-orange-200 dark:border-orange-800",
     },
     PAYMENT_INITIATED: {
-        label: "Payment Initiated",
+        label: STATUS_LABELS.PAYMENT_INITIATED,
         icon: CreditCard,
         className: "bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:border-indigo-800",
     },
     CONVERTED: {
-        label: "Converted ✓",
+        label: STATUS_LABELS.CONVERTED,
         icon: CheckCircle2,
         className: "bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:border-emerald-800",
     },
     CLOSED: {
-        label: "Closed",
+        label: STATUS_LABELS.CLOSED,
         icon: Lock,
         className: "bg-slate-500/10 text-slate-500 border-slate-200 dark:border-slate-700",
     },

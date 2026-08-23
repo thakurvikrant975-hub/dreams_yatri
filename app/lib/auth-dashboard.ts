@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/app/lib/db";
+import { checkLoginGate, stampLogin } from "@/app/lib/auth/attendance";
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -74,6 +75,7 @@ async authorize(credentials) {
             pageAccess:  true,
           },
         },
+        ledSalesTeam: { select: { id: true } },
       },
     });
   } catch (dbError) {
@@ -107,10 +109,18 @@ async authorize(credentials) {
     throw err;
   }
 
+  const gate = await checkLoginGate(member.id, member.teamRole?.name, !!member.ledSalesTeam);
+  if (gate.blocked) {
+    const err = new CredentialsSignin("Login requires approval");
+    err.code = gate.reason;
+    throw err;
+  }
+
   db.teamMember.update({
     where: { id: member.id },
     data:  { lastLoginAt: new Date() },
   }).catch(console.error);
+  stampLogin(member.id).catch(console.error);
 
   return {
     id:             member.id,
