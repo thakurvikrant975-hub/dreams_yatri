@@ -1,6 +1,7 @@
 import { User, Calendar, Mail } from "lucide-react";
 import { Text } from "@/app/components/ui/Typography";
 import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
+import { parseCalendarDay, formatCalendarDayLong } from "@/app/lib/dates/calendar-day";
 
 function refCode(queryId: string): string {
   return queryId.slice(-8).toUpperCase();
@@ -35,7 +36,7 @@ export function ClientDetailsStrip({ form }: { form: PreviewData }) {
                 <span className="text-muted text-xs">·</span>
                 <Text size="xs" intent="secondary" className="flex items-center gap-1">
                   <Calendar size={11} />
-                  {new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                  {formatCalendarDayLong(parseCalendarDay(form.travelDate))}
                 </Text>
               </>
             )}

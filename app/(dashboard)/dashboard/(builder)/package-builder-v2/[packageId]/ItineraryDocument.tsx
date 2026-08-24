@@ -43,6 +43,7 @@ import { DayActionsMenu, DaySectionsBar } from "./DayActionsMenu";
 import { DaySlot } from "./builder-dnd";
 import { ticketGaps, addonGaps, stayGaps, transportGaps, type Gaps } from "./pricing-gaps";
 import { nightISOForDay } from "@/app/(dashboard)/dashboard/(builder)/package-builder/night-date";
+import { calendarDayOfTrip, formatCalendarDayShort, formatCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { ADD_CONTROL_CLASS } from "./doc-tokens";
 import {
   CLASSIC, DocThemeProvider, resolveDocTheme, useDocTheme,
@@ -298,16 +299,17 @@ function RouteStrip({ form, steps }: { form: PreviewData; steps: RouteStep[] }) 
 /** Day N's actual calendar date — Day 1 is the travel date itself, Day 2 is
  * travel date + 1, etc. Same offset the pricing engine uses to pick
  * season/weekend rates per day (package-pricing.service.ts), just surfaced
- * here for display. Null when there's no travel date to anchor to yet. */
+ * here for display. Null when there's no travel date to anchor to yet.
+ * Re-exported under this module's established name (HotelDrawer,
+ * StayOptionsView, SuggestionsPanel all import it from here) — the actual
+ * arithmetic lives in app/lib/dates/calendar-day.ts; see that file for why a
+ * hand-rolled version of this is unsafe. */
 export function dayCalendarDate(travelDate: string, dayNumber: number): Date | null {
-  if (!travelDate) return null;
-  const base = new Date(travelDate);
-  if (Number.isNaN(base.getTime())) return null;
-  return new Date(base.getTime() + (dayNumber - 1) * 24 * 60 * 60 * 1000);
+  return calendarDayOfTrip(travelDate, dayNumber);
 }
 
 function formatShortDate(d: Date): string {
-  return d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" });
+  return formatCalendarDayShort(d);
 }
 
 /** "manali" / "NEW DELHI" → "Manali" / "New Delhi" — route stop names are
@@ -3700,7 +3702,7 @@ export function ItineraryDocument({
   const builder = useOptionalBuilder();
 
   const travelDateStr = form.travelDate
-    ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    ? formatCalendarDayLong(calendarDayOfTrip(form.travelDate, 1))
     : "TBD";
 
   const durationLabel = `${form.totalDays}D / ${form.totalNights}N`;

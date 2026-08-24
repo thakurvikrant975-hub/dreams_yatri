@@ -5,6 +5,7 @@ import { normalizeMealLabels } from "./meals";
 import { getCurrentActor, logTimeline } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
+import { formatStoredCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing, computeStayOptionPricing } from "@/app/services/package-pricing.service";
@@ -3074,11 +3075,7 @@ async function sendPackageToClient(packageId: string): Promise<{
     const country   = pkg.query.countryCode ?? "91";
     const fullPhone = rawPhone.startsWith(country) ? rawPhone : `${country}${rawPhone}`;
 
-    const travelDateStr = pkg.travelDate
-      ? new Date(pkg.travelDate).toLocaleDateString("en-IN", {
-          day: "2-digit", month: "short", year: "numeric",
-        })
-      : "TBD";
+    const travelDateStr = formatStoredCalendarDayLong(pkg.travelDate) || "TBD";
 
     const paxLine =
       `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}` +

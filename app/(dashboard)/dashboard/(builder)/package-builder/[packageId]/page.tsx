@@ -69,6 +69,8 @@ import {
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { dayCalendarDate } from "../night-date";
+import { formatCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
@@ -5920,7 +5922,7 @@ function PreviousVersionDialog({ snapshot }: { snapshot: unknown }) {
             <p className="font-semibold text-sm">{v.title}</p>
             <p className="text-dashboard-base-content/60">
               {v.totalDays}D / {v.totalNights}N · {v.adults}A {v.children > 0 && `${v.children}C `}{v.infants > 0 && `${v.infants}I`}
-              {v.travelDate && ` · ${new Date(v.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`}
+              {v.travelDate && ` · ${formatCalendarDayLong(dayCalendarDate(v.travelDate, 1))}`}
             </p>
             {v.pricePerPerson != null && (
               <p className="text-dashboard-base-content/60">
@@ -6162,7 +6164,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
           <InfoRow label="From" value={j.startingPoint} />
           <InfoRow label="Date" value={
             j.travelDate
-              ? new Date(j.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+              ? formatCalendarDayLong(dayCalendarDate(j.travelDate, 1))
               : undefined
           } />
           <InfoRow label="Duration" value={`${j.noOfDays} Days / ${j.noOfNights} Nights`} />

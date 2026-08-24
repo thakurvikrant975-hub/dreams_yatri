@@ -19,6 +19,8 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { dayCalendarDate } from "../night-date";
+import { formatCalendarDayShort, formatCalendarDayLong } from "@/app/lib/dates/calendar-day";
 
 // Re-exported for existing consumers (e.g. CustomPackageHero) that import it
 // from here — the implementation itself lives in route-builder-utils since
@@ -146,20 +148,9 @@ function refCode(queryId: string): string {
   return queryId.slice(-8).toUpperCase();
 }
 
-/** Day N's actual calendar date — Day 1 is the travel date itself, Day 2 is
- * travel date + 1, etc. Same offset the pricing engine uses to pick
- * season/weekend rates per day (package-pricing.service.ts), just surfaced
- * here for display. Null when there's no travel date to anchor to yet. */
-function dayCalendarDate(travelDate: string, dayNumber: number): Date | null {
-  if (!travelDate) return null;
-  const base = new Date(travelDate);
-  if (Number.isNaN(base.getTime())) return null;
-  return new Date(base.getTime() + (dayNumber - 1) * 24 * 60 * 60 * 1000);
-}
-
-function formatShortDate(d: Date): string {
-  return d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" });
-}
+// dayCalendarDate/formatShortDate now come from night-date.ts / calendar-day.ts
+// (imported below) — see calendar-day.ts for why a hand-rolled version of
+// this is unsafe.
 
 /** "manali" / "NEW DELHI" → "Manali" / "New Delhi" — route stop names are
  * free-typed by the exec, so casing isn't guaranteed. */
@@ -602,7 +593,7 @@ export function DaySummaryTable({
                 Day {d.day}
                 {date && (
                   <span className="block font-normal text-neutral-400 text-[10px]">
-                    {formatShortDate(date)}
+                    {formatCalendarDayShort(date)}
                   </span>
                 )}
               </td>
@@ -958,7 +949,7 @@ function DayCardPreview({
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-[9px] font-bold uppercase tracking-widest text-primary-500 leading-none mb-0.5">
-            Day {day.day}{checkInDate && ` · ${formatShortDate(checkInDate)}`}
+            Day {day.day}{checkInDate && ` · ${formatCalendarDayShort(checkInDate)}`}
           </p>
           <p className="text-sm font-bold text-neutral-800 truncate leading-tight">
             {day.title || `Day ${day.day}`}
@@ -1003,14 +994,14 @@ function DayCardPreview({
                       <LogIn size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-in</span>
                       <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn ? formatTime12h(day.hotelCheckIn) : "—"}</span>
-                      {checkInDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkInDate)}</span>}
+                      {checkInDate && <span className="text-[9px] text-neutral-400">{formatCalendarDayShort(checkInDate)}</span>}
                     </div>
                     <div className="flex-1 border-t border-dashed border-neutral-300 self-center" />
                     <div className="flex flex-col items-center gap-0.5 shrink-0">
                       <LogOut size={12} className="text-primary-500" />
                       <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-out</span>
                       <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckOut ? formatTime12h(day.hotelCheckOut) : "—"}</span>
-                      {checkOutDate && <span className="text-[9px] text-neutral-400">{formatShortDate(checkOutDate)}</span>}
+                      {checkOutDate && <span className="text-[9px] text-neutral-400">{formatCalendarDayShort(checkOutDate)}</span>}
                     </div>
                   </div>
                 )}
@@ -1603,7 +1594,7 @@ export function ItineraryDocument({
   variant?: "card" | "flat";
 }) {
   const travelDateStr = form.travelDate
-    ? new Date(form.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    ? formatCalendarDayLong(dayCalendarDate(form.travelDate, 1))
     : "TBD";
 
   const durationLabel = `${form.totalDays}D / ${form.totalNights}N`;

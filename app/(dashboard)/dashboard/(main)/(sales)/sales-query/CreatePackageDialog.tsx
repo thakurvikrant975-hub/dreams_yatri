@@ -19,6 +19,7 @@ import {
     searchPackageLibraryForTemplate, getTemplatePackagePriceForCategory, type TemplatePackage,
 } from "../package-library/actions";
 import { copyPackageIntoDraft, duplicateCustomPackageIntoDraft } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { parseCalendarDay, formatCalendarDayLong } from "@/app/lib/dates/calendar-day";
 
 const PAGE_SIZE = 12;
  
@@ -328,7 +329,7 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
                         {travelDate && (
                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-background text-muted-foreground border border-border">
                                 <Calendar size={11} />
-                                {new Date(travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                                {formatCalendarDayLong(parseCalendarDay(travelDate))}
                             </span>
                         )}
                         {travellers && (
