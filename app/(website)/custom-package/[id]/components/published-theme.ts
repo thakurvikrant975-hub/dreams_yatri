@@ -76,6 +76,19 @@ export const PUBLISHED_THEME = `
     background-position: 0 0;
   }
 
+  /* The masthead sits above the texture, not on it.
+     It is the first thing on the page and the only place the company's own
+     mark appears, so it wants clean ground under it — grain running behind a
+     logo reads as a printing fault rather than as stock. Painting it opaque
+     also gives the page a definite top edge, which the hairline below it then
+     closes.
+
+     Targeted as the root's own header rather than by adding a class, so the
+     shared document needs no knowledge that a website exists. */
+  .itinerary-print-area[data-published]:not([data-exporting]) > header {
+    background-color: var(--doc-header-bg, #ffffff);
+  }
+
   /* ── Type, one step up ────────────────────────────────────────────────
      Every size in this document is a hard pixel value — around a hundred
      of them — because it was drawn to print at 210mm. There is no base
