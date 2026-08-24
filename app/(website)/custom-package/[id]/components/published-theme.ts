@@ -19,6 +19,26 @@
 //   the type scale below  one step up from the printed sizes
 // ─────────────────────────────────────────────────────────────────────────────
 
+
+// ── The background doodles ───────────────────────────────────────────────────
+// Pulled out of the tile so they are editable without reading a 1,900-character
+// data URI. Change these two and nothing else.
+//
+// DOODLE_INK is a plain hex colour: the "#" is percent-encoded into the URI
+// below, which is why it does not appear as one there.
+const DOODLE_INK = "#0f172a";
+/** How present the pattern is. 0.13 reads as pattern while keeping text over
+ *  it at 11:1; 0.08 is a whisper, 0.20 is assertive. */
+const DOODLE_OPACITY = 0.13;
+/** Outline by default. Set true for solid silhouettes — but see the note in
+ *  the tile: several glyphs are open line work and need redrawing to fill
+ *  properly, so this is not yet a flag worth flipping. */
+const DOODLE_FILLED = false;
+
+const DOODLE_PAINT = DOODLE_FILLED
+  ? `fill='${DOODLE_INK.replace("#", "%23")}' fill-opacity='${DOODLE_OPACITY}' stroke='none' `
+  : `stroke='${DOODLE_INK.replace("#", "%23")}' stroke-opacity='${DOODLE_OPACITY}' `;
+
 export const PUBLISHED_THEME = `
 @media screen {
   /* The page itself is edge to edge. No max-width here on purpose: capping
@@ -65,7 +85,7 @@ export const PUBLISHED_THEME = `
      opaque ground. To soften or strengthen it, that one number in the URI
      below is the knob; the tile scale stays a custom property. */
   .itinerary-print-area[data-published]:not([data-exporting]) {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='%230f172a' stroke-opacity='0.13' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='translate(26 30) rotate(-18) scale(1.25) translate(-12 -12)'%3E%3Cpath d='M2 12.5 L22 3 L14.5 21 L11 13.5 Z M11 13.5 L22 3'/%3E%3C/g%3E%3Cg transform='translate(118 22) rotate(8) scale(1.15) translate(-12 -12)'%3E%3Cpath d='M12 22 C12 17 11.5 13 11 10 M11 10 C7 7 4 8 2.5 10 M11 10 C9 5.5 5.5 4 3 4.5 M11 10 C13 5.5 17 4.5 19.5 6 M11 10 C15 8 19 9 21 11.5'/%3E%3C/g%3E%3Cg transform='translate(186 64) rotate(-10) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 3 A9 9 0 1 1 11.99 3 Z M15.5 8.5 L13.5 13.5 L8.5 15.5 L10.5 10.5 Z'/%3E%3C/g%3E%3Cg transform='translate(58 106) rotate(6) scale(1.1) translate(-12 -12)'%3E%3Cpath d='M3 8.5 h3.5 L8.5 6 h7 L17.5 8.5 H21 v11 H3 Z M12 10 A3.5 3.5 0 1 1 11.99 10 Z'/%3E%3C/g%3E%3Cg transform='translate(152 132) rotate(-6) scale(1.2) translate(-12 -12)'%3E%3Cpath d='M2 19 L8.5 7.5 L12.5 14 L15.5 9.5 L22 19 Z M8.5 7.5 L10.5 11 L6.5 11 Z'/%3E%3C/g%3E%3Cg transform='translate(108 176) rotate(0) scale(1.0) translate(-12 -12)'%3E%3Cpath d='M12 7.5 A4.5 4.5 0 1 1 11.99 7.5 Z M12 2 v2.5 M12 19.5 V22 M2 12 h2.5 M19.5 12 H22 M5 5 l1.8 1.8 M17.2 17.2 L19 19 M19 5 l-1.8 1.8 M6.8 17.2 L5 19'/%3E%3C/g%3E%3Cg transform='translate(24 168) rotate(12) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M3 8 h18 v12 H3 Z M9 8 V5.5 h6 V8 M3 13 h18'/%3E%3C/g%3E%3Cg transform='translate(190 168) rotate(-8) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 21.5 C12 21.5 19 14.5 19 9.5 A7 7 0 1 0 5 9.5 C5 14.5 12 21.5 12 21.5 Z M12 9.5 A2.6 2.6 0 1 1 11.99 9.5 Z'/%3E%3C/g%3E%3Cg transform='translate(88 74) rotate(16) scale(0.95) translate(-12 -12)'%3E%3Cpath d='M3 8 h18 v3 a2 2 0 0 0 0 4 v3 H3 v-3 a2 2 0 0 0 0-4 Z M9 8 v12'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg ${DOODLE_FILLED ? '' : "fill='none' "}${DOODLE_PAINT}stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='translate(26 30) rotate(-18) scale(1.25) translate(-12 -12)'%3E%3Cpath d='M2 12.5 L22 3 L14.5 21 L11 13.5 Z M11 13.5 L22 3'/%3E%3C/g%3E%3Cg transform='translate(118 22) rotate(8) scale(1.15) translate(-12 -12)'%3E%3Cpath d='M12 22 C12 17 11.5 13 11 10 M11 10 C7 7 4 8 2.5 10 M11 10 C9 5.5 5.5 4 3 4.5 M11 10 C13 5.5 17 4.5 19.5 6 M11 10 C15 8 19 9 21 11.5'/%3E%3C/g%3E%3Cg transform='translate(186 64) rotate(-10) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 3 A9 9 0 1 1 11.99 3 Z M15.5 8.5 L13.5 13.5 L8.5 15.5 L10.5 10.5 Z'/%3E%3C/g%3E%3Cg transform='translate(58 106) rotate(6) scale(1.1) translate(-12 -12)'%3E%3Cpath d='M3 8.5 h3.5 L8.5 6 h7 L17.5 8.5 H21 v11 H3 Z M12 10 A3.5 3.5 0 1 1 11.99 10 Z'/%3E%3C/g%3E%3Cg transform='translate(152 132) rotate(-6) scale(1.2) translate(-12 -12)'%3E%3Cpath d='M2 19 L8.5 7.5 L12.5 14 L15.5 9.5 L22 19 Z M8.5 7.5 L10.5 11 L6.5 11 Z'/%3E%3C/g%3E%3Cg transform='translate(108 176) rotate(0) scale(1.0) translate(-12 -12)'%3E%3Cpath d='M12 7.5 A4.5 4.5 0 1 1 11.99 7.5 Z M12 2 v2.5 M12 19.5 V22 M2 12 h2.5 M19.5 12 H22 M5 5 l1.8 1.8 M17.2 17.2 L19 19 M19 5 l-1.8 1.8 M6.8 17.2 L5 19'/%3E%3C/g%3E%3Cg transform='translate(24 168) rotate(12) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M3 8 h18 v12 H3 Z M9 8 V5.5 h6 V8 M3 13 h18'/%3E%3C/g%3E%3Cg transform='translate(190 168) rotate(-8) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 21.5 C12 21.5 19 14.5 19 9.5 A7 7 0 1 0 5 9.5 C5 14.5 12 21.5 12 21.5 Z M12 9.5 A2.6 2.6 0 1 1 11.99 9.5 Z'/%3E%3C/g%3E%3Cg transform='translate(88 74) rotate(16) scale(0.95) translate(-12 -12)'%3E%3Cpath d='M3 8 h18 v3 a2 2 0 0 0 0 4 v3 H3 v-3 a2 2 0 0 0 0-4 Z M9 8 v12'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     background-size: var(--doc-texture-size, 220px) var(--doc-texture-size, 220px);
     background-repeat: repeat;
     background-position: 0 0;

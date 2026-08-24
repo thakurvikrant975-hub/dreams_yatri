@@ -3814,7 +3814,7 @@ export function ItineraryDocument({
         {/* ── A4 page ─────────────────────────────────────────────────────────── */}
         <div
           className={cn(
-            "itinerary-print-area mx-auto overflow-hidden",
+            "itinerary-print-area mx-auto overflow-hidden bg-neutral-50 ",
             variant === "page" ? "" : variant === "flat" ? "border" : "rounded-lg shadow-xl",
           )}
           // Empty-string attribute rather than a boolean: the CSS above keys
@@ -3824,7 +3824,6 @@ export function ItineraryDocument({
           style={{
             width: "210mm",
             minHeight: "297mm",
-            backgroundColor: DOC.paper,
             borderColor: variant === "flat" ? DOC.rule : undefined,
             // The two faces reach the page as custom properties rather than as
             // classes: PRINT_STYLES maps .font-heading and the page body onto
@@ -3917,7 +3916,7 @@ export function ItineraryDocument({
           </div>
 
           {/* ── Body ──────────────────────────────────────────────────────────── */}
-          <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7">
+          <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7 " style={{ breakInside: "avoid" }}>
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination) && (
               <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
                 {(form.clientName || form.execName) && (
