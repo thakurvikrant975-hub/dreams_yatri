@@ -1116,7 +1116,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
 
 /** Indent that aligns a sub-section's content under its DaySubHead label —
  * the 11px icon plus the 8px gap it sits in. */
-const SUBHEAD_INDENT = "pl-[19px]";
+const SUBHEAD_INDENT = "sm:pl-[19px]";
 
 function ActivityRow({
   activity, dayNumber, activityIndex, onImageChange, onCaptionChange,
@@ -1238,13 +1238,13 @@ function MealsRow({ meals }: { meals: string[] }) {
           {included.map(({ key, label, icon: Icon }) => (
             <div
               key={key}
-              className="flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium bg-white bg-linear-to-b from-emerald-50/30 via-emerald-50/60 to-emerald-100/60 border-emerald-200 text-emerald-800"
+              className="flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium bg-white bg-linear-to-b from-white via-neutral-50 to-neutral-200/70 border-neutral-200 text-emerald-900"
             >
               <span className="flex items-center gap-1">
-                <Icon size={12} className="text-emerald-600" />
+                <Icon size={14} className="text-emerald-600" />
                 {label}
               </span>
-              <CheckCircle size={12} className="text-emerald-600 shrink-0" />
+              <CheckCircle size={14} className="text-emerald-600 shrink-0" />
             </div>
           ))}
         </div>
@@ -2887,7 +2887,7 @@ function DayCardPreview({
                   // for costing review must not offer the affordance at all,
                   // rather than offering one that silently does nothing.
                   />
-                  <div className={cn("flex gap-10", SUBHEAD_INDENT)}>
+                  <div className={cn("flex flex-col sm:flex-row gap-5 sm:gap-10", SUBHEAD_INDENT)}>
                     <div className="flex-1 min-w-0 space-y-1.5">
                       {/* Stars sit with the NAME, not out on the section rule.
                     They rate this property — parked at the right-hand edge of
@@ -2991,7 +2991,7 @@ function DayCardPreview({
                           <div className="group/img relative">
                             {day.accommodationPhoto ? (
                               /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                              <img src={day.accommodationPhoto} alt="Hotel" className="w-50 aspect-video rounded-lg object-cover" />
+                              <img src={day.accommodationPhoto} alt="Hotel" className="w-full sm:w-50 aspect-video rounded-lg object-cover" />
                             ) : (
                               <div className="w-50 aspect-video rounded-lg border-2 border-dashed border-neutral-200 bg-neutral-50 flex items-center justify-center">
                                 <ImageIcon size={16} className="text-neutral-300" />
@@ -3346,7 +3346,7 @@ function HeroCover({
             trip-stats card below carries them — nested the other way round
             the two would land a few millimetres apart on a wide window, which
             is worse than not aligning them at all. */}
-        <div className="screen-space px-[10mm]">
+        <div className="screen-space px-[3mm] sm:px-[10mm]">
         {/* The client's own name, handwritten, sitting on top of the title —
             so the cover reads as one phrase, "Suraj's / Alleppey & Kochi
             Weekend Escape", and the document looks addressed to a person
@@ -3364,7 +3364,7 @@ function HeroCover({
         {form.clientName && (
           <span
             aria-hidden="true"
-            className="-mb-2 ml-1 -rotate-2 origin-bottom-left text-primary-400 text-[32px] leading-none pointer-events-none select-none font-bold block w-max"
+            className="-mb-1 ml-1 -rotate-2 origin-bottom-left text-primary-400 text-[32px] leading-none pointer-events-none select-none font-bold block w-max "
             style={{
               fontFamily: "var(--font-script)",
               fontWeight: 700,
@@ -3383,7 +3383,7 @@ function HeroCover({
           field={{ scope: "package", key: "title" }}
           placeholder="Name this package…"
           fallback="Untitled Package"
-          className={cn(DISPLAY, "inline font-heading text-[34px] leading-[1.08] font-bold text-white")}
+          className={cn(DISPLAY, "inline font-heading text-[34px] leading-[1.08] font-bold text-white ")}
           style={{
             maxWidth: "150mm",
             letterSpacing: "-0.02em",
@@ -3396,8 +3396,8 @@ function HeroCover({
             the one number a client checks first. Nights are shown alongside
             days because "6 days" alone is the figure people misread. */}
         {form.totalDays > 0 && (
-          <div className="mt-3 flex gap-3 items-center">
-            <span className="inline-flex items-center gap-2.5 rounded-pill border border-primary-50 ring-[0.18em] ring-inset ring-primary-300 px-3 py-1 text-white  text-[13px] font-semibold backdrop-md">
+          <div className="mt-2 mb-2 flex gap-3 items-center">
+            <span className="inline-flex items-center gap-2.5 rounded-pill border border-primary-100 ring-[0.12em] ring-inset ring-primary-400 px-3 py-1 text-white  text-[11px]  backdrop-md font-heading font-bold bg-primary-400/5">
               {form.totalDays} Day{form.totalDays !== 1 ? "s" : ""}
               <span className="h-3.5 w-px bg-primary-300" />
               {form.totalNights} Night{form.totalNights !== 1 ? "s" : ""}
@@ -3842,7 +3842,7 @@ export function ItineraryDocument({
             it gives the page a top edge to hang from, so the hero below reads
             as a plate set into the document rather than as the page itself. */}
           <header
-            className="px-[6mm] sm:px-[10mm] pt-5 pb-3.5 h-full"
+            className="px-[3mm] sm:px-[10mm] pt-5 pb-3.5 h-full"
             style={{ borderBottom: `1px solid ${DOC.rule}` }}
           >
             {/* The rule above spans the window; this row is what stops at the
@@ -3900,7 +3900,7 @@ export function ItineraryDocument({
           />
 
           {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-          <div className="screen-space relative z-10 px-[10mm]" style={{ marginTop: "-13mm" }}>
+          <div className="screen-space relative z-10 px-[3mm] sm:px-[10mm]" style={{ marginTop: "-13mm" }}>
             <div
               className="rounded-md grid grid-cols-3 overflow-hidden bg-white shadow-lg shadow-neutral-200/85"
 
@@ -3917,11 +3917,11 @@ export function ItineraryDocument({
           </div>
 
           {/* ── Body ──────────────────────────────────────────────────────────── */}
-          <main className="screen-space px-[10mm] pt-7 pb-2 space-y-7">
+          <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7">
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination) && (
               <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
                 {(form.clientName || form.execName) && (
-                  <div className="grid grid-cols-2 divide-x divide-neutral-200/85">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x divide-neutral-200/85">
                     {/* Prepared For — the client this itinerary is going to */}
                     <div className="p-3.5">
                       <p className="text-[9px] font-bold text-primary-600/90 uppercase tracking-widest mb-1.5 flex items-center"> <span className="text-lg">🤩</span> &nbsp; Prepared With Love For </p>

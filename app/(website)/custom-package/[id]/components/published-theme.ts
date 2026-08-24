@@ -42,6 +42,35 @@ export const PUBLISHED_THEME = `
     width: 100%;
   }
 
+  /* ── A texture on the paper ───────────────────────────────────────────
+     The document's ground is one flat near-white, which on paper is exactly
+     right and on a screen reads as empty rather than as stock. A faint grain
+     gives the page something to sit on, and makes the white cards above it
+     read as cards.
+
+     Painted as a background-image so the inline paper colour stays the base
+     layer underneath — the two compose rather than compete, and a template
+     that changes its paper keeps its own colour showing through the dots.
+
+     Deliberately weak. It is behind a client's quote, not a hero section:
+     at 0.055 alpha it registers as texture and never as pattern, and every
+     block that carries text — the cards, the hero, the dark footer — paints
+     its own opaque ground on top, so nothing is ever read across it.
+
+     For cross-hatch instead of dots, swap the two properties below for:
+       background-image:
+         repeating-linear-gradient(0deg,  VAR 0 1px, transparent 1px 100%),
+         repeating-linear-gradient(90deg, VAR 0 1px, transparent 1px 100%);
+       background-size: 26px 26px;
+     Both knobs are custom properties, so a template can retune or remove the
+     texture without touching this file. */
+  .itinerary-print-area[data-published]:not([data-exporting]) {
+    background-image:
+      radial-gradient(var(--doc-texture-ink, rgba(15, 23, 42, 0.055)) 1px, transparent 1px);
+    background-size: var(--doc-texture-size, 22px) var(--doc-texture-size, 22px);
+    background-position: 0 0;
+  }
+
   /* ── Type, one step up ────────────────────────────────────────────────
      Every size in this document is a hard pixel value — around a hundred
      of them — because it was drawn to print at 210mm. There is no base
