@@ -34,6 +34,14 @@ export function mergeStaleHotelDays(
   const freshByDay = new Map(freshItineraries.map((d) => [d.day, d]));
   return itineraries.map((it) => {
     if (!staleDays.includes(it.day)) return it;
+    // The fetch behind this merge is async — if the exec already removed the
+    // hotel and started a new request on this exact day before it landed
+    // (beginHotelRequest/removeStay set hotelFillAcknowledged the moment
+    // that happens), applying the merge now would silently overwrite their
+    // in-progress removal back to the stale-fill's old hotel, undoing what
+    // they just did without any indication it happened. Leave it alone —
+    // they've already moved past needing this sync.
+    if (it.hotelFillAcknowledged) return it;
     const fresh = freshByDay.get(it.day);
     if (!fresh) return it;
     const patch: Partial<DayItinerary> = {};
