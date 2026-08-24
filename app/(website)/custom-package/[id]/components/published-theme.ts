@@ -29,7 +29,7 @@
 const DOODLE_INK = "#0f172a";
 /** How present the pattern is. 0.13 reads as pattern while keeping text over
  *  it at 11:1; 0.08 is a whisper, 0.20 is assertive. */
-const DOODLE_OPACITY = 0.1;
+const DOODLE_OPACITY = 0.09;
 /** Outline by default. Set true for solid silhouettes — but see the note in
  *  the tile: several glyphs are open line work and need redrawing to fill
  *  properly, so this is not yet a flag worth flipping. */
@@ -50,6 +50,14 @@ export const PUBLISHED_THEME = `
     width: 100% !important;
     max-width: none !important;
     min-height: 0 !important;
+    /* clip, not hidden. The document is clipped either way, but overflow
+       hidden makes the element a scroll container, and a scroll container is
+       what position: sticky measures itself against — so the masthead below
+       would stick to a box that never scrolls, which looks exactly like not
+       being sticky at all. Clip clips without creating one, leaving sticky to
+       measure against the viewport, where it belongs.
+       The hero clips itself, so nothing here depends on the root's own. */
+    overflow: clip !important;
   }
   /* The measure lives INSIDE, the way the site's own header and sections do
      it: the bar spans the window, its contents stop at a width you can read
@@ -110,6 +118,16 @@ export const PUBLISHED_THEME = `
      shared document needs no knowledge that a website exists. */
   .itinerary-print-area[data-published]:not([data-exporting]) > header {
     background-color: var(--doc-header-bg, #ffffff);
+    /* Follows the reader down. It carries the company's mark, the phone
+       number and the email — the three things a client wants at the moment
+       they decide to ask something, which is rarely while looking at the top
+       of the page.
+       Above z-30, the highest the document uses, so nothing scrolls over it.
+       The hairline it already carries is what separates it from the content
+       passing underneath. */
+    position: sticky;
+    top: 0;
+    z-index: 40;
   }
 
   /* ── Type, one step up ────────────────────────────────────────────────
