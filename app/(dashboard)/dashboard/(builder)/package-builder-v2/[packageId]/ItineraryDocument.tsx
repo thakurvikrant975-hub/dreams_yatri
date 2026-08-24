@@ -3924,7 +3924,8 @@ export function ItineraryDocument({
 
           {/* ── Body ──────────────────────────────────────────────────────────── */}
           <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7 " style={{ breakInside: "avoid" }}>
-            {(form.clientName || form.execName || routeSteps.length > 0 || form.destination) && (
+            {(form.clientName || form.execName || routeSteps.length > 0 || form.destination
+              || form.description.trim() || builder?.canEdit) && (
               <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
                 {(form.clientName || form.execName) && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x divide-neutral-200/85">
@@ -3990,31 +3991,28 @@ export function ItineraryDocument({
                   <p className="text-[9px] font-bold text-neutral-500/90 uppercase tracking-widest mb-2">Your Route</p>
                   <RouteStrip form={form} steps={routeSteps} />
                 </div>
-              </div>
-            )}
 
-            {/* In a card, under the route, rather than loose on the paper.
-                On the client's page the paper carries a texture, and prose
-                sitting directly on it read as a caption someone had dropped
-                onto the page instead of as part of the document.
+                {/* The package's own words, closing the card the route opened.
+                    Here rather than in a card of its own: it is the same
+                    thought as the rest of this block — who the trip is for,
+                    who is running it, where it goes, and what it is — and
+                    three stacked cards said that in three voices.
 
-                Rendered only when there is something to say, or while the
-                exec can still say it — an empty card on a client's quote is
-                worse than no card, and this is the one block that is often
-                left blank. */}
-            {(form.description.trim() || builder?.canEdit) && (
-              <div
-                className="rounded-lg border border-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80 p-3.5"
-                style={{ breakInside: "avoid" }}
-              >
-                <EditableText
-                  as="p"
-                  multiline
-                  value={form.description}
-                  field={{ scope: "package", key: "description" }}
-                  placeholder="Describe this package for the client — click to add…"
-                  className="block text-sm text-neutral-800 leading-relaxed"
-                />
+                    Only when there is something to say, or while the exec can
+                    still say it. It is the one field routinely left blank, and
+                    an empty panel on a client's quote is worse than none. */}
+                {(form.description.trim() || builder?.canEdit) && (
+                  <div className="border-t border-neutral-200/80 p-3.5">
+                    <EditableText
+                      as="p"
+                      multiline
+                      value={form.description}
+                      field={{ scope: "package", key: "description" }}
+                      placeholder="Describe this package for the client — click to add…"
+                      className="block text-sm text-neutral-800 leading-relaxed"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
