@@ -335,14 +335,28 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                     <div onClick={(e) => e.stopPropagation()} className="flex flex-col items-center justify-center gap-1">
                         <div className="flex items-center justify-center gap-1.5">
                             {!latest ? (
-                                <CreatePackageDialog {...dialogProps}>
-                                    <button
-                                        type="button"
-                                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
-                                    >
-                                        <Package className="h-3 w-3" /> Create Package
-                                    </button>
-                                </CreatePackageDialog>
+                                <>
+                                    <CreatePackageDialog {...dialogProps}>
+                                        <button
+                                            type="button"
+                                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                        >
+                                            <Package className="h-3 w-3" /> Create Package
+                                        </button>
+                                    </CreatePackageDialog>
+                                    {/* Same dialog, pointed at the new builder — offered
+                                        rather than imposed, same as the "v2" link on an
+                                        already-built package below. */}
+                                    <CreatePackageDialog {...dialogProps} builderBasePath="/dashboard/package-builder-v2">
+                                        <button
+                                            type="button"
+                                            title="Create in the new builder"
+                                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                        >
+                                            <Sparkles className="h-3 w-3" /> v2
+                                        </button>
+                                    </CreatePackageDialog>
+                                </>
                             ) : (
                                 <>
                                     <a
