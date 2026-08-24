@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
 import { reportActionError } from "@/app/lib/report-action-error";
+import { mergeStaleHotelDays } from "@/app/lib/sync-stale-hotel-day";
 import {
   DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -3363,14 +3364,22 @@ export default function PackageBuilderDetailPage() {
   // ── Save ───────────────────────────────────────────────────────────────────
   // A blocked re-request (see saveCustomPackage's staleHotelRequestDays) must
   // never be silent — this tab's copy of the day predates a fill that
-  // happened elsewhere, so the request didn't take; warn and point at a
-  // reload rather than let the exec believe it went through.
-  function warnStaleHotelRequests(days: number[] | undefined) {
+  // happened elsewhere, so the request didn't take. Rather than just telling
+  // the exec to reload, pull the fresh day(s) and merge them straight into
+  // local state: they see the real filled hotel immediately, and their tab
+  // is now caught up, so a follow-up remove/re-request on the same day
+  // actually goes through instead of hitting this same block again.
+  async function warnStaleHotelRequests(days: number[] | undefined) {
     if (!days?.length) return;
+    const fresh = await getPackageDetail(packageId);
+    const freshItineraries = fresh?.customPackage?.itineraries;
+    if (freshItineraries) {
+      setForm((f) => ({ ...f, itineraries: mergeStaleHotelDays(f.itineraries, freshItineraries, days) }));
+    }
     const list = days.join(", ");
     toast.warning(
-      `Day ${list} was filled by the hotel team while you had this package open — your re-request didn't go through.`,
-      { description: "Reload the page to see the filled hotel, then request again if it's still not right.", duration: 12000 },
+      `Day ${list}'s hotel was filled by the team while you had this open — synced to the latest just now.`,
+      { description: "If it's still not right, remove it and request again — that'll go through this time.", duration: 12000 },
     );
   }
 
@@ -3418,7 +3427,7 @@ export default function PackageBuilderDetailPage() {
         if (result.success) {
           setSavedOk(true);
           setTimeout(() => setSavedOk(false), 3000);
-          warnStaleHotelRequests(result.staleHotelRequestDays);
+          await warnStaleHotelRequests(result.staleHotelRequestDays);
         } else {
           toast.error(result.error ?? "Failed to save");
         }
@@ -3485,7 +3494,7 @@ export default function PackageBuilderDetailPage() {
           toast.error(result.error ?? "Failed to save");
           return;
         }
-        warnStaleHotelRequests(result.staleHotelRequestDays);
+        await warnStaleHotelRequests(result.staleHotelRequestDays);
 
         const result2 = await markPackageReady(packageId);
         if (result2.success) {
