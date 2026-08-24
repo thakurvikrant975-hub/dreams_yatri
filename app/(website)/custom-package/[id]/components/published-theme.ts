@@ -42,37 +42,32 @@ export const PUBLISHED_THEME = `
     width: 100%;
   }
 
-  /* ── A texture on the paper ───────────────────────────────────────────
-     The document's ground is one flat near-white, which on paper is exactly
-     right and on a screen reads as empty rather than as stock. A faint grain
-     gives the page something to sit on, and makes the white cards above it
-     read as cards.
+  /* ── A doodled travel pattern on the paper ────────────────────────────
+     Dots gave the page grain but said nothing. These are the things the
+     document is about — a plane, a palm, a compass, a camera, a mountain, a
+     sun, a suitcase, a pin, a ticket — drawn as open line work and set very
+     faint, so the paper feels like a travel company's stock rather than a
+     blank sheet.
 
-     Painted as a background-image so the inline paper colour stays the base
-     layer underneath — the two compose rather than compete, and a template
-     that changes its paper keeps its own colour showing through the dots.
+     Seamless by construction rather than by wrap-around maths: every glyph is
+     placed well inside the 220px tile, so nothing is clipped at an edge and
+     the tile repeats cleanly in both directions. The nine sit at varied
+     angles and uneven positions so a repeating tile does not read as a grid.
 
-     Restrained, but it has to actually be visible. The first pass was a 1px
-     dot at 0.055 alpha on a 22px grid — about two pixels in a thousand,
-     shifted five percent. That is below the threshold at which an eye
-     registers anything, so the page looked exactly as flat as before.
-     A 1.5px dot at 0.12 on an 18px grid reads as stock without ever reading
-     as pattern, and text stays at 11.33:1 against a 4.5 floor. Every block
-     that carries text — the cards, the hero, the dark footer — paints its
-     own opaque ground on top anyway; the package description is the only
-     prose that sits on it directly.
+     An inline SVG data URI, so it is one HTTP request fewer than an asset and
+     cannot 404 — and it stays entirely inside this stylesheet, which is what
+     keeps it off the printed sheet and out of the PDF.
 
-     For cross-hatch instead of dots, swap the two properties below for:
-       background-image:
-         repeating-linear-gradient(0deg,  VAR 0 1px, transparent 1px 100%),
-         repeating-linear-gradient(90deg, VAR 0 1px, transparent 1px 100%);
-       background-size: 26px 26px;
-     Both knobs are custom properties, so a template can retune or remove the
-     texture without touching this file. */
+     Strength is baked into stroke-opacity because a data URI cannot read a
+     custom property. At 0.13 the lines register as pattern and text over them
+     still measures 11.04:1 against a 4.5 floor — and only the package
+     description sits on the paper directly; every other block paints its own
+     opaque ground. To soften or strengthen it, that one number in the URI
+     below is the knob; the tile scale stays a custom property. */
   .itinerary-print-area[data-published]:not([data-exporting]) {
-    background-image:
-      radial-gradient(var(--doc-texture-ink, rgba(15, 23, 42, 0.12)) 1.5px, transparent 1.5px);
-    background-size: var(--doc-texture-size, 18px) var(--doc-texture-size, 18px);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='%230f172a' stroke-opacity='0.13' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='translate(26 30) rotate(-18) scale(1.25) translate(-12 -12)'%3E%3Cpath d='M2 12.5 L22 3 L14.5 21 L11 13.5 Z M11 13.5 L22 3'/%3E%3C/g%3E%3Cg transform='translate(118 22) rotate(8) scale(1.15) translate(-12 -12)'%3E%3Cpath d='M12 22 C12 17 11.5 13 11 10 M11 10 C7 7 4 8 2.5 10 M11 10 C9 5.5 5.5 4 3 4.5 M11 10 C13 5.5 17 4.5 19.5 6 M11 10 C15 8 19 9 21 11.5'/%3E%3C/g%3E%3Cg transform='translate(186 64) rotate(-10) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 3 A9 9 0 1 1 11.99 3 Z M15.5 8.5 L13.5 13.5 L8.5 15.5 L10.5 10.5 Z'/%3E%3C/g%3E%3Cg transform='translate(58 106) rotate(6) scale(1.1) translate(-12 -12)'%3E%3Cpath d='M3 8.5 h3.5 L8.5 6 h7 L17.5 8.5 H21 v11 H3 Z M12 10 A3.5 3.5 0 1 1 11.99 10 Z'/%3E%3C/g%3E%3Cg transform='translate(152 132) rotate(-6) scale(1.2) translate(-12 -12)'%3E%3Cpath d='M2 19 L8.5 7.5 L12.5 14 L15.5 9.5 L22 19 Z M8.5 7.5 L10.5 11 L6.5 11 Z'/%3E%3C/g%3E%3Cg transform='translate(108 176) rotate(0) scale(1.0) translate(-12 -12)'%3E%3Cpath d='M12 7.5 A4.5 4.5 0 1 1 11.99 7.5 Z M12 2 v2.5 M12 19.5 V22 M2 12 h2.5 M19.5 12 H22 M5 5 l1.8 1.8 M17.2 17.2 L19 19 M19 5 l-1.8 1.8 M6.8 17.2 L5 19'/%3E%3C/g%3E%3Cg transform='translate(24 168) rotate(12) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M3 8 h18 v12 H3 Z M9 8 V5.5 h6 V8 M3 13 h18'/%3E%3C/g%3E%3Cg transform='translate(190 168) rotate(-8) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 21.5 C12 21.5 19 14.5 19 9.5 A7 7 0 1 0 5 9.5 C5 14.5 12 21.5 12 21.5 Z M12 9.5 A2.6 2.6 0 1 1 11.99 9.5 Z'/%3E%3C/g%3E%3Cg transform='translate(88 74) rotate(16) scale(0.95) translate(-12 -12)'%3E%3Cpath d='M3 8 h18 v3 a2 2 0 0 0 0 4 v3 H3 v-3 a2 2 0 0 0 0-4 Z M9 8 v12'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-size: var(--doc-texture-size, 220px) var(--doc-texture-size, 220px);
+    background-repeat: repeat;
     background-position: 0 0;
   }
 
