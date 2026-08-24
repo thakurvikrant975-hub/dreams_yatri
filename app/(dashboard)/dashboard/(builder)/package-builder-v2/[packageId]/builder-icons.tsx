@@ -56,6 +56,7 @@ import {
   Check as PhCheck,
   CheckCircle as PhCheckCircle,
   CircleNotch as PhCircleNotch,
+  Clipboard as PhClipboard,
   Clock as PhClock,
   ShieldCheck as PhShieldCheck,
   Coffee as PhCoffee,
@@ -175,6 +176,7 @@ export const Pencil = filled(PhPencilSimple);
 export const PencilLine = filled(PhPencilSimpleLine);
 export const Trash2 = filled(PhTrash);
 export const Copy = filled(PhCopy);
+export const ClipboardPaste = filled(PhClipboard);
 export const Download = filled(PhDownloadSimple, "bold");
 export const Upload = filled(PhUploadSimple, "bold");
 export const Save = filled(PhFloppyDisk);
