@@ -577,7 +577,7 @@ function TicketPax({ ticket, packagePax, onChange }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function StopsView() {
-  const { form, setForm } = useBuilder();
+  const { form, setForm, syncDaysWithStops } = useBuilder();
 
   return (
     <div className="p-5 space-y-4">
@@ -586,6 +586,7 @@ export function StopsView() {
         onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
         limitReason={stopLimitReason(form.stops.length, form.itineraries.length)}
         dayCount={form.itineraries.length}
+        onSync={syncDaysWithStops}
       />
       <div className="rounded-lg bg-dashboard-base-200/50 px-3 py-2.5 space-y-1">
         <p className="text-[11px] text-dashboard-base-content/70">

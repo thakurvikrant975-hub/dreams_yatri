@@ -245,6 +245,9 @@ type BuilderContextValue = {
   removeDay: (day: number) => void;
   /** Moves a day to a new position (0-based), renumbering the rest. */
   moveDay: (from: number, to: number) => void;
+  /** Adds/removes days so the itinerary matches `form.stops`' current
+   * nights — see syncItineraryWithStops. */
+  syncDaysWithStops: () => void;
   /** The day the builder is currently working on. Shared rather than local to
    * either surface, because the layers rail on the left and the Itinerary
    * section on the right are two views of the same choice — if each kept its
@@ -358,6 +361,7 @@ export function PackageBuilderProvider({
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
     moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),
+    syncDaysWithStops: () => setForm((f) => syncItineraryWithStops(f)),
     selectedDay: safeSelectedDay,
     setSelectedDay,
     requestSaveNow: requestSaveNow ?? (() => {}),
@@ -688,6 +692,72 @@ export function deleteDay(form: PackageForm, day: number): PackageForm {
   if (days.length === form.itineraries.length) return form;
   // Add-ons attached to the deleted day go with it; later ones shift down.
   return renumber(form, days, (d) => (d === day ? null : d > day ? d - 1 : d));
+}
+
+/** Rebuilds the day-by-day itinerary to match `form.stops`' current nights —
+ * the "Sync Itinerary" action next to RouteStopsEditor's day-count mismatch
+ * warning. Editing a stop's nights only ever updates totalDays/totalNights
+ * (see recalcFromStops in day-mutations.ts); nothing adds or removes the
+ * actual DayItinerary rows to match, which is the gap this closes.
+ *
+ * A DayItinerary has no stored link to which stop it belongs to — that's
+ * only ever derived positionally, on the fly, by deriveDayLocations
+ * (route-builder-utils.ts). This mirrors that exact algorithm to attribute
+ * each EXISTING day to a stop (so a stop nobody touched keeps precisely the
+ * days it already had), then reconciles each stop's day count against its
+ * nights independently: short by N → append N blank days right after that
+ * stop's own block (not at the trip's end, unless it IS the last stop);
+ * over by N → drop that stop's last N days. The final stop's target count
+ * also absorbs the trip's "+1" trailing day, mirroring recalcFromStops'
+ * totalDays = totalNights + 1 convention (deriveDayLocations does the same
+ * via its own trailing `while` loop, which is why ownedCounts below re-adds
+ * any leftover slots onto the last stop too — the two must stay symmetric). */
+export function syncItineraryWithStops(form: PackageForm): PackageForm {
+  const totalNights = form.stops.reduce((sum, s) => sum + (s.nights || 0), 0);
+  const impliedDays = totalNights + 1;
+  if (form.stops.length === 0 || impliedDays === form.itineraries.length) return form;
+
+  const oldDays = form.itineraries;
+
+  let remainingOld = oldDays.length;
+  const ownedCounts = form.stops.map((s) => {
+    const owned = Math.min(s.nights || 0, remainingOld);
+    remainingOld -= owned;
+    return owned;
+  });
+  if (remainingOld > 0 && ownedCounts.length > 0) {
+    ownedCounts[ownedCounts.length - 1] += remainingOld;
+  }
+
+  const targetCounts = form.stops.map((s, i) =>
+    i === form.stops.length - 1 ? (s.nights || 0) + 1 : (s.nights || 0),
+  );
+
+  const newDays: DayItinerary[] = [];
+  const oldDayToNewDay = new Map<number, number>();
+  let oldCursor = 0;
+
+  form.stops.forEach((_stop, i) => {
+    const owned = ownedCounts[i];
+    const target = targetCounts[i];
+    const kept = Math.min(owned, target);
+    for (let k = 0; k < kept; k++) {
+      const d = oldDays[oldCursor + k];
+      oldDayToNewDay.set(d.day, newDays.length + 1);
+      newDays.push(d);
+    }
+    // Growing this stop: append blank days for the shortfall, right here —
+    // not at the trip's end — so a mid-trip stop's extra nights land next
+    // to it. Shrinking is implicit: the extra `owned - kept` old days below
+    // are never pushed and never added to the map, so renumber drops them
+    // (and any add-ons on them) exactly like deleteDay already does.
+    for (let k = kept; k < target; k++) {
+      newDays.push(emptyDay(newDays.length + 1));
+    }
+    oldCursor += owned;
+  });
+
+  return renumber(form, newDays, (d) => oldDayToNewDay.get(d) ?? null);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

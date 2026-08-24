@@ -60,7 +60,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
    * the next save, which is a worse answer than not offering it. */
   onApplyPrice?: () => void;
 }) {
-  const { form, setForm, canEdit } = useBuilder();
+  const { form, setForm, canEdit, syncDaysWithStops } = useBuilder();
   const missingAges = travellersMissingAges(form);
 
   function field<K extends keyof PackageForm>(key: K) {
@@ -109,6 +109,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
           stops={form.stops}
           onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
           dayCount={form.itineraries.length}
+          onSync={syncDaysWithStops}
         />
         <p className="text-[11px] text-dashboard-base-content/45">
           Each day&apos;s hotel and cab search defaults to the stop it falls under, so
