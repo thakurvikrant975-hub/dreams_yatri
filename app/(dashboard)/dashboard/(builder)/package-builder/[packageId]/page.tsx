@@ -1762,6 +1762,12 @@ function DayCard({
                     hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
                     manualHotelPricePerNight: null, manualExtraBedRate: null,
                     hotelRequestType: null, hotelPendingNote: "",
+                    hotelFilledAt: null, hotelFilledByName: null,
+                    // Proof for saveCustomPackage's staleResurrection guard
+                    // that this isn't a stale tab discarding a fill it never
+                    // saw — read from `data` (this click's own copy) before
+                    // it's cleared above, same as v2's beginHotelRequest.
+                    hotelFillAcknowledged: !!data.hotelFilledAt,
                   });
                   setHotelRequestComposing(true);
                 }}

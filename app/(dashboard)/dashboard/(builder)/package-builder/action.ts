@@ -1055,6 +1055,17 @@ export interface DayItinerary {
    * only (not written back by saveCustomPackage). */
   hotelFilledAt?:     Date | null;
   hotelFilledByName?: string | null;
+  /** Set (only) by beginHotelRequest/its v1 equivalent, when withdrawing a
+   * day that had `hotelFilledAt` set at that moment — proof the exec's own
+   * tab actually displayed the filled hotel before they chose to discard it
+   * and request a different one. Withdrawing always clears hotelFilledAt
+   * client-side (so the stale "Filled by X" banner doesn't linger through
+   * the new request), which otherwise looks byte-for-byte identical, to
+   * saveCustomPackage, to a stale pre-fill tab blindly clobbering a fill it
+   * never saw — the exact case the staleResurrection guard exists to catch.
+   * This is the same "I've seen it, let me proceed" gesture as
+   * hotelRejectionAcknowledged below. Not persisted itself. */
+  hotelFillAcknowledged?: boolean;
   /** Read-only — the hotel team's internal note left when filling this day
    * in, for display only (not written back by saveCustomPackage, and never
    * included in the itinerary PDF — see ItineraryDocument.tsx). */
@@ -2612,12 +2623,24 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
           // wasn't right) from the stale-tab race this guard exists to catch:
           // the hotel team fills a day in a separate tab/page while the exec
           // still has an older, pre-fill copy of this form open and saves for
-          // an unrelated reason. The client's own hotelFilledAt (read-only,
-          // loaded at page-open time — see the DayItinerary comment above)
-          // only matches the DB's current one if the exec's snapshot already
-          // knew about this exact fill, which a stale tab's never would.
-          const clientSawThisFill = alreadyFilled && it.hotelFilledAt != null
-            && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime();
+          // an unrelated reason.
+          //
+          // Two independent proofs the client actually saw this exact fill:
+          // (1) its own hotelFilledAt (read-only, loaded at page-open time —
+          // see the DayItinerary comment above) matches the DB's current one
+          // — a stale tab's never would; or (2) hotelFillAcknowledged, set by
+          // beginHotelRequest/its v1 equivalent when the exec withdrew a day
+          // that had hotelFilledAt set at that moment. (2) exists because
+          // withdrawing always clears hotelFilledAt client-side first (so the
+          // stale banner doesn't linger through the new request), which would
+          // otherwise make every legitimate "saw it, want a different one"
+          // re-request look identical to the stale-tab case (1) exists to
+          // catch — it.hotelFilledAt is null either way by the time this save
+          // fires, so (1) alone can never pass for a withdraw-then-request.
+          const clientSawThisFill = alreadyFilled && (
+            it.hotelFillAcknowledged === true
+            || (it.hotelFilledAt != null && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime())
+          );
           const staleResurrection = alreadyFilled && !clientSawThisFill;
           if (it.hotelPending && staleResurrection) staleHotelRequestDays.push(it.day);
           const clearedRejection = !!existing?.hotelRejectedAt && it.hotelRejectionAcknowledged === true;

@@ -445,6 +445,12 @@ export function beginHotelRequest(day: DayItinerary): DayItinerary {
     manualExtraBedRate: null,
     hotelRequestType: null,
     hotelPendingNote: "",
+    // Proof for saveCustomPackage's staleResurrection guard that this isn't
+    // a stale tab blindly discarding a fill it never saw — removeStay above
+    // just cleared hotelFilledAt, so check the day's value from BEFORE that
+    // (i.e. what was actually on screen a moment ago) rather than `day`'s
+    // post-removeStay copy, which would always read null here.
+    hotelFillAcknowledged: !!day.hotelFilledAt,
   };
 }
 
