@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
+import { reportActionError } from "@/app/lib/report-action-error";
 import {
   DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -3185,7 +3186,7 @@ export default function PackageBuilderDetailPage() {
       } catch (err) {
         if (cancelled) return;
         console.error("[computeBuilderHotelPricing]", err);
-        toast.error("Couldn't price the hotel — check your connection and try again.");
+        reportActionError(err, "Couldn't price the hotel — check your connection and try again.");
       } finally {
         if (!cancelled) setComputingPrice(false);
       }
@@ -3231,7 +3232,7 @@ export default function PackageBuilderDetailPage() {
       } catch (err) {
         if (cancelled) return;
         console.error("[computeBuilderCabPricing]", err);
-        toast.error("Couldn't price the cab — check your connection and try again.");
+        reportActionError(err, "Couldn't price the cab — check your connection and try again.");
       } finally {
         if (!cancelled) setComputingCabPrice(false);
       }
@@ -3423,7 +3424,7 @@ export default function PackageBuilderDetailPage() {
         }
       } catch (err) {
         console.error("[saveCustomPackage]", err);
-        toast.error("Couldn't save — check your connection and try again.");
+        reportActionError(err, "Couldn't save — check your connection and try again.");
       }
     });
   }
@@ -3503,7 +3504,7 @@ export default function PackageBuilderDetailPage() {
         }
       } catch (err) {
         console.error("[handleMarkReady]", err);
-        toast.error("Couldn't submit for review — check your connection and try again.");
+        reportActionError(err, "Couldn't submit for review — check your connection and try again.");
       }
     });
   }

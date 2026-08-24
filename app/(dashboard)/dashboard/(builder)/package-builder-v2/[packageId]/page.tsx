@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { reportActionError } from "@/app/lib/report-action-error";
 import {
   DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -1269,28 +1270,36 @@ Rules:
 
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
-      const result = await saveCustomPackage({
-        id: packageId,
-        queryId: query?.id ?? null,
-        ...form,
-        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-        marginPercentage: parseFloat(form.marginPercentage) || 0,
-        gstPercentage: parseFloat(form.gstPercentage) || 0,
-        discountType: form.discountType,
-        discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
-        discountNote: form.discountNote,
-        status,
-      });
-      if (result.success) {
-        // The server now has it, so the crash-recovery copy is redundant.
-        localDraft.clear();
-        setSavedOk(true);
-        setTimeout(() => setSavedOk(false), 3000);
-        warnStaleHotelRequests(result.staleHotelRequestDays);
-        await afterSuccessfulSave();
-      } else {
-        toast.error(result.error ?? "Failed to save");
+      try {
+        const result = await saveCustomPackage({
+          id: packageId,
+          queryId: query?.id ?? null,
+          ...form,
+          pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+          marginPercentage: parseFloat(form.marginPercentage) || 0,
+          gstPercentage: parseFloat(form.gstPercentage) || 0,
+          discountType: form.discountType,
+          discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+          discountNote: form.discountNote,
+          status,
+        });
+        if (result.success) {
+          // The server now has it, so the crash-recovery copy is redundant.
+          localDraft.clear();
+          setSavedOk(true);
+          setTimeout(() => setSavedOk(false), 3000);
+          warnStaleHotelRequests(result.staleHotelRequestDays);
+          await afterSuccessfulSave();
+        } else {
+          toast.error(result.error ?? "Failed to save");
+        }
+      } catch (err) {
+        // Previously unhandled — a thrown exception here (dropped connection,
+        // or a stale page bundle calling a Server Action ID a new deploy
+        // removed) left Save just silently finishing with nothing saved.
+        console.error("[saveCustomPackage]", err);
+        reportActionError(err, "Couldn't save — check your connection and try again.");
       }
     });
   }
@@ -1393,41 +1402,46 @@ Rules:
   function handleMarkReady() {
     setConfirmReadyOpen(false);
     startSend(async () => {
-      // Always save first — markPackageReady reads nothing from the client,
-      // but the review page does, straight from the DB row, so any edit made
-      // since the last save would otherwise silently never reach costing.
-      const result = await saveCustomPackage({
-        id: packageId,
-        queryId: query?.id ?? null,
-        ...form,
-        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-        marginPercentage: parseFloat(form.marginPercentage) || 0,
-        gstPercentage: parseFloat(form.gstPercentage) || 0,
-        discountType: form.discountType,
-        discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
-        discountNote: form.discountNote,
-        status: "READY",
-      });
-      if (!result.success) {
-        toast.error(result.error ?? "Failed to save");
-        return;
-      }
-      warnStaleHotelRequests(result.staleHotelRequestDays);
-      await afterSuccessfulSave();
+      try {
+        // Always save first — markPackageReady reads nothing from the client,
+        // but the review page does, straight from the DB row, so any edit made
+        // since the last save would otherwise silently never reach costing.
+        const result = await saveCustomPackage({
+          id: packageId,
+          queryId: query?.id ?? null,
+          ...form,
+          pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+          marginPercentage: parseFloat(form.marginPercentage) || 0,
+          gstPercentage: parseFloat(form.gstPercentage) || 0,
+          discountType: form.discountType,
+          discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+          discountNote: form.discountNote,
+          status: "READY",
+        });
+        if (!result.success) {
+          toast.error(result.error ?? "Failed to save");
+          return;
+        }
+        warnStaleHotelRequests(result.staleHotelRequestDays);
+        await afterSuccessfulSave();
 
-      const result2 = await markPackageReady(packageId, readyNote);
-      if (result2.success) {
-        toast.success("Submitted for costing review");
-        // Without this, `query.customPackage.status` stays whatever it was
-        // at page load, so `isLocked` never flips true — the fieldset stays
-        // enabled and Mark Ready stays visible/clickable until a manual
-        // reload, letting the exec keep editing a package that's already
-        // out for costing review.
-        const fresh = await getPackageDetail(packageId);
-        if (fresh) syncPricingFromFresh(fresh);
-      } else {
-        toast.error(result2.error ?? "Failed to mark package ready");
+        const result2 = await markPackageReady(packageId, readyNote);
+        if (result2.success) {
+          toast.success("Submitted for costing review");
+          // Without this, `query.customPackage.status` stays whatever it was
+          // at page load, so `isLocked` never flips true — the fieldset stays
+          // enabled and Mark Ready stays visible/clickable until a manual
+          // reload, letting the exec keep editing a package that's already
+          // out for costing review.
+          const fresh = await getPackageDetail(packageId);
+          if (fresh) syncPricingFromFresh(fresh);
+        } else {
+          toast.error(result2.error ?? "Failed to mark package ready");
+        }
+      } catch (err) {
+        console.error("[handleMarkReady]", err);
+        reportActionError(err, "Couldn't submit for review — check your connection and try again.");
       }
     });
   }

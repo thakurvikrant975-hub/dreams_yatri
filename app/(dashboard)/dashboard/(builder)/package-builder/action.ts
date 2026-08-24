@@ -2539,6 +2539,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         hotelRejectedAt: true, hotelRejectedById: true, hotelRejectedByName: true, hotelRejectionNote: true, hotelRejectedNotifiedAt: true,
         hotelPriceOverride: true, cabPriceOverride: true,
         roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
+        accommodationPhoto: true, accommodationRoomPhotos: true, accommodationLocation: true, accommodationRoomSpecs: true,
+        accommodationStarRating: true, accommodationRoomCapacity: true, accommodationMaxAdults: true, accommodationMaxChildren: true,
+        accommodationExtraBedCapacity: true, hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
       },
     });
@@ -2629,19 +2632,25 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               title:              it.title,
               description:        it.description || null,
               meals:              normalizeMealLabels(it.meals),
-              accommodation:      it.accommodation || null,
-              accommodationPhoto: it.accommodationPhoto || null,
-              accommodationRoomPhotos: it.accommodationRoomPhotos ?? [],
-              accommodationLocation: it.accommodationLocation || null,
-              accommodationRoomSpecs: it.accommodationRoomSpecs || null,
-              accommodationStarRating: it.accommodationStarRating || null,
-              accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
-              accommodationMaxAdults: it.accommodationMaxAdults ?? null,
-              accommodationMaxChildren: it.accommodationMaxChildren ?? null,
-              accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
-              manualExtraBeds:    it.manualExtraBeds ?? null,
-              roomPricingId:      it.roomPricingId ?? null,
-              roomsCount:         it.roomsCount ?? null,
+              // Same staleResurrection guard as hotelFilledAt/By/ByName below:
+              // a stale pre-fill tab's payload for these is genuinely blank
+              // (the request form never sets them — only the fill does), so
+              // trusting it here silently reverted a completed fill's hotel
+              // back to "no hotel" while leaving the "Filled by X" banner
+              // intact, since that banner alone was previously protected.
+              accommodation:      staleResurrection ? (existing?.accommodation ?? null) : (it.accommodation || null),
+              accommodationPhoto: staleResurrection ? (existing?.accommodationPhoto ?? null) : (it.accommodationPhoto || null),
+              accommodationRoomPhotos: staleResurrection ? (existing?.accommodationRoomPhotos ?? []) : (it.accommodationRoomPhotos ?? []),
+              accommodationLocation: staleResurrection ? (existing?.accommodationLocation ?? null) : (it.accommodationLocation || null),
+              accommodationRoomSpecs: staleResurrection ? (existing?.accommodationRoomSpecs ?? null) : (it.accommodationRoomSpecs || null),
+              accommodationStarRating: staleResurrection ? (existing?.accommodationStarRating ?? null) : (it.accommodationStarRating || null),
+              accommodationRoomCapacity: staleResurrection ? (existing?.accommodationRoomCapacity ?? null) : (it.accommodationRoomCapacity ?? null),
+              accommodationMaxAdults: staleResurrection ? (existing?.accommodationMaxAdults ?? null) : (it.accommodationMaxAdults ?? null),
+              accommodationMaxChildren: staleResurrection ? (existing?.accommodationMaxChildren ?? null) : (it.accommodationMaxChildren ?? null),
+              accommodationExtraBedCapacity: staleResurrection ? (existing?.accommodationExtraBedCapacity ?? null) : (it.accommodationExtraBedCapacity ?? null),
+              manualExtraBeds:    staleResurrection ? (existing?.manualExtraBeds ?? null) : (it.manualExtraBeds ?? null),
+              roomPricingId:      staleResurrection ? (existing?.roomPricingId ?? null) : (it.roomPricingId ?? null),
+              roomsCount:         staleResurrection ? (existing?.roomsCount ?? null) : (it.roomsCount ?? null),
               hotelPending,
               hotelPendingNote:   hotelPending ? (it.hotelPendingNote || null) : null,
               hotelRequestType:   hotelPending ? (it.hotelRequestType || null) : null,
@@ -2665,21 +2674,26 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               hotelRejectedByName:     clearedRejection ? null : (existing?.hotelRejectedByName ?? null),
               hotelRejectionNote:      clearedRejection ? null : (existing?.hotelRejectionNote ?? null),
               hotelRejectedNotifiedAt: clearedRejection ? null : (existing?.hotelRejectedNotifiedAt ?? null),
-              manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
-              manualExtraBedRate: it.manualExtraBedRate ?? null,
+              manualHotelPricePerNight: staleResurrection ? (existing?.manualHotelPricePerNight ?? null) : (it.manualHotelPricePerNight ?? null),
+              manualExtraBedRate: staleResurrection ? (existing?.manualExtraBedRate ?? null) : (it.manualExtraBedRate ?? null),
               // Costing-only corrections — never sourced from the exec's own
               // form (it doesn't expose them). Carried forward as-is unless
               // this save actually changed the hotel/cab it was priced
               // against, in which case it no longer applies.
-              hotelPriceOverride: hotelSelectionChanged(existing, it) ? null : existing!.hotelPriceOverride,
+              // staleResurrection means the hotel actually being kept is
+              // `existing`'s (the DB's), not `it`'s stale payload — so the
+              // selection hasn't really changed even though the raw client
+              // snapshot diffs from `existing`; skip the check entirely so a
+              // valid override isn't wiped for a change that isn't happening.
+              hotelPriceOverride: (!staleResurrection && hotelSelectionChanged(existing, it)) ? null : existing!.hotelPriceOverride,
               cabPriceOverride:   cabSelectionChanged(existing, it) ? null : existing!.cabPriceOverride,
               // Drop any "add another room" row the exec never finished
               // picking a room for (roomPricingId still 0, the picker's
               // "unselected" sentinel) rather than persisting junk entries.
               extraRooms:         (it.extraRooms ?? []).filter((r) => r.roomPricingId > 0) as unknown as Prisma.InputJsonValue,
-              hotelCheckIn:       it.hotelCheckIn || null,
-              hotelCheckOut:      it.hotelCheckOut || null,
-              hotelMealPlan:      it.hotelMealPlan || null,
+              hotelCheckIn:       staleResurrection ? (existing?.hotelCheckIn ?? null) : (it.hotelCheckIn || null),
+              hotelCheckOut:      staleResurrection ? (existing?.hotelCheckOut ?? null) : (it.hotelCheckOut || null),
+              hotelMealPlan:      staleResurrection ? (existing?.hotelMealPlan ?? null) : (it.hotelMealPlan || null),
               transport:          it.transport || null,
               transportPhoto:     it.transportPhoto || null,
               transportVehicleType: it.transportVehicleType || null,
