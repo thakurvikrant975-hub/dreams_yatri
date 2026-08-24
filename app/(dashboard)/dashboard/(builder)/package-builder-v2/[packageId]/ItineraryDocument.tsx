@@ -3814,7 +3814,7 @@ export function ItineraryDocument({
         {/* ── A4 page ─────────────────────────────────────────────────────────── */}
         <div
           className={cn(
-            "itinerary-print-area mx-auto overflow-hidden bg-neutral-50 ",
+            "itinerary-print-area mx-auto overflow-hidden bg-white ",
             variant === "page" ? "" : variant === "flat" ? "border" : "rounded-lg shadow-xl",
           )}
           // Empty-string attribute rather than a boolean: the CSS above keys

@@ -29,7 +29,7 @@
 const DOODLE_INK = "#0f172a";
 /** How present the pattern is. 0.13 reads as pattern while keeping text over
  *  it at 11:1; 0.08 is a whisper, 0.20 is assertive. */
-const DOODLE_OPACITY = 0.13;
+const DOODLE_OPACITY = 0.1;
 /** Outline by default. Set true for solid silhouettes — but see the note in
  *  the tile: several glyphs are open line work and need redrawing to fill
  *  properly, so this is not yet a flag worth flipping. */
@@ -89,6 +89,14 @@ export const PUBLISHED_THEME = `
     background-size: var(--doc-texture-size, 220px) var(--doc-texture-size, 220px);
     background-repeat: repeat;
     background-position: 0 0;
+    /* The pattern belongs to the page, not to the scroll. Anchored to the
+       viewport it stays put while the itinerary moves over it, which is what
+       makes it read as stock the document is printed on rather than as a
+       second thing sliding past at the same speed.
+       iOS Safari has never honoured this properly and will fall back to
+       scrolling it. That degrades to exactly the previous behaviour, so it
+       costs nothing to ask for. */
+    background-attachment: fixed;
   }
 
   /* The masthead sits above the texture, not on it.
