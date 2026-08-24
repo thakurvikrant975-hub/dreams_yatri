@@ -19,7 +19,7 @@ import {
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Ticket,
-  ShieldCheck, ChatText, Wand2, Copy, AlertTriangle,
+  ShieldCheck, ChatText, Wand2, Copy, ClipboardPaste, AlertTriangle,
 } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { PackageSwitcher } from "@/app/(dashboard)/dashboard/(builder)/package-builder/PackageSwitcher";
@@ -1129,6 +1129,22 @@ Rules:
   function copyAIPrompt() {
     navigator.clipboard.writeText(buildAIPrompt());
     toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
+  }
+
+  /** One-click paste of the AI's JSON reply from the clipboard into the
+   * response box below, instead of clicking in and pressing Ctrl+V. */
+  async function pasteAIJson() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        toast.error("Clipboard is empty");
+        return;
+      }
+      setAiJsonInput(text);
+      setAiParseError(null);
+    } catch {
+      toast.error("Couldn't read the clipboard — your browser may need permission. Paste manually instead.");
+    }
   }
 
   /** Parses the pasted JSON and merges it into the form — fills only empty
@@ -2510,28 +2526,16 @@ Rules:
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="flex items-center justify-center size-5 rounded-full bg-dashboard-base-200 text-dashboard-base-content/70 text-[10px] font-bold shrink-0">1</span>
-                  <span className="text-xs font-semibold text-dashboard-base-content">Copy this prompt</span>
+                  <span className="text-xs font-semibold text-dashboard-base-content">Paste the JSON response here</span>
                 </div>
-                <Button variant="outline" size="sm" onClick={copyAIPrompt} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
-                  <Copy size={11} /> Copy Prompt
-                </Button>
-              </div>
-              <Textarea
-                readOnly
-                value={buildAIPrompt()}
-                rows={7}
-                className="text-[11px] font-mono resize-none border-dashboard-base-300 bg-dashboard-base-200/40 rounded-lg"
-              />
-              <p className="text-[10.5px] text-dashboard-base-content/45">
-                Built from this package&apos;s travel date, destinations &amp; nights, travellers, and pickup/drop — fill those in first if this looks thin.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="flex items-center justify-center size-5 rounded-full bg-dashboard-base-200 text-dashboard-base-content/70 text-[10px] font-bold shrink-0">2</span>
-                <span className="text-xs font-semibold text-dashboard-base-content">Paste the JSON response here</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={copyAIPrompt} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
+                    <Copy size={11} /> Copy Prompt
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={pasteAIJson} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
+                    <ClipboardPaste size={11} /> Paste Prompt
+                  </Button>
+                </div>
               </div>
               <Textarea
                 value={aiJsonInput}
