@@ -1436,6 +1436,14 @@ function DayCard({
       roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
       manualHotelPricePerNight: null, manualExtraBedRate: null,
       hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
+      hotelFilledAt: null, hotelFilledByName: null,
+      // Proof for saveCustomPackage's staleResurrection guard that this
+      // isn't a stale tab discarding a fill it never saw — read from `data`
+      // (this call's own copy) before it's cleared above. Needed here too,
+      // not just the "Request hotel" button below: removing the hotel and
+      // requesting a new one as two separate clicks would otherwise lose
+      // the signal after the first click already nulled hotelFilledAt.
+      hotelFillAcknowledged: !!data.hotelFilledAt,
     });
   }
 

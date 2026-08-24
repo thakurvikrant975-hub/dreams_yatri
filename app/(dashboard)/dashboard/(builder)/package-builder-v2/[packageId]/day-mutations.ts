@@ -118,6 +118,16 @@ export function applyHotelRoomSelection(
 export function removeStay(day: DayItinerary): DayItinerary {
   return {
     ...day,
+    // Proof for saveCustomPackage's staleResurrection guard that clearing
+    // hotelFilledAt below isn't a stale tab discarding a fill it never saw —
+    // read from `day` (this call's own copy) BEFORE it's cleared. Set here,
+    // not just in beginHotelRequest (which calls this), because a plain
+    // "Remove" action calls removeStay directly — if only beginHotelRequest
+    // set this, removing a hotel first and requesting a new one as two
+    // separate clicks would lose the signal: by the second click,
+    // hotelFilledAt is already null from the first, so `!!day.hotelFilledAt`
+    // would read false regardless of whether the exec really saw the fill.
+    hotelFillAcknowledged: !!day.hotelFilledAt,
     accommodation: "",
     accommodationPhoto: "",
     accommodationRoomPhotos: [],
@@ -439,18 +449,15 @@ export const STAY_TYPE_LABELS: Record<string, string> = {
  */
 export function beginHotelRequest(day: DayItinerary): DayItinerary {
   return {
+    // hotelFillAcknowledged is set inside removeStay itself (see its
+    // comment) — it also covers a plain "Remove" action calling removeStay
+    // directly, not just this path.
     ...removeStay(day),
     manualExtraBeds: null,
     manualHotelPricePerNight: null,
     manualExtraBedRate: null,
     hotelRequestType: null,
     hotelPendingNote: "",
-    // Proof for saveCustomPackage's staleResurrection guard that this isn't
-    // a stale tab blindly discarding a fill it never saw — removeStay above
-    // just cleared hotelFilledAt, so check the day's value from BEFORE that
-    // (i.e. what was actually on screen a moment ago) rather than `day`'s
-    // post-removeStay copy, which would always read null here.
-    hotelFillAcknowledged: !!day.hotelFilledAt,
   };
 }
 
