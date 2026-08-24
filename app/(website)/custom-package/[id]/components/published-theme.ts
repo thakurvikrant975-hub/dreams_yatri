@@ -52,10 +52,15 @@ export const PUBLISHED_THEME = `
      layer underneath — the two compose rather than compete, and a template
      that changes its paper keeps its own colour showing through the dots.
 
-     Deliberately weak. It is behind a client's quote, not a hero section:
-     at 0.055 alpha it registers as texture and never as pattern, and every
-     block that carries text — the cards, the hero, the dark footer — paints
-     its own opaque ground on top, so nothing is ever read across it.
+     Restrained, but it has to actually be visible. The first pass was a 1px
+     dot at 0.055 alpha on a 22px grid — about two pixels in a thousand,
+     shifted five percent. That is below the threshold at which an eye
+     registers anything, so the page looked exactly as flat as before.
+     A 1.5px dot at 0.12 on an 18px grid reads as stock without ever reading
+     as pattern, and text stays at 11.33:1 against a 4.5 floor. Every block
+     that carries text — the cards, the hero, the dark footer — paints its
+     own opaque ground on top anyway; the package description is the only
+     prose that sits on it directly.
 
      For cross-hatch instead of dots, swap the two properties below for:
        background-image:
@@ -66,8 +71,8 @@ export const PUBLISHED_THEME = `
      texture without touching this file. */
   .itinerary-print-area[data-published]:not([data-exporting]) {
     background-image:
-      radial-gradient(var(--doc-texture-ink, rgba(15, 23, 42, 0.055)) 1px, transparent 1px);
-    background-size: var(--doc-texture-size, 22px) var(--doc-texture-size, 22px);
+      radial-gradient(var(--doc-texture-ink, rgba(15, 23, 42, 0.12)) 1.5px, transparent 1.5px);
+    background-size: var(--doc-texture-size, 18px) var(--doc-texture-size, 18px);
     background-position: 0 0;
   }
 
