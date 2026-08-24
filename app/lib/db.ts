@@ -69,16 +69,24 @@ async function createPrismaClient() {
       : ["error"],
   });
 
-  // Retry model queries that fail with a connection-terminated error.
-  // This covers Neon compute cold-start: the pooler accepts the TCP connection
-  // while the compute wakes up, then drops it before the query runs.
+  // Retry model queries that fail with a connection-drop error. This covers
+  // Neon compute cold-start: the pooler accepts the TCP connection while the
+  // compute wakes up, then drops it before the query runs — cold starts run
+  // 3-8s typical, up to ~15s under load (see connectionTimeoutMillis above),
+  // so the retry budget below is sized to actually outlast that (previously
+  // 3 attempts / ~1.8s total, which gave up well before a real cold start
+  // finished and surfaced as an unhandled PrismaClientInitializationError).
   // Only model operations are retried — raw queries are left to the caller.
-  return client.$extends({
+  const RETRYABLE = /connection terminated|connection ended|econnreset|socket hang up|timeout exceeded/i;
+  const MAX_ATTEMPTS = 6;
+  const BACKOFF_MS = [500, 1000, 2000, 3000, 5000]; // ~11.5s total across 6 attempts
+
+  const extended = client.$extends({
     name: "retry-on-connection-error",
     query: {
       $allModels: {
         async $allOperations({ args, query }) {
-          for (let attempt = 1; attempt <= 3; attempt++) {
+          for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
               return await query(args);
             } catch (err) {
@@ -86,10 +94,10 @@ async function createPrismaClient() {
                 ? err.cause.message
                 : "";
               const msg = (err instanceof Error ? err.message : String(err)) + " " + cause;
-              const retryable = /connection terminated/i.test(msg);
-              if (attempt < 3 && retryable) {
-                // Back off: 600 ms, then 1 200 ms
-                await new Promise(r => setTimeout(r, 600 * attempt));
+              const retryable = RETRYABLE.test(msg);
+              if (attempt < MAX_ATTEMPTS && retryable) {
+                console.warn(`[db] retrying after connection drop (attempt ${attempt}/${MAX_ATTEMPTS}):`, msg.trim());
+                await new Promise(r => setTimeout(r, BACKOFF_MS[attempt - 1]));
                 continue;
               }
               throw err;
@@ -101,6 +109,28 @@ async function createPrismaClient() {
       },
     },
   });
+
+  // Warm the connection before handing the client out — dev-server startup
+  // (or any cold boot) is exactly when the first real request is most
+  // likely to race a suspended Neon compute. Same retry budget as above,
+  // via a trivial raw query, so that race never reaches app code at all.
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await client.$queryRaw`SELECT 1`;
+      break;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt < MAX_ATTEMPTS && RETRYABLE.test(msg)) {
+        console.warn(`[db] warm-up retry after connection drop (attempt ${attempt}/${MAX_ATTEMPTS}):`, msg.trim());
+        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt - 1]));
+        continue;
+      }
+      console.error("[db] warm-up query failed, continuing anyway — first real query will retry independently:", msg);
+      break;
+    }
+  }
+
+  return extended;
 }
 
 type DbClient = Awaited<ReturnType<typeof createPrismaClient>>;
