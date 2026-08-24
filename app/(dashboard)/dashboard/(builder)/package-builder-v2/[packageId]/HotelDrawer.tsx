@@ -467,7 +467,13 @@ export function HotelReplaceView({ day }: { day: number }) {
             max_adults: room.maxAdults,
             max_children: room.maxChildren,
           }, itin.roomsCount);
-          const nightly = room.pricePerNight * plan.rooms;
+          const roomCost = room.pricePerNight * plan.rooms;
+          // Same mattressCost calculation package-pricing.service.ts uses for
+          // the real quote — without it this preview understated the total
+          // for any room needing extra beds, since only the base room rate
+          // was multiplied through before.
+          const mattressCost = (room.extraBedRate ?? 0) * plan.mattresses;
+          const nightly = roomCost + mattressCost;
 
           return (
             <OptionRow
@@ -553,6 +559,17 @@ export function HotelReplaceView({ day }: { day: number }) {
                   <p className="text-[10px] text-dashboard-base-content/50">
                     per night{room.isSeasonalRate && " · seasonal"}
                   </p>
+                  {/* Breakdown behind the total above — the single room's own
+                      rate for this date, and the mattress charge if this
+                      party needs any (both already folded into nightly). */}
+                  <p className="text-[9.5px] text-dashboard-base-content/45 tabular-nums">
+                    ₹{room.pricePerNight.toLocaleString("en-IN")}/room{plan.rooms > 1 ? ` × ${plan.rooms}` : ""}
+                  </p>
+                  {plan.mattresses > 0 && (room.extraBedRate ?? 0) > 0 && (
+                    <p className="text-[9.5px] text-dashboard-base-content/45 tabular-nums">
+                      + ₹{room.extraBedRate!.toLocaleString("en-IN")}/mattress × {plan.mattresses}
+                    </p>
+                  )}
                 </>
               }
             />
