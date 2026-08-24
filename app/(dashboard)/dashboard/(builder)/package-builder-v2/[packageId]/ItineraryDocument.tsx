@@ -623,7 +623,14 @@ function PolicyBlock({ label, items, listKey }: {
   // A section with nothing in it still needs a way in while editing.
   if (items.length === 0 && !(listKey && builder?.canEdit)) return null;
   return (
-    <div className="space-y-2.5" style={{ breakInside: "avoid" }}>
+    /* A card, like every other block on the page. These used to sit straight
+       on the paper, which on the client's own page means straight on the
+       texture — legible, but reading as loose text dropped onto the page
+       rather than as a section of the document. */
+    <div
+      className="rounded-lg border border-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80 p-3.5 space-y-2.5"
+      style={{ breakInside: "avoid" }}
+    >
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
           <SectionHeader label={label} tone="muted" />
@@ -3814,7 +3821,7 @@ export function ItineraryDocument({
         {/* ── A4 page ─────────────────────────────────────────────────────────── */}
         <div
           className={cn(
-            "itinerary-print-area mx-auto overflow-hidden bg-white ",
+            "itinerary-print-area mx-auto overflow-hidden bg-neutral-50 ",
             variant === "page" ? "" : variant === "flat" ? "border" : "rounded-lg shadow-xl",
           )}
           // Empty-string attribute rather than a boolean: the CSS above keys
@@ -3986,14 +3993,30 @@ export function ItineraryDocument({
               </div>
             )}
 
-            <EditableText
-              as="p"
-              multiline
-              value={form.description}
-              field={{ scope: "package", key: "description" }}
-              placeholder="Describe this package for the client — click to add…"
-              className="block text-sm text-neutral-800 leading-relaxed"
-            />
+            {/* In a card, under the route, rather than loose on the paper.
+                On the client's page the paper carries a texture, and prose
+                sitting directly on it read as a caption someone had dropped
+                onto the page instead of as part of the document.
+
+                Rendered only when there is something to say, or while the
+                exec can still say it — an empty card on a client's quote is
+                worse than no card, and this is the one block that is often
+                left blank. */}
+            {(form.description.trim() || builder?.canEdit) && (
+              <div
+                className="rounded-lg border border-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80 p-3.5"
+                style={{ breakInside: "avoid" }}
+              >
+                <EditableText
+                  as="p"
+                  multiline
+                  value={form.description}
+                  field={{ scope: "package", key: "description" }}
+                  placeholder="Describe this package for the client — click to add…"
+                  className="block text-sm text-neutral-800 leading-relaxed"
+                />
+              </div>
+            )}
 
             <TicketsSection
               tickets={form.tickets}

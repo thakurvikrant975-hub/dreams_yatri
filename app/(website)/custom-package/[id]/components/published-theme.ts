@@ -29,7 +29,7 @@
 const DOODLE_INK = "#0f172a";
 /** How present the pattern is. 0.13 reads as pattern while keeping text over
  *  it at 11:1; 0.08 is a whisper, 0.20 is assertive. */
-const DOODLE_OPACITY = 0.9;
+const DOODLE_OPACITY = 0.1;
 /** Outline by default. Set true for solid silhouettes — but see the note in
  *  the tile: several glyphs are open line work and need redrawing to fill
  *  properly, so this is not yet a flag worth flipping. */
