@@ -42,7 +42,7 @@ export async function createBookingFromCustomPackage(params: {
 
     const cp = await db.custom_packages.findUnique({
         where: { id: customPackageId },
-        include: { query: { select: { id: true, name: true, phone: true, countryCode: true, email: true } } },
+        include: { query: { select: { id: true, name: true, phone: true, countryCode: true, email: true, assignedTo: true, assignedToName: true } } },
     });
     // A "blank" package with no linked query has no client to book for, and
     // can never reach SENT (see sendPackageToClient) — bail the same as a
@@ -114,9 +114,15 @@ export async function createBookingFromCustomPackage(params: {
         ? (await db.destinations.findFirst({ where: { name: { equals: destinationName, mode: "insensitive" } } }))
             ?? (await db.destinations.findFirst({ where: { name: { contains: destinationName, mode: "insensitive" } } }))
         : null;
-    if (!destination) {
-        return { success: false, reason: "error", message: "This package isn't ready for online payment yet — please contact your travel manager." };
-    }
+    // No match is not a failure. Booking.destinationId is nullable, and an
+    // exec types a destination as a client says it — "North Goa, South Goa",
+    // "Meghalaya & Assam" — which is often nothing the catalogue has a row
+    // for. Refusing on that turned away 81% of sent packages, with a message
+    // that blamed the package for not being "ready for online payment" when
+    // the only thing missing was a row in a table the client never sees.
+    //
+    // The booking carries the package's own destination text either way; the
+    // id is a convenience for grouping, not a requirement for taking money.
 
     // ── Server-derived payment schedule — same pure-function call createBooking
     // makes, same global deposit/cutoff config, no per-package override. ──
@@ -146,7 +152,7 @@ export async function createBookingFromCustomPackage(params: {
             data: {
                 bookingNumber: genBookingNumber(),
                 userId,
-                destinationId: destination.id,
+                destinationId: destination?.id ?? null,
                 tripType: "Leisure",
                 startDate,
                 endDate,
@@ -164,6 +170,14 @@ export async function createBookingFromCustomPackage(params: {
                 priceSnapshot: cp.pricingSnapshot ?? undefined,
                 packageUrl: `/custom-package/${cp.id}`,
                 sourceQueryId: query.id,
+                // Who sold it. The lead's current owner rather than whoever
+                // built the package: credit follows a reassigned query, and
+                // the client may book weeks after the quote was written.
+                //
+                // It is also what separates a sale from a website booking —
+                // a booking with no sales agent came in on its own.
+                salesAgentId: query.assignedTo ?? null,
+                salesAgentName: query.assignedToName ?? null,
                 // What was sold, frozen: the option can be renamed or removed
                 // on the package afterwards, and ops needs to know which hotels
                 // to hold. See the schema comment.

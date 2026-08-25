@@ -67,6 +67,15 @@ type Booking = {
     travellersList: { fullName: string; firstName: string | null; lastName: string | null }[];
     package: { title: string } | null;
     destination: { name: string } | null;
+    /** The words the exec quoted, when no catalogue destination matched.
+     *  Optional: this row type is shared with the hotel-bookings screen,
+     *  which has no reason to fetch either of these. */
+    sourceQuery?: {
+        destination: string | null;
+        custom_packages?: { title: string }[];
+    } | null;
+    /** Null for a booking the client made on the website unaided. */
+    salesAgentName?: string | null;
     packageUrl: string | null;
     hotelBookings: { hotel: { name: string; city: string | null } }[];
 };
@@ -205,15 +214,24 @@ export function PackageBookingsTable({
                                     onClick={(e) => e.stopPropagation()}
                                     className="text-sm font-medium text-dashboard-primary hover:underline line-clamp-1 max-w-44 block"
                                 >
-                                    {b.package?.title ?? "—"}
+                                    {b.package?.title ?? b.sourceQuery?.custom_packages?.[0]?.title ?? "—"}
                                 </a>
                             ) : (
                                 <p className="text-sm text-dashboard-base-content line-clamp-1 max-w-44">
-                                    {b.package?.title ?? "—"}
+                                    {b.package?.title ?? b.sourceQuery?.custom_packages?.[0]?.title ?? "—"}
+                                </p>
+                            )}
+                            {/* Who sold it. Absent for a booking the client
+                                made on the website unaided, which is exactly
+                                the distinction — a row with a name here came
+                                through an exec. */}
+                            {b.salesAgentName && (
+                                <p className="text-[11px] font-medium text-dashboard-primary/80">
+                                    Sold by {b.salesAgentName}
                                 </p>
                             )}
                             <p className="text-xs text-dashboard-base-content/55">
-                                {b.destination?.name ?? ""}
+                                {b.destination?.name ?? b.sourceQuery?.destination ?? ""}
                             </p>
                         </div>
                     </div>

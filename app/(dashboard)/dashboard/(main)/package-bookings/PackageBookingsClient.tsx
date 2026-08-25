@@ -105,6 +105,10 @@ async function BookingsData({
                 contactEmail: true,
                 contactPhone: true,
                 packageId: true,
+                // Who sold it. Null means the client booked off the website on
+                // their own, which is the distinction between a sale and a
+                // walk-in — see createBookingFromCustomPackage.
+                salesAgentName: true,
                 user: { select: { name: true, email: true } },
                 travellersList: {
                     where: { isLead: true },
@@ -113,6 +117,25 @@ async function BookingsData({
                 },
                 package: { select: { title: true } },
                 destination: { select: { name: true } },
+                // A booking made from a custom package usually has no
+                // catalogue destination — an exec types what the client says,
+                // which is rarely a row in that table. The query it came from
+                // carries the words that were actually quoted.
+                sourceQuery: {
+                    select: {
+                        destination: true,
+                        // What was actually sent to the client. Booking.packageId
+                        // points at the catalogue and is null for these, so
+                        // without this every sales booking read "—" where its
+                        // name should be.
+                        custom_packages: {
+                            where: { status: "SENT" },
+                            select: { title: true },
+                            orderBy: { sentAt: "desc" },
+                            take: 1,
+                        },
+                    },
+                },
                 packageUrl: true,
                 hotelBookings: { take: 1, select: { hotel: { select: { name: true, city: true } } } },
             },
