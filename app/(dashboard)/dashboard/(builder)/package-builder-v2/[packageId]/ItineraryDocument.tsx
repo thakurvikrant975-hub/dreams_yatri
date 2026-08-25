@@ -418,6 +418,17 @@ export interface PreviewData {
    * ages were collected have none — those divide by everyone, as they always
    * did. See payingPaxOf. */
   childrenAges?: number[];
+  /** What it takes to hold the booking, from the payment policy engine — see
+   * getSharedPackage. Only the client's page supplies it; the builder and the
+   * PDF leave it undefined and say nothing about payment terms. */
+  bookingDeposit?: {
+    amount: number;
+    /** True when the whole trip is due now — inside the balance window, or the
+     * minimum already covers the total. */
+    isFull: boolean;
+    balance: number;
+    balanceDueDate: string | null;
+  } | null;
   pricePerPerson: string;
   totalPrice: string;
   currency: string;

@@ -29,6 +29,15 @@ import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard
 import { useBookCustomPackage } from "./useBookCustomPackage";
 import { PUBLISHED_THEME } from "./published-theme";
 
+/** "12 Sep 2026" — the balance date, in the form a client reads rather than
+ *  the ISO the engine returns. */
+function formatDueDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function PublishedItinerary({ form, packageId }: { form: PreviewData; packageId: string }) {
   return (
     <>
@@ -72,6 +81,12 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
   const chosen = options.find((o) => o.id === chosenId) ?? null;
 
   const { handleBookNow, submitting, error } = useBookCustomPackage(packageId, chosenId);
+  // Only meaningful against the package's own total. A client who has picked a
+  // different standard is being quoted that column's price, and the deposit
+  // for it is not this one — so it is withheld rather than shown wrong.
+  const deposit = multi && chosen && chosen.id !== options.find((o) => o.isRecommended)?.id
+    ? null
+    : form.bookingDeposit ?? null;
   const totalPax = form.adults + form.children;
 
   // The chosen option's price leads once there is a choice, because that is the
@@ -125,6 +140,35 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
             Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
             {chosen && multi && <> · <span className="font-medium text-neutral-700">{chosen.label}</span></>}
           </p>
+          {/* What it actually takes to hold this, on the line under the total.
+              A client reading a five-figure number decides against it before
+              they reach a Book button that would have asked for a quarter of
+              it — so the smaller number belongs beside the larger one, not a
+              step further into the flow.
+
+              Never restated arithmetic: the amount comes from the same engine
+              that charges it, so the two cannot drift. When the whole trip is
+              due — travel inside the balance window, or the minimum already
+              covering the price — it says so instead, because offering a
+              deposit that checkout will refuse is worse than offering none. */}
+          {deposit && (
+            <p className="mt-0.5 text-xs">
+              {deposit.isFull ? (
+                <span className="text-neutral-500">Full payment due at booking</span>
+              ) : (
+                <>
+                  <span className="font-semibold text-neutral-800">
+                    Book with {form.currency} {deposit.amount.toLocaleString("en-IN")}
+                  </span>
+                  <span className="text-neutral-500">
+                    {" — balance "}
+                    {form.currency} {deposit.balance.toLocaleString("en-IN")}
+                    {deposit.balanceDueDate && ` by ${formatDueDate(deposit.balanceDueDate)}`}
+                  </span>
+                </>
+              )}
+            </p>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -133,7 +177,7 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               type="button"
               onClick={handleBookNow}
               disabled={submitting}
-              className="flex items-center gap-1.5 rounded-lg bg-white bg-linear-to-r from-primary-500/85 to-primary-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:from-primary-400/85 hover:to-primary-500 disabled:opacity-60 font-heading "
+              className="flex items-center gap-1.5 rounded-lg bg-white bg-linear-to-r from-primary-500/85 to-primary-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:from-primary-400/85 hover:to-primary-500 disabled:opacity-60 font-heading cursor-pointer"
             >
               {/* Names the option being bought, so what is about to be charged
                   is stated rather than inferred from a chip further up. */}
