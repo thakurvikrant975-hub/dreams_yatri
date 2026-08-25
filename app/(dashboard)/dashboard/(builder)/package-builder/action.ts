@@ -694,7 +694,7 @@ export type CabSortOption = "price_asc" | "price_desc" | "seats_desc" | "seats_a
 
 // Sorted cheapest-first by default, so a city split across two same-named
 // location rows (e.g. two "Goa" rows — a state-wide entry and an unrelated
-// duplicate — see the package-builder-v2 split investigation) can have an
+// duplicate — see the package-builder split investigation) can have an
 // entirely cheaper vehicle group (bikes) fill the whole page and permanently
 // hide a pricier group (cars/buses). The classic "Search cabs in <city>"
 // combobox now paginates properly (SearchSelect's "Load more" button), so
@@ -3388,7 +3388,6 @@ export async function markPackageReady(
 
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
     // The detail page specifically — costing's own actions (approve/reject
     // in verify-packages/actions.ts) already revalidate this, but a
@@ -3503,7 +3502,6 @@ export async function requestPackageRevision(packageId: string, note: string): P
 
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
     revalidatePath(`/dashboard/verify-packages/${packageId}`);
     revalidatePath("/dashboard/sales-query");
@@ -3629,7 +3627,6 @@ export async function shareCustomPackageWithClient(packageId: string): Promise<{
     revalidatePath("/dashboard/sales-query");
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
 
     return { success: true, whatsappUrl: sendResult.whatsappUrl, shareUrl: sendResult.shareUrl };
   } catch (err) {

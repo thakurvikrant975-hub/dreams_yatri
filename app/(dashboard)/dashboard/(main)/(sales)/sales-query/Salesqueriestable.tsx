@@ -6,7 +6,7 @@ import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
-    CircleX, Package, Plus, Sparkles,
+    CircleX, Package, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -335,28 +335,14 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                     <div onClick={(e) => e.stopPropagation()} className="flex flex-col items-center justify-center gap-1">
                         <div className="flex items-center justify-center gap-1.5">
                             {!latest ? (
-                                <>
-                                    <CreatePackageDialog {...dialogProps}>
-                                        <button
-                                            type="button"
-                                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
-                                        >
-                                            <Package className="h-3 w-3" /> Create Package
-                                        </button>
-                                    </CreatePackageDialog>
-                                    {/* Same dialog, pointed at the new builder — offered
-                                        rather than imposed, same as the "v2" link on an
-                                        already-built package below. */}
-                                    <CreatePackageDialog {...dialogProps} builderBasePath="/dashboard/package-builder-v2">
-                                        <button
-                                            type="button"
-                                            title="Create in the new builder"
-                                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
-                                        >
-                                            <Sparkles className="h-3 w-3" /> v2
-                                        </button>
-                                    </CreatePackageDialog>
-                                </>
+                                <CreatePackageDialog {...dialogProps}>
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                    >
+                                        <Package className="h-3 w-3" /> Create Package
+                                    </button>
+                                </CreatePackageDialog>
                             ) : (
                                 <>
                                     <a
@@ -372,22 +358,6 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                     >
                                         <Eye className="h-3 w-3" />
                                         View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
-                                    </a>
-                                    {/* The new builder, offered rather than
-                                        imposed: the sales team is being moved
-                                        onto it one person at a time, so the
-                                        button above stays where their habit
-                                        already is until they have been shown
-                                        this one. */}
-                                    <a
-                                        href={`/dashboard/package-builder-v2/${latest.id}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        title="Open in the new builder"
-                                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
-                                    >
-                                        <Sparkles className="h-3 w-3" />
-                                        v2
                                     </a>
                                     {/* Says which of the several this row is
                                         showing, so "in review" isn't something

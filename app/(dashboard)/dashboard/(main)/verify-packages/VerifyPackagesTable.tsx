@@ -256,7 +256,7 @@ export function VerifyPackagesTable({
                             {label}
                         </Link>
                         <Link
-                            href={`/dashboard/package-builder-v2/${p.id}/review`}
+                            href={`/dashboard/package-builder/${p.id}/review`}
                             target="_blank"
                             rel="noopener"
                             title="Review in the new editor — correct the itinerary where it sits, then approve or reject"

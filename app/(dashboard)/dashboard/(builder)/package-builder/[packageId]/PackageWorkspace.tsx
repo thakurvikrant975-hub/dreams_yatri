@@ -1,10 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { reportActionError } from "@/app/lib/report-action-error";
-import { mergeStaleHotelDays } from "@/app/lib/sync-stale-hotel-day";
 import {
   DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -14,24 +12,22 @@ import {
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
   Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
-  Save, Send, CheckCircle, AlertCircle, Loader2,
+  Save, Send, CheckCircle, AlertCircle, Loader2, 
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
-  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Lock,
-  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Ticket,
-  ShieldCheck, ChatText, Wand2, Copy, ClipboardPaste, AlertTriangle,
+  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
+  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, ShieldCheck, BedDouble, Undo2, Redo2, Ticket,
 } from "./builder-icons";
-import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
-import { PackageSwitcher } from "@/app/(dashboard)/dashboard/(builder)/package-builder/PackageSwitcher";
-import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
+import { Menu } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { resizeAges, payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { resizeAges } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/alert-dialog";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
@@ -67,16 +63,23 @@ import { formatCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
+import { CostingDecisionButtons } from "./CostingDecisionButtons";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
-import { getStayOptionsForDocument, cloneStayOptionsInto } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
+import { getStayOptionsForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
+import type { WorkspaceCaps } from "@/app/(dashboard)/dashboard/(builder)/package-builder/workspace-caps";
+import { CostingPricingPanel } from "./CostingPricingPanel";
+import { applyDiscount, discountLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
+import { listReviewNotes, type ReviewNote } from "@/app/(dashboard)/dashboard/(builder)/package-builder/review-notes.actions";
+import { reviewKey, type ReviewContext } from "./builder-context";
 import { TripSetupPanel } from "./TripSetupPanel";
 import { DataTablesPanel } from "./DataTablesPanel";
 import { useUndoableState } from "./use-undoable-state";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
 import { BuilderSidebar } from "./BuilderSidebar";
@@ -329,6 +332,19 @@ function formatDuration(ms: number): string {
   return `${mins}m`;
 }
 
+/** Detects the "[label](https://...)" markdown-link/citation pattern
+ * sometimes left behind when copying a JSON response out of ChatGPT's chat
+ * bubble (as opposed to its code block's own copy button) — a link wrapped
+ * around plain text inside a JSON string is still syntactically valid JSON,
+ * so JSON.parse succeeds but every wrapped field ends up garbled. Recurses
+ * through the whole parsed value looking for the tell-tale "](http" bytes. */
+function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
+  if (typeof value === "string") return /\]\(https?:\/\//.test(value);
+  if (Array.isArray(value)) return value.some(looksLikeMarkdownLinkCorruption);
+  if (value && typeof value === "object") return Object.values(value).some(looksLikeMarkdownLinkCorruption);
+  return false;
+}
+
 const TICKET_TYPE_ICONS: Record<TicketInput["type"], React.ElementType> = {
   FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
   BUS: Bus, OTHER: Ticket,
@@ -350,43 +366,33 @@ const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
   OTHER: "Booking no.",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AI Itinerary Builder — see the functions inside the component for the
-// build/copy/apply flow itself; these are just the module-scope pieces that
-// don't need `form`.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Detects the "[label](https://...)" markdown-link/citation pattern
- * sometimes left behind when copying a JSON response out of ChatGPT's chat
- * bubble (as opposed to its code block's own copy button) — a link wrapped
- * around plain text inside a JSON string is still syntactically valid JSON,
- * so JSON.parse succeeds but every wrapped field ends up garbled. Recurses
- * through the whole parsed value looking for the tell-tale "](http" bytes. */
-function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
-  if (typeof value === "string") return /\]\(https?:\/\//.test(value);
-  if (Array.isArray(value)) return value.some(looksLikeMarkdownLinkCorruption);
-  if (value && typeof value === "object") return Object.values(value).some(looksLikeMarkdownLinkCorruption);
-  return false;
-}
-
-type AIItineraryActivity = { title?: string; description?: string; photos?: string[] };
-type AIItineraryDay = {
-  day?: number; title?: string; description?: string;
-  transportPickup?: string; transportDrop?: string; transportDistanceKm?: number;
-  travelTimeApprox?: string; activities?: AIItineraryActivity[];
-};
-type AIItineraryResponse = {
-  description?: string; coverImage?: string;
-  stops?: { name?: string; image?: string }[];
-  days?: AIItineraryDay[];
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-export default function PackageBuilderDetailPage() {
-  const params = useParams<{ packageId: string }>();
-  const packageId = params.packageId;
+/**
+ * The package workspace — the whole editor: the day rail, the live document
+ * with its inline editing and drawers, and the right-hand panels.
+ *
+ * Mounted by BOTH routes. /package-builder is the exec building a trip;
+ * /verify-packages is costing reviewing one. They are not two screens with a
+ * shared component or two components kept in sync — they are the same editor,
+ * and every difference between them is a capability, resolved server-side by
+ * the route and handed in here.
+ *
+ * That is why `caps` is a prop and not something this component works out for
+ * itself: the same code cannot both decide the rules and be governed by them,
+ * and a capability the client derived would be a suggestion rather than a rule.
+ * The server actions re-check the same caps independently.
+ */
+export function PackageWorkspace({ packageId, caps, costingPanel }: {
+  packageId: string;
+  caps: WorkspaceCaps;
+  /** Costing's breakdown, findings and decision, rendered as its own tab in
+   * the sidebar rail. Supplied only by the review route; its absence is what
+   * keeps the tab out of an exec's sidebar entirely. */
+  costingPanel?: React.ReactNode;
+}) {
   // Present only when landing here for a brand-new (not-yet-saved) package
   // that's meant to be linked to a query — see the "Load package" effect
   // below and CreatePackageDialog, which sets this on the navigation URL.
@@ -405,12 +411,63 @@ export default function PackageBuilderDetailPage() {
   // select (see HotelRequestPanel) — same list configured at
   // /dashboard/hotels/meal-types, fetched once here and shared by every day.
   const [mealTypes, setMealTypes] = useState<{ id: number; name: string }[]>([]);
-  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // How much the A4 document has to shrink to fit the phone it is being
+  // previewed on. 794px is 210mm at 96dpi; 32px covers the overlay's padding.
+  // Recomputed on rotate/resize, and only ever while the overlay is open.
+  const [previewZoom, setPreviewZoom] = useState(1);
+  useEffect(() => {
+    // Only ever shrinks, and only below lg — from there the document has its
+    // own column and should render at true size.
+    const fit = () => setPreviewZoom(
+      window.innerWidth >= 1024 ? 1 : Math.min(1, (window.innerWidth - 24) / 794),
+    );
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
   const [activeTab, setActiveTab] = useState("client");
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
+  const [reviewNotes, setReviewNotes] = useState<ReviewNote[]>([]);
   const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
   const [computingPrice, setComputingPrice] = useState(false);
+
+  // Only a viewer who can see review state fetches it — an exec's screen makes
+  // no such request and has nothing to render from it.
+  useEffect(() => {
+    if (!caps.reviewElements && !caps.seeMargin) return;
+    let cancelled = false;
+    listReviewNotes(packageId).then((n) => { if (!cancelled) setReviewNotes(n); });
+    return () => { cancelled = true; };
+  }, [packageId, caps.reviewElements, caps.seeMargin]);
+
+  // Findings, for a reviewer only. Loaded client-side so raising one updates the
+  // document immediately — the section it was pinned to has to show it without a
+  // round trip through the route.
+  //
+  // Declared HERE, above the loading/not-found early returns further down, and
+  // not beside the render code that consumes it: a hook after a conditional
+  // return runs on some renders and not others, which is exactly the "rendered
+  // more hooks than during the previous render" crash.
+  const reviewContext: ReviewContext | undefined = useMemo(() => {
+    if (!caps.reviewElements && !caps.seeMargin) return undefined;
+    const openByTarget = new Map<string, { id: string; severity: "ERROR" | "SUGGESTION"; message: string }[]>();
+    for (const n of reviewNotes) {
+      if (n.status !== "OPEN") continue;
+      const key = reviewKey(n.targetKind, n.day, n.index);
+      const list = openByTarget.get(key) ?? [];
+      list.push({ id: n.id, severity: n.severity, message: n.message });
+      openByTarget.set(key, list);
+    }
+    return {
+      canReview: caps.reviewElements,
+      canVetoStandardPolicy: caps.editLockedPolicy,
+      openByTarget,
+      refresh: () => { void listReviewNotes(packageId).then(setReviewNotes); },
+      packageId,
+    };
+  }, [caps.reviewElements, caps.seeMargin, reviewNotes, packageId]);
   const [cabPricing, setCabPricing] = useState<BuilderCabPricingResult | null>(null);
   // Real destination photos for the document's "Places You Gonna Visit" strip,
   // resolved by name through the same catalog lookup the cover-photo
@@ -418,42 +475,33 @@ export default function PackageBuilderDetailPage() {
   // photo with no upload. A per-tile override still wins (see StopTile).
   const [stopImages, setStopImages] = useState<Record<string, string | null>>({});
   const [computingCabPrice, setComputingCabPrice] = useState(false);
+  // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (external
+  // LLM, no direct API call from here). See buildAIPrompt/applyAIItinerary.
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiJsonInput, setAiJsonInput] = useState("");
 
   // Itinerary tab "focus mode" — see FOCUS_SECTIONS.
   const [focusSection, setFocusSection] = useState<FocusSection>("all");
-
-  // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (no
-  // direct LLM API call from this app). Lives at the top level rather than
-  // inside a panel because its trigger sits in the top toolbar, next to
-  // Change Template — see buildAIPrompt/applyAIItinerary and the button
-  // below. aiParseError is shown inline in the dialog (not just a toast)
-  // so the exec can see exactly what's wrong while they fix the paste.
-  const [aiDialogOpen, setAiDialogOpen] = useState(false);
-  const [aiJsonInput, setAiJsonInput] = useState("");
-  const [aiParseError, setAiParseError] = useState<string | null>(null);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
-  /** The stay standards, as the document's columns and price cards read them.
-      Kept beside the form rather than in it: they are saved per standard,
-      server-side, while `form` only ever describes the recommended one (which
-      is what the day rows carry). */
+  /** The stay options, for the document's columns and price cards. Without
+      these a reviewer's copy — and any PDF exported from this route — shows
+      only the recommended stay, while the exec's copy shows all of them. */
   const [stayOptions, setStayOptions] = useState<PreviewData["stayOptions"]>([]);
-  /** Set while a duplicate is waiting for its first save. Stay options live
-      server-side, keyed to a package id, so a duplicate cannot carry them in
-      its payload — they are cloned once this draft has an id of its own. */
-  const [cloneStayOptionsFrom, setCloneStayOptionsFrom] = useState<string | null>(null);
   const reloadStayOptions = useCallback(async () => {
     try { setStayOptions(await getStayOptionsForDocument(packageId)); }
-    catch { /* the columns are one section; a failed read must not blank the editor */ }
+    catch { /* one panel; a failed read must not blank the workspace */ }
   }, [packageId]);
-  useEffect(() => { void reloadStayOptions(); }, [reloadStayOptions]);
-  // Optional message for costing, shown on verify-packages — cleared each
-  // time the dialog opens so it never carries a stale note from a previous
-  // cycle into a new submission by accident.
-  const [readyNote, setReadyNote] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    getStayOptionsForDocument(packageId)
+      .then((rows) => { if (!cancelled) setStayOptions(rows); })
+      .catch(() => { if (!cancelled) setStayOptions([]); });
+    return () => { cancelled = true; };
+  }, [packageId]);
   const [confirmShareOpen, setConfirmShareOpen] = useState(false);
 
   // useState with history — see use-undoable-state.ts. Same signature, so
@@ -756,9 +804,6 @@ export default function PackageBuilderDetailPage() {
               coverImage: payload.coverImage || f.coverImage,
               startingPoint: payload.startingPoint || f.startingPoint,
             }));
-            // The payload describes the day rows, which carry the recommended
-            // option only. The rest are cloned after the first save.
-            if (payload.sourceCustomPackageId) setCloneStayOptionsFrom(payload.sourceCustomPackageId);
             toast.success(`Copied "${payload.title}" into this draft`);
           } catch (err) {
             console.error("Failed to apply copied package payload", err);
@@ -919,36 +964,37 @@ export default function PackageBuilderDetailPage() {
 
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
-    const finalPrice = taxable + gstAmount;
-    // Children too young to count as a head — see payingPaxOf. The total is
-    // unchanged; this is only what it is divided by.
+    const listPrice = taxable + gstAmount;
+    // Costing's concession comes off last — see discount.ts for why it sits
+    // after GST rather than inside the base cost.
+    const disc = applyDiscount(listPrice, {
+      type: form.discountType,
+      value: form.discountValue ? parseFloat(form.discountValue) : null,
+    });
+    const finalPrice = disc.finalPrice;
+    // Children under five are not heads that pay a share — see payingPaxOf.
+    // The total is unchanged; this is only what it is divided by.
     const totalPax = payingPaxOf(form);
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
     return {
       marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase, addonsSubtotal,
       hotelCabMarginAmount, ticketsMarginAmount, marginAmount,
       taxable, gstAmount, finalPrice, perPerson,
+      /** The pre-discount figure, for the struck-through price. */
+      listPrice, discount: disc,
     };
   }
 
   // A blocked re-request (see saveCustomPackage's staleHotelRequestDays) must
   // never be silent — this tab's copy of the day predates a fill that happened
-  // elsewhere, so the request didn't take. Rather than just telling the exec
-  // to reload, pull the fresh day(s) and merge them straight into local state:
-  // they see the real filled hotel immediately, and — just as important —
-  // their tab is now caught up, so a follow-up remove/re-request on the same
-  // day actually goes through instead of hitting this same block again.
-  async function warnStaleHotelRequests(days: number[] | undefined) {
+  // elsewhere, so the request didn't take; warn and point at a reload rather
+  // than let the exec believe it went through.
+  function warnStaleHotelRequests(days: number[] | undefined) {
     if (!days?.length) return;
-    const fresh = await getPackageDetail(packageId);
-    const freshItineraries = fresh?.customPackage?.itineraries;
-    if (freshItineraries) {
-      setForm((f) => ({ ...f, itineraries: mergeStaleHotelDays(f.itineraries, freshItineraries, days) }));
-    }
     const list = days.join(", ");
     toast.warning(
-      `Day ${list}'s hotel was filled by the team while you had this open — synced to the latest just now.`,
-      { description: "If it's still not right, remove it and request again — that'll go through this time.", duration: 12000 },
+      `Day ${list} was filled by the hotel team while you had this package open — your re-request didn't go through.`,
+      { description: "Reload the page to see the filled hotel, then request again if it's still not right.", duration: 12000 },
     );
   }
 
@@ -974,14 +1020,17 @@ export default function PackageBuilderDetailPage() {
   // value back out by headcount used to drift the header/PDF total off the
   // Pricing tab's exact total by up to `pax` rupees.
   //
-  // Never runs once the package is locked for review (READY) or already sent
-  // (SENT), so an approved/quoted price never silently drifts if catalog rates
-  // change later — checked inline off `query` rather than the `isLocked`/
-  // `pkgSent` variables declared further down, since this has to sit above the
-  // loading/not-found early returns to satisfy the rules of hooks.
+  // Runs only for whoever may edit this package right now, so an approved or
+  // quoted price never silently drifts if catalog rates change later.
+  //
+  // That used to be spelled "not READY and not SENT", which also froze it for
+  // costing — the one person whose margin, GST and discount edits are supposed
+  // to move the price. Their changes went into the breakdown while
+  // form.totalPrice kept the exec's submitted figure, and a save wrote the two
+  // out disagreeing. caps.editItinerary keeps SENT frozen for everyone and the
+  // exec frozen from the moment they submit, which is what the rule was for.
   useEffect(() => {
-    const status = query?.customPackage?.status;
-    if (status === "READY" || status === "SENT") return;
+    if (!caps.editItinerary) return;
     const { finalPrice, perPerson } = computeFinalPricing();
     if (finalPrice <= 0) return;
     const nextPP = String(perPerson);
@@ -990,7 +1039,9 @@ export default function PackageBuilderDetailPage() {
       ? f
       : { ...f, pricePerPerson: nextPP, totalPrice: nextTotal }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage, form.tickets, form.addOns, form.adults, form.children, query?.customPackage?.status]);
+  }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage,
+      form.discountType, form.discountValue,
+      form.tickets, form.addOns, form.adults, form.children, caps.editItinerary]);
 
   // Re-syncs `query` AND the price fields inside `form` from a fresh fetch.
   // `form` is local state hydrated once on mount (see the initial load effect
@@ -1014,317 +1065,40 @@ export default function PackageBuilderDetailPage() {
     }
   }
 
-  // ── AI Itinerary Builder ─────────────────────────────────────────────────
-  // Copy-a-prompt / paste-back-JSON workflow: no direct LLM API call from
-  // this app — the exec copies the generated prompt into their own ChatGPT
-  // session, pastes the JSON it returns back here, and we parse + merge it
-  // into the form. Kept strictly additive (never overwrites a day/field the
-  // exec has already filled in).
-  //
-  // Gated behind validateBeforeAIBuilder: the prompt is built FROM the
-  // trip's own setup (dates, destinations, travellers, margin) — opening it
-  // before those exist would just generate a prompt full of placeholders,
-  // which is worse than not offering the button at all.
-  function validateBeforeAIBuilder(): string | null {
-    if (!form.travelDate) return "Add a travel date before using the AI Itinerary Builder.";
-    if (form.stops.length === 0 && !form.destination.trim()) {
-      return "Add at least one destination (Route: Destinations & Nights) before using the AI Itinerary Builder.";
-    }
-    if (form.totalNights < 1) return "Add at least one night's stay before using the AI Itinerary Builder.";
-    if (form.adults + form.children < 1) return "Add at least one traveller before using the AI Itinerary Builder.";
-    const margin = parseFloat(form.marginPercentage);
-    if (!form.marginPercentage.trim() || Number.isNaN(margin) || margin <= 0) {
-      return "Set a margin percentage before using the AI Itinerary Builder.";
-    }
-    return null;
-  }
-
-  function openAIBuilder() {
-    const error = validateBeforeAIBuilder();
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    setAiJsonInput("");
-    setAiParseError(null);
-    setAiDialogOpen(true);
-  }
-
-  /** Builds the copy-paste prompt from the package's current state — title,
-   * day count, destinations with night counts (falls back to the single
-   * `destination` + total nights when no stops have been added yet), pickup
-   * point, and the last day's drop point. */
-  function buildAIPrompt(): string {
-    const destinationsLine = form.stops.length > 0
-      ? form.stops.map((s) => `${s.name} (${s.nights} Night${s.nights !== 1 ? "s" : ""})`).join(", ")
-      : `${form.destination || "the destination"} (${Math.max(form.totalNights, 1)} Night${Math.max(form.totalNights, 1) !== 1 ? "s" : ""})`;
-    const pickup = form.startingPoint.trim() || "(not specified — choose a sensible pickup point for this destination)";
-    const lastDay = form.itineraries[form.itineraries.length - 1];
-    const drop = lastDay?.transportDrop.trim() || "(not specified — same as the pickup point unless the route suggests otherwise)";
-    const totalPax = form.adults + form.children;
-    const paxLine = `${form.adults} Adult${form.adults !== 1 ? "s" : ""}` +
-      (form.children > 0 ? ` + ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "");
-
-    return `AI Itinerary Builder Prompt
-
-Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
-
-Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). If you look anything up (e.g. to find real image URLs), still write the result as a plain string value, not a hyperlink/citation. A markdown link anywhere inside the JSON will break the import.
-
-Package: "${form.title || "Untitled Package"}" — ${form.totalDays} Day${form.totalDays !== 1 ? "s" : ""} / ${form.totalNights} Night${form.totalNights !== 1 ? "s" : ""}
-Destinations (in order, with nights at each): ${destinationsLine}
-Travellers: ${paxLine}${totalPax === 0 ? " (assume 2 adults if unspecified)" : ""}
-Pickup point: ${pickup}
-Drop point: ${drop}
-
-Spend the itinerary days in the order the destinations are listed, matching the night count at each one.
-
-Return exactly this JSON shape:
-
-{
-  "description": "2-3 sentence overview of the whole trip",
-  "coverImage": "<a real, working, high-quality landscape photo URL representing the overall trip>",
-  "stops": [
-    { "name": "<destination name, matching the list above>", "image": "<real landscape photo URL of this destination>" }
-  ],
-  "days": [
-    {
-      "day": 1,
-      "title": "<day title, under 10 words>",
-      "description": "<day description, 35-55 words — see style example below>",
-      "transportPickup": "<pickup point for this day's transfer>",
-      "transportDrop": "<drop point for this day's transfer>",
-      "transportDistanceKm": <approximate distance in km as a number>,
-      "travelTimeApprox": "<approx travel time, e.g. \\"2h 30m\\">",
-      "activities": [
-        {
-          "title": "<activity title, a short descriptive phrase — see style example below>",
-          "description": "<activity description, 25-40 words — see style example below>",
-          "photos": ["<real landscape photo URL 1>", "<real landscape photo URL 2>", "<real landscape photo URL 3>"]
-        }
-      ]
-    }
-  ]
-}
-
-Style examples (match this tone, level of detail, and length — not generic one-liners):
-
-Day description:
-"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
-
-Activity title + description:
-"Tea Garden Walk in Munnar" — "Take a refreshing walk through Munnar's sprawling tea plantations, surrounded by rolling green hills and fresh mountain air. Enjoy scenic views, learn about tea cultivation, and experience the tranquil beauty of Kerala's famous hill station."
-
-Note activity titles are a full descriptive phrase naming the place (e.g. "Tea Garden Walk in Munnar", "Fort Kochi Heritage Walk") — never a bare noun like "Tea Gardens" or "Fort Kochi" alone.
-
-Rules:
-- Exactly one "days" entry per day (${form.totalDays} total), numbered sequentially from 1.
-- 2-3 activities per day is enough — don't overload the day.
-- Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
-- Do not include hotel or cab pricing/selection — that's handled separately, manually.
-- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.
-- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
-  }
-
-  function copyAIPrompt() {
-    navigator.clipboard.writeText(buildAIPrompt());
-    toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
-  }
-
-  /** One-click paste of the AI's JSON reply from the clipboard into the
-   * response box below, instead of clicking in and pressing Ctrl+V. */
-  async function pasteAIJson() {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (!text.trim()) {
-        toast.error("Clipboard is empty");
-        return;
-      }
-      setAiJsonInput(text);
-      setAiParseError(null);
-    } catch {
-      toast.error("Couldn't read the clipboard — your browser may need permission. Paste manually instead.");
-    }
-  }
-
-  /** Parses the pasted JSON and merges it into the form — fills only empty
-   * fields (title/description/pickup/drop/distance), replaces a day's
-   * activities only when that day currently has none, and extends the
-   * itinerary if the response has more days than currently exist. Never
-   * touches hotel/cab selection (roomPricingId/cabPricingId untouched).
-   * Every failure sets aiParseError with a specific, actionable message
-   * instead of a generic "something went wrong" — shown inline in the
-   * dialog so it stays visible while the exec fixes the paste. */
-  function applyAIItinerary() {
-    setAiParseError(null);
-    const raw = aiJsonInput.trim();
-    if (!raw) {
-      setAiParseError("Paste the JSON response before generating.");
-      return;
-    }
-
-    let parsed: AIItineraryResponse;
-    try {
-      const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-      parsed = JSON.parse(cleaned);
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : "the JSON couldn't be parsed";
-      setAiParseError(`That doesn't look like valid JSON — ${detail}. Make sure you copied the whole response, including the opening and closing braces.`);
-      return;
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      setAiParseError('Unexpected response shape — expected a JSON object with "description", "stops", and "days", but got something else.');
-      return;
-    }
-    if (!Array.isArray(parsed.days) || parsed.days.length === 0) {
-      setAiParseError('The response has no "days" array, so there\'s nothing to apply — ask it to resend using the exact JSON shape from the prompt.');
-      return;
-    }
-    if (looksLikeMarkdownLinkCorruption(parsed)) {
-      setAiParseError(
-        "This response looks corrupted — it has markdown links mixed into the text (a common artifact of copying from ChatGPT's chat bubble instead of its code block). Ask it to resend as a single ```json code block with no citations, then paste that instead.",
-      );
-      return;
-    }
-
-    try {
-      setForm((f) => {
-        const next = { ...f };
-
-        if (parsed.description && !next.description.trim()) next.description = parsed.description;
-        if (parsed.coverImage && !next.coverImage.trim()) next.coverImage = parsed.coverImage;
-
-        if (Array.isArray(parsed.stops) && parsed.stops.length > 0) {
-          const validStops = parsed.stops.filter((s): s is { name: string; image?: string } => !!s?.name);
-          if (next.stops.length === 0 && validStops.length > 0) {
-            const perStopNights = Math.max(1, Math.round((next.totalNights || validStops.length) / validStops.length));
-            next.stops = validStops.map((s) => ({ name: s.name, nights: perStopNights, image: s.image || undefined }));
-          } else {
-            next.stops = next.stops.map((st) => {
-              if (st.image) return st;
-              const match = validStops.find((s) => s.name.trim().toLowerCase() === st.name.trim().toLowerCase());
-              return match?.image ? { ...st, image: match.image } : st;
-            });
-          }
-        }
-
-        const byDayNum = new Map<number, AIItineraryDay>();
-        parsed.days!.forEach((d, i) => { if (d) byDayNum.set(d.day ?? i + 1, d); });
-
-        let itineraries = next.itineraries;
-        if (parsed.days!.length > itineraries.length) {
-          const extra = Array.from(
-            { length: parsed.days!.length - itineraries.length },
-            (_, i) => emptyDay(itineraries.length + i + 1),
-          );
-          itineraries = [...itineraries, ...extra];
-          next.totalDays = itineraries.length;
-          next.totalNights = Math.max(0, itineraries.length - 1);
-        }
-
-        next.itineraries = itineraries.map((day) => {
-          const src = byDayNum.get(day.day);
-          if (!src) return day;
-          const updated = { ...day };
-          if (src.title && !updated.title.trim()) updated.title = src.title;
-          if (src.description && !updated.description.trim()) updated.description = src.description;
-          if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
-          if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
-          if (src.transportDistanceKm != null && updated.transportDistanceKm == null) updated.transportDistanceKm = src.transportDistanceKm;
-          if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
-          if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
-            updated.activities = src.activities
-              .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
-              .map((a) => {
-                const photos = Array.isArray(a.photos) ? a.photos.filter((p): p is string => !!p).slice(0, 3) : [];
-                return {
-                  title: a.title,
-                  description: a.description ?? "",
-                  photo: photos[0] ?? "",
-                  photos,
-                  photoLabels: photos.map(() => a.title),
-                };
-              });
-          }
-          return updated;
-        });
-
-        return next;
-      });
-    } catch (err) {
-      setAiParseError(`Couldn't apply that response — ${err instanceof Error ? err.message : "its shape didn't match what was expected"}.`);
-      return;
-    }
-
-    setAiJsonInput("");
-    setAiParseError(null);
-    setAiDialogOpen(false);
-    toast.success("Itinerary generated from the AI response.");
-  }
-
   // ── Save ───────────────────────────────────────────────────────────────────
-  /** Runs after any successful save.
-   *
-   * Two jobs, both about stay options, which live server-side and so cannot
-   * ride along in the save payload:
-   *
-   *   - a duplicate's options are cloned once this draft has an id of its own
-   *     (the payload only describes the day rows, which carry the recommended
-   *     option and nothing else);
-   *   - the document re-reads them, because a save re-mirrors the recommended
-   *     option from the day rows and the copy held here would otherwise keep
-   *     showing the hotel that was just replaced.
-   *
-   * The re-read is skipped below two options, where nothing in the document
-   * reads them — the columns and the per-option price cards both require more
-   * than one — so an ordinary single-stay package pays nothing for this.
-   */
-  async function afterSuccessfulSave() {
-    if (cloneStayOptionsFrom) {
-      const from = cloneStayOptionsFrom;
-      // Cleared first and unconditionally: a failure reports itself rather than
-      // retrying on every subsequent save.
-      setCloneStayOptionsFrom(null);
-      const cloned = await cloneStayOptionsInto(from, packageId);
-      if (!cloned.success) toast.error(cloned.error ?? "Couldn't copy the stay options across.");
-      await reloadStayOptions();
-      return;
-    }
-    if ((stayOptions?.length ?? 0) > 1) await reloadStayOptions();
-  }
-
-  function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
+  function handleSave(status?: "DRAFT" | "READY") {
+    // Defaulting to DRAFT was safe while only the exec could save here — their
+    // package IS a draft until they mark it ready. Costing saves a package that
+    // is at READY, and sending it back to DRAFT would silently drop it out of
+    // the very queue they are working through. Absent an explicit status, keep
+    // whatever the package already has.
+    //
+    // saveCustomPackage enforces the same rule server-side and is the actual
+    // guarantee; this just keeps the payload honest.
+    const current = query?.customPackage?.status;
+    const nextStatus = status ?? (current === "READY" ? "READY" : "DRAFT");
     startSave(async () => {
-      try {
-        const result = await saveCustomPackage({
-          id: packageId,
-          queryId: query?.id ?? null,
-          ...form,
-          pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-          marginPercentage: parseFloat(form.marginPercentage) || 0,
-          gstPercentage: parseFloat(form.gstPercentage) || 0,
-          discountType: form.discountType,
-          discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
-          discountNote: form.discountNote,
-          status,
-        });
-        if (result.success) {
-          // The server now has it, so the crash-recovery copy is redundant.
-          localDraft.clear();
-          setSavedOk(true);
-          setTimeout(() => setSavedOk(false), 3000);
-          await warnStaleHotelRequests(result.staleHotelRequestDays);
-          await afterSuccessfulSave();
-        } else {
-          toast.error(result.error ?? "Failed to save");
-        }
-      } catch (err) {
-        // Previously unhandled — a thrown exception here (dropped connection,
-        // or a stale page bundle calling a Server Action ID a new deploy
-        // removed) left Save just silently finishing with nothing saved.
-        console.error("[saveCustomPackage]", err);
-        reportActionError(err, "Couldn't save — check your connection and try again.");
+      const result = await saveCustomPackage({
+        id: packageId,
+        queryId: query?.id ?? null,
+        ...form,
+        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+        marginPercentage: parseFloat(form.marginPercentage) || 0,
+        gstPercentage: parseFloat(form.gstPercentage) || 0,
+        discountType: form.discountType,
+        discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+        discountNote: form.discountNote,
+        status: nextStatus,
+      });
+      if (result.success) {
+        // The server now has it, so the crash-recovery copy is redundant.
+        localDraft.clear();
+        setSavedOk(true);
+        setTimeout(() => setSavedOk(false), 3000);
+        warnStaleHotelRequests(result.staleHotelRequestDays);
+      } else {
+        toast.error(result.error ?? "Failed to save");
       }
     });
   }
@@ -1350,7 +1124,11 @@ Rules:
   const localDraft = useLocalDraft<PackageForm>({
     packageId,
     form,
-    armed: !loading && !!query && query.customPackage?.status !== "READY",
+    // Armed for whoever may actually edit, not for a status. Keyed off status
+    // it was disarmed for costing — the one reviewer working through a queue,
+    // on the one screen with no undo, was also the one person whose work a
+    // refresh threw away without so much as a banner.
+    armed: !loading && !!query && (caps.editItinerary || caps.editAfterSend),
   });
 
   const AUTOSAVE_DELAY_MS = 3000;
@@ -1359,8 +1137,17 @@ Rules:
 
   useEffect(() => {
     if (loading || !query) return;
-    const status = query.customPackage?.status;
-    if (status && status !== "DRAFT") return;
+    // Deliberately editItinerary alone, NOT the wider canEditDoc: a SENT
+    // package is editable but must not autosave, because every save snapshots
+    // the delivered version and a timer would bury the real one under a stack
+    // of near-identical copies. Post-send edits go through an explicit Save.
+    //
+    // Otherwise the same rule as the local draft above: "DRAFT only" was a
+    // stand-in for "the exec owns this", written when the exec was the
+    // only person who could save. caps.editItinerary says it directly, and
+    // says it for costing at READY too — while still refusing on a SENT
+    // package, where it resolves false for everyone.
+    if (!caps.editItinerary) return;
 
     const snapshot = JSON.stringify(form);
     // First pass after load records the baseline without saving — this is what
@@ -1374,27 +1161,16 @@ Rules:
 
     const timer = setTimeout(() => {
       lastSavedSnapshot.current = snapshot;
-      handleSave("DRAFT");
+      // No explicit status: an autosave must never move a package. Passing
+      // "DRAFT" here would have pulled costing's package out of the review
+      // queue three seconds after they touched anything.
+      handleSave();
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
     // handleSave is stable enough for this purpose and intentionally omitted —
     // including it would re-arm the timer on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, loading, query]);
-
-  // See BuilderContextValue.requestSaveNow — bypasses the autosave debounce
-  // above for an edit meant to take effect immediately (a submitted hotel
-  // request). Deferred to an effect rather than called straight from the
-  // trigger site for the same reason autosave itself reads `form` from a
-  // dependency array instead of a closure: the setForm that made the change
-  // hasn't committed yet in the same tick it was requested.
-  const [pendingImmediateSave, setPendingImmediateSave] = useState(false);
-  useEffect(() => {
-    if (!pendingImmediateSave) return;
-    setPendingImmediateSave(false);
-    handleSave("DRAFT");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingImmediateSave]);
+  }, [form, loading, query, caps.editItinerary]);
 
   // The ONLY way a package moves forward from the builder into review — no
   // direct "send to client" from here. This locks nothing and notifies no
@@ -1411,62 +1187,83 @@ Rules:
     if (validationError) {
       toast.error(validationError);
       return;
-    }
-    // Nights without a hotel no longer stop a submission — see the note in
-    // markPackageReady. A package with no stays at all is a legitimate quote.
-
-    const pendingDay = form.itineraries.find((it) => it.hotelPending);
+    }    const pendingDay = form.itineraries.find((it) => it.hotelPending);
     if (pendingDay) {
       toast.error(`Day ${pendingDay.day} is still awaiting the hotel team — fill in or undo the pending hotel request before submitting for review.`);
       return;
     }
-    setReadyNote("");
     setConfirmReadyOpen(true);
+  }
+
+  /**
+   * The submit was refused because hotels are still outstanding.
+   *
+   * Deliberately richer than the plain error toast next to it: this is the one
+   * refusal the exec can actually do something about, and what they do differs
+   * per day — a day still with the hotel team is a wait, a day sent back is
+   * theirs to fix. Same shape and duration as warnStaleHotelRequests above, so
+   * hotel-request news at Mark Ready always looks the same.
+   */
+  function warnOpenHotelRequests(open: { waiting: number[]; rejected: number[] }) {
+    const lines: string[] = [];
+    if (open.waiting.length) {
+      lines.push(`Day ${open.waiting.join(", ")} still with the hotel team — they'll come back filled.`);
+    }
+    if (open.rejected.length) {
+      lines.push(`Day ${open.rejected.join(", ")} sent back to you — edit the request and resubmit, or pick a hotel yourself.`);
+    }
+    toast.warning("Not sent — this package still has an open hotel request", {
+      description: `${lines.join(" ")} Costing can't be edited once submitted, so the hotels have to be settled first.`,
+      duration: 12000,
+    });
   }
 
   function handleMarkReady() {
     setConfirmReadyOpen(false);
     startSend(async () => {
-      try {
-        // Always save first — markPackageReady reads nothing from the client,
-        // but the review page does, straight from the DB row, so any edit made
-        // since the last save would otherwise silently never reach costing.
-        const result = await saveCustomPackage({
-          id: packageId,
-          queryId: query?.id ?? null,
-          ...form,
-          pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-          marginPercentage: parseFloat(form.marginPercentage) || 0,
-          gstPercentage: parseFloat(form.gstPercentage) || 0,
-          discountType: form.discountType,
-          discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
-          discountNote: form.discountNote,
-          status: "READY",
-        });
-        if (!result.success) {
-          toast.error(result.error ?? "Failed to save");
-          return;
-        }
-        await warnStaleHotelRequests(result.staleHotelRequestDays);
-        await afterSuccessfulSave();
+      // Always save first — markPackageReady reads nothing from the client,
+      // but the review page does, straight from the DB row, so any edit made
+      // since the last save would otherwise silently never reach costing.
+      //
+      // Saved as DRAFT, deliberately: markPackageReady owns the transition and
+      // is the only thing that sets readyAt/readyBy alongside it. This used to
+      // send "READY", which flipped the status here and then made
+      // markPackageReady's own submit check fail against it — the package
+      // landed at READY with no readyAt, locked to the exec and invisible to
+      // costing, who only see rows where readyAt is set.
+      const result = await saveCustomPackage({
+        id: packageId,
+        queryId: query?.id ?? null,
+        ...form,
+        pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
+        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+        marginPercentage: parseFloat(form.marginPercentage) || 0,
+        gstPercentage: parseFloat(form.gstPercentage) || 0,
+        discountType: form.discountType,
+        discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+        discountNote: form.discountNote,
+        status: "DRAFT",
+      });
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to save");
+        return;
+      }
+      warnStaleHotelRequests(result.staleHotelRequestDays);
 
-        const result2 = await markPackageReady(packageId, readyNote);
-        if (result2.success) {
-          toast.success("Submitted for costing review");
-          // Without this, `query.customPackage.status` stays whatever it was
-          // at page load, so `isLocked` never flips true — the fieldset stays
-          // enabled and Mark Ready stays visible/clickable until a manual
-          // reload, letting the exec keep editing a package that's already
-          // out for costing review.
-          const fresh = await getPackageDetail(packageId);
-          if (fresh) syncPricingFromFresh(fresh);
-        } else {
-          toast.error(result2.error ?? "Failed to mark package ready");
-        }
-      } catch (err) {
-        console.error("[handleMarkReady]", err);
-        reportActionError(err, "Couldn't submit for review — check your connection and try again.");
+      const result2 = await markPackageReady(packageId);
+      if (result2.success) {
+        toast.success("Submitted for costing review");
+        // Without this, `query.customPackage.status` stays whatever it was
+        // at page load, so `isLocked` never flips true — the fieldset stays
+        // enabled and Mark Ready stays visible/clickable until a manual
+        // reload, letting the exec keep editing a package that's already
+        // out for costing review.
+        const fresh = await getPackageDetail(packageId);
+        if (fresh) syncPricingFromFresh(fresh);
+      } else if (result2.openHotelRequests) {
+        warnOpenHotelRequests(result2.openHotelRequests);
+      } else {
+        toast.error(result2.error ?? "Failed to mark package ready");
       }
     });
   }
@@ -1637,17 +1434,6 @@ Rules:
               transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
               transportSeats: vehicle.passengerCapacity,
               cabPricingId,
-              // A new vehicle replaces the day's transport, so what was
-              // attached to the old one goes with it. cabQuantity and
-              // extraCabs used to survive a reassignment untouched, and
-              // pricing counts BOTH (primary × quantity, plus every extra) —
-              // so picking Ertiga on a day that already carried "× 3" and a
-              // Tempo Traveller charged for all of them, while the day-wise
-              // Transport section rendered only "Ertiga". Costing approved a
-              // figure the itinerary never showed. Same reasoning as
-              // cabPriceOverride below: every apply IS a cab change.
-              cabQuantity: null,
-              extraCabs: [],
               // Same override-invalidation updateDay does for a single-day
               // pick — this bulk "apply to remaining days" path sets
               // cabPricingId directly via setForm, bypassing updateDay
@@ -1808,6 +1594,208 @@ Rules:
     });
   }
 
+  // ── AI Itinerary Builder ────────────────────────────────────────────────────
+  // Copy-a-prompt / paste-back-JSON workflow: no direct LLM API call from this
+  // app — the exec copies the generated prompt into their own ChatGPT session,
+  // pastes the JSON it returns back here, and we parse + merge it into the
+  // form. Kept strictly additive (never overwrites a day/field the exec has
+  // already filled in), same philosophy as autoFillDayTitles/autoFillPickupDrop.
+
+  /** Builds the copy-paste prompt from the package's current state — title,
+   * day count, destinations with night counts (falls back to the single
+   * `destination` + total nights when no stops have been added yet), pickup
+   * point, and the last day's drop point. */
+  function buildAIPrompt(): string {
+    const destinationsLine = form.stops.length > 0
+      ? form.stops.map((s) => `${s.name} (${s.nights} Night${s.nights !== 1 ? "s" : ""})`).join(", ")
+      : `${form.destination || "the destination"} (${Math.max(form.totalNights, 1)} Night${Math.max(form.totalNights, 1) !== 1 ? "s" : ""})`;
+    const pickup = form.startingPoint.trim() || "(not specified — choose a sensible pickup point for this destination)";
+    const lastDay = form.itineraries[form.itineraries.length - 1];
+    const drop = lastDay?.transportDrop.trim() || "(not specified — same as the pickup point unless the route suggests otherwise)";
+    const totalPax = form.adults + form.children;
+    const paxLine = `${form.adults} Adult${form.adults !== 1 ? "s" : ""}` +
+      (form.children > 0 ? ` + ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "");
+
+    return `AI Itinerary Builder Prompt
+
+Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
+
+Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). If you look anything up (e.g. to find real image URLs), still write the result as a plain string value, not a hyperlink/citation. A markdown link anywhere inside the JSON will break the import.
+
+Package: "${form.title || "Untitled Package"}" — ${form.totalDays} Day${form.totalDays !== 1 ? "s" : ""} / ${form.totalNights} Night${form.totalNights !== 1 ? "s" : ""}
+Destinations (in order, with nights at each): ${destinationsLine}
+Travellers: ${paxLine}${totalPax === 0 ? " (assume 2 adults if unspecified)" : ""}
+Pickup point: ${pickup}
+Drop point: ${drop}
+
+Spend the itinerary days in the order the destinations are listed, matching the night count at each one.
+
+Return exactly this JSON shape:
+
+{
+  "description": "2-3 sentence overview of the whole trip",
+  "coverImage": "<a real, working, high-quality landscape photo URL representing the overall trip>",
+  "stops": [
+    { "name": "<destination name, matching the list above>", "image": "<real landscape photo URL of this destination>" }
+  ],
+  "days": [
+    {
+      "day": 1,
+      "title": "<day title, under 10 words>",
+      "description": "<day description, 35-55 words — see style example below>",
+      "transportPickup": "<pickup point for this day's transfer>",
+      "transportDrop": "<drop point for this day's transfer>",
+      "transportDistanceKm": <approximate distance in km as a number>,
+      "travelTimeApprox": "<approx travel time, e.g. \\"2h 30m\\">",
+      "activities": [
+        {
+          "title": "<activity title, a short descriptive phrase — see style example below>",
+          "description": "<activity description, 25-40 words — see style example below>",
+          "photos": ["<real landscape photo URL 1>", "<real landscape photo URL 2>", "<real landscape photo URL 3>"]
+        }
+      ]
+    }
+  ]
+}
+
+Style examples (match this tone, level of detail, and length — not generic one-liners):
+
+Day description:
+"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
+
+Activity title + description:
+"Tea Garden Walk in Munnar" — "Take a refreshing walk through Munnar's sprawling tea plantations, surrounded by rolling green hills and fresh mountain air. Enjoy scenic views, learn about tea cultivation, and experience the tranquil beauty of Kerala's famous hill station."
+
+Note activity titles are a full descriptive phrase naming the place (e.g. "Tea Garden Walk in Munnar", "Fort Kochi Heritage Walk") — never a bare noun like "Tea Gardens" or "Fort Kochi" alone.
+
+Rules:
+- Exactly one "days" entry per day (${form.totalDays} total), numbered sequentially from 1.
+- 2-3 activities per day is enough — don't overload the day.
+- Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
+- Do not include hotel or cab pricing/selection — that's handled separately, manually.
+- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.
+- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
+  }
+
+  function copyAIPrompt() {
+    navigator.clipboard.writeText(buildAIPrompt());
+    toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
+  }
+
+  type AIItineraryActivity = { title?: string; description?: string; photos?: string[] };
+  type AIItineraryDay = {
+    day?: number; title?: string; description?: string;
+    transportPickup?: string; transportDrop?: string; transportDistanceKm?: number;
+    travelTimeApprox?: string; activities?: AIItineraryActivity[];
+  };
+  type AIItineraryResponse = {
+    description?: string; coverImage?: string;
+    stops?: { name?: string; image?: string }[];
+    days?: AIItineraryDay[];
+  };
+
+  /** Parses the pasted JSON and merges it into the form — fills only empty
+   * fields (title/description/pickup/drop/distance), replaces a day's
+   * activities only when that day currently has none, and extends the
+   * itinerary if the response has more days than currently exist. Never
+   * touches hotel/cab selection (roomPricingId/cabPricingId untouched). */
+  function applyAIItinerary() {
+    let parsed: AIItineraryResponse;
+    try {
+      const cleaned = aiJsonInput.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      toast.error("That doesn't look like valid JSON — check the format and try again.");
+      return;
+    }
+    if (!parsed || typeof parsed !== "object") {
+      toast.error("Unexpected response shape — please try again.");
+      return;
+    }
+    if (looksLikeMarkdownLinkCorruption(parsed)) {
+      toast.error(
+        "This response looks corrupted — it has markdown links mixed into the text (a common artifact of copying from ChatGPT's chat bubble instead of its code block). Ask it to resend as a single ```json code block with no citations, then paste that instead.",
+        { duration: 9000 },
+      );
+      return;
+    }
+
+    try {
+      setForm((f) => {
+        const next = { ...f };
+
+        if (parsed.description && !next.description.trim()) next.description = parsed.description;
+        if (parsed.coverImage && !next.coverImage.trim()) next.coverImage = parsed.coverImage;
+
+        if (Array.isArray(parsed.stops) && parsed.stops.length > 0) {
+          const validStops = parsed.stops.filter((s): s is { name: string; image?: string } => !!s?.name);
+          if (next.stops.length === 0 && validStops.length > 0) {
+            const perStopNights = Math.max(1, Math.round((next.totalNights || validStops.length) / validStops.length));
+            next.stops = validStops.map((s) => ({ name: s.name, nights: perStopNights, image: s.image || undefined }));
+          } else {
+            next.stops = next.stops.map((st) => {
+              if (st.image) return st;
+              const match = validStops.find((s) => s.name.trim().toLowerCase() === st.name.trim().toLowerCase());
+              return match?.image ? { ...st, image: match.image } : st;
+            });
+          }
+        }
+
+        if (Array.isArray(parsed.days) && parsed.days.length > 0) {
+          const byDayNum = new Map<number, AIItineraryDay>();
+          parsed.days.forEach((d, i) => { if (d) byDayNum.set(d.day ?? i + 1, d); });
+
+          let itineraries = next.itineraries;
+          if (parsed.days.length > itineraries.length) {
+            const extra = Array.from(
+              { length: parsed.days.length - itineraries.length },
+              (_, i) => emptyDay(itineraries.length + i + 1),
+            );
+            itineraries = [...itineraries, ...extra];
+            next.totalDays = itineraries.length;
+            next.totalNights = Math.max(0, itineraries.length - 1);
+          }
+
+          next.itineraries = itineraries.map((day) => {
+            const src = byDayNum.get(day.day);
+            if (!src) return day;
+            const updated = { ...day };
+            if (src.title && !updated.title.trim()) updated.title = src.title;
+            if (src.description && !updated.description.trim()) updated.description = src.description;
+            if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
+            if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
+            if (src.transportDistanceKm != null && updated.transportDistanceKm == null) updated.transportDistanceKm = src.transportDistanceKm;
+            if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
+            if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
+              updated.activities = src.activities
+                .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
+                .map((a) => {
+                  const photos = Array.isArray(a.photos) ? a.photos.filter((p): p is string => !!p).slice(0, 3) : [];
+                  return {
+                    title: a.title,
+                    description: a.description ?? "",
+                    photo: photos[0] ?? "",
+                    photos,
+                    photoLabels: photos.map(() => a.title),
+                  };
+                });
+            }
+            return updated;
+          });
+        }
+
+        return next;
+      });
+    } catch {
+      toast.error("Couldn't apply that response — its shape didn't match what was expected.");
+      return;
+    }
+
+    setAiJsonInput("");
+    setAiDialogOpen(false);
+    toast.success("Itinerary generated from the AI response.");
+  }
+
   function field<K extends keyof PackageForm>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -1865,6 +1853,16 @@ Rules:
   // four-state branching (draft / awaiting review / approved / sent) on top
   // of this.
   const isLocked = query.customPackage?.status === "READY";
+  // Whether THIS viewer may change the trip. `isLocked` answers a different
+  // question — "is this package out for review" — and the two stopped being the
+  // same thing the moment costing could edit during review. Every edit surface
+  // below reads this; `isLocked` now only drives what the header SAYS about the
+  // package's state.
+  // Drives the document and every editing surface in it. Includes the
+  // post-send case: an exec revising a quote the client already has needs the
+  // fields to actually be editable, and until now the caps model said they
+  // weren't while the Save button suggested they were.
+  const canEditDoc = caps.editItinerary || caps.editAfterSend;
   const pkgVerified = query.customPackage?.verified ?? false;
   const pkgSent = query.customPackage?.status === "SENT";
   // While the exec can still actually change hotel/cab/margin/GST inputs
@@ -1874,7 +1872,66 @@ Rules:
   // not-found early returns, so it re-derives this same condition inline
   // from `query?.customPackage?.status` there instead of from this variable)
   // and to decide what the preview should show.
-  const packageEditable = !isLocked && !pkgSent;
+  //
+  // Now decided by the caller's capabilities rather than by status alone. The
+  // old rule — "never during READY" — was written when only the exec could be
+  // here, and READY is precisely when costing needs to edit. Possession is what
+  // it was really expressing: DRAFT is the exec's, READY is costing's, and
+  // resolveWorkspaceCaps says so for both.
+  const packageEditable = caps.editItinerary;
+
+  // "Save Draft" is the exec's word for it: their package IS a draft until
+  // they mark it ready. Costing is saving corrections to a package that has
+  // already been submitted — calling that a draft would suggest it had fallen
+  // back out of review, which is the one thing saving must not do.
+  const saveLabel = isLocked ? "Save Changes" : "Save Draft";
+
+  // Costing is the only role that sees margin, which makes this the cheapest
+  // honest way for the editor to ask "is a reviewer reading this" without
+  // threading the role itself through as a second source of truth.
+  const isReviewer = caps.seeMargin;
+
+  // Whether to offer a Save at all. `editItinerary` covers the exec on their
+  // draft and costing on a package under review; `editAfterSend` is the owning
+  // exec revising a quote the client already has.
+  const canSave = caps.editItinerary || caps.editAfterSend;
+
+  // Leaving the editor.
+  //
+  // window.close() on its own was wrong twice over. It silently does nothing
+  // on a tab the browser doesn't consider script-opened, so the control looked
+  // dead; and the thing people reached for instead — the browser's own Back —
+  // lands the dashboard inside THIS layout. /dashboard/* is split across two
+  // route groups, (main) with the sidebar and header and (builder) without,
+  // and route groups are invisible in the URL: a client-side navigation
+  // between two siblings reuses the layout already mounted instead of swapping
+  // it. That is the chrome-less full-screen dashboard.
+  //
+  // So: close the tab when the browser allows it, and otherwise leave with a
+  // real document load, which makes the server render (main) from scratch.
+  const handleBack = () => {
+    // Back to wherever they came from — the review queue on its page, with its
+    // filter and search intact — rather than dumping everyone on /dashboard.
+    let backTo = "/dashboard";
+    try {
+      const ref = new URL(document.referrer);
+      const sameSite = ref.origin === window.location.origin && ref.pathname.startsWith("/dashboard");
+      // Both of these redirect straight back into the builder, so following
+      // them would just reopen the editor we are trying to leave.
+      const bouncesBack =
+        ref.pathname.startsWith("/dashboard/package-builder") ||
+        /^\/dashboard\/verify-packages\/.+/.test(ref.pathname);
+      if (sameSite && !bouncesBack) backTo = ref.pathname + ref.search;
+    } catch {
+      // No referrer at all (typed URL, bookmark, restored tab) — /dashboard.
+    }
+
+    window.close();
+    // Still running a tick later means close() was refused. Hard navigation,
+    // deliberately: router.push would soft-navigate and hit the layout bug
+    // described above.
+    window.setTimeout(() => { window.location.href = backTo; }, 150);
+  };
 
   const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
   const shiftedMeals = computeShiftedMeals(form.itineraries);
@@ -1903,6 +1960,18 @@ Rules:
   const liveComputedPrice = computedPricingForPreview.finalPrice > 0;
   const previewForm: PreviewData = {
     ...form,
+    // Only when one actually applies — the document renders nothing for a
+    // package without a concession, rather than a struck-through equal figure.
+    discount: computedPricingForPreview.discount.applies
+      ? {
+          originalPrice: computedPricingForPreview.discount.originalPrice,
+          amount: computedPricingForPreview.discount.amount,
+          label: discountLabel(
+            { type: form.discountType, value: form.discountValue ? parseFloat(form.discountValue) : null },
+            computedPricingForPreview.discount.amount,
+          ),
+        }
+      : null,
     pricePerPerson: packageEditable && liveComputedPrice
       ? String(computedPricingForPreview.perPerson)
       : form.pricePerPerson || (liveComputedPrice ? String(computedPricingForPreview.perPerson) : form.pricePerPerson),
@@ -1959,10 +2028,8 @@ Rules:
     // document on the left edit the itinerary directly. canEdit carries the
     // same lock the right-hand panel has always honoured, from one place.
     <PackageBuilderProvider
-      form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}
-      requestSaveNow={() => setPendingImmediateSave(true)}
-      refreshStayOptions={reloadStayOptions}
-    >
+      review={reviewContext} form={form} setForm={setForm} canEdit={canEditDoc} dayCosts={dayCosts}
+      refreshStayOptions={reloadStayOptions}>
     {/* Mounted once; what it shows is driven by the context's drawer target,
         so a clickable hotel in the preview doesn't need to own this UI. */}
 
@@ -2005,49 +2072,103 @@ Rules:
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
       <header className="no-print sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
-        <div className="flex items-center justify-between px-4 h-14 gap-3">
+        <div className="flex items-center justify-between gap-3 px-4 h-14">
           {/* Left */}
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => window.close()}
+              onClick={handleBack}
+              title="Back to the dashboard"
+              aria-label="Back to the dashboard"
               className="text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0 cursor-pointer"
             >
               <ArrowLeft size={18} />
             </button>
+            {/* Client on top, then this package. The header named only the
+                client, which is not enough to tell two packages apart — a query
+                can carry several, titles repeat freely across clients, and a
+                reviewer approving the wrong one has no way to notice from here.
+                The short id is the only truly unique thing on the screen, so it
+                closes the gap when even the titles match. */}
             <div className="min-w-0">
               <h1 className="text-sm font-bold truncate leading-tight text-dashboard-base-content">
                 {query.name ?? "Blank Package"}
               </h1>
               <p className="text-xs text-dashboard-base-content/75 truncate">
-                {j?.destinations?.join(" › ") ?? query.destination ?? "—"}
+                <span title={form.title || undefined}>{form.title || "Untitled package"}</span>
+                <span className="text-dashboard-base-content/45">
+                  {" · "}{j?.destinations?.join(" › ") ?? query.destination ?? "—"}
+                  {" · "}<span className="font-mono" title={packageId}>#{packageId.slice(0, 8)}</span>
+                </span>
               </p>
             </div>
-            {/* Only when the query carries more than one package — see
-                PackageSwitcher. The lead's name above is shared by all of
-                them, so without this the header cannot tell two quotes for
-                the same client apart. */}
-            <PackageSwitcher
-              packageId={packageId}
-              basePath="/dashboard/package-builder-v2"
-            />
           </div>
 
           {/* Right */}
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="lg:hidden h-8 gap-1 border-dashboard-base-300 hover:bg-dashboard-base-200 rounded-md"
-              onClick={() => setMobilePreviewOpen(true)}
-            >
-              <Eye size={13} />
-              <span className="text-xs">Preview</span>
-            </Button>
+          {/* Scrolls sideways rather than clipping. At 375px these controls are
+              wider than the viewport, and the ones on the end — export, the
+              client link — were simply cut off with nothing to indicate they
+              were there. min-w-0 lets the flex row actually shrink; the
+              children keep their own shrink-0 so they scroll instead of
+              squashing into each other. */}
+          {/* Hamburger, phone only. Even scrolling sideways, a dozen controls
+              in a 375px strip is a row you have to fish through. Behind one
+              button they get their names back — and the header keeps room for
+              the package title, which is what tells you which package this is.
+              From lg up the row is unchanged. */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            className={cn(
+              "lg:hidden shrink-0 flex items-center justify-center size-9 -mr-1 rounded-md transition-colors",
+              mobileMenuOpen
+                ? "bg-dashboard-base-200 text-dashboard-base-content"
+                : "text-dashboard-base-content/70 hover:bg-dashboard-base-200",
+            )}
+          >
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
 
+          <div
+            className={cn(
+              "items-center gap-2 min-w-0 [&>*]:shrink-0",
+              // Phone, menu open: a sheet under the header, controls stacked
+              // full width so each one is a real target with its label showing.
+              // Phone, menu closed: absent. Desktop: the row it has always been.
+              mobileMenuOpen
+                // Stacked, each control full width and labelled. The labels
+                // used to be `hidden sm:inline`, which meant the sheet opened
+                // onto a column of unlabelled icons on the very screens it
+                // exists for; they are unconditional now, since this row only
+                // ever renders here or at lg, where sm was always true anyway.
+                // max-h + scroll because a reviewer's toolbar is long enough to
+                // run past a short phone.
+                ? "fixed inset-x-0 top-14 z-50 flex flex-col items-stretch gap-2 p-4 max-h-[calc(100vh-3.5rem)] overflow-y-auto overscroll-contain border-b border-dashboard-base-300 bg-dashboard-base-100 shadow-lg [&>*]:justify-center lg:static lg:z-auto lg:max-h-none lg:overflow-visible lg:flex-row lg:items-center lg:p-0 lg:border-0 lg:shadow-none"
+                : "hidden lg:flex",
+              "lg:overflow-x-auto lg:overscroll-x-contain lg:py-1",
+            )}
+            onClick={mobileMenuOpen ? () => setMobileMenuOpen(false) : undefined}
+          >
+            {mobileMenuOpen && (
+              <div className="lg:hidden flex items-center justify-between -mt-1 mb-1 pb-2 border-b border-dashboard-base-300">
+                <span className="text-xs font-semibold uppercase tracking-wider text-dashboard-base-content/45">
+                  Menu
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-label="Close menu"
+                  className="flex items-center justify-center size-7 rounded-md text-dashboard-base-content/50 hover:bg-dashboard-base-200 hover:text-dashboard-base-content"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            )}
             {!isLocked && (
               <CreatePackageDialog
                 // Stay in this builder — see builderBasePath.
-                builderBasePath="/dashboard/package-builder-v2"
+                builderBasePath="/dashboard/package-builder"
                 packageId={packageId}
                 destination={j?.destinations?.join(", ") ?? query.destination ?? null}
                 packageUrl={query.packageUrl}
@@ -2063,21 +2184,9 @@ Rules:
                   className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
                 >
                   <Package size={13} />
-                  <span className="hidden sm:inline text-xs">Change Template</span>
+                  <span className="text-xs">Change Template</span>
                 </Button>
               </CreatePackageDialog>
-            )}
-
-            {!isLocked && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10 rounded-md"
-                onClick={openAIBuilder}
-              >
-                <Wand2 size={13} />
-                <span className="hidden sm:inline text-xs">AI Itinerary Builder</span>
-              </Button>
             )}
 
             {pkgSent ? (
@@ -2085,6 +2194,7 @@ Rules:
                 <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">
                   <CheckCircle size={13} /> Sent to Client
                 </span>
+                {caps.revise && (
                 <RequestRevisionDialog
                   packageId={packageId}
                   packageTitle={form.title}
@@ -2099,12 +2209,14 @@ Rules:
                     className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
                   >
                     <RotateCcw size={13} />
-                    <span className="hidden sm:inline text-xs">Request Revision</span>
+                    <span className="text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
+                )}
               </>
             ) : isLocked && pkgVerified ? (
               <>
+                {caps.revise && (
                 <RequestRevisionDialog
                   packageId={packageId}
                   packageTitle={form.title}
@@ -2119,32 +2231,51 @@ Rules:
                     className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
                   >
                     <RotateCcw size={13} />
-                    <span className="hidden sm:inline text-xs">Request Revision</span>
+                    <span className="text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
-                <Button
-                  size="sm"
-                  className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
-                  onClick={handleShareClick}
-                  disabled={isSharing}
-                >
-                  {isSharing
-                    ? <Loader2 size={13} className="animate-spin" />
-                    : <Send size={13} />
-                  }
-                  <span className="hidden sm:inline text-xs">Share with Client</span>
-                </Button>
+                )}
+                {/* Sending is the exec's, even once costing has approved. The
+                    reviewer signs off on what it costs; the person who owns the
+                    client relationship decides when it lands in their inbox —
+                    and often waits for a call before it does. caps.send is
+                    false for costing, so they see the approval state without
+                    the button. */}
+                {caps.send && (
+                  <Button
+                    size="sm"
+                    className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                    onClick={handleShareClick}
+                    disabled={isSharing}
+                  >
+                    {isSharing
+                      ? <Loader2 size={13} className="animate-spin" />
+                      : <Send size={13} />
+                    }
+                    <span className="text-xs">Share with Client</span>
+                  </Button>
+                )}
               </>
-            ) : isLocked ? (
-              <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">
-                <Clock size={13} /> Awaiting Costing Review
-              </span>
-            ) : (
+            ) : isLocked && !caps.editItinerary ? (
+              // The exec's view of their own package while it sits with
+              // costing, and the reviewer's once they've approved it — at which
+              // point the editor is closed to both of them until the exec pulls
+              // it back for revision.
+              isReviewer && pkgVerified ? (
+                <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-green-100 text-green-700 text-xs font-semibold">
+                  <CheckCircle size={13} /> Approved by you
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold">
+                  <Clock size={13} /> {pkgVerified ? "Approved — ready to share" : "Awaiting Costing Review"}
+                </span>
+              )
+            ) : canSave ? (
               <Button
                 variant="outline"
                 size="sm"
                 className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
-                onClick={() => handleSave("DRAFT")}
+                onClick={() => handleSave()}
                 disabled={isSaving || isSending}
               >
                 {isSaving
@@ -2153,11 +2284,11 @@ Rules:
                     ? <CheckCircle size={13} className="text-dashboard-success" />
                     : <Save size={13} />
                 }
-                <span className="hidden sm:inline text-xs">
-                  {savedOk ? "Saved!" : "Save Draft"}
+                <span className="text-xs">
+                  {savedOk ? "Saved!" : saveLabel}
                 </span>
               </Button>
-            )}
+            ) : null}
 
             {/* Running total, always visible. The breakdown still lives on the
                 Pricing tab; what matters here is that the number moves while
@@ -2167,7 +2298,7 @@ Rules:
                 type="button"
                 onClick={() => setActiveTab("pricing")}
                 title="Open the full pricing breakdown"
-                className="hidden md:flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-dashboard-base-300 hover:bg-dashboard-base-200 transition-colors"
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-dashboard-base-300 hover:bg-dashboard-base-200 transition-colors"
               >
                 <span className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wider">
                   Total
@@ -2181,9 +2312,11 @@ Rules:
               </button>
             )}
 
-            {/* Undo / redo. Hidden once the package is locked for costing
-                review, where nothing is editable to undo in the first place. */}
-            {!isLocked && (
+            {/* Undo / redo, for whoever can edit. Keyed off "locked", these
+                were hidden from costing — the one person editing a package
+                they did not build, under review, with no way to walk back a
+                mistaken correction. */}
+            {caps.editItinerary && (
               <div className="flex items-center gap-0.5">
                 <Button
                   variant="ghost" size="sm"
@@ -2208,10 +2341,20 @@ Rules:
               </div>
             )}
 
-            <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
-            <ClientLinkButton packageId={packageId} isLive={pkgSent} />
+            {/* A reviewer gets the decision here instead of the PDF controls.
+                Costing is not sending this document anywhere — the exec does
+                that once it is approved — and the two buttons that matter to
+                them belong where their eye already is. */}
+            {caps.decide ? (
+              <CostingDecisionButtons packageId={packageId} />
+            ) : (
+              <>
+                <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
+                <ClientLinkButton packageId={packageId} isLive={pkgSent} />
+              </>
+            )}
 
-            {!isLocked && !pkgSent && (
+            {caps.submit && (
               <Button
                 size="sm"
                 className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
@@ -2223,12 +2366,23 @@ Rules:
                   ? <Loader2 size={13} className="animate-spin" />
                   : <Send size={13} />
                 }
-                <span className="hidden sm:inline text-xs">Mark Ready</span>
+                <span className="text-xs">Mark Ready</span>
               </Button>
             )}
           </div>
         </div>
       </header>
+
+      {/* Closes the menu on a tap outside it. Below the sheet, above the page. */}
+      {mobileMenuOpen && (
+        <div
+          // z-20, not z-40: the sheet renders inside the header's stacking
+          // context (z-30), so a backdrop above that covered the very menu it
+          // is meant to sit behind.
+          className="no-print lg:hidden fixed inset-0 z-20 bg-black/20"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
 
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
       {/* justify-center + the aside's max-w below keep the preview+editor pair
@@ -2254,62 +2408,97 @@ Rules:
         </div>
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
-          <div className="print-reset px-6 pb-8">
+        {/* Visible at every width now. A phone used to open on the editor
+            panel with the document behind an overlay, so the thing being built
+            was the one thing you could not see. It opens on the document, and
+            a section covers it only when you choose one from the bottom bar.
+            pb-20 clears that bar; the zoom fits 210mm onto the screen. */}
+        <aside className="print-reset block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
+          <div className="print-reset px-3 py-4 pb-20 lg:px-6 lg:py-8" style={{ zoom: previewZoom }}>
             <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
               form={previewForm}
-              onCoverImageChange={isLocked ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
-              onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
-              onImageChange={isLocked ? undefined : handleItineraryImageChange}
-              onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
-              stayEditing={isLocked ? undefined : { packageId, onStayOptionsChanged: reloadStayOptions }}
+              onCoverImageChange={!canEditDoc ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
+              onCoverImagePositionChange={!canEditDoc ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
+              onImageChange={!canEditDoc ? undefined : handleItineraryImageChange}
+              onActivityCaptionChange={!canEditDoc ? undefined : handleActivityCaptionChange}
               variant="flat"
             />
             </BuilderErrorBoundary>
           </div>
         </aside>
 
-        {/* Mobile preview overlay */}
-        {mobilePreviewOpen && (
-          <div className="no-print lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
-            <div className="no-print flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100 z-10">
-              <span className="text-sm font-semibold text-dashboard-base-content">Live Preview</span>
-              <button onClick={() => setMobilePreviewOpen(false)}>
-                <EyeOff size={16} className="text-dashboard-base-content/50" />
-              </button>
-            </div>
-            <div className="px-4 py-6">
-              <ItineraryDocument
-                form={previewForm}
-                onCoverImageChange={isLocked ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
-              onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
-              onImageChange={isLocked ? undefined : handleItineraryImageChange}
-              onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
-              stayEditing={isLocked ? undefined : { packageId, onStayOptionsChanged: reloadStayOptions }}
-              variant="flat"
-              />
-            </div>
-          </div>
-        )}
+        {/* The mobile preview overlay that used to live here is gone: the
+            document is the default view on a phone now, so an overlay of the
+            same thing had nothing left to show. */}
 
         {/* ── RIGHT: rail + panel ────────────────────────────────────────────────
             One surface for everything that isn't the document: the rail's
             persistent sections, and whichever contextual drawer the preview
             has opened. See BuilderSidebar. */}
         <BuilderSidebar
+              costingPanel={costingPanel}
+              // Built here rather than passed down from the route, because it
+              // reads the editor's LIVE pricing — correcting a mattress rate on
+              // day 3 moves the subtotal, the margin and the per-person figure
+              // while costing watches. A server-rendered panel would show the
+              // numbers as they were when the page loaded.
+              pricingPanel={caps.seeMargin ? (
+                <CostingPricingPanel
+                  packageId={packageId}
+                  hotelPricing={hotelPricing}
+                  cabPricing={cabPricing}
+                  computed={computeFinalPricing()}
+                  canEditCost={caps.editCost}
+                />
+              ) : undefined}
           clientPanel={
-            <fieldset disabled={isLocked} className="contents">
+            <fieldset disabled={!canEditDoc} className="contents">
               <div className="p-4 space-y-4">
               {/* Awaiting-review / rejected banners — shown above the tab
                  panels so they're visible no matter which tab is open. */}
-              {isLocked && (
+              {/* Every one of these used to be written in the exec's voice and
+                  shown to whoever opened the package, so a reviewer was told
+                  their own package was "with the costing team", and that the
+                  way forward was a Mark Ready button they do not have. Each
+                  now addresses the person actually reading it. */}
+              {isLocked && !caps.editItinerary && !isReviewer && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
                   <Clock className="size-4 mt-0.5 shrink-0 text-amber-600" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">Awaiting costing review</p>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {pkgVerified ? "Approved by costing" : "Awaiting costing review"}
+                    </p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      This package is with the costing team for pricing verification — editing is disabled until they verify &amp; send it, or reject it back to you.
+                      {pkgVerified
+                        ? "The pricing has been signed off. Share it with the client when you're ready — or pull it back for revision if something needs to change first."
+                        : "This package is with the costing team for pricing verification — editing is disabled until they verify & send it, or reject it back to you."}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {/* The reviewer's own view once they've signed off. Editing ends
+                  at approval: the exec is now holding exactly what was
+                  approved, and changing it underneath them would alter the
+                  signed-off package without signing it off again. */}
+              {isLocked && isReviewer && pkgVerified && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-green-300 bg-green-50 px-4 py-3">
+                  <CheckCircle className="size-4 mt-0.5 shrink-0 text-green-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-800">You approved this package</p>
+                    <p className="text-xs text-green-700 mt-0.5">
+                      It&apos;s locked to what you signed off, and waiting for the sales exec to share it. If something still needs changing, ask them to pull it back for revision — that puts it back in your queue with the change on record.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {isLocked && caps.editItinerary && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-3">
+                  <ShieldCheck className="size-4 mt-0.5 shrink-0 text-indigo-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-800">This package is with you for review</p>
+                    <p className="text-xs text-indigo-700 mt-0.5">
+                      Corrections you make here save straight to it. Margin, GST and any discount live on the Costing tab under Edit Pricing; approve or reject from the header when you&apos;re done.
                     </p>
                   </div>
                 </div>
@@ -2324,7 +2513,11 @@ Rules:
                     {query.customPackage.rejectionNote && (
                       <p className="text-xs text-red-700 mt-0.5">&quot;{query.customPackage.rejectionNote}&quot;</p>
                     )}
-                    <p className="text-xs text-red-700 mt-1">Fix the issue above and click Mark Ready to resubmit.</p>
+                    <p className="text-xs text-red-700 mt-1">
+                      {caps.submit
+                        ? "Fix the issue above and click Mark Ready to resubmit."
+                        : "It's back with the sales exec — it will reappear in your queue when they resubmit it."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -2332,9 +2525,18 @@ Rules:
                 <div className="flex items-start gap-2.5 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                   <RotateCcw className="size-4 mt-0.5 shrink-0 text-blue-600" />
                   <div>
-                    <p className="text-sm font-semibold text-blue-800">Pulled back for revision</p>
+                    <p className="text-sm font-semibold text-blue-800">
+                      Pulled back for revision
+                      {!caps.submit && query.customPackage.revisionRequestedByName
+                        ? ` by ${query.customPackage.revisionRequestedByName}`
+                        : ""}
+                    </p>
                     <p className="text-xs text-blue-700 mt-0.5">&quot;{query.customPackage.revisionNote}&quot;</p>
-                    <p className="text-xs text-blue-700 mt-1">Click Mark Ready once you&apos;re done to send it back to costing.</p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      {caps.submit
+                        ? "Click Mark Ready once you're done to send it back to costing."
+                        : "Nothing to review yet — it will reappear in your queue when they resubmit it."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -2351,6 +2553,7 @@ Rules:
                 <span className="text-sm text-blue-700 flex items-center gap-2">
                   <CheckCircle size={14} /> Sent to client{query.customPackage?.sentAt ? ` — ${new Date(query.customPackage.sentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
                 </span>
+                {caps.revise && (
                 <RequestRevisionDialog
                   packageId={packageId}
                   packageTitle={form.title}
@@ -2364,9 +2567,11 @@ Rules:
                     Request Revision
                   </Button>
                 </RequestRevisionDialog>
+                )}
               </div>
             ) : isLocked && pkgVerified ? (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
+                {caps.revise && (
                 <RequestRevisionDialog
                   packageId={packageId}
                   packageTitle={form.title}
@@ -2380,6 +2585,7 @@ Rules:
                     Request Revision
                   </Button>
                 </RequestRevisionDialog>
+                )}
                 <Button
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleShareClick}
@@ -2389,30 +2595,37 @@ Rules:
                   Share with Client
                 </Button>
               </div>
-            ) : isLocked ? (
+            ) : isLocked && !caps.editItinerary ? (
               <div className="flex items-center justify-end gap-2 pt-6 pb-10 text-sm text-amber-700">
                 <Clock size={14} /> Awaiting costing review — editing is disabled until it&apos;s approved, or rejected back to you.
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
-                <Button
-                  variant="outline"
-                  onClick={() => handleSave("DRAFT")}
-                  disabled={isSaving || isSending}
-                  className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
-                >
-                  {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                  Save Draft
-                </Button>
-                <Button
-                  className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
-                  onClick={handleMarkReadyClick}
-                  disabled={isSending || isSaving}
-                  title={validateItineraryRequiredFields(form) ?? undefined}
-                >
-                  {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  Mark Ready
-                </Button>
+                {canSave && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleSave()}
+                    disabled={isSaving || isSending}
+                    className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
+                  >
+                    {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    {saveLabel}
+                  </Button>
+                )}
+                {/* Mark Ready is the exec's hand-off, and only from their own
+                    draft. Costing reaching READY already has it; their way
+                    forward is Approve, in the header. */}
+                {caps.submit && (
+                  <Button
+                    className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
+                    onClick={handleMarkReadyClick}
+                    disabled={isSending || isSaving}
+                    title={validateItineraryRequiredFields(form) ?? undefined}
+                  >
+                    {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    Mark Ready
+                  </Button>
+                )}
               </div>
             )}
               </div>
@@ -2426,10 +2639,12 @@ Rules:
             />
           }
           tripPanel={
-            <fieldset disabled={isLocked} className="contents">
+            <fieldset disabled={!canEditDoc} className="contents">
               <TripSetupPanel
                 computed={computeFinalPricing()}
-                onApplyPrice={applyComputedPricing}
+                // Mirrors saveCustomPackage's own rule: the quoted figure is
+                // not writable from here while the package is with costing.
+                onApplyPrice={isLocked ? undefined : applyComputedPricing}
               />
             </fieldset>
           }
@@ -2438,54 +2653,18 @@ Rules:
       </BuilderErrorBoundary>
 
       <AlertDialog open={confirmReadyOpen} onOpenChange={setConfirmReadyOpen}>
-        <AlertDialogContent className="sm:max-w-md">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogMedia className="bg-dashboard-success/10 text-dashboard-success">
-              <ShieldCheck />
-            </AlertDialogMedia>
             <AlertDialogTitle>Submit for costing review?</AlertDialogTitle>
             <AlertDialogDescription>
-              The costing team checks pricing before this package can be shared with the client.
+              Once this package goes under costing review, you won&apos;t be able to change anything —
+              editing stays locked until the costing team either approves it, or rejects it
+              back to you with a reason.
             </AlertDialogDescription>
           </AlertDialogHeader>
-
-          <div className="space-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-            <div className="flex items-start gap-2">
-              <Lock size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
-              <p className="text-xs text-dashboard-base-content/70">Editing locks the moment you submit</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <CheckCircle size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
-              <p className="text-xs text-dashboard-base-content/70">Approved — you can then share it with the client</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <RotateCcw size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
-              <p className="text-xs text-dashboard-base-content/70">Rejected — comes back to you with a reason to fix</p>
-            </div>
-          </div>
-
-          <label className="space-y-1.5 block">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-dashboard-base-content/70">
-              <ChatText size={12} /> Message for costing
-              <span className="font-normal text-dashboard-base-content/40">(optional)</span>
-            </span>
-            <textarea
-              value={readyNote}
-              onChange={(e) => setReadyNote(e.target.value)}
-              placeholder="e.g. client is price-sensitive, or day 3's hotel is a manual entry — please double-check the rate…"
-              rows={3}
-              className="w-full rounded-lg border border-dashboard-base-300 px-3 py-2 text-xs resize-y focus-visible:outline-2 focus-visible:outline-dashboard-primary/40 focus-visible:border-dashboard-primary/40"
-            />
-          </label>
-
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleMarkReady}
-              className="gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
-            >
-              <Send size={13} /> Mark Ready
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleMarkReady}>Mark Ready</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -2505,74 +2684,6 @@ Rules:
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Dialog open={aiDialogOpen} onOpenChange={(o) => { setAiDialogOpen(o); if (!o) setAiParseError(null); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-dashboard-base-300">
-            <div className="flex items-center gap-2.5">
-              <span className="flex items-center justify-center size-8 rounded-lg bg-dashboard-primary/10 text-dashboard-primary shrink-0">
-                <Wand2 size={16} />
-              </span>
-              <div>
-                <DialogTitle className="text-sm font-semibold">AI Itinerary Builder</DialogTitle>
-                <DialogDescription className="text-xs mt-0.5">
-                  Copy the prompt into ChatGPT (or any LLM), then paste its JSON reply back here.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="px-6 py-5 space-y-5">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-dashboard-base-content">Paste the JSON response here</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={copyAIPrompt} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
-                    <Copy size={11} /> Copy Prompt
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={pasteAIJson} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
-                    <ClipboardPaste size={11} /> Paste Prompt
-                  </Button>
-                </div>
-              </div>
-              <Textarea
-                value={aiJsonInput}
-                onChange={(e) => { setAiJsonInput(e.target.value); if (aiParseError) setAiParseError(null); }}
-                rows={9}
-                placeholder="Paste the JSON the AI gave you…"
-                className={cn(
-                  "text-[11px] font-mono resize-none rounded-lg",
-                  aiParseError
-                    ? "border-dashboard-error focus-visible:ring-dashboard-error/20 focus-visible:border-dashboard-error"
-                    : "border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary",
-                )}
-              />
-              {aiParseError && (
-                <div className="flex items-start gap-2 rounded-lg border border-dashboard-error/30 bg-dashboard-error/5 px-3 py-2">
-                  <AlertTriangle size={13} className="mt-0.5 text-dashboard-error shrink-0" />
-                  <p className="text-[11px] leading-relaxed text-dashboard-error">{aiParseError}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 px-6 py-4 border-t border-dashboard-base-300 bg-dashboard-base-100">
-            <Button variant="outline" size="sm" onClick={() => setAiDialogOpen(false)} className="border-dashboard-base-300 rounded-md">
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={applyAIItinerary}
-              disabled={!aiJsonInput.trim()}
-              className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md"
-            >
-              <Wand2 size={13} /> Generate Itinerary
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
     </PackageBuilderProvider>
   );
@@ -2796,6 +2907,12 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
 
       {query.customPackage?.readyAt && (
         <SectionCard title="Package Status" icon={<Send size={14} />}>
+          {/* "Awaiting costing review" was the fallback for anything neither
+              verified nor rejected — which fires on a DRAFT too. A package the
+              exec had pulled back therefore claimed to be in review on the same
+              screen as the banner saying it had been pulled out of it. Whether
+              it is actually with costing is a question about status, so it is
+              asked of status. */}
           <InfoRow
             label="Verification"
             value={
@@ -2803,7 +2920,11 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
                 ? (query.customPackage.status === "SENT" ? "Approved & sent" : "Approved — awaiting share")
                 : query.customPackage.rejectedAt
                   ? `Rejected — ${query.customPackage.rejectionReason?.label ?? "see note"}`
-                  : "Awaiting costing review"
+                  : query.customPackage.status === "READY"
+                    ? "Awaiting costing review"
+                    : query.customPackage.revisionNote
+                      ? "Pulled back — with the sales exec"
+                      : "Not submitted for review"
             }
           />
           {query.customPackage.rejectedAt && query.customPackage.rejectionNote && (

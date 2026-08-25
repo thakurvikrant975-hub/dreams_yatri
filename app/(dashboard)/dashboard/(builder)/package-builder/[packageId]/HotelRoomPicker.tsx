@@ -7,9 +7,10 @@ import Image from "next/image";
 import {
   SearchIcon, Loader2, ChevronDownIcon, XIcon, CheckIcon, Hotel,
   Coffee, Sun, Moon, UtensilsCrossed,
-} from "lucide-react";
+} from "./builder-icons";
 import { cn } from "@/app/lib/utils";
-import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption } from "../action";
+import { geocodeCity } from "./geocode-city";
+import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 // Mirrors the admin catalog's HOTEL_CAT_LABEL (ItineraryDaySidebar.tsx) — kept
 // as a separate copy since that file lives in a different feature area and
@@ -17,17 +18,18 @@ import { searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomR
 const HOTEL_CAT_LABEL: Record<string, string> = {
   hotel: "Hotel", resort: "Resort", homestay: "Homestay", apartment: "Apartment",
   villa: "Villa", guest_house: "Guest House", houseboat: "Houseboat", camp: "Camp",
-  glamping: "Glamping", treehouse: "Treehouse", jungle_lodge: "Jungle Lodge",
+  glamping: "Glamping", treehouse: "Treehouse", lodge: "Lodge", jungle_lodge: "Jungle Lodge",
   eco_lodge: "Eco Lodge", boutique_hotel: "Boutique", heritage_hotel: "Heritage",
   luxury_hotel: "Luxury", cottage: "Cottage", bungalow: "Bungalow", farm_stay: "Farm Stay",
 };
 
 const STAR_CHIPS = ["2 Star", "3 Star", "4 Star", "5 Star"];
-// Only affects the coordinate-based "near this city" blend (see
-// searchHotelRoomsForBuilder's geoMatches) — a typed name/place search
-// never used a radius. 25km is the default a bare city search already used.
-const RADIUS_CHIPS = [10, 25, 50, 100, 200];
+/** How far out to look, once the search has a point to look from. 25km is
+ * the default because it covers a hill station and the villages around it —
+ * Shimla out to Kufri and Chail — without dragging in the next district. */
 const DEFAULT_RADIUS_KM = 25;
+const RADIUS_CHIPS = [10, 25, 50, 100, 200];
+
 const CAT_CHIPS = [
   { value: "hotel", label: "Hotel" },
   { value: "resort", label: "Resort" },
@@ -64,21 +66,45 @@ type Props = {
   onSelect: (room: HotelRoomResult) => void;
   onClear: () => void;
   placeholder?: string;
-  /** The night being booked, `YYYY-MM-DD`. Rooms whose seasons do not cover
-   * it are left out of the results — a rate nobody set for these dates is not
-   * an option, and finding that out at Mark Ready costs the exec the whole
-   * package. Null while no travel date is set, which shows everything:
-   * nothing is yet known to be out of season. */
+  /** The night this room is being picked for (ISO). Without it the search
+   * prices every room at its flat base rate and cannot tell which rooms have a
+   * rate for the date at all — so rooms nobody has priced for that part of the
+   * calendar were being offered, at a number that was never theirs. */
   travelDate?: string | null;
 };
 
 export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, onSelect, onClear, placeholder, travelDate }: Props) {
+  // Where to search FROM, in coordinates.
+  //
+  // The catalog matches a hotel two ways: by text, and by straight-line
+  // distance from a reference point. The second is the one that matters here —
+  // hotel records are tagged by whoever entered them, so a property fifteen
+  // minutes outside Shimla is filed under Kufri, or Chail, or the resort's own
+  // name, and no amount of typing "Shimla" will surface it. Distance does not
+  // care what anyone called the place.
+  //
+  // But it only runs when the search is given a point, and both of this
+  // builder's pickers passed null — so v2 had been doing text matching alone
+  // while v1, which geocodes its city, found the neighbours. Resolved here
+  // rather than at each call site: every caller already knows the city, none
+  // of them should have to know that coordinates are what makes the search
+  // work. An explicitly supplied refCoords still wins — that is a real pickup
+  // point, better than a guess from a city name.
+  const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
+  const [cityCoords, setCityCoords] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (refCoords || !searchCity?.trim()) { setCityCoords(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const c = await geocodeCity(searchCity);
+      if (!cancelled) setCityCoords(c);
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchCity, refCoords]);
+  const anchor = refCoords ?? cityCoords;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<HotelRoomResult[]>([]);
-  /** Rooms left out because no season covers this night — worth saying, or the
-   * exec just sees a hotel they know exists refusing to appear. */
-  const [hiddenNoRate, setHiddenNoRate] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -87,10 +113,12 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [mealFilter, setMealFilter] = useState<string[]>([]);
   const [noMealsOnly, setNoMealsOnly] = useState(false);
-  const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
   const [sortBy, setSortBy] = useState<HotelSortOption>("name_asc");
   const mealFilterKey = mealFilter.join(",");
   const [currentRoom, setCurrentRoom] = useState<HotelRoomResult | null>(null);
+  /** Rooms dropped for having no rate on this night — said out loud, because a
+   * hotel the exec knows exists simply not appearing is the confusing case. */
+  const [hiddenNoRate, setHiddenNoRate] = useState(0);
   const [selectedLabel, setSelectedLabel] = useState(initialLabel);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -103,11 +131,11 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
   useEffect(() => {
     if (value == null) { setCurrentRoom(null); return; }
     let cancelled = false;
-    getHotelRoomByIdForBuilder(value, refCoords).then((room) => {
+    getHotelRoomByIdForBuilder(value, anchor).then((room) => {
       if (!cancelled) setCurrentRoom(room);
     });
     return () => { cancelled = true; };
-  }, [value, refCoords]);
+  }, [value, anchor]);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50);
@@ -124,12 +152,14 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
     const delay = query === "" ? 0 : 300;
     const timer = setTimeout(async () => {
       try {
-        const { rows, hiddenNoSeasonRate } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null, radiusKm);
+        const { rows, hiddenNoSeasonRate } = await searchHotelRoomsForBuilder(
+          searchCity, query, anchor, 1, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null, radiusKm,
+        );
         if (!cancelled) {
           setItems(rows);
-          setHiddenNoRate(hiddenNoSeasonRate);
           setPage(1);
           setHasMore(rows.length >= PAGE_SIZE);
+          setHiddenNoRate(hiddenNoSeasonRate);
         }
       } catch {
         if (!cancelled) { setItems([]); setHasMore(false); }
@@ -138,26 +168,17 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
       }
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
-    // refCoords is read via lat/lng below rather than as a whole object: the
-    // parent re-geocodes on a debounce and hands down a new object each time
-    // even when the coordinates are unchanged, which would otherwise re-fire
-    // this search on every parent render. Its ABSENCE from this array used to
-    // be the actual bug: a day's city geocodes asynchronously, so the popover's
-    // very first search (opened before the parent's geocode resolves) locked in
-    // refCoords=null — the query-only text match keeps whatever it found
-    // forever after, silently hiding every hotel that's only reachable via the
-    // nearby-radius fallback (e.g. "Cherrapunji" hotels actually tagged with a
-    // neighbouring sub-locality like "Shella Bholaganj" — see
-    // searchHotelRoomsForBuilder's geoMatches).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy, refCoords?.lat, refCoords?.lng, radiusKm]);
+  }, [query, open, searchCity, starFilter, catFilter, mealFilterKey, noMealsOnly, sortBy, anchor?.lat, anchor?.lng, radiusKm, travelDate]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const { rows } = await searchHotelRoomsForBuilder(searchCity, query, refCoords, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null, radiusKm);
+      const { rows } = await searchHotelRoomsForBuilder(
+        searchCity, query, anchor, nextPage, starFilter, catFilter, mealFilter, sortBy, noMealsOnly, travelDate ?? null, radiusKm,
+      );
       setItems((prev) => [...prev, ...rows]);
       setPage(nextPage);
       setHasMore(rows.length >= PAGE_SIZE);
@@ -254,11 +275,15 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                 ★ {star}
               </button>
             ))}
-            {RADIUS_CHIPS.map((km) => (
+            {/* Only worth offering once there is a point to measure from —
+                without one the catalog is doing text matching and a radius
+                means nothing. */}
+            {anchor && RADIUS_CHIPS.map((km) => (
               <button
                 key={km}
                 type="button"
                 onClick={() => setRadiusKm(km)}
+                title={`Include stays within ${km} km`}
                 className={cn(
                   "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
                   radiusKm === km
@@ -316,10 +341,10 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
             >
               No meals
             </button>
-            {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly || radiusKm !== DEFAULT_RADIUS_KM) && (
+            {(starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
               <button
                 type="button"
-                onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); setNoMealsOnly(false); setRadiusKm(DEFAULT_RADIUS_KM); }}
+                onClick={() => { setStarFilter(null); setCatFilter(null); setMealFilter([]); setNoMealsOnly(false); }}
                 className="text-[10px] text-destructive/70 hover:text-destructive px-1"
               >
                 Clear
@@ -359,7 +384,9 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                     {hiddenNoRate} {hiddenNoRate === 1 ? "room has" : "rooms have"} no rate set for this date — ask the hotel
                     team to add one before quoting them.
                   </p>
-                ) : (starFilter || catFilter || mealFilter.length > 0 || noMealsOnly || radiusKm !== DEFAULT_RADIUS_KM) && <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>}
+                ) : (starFilter || catFilter || mealFilter.length > 0 || noMealsOnly) && (
+                  <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>
+                )}
               </div>
             ) : (
               items.map((room) => {

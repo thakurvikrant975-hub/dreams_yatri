@@ -16,7 +16,7 @@ import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
 import { updateItinerarySettings, type ItinerarySettings, type PolicySection } from "./actions";
 import { DocumentThemeCard } from "./DocumentThemeCard";
-import type { ThemeOverrides } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/doc-theme";
+import type { ThemeOverrides } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme";
 
 type FormState = {
     companyPhone: string;

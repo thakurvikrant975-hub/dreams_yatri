@@ -14,7 +14,7 @@ import { PackageWorkspace } from "../PackageWorkspace";
 //                                                read-only summary. Unchanged,
 //                                                and still the one in daily use.
 //
-//   /dashboard/package-builder-v2/[id]/review    this one: the same editor the
+//   /dashboard/package-builder/[id]/review    this one: the same editor the
 //                                                exec builds in, plus a Costing
 //                                                tab carrying the breakdown, the
 //                                                findings and approve/reject —

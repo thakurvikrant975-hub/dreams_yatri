@@ -142,7 +142,7 @@ export async function addStayOption(packageId: string, rawLabel: string): Promis
       return option;
     }, { isolationLevel: "Serializable" });
 
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
     return { success: true, data: created };
   } catch (err) {
     // A refusal is the answer, not a failure — it carries the sentence the
@@ -172,7 +172,7 @@ export async function renameStayOption(packageId: string, optionId: string, rawL
     await db.custom_package_stay_options.update({
       where: { id: optionId }, data: { label: normaliseStayLabel(rawLabel) },
     });
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
     return { success: true };
   } catch (err) {
     console.error("[renameStayOption]", err);
@@ -213,7 +213,7 @@ export async function removeStayOption(packageId: string, optionId: string): Pro
       await mirrorRecommendedOntoDays(tx, packageId);
     });
 
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
     return { success: true };
   } catch (err) {
     console.error("[removeStayOption]", err);
@@ -243,7 +243,7 @@ export async function setRecommendedStayOption(packageId: string, optionId: stri
       await mirrorRecommendedOntoDays(tx, packageId);
     });
 
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
     return { success: true };
   } catch (err) {
     console.error("[setRecommendedStayOption]", err);
@@ -315,7 +315,7 @@ export async function saveStayForDay(
       }
     }, { timeout: 20_000, maxWait: 8_000 });
 
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
+    revalidatePath(`/dashboard/package-builder/${packageId}`);
     return { success: true };
   } catch (err) {
     console.error("[saveStayForDay]", err);
@@ -516,7 +516,7 @@ export async function setStayOptionDayPrice(
       console.error("[setStayOptionDayPrice] re-pricing", err);
     });
 
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}/review`);
+    revalidatePath(`/dashboard/package-builder/${packageId}/review`);
     revalidatePath(`/dashboard/verify-packages/${packageId}`);
     return { success: true };
   } catch (err) {
@@ -637,7 +637,7 @@ export async function cloneStayOptionsInto(sourcePackageId: string, targetPackag
       }
     }
 
-    revalidatePath(`/dashboard/package-builder-v2/${targetPackageId}`);
+    revalidatePath(`/dashboard/package-builder/${targetPackageId}`);
     return { success: true };
   } catch (err) {
     console.error("[cloneStayOptionsInto]", err);

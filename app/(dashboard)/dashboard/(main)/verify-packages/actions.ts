@@ -69,7 +69,6 @@ function revalidateAll(packageId: string) {
     revalidatePath("/dashboard/sales-query");
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
 }
 
 // ── Approve (pricing sign-off — does not send anything to the client) ───────

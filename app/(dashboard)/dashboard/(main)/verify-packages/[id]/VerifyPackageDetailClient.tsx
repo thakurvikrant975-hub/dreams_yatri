@@ -22,7 +22,7 @@ import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import type { RejectionReason } from "../../(marketing)/queries/actions";
 import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 import { StayOptionsComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionsComparison";
-import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/builder-context";
+import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/builder-context";
 import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
@@ -445,7 +445,7 @@ export function VerifyPackageDetailClient({
                         loop. Kept while both paths run in parallel. */}
                     {!panel && pkg.status === "READY" && !pkg.verified && !editMode && (
                         <Link
-                            href={`/dashboard/package-builder-v2/${pkg.id}/review`}
+                            href={`/dashboard/package-builder/${pkg.id}/review`}
                             target="_blank"
                             rel="noopener"
                             title="Review in the new editor — correct the itinerary where it sits, then approve or reject"

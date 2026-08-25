@@ -16,8 +16,8 @@
 // time, and read results back with local getters. No UTC round-trip anywhere
 // in the pipeline means no timezone can ever shift the day.
 //
-// package-builder, package-builder-v2, and night-date.ts each had their own
-// copy of this logic (only night-date.ts's comment even mentioned the risk).
+// package-builder and night-date.ts each had their own copy of this logic
+// (only night-date.ts's comment even mentioned the risk).
 // This is now the one place it's written — everything else imports it.
 
 /** "YYYY-MM-DD" → local midnight. Never hand a bare date string to `new

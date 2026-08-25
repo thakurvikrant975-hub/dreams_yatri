@@ -17,8 +17,8 @@ import { getStayOptionsForDocument } from "@/app/(dashboard)/dashboard/(builder)
 // renders — the same component the builder previews and the PDF captures.
 // Type-only, so nothing from that client module is pulled into this server
 // file at runtime.
-import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
-import type { ThemeOverrides } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/doc-theme-data";
+import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
+import type { ThemeOverrides } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme-data";
 
 /** Mirrors ExtraPolicyItems in package-builder/action.ts — can't import it
  * directly since that's a "use server" file (only async function exports

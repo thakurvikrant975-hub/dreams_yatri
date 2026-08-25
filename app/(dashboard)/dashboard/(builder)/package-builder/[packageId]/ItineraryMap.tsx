@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { StopInput } from "../action";
+import type { StopInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Route map for the itinerary preview — shows the travel route (start, stops,
