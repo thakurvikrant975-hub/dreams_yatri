@@ -1605,7 +1605,7 @@ export function DaySummaryTable({
                 </td>
                 <td className={bodyCell} style={cellEdges(false, isLastDay)}>
                   <SummaryCell
-                    action="Add meals"
+                    action="View meals"
                     onOpen={open({ kind: "meals-edit", day: d.day })}
                     value={shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : null}
                   />
@@ -2654,7 +2654,8 @@ function DayCardPreview({
 
   const mealsActions: SectionAction[] | undefined = canEditDoc ? [
     {
-      icon: Pencil, label: "Edit meals",
+      // No manual edit any more — meals are entirely the picked hotel's plan.
+      icon: Pencil, label: "View meals",
       onClick: () => builder!.openDrawer({ kind: "meals-edit", day: day.day }),
     },
   ] : undefined;

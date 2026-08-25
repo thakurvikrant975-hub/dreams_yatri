@@ -16,12 +16,17 @@ import { EditIdentityDialog } from "./EditIdentityDialog";
 import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import { AvatarUploadDialog } from "./AvatarUploadDialog";
 
+const GENDER_LABELS: Record<string, string> = {
+    MALE: "Male", FEMALE: "Female", OTHER: "Other", PREFER_NOT_TO_SAY: "Can't say",
+};
+
 export type ProfileData = {
     id: string;
     name: string;
     email: string;
     isActive: boolean;
     gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY" | null;
+    dateOfBirth: Date | null;
     joiningDate: Date | null;
     joiningDateUnknown: boolean;
     lastLoginAt: Date | null;
@@ -117,26 +122,37 @@ function DocumentRow({
     label, number, fileUrl,
 }: {
     label: string;
-    number: string | null;
+    number?: string | null;
     fileUrl: string | null;
 }) {
+    const thumb = (
+        <div className="h-14 w-20 rounded-lg bg-dashboard-base-200 overflow-hidden flex items-center justify-center shrink-0">
+            {fileUrl ? (
+                <Image src={fileUrl} alt={label} width={80} height={56} className="h-full w-full object-cover" />
+            ) : (
+                <FileText className="h-4 w-4 text-dashboard-base-content/40" />
+            )}
+        </div>
+    );
     return (
         <div className="flex items-center gap-3 rounded-xl border border-dashboard-base-300 p-3">
-            <div className="h-10 w-10 rounded-lg bg-dashboard-base-200 overflow-hidden flex items-center justify-center shrink-0">
-                {fileUrl ? (
-                    <Image src={fileUrl} alt={label} width={40} height={40} className="h-full w-full object-cover" />
-                ) : (
-                    <FileText className="h-4 w-4 text-dashboard-base-content/40" />
-                )}
-            </div>
+            {/* The actual scan, not just a status dot — clickable so it opens
+                full size rather than being stuck at a 20x14 thumbnail. */}
+            {fileUrl ? (
+                <a href={fileUrl} target="_blank" rel="noopener noreferrer" title={`Open ${label} full size`}>
+                    {thumb}
+                </a>
+            ) : thumb}
             <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-dashboard-base-content/60">{label}</p>
-                <p className={cn(
-                    "text-sm font-mono mt-0.5",
-                    number ? "text-dashboard-base-content" : "text-dashboard-base-content/35 italic font-sans",
-                )}>
-                    {number || "Not added yet"}
-                </p>
+                {number !== undefined && (
+                    <p className={cn(
+                        "text-sm font-mono mt-0.5",
+                        number ? "text-dashboard-base-content" : "text-dashboard-base-content/35 italic font-sans",
+                    )}>
+                        {number || "Not added yet"}
+                    </p>
+                )}
             </div>
             {fileUrl ? (
                 <span title="Document uploaded"><ShieldCheck className="h-4 w-4 text-dashboard-success shrink-0" /></span>
@@ -235,6 +251,13 @@ export function ProfileClient({ profile }: { profile: ProfileData }) {
                     <Field label="Personal Email" value={profile.personalEmail} icon={Mail} />
                     <Field label="Personal Mobile" value={profile.personalMobile} icon={Smartphone} />
                     <Field label="Alternative Mobile" value={profile.alternativeMobile} icon={Phone} />
+                    <Field label="Official Mobile" value={profile.officialMobile} icon={Phone} />
+                    <Field label="Gender" value={profile.gender ? GENDER_LABELS[profile.gender] : null} icon={Users2} />
+                    <Field
+                        label="Date of Birth"
+                        value={profile.dateOfBirth ? format(new Date(profile.dateOfBirth), "d MMM yyyy") : null}
+                        icon={Calendar}
+                    />
                 </SectionCard>
 
                 <SectionCard
@@ -254,6 +277,7 @@ export function ProfileClient({ profile }: { profile: ProfileData }) {
                     action={<EditIdentityDialog profile={profile} />}
                 >
                     <DocumentRow label="Aadhaar Number" number={formatAadhaar(profile.aadhaarNumber)} fileUrl={profile.aadhaarFileUrl} />
+                    <DocumentRow label="Aadhaar (Back)" fileUrl={profile.aadhaarBackFileUrl} />
                     <DocumentRow label="PAN Number" number={profile.panNumber} fileUrl={profile.panFileUrl} />
                 </SectionCard>
 

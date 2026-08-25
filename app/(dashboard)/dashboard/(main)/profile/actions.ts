@@ -29,6 +29,7 @@ async function requireSelf() {
 const PROFILE_SELECT = {
   id: true, name: true, email: true, isActive: true, joiningDate: true, lastLoginAt: true,
   designation: true, employeeId: true, gender: true, officialMobile: true, joiningDateUnknown: true,
+  dateOfBirth: true,
   personalEmail: true, personalMobile: true, alternativeMobile: true,
   fatherName: true, fatherMobile: true, motherName: true, motherMobile: true,
   aadhaarNumber: true, aadhaarFileKey: true, aadhaarFileUrl: true,
@@ -80,13 +81,19 @@ export async function updatePersonalDetails(
     personalMobile: (formData.get("personalMobile") as string) || undefined,
     alternativeMobile: (formData.get("alternativeMobile") as string) || undefined,
     officialMobile: (formData.get("officialMobile") as string) || undefined,
+    gender: (formData.get("gender") as string) || undefined,
+    dateOfBirth: (formData.get("dateOfBirth") as string) || undefined,
   });
   if (!parsed.success) {
     return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors };
   }
 
   try {
-    await db.teamMember.update({ where: { id: self.id }, data: parsed.data });
+    const { dateOfBirth, ...rest } = parsed.data;
+    await db.teamMember.update({
+      where: { id: self.id },
+      data: { ...rest, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined },
+    });
     await createLog({
       action: "UPDATE", entity: "TeamMember", entityId: self.id, entitySlug: self.name,
       newData: parsed.data, metadata: { operation: "update_personal_details", scope: "self_service" },

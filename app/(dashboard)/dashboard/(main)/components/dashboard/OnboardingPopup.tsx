@@ -107,15 +107,26 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
 
   const selectedGender = GENDER_OPTIONS.find((g) => g.value === gender);
 
+  // Only reached by Radix's own close triggers (X button, Escape, outside
+  // click) — the success path below calls setOpen directly, not this, so
+  // completing the form never sets a snooze it doesn't need. The layout
+  // checks this same cookie server-side and skips mounting the popup at all
+  // while it's live, so dismissing it genuinely buys ten quiet minutes
+  // rather than just hiding this one render.
+  function handleOpenChange(next: boolean) {
+    if (!next) document.cookie = "dy_onboarding_snooze=1; max-age=600; path=/";
+    setOpen(next);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            May I know you <span aria-hidden>🥰</span>
+            May I know you <span aria-hidden> Guchu Puchu 🥰</span>
           </DialogTitle>
           <DialogDescription>
-            A few details so the team can actually take care of you — takes two minutes, promise.
+            A few details so the team can actually take care of you.
           </DialogDescription>
         </DialogHeader>
 
@@ -286,7 +297,7 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
         <div className="flex items-center justify-between gap-3 pt-2">
           {tab === "personal" ? (
             <>
-              <span className="text-[11px] text-dashboard-base-content/50">You can fill this later — I&apos;ll ask again next time 👋</span>
+              <span className="text-[11px] text-dashboard-base-content/50">Not now? Close this and I&apos;ll leave you alone for 10 minutes 👋</span>
               <Button type="button" onClick={() => setTab("family")}>
                 Next →
               </Button>

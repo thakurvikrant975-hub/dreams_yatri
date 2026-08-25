@@ -38,6 +38,7 @@ import {
 import { cn } from "@/app/lib/utils";
 import { useBuilder, scrollToDay, type DrawerTarget } from "./builder-context";
 import { removeStay, removeTransport, continuesStayFrom, dayReadiness } from "./day-mutations";
+import { computeShiftedMeals } from "./ItineraryDocument";
 import { Empty, Group } from "./builder-ui";
 import type { DayItinerary } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
@@ -208,6 +209,10 @@ function elementsFor(
   const acts = d.activities.filter((a) => a.title.trim());
   const dayAddons = form.addOns.filter((a) => a.day === n);
   const continuedFrom = continuesStayFrom(form.itineraries, n);
+  // Same shift the document itself renders — breakfast belongs to the night
+  // BEFORE it (see computeShiftedMeals), so reading d.meals raw here would
+  // show a different set than what actually ends up on the client's PDF.
+  const shiftedMeals = computeShiftedMeals(form.itineraries)[n - 1] ?? [];
 
   const stayValue = d.accommodation
     ? d.accommodation
@@ -249,9 +254,11 @@ function elementsFor(
     {
       icon: UtensilsCrossed,
       label: "Meals",
-      value: d.meals.length ? d.meals.join(", ") : null,
+      value: shiftedMeals.length ? shiftedMeals.join(", ") : null,
       open: { kind: "meals-edit", day: n },
-      clear: () => replaceDay(n, (it) => ({ ...it, meals: [] })),
+      // No clear — meals are entirely the hotel's plan now (see
+      // applyHotelRoomSelection/removeStay). To change them, change or
+      // remove the hotel; there's nothing here to manually wipe.
     },
     {
       icon: StickyNote,

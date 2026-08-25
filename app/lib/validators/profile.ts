@@ -3,15 +3,17 @@ import { z } from "zod";
 const optionalTrimmed = (max: number) =>
   z.string().max(max).optional().transform((s) => s?.trim() || undefined);
 
+export const GenderSchema = z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]);
+
 export const PersonalDetailsSchema = z.object({
   personalEmail: z.string().email("Enter a valid email").optional().or(z.literal("")).transform((s) => s || undefined),
   personalMobile: optionalTrimmed(15),
   alternativeMobile: optionalTrimmed(15),
   officialMobile: optionalTrimmed(15),
+  gender: GenderSchema.optional(),
+  dateOfBirth: z.string().optional().transform((s) => s || undefined),
 });
 export type PersonalDetailsInput = z.infer<typeof PersonalDetailsSchema>;
-
-export const GenderSchema = z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]);
 
 // The onboarding popup's required set — a stricter superset of
 // PersonalDetailsSchema, since those fields are optional everywhere else in

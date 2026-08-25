@@ -1473,7 +1473,9 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
               manualExtraBeds: null,
               manualHotelPricePerNight: null, manualExtraBedRate: null,
               hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
-              meals: hotelMeals.length > 0 ? hotelMeals : it.meals,
+              // Always the current room's plan, never a stale fallback — see
+              // the same fix in day-mutations.ts's applyHotelRoomSelection.
+              meals: hotelMeals,
               hotelCheckIn: room.checkInTime ? formatTime12h(room.checkInTime) : it.hotelCheckIn,
               hotelCheckOut: room.checkOutTime ? formatTime12h(room.checkOutTime) : it.hotelCheckOut,
               roomPricingId: room.id,

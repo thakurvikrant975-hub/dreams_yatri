@@ -821,6 +821,7 @@ model TeamMember {
   alternativeMobile      String?           @db.VarChar(15)
   designation            String?           @db.VarChar(255)
   employeeId             String            @unique
+  dateOfBirth            DateTime?
   fatherMobile           String?           @db.VarChar(15)
   fatherName             String?           @db.VarChar(255)
   gender                 Gender?

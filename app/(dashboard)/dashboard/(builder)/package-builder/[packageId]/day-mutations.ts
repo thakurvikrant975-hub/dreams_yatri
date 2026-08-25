@@ -44,9 +44,12 @@ export function applyHotelRoomSelection(
   day: DayItinerary,
   raw: HotelRoomResult,
 ): DayItinerary {
-  // Which meals this room's plan actually covers, rather than leaving the
-  // exec to toggle them by hand — falls back to whatever was already set if
-  // the plan has no structured meals configured (e.g. a room-only rate).
+  // Which meals this room's plan actually covers — the ONLY source of a
+  // day's meals now (no manual toggle exists any more). Always overwrites
+  // whatever was there before, including down to an empty array for a
+  // room-only (EP) rate with no structured meals configured — a day's meals
+  // must always mirror its CURRENT hotel, never a stale value left over from
+  // a previous one.
   const hotelMeals = raw.coveredMeals
     .map((k) => MEAL_KEY_LABELS[k])
     .filter((v): v is string => !!v);
@@ -81,7 +84,7 @@ export function applyHotelRoomSelection(
     manualHotelPricePerNight: null,
     manualExtraBedRate: null,
     hotelMealPlan: raw.mealPlanName ?? day.hotelMealPlan,
-    meals: hotelMeals.length > 0 ? hotelMeals : day.meals,
+    meals: hotelMeals,
     // The hotel's own check-in/check-out policy. Stored as 24h "HH:MM" on the
     // hotel record (<input type="time">) — converted here so it reads the same
     // as a hand-typed value both in the field and in the document.

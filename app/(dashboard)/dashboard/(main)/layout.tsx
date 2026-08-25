@@ -1,5 +1,5 @@
 // app/(dashboard)/layout.tsx
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import { AppSidebar } from "./components/dashboard/AppSidebar";
@@ -115,11 +115,18 @@ export default async function DashboardLayout({
   // page itself follows), and only on the fields that are actually required
   // to dismiss it. Everything else in the popup (family details, identity
   // docs) is optional and never blocks this from clearing.
-  const needsOnboarding = !realMember.gender
+  const missingRequiredFields = !realMember.gender
     || !realMember.personalMobile
     || !realMember.alternativeMobile
     || !realMember.personalEmail
     || (!realMember.joiningDate && !realMember.joiningDateUnknown);
+  // Dismissing the popup (X, Escape, outside click — see OnboardingPopup's
+  // handleOpenChange) sets this cookie for ten minutes so closing it actually
+  // buys some quiet time instead of it reappearing on the very next
+  // navigation. Once the cookie expires, missing fields alone are enough to
+  // bring it back on every page change again.
+  const snoozed = !!(await cookies()).get("dy_onboarding_snooze")?.value;
+  const needsOnboarding = missingRequiredFields && !snoozed;
   const onboardingProfile = needsOnboarding ? await getMyProfile() : null;
 
   return (
