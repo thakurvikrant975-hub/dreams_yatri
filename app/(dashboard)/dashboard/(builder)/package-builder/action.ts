@@ -2395,122 +2395,140 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     // Normalized defensively since it's untrusted input.
     const effectiveExtraPolicyItems = normalizeExtraPolicyItems(extraPolicyItems) as unknown as Prisma.InputJsonValue;
 
-    // Upsert the custom package (unique on its own id, client-generated on
-    // first save — see PackageInput.id — not on queryId, since a query can
-    // now have several packages).
-    const pkg = await db.custom_packages.upsert({
-      where:  { id },
-      create: {
-        id,
-        queryId,
-        title,
-        description:     description || null,
-        coverImage:      coverImage || null,
-        coverImagePosition,
-        destination,
-        startingPoint:   startingPoint || null,
-        totalDays,
-        totalNights,
-        travelDate:      travelDate ? new Date(travelDate) : null,
-        adults,
-        children,
-        infants,
-        childrenAges:    childrenAges ?? [],
-        infantAges:      infantAges ?? [],
-        pricePerPerson:  pricePerPerson ?? null,
-        totalPrice:      totalPrice ?? null,
-        marginPercentage,
-        gstPercentage,
-        discountType:  discountType ?? null,
-        discountValue: discountValue ?? null,
-        discountNote:  discountNote?.trim() || null,
-        currency,
-        inclusions:      effectiveInclusions,
-        exclusions:      effectiveExclusions,
-        termsNotes:      termsNotes || null,
-        termsConditions: effectiveTermsConditions,
-        paymentPolicy:   effectivePaymentPolicy,
-        amendmentPolicy: effectiveAmendmentPolicy,
-        travelBenefits:  effectiveTravelBenefits,
-        customPolicySections: effectiveCustomPolicySections,
-        extraPolicyItems: effectiveExtraPolicyItems,
-        flightsIncluded,
-        flightNotes:     flightNotes || null,
-        flightFrom:      flightFrom || null,
-        flightTo:        flightTo || null,
-        trainIncluded,
-        trainNotes:      trainNotes || null,
-        trainFrom:       trainFrom || null,
-        trainTo:         trainTo || null,
-        status:          nextStatus,
-        builtBy,
-        builtByName:     builtByName || null,
-      },
-      update: {
-        title,
-        description:     description || null,
-        coverImage:      coverImage || null,
-        coverImagePosition,
-        destination,
-        startingPoint:   startingPoint || null,
-        totalDays,
-        totalNights,
-        travelDate:      travelDate ? new Date(travelDate) : null,
-        adults,
-        children,
-        infants,
-        childrenAges:    childrenAges ?? [],
-        infantAges:      infantAges ?? [],
-        // Margin, GST and the discount are absent from this update on purpose,
-        // at every status.
-        //
-        // They are costing's levers (see workspace-caps: the exec has
-        // editMargin: false and cannot even see these numbers), and the one
-        // path that writes them — updatePackagePricing — re-checks that
-        // capability and records the change. Accepting them here gave the rule
-        // a hole on both sides: a crafted payload could set a margin the sender
-        // was never allowed to set, and an ordinary save from an editor opened
-        // before a correction would post the pre-correction values back over
-        // it. With autosave now running for costing, the second one would have
-        // happened on a timer, seconds after their own correction, silently.
-        //
-        // They are still written on `create` below — a new package needs its
-        // opening margin and GST from somewhere, and that is the house default
-        // the form carries.
-        //
-        // pricePerPerson/totalPrice stay the exec's while a package is theirs:
-        // the builder keeps them synced to the live computation as they work.
-        // At READY they are costing's, via updatePackagePricing and approve.
-        ...(pricingLocked ? {} : {
-          pricePerPerson:  pricePerPerson ?? null,
-          totalPrice:      totalPrice ?? null,
-        }),
-        currency,
-        inclusions:      effectiveInclusions,
-        exclusions:      effectiveExclusions,
-        termsNotes:      termsNotes || null,
-        termsConditions: effectiveTermsConditions,
-        paymentPolicy:   effectivePaymentPolicy,
-        amendmentPolicy: effectiveAmendmentPolicy,
-        travelBenefits:  effectiveTravelBenefits,
-        customPolicySections: effectiveCustomPolicySections,
-        extraPolicyItems: effectiveExtraPolicyItems,
-        flightsIncluded,
-        flightNotes:     flightNotes || null,
-        flightFrom:      flightFrom || null,
-        flightTo:        flightTo || null,
-        trainIncluded,
-        trainNotes:      trainNotes || null,
-        trainFrom:       trainFrom || null,
-        trainTo:         trainTo || null,
-        status:          nextStatus,
-        // builtBy/builtByName are set on create and never rewritten. They name
-        // whoever BUILT the package, which is not the same as whoever last
-        // saved it — now that costing saves too, echoing the current actor here
-        // would quietly reassign authorship to the reviewer.
-        ...(previousSnapshot ? { previousSnapshot } : {}),
-      },
-    });
+    // Explicit create-or-update on the custom package (unique on its own id,
+    // client-generated on first save — see PackageInput.id — not on queryId,
+    // since a query can now have several packages).
+    //
+    // NOT db.custom_packages.upsert(): under this Prisma version's driver
+    // adapter, upsert first attempts an INSERT using the `create` data and
+    // only falls back to UPDATE on a duplicate-key error. For an existing
+    // READY package, that attempted INSERT reuses nextStatus (= "READY")
+    // without setting readyAt (create never does — see below), and Postgres
+    // validates check constraints before it notices the primary-key
+    // conflict — so ready_status_requires_ready_at fails on the doomed
+    // INSERT before Prisma ever reaches its update fallback, on every single
+    // save of every READY package, regardless of the row's actual (valid)
+    // readyAt. `existing` is already fetched above, so branching on it here
+    // skips the INSERT attempt entirely for a package that already exists.
+    const pkg = existing
+      ? await db.custom_packages.update({
+          where: { id },
+          data: {
+            title,
+            description:     description || null,
+            coverImage:      coverImage || null,
+            coverImagePosition,
+            destination,
+            startingPoint:   startingPoint || null,
+            totalDays,
+            totalNights,
+            travelDate:      travelDate ? new Date(travelDate) : null,
+            adults,
+            children,
+            infants,
+            childrenAges:    childrenAges ?? [],
+            infantAges:      infantAges ?? [],
+            // Margin, GST and the discount are absent from this update on
+            // purpose, at every status.
+            //
+            // They are costing's levers (see workspace-caps: the exec has
+            // editMargin: false and cannot even see these numbers), and the
+            // one path that writes them — updatePackagePricing — re-checks
+            // that capability and records the change. Accepting them here
+            // gave the rule a hole on both sides: a crafted payload could
+            // set a margin the sender was never allowed to set, and an
+            // ordinary save from an editor opened before a correction would
+            // post the pre-correction values back over it. With autosave now
+            // running for costing, the second one would have happened on a
+            // timer, seconds after their own correction, silently.
+            //
+            // They are still written on create below — a new package needs
+            // its opening margin and GST from somewhere, and that is the
+            // house default the form carries.
+            //
+            // pricePerPerson/totalPrice stay the exec's while a package is
+            // theirs: the builder keeps them synced to the live computation
+            // as they work. At READY they are costing's, via
+            // updatePackagePricing and approve.
+            ...(pricingLocked ? {} : {
+              pricePerPerson:  pricePerPerson ?? null,
+              totalPrice:      totalPrice ?? null,
+            }),
+            currency,
+            inclusions:      effectiveInclusions,
+            exclusions:      effectiveExclusions,
+            termsNotes:      termsNotes || null,
+            termsConditions: effectiveTermsConditions,
+            paymentPolicy:   effectivePaymentPolicy,
+            amendmentPolicy: effectiveAmendmentPolicy,
+            travelBenefits:  effectiveTravelBenefits,
+            customPolicySections: effectiveCustomPolicySections,
+            extraPolicyItems: effectiveExtraPolicyItems,
+            flightsIncluded,
+            flightNotes:     flightNotes || null,
+            flightFrom:      flightFrom || null,
+            flightTo:        flightTo || null,
+            trainIncluded,
+            trainNotes:      trainNotes || null,
+            trainFrom:       trainFrom || null,
+            trainTo:         trainTo || null,
+            status:          nextStatus,
+            // builtBy/builtByName are set on create and never rewritten.
+            // They name whoever BUILT the package, which is not the same as
+            // whoever last saved it — now that costing saves too, echoing
+            // the current actor here would quietly reassign authorship to
+            // the reviewer.
+            ...(previousSnapshot ? { previousSnapshot } : {}),
+          },
+        })
+      : await db.custom_packages.create({
+          data: {
+            id,
+            queryId,
+            title,
+            description:     description || null,
+            coverImage:      coverImage || null,
+            coverImagePosition,
+            destination,
+            startingPoint:   startingPoint || null,
+            totalDays,
+            totalNights,
+            travelDate:      travelDate ? new Date(travelDate) : null,
+            adults,
+            children,
+            infants,
+            childrenAges:    childrenAges ?? [],
+            infantAges:      infantAges ?? [],
+            pricePerPerson:  pricePerPerson ?? null,
+            totalPrice:      totalPrice ?? null,
+            marginPercentage,
+            gstPercentage,
+            discountType:  discountType ?? null,
+            discountValue: discountValue ?? null,
+            discountNote:  discountNote?.trim() || null,
+            currency,
+            inclusions:      effectiveInclusions,
+            exclusions:      effectiveExclusions,
+            termsNotes:      termsNotes || null,
+            termsConditions: effectiveTermsConditions,
+            paymentPolicy:   effectivePaymentPolicy,
+            amendmentPolicy: effectiveAmendmentPolicy,
+            travelBenefits:  effectiveTravelBenefits,
+            customPolicySections: effectiveCustomPolicySections,
+            extraPolicyItems: effectiveExtraPolicyItems,
+            flightsIncluded,
+            flightNotes:     flightNotes || null,
+            flightFrom:      flightFrom || null,
+            flightTo:        flightTo || null,
+            trainIncluded,
+            trainNotes:      trainNotes || null,
+            trainFrom:       trainFrom || null,
+            trainTo:         trainTo || null,
+            status:          nextStatus,
+            builtBy,
+            builtByName:     builtByName || null,
+          },
+        });
 
     // Replace route stops — delete all then recreate (no nested children, so
     // createMany is fine here, unlike itineraries below).
