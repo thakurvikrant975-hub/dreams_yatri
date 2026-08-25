@@ -84,9 +84,13 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
   // Only meaningful against the package's own total. A client who has picked a
   // different standard is being quoted that column's price, and the deposit
   // for it is not this one — so it is withheld rather than shown wrong.
-  const deposit = multi && chosen && chosen.id !== options.find((o) => o.isRecommended)?.id
-    ? null
-    : form.bookingDeposit ?? null;
+  // Both the deposit and the discount describe the PACKAGE's own total. A
+  // client who has switched to another standard is being quoted that column's
+  // price, and neither figure was computed against it — so both are withheld
+  // rather than shown against a number they do not belong to.
+  const onPackagePrice = !(multi && chosen && chosen.id !== options.find((o) => o.isRecommended)?.id);
+  const deposit = onPackagePrice ? form.bookingDeposit ?? null : null;
+  const discount = onPackagePrice ? form.discount ?? null : null;
   const totalPax = form.adults + form.children;
 
   // The chosen option's price leads once there is a choice, because that is the
@@ -109,11 +113,10 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
                 type="button"
                 onClick={() => setChosenId(o.id)}
                 aria-pressed={on}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  on
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${on
                     ? "border-primary-500 bg-primary-50 font-semibold text-primary-600"
                     : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                }`}
+                  }`}
               >
                 {o.label}
                 {o.isRecommended && <span className="ml-1 text-[10px] opacity-70">recommended</span>}
@@ -134,12 +137,30 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
           property: this bar is outside the document, so none of the zoom
           compensation that property is divided by applies to it. */}
       <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="font-heading text-lg font-bold tracking-tight text-primary-500 truncate">{priceStr}</p>
-          <p className="text-xs text-neutral-500">
-            Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
-            {chosen && multi && <> · <span className="font-medium text-neutral-700">{chosen.label}</span></>}
+        <div className="min-w-0 flex-1 flex items-center justify-between">
+          <div>
+            {/* What it was, then what it is. The struck figure alone reads as a
+              correction — the green saving beside it is what says a concession
+              was made, which is the part a client repeats to whoever else is
+              deciding with them. */}
+          <p className="flex items-baseline gap-2 truncate">
+            {discount && (
+              <span className="text-sm text-neutral-400 line-through tabular-nums shrink-0">
+                {form.currency} {Math.round(discount.originalPrice).toLocaleString("en-IN")}
+              </span>
+            )}
+            <span className="font-heading text-lg font-bold tracking-tight text-primary-500">{priceStr}</span>
+            {discount && (
+              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 shrink-0">
+                {discount.label}
+              </span>
+            )}
           </p>
+            <p className="text-xs text-neutral-500">
+              Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
+              {chosen && multi && <> · <span className="font-medium text-neutral-700">{chosen.label}</span></>}
+            </p>
+          </div>
           {/* What it actually takes to hold this, on the line under the total.
               A client reading a five-figure number decides against it before
               they reach a Book button that would have asked for a quarter of
@@ -152,9 +173,9 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               covering the price — it says so instead, because offering a
               deposit that checkout will refuse is worse than offering none. */}
           {deposit && (
-            <p className="mt-0.5 text-xs">
+            <p className="mt-0.5 text-xs font-medium">
               {deposit.isFull ? (
-                <span className="text-neutral-500">Full payment due at booking</span>
+                <span className="text-warning-700">Full payment due at booking</span>
               ) : (
                 <>
                   <span className="font-semibold text-neutral-800">
