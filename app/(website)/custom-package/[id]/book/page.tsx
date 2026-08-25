@@ -48,6 +48,7 @@ export default async function BookCustomPackagePage({
     packageId: id,
     title: data.title,
     destination: data.destination || null,
+    coverImage: data.coverImage || null,
     travelDate: data.travelDate || null,
     nights: data.totalNights,
     travellers: data.adults + data.children,

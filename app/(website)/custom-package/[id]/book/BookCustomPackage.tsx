@@ -31,6 +31,9 @@ export type BookSummary = {
   packageId: string;
   title: string;
   destination: string | null;
+  /** The itinerary's own cover, so the review looks like the quote it came
+   *  from rather than a bare form. */
+  coverImage: string | null;
   travelDate: string | null;
   nights: number;
   travellers: number;
@@ -101,99 +104,151 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
-      <Heading as="h1" size="lg" className="mb-1">Review your booking</Heading>
-      <Text size="sm" intent="secondary" className="block mb-6">
-        Check the details below, then choose how much to pay now.
-      </Text>
-
-      <Card className="overflow-hidden">
-        {/* ── What is being bought ─────────────────────────────────────── */}
-        <div className="px-5 py-4 border-b border-(--border-muted)">
-          <Text size="base" weight="semibold" intent="primary" className="block">{summary.title}</Text>
-          {summary.destination && (
-            <Text size="xs" intent="secondary" className="block mt-0.5">{summary.destination}</Text>
-          )}
-          <div className="mt-3 grid grid-cols-3 gap-3">
-            <Detail label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
-            <Detail label="Nights" value={String(summary.nights)} />
-            <Detail label="Travellers" value={String(summary.travellers)} />
-          </div>
-          {/* Named only when the package quoted more than one, so a client who
-              never had a choice is not shown one they did not make. */}
-          {summary.optionLabel && (
-            <Text size="xs" intent="secondary" className="block mt-3">
-              Stay: <span className="font-medium text-neutral-700">{summary.optionLabel}</span>
-            </Text>
-          )}
+    // Same page chrome the catalogue's review uses: grey ground, a dark bar
+    // naming the step, then a two-column grid with the decision pinned in a
+    // 360px rail. A client who books a live package one week and a custom
+    // quote the next should not have to learn a second layout for the same
+    // act — and the rail is what keeps the amount and the button in view
+    // while they read down the trip.
+    <div className="bg-neutral-100 min-h-screen pb-16">
+      <div className="bg-surface-inverse text-white">
+        <div className="screen-space flex flex-wrap items-center justify-between gap-3 py-3.5">
+          <span className="text-base font-medium">Review Booking</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
+            Prepared by your travel manager
+          </span>
         </div>
+      </div>
 
-        {/* ── The price, and the saving if there was one ────────────────── */}
-        <div className="px-5 py-4 border-b border-(--border-muted) flex items-center justify-between gap-3">
-          <Text size="sm" intent="secondary">Package total</Text>
-          <div className="flex items-baseline gap-2">
-            {summary.discount && (
-              <span className="text-sm text-neutral-400 line-through tabular-nums">
-                {money(summary.currency, summary.discount.originalPrice)}
-              </span>
-            )}
-            <Text size="base" weight="bold" intent="primary">{money(summary.currency, summary.total)}</Text>
-            {summary.discount && (
-              <SavingsBadge amount={summary.discount.label} prefix="" className="shrink-0 mx-1.5" />
-            )}
+      <div className="screen-space pt-5">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+
+          {/* ── What is being bought ─────────────────────────────────── */}
+          <div className="flex flex-col gap-4">
+            <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+              <div className="flex gap-4 p-5">
+                {summary.coverImage && (
+                  /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
+                  <img
+                    src={summary.coverImage} alt=""
+                    className="h-24 w-36 shrink-0 rounded-lg object-cover bg-neutral-100"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <Heading level={3} weight="semibold" className="truncate">{summary.title}</Heading>
+                    <span className="shrink-0 rounded-md border border-primary-200 px-2 py-0.5 text-[11px] font-semibold text-primary-600">
+                      Tailored
+                    </span>
+                  </div>
+                  {summary.destination && (
+                    <Text size="sm" intent="secondary" weight="medium" className="block">{summary.destination}</Text>
+                  )}
+                  <div className="mt-2 grid grid-cols-3 gap-3">
+                    <Detail label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
+                    <Detail label="Nights" value={String(summary.nights)} />
+                    <Detail label="Travellers" value={String(summary.travellers)} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Named only when the package quoted more than one, so a client
+                  who never had a choice is not shown one they did not make. */}
+              {summary.optionLabel && (
+                <div className="border-t border-(--border-muted) px-5 py-3">
+                  <Text size="xs" intent="secondary">
+                    Stay standard: <span className="font-medium text-neutral-700">{summary.optionLabel}</span>
+                  </Text>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl bg-white shadow-sm px-5 py-4">
+              <Text size="sm" weight="semibold" intent="primary" className="block mb-1">Your itinerary</Text>
+              <Text size="xs" intent="secondary" className="block">
+                Everything your travel manager put together is on the quote you came from.
+              </Text>
+              <Link
+                href={`/custom-package/${summary.packageId}`}
+                className="mt-2 inline-block text-sm font-medium text-primary-500 hover:underline"
+              >
+                Read the full itinerary again
+              </Link>
+            </div>
           </div>
+
+          {/* ── The decision, kept in view ───────────────────────────── */}
+          <aside className="lg:sticky lg:top-20 flex flex-col gap-4">
+            <Card className="overflow-hidden">
+              <div className="px-5 py-4 border-b border-(--border-muted) flex items-center justify-between gap-3">
+                <Text size="sm" intent="secondary">Package total</Text>
+                <div className="flex items-baseline gap-2">
+                  {summary.discount && (
+                    <span className="text-sm text-neutral-400 line-through tabular-nums">
+                      {money(summary.currency, summary.discount.originalPrice)}
+                    </span>
+                  )}
+                  <Text size="base" weight="bold" intent="primary">{money(summary.currency, summary.total)}</Text>
+                </div>
+              </div>
+              {summary.discount && (
+                <div className="px-5 py-2 border-b border-(--border-muted) flex justify-end">
+                  <SavingsBadge amount={summary.discount.label} prefix="" className="shrink-0 mx-1.5" />
+                </div>
+              )}
+
+              {summary.mustPayFull ? (
+                <div className="px-5 py-4 border-b border-(--border-muted)">
+                  <Text size="sm" weight="semibold" intent="primary" className="block">Full payment due</Text>
+                  <Text size="xs" intent="muted" className="block mt-0.5">
+                    {summary.depositAmount >= summary.total
+                      ? "This trip is paid in one instalment."
+                      : "Travel is close enough that the balance is already due, so the whole amount is payable now."}
+                  </Text>
+                </div>
+              ) : (
+                <div className="px-5 py-4 border-b border-(--border-muted) flex flex-col gap-2.5">
+                  <PayOption
+                    selected={choice === "DEPOSIT"} onSelect={() => setPayChoice("DEPOSIT")}
+                    title="Pay advance to book" amount={money(summary.currency, summary.depositAmount)}
+                    sub={`Balance ${money(summary.currency, summary.balanceAmount)}${summary.balanceDueDate ? ` by ${formatDate(summary.balanceDueDate)}` : ""}`}
+                  />
+                  <PayOption
+                    selected={choice === "FULL"} onSelect={() => setPayChoice("FULL")}
+                    title="Pay full amount now" amount={money(summary.currency, summary.total)}
+                    sub="Nothing left to pay later."
+                  />
+                </div>
+              )}
+
+              <div className="px-5 py-4">
+                <Text size="sm" weight="semibold" intent="primary" className="block mb-2">Confirm &amp; Book</Text>
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)}
+                    className="mt-0.5 size-4 cursor-pointer shrink-0 accent-primary-500"
+                  />
+                  <Text size="xs" intent="secondary">
+                    I confirm I have read and accept the{" "}
+                    <Link href="/cancellation-policy" target="_blank" className="text-primary-500 underline">Cancellation Policy</Link>,{" "}
+                    <Link href="/terms" target="_blank" className="text-primary-500 underline">Terms of Service</Link>{" and "}
+                    <Link href="/privacy-policy" target="_blank" className="text-primary-500 underline">Privacy Policy</Link>.
+                  </Text>
+                </label>
+
+                <Button
+                  variant="premium" size="lg" className="w-full mt-4"
+                  onClick={proceed} loading={submitting} disabled={!policy || submitting}
+                >
+                  {policy ? `Pay ${money(summary.currency, payNow)} now` : "Accept policies to continue"}
+                </Button>
+
+                {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
+              </div>
+            </Card>
+          </aside>
         </div>
-
-        {/* ── How much to pay now ──────────────────────────────────────── */}
-        {summary.mustPayFull ? (
-          <div className="px-5 py-4 border-b border-(--border-muted)">
-            <Text size="sm" weight="semibold" intent="primary" className="block">Full payment due</Text>
-            <Text size="xs" intent="muted" className="block mt-0.5">
-              {summary.balanceDueDate === null && summary.depositAmount >= summary.total
-                ? "This trip is paid in one instalment."
-                : "Travel is close enough that the balance is already due, so the whole amount is payable now."}
-            </Text>
-          </div>
-        ) : (
-          <div className="px-5 py-4 border-b border-(--border-muted) flex flex-col gap-2.5">
-            <PayOption
-              selected={choice === "DEPOSIT"} onSelect={() => setPayChoice("DEPOSIT")}
-              title="Pay advance to book" amount={money(summary.currency, summary.depositAmount)}
-              sub={`Balance ${money(summary.currency, summary.balanceAmount)}${summary.balanceDueDate ? ` by ${formatDate(summary.balanceDueDate)}` : ""}`}
-            />
-            <PayOption
-              selected={choice === "FULL"} onSelect={() => setPayChoice("FULL")}
-              title="Pay full amount now" amount={money(summary.currency, summary.total)}
-              sub="Nothing left to pay later."
-            />
-          </div>
-        )}
-
-        {/* ── Policies, then pay ───────────────────────────────────────── */}
-        <div className="px-5 py-4">
-          <label className="flex items-start gap-2.5 cursor-pointer select-none">
-            <input
-              type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)}
-              className="mt-0.5 size-4 cursor-pointer shrink-0 accent-primary-500"
-            />
-            <Text size="xs" intent="secondary">
-              I confirm I have read and accept the{" "}
-              <Link href="/cancellation-policy" target="_blank" className="text-primary-500 underline">Cancellation Policy</Link>,{" "}
-              <Link href="/terms" target="_blank" className="text-primary-500 underline">Terms of Service</Link>{" and "}
-              <Link href="/privacy-policy" target="_blank" className="text-primary-500 underline">Privacy Policy</Link>.
-            </Text>
-          </label>
-
-          <Button
-            variant="premium" size="lg" className="w-full mt-4"
-            onClick={proceed} loading={submitting} disabled={!policy || submitting}
-          >
-            {policy ? `Pay ${money(summary.currency, payNow)} now` : "Accept policies to continue"}
-          </Button>
-
-          {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
-        </div>
-      </Card>
+      </div>
     </div>
   );
 }
