@@ -815,14 +815,25 @@ model TeamMember {
   updatedAt              DateTime          @updatedAt
   aadhaarFileKey         String?
   aadhaarFileUrl         String?
+  aadhaarBackFileKey     String?
+  aadhaarBackFileUrl     String?
   aadhaarNumber          String?           @db.VarChar(12)
   alternativeMobile      String?           @db.VarChar(15)
   designation            String?           @db.VarChar(255)
   employeeId             String            @unique
   fatherMobile           String?           @db.VarChar(15)
   fatherName             String?           @db.VarChar(255)
+  gender                 Gender?
+  /**
+   * Set when the onboarding popup's "I don't remember 🤷" option is chosen
+   * instead of an actual date — distinct from joiningDate simply being
+   * unset, so the popup's required-fields check can treat this as
+   * satisfied without a real date ever being recorded.
+   */
+  joiningDateUnknown     Boolean           @default(false)
   motherMobile           String?           @db.VarChar(15)
   motherName             String?           @db.VarChar(255)
+  officialMobile         String?           @db.VarChar(15)
   panFileKey             String?
   panFileUrl             String?
   panNumber              String?           @db.VarChar(10)

@@ -16,6 +16,8 @@ import { OfflineDetector } from "./components/dashboard/OfflineDetector";
 import { NumberInputScrollGuard } from "./components/dashboard/NumberInputScrollGuard";
 import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminderprovider";
 import { PackageStatusNotifier } from "./(sales)/sales-query/PackageStatusNotifier";
+import { OnboardingPopup } from "./components/dashboard/OnboardingPopup";
+import { getMyProfile } from "./profile/actions";
 
 function parsePageAccess(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((href): href is string => typeof href === "string") : [];
@@ -108,6 +110,18 @@ export default async function DashboardLayout({
       return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0 };
     });
 
+  // "May I know you 🥰" onboarding popup — gated on the REAL logged-in
+  // member (never the impersonated "view as" target, same rule the profile
+  // page itself follows), and only on the fields that are actually required
+  // to dismiss it. Everything else in the popup (family details, identity
+  // docs) is optional and never blocks this from clearing.
+  const needsOnboarding = !realMember.gender
+    || !realMember.personalMobile
+    || !realMember.alternativeMobile
+    || !realMember.personalEmail
+    || (!realMember.joiningDate && !realMember.joiningDateUnknown);
+  const onboardingProfile = needsOnboarding ? await getMyProfile() : null;
+
   return (
     <SidebarProvider>
       {/* Sidebar reflects the effective member's page access.
@@ -163,6 +177,7 @@ export default async function DashboardLayout({
       <NumberInputScrollGuard />
       {isSales && <FollowUpReminderProvider />}
       {isSales && <PackageStatusNotifier />}
+      {onboardingProfile && <OnboardingPopup profile={onboardingProfile} />}
     </SidebarProvider>
   );
 }

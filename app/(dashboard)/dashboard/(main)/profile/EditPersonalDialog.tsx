@@ -72,6 +72,15 @@ export function EditPersonalDialog({ profile }: { profile: ProfileData }) {
                             />
                             {errors?.alternativeMobile && <p className="text-xs text-destructive">{errors.alternativeMobile[0]}</p>}
                         </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="officialMobile">Official Mobile</Label>
+                            <Input
+                                id="officialMobile" name="officialMobile"
+                                defaultValue={profile.officialMobile ?? ""}
+                                placeholder="9876543210"
+                            />
+                            {errors?.officialMobile && <p className="text-xs text-destructive">{errors.officialMobile[0]}</p>}
+                        </div>
 
                         <DialogFooter>
                             <Button type="submit" disabled={isPending}>

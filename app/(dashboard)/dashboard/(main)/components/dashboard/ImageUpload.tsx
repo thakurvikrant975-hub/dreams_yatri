@@ -17,6 +17,10 @@ type Props = {
     onChange?: (img: UploadedImage | null) => void;
     folder: "regions" | "destinations" | "hotels" | "packages" | "activities" | "team-members";
     aspectRatio?: "square" | "video" | "wide";
+    /** Client-side cap tighter than the server's 20MB, checked before the
+     * upload request is even sent — for callers that need a stricter limit
+     * than the shared default (e.g. HR document scans). */
+    maxSizeMB?: number;
 };
 
 export function ImageUpload({
@@ -26,6 +30,7 @@ export function ImageUpload({
     onChange,
     folder,
     aspectRatio = "video",
+    maxSizeMB,
 }: Props) {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -42,6 +47,13 @@ export function ImageUpload({
         if (!file) return;
 
         setError(null);
+
+        if (maxSizeMB && file.size > maxSizeMB * 1024 * 1024) {
+            setError(`Image must be under ${maxSizeMB}MB`);
+            if (inputRef.current) inputRef.current.value = "";
+            return;
+        }
+
         setUploading(true);
 
         try {
@@ -120,7 +132,7 @@ export function ImageUpload({
                             </div>
                             <div className="text-center px-4">
                                 <p className="text-sm font-medium">{label}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP up to 20MB</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP up to {maxSizeMB ?? 20}MB</p>
                             </div>
                         </>
                     )}

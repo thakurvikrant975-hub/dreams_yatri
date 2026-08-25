@@ -21,13 +21,16 @@ export type ProfileData = {
     name: string;
     email: string;
     isActive: boolean;
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY" | null;
     joiningDate: Date | null;
+    joiningDateUnknown: boolean;
     lastLoginAt: Date | null;
     designation: string | null;
     employeeId: string;
     personalEmail: string | null;
     personalMobile: string | null;
     alternativeMobile: string | null;
+    officialMobile: string | null;
     fatherName: string | null;
     fatherMobile: string | null;
     motherName: string | null;
@@ -35,6 +38,8 @@ export type ProfileData = {
     aadhaarNumber: string | null;
     aadhaarFileKey: string | null;
     aadhaarFileUrl: string | null;
+    aadhaarBackFileKey: string | null;
+    aadhaarBackFileUrl: string | null;
     panNumber: string | null;
     panFileKey: string | null;
     panFileUrl: string | null;
