@@ -123,7 +123,7 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            May I know you <span aria-hidden> Guchu Puchu 🥰</span>
+            May I know you <span aria-hidden> Dear 🥰</span>
           </DialogTitle>
           <DialogDescription>
             A few details so the team can actually take care of you.
