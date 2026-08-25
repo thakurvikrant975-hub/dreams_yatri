@@ -26,6 +26,7 @@
 import { useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
+import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 import { PUBLISHED_THEME } from "./published-theme";
 
@@ -151,9 +152,11 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
             )}
             <span className="font-heading text-lg font-bold tracking-tight text-primary-500">{priceStr}</span>
             {discount && (
-              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 shrink-0">
-                {discount.label}
-              </span>
+              // The same badge the document's price panel uses, so the saving
+              // looks like one thing in both places. Its serrated edges are
+              // absolutely positioned outside the box, hence the margin — the
+              // flex gap alone would clip them against the price.
+              <SavingsBadge amount={discount.label} prefix="" className="shrink-0 mx-1.5" />
             )}
           </p>
             <p className="text-xs text-neutral-500">
