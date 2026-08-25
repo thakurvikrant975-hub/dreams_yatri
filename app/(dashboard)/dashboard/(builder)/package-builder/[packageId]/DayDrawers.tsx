@@ -553,7 +553,7 @@ export function TransferView({ day }: { day: number }) {
             onClick={loadMore} disabled={loadingMore}
           >
             {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-            {loadingMore ? "Loading…" : `Load more · ${total - results.length} left`}
+            {loadingMore ? "Loading…" : `Load more · ${total - pricedCount} left`}
           </Button>
         )}
       </div>
