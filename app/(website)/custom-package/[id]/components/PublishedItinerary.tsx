@@ -201,13 +201,20 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               type="button"
               onClick={handleBookNow}
               disabled={submitting}
-              className="flex items-center gap-1.5 rounded-lg bg-white bg-linear-to-r from-primary-500/85 to-primary-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:from-primary-400/85 hover:to-primary-500 disabled:opacity-60 font-heading cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg bg-white bg-linear-to-r from-primary-500/85 to-primary-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:from-primary-400/85 hover:to-primary-500 disabled:opacity-60 disabled:cursor-not-allowed font-heading cursor-pointer"
             >
               {/* Names the option being bought, so what is about to be charged
                   is stated rather than inferred from a chip further up. */}
+              Book {multi && chosen ? chosen.label : "Now"}
+              {/* Only the icon changes while submitting. Swapping the whole
+                  label for a spinner collapsed the button to the width of the
+                  spinner — the one control on the page jumping and shrinking
+                  at the exact moment a client has committed to paying. Both
+                  glyphs are 14px, so the width does not move at all; the
+                  disabled state and the dimming carry the rest. */}
               {submitting
                 ? <Loader2 size={14} className="animate-spin" />
-                : <>Book {multi && chosen ? chosen.label : "Now"} <ArrowRight size={14} /></>}
+                : <ArrowRight size={14} />}
             </button>
           ) : null}
         </div>
