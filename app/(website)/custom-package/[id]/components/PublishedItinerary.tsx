@@ -24,7 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { ArrowRight, Loader2, Printer } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 import { PUBLISHED_THEME } from "./published-theme";
@@ -128,25 +128,12 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {/* The browser's own "Save as PDF" is right here in its print dialog,
-              and the document's PRINT_STYLES already produce the exact A4 the
-              exec exports — so the client gets the PDF without this page
-              shipping the html2canvas/jsPDF exporter to every visitor. */}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
-          >
-            <Printer size={14} />
-            <span className="hidden sm:inline">Save as PDF</span>
-          </button>
-
           {priceValue ? (
             <button
               type="button"
               onClick={handleBookNow}
               disabled={submitting}
-              className="flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-lg bg-white bg-linear-to-r from-primary-500/85 to-primary-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:from-primary-400/85 hover:to-primary-500 disabled:opacity-60 font-heading "
             >
               {/* Names the option being bought, so what is about to be charged
                   is stated rather than inferred from a chip further up. */}

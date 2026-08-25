@@ -569,18 +569,21 @@ function SectionHeader({
   const badgeBg = tone === "emerald" ? "#E8F6F1" : DOC.iconBadge;
   return (
     <div className="flex items-center gap-2.5" style={{ breakAfter: "avoid" }}>
-      <span
-        className="flex items-center justify-center size-7 rounded-full shrink-0 bg-white ring-1 ring-inset ring-neutral-200/80 shadow-lg shadow-neutral-200/90"
-      >
-        <Icon size={14} color={iconColor} />
-      </span>
-      <h2
-        className={cn(DISPLAY, "text-[16px] text-neutral-900 font-semibold font-heading whitespace-nowrap")}
-        style={{ color: DOC.ink, letterSpacing: "-0.01em" }}
-      >
-        {label}
-      </h2>
-      <span className="h-px flex-1 bg-neutral-300/60" />
+      <div className="bg-primary-50 flex items-center gap-2.5 px-2 py-1.5 rounded-lg ring-1 ring-inset ring-primary-800/20 shadow-lg shadow-primary-800/15">
+        <span
+          className="flex items-center justify-center size-7 rounded-full shrink-0 bg-primary-500 "
+        >
+          <Icon size={14} className="text-white" />
+        </span>
+        <h2
+          className={cn(DISPLAY, "text-sm text-primary-950 font-semibold font-heading whitespace-nowrap")}
+          style={{  letterSpacing: "-0.01em" }}
+        >
+          {label}
+        </h2>
+      </div>
+
+      <span className="h-0.5 flex-1 bg-primary-950/70" />
       {onAdd && (
         <button
           type="button"
@@ -2499,31 +2502,31 @@ function StayColumns({
                       <Pencil size={13} />
                     </button>
                     {categories.length > 1 && (
-                    <button
-                      type="button"
-                      aria-label={`Remove the ${c.label} stay option`}
-                      title={`Remove "${c.label}" from this package entirely — the other stays stay`}
-                      onClick={async () => {
-                        // Removes the OPTION, not just the hotel on it.
-                        //
-                        // Clearing the fields left the column standing — an
-                        // empty card with a picker in it — which is not what
-                        // "delete this stay" means to anyone looking at it, and
-                        // the remaining stay stayed squeezed into half the row.
-                        // Dropping the option is what makes the row reflow to
-                        // full width, because the grid sizes off how many there
-                        // are.
-                        //
-                        // Emptying a column without removing it is still
-                        // available: that is what the picker's own clear does.
-                        const r = await removeStayOption(packageId!, c.id);
-                        if (!r.success) { toast.error(r.error); return; }
-                        await onStayOptionsChanged?.();
-                      }}
-                      className="flex items-center justify-center size-6 rounded-md text-dashboard-error/60 hover:bg-dashboard-error/10 hover:text-dashboard-error transition-colors duration-[120ms]"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove the ${c.label} stay option`}
+                        title={`Remove "${c.label}" from this package entirely — the other stays stay`}
+                        onClick={async () => {
+                          // Removes the OPTION, not just the hotel on it.
+                          //
+                          // Clearing the fields left the column standing — an
+                          // empty card with a picker in it — which is not what
+                          // "delete this stay" means to anyone looking at it, and
+                          // the remaining stay stayed squeezed into half the row.
+                          // Dropping the option is what makes the row reflow to
+                          // full width, because the grid sizes off how many there
+                          // are.
+                          //
+                          // Emptying a column without removing it is still
+                          // available: that is what the picker's own clear does.
+                          const r = await removeStayOption(packageId!, c.id);
+                          if (!r.success) { toast.error(r.error); return; }
+                          await onStayOptionsChanged?.();
+                        }}
+                        className="flex items-center justify-center size-6 rounded-md text-dashboard-error/60 hover:bg-dashboard-error/10 hover:text-dashboard-error transition-colors duration-120"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     )}
                   </div>
 
@@ -3354,7 +3357,7 @@ function HeroCover({
             the two would land a few millimetres apart on a wide window, which
             is worse than not aligning them at all. */}
         <div className="screen-space px-[3mm] sm:px-[10mm]">
-        {/* The client's own name, handwritten, sitting on top of the title —
+          {/* The client's own name, handwritten, sitting on top of the title —
             so the cover reads as one phrase, "Suraj's / Alleppey & Kochi
             Weekend Escape", and the document looks addressed to a person
             rather than generated for a record.
@@ -3368,52 +3371,52 @@ function HeroCover({
             `pointer-events-none` because it sits over the editable h1 — the
             name comes from the originating query and isn't editable here, and
             without this it would swallow clicks meant for the title. */}
-        {form.clientName && (
-          <span
-            aria-hidden="true"
-            className="-mb-1 ml-1 -rotate-2 origin-bottom-left text-primary-400 text-[32px] leading-none pointer-events-none select-none font-bold block w-max "
+          {form.clientName && (
+            <span
+              aria-hidden="true"
+              className="-mb-1 ml-1 -rotate-2 origin-bottom-left text-primary-400 text-[32px] leading-none pointer-events-none select-none font-bold block w-max "
+              style={{
+                fontFamily: "var(--font-script)",
+                fontWeight: 700,
+                // Belt and braces over the scrim: a photo can be bright exactly
+                // where the script sits, and a coloured script is the first thing
+                // to disappear into it. Cheap, and it survives the PDF capture.
+                textShadow: "0 1px 3px rgba(0,0,0,0.55)",
+              }}
+            >
+              {possessive(form.clientName)}
+            </span>
+          )}
+          <EditableText
+            as="h1"
+            value={form.title}
+            field={{ scope: "package", key: "title" }}
+            placeholder="Name this package…"
+            fallback="Untitled Package"
+            className={cn(DISPLAY, "inline font-heading text-[34px] leading-[1.08] font-bold text-white ")}
             style={{
-              fontFamily: "var(--font-script)",
-              fontWeight: 700,
-              // Belt and braces over the scrim: a photo can be bright exactly
-              // where the script sits, and a coloured script is the first thing
-              // to disappear into it. Cheap, and it survives the PDF capture.
-              textShadow: "0 1px 3px rgba(0,0,0,0.55)",
+              maxWidth: "150mm",
+              letterSpacing: "-0.02em",
+              textWrap: "balance",
+              textShadow: "0 2px 6px rgba(0,0,0,0.6)",
             }}
-          >
-            {possessive(form.clientName)}
-          </span>
-        )}
-        <EditableText
-          as="h1"
-          value={form.title}
-          field={{ scope: "package", key: "title" }}
-          placeholder="Name this package…"
-          fallback="Untitled Package"
-          className={cn(DISPLAY, "inline font-heading text-[34px] leading-[1.08] font-bold text-white ")}
-          style={{
-            maxWidth: "150mm",
-            letterSpacing: "-0.02em",
-            textWrap: "balance",
-            textShadow: "0 2px 6px rgba(0,0,0,0.6)",
-          }}
-        />
+          />
 
-        {/* Duration in a hairline gold box — the third beat of the lockup, and
+          {/* Duration in a hairline gold box — the third beat of the lockup, and
             the one number a client checks first. Nights are shown alongside
             days because "6 days" alone is the figure people misread. */}
-        {form.totalDays > 0 && (
-          <div className="mt-2 mb-2 flex gap-3 items-center">
-            <span className="inline-flex items-center gap-2.5 rounded-pill border border-primary-100 ring-[0.12em] ring-inset ring-primary-400 px-3 py-1 text-white  text-[11px]  backdrop-md font-heading font-bold bg-primary-400/5">
-              {form.totalDays} Day{form.totalDays !== 1 ? "s" : ""}
-              <span className="h-3.5 w-px bg-primary-300" />
-              {form.totalNights} Night{form.totalNights !== 1 ? "s" : ""}
-            </span>
-            <span className="text-white text-lg font-bold font-heading">TRIP</span>
-          </div>
-        )}
+          {form.totalDays > 0 && (
+            <div className="mt-2 mb-2 flex gap-3 items-center">
+              <span className="inline-flex items-center gap-2.5 rounded-pill border border-primary-100 ring-[0.12em] ring-inset ring-primary-400 px-3 py-1 text-white  text-[11px]  backdrop-md font-heading font-bold bg-primary-400/5">
+                {form.totalDays} Day{form.totalDays !== 1 ? "s" : ""}
+                <span className="h-3.5 w-px bg-primary-300" />
+                {form.totalNights} Night{form.totalNights !== 1 ? "s" : ""}
+              </span>
+              <span className="text-white text-lg font-bold font-heading">TRIP</span>
+            </div>
+          )}
 
-        {/* The route used to run along here, under the title. It has moved into
+          {/* The route used to run along here, under the title. It has moved into
             the Prepared For / Travel Manager card below: over a photograph the
             chips fought the scrim for legibility and a long itinerary wrapped to
             three lines that pushed the whole lockup off the cover. On paper it
@@ -3733,26 +3736,26 @@ export function ItineraryDocument({
   const recommendedStay = stayOptions.find((o) => o.isRecommended) ?? stayOptions[0];
   const stayRuns: StayRun[] = stayOptions.length > 1
     ? buildStayRuns(form.itineraries.map((d) => {
-        const byOption: Record<string, StayCell> = {};
-        for (const o of stayOptions) {
-          const cell = o.byDay?.[d.day];
-          if (cell) byOption[o.id] = cell;
-        }
-        return {
-          day: d.day,
-          // Check-in/out belong to the stay, so they come off the recommended
-          // option's own cell first; the day row is the fallback for a package
-          // whose options predate those fields being filled in.
-          checkIn: recommendedStay?.byDay?.[d.day]?.checkIn ?? d.hotelCheckIn,
-          checkOut: recommendedStay?.byDay?.[d.day]?.checkOut ?? d.hotelCheckOut,
-          // Where the day is spent — what actually decides where one stay
-          // ends. The day's own hotel location wins when it has one, since an
-          // exec who typed a town on the day meant that town; otherwise the
-          // route stop this day falls under.
-          location: d.accommodationLocation?.trim() || stayDayLocations[d.day - 1] || null,
-          byOption,
-        };
-      }), stayOptionIds)
+      const byOption: Record<string, StayCell> = {};
+      for (const o of stayOptions) {
+        const cell = o.byDay?.[d.day];
+        if (cell) byOption[o.id] = cell;
+      }
+      return {
+        day: d.day,
+        // Check-in/out belong to the stay, so they come off the recommended
+        // option's own cell first; the day row is the fallback for a package
+        // whose options predate those fields being filled in.
+        checkIn: recommendedStay?.byDay?.[d.day]?.checkIn ?? d.hotelCheckIn,
+        checkOut: recommendedStay?.byDay?.[d.day]?.checkOut ?? d.hotelCheckOut,
+        // Where the day is spent — what actually decides where one stay
+        // ends. The day's own hotel location wins when it has one, since an
+        // exec who typed a town on the day meant that town; otherwise the
+        // route stop this day falls under.
+        location: d.accommodationLocation?.trim() || stayDayLocations[d.day - 1] || null,
+        byOption,
+      };
+    }), stayOptionIds)
     : [];
 
   const detailedShiftedMeals = computeShiftedMeals(form.itineraries);
@@ -3926,73 +3929,73 @@ export function ItineraryDocument({
           <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7 " style={{ breakInside: "avoid" }}>
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination
               || form.description.trim() || builder?.canEdit) && (
-              <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
-                {(form.clientName || form.execName) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x divide-neutral-200/85">
-                    {/* Prepared For — the client this itinerary is going to */}
-                    <div className="p-3.5">
-                      <p className="text-[9px] font-bold text-primary-600/90 uppercase tracking-widest mb-1.5 flex items-center"> <span className="text-lg">🤩</span> &nbsp; Prepared With Love For </p>
-                      {form.clientName ? (
-                        <>
-                          <p className={cn(DISPLAY, "text-xl font-bold font-heading text-neutral-900 truncate")}>{form.clientName}</p>
-                          <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-50 px-2 py-0.5 rounded-full ring-1 ring-inset ring-neutral-200/80 shadow-sm shadow-neutral-200/80">
-                              {form.adults} Adult{form.adults !== 1 ? "s" : ""}
-                            </span>
-                            {form.children > 0 && (
-                              <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
-                                {form.children} Child{form.children !== 1 ? "ren" : ""}
+                <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
+                  {(form.clientName || form.execName) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x divide-neutral-200/85">
+                      {/* Prepared For — the client this itinerary is going to */}
+                      <div className="p-3.5">
+                        <p className="text-[9px] font-bold text-primary-600/90 uppercase tracking-widest mb-1.5 flex items-center"> <span className="text-lg">🤩</span> &nbsp; Prepared With Love For </p>
+                        {form.clientName ? (
+                          <>
+                            <p className={cn(DISPLAY, "text-xl font-bold font-heading text-neutral-900 truncate")}>{form.clientName}</p>
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-50 px-2 py-0.5 rounded-full ring-1 ring-inset ring-neutral-200/80 shadow-sm shadow-neutral-200/80">
+                                {form.adults} Adult{form.adults !== 1 ? "s" : ""}
                               </span>
+                              {form.children > 0 && (
+                                <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
+                                  {form.children} Child{form.children !== 1 ? "ren" : ""}
+                                </span>
+                              )}
+                              {form.infants > 0 && (
+                                <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
+                                  {form.infants} Infant{form.infants !== 1 ? "s" : ""}
+                                </span>
+                              )}
+                            </div>
+                            {form.queryId && (
+                              <p className="text-[11px] text-neutral-500 mt-1.5 font-medium tracking-wide">
+                                Ref: {refCode(form.queryId)}
+                              </p>
                             )}
-                            {form.infants > 0 && (
-                              <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
-                                {form.infants} Infant{form.infants !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                          </div>
-                          {form.queryId && (
-                            <p className="text-[11px] text-neutral-500 mt-1.5 font-medium tracking-wide">
-                              Ref: {refCode(form.queryId)}
+                          </>
+                        ) : (
+                          <p className="text-xs text-neutral-400 italic">—</p>
+                        )}
+                      </div>
+
+                      {/* Your Travel Manager — the exec who built it */}
+                      <div className="p-3.5">
+                        <p className="text-[9px] font-bold text-neutral-700/90 uppercase tracking-widest mb-1.5">Your Travel Manager</p>
+                        {form.execName ? (
+                          <>
+                            <p className={cn(DISPLAY, "text-xl font-bold font-heading text-neutral-900 truncate")}>
+                              {form.execName}
+                              {form.execDesignation && <span className="font-normal text-neutral-500"> · {form.execDesignation}</span>}
                             </p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-xs text-neutral-400 italic">—</p>
-                      )}
+                            {form.execEmail && (
+                              <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-neutral-700/90 text-[11px] mt-1.5 hover:underline w-fit">
+                                <Mail size={16} className="text-neutral-400/90" /> {form.execEmail}
+                              </a>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-neutral-400 italic">—</p>
+                        )}
+                      </div>
                     </div>
+                  )}
 
-                    {/* Your Travel Manager — the exec who built it */}
-                    <div className="p-3.5">
-                      <p className="text-[9px] font-bold text-neutral-700/90 uppercase tracking-widest mb-1.5">Your Travel Manager</p>
-                      {form.execName ? (
-                        <>
-                          <p className={cn(DISPLAY, "text-xl font-bold font-heading text-neutral-900 truncate")}>
-                            {form.execName}
-                            {form.execDesignation && <span className="font-normal text-neutral-500"> · {form.execDesignation}</span>}
-                          </p>
-                          {form.execEmail && (
-                            <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-neutral-700/90 text-[11px] mt-1.5 hover:underline w-fit">
-                              <Mail size={16} className="text-neutral-400/90" /> {form.execEmail}
-                            </a>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-xs text-neutral-400 italic">—</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Your Route — moved off the cover photo. Full width under the two
+                  {/* Your Route — moved off the cover photo. Full width under the two
                   columns rather than a third column beside them: a route runs to
                   five or six chips and would have been squeezed into a third of
                   the card, wrapping into a stack of one-chip lines. */}
-                <div className="border-t border-neutral-200/80 p-3.5">
-                  <p className="text-[9px] font-bold text-neutral-500/90 uppercase tracking-widest mb-2">Your Route</p>
-                  <RouteStrip form={form} steps={routeSteps} />
-                </div>
+                  <div className="border-t border-neutral-200/80 p-3.5">
+                    <p className="text-[9px] font-bold text-neutral-500/90 uppercase tracking-widest mb-2">Your Route</p>
+                    <RouteStrip form={form} steps={routeSteps} />
+                  </div>
 
-                {/* The package's own words, closing the card the route opened.
+                  {/* The package's own words, closing the card the route opened.
                     Here rather than in a card of its own: it is the same
                     thought as the rest of this block — who the trip is for,
                     who is running it, where it goes, and what it is — and
@@ -4001,20 +4004,20 @@ export function ItineraryDocument({
                     Only when there is something to say, or while the exec can
                     still say it. It is the one field routinely left blank, and
                     an empty panel on a client's quote is worse than none. */}
-                {(form.description.trim() || builder?.canEdit) && (
-                  <div className="border-t border-neutral-200/80 p-3.5">
-                    <EditableText
-                      as="p"
-                      multiline
-                      value={form.description}
-                      field={{ scope: "package", key: "description" }}
-                      placeholder="Describe this package for the client — click to add…"
-                      className="block text-sm text-neutral-800 leading-relaxed"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+                  {(form.description.trim() || builder?.canEdit) && (
+                    <div className="border-t border-neutral-200/80 p-3.5">
+                      <EditableText
+                        as="p"
+                        multiline
+                        value={form.description}
+                        field={{ scope: "package", key: "description" }}
+                        placeholder="Describe this package for the client — click to add…"
+                        className="block text-sm text-neutral-800 leading-relaxed"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
             <TicketsSection
               tickets={form.tickets}
