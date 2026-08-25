@@ -144,7 +144,12 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               correction — the green saving beside it is what says a concession
               was made, which is the part a client repeats to whoever else is
               deciding with them. */}
-          <p className="flex items-baseline gap-2 truncate">
+          {/* A div, not a p: SavingsBadge renders a div for its serrated
+              edges, and a div inside a p is invalid HTML — the browser closes
+              the paragraph early and React's hydration then disagrees with
+              the DOM it finds. Nothing here is a paragraph anyway; it is a
+              row of figures. */}
+          <div className="flex items-baseline gap-2 truncate">
             {discount && (
               <span className="text-sm text-neutral-400 line-through tabular-nums shrink-0">
                 {form.currency} {Math.round(discount.originalPrice).toLocaleString("en-IN")}
@@ -158,7 +163,7 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               // flex gap alone would clip them against the price.
               <SavingsBadge amount={discount.label} prefix="" className="shrink-0 mx-1.5" />
             )}
-          </p>
+          </div>
             <p className="text-xs text-neutral-500">
               Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
               {chosen && multi && <> · <span className="font-medium text-neutral-700">{chosen.label}</span></>}
