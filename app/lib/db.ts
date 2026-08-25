@@ -73,6 +73,15 @@ async function createPrismaClient() {
   // This covers Neon compute cold-start: the pooler accepts the TCP connection
   // while the compute wakes up, then drops it before the query runs.
   // Only model operations are retried — raw queries are left to the caller.
+  //
+  // Also retries "ready_status_requires_ready_at" check-constraint failures.
+  // That constraint's own row was confirmed correct (readyAt already set)
+  // moments after one of these fired in production, and a clean local
+  // reproduction on an identical row saved without issue — pointing at a
+  // stale prepared-statement/connection reused under the pooler rather than
+  // a real data problem. A genuinely bad row just fails the same way on
+  // every attempt, so retrying costs nothing there; it only helps the
+  // transient case.
   return client.$extends({
     name: "retry-on-connection-error",
     query: {
@@ -86,7 +95,8 @@ async function createPrismaClient() {
                 ? err.cause.message
                 : "";
               const msg = (err instanceof Error ? err.message : String(err)) + " " + cause;
-              const retryable = /connection terminated/i.test(msg);
+              const retryable = /connection terminated/i.test(msg)
+                || /ready_status_requires_ready_at/.test(msg);
               if (attempt < 3 && retryable) {
                 // Back off: 600 ms, then 1 200 ms
                 await new Promise(r => setTimeout(r, 600 * attempt));
