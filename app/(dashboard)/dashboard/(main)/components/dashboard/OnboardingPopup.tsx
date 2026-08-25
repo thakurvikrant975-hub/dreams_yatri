@@ -231,7 +231,7 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Professional Email</Label>
+              <Label>Professional Email (will be)</Label>
               <Input value={profile.email} disabled />
             </div>
           </TabsContent>
