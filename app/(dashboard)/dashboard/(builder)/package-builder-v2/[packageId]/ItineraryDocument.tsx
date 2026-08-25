@@ -580,7 +580,7 @@ function SectionHeader({
   const badgeBg = tone === "emerald" ? "#E8F6F1" : DOC.iconBadge;
   return (
     <div className="flex items-center gap-2.5" style={{ breakAfter: "avoid" }}>
-      <div className="bg-primary-50 flex items-center gap-2.5 px-2 py-1.5 rounded-lg ring-1 ring-inset ring-primary-800/20 shadow-lg shadow-primary-800/15">
+      <div className="bg-linear-to-b from-white via-primary-50 to-primary-50 flex items-center gap-2.5 px-2 py-1.5 rounded-lg ring-1 ring-inset ring-primary-800/20 shadow-lg shadow-primary-800/15">
         <span
           className="flex items-center justify-center size-7 rounded-full shrink-0 bg-primary-500 "
         >

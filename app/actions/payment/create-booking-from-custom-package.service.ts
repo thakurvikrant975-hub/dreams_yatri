@@ -37,6 +37,10 @@ export async function createBookingFromCustomPackage(params: {
      * Absent means the recommended one. Validated against the package rather
      * than trusted: it arrives from a public page and decides what is charged. */
     stayOptionId?: string | null;
+    /** What the client chose on the review step. Absent means take the
+     * schedule's own answer, which is what the flow did before there was a
+     * review step to choose on. */
+    paymentChoice?: "FULL" | "DEPOSIT";
 }): Promise<CreateBookingResult> {
     const { customPackageId, userId, stayOptionId } = params;
 
@@ -129,7 +133,12 @@ export async function createBookingFromCustomPackage(params: {
     const totalPaise = rupeesToPaise(bookedPrice);
     const schedule = computePaymentSchedule({ totalPaise, travelDate: isoDate(cp.travelDate) });
 
-    const useFull = schedule.plan === "FULL";
+    // The engine decides whether a deposit is ALLOWED; the client decides
+    // whether to use one. Paying in full is always permitted — it is the same
+    // money sooner — so a FULL choice is honoured even when the schedule would
+    // have allowed a deposit. The reverse is not: a client cannot choose a
+    // deposit on a booking the policy says must be paid in full.
+    const useFull = schedule.plan === "FULL" || params.paymentChoice === "FULL";
     const todayISO = schedule.installments[0].dueDate;
     const effPlan: "FULL" | "DEPOSIT" = useFull ? "FULL" : "DEPOSIT";
     const effDepositPaise = useFull ? totalPaise : schedule.depositPaise;

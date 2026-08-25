@@ -71,12 +71,15 @@ export async function createCustomPackageBookingDraft(
      * inside the service — it arrives from a public page and decides the
      * amount charged. */
     stayOptionId?: string | null,
+    /** The client's pick on the review step — pay the deposit now, or all of
+     * it. Ignored when the policy already requires the full amount. */
+    paymentChoice?: "FULL" | "DEPOSIT",
 ): Promise<CreateBookingResult> {
     const user = await getAuthenticatedUser();
     if (!user?.id) return { success: false, reason: "unauthenticated" };
 
     try {
-        return await createBookingFromCustomPackage({ customPackageId, userId: user.id, stayOptionId });
+        return await createBookingFromCustomPackage({ customPackageId, userId: user.id, stayOptionId, paymentChoice });
     } catch (err) {
         console.error("[createCustomPackageBookingDraft] failed", err);
         return { success: false, reason: "error", message: "Could not start your booking. Please try again." };
