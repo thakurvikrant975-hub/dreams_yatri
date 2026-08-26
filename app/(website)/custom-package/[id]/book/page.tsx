@@ -32,7 +32,17 @@ export default async function BookCustomPackagePage({
   // createBookingFromCustomPackage — the page must not offer a number the
   // service would then disagree with.
   const options = data.stayOptions ?? [];
-  const recommendedId = (options.find((o) => o.isRecommended) ?? options[0])?.id ?? null;
+  // The flag, never a position. getSharedPackage drops options with no hotel
+  // on any night, so the recommended one can be missing from this list — and
+  // falling back to options[0] then declared a NON-recommended option to be
+  // the recommended one. This page would price it at the package total while
+  // the service, reading isRecommended from the row, charged the option's own
+  // price. Two different numbers for one click.
+  //
+  // With the flag alone, a filtered-out recommendation simply means no option
+  // here is the recommended one, and every option is priced at its own figure
+  // — which is exactly what the service does with the same input.
+  const recommendedId = options.find((o) => o.isRecommended)?.id ?? null;
   const chosen = option ? options.find((o) => o.id === option) ?? null : null;
   const useOptionPrice = chosen != null && chosen.id !== recommendedId && (chosen.totalPrice ?? 0) > 0;
 
@@ -56,7 +66,9 @@ export default async function BookCustomPackagePage({
     total,
     optionId: chosen?.id ?? null,
     // Named only when there was a choice to make.
-    optionLabel: options.length > 1 ? (chosen ?? options.find((o) => o.id === recommendedId))?.label ?? null : null,
+    optionLabel: options.length > 1
+      ? (chosen ?? options.find((o) => o.id === recommendedId))?.label ?? null
+      : null,
     // The package's discount describes the package's own total, so it is not
     // shown against a different option's price.
     discount: useOptionPrice ? null : data.discount ?? null,
