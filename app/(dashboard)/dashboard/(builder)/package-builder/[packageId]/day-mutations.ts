@@ -464,9 +464,21 @@ export function beginHotelRequest(day: DayItinerary): DayItinerary {
   };
 }
 
-/** Puts the day into the hotel team's queue. */
+/** Puts the day into the hotel team's queue.
+ *
+ * hotelRejectedAt is deliberately ignored on save UNLESS
+ * hotelRejectionAcknowledged is also set — saveCustomPackage otherwise
+ * re-derives it from the DB row it fetched itself, so a stale background
+ * autosave from an older tab can never silently erase a rejection the exec
+ * hasn't actually seen (see DayItinerary's doc comments on both fields).
+ * Resubmitting IS that acknowledgement, and this was the missing half of the
+ * gesture: nothing in the builder ever set the flag, so hotelRejectedAt
+ * stayed set forever on the DB row after any resubmission. That silently
+ * broke /dashboard/hotel-requests, which filters on `hotelRejectedAt: null`
+ * — hotelPending was true, the exec had genuinely resubmitted, and the
+ * package still never showed up in the hotel team's queue. */
 export function submitHotelRequest(day: DayItinerary): DayItinerary {
-  return { ...day, hotelPending: true };
+  return { ...day, hotelPending: true, hotelRejectionAcknowledged: true };
 }
 
 /** Withdraws the request — the exec would rather search again after all. */
