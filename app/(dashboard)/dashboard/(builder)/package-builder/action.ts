@@ -1613,7 +1613,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
     // an id of its own — the payload itself only describes the day rows, which
     // hold the recommended option and nothing else.
     sourceCustomPackageId: sourcePackageId,
-    title:         `${cp.title} (Copy)`,
+    title:         cp.title,
     description:   cp.description ?? "",
     coverImage:    cp.coverImage ?? "",
     coverImagePosition: cp.coverImagePosition,
