@@ -8,6 +8,19 @@
 
 const cityGeocodeCache = new Map<string, { lat: number; lng: number } | null>();
 
+// The catalog also holds HOTEL/ACTIVITY entries, and a property or attraction
+// is routinely named after the town it's in — a hotel literally named
+// "Nainital" sits ~8km from the actual town centre, which reads as a ~25km
+// drive in the hills. That entry used to win outright: with no type filter,
+// a bare "Nainital" query tied on exact-name-match against both it and the
+// real CITY row, and the tie broke arbitrarily rather than toward the place
+// this lookup actually means. Restricted here to the location types that are
+// genuinely a place a stop/day is set in, never a property or POI within it.
+const PLACE_TYPES = [
+  "REGION", "SUBREGION", "COUNTRY", "STATE", "CITY", "DISTRICT", "AREA",
+  "NEIGHBORHOOD", "VILLAGE", "LANDMARK", "BEACH", "MOUNTAIN", "ISLAND", "TOURISM_ZONE",
+].join(",");
+
 export async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
   const key = query.trim().toLowerCase();
   if (!key) return null;
@@ -22,7 +35,7 @@ export async function geocodeCity(query: string): Promise<{ lat: number; lng: nu
   // search already finds hotels there). Mapbox stays as the fallback for a
   // place that's genuinely not in the catalog yet.
   try {
-    const res = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}&limit=1`);
+    const res = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}&limit=1&types=${PLACE_TYPES}`);
     if (res.ok) {
       const rows = await res.json() as { latitude: number | null; longitude: number | null }[];
       const hit = rows[0];
