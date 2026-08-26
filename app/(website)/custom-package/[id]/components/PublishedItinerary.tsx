@@ -25,7 +25,7 @@
 
 import { useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
-import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder-v2/[packageId]/ItineraryDocument";
+import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 import { PUBLISHED_THEME } from "./published-theme";

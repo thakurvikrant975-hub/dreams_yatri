@@ -1,47 +1,41 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
 import { toast } from "sonner";
+import { reportActionError } from "@/app/lib/report-action-error";
+import { mergeStaleHotelDays } from "@/app/lib/sync-stale-hotel-day";
 import {
   DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
   Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
-  Save, Send, CheckCircle, AlertCircle, Loader2, 
+  Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
-  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
-  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble,
-  StickyNote,
-} from "lucide-react";
+  Image as ImageIcon, X, Sparkles, Percent, CreditCard, Lock,
+  ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Ticket,
+  ShieldCheck, ChatText, Wand2, Copy, ClipboardPaste, AlertTriangle,
+} from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
-import { PackageSwitcher } from "../PackageSwitcher";
-import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
+import { PackageSwitcher } from "@/app/(dashboard)/dashboard/(builder)/package-builder/PackageSwitcher";
 import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
-import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs";
+import { cn } from "@/app/lib/utils";
+import { resizeAges, payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/alert-dialog";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
-import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
-import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
-import { ROUTE_STOP_TYPES, TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
-import { cn } from "@/app/lib/utils";
 import {
   getPackageDetail,
   getQueryLeadInfo,
@@ -65,39 +59,34 @@ import {
   type AddonInput,
   type ExtraPolicyItems,
   getCurrentUserRole,
-} from "../action";
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
-import { ItineraryDocument, SafeImg, formatTime12h, computeShiftedMeals, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { ItineraryDocument, formatTime12h, computeShiftedMeals, dayCalendarDate, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
+import { formatCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
-import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
-import { ClientLinkButton } from "../ClientLinkButton";
+import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
-import {
-  resizeAges, ageInputValue, parseAgeInput,
-  CHILD_AGE_MIN, CHILD_AGE_MAX, INFANT_AGE_MIN, INFANT_AGE_MAX,
-  payingPaxOf,
-} from "../traveller-ages";
-import { HotelRoomPicker } from "./HotelRoomPicker";
-import { nightISOForDay } from "../night-date";
-import { ImageDropField } from "./ImageDropField";
+import { getStayOptionsForDocument, cloneStayOptionsInto } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
-import { getItinerarySettings, type ItinerarySettings, type PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
+import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
+import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
+import { TripSetupPanel } from "./TripSetupPanel";
+import { DataTablesPanel } from "./DataTablesPanel";
+import { useUndoableState } from "./use-undoable-state";
+import { useLocalDraft } from "./use-local-draft";
+import { emptyDay, emptyTicket } from "./day-mutations";
+import { BuilderSidebar } from "./BuilderSidebar";
+import { BuilderErrorBoundary } from "./BuilderErrorBoundary";
+import { DayLayersRail } from "./DayLayersRail";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner", "Tea & Snacks"];
-
-// Mirrors the private CAB_SEARCH_PAGE_SIZE in ../action.ts (can't be
-// imported — that's a "use server" file and only async functions may be
-// exported from one). Only used to size the SearchSelect "Load more"
-// heuristic (a page counts as full, and more may follow, once it comes
-// back with this many rows) — keep in sync if the server value changes.
-const CAB_SEARCH_PAGE_SIZE = 20;
 
 // hotel_room_pricing's meal_type.covered_meals comes back as lowercase keys
 // ("breakfast", "lunch", "dinner") — map to the same labels MEAL_OPTIONS uses
@@ -159,57 +148,6 @@ const TRIP_TYPE_LABELS: Record<string, string> = {
   ADVENTURE: "Adventure", PILGRIMAGE: "Pilgrimage / Religious",
   BUSINESS: "Business", CORPORATE: "Corporate / MICE", OTHER: "Other",
 };
-
-// Geocodes the day's search-city text so hotel search results can show "X km
-// from {city}" — cached in module scope, same pattern as ItineraryMap.tsx,
-// since the same city gets searched repeatedly across days.
-const cityGeocodeCache = new Map<string, { lat: number; lng: number } | null>();
-async function geocodeCity(query: string): Promise<{ lat: number; lng: number } | null> {
-  const key = query.trim().toLowerCase();
-  if (!key) return null;
-  if (cityGeocodeCache.has(key)) return cityGeocodeCache.get(key) ?? null;
-
-  // The app's own Location catalog first — real coordinates for anywhere
-  // already in it (added via the location picker, manual entry, or an
-  // earlier Mapbox save), and it covers places Mapbox's `mapbox.places`
-  // dataset can return NOTHING for even with a correct token — "Cherrapunji"
-  // itself is a confirmed case, despite the catalog having it at the right
-  // coordinates all along (it's how the hotel-inventory "near a location"
-  // search already finds hotels there). Mapbox stays as the fallback for a
-  // place that's genuinely not in the catalog yet.
-  try {
-    const res = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}&limit=1`);
-    if (res.ok) {
-      const rows = await res.json() as { latitude: number | null; longitude: number | null }[];
-      const hit = rows[0];
-      if (hit?.latitude != null && hit?.longitude != null) {
-        const result = { lat: hit.latitude, lng: hit.longitude };
-        cityGeocodeCache.set(key, result);
-        return result;
-      }
-    }
-  } catch {
-    // Falls through to Mapbox below.
-  }
-
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  if (!token) { cityGeocodeCache.set(key, null); return null; }
-  try {
-    const res = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-      `?access_token=${token}&limit=1&country=IN&proximity=78.9629,20.5937`,
-    );
-    if (!res.ok) { cityGeocodeCache.set(key, null); return null; }
-    const data = await res.json();
-    const center = data.features?.[0]?.center as [number, number] | undefined; // [lng, lat]
-    const result = center ? { lat: center[1], lng: center[0] } : null;
-    cityGeocodeCache.set(key, result);
-    return result;
-  } catch {
-    cityGeocodeCache.set(key, null);
-    return null;
-  }
-}
 
 const DEFAULT_INCLUSIONS = [
   "Accommodation as per itinerary",
@@ -321,497 +259,16 @@ function SpecialNote({ text }: { text?: string }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// EditableList
-// ─────────────────────────────────────────────────────────────────────────────
-function EditableList({ label, items, onChange, placeholder, readOnly }: {
-  label: string; items: string[]; onChange: (v: string[]) => void; placeholder?: string;
-  /** Company-wide standard content (inclusions/exclusions/policies/benefits)
-   * that Sales Executives can see but not edit per package — see
-   * getCurrentUserRole in action.ts. */
-  readOnly?: boolean;
-}) {
-  const [input, setInput] = useState("");
-  function add() {
-    const val = input.trim();
-    if (val && !items.includes(val)) { onChange([...items, val]); setInput(""); }
-  }
-  return (
-    <div>
-      <label className="text-xs font-medium text-dashboard-base-content/90 mb-2 flex items-center gap-1.5">
-        {label}
-        {readOnly && (
-          <span className="inline-flex items-center gap-0.5 text-[10px] font-normal text-dashboard-base-content/50">
-            <Lock size={10} /> Locked
-          </span>
-        )}
-      </label>
-      {!readOnly && (
-        <div className="flex gap-2 mb-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
-            placeholder={placeholder ?? "Add item…"}
-            className="text-sm h-9 flex-1 border-dashboard-neutral-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={add}
-            className="h-9 px-3 border-dashboard-base-300 rounded-md bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90"
-          >
-            <Plus size={16} />
-          </Button>
-        </div>
-      )}
-      <div className="flex flex-wrap gap-1.5">
-        {items.map((item, i) => (
-          <span
-            key={i}
-            className="flex items-center gap-1 text-xs bg-dashboard-base-200 text-dashboard-base-content px-2.5 py-1 rounded-full border border-dashboard-base-300"
-          >
-            {item}
-            {!readOnly && (
-              <button
-                onClick={() => onChange(items.filter((_, j) => j !== i))}
-                className="text-dashboard-base-content/50 hover:text-dashboard-error transition-colors ml-0.5"
-              >×</button>
-            )}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ExtraPolicyItemsEditor — always-editable "add something just for this
-// package" list, shown right under each locked standard list above. Visually
-// distinct (dashed border, muted panel) so it never reads as "the same list,
-// now editable" — it's a separate, additive set that this exact package
-// shows on top of the standard one. Anyone can use this, including Sales
-// Executives who can't touch the standard lists themselves.
-// ─────────────────────────────────────────────────────────────────────────────
-function ExtraPolicyItemsEditor({ items, onChange, placeholder }: {
-  items: string[]; onChange: (v: string[]) => void; placeholder?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-dashed border-dashboard-primary/30 bg-dashboard-primary/5 p-3">
-      <EditableList
-        label="Package-specific additions"
-        items={items}
-        onChange={onChange}
-        placeholder={placeholder ?? "Add something just for this package…"}
-      />
-    </div>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PhotoPreview — small thumbnail with a remove ("×") button, used for the
-// hotel/cab/activity picks below so a sales exec sees confirmation of what
-// was chosen instead of just text fields.     
-// ─────────────────────────────────────────────────────────────────────────────
-function PhotoPreview({ src, alt, onRemove }: { src: string; alt: string; onRemove: () => void }) {
-  return (
-    <div className="relative inline-block shrink-0">
-      <Image
-        src={src}
-        alt={alt}
-        width={64}
-        height={48}
-        className="h-12 w-16 rounded-md object-cover border border-dashboard-base-300"
-      />
-      <button
-        type="button"
-        onClick={onRemove}
-        className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-dashboard-error text-white text-[10px] leading-none flex items-center justify-center hover:bg-dashboard-error/80"
-      >
-        ×
-      </button>
-    </div>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HotelPhotoGallery — the hotel's main photo plus up to 3 room photos, shown
-// together once a real hotel room is picked so the builder reads as a photo
-// gallery instead of just text fields.
-// ─────────────────────────────────────────────────────────────────────────────
-function HotelPhotoGallery({ hotelPhoto, roomPhotos, alt, onClear }: {
-  hotelPhoto?: string;
-  roomPhotos: string[];
-  alt: string;
-  onClear: () => void;
-}) {
-  if (!hotelPhoto && roomPhotos.length === 0) return null;
-  return (
-    <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2.5">
-      <button
-        type="button"
-        onClick={onClear}
-        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
-      >
-        ×
-      </button>
-      <div className="flex gap-2">
-        {hotelPhoto && (
-          <div className="shrink-0">
-            <Image
-              src={hotelPhoto}
-              alt={alt}
-              width={140}
-              height={112}
-              className="h-24 w-32 rounded-lg object-cover border border-dashboard-base-300"
-            />
-            <p className="text-[9px] text-dashboard-base-content/40 mt-1 text-center">Hotel</p>
-          </div>
-        )}
-        {roomPhotos.length > 0 && (
-          <div className="grid grid-cols-3 gap-1.5 flex-1 min-w-0">
-            {roomPhotos.slice(0, 3).map((src, i) => (
-              <div key={i}>
-                <Image
-                  src={src}
-                  alt={`${alt} — room photo ${i + 1}`}
-                  width={100}
-                  height={112}
-                  className="h-24 w-full rounded-lg object-cover border border-dashboard-base-300"
-                />
-                {i === 1 && <p className="text-[9px] text-dashboard-base-content/40 mt-1 text-center">Room</p>}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
-// A drag handle (not the whole row) grabs the pointer listeners — the row
-// itself holds a title Input and a description Textarea, and text selection
-// inside those needs normal pointer-drag behavior, which a whole-row
-// listener would fight with.
-function SortableActivityRow({ dndId, children }: { dndId: string; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dndId });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      className="flex gap-2 rounded-lg border border-violet-100 bg-violet-50/30 p-2.5"
-    >
-      <button
-        type="button"
-        className="flex items-center justify-center shrink-0 mt-0.5 size-5 text-violet-400/70 hover:text-violet-600 cursor-grab active:cursor-grabbing touch-none"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical size={14} />
-      </button>
-      {children}
-    </div>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ActivityListEditor — per-activity title + description + photo, add/remove
-// ─────────────────────────────────────────────────────────────────────────────
-function ActivityListEditor({ activities, location, onChange }: {
-  activities: ActivityInput[];
-  location?: string;
-  onChange: (v: ActivityInput[]) => void;
-}) {
-  // dnd-kit needs a stable id per row to track it across a drag. ActivityInput
-  // only gets a real `id` once the whole package has been saved and reloaded
-  // — a freshly-added (unsaved) activity has none, and several could exist at
-  // once, so `id` alone can't be used as-is. Kept as explicit state (not
-  // derived during render via a ref/counter — React's purity rules flag both
-  // reading a ref and calling Math.random/Date.now while rendering) and
-  // updated in lockstep by the exact three places below that actually change
-  // the array's length or order: add, remove, drag-reorder. A plain edit
-  // (updateActivity) never touches this, since it changes neither.
-  const [dndIds, setDndIds] = useState<string[]>(() => activities.map((_, i) => `row-${i}`));
-  const nextDndId = useRef(activities.length);
-  // React-blessed "adjust state during render" pattern (same one already
-  // used for searchCity/prevLocation above) — catches an external, wholesale
-  // replacement of `activities` that didn't go through add/remove/reorder
-  // here (e.g. the initial package-load effect populating real day data).
-  const [prevActivitiesForIds, setPrevActivitiesForIds] = useState(activities);
-  if (activities !== prevActivitiesForIds && activities.length !== dndIds.length) {
-    setPrevActivitiesForIds(activities);
-    setDndIds(activities.map((_, i) => `row-${i}`));
-  }
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = dndIds.indexOf(String(active.id));
-    const newIndex = dndIds.indexOf(String(over.id));
-    if (oldIndex === -1 || newIndex === -1) return;
-    onChange(arrayMove(activities, oldIndex, newIndex));
-    setDndIds((ids) => arrayMove(ids, oldIndex, newIndex));
-  }
-
-  function addActivity() {
-    onChange([...activities, { title: "", description: "", photo: "", photos: [], photoLabels: [] }]);
-    setDndIds((ids) => [...ids, `row-new-${nextDndId.current++}`]);
-  }
-  function updateActivity(idx: number, patch: Partial<ActivityInput>) {
-    onChange(activities.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
-  }
-  function removeActivity(idx: number) {
-    onChange(activities.filter((_, i) => i !== idx));
-    setDndIds((ids) => ids.filter((_, i) => i !== idx));
-  }
-
-  async function fetchActivityOptions(query: string): Promise<Option[]> {
-    if (!location) return [];
-    const results = await searchActivitiesForBuilder(location, query);
-    return results.map((r): Option & { raw: ActivityResult } => ({
-      id: r.id,
-      label: r.name,
-      description: [r.category, r.durationHours ? `${r.durationHours}h` : null].filter(Boolean).join(" · ") || undefined,
-      thumbnail: r.thumbnail ?? undefined,
-      raw: r,
-    }));
-  }
-
-  function handleActivitySelect(_id: number | null, option?: Option) {
-    const raw = (option as (Option & { raw: ActivityResult }) | undefined)?.raw;
-    if (!raw) return;
-    onChange([...activities, {
-      title: raw.name,
-      // The catalog's real write-up — previously this was set to the
-      // category/duration tag shown in the picker dropdown (e.g. "Adventure
-      // · 2h"), which isn't a description at all and was blank whenever
-      // neither was set, which is why it looked like no description ever
-      // came through.
-      description: raw.description ?? "",
-      photo: raw.thumbnail ?? "",
-      photos: raw.photos,
-      photoLabels: raw.photoLabels,
-    }]);
-    setDndIds((ids) => [...ids, `row-new-${nextDndId.current++}`]);
-  }
-
-  return (
-    <DaySectionCard
-      icon={Zap}
-      label="Activities"
-      color="violet"
-      badge={activities.length > 0 && (
-        <span className="text-[10px] font-semibold text-violet-600 bg-violet-100 rounded-full px-1.5 py-0.5 shrink-0">
-          {activities.length}
-        </span>
-      )}
-      action={
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addActivity}
-          className="h-6 px-2 text-[11px] gap-1 border-violet-200 text-violet-700 hover:bg-violet-100 rounded-md shrink-0"
-        >
-          <Plus size={11} /> Add Manually
-        </Button>
-      }
-    >
-      {location ? (
-        <SearchSelect
-          value={null}
-          onChange={handleActivitySelect}
-          fetchOptions={fetchActivityOptions}
-          placeholder={`Showing activities near ${location} — search by title or city…`}
-        />
-      ) : (
-        <p className="text-[11px] text-dashboard-base-content/40 italic">
-          Add route stops in Package Details to search real activities here
-        </p>
-      )}
-      <div className="space-y-2">
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <SortableContext items={dndIds} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-            {activities.map((a, idx) => (
-              <SortableActivityRow key={dndIds[idx]} dndId={dndIds[idx]}>
-                <span className="flex items-center justify-center size-5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-bold shrink-0 mt-0.5">
-                  {idx + 1}
-                </span>
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      value={a.title}
-                      onChange={(e) => updateActivity(idx, { title: e.target.value })}
-                      placeholder="Activity title, e.g. Paragliding"
-                      className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-violet-300 focus-visible:border-violet-400 rounded-md bg-dashboard-base-100"
-                    />
-                    <button
-                      onClick={() => removeActivity(idx)}
-                      className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                  <Textarea
-                    value={a.description}
-                    onChange={(e) => updateActivity(idx, { description: e.target.value })}
-                    placeholder="Short description of the experience…"
-                    rows={2}
-                    className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-violet-300 focus-visible:border-violet-400 rounded-md bg-dashboard-base-100"
-                  />
-                  {a.photos.length > 0 && (
-                    <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2">
-                      <button
-                        type="button"
-                        onClick={() => updateActivity(idx, { photo: "", photos: [], photoLabels: [] })}
-                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
-                      >
-                        ×
-                      </button>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {a.photos.slice(0, 3).map((src, i) => (
-                          <SafeImg
-                            key={i}
-                            src={src}
-                            alt={a.photoLabels[i] || a.title || "Activity"}
-                            className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </SortableActivityRow>
-            ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-        {activities.length === 0 && (
-          <p className="text-xs text-dashboard-base-content/40 italic">No activities added for this day.</p>
-        )}
-      </div>
-    </DaySectionCard>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RouteStopsEditor — destination + nights per stop, like the packages route
 // builder. The parent recalculates total nights/days/destination from these.
 // ─────────────────────────────────────────────────────────────────────────────
-function RouteStopsEditor({ stops, onChange }: {
-  stops: StopInput[];
-  onChange: (v: StopInput[]) => void;
-}) {
-  // Per-row toggle: pick from the real locations catalog (default) vs a
-  // plain free-text field, for places not in the catalog yet.
-  const [manualRows, setManualRows] = useState<Set<number>>(new Set());
-
-  function addStop() {
-    onChange([...stops, { name: "", nights: 1 }]);
-  }
-  function updateStop(idx: number, patch: Partial<StopInput>) {
-    onChange(stops.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
-  }
-  function removeStop(idx: number) {
-    onChange(stops.filter((_, i) => i !== idx));
-    setManualRows((prev) => {
-      const next = new Set<number>();
-      prev.forEach((i) => { if (i < idx) next.add(i); else if (i > idx) next.add(i - 1); });
-      return next;
-    });
-  }
-  function toggleManualRow(idx: number) {
-    setManualRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx); else next.add(idx);
-      return next;
-    });
-  }
-
-  const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1">
-          <MapPin size={11} /> Route (Destinations & Nights)
-        </label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addStop}
-          className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
-        >
-          <Plus size={11} /> Add Stop
-        </Button>
-      </div>
-
-      <div className="space-y-2">
-        {stops.map((stop, idx) => {
-          const isManual = manualRows.has(idx);
-          return (
-            <div key={idx} className="flex items-center gap-2">
-              <span className="shrink-0 text-xs font-semibold text-dashboard-base-content/40 w-4 text-center">{idx + 1}</span>
-              <div className="flex-1 min-w-0">
-                {isManual ? (
-                  <Input
-                    value={stop.name}
-                    onChange={(e) => updateStop(idx, { name: e.target.value })}
-                    placeholder="Type a destination name…"
-                    className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                ) : (
-                  <LocationSearchSelect
-                    value={stop.name ? { id: `stop-${idx}`, name: stop.name, type: "CITY", breadcrumb: stop.name, slug: "" } : null}
-                    onChange={(loc: LocationValue | null) => updateStop(idx, { name: loc?.name ?? "" })}
-                    types={ROUTE_STOP_TYPES}
-                    placeholder="Search a location…"
-                  />
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleManualRow(idx)}
-                title={isManual ? "Choose from locations" : "Can't find it? Type it instead"}
-                className="p-1.5 rounded hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0"
-              >
-                {isManual ? <MapPin size={12} /> : <Pencil size={12} />}
-              </button>
-              <Input
-                type="number" min={0}
-                value={stop.nights}
-                onChange={(e) => updateStop(idx, { nights: +e.target.value })}
-                className="text-sm h-8 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <span className="text-[11px] text-dashboard-base-content/50 shrink-0 w-2">N</span>
-              <button
-                onClick={() => removeStop(idx)}
-                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          );
-        })}
-        {stops.length === 0 && (
-          <p className="text-xs text-dashboard-base-content/40 italic">
-            No stops added — Duration & Destination(s) below stay manually editable.
-          </p>
-        )}
-      </div>
-
-      {stops.length > 0 && (
-        <p className="text-[11px] text-dashboard-base-content/50 mt-1.5">
-          Auto duration: <span className="font-semibold text-dashboard-base-content">{totalNights + 1}D / {totalNights}N</span> — syncs Duration & Destination(s) below
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // DaySectionCard — a colored container for one part of a day (Hotel /
 // Transport / Meals / Activities) so the sidebar reads at a glance instead of
@@ -825,1694 +282,27 @@ const SECTION_THEMES = {
   rose:    { border: "border-rose-200",    headerBg: "bg-rose-50",    iconBg: "bg-rose-100",    iconText: "text-rose-600",    labelText: "text-rose-800" },
 } as const;
 
-function DaySectionCard({
-  icon: Icon, label, color, badge, action, children,
-}: {
-  icon: React.ElementType;
-  label: string;
-  color: keyof typeof SECTION_THEMES;
-  /** Small trailing hint, e.g. a filled-in count. */
-  badge?: React.ReactNode;
-  /** Right-aligned header action, e.g. an "Add" button. */
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  const theme = SECTION_THEMES[color];
-  return (
-    <div className={cn("rounded-xl border overflow-hidden bg-dashboard-base-100", theme.border)}>
-      <div className={cn("flex items-center gap-2 px-3 py-2", theme.headerBg)}>
-        <span className={cn("flex items-center justify-center size-6 rounded-lg shrink-0", theme.iconBg, theme.iconText)}>
-          <Icon size={12} />
-        </span>
-        <p className={cn("text-xs font-bold uppercase tracking-wide flex-1 min-w-0 truncate", theme.labelText)}>{label}</p>
-        {badge}
-        {action}
-      </div>
-      <div className="p-3 space-y-3">{children}</div>
-    </div>
-  );
-}
 
-/** "Remove" / "All days" pair for a DaySectionCard header — the one obvious
- * action that clears a section's pricing link (roomPricingId/cabPricingId)
- * along with its visible fields, instead of an exec having to guess that
- * blanking the name/photo text isn't enough to stop it being priced. */
-function RemoveSectionActions({
-  onRemove, onRemoveAll, totalDays,
-}: {
-  onRemove: () => void;
-  onRemoveAll: () => void;
-  totalDays: number;
-}) {
-  return (
-    <div className="flex items-center gap-1 shrink-0">
-      <button
-        type="button"
-        onClick={onRemove}
-        className="flex items-center gap-1 text-[10px] font-medium text-dashboard-error/80 hover:text-dashboard-error hover:bg-dashboard-error/10 rounded px-1.5 py-0.5 transition-colors"
-        title="Remove for this day (also clears its price)"
-      >
-        <Trash2 size={10} /> Remove
-      </button>
-      {totalDays > 1 && (
-        <button
-          type="button"
-          onClick={onRemoveAll}
-          className="text-[10px] font-medium text-dashboard-error/80 hover:text-dashboard-error hover:bg-dashboard-error/10 rounded px-1.5 py-0.5 transition-colors"
-          title="Remove from every day (also clears their price)"
-        >
-          All days
-        </button>
-      )}
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hotel Info — room capacity + rooms/mattresses needed
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Shown once a catalog room is picked (roomPricingId set) — the room's own
- * occupancy caps (snapshotted at selection time, see handleHotelRoomSelect),
- * plus how many rooms and mattresses this exact party actually needs,
- * computed the same way the pricing engine does (room-capacity.ts) — so the
- * hotel/ops team can read straight off this card what to arrange, instead of
- * re-deriving it from raw capacity numbers themselves. */
-function RoomCapacitySummary({ data, adults, childrenCount, onChange }: {
-  data: DayItinerary; adults: number; childrenCount: number; onChange: (d: DayItinerary) => void;
-}) {
-  const hasCapacityData = data.accommodationMaxAdults != null || data.accommodationExtraBedCapacity != null;
-  const roomFields = {
-    max_occupancy: data.accommodationRoomCapacity,
-    extra_bed_capacity: data.accommodationExtraBedCapacity,
-    max_adults: data.accommodationMaxAdults,
-    max_children: data.accommodationMaxChildren,
-  };
-  // One shared calculation for rooms + mattresses (room-capacity.ts) — the
-  // same call the itinerary document and the pricing engine make, so this
-  // readout can never disagree with what the package is actually priced for.
-  // manualExtraBeds is a further explicit override on top of the derived
-  // mattress count, for a hotel that needs a different number than the
-  // occupancy split implies.
-  const { rooms: roomsUsed, mattresses: autoMattresses } =
-    planRoomOccupancy(adults, childrenCount, roomFields, data.roomsCount);
-  const totalMattresses = data.manualExtraBeds ?? autoMattresses;
 
-  return (
-    <div className="space-y-2">
-      {hasCapacityData && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 px-2.5 py-2 text-[11px] text-dashboard-base-content/70">
-          {data.accommodationRoomCapacity != null && <span>Sleeps {data.accommodationRoomCapacity}</span>}
-          {data.accommodationMaxAdults != null && <span>Max {data.accommodationMaxAdults} adult{data.accommodationMaxAdults !== 1 ? "s" : ""}</span>}
-          {data.accommodationMaxChildren != null && <span>{data.accommodationMaxChildren} child{data.accommodationMaxChildren !== 1 ? "ren" : ""}</span>}
-          {data.accommodationExtraBedCapacity != null && (
-            <span className="flex items-center gap-1">
-              <BedDouble size={11} className="shrink-0" /> +{data.accommodationExtraBedCapacity} extra bed{data.accommodationExtraBedCapacity !== 1 ? "s" : ""}/room
-            </span>
-          )}
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2">
-          <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
-          <Input
-            type="number"
-            min={1}
-            value={data.roomsCount ?? ""}
-            onChange={(e) => onChange({
-              ...data,
-              roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-            })}
-            placeholder="Auto"
-            className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-[11px] text-dashboard-base-content/60 shrink-0 flex items-center gap-1">
-            <BedDouble size={11} /> Mattresses needed
-          </label>
-          <Input
-            type="number"
-            min={0}
-            value={data.manualExtraBeds ?? ""}
-            onChange={(e) => onChange({
-              ...data,
-              manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
-            })}
-            placeholder={String(autoMattresses)}
-            className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-          />
-        </div>
-        {totalMattresses > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Price / mattress (₹)</label>
-            <Input
-              type="number"
-              min={0}
-              value={data.manualExtraBedRate ?? ""}
-              onChange={(e) => onChange({
-                ...data,
-                manualExtraBedRate: e.target.value ? Math.max(0, parseFloat(e.target.value)) : null,
-              })}
-              placeholder="Catalog rate"
-              className="text-sm h-8 w-24 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
-          </div>
-        )}
-      </div>
-      <p className="text-[10px] text-dashboard-base-content/40">
-        Leave rooms/mattresses blank to auto-compute; mattress price defaults to the room&apos;s catalog rate (often ₹0) unless overridden here.
-      </p>
-
-      {hasCapacityData && (
-        <p className="flex items-center gap-1.5 text-xs font-medium text-dashboard-primary">
-          <Users size={12} className="shrink-0" />
-          For {adults} adult{adults !== 1 ? "s" : ""}{childrenCount > 0 ? `, ${childrenCount} child${childrenCount !== 1 ? "ren" : ""}` : ""}:
-          {" "}{roomsUsed} room{roomsUsed !== 1 ? "s" : ""}
-          {totalMattresses > 0 && <> · {totalMattresses} mattress{totalMattresses !== 1 ? "es" : ""}</>} needed
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** Shown for a day with NO catalog roomPricingId — a hand-typed hotel, or
- * one the hotel team filled via /dashboard/hotel-requests. There's no
- * catalog capacity to compute rooms/mattresses from here, so both are plain
- * manual counts instead of the auto-computed readout above. */
-function ManualHotelCapacityInputs({ data, onChange }: {
-  data: DayItinerary; onChange: (d: DayItinerary) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 px-2.5 py-2">
-      <div className="flex items-center gap-2">
-        <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Rooms needed</label>
-        <Input
-          type="number"
-          min={1}
-          value={data.roomsCount ?? ""}
-          onChange={(e) => onChange({
-            ...data,
-            roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-          })}
-          placeholder="1"
-          className="text-sm h-8 w-16 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-[11px] text-dashboard-base-content/60 shrink-0 flex items-center gap-1">
-          <BedDouble size={11} /> Mattresses needed
-        </label>
-        <Input
-          type="number"
-          min={0}
-          value={data.manualExtraBeds ?? ""}
-          onChange={(e) => onChange({
-            ...data,
-            manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
-          })}
-          placeholder="0"
-          className="text-sm h-8 w-16 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Price / room / night (₹)</label>
-        <Input
-          type="number"
-          min={0}
-          value={data.manualHotelPricePerNight ?? ""}
-          onChange={(e) => onChange({
-            ...data,
-            manualHotelPricePerNight: e.target.value ? Math.max(0, parseFloat(e.target.value)) : null,
-          })}
-          placeholder="e.g. 4500"
-          className="text-sm h-8 w-24 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-      </div>
-      {(data.manualExtraBeds ?? 0) > 0 && (
-        <div className="flex items-center gap-2">
-          <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Price / mattress (₹)</label>
-          <Input
-            type="number"
-            min={0}
-            value={data.manualExtraBedRate ?? ""}
-            onChange={(e) => onChange({
-              ...data,
-              manualExtraBedRate: e.target.value ? Math.max(0, parseFloat(e.target.value)) : null,
-            })}
-            placeholder="0"
-            className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-          />
-        </div>
-      )}
-      {(data.manualHotelPricePerNight ?? 0) > 0 && (
-        <p className="text-[11px] text-dashboard-base-content basis-full bg-dashboard-base-100 border border-dashboard-base-300 rounded-md px-2 py-1.5">
-          {(data.roomsCount ?? 1)} room{(data.roomsCount ?? 1) !== 1 ? "s" : ""} × ₹{(data.manualHotelPricePerNight ?? 0).toLocaleString("en-IN")}
-          {" = "}₹{((data.roomsCount ?? 1) * (data.manualHotelPricePerNight ?? 0)).toLocaleString("en-IN")}
-          {(data.manualExtraBeds ?? 0) > 0 && (
-            <>
-              {" + "}{data.manualExtraBeds} mattress{data.manualExtraBeds !== 1 ? "es" : ""} × ₹{(data.manualExtraBedRate ?? 0).toLocaleString("en-IN")}
-              {" = "}₹{((data.manualExtraBeds ?? 0) * (data.manualExtraBedRate ?? 0)).toLocaleString("en-IN")}
-            </>
-          )}
-          <span className="font-semibold">
-            {" → Total ₹"}
-            {(
-              (data.roomsCount ?? 1) * (data.manualHotelPricePerNight ?? 0)
-              + (data.manualExtraBeds ?? 0) * (data.manualExtraBedRate ?? 0)
-            ).toLocaleString("en-IN")}/night
-          </span>
-        </p>
-      )}
-      <p className="text-[10px] text-dashboard-base-content/40 basis-full">
-        No catalog room selected — enter rooms, mattresses, and the price <strong>per room</strong> per night so this day prices correctly (the total above is what actually gets charged).
-      </p>
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hotel Info — "Add Hotels by Team" request
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The pending-request card in a day's Hotel Info section — either the
- * editable request form (composing a brand-new request, or re-opened via
- * "Edit Request") or a locked read-only summary of what was already
- * requested. Rooms needed / mattresses needed / meal plan reuse the day's
- * own roomsCount/manualExtraBeds/hotelMealPlan fields (same ones a catalog
- * or hand-typed hotel would use) so the hotel team's fill page can prefill
- * straight from them — see FillHotelForm.tsx. */
-function HotelRequestPanel({
-  data, onChange, mealTypes, composing, onStartEdit, onSubmit, onCancelEdit, onRemoveRequest,
-}: {
-  data: DayItinerary;
-  onChange: (d: DayItinerary) => void;
-  mealTypes: { id: number; name: string }[];
-  composing: boolean;
-  onStartEdit: () => void;
-  onSubmit: () => void;
-  onCancelEdit: () => void;
-  onRemoveRequest: () => void;
-}) {
-  if (!composing) {
-    // Locked view — data.hotelPending is true whenever this renders.
-    const chips = [
-      data.hotelRequestType ? (STAY_LABELS[data.hotelRequestType] ?? data.hotelRequestType) : null,
-      data.roomsCount != null ? `${data.roomsCount} room${data.roomsCount !== 1 ? "s" : ""}` : null,
-      (data.manualExtraBeds ?? 0) > 0 ? `${data.manualExtraBeds} mattress${data.manualExtraBeds !== 1 ? "es" : ""}` : null,
-      data.hotelMealPlan || null,
-    ].filter((v): v is string => !!v);
 
-    return (
-      <div className="space-y-2">
-        {data.hotelRejectedAt && (
-          <div className="rounded-lg border border-red-300 bg-red-50 p-3 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-red-800 text-sm font-semibold">
-              <XCircle size={14} /> Hotel team couldn&apos;t fulfil this request
-            </div>
-            {data.hotelRejectionNote && (
-              <p className="text-[11px] text-red-800/90 bg-white/70 border border-red-200 rounded-md px-2 py-1.5">
-                &quot;{data.hotelRejectionNote}&quot;
-              </p>
-            )}
-            <p className="text-[11px] text-red-700/80">
-              {data.hotelRejectedByName ? `— ${data.hotelRejectedByName}. ` : ""}
-              Edit the request below and resubmit, or search for a hotel yourself.
-            </p>
-          </div>
-        )}
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
-            <Clock size={14} /> Pending — awaiting hotel team
-          </div>
-          <Button
-            type="button" variant="outline" size="sm"
-            className="h-6 shrink-0 text-[11px] gap-1 border-amber-300 text-amber-800 hover:bg-amber-100"
-            onClick={onStartEdit}
-          >
-            <Pencil size={11} /> Edit Request
-          </Button>
-        </div>
-        {chips.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {chips.map((c) => (
-              <span key={c} className="inline-flex items-center rounded-full bg-white border border-amber-300 text-amber-800 text-[11px] font-medium px-2 py-0.5">
-                {c}
-              </span>
-            ))}
-          </div>
-        )}
-        {data.hotelPendingNote && (
-          <p className="text-[11px] text-amber-800/90 bg-white/70 border border-amber-200 rounded-md px-2 py-1.5">
-            &quot;{data.hotelPendingNote}&quot;
-          </p>
-        )}
-        <p className="text-[11px] text-amber-700/80">
-          This day is in the hotel team&apos;s queue (Hotel Requests). Submitting for costing review is blocked until they fill it in.
-        </p>
-        <Button
-          type="button" variant="ghost" size="sm"
-          className="h-6 text-[11px] px-2 text-dashboard-error/70 hover:text-dashboard-error hover:bg-dashboard-error/10"
-          onClick={onRemoveRequest}
-        >
-          Remove request — search for a hotel instead
-        </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2.5">
-      <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
-        <Clock size={14} /> {data.hotelPending ? "Edit hotel request" : "Request a hotel from the team"}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[11px] text-amber-800/80 mb-1 block">Hotel type</label>
-          <select
-            value={data.hotelRequestType ?? ""}
-            onChange={(e) => onChange({ ...data, hotelRequestType: e.target.value || null })}
-            className="w-full text-sm h-8 rounded-md border border-amber-300 bg-white px-2 text-dashboard-base-content focus:outline-none focus:ring-2 focus:ring-amber-300"
-          >
-            <option value="">Any</option>
-            {Object.entries(STAY_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-[11px] text-amber-800/80 mb-1 block">Meal plan</label>
-          <select
-            value={data.hotelMealPlan}
-            onChange={(e) => onChange({ ...data, hotelMealPlan: e.target.value })}
-            className="w-full text-sm h-8 rounded-md border border-amber-300 bg-white px-2 text-dashboard-base-content focus:outline-none focus:ring-2 focus:ring-amber-300"
-          >
-            <option value="">Any</option>
-            {mealTypes.map((m) => (
-              <option key={m.id} value={m.name}>{m.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-[11px] text-amber-800/80 mb-1 block">Rooms needed</label>
-          <Input
-            type="number" min={1}
-            value={data.roomsCount ?? ""}
-            onChange={(e) => onChange({ ...data, roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null })}
-            placeholder="1"
-            className="text-sm h-8 border-amber-300 bg-white focus-visible:ring-amber-300 rounded-md"
-          />
-        </div>
-        <div>
-          <label className="text-[11px] text-amber-800/80 mb-1 flex items-center gap-1">
-            <BedDouble size={11} /> Mattresses needed
-          </label>
-          <Input
-            type="number" min={0}
-            value={data.manualExtraBeds ?? ""}
-            onChange={(e) => onChange({ ...data, manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null })}
-            placeholder="0"
-            className="text-sm h-8 border-amber-300 bg-white focus-visible:ring-amber-300 rounded-md"
-          />
-        </div>
-      </div>
-      <div>
-        <label className="text-[11px] text-amber-800/80 mb-1 block">Request message</label>
-        <Textarea
-          value={data.hotelPendingNote}
-          onChange={(e) => onChange({ ...data, hotelPendingNote: e.target.value })}
-          placeholder="Any specific details — budget, why unavailable, preferred area, special requirements…"
-          rows={2}
-          className="text-xs resize-none border-amber-300 bg-white focus-visible:ring-amber-300 rounded-md"
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <Button type="button" size="sm" className="h-7 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white" onClick={onSubmit}>
-          <Send size={12} /> {data.hotelPending ? "Update Request" : "Request Room"}
-        </Button>
-        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-amber-800 hover:bg-amber-100" onClick={onCancelEdit}>
-          Cancel
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Day Itinerary Card
-// ─────────────────────────────────────────────────────────────────────────────
-function DayCard({
-  dndId, day, data, location, totalDays, travelDate, adults, childrenCount, onChange, onRemove,
-  onApplyVehicleToDays, onApplyRoomToDays, onRemoveRoomFromDays, onRemoveCabFromDays, stayPreference,
-  focusSection, shiftedMeals, mealTypes,
-  dayAddons, onAddAddon, onUpdateAddon, onRemoveAddon,
-  onHotelRequestSubmitted,
-}: {
-  /** dnd-kit's stable identity for this row — see dayDndIds on the parent. */
-  dndId: string;
-  day: number;
-  data: DayItinerary;
-  location?: string;
-  totalDays: number;
-  /** The package's start date, so this day can work out which night it is and
-   * ask the catalog for rooms that actually have a rate for it. */
-  travelDate?: string | null;
-  /** Party size — feeds the "rooms & mattresses needed" readout in the
-   * Hotel Info card (see RoomCapacitySummary), same adults/children the
-   * pricing engine itself uses. Named childrenCount, not children — that
-   * name is reserved for JSX's own children prop, and passing children={x}
-   * as a plain attribute (not nested JSX) trips react/no-children-prop. */
-  adults: number;
-  childrenCount: number;
-  onChange: (d: DayItinerary) => void;
-  onRemove: () => void;
-  onApplyVehicleToDays: (vehicle: VehicleResult, dayNumbers: number[], cabPricingId: number | null) => void;
-  onApplyRoomToDays: (room: HotelRoomResult, dayNumbers: number[]) => void;
-  /** Clears the hotel/cab (including their pricing link) for the given day
-   * numbers — used for both "remove just this day" and "remove from every
-   * day" actions next to the Hotel Info / Transport section headers. */
-  onRemoveRoomFromDays: (dayNumbers: number[]) => void;
-  onRemoveCabFromDays: (dayNumbers: number[]) => void;
-  /** Stay-type preferences from the client's requirement form (e.g. ["STAR_4", "RESORT"]) — shown as a hint above the hotel search so the exec knows what to look for. */
-  stayPreference?: string[];
-  /** "all" shows every section; anything else hides all but the matching
-   * one, across every day card at once — see FOCUS_SECTIONS. */
-  focusSection: FocusSection;
-  /** This day's meals as actually served (breakfast pulled from the
-   * previous day's hotel) — see computeShiftedMeals. Purely informational,
-   * shown alongside the day's own raw meals (what tonight's hotel plan
-   * covers), which is what's actually editable here. */
-  shiftedMeals: string[];
-  /** Meal-plan options for the hotel-request form's Meal Plan select — same
-   * list configured at /dashboard/hotels/meal-types, fetched once by the
-   * parent and passed down so every day card shares one fetch. */
-  mealTypes: { id: number; name: string }[];
-  /** Add-ons added while working on THIS day's hotel — paired with their
-   * index in the parent's full form.addOns array (not this filtered list),
-   * since that's what onUpdateAddon/onRemoveAddon key off. Shown right below
-   * the Hotel section; same underlying list as the Package Details tab's
-   * Add-ons card, just filtered to this day plus a quick-add scoped to it. */
-  dayAddons: { addon: AddonInput; index: number }[];
-  onAddAddon: () => void;
-  onUpdateAddon: (idx: number, patch: Partial<AddonInput>) => void;
-  onRemoveAddon: (idx: number) => void;
-  /** Saves the whole package right away — a hotel request is meant to
-   * reach the hotel team's queue the moment it's submitted, not whenever
-   * the exec next happens to hit Save Draft. See its call site. */
-  onHotelRequestSubmitted: () => void;
-}) {
-  const [open, setOpen] = useState(true);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dndId });
-
-  // After picking a cab, offer to reuse it across the rest of the trip
-  // instead of re-searching it for every day. lastCabPricingId travels
-  // alongside lastVehicle so reused days stay priced too — null when the
-  // pick came from the unscoped fleet catalog (no real rate to reuse).
-  const [lastVehicle, setLastVehicle] = useState<VehicleResult | null>(null);
-  const [lastCabPricingId, setLastCabPricingId] = useState<number | null>(null);
-  const [showApplyPrompt, setShowApplyPrompt] = useState(false);
-  const [customDaysOpen, setCustomDaysOpen] = useState(false);
-  const [selectedDays, setSelectedDays] = useState<number[]>([]);
-
-  function dismissApplyPrompt() {
-    setShowApplyPrompt(false);
-    setCustomDaysOpen(false);
-    setSelectedDays([]);
-  }
-
-  // Same pattern as the cab prompt above, but for reusing one hotel room
-  // across the other nights of a multi-night stay.
-  const [lastRoom, setLastRoom] = useState<HotelRoomResult | null>(null);
-  const [showRoomApplyPrompt, setShowRoomApplyPrompt] = useState(false);
-  const [roomCustomDaysOpen, setRoomCustomDaysOpen] = useState(false);
-  const [roomSelectedDays, setRoomSelectedDays] = useState<number[]>([]);
-
-  // Whether the hotel-request form (type/rooms/mattress/meal plan/note) is
-  // open for editing right now — true while composing a brand-new request
-  // (hotelPending still false) AND while re-opening an already-submitted one
-  // via "Edit Request" (hotelPending stays true throughout; this is purely a
-  // local view toggle, see HotelRequestPanel below).
-  const [hotelRequestComposing, setHotelRequestComposing] = useState(false);
-
-  function dismissRoomApplyPrompt() {
-    setShowRoomApplyPrompt(false);
-    setRoomCustomDaysOpen(false);
-    setRoomSelectedDays([]);
-  }
-
-  // Defaults to the day's auto-derived stop, but stays editable — lets a
-  // sales exec search hotels/activities in a different city than the one
-  // the route stops assigned this day to (e.g. no real inventory there yet).
-  // Resets on every distinct `location` prop change (adjusting state during
-  // render, per React's guidance, rather than via a setState-in-effect).
-  const [searchCity, setSearchCity] = useState(location ?? "");
-  const [prevLocation, setPrevLocation] = useState(location);
-  if (location !== prevLocation) {
-    setPrevLocation(location);
-    setSearchCity(location ?? "");
-  }
-
-  // Geocodes the search city so hotel results can show distance-from-town —
-  // debounced since searchCity is a free-text input the exec can retype.
-  const [cityCoords, setCityCoords] = useState<{ lat: number; lng: number } | null>(null);
-  useEffect(() => {
-    // Nothing to geocode, and HotelRoomPicker already short-circuits on an
-    // empty searchCity — no need to clear cityCoords synchronously here.
-    if (!searchCity) return;
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      const coords = await geocodeCity(searchCity);
-      if (!cancelled) setCityCoords(coords);
-    }, 400);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [searchCity]);
-
-  // Same pattern as searchCity/cityCoords above, for the cab search below —
-  // kept independent since an exec may want to price cabs from a different
-  // city than the hotel (e.g. an arrival-day transfer from the airport city).
-  const [searchCabCity, setSearchCabCity] = useState(location ?? "");
-  const [prevCabLocation, setPrevCabLocation] = useState(location);
-  if (location !== prevCabLocation) {
-    setPrevCabLocation(location);
-    setSearchCabCity(location ?? "");
-  }
-
-  const [cabCityCoords, setCabCityCoords] = useState<{ lat: number; lng: number } | null>(null);
-  useEffect(() => {
-    if (!searchCabCity) return;
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      const coords = await geocodeCity(searchCabCity);
-      if (!cancelled) setCabCityCoords(coords);
-    }, 400);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [searchCabCity]);
-
-  function toggleMeal(m: string) {
-    const meals = data.meals.includes(m)
-      ? data.meals.filter((x) => x !== m)
-      : [...data.meals, m];
-    onChange({ ...data, meals });
-  }
-
-  /** Full hotel removal for this day — clears every hotel-related field,
-   * including roomPricingId (what the pricing engine actually keys off).
-   * Previously an exec could only blank the visible accommodation text/photo
-   * without a dedicated button, which left roomPricingId pointing at the old
-   * room — the price kept showing even though the card looked empty. */
-  function handleHotelRoomClear() {
-    onChange({
-      ...data,
-      accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
-      accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
-      accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
-      roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
-      manualHotelPricePerNight: null, manualExtraBedRate: null,
-      hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],
-    });
-  }
-
-  /** Same idea for the cab — zeroes cabPricingId so a removed vehicle stops
-   * contributing to price. Pickup/drop/distance/travel-time are left as-is
-   * since those describe the route, not which vehicle covers it. */
-  function handleCabRemove() {
-    onChange({
-      ...data,
-      transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
-      cabPricingId: null, cabQuantity: null, extraCabs: [],
-    });
-  }
-
-  function handleHotelRoomSelect(raw: HotelRoomResult) {
-    // Fetch which meals this room's plan actually covers instead of leaving
-    // the exec to toggle them by hand — falls back to whatever was already
-    // set if the plan has no structured meals configured (e.g. room-only).
-    const hotelMeals = raw.coveredMeals.map((k) => MEAL_KEY_LABELS[k]).filter((v): v is string => !!v);
-    onChange({
-      ...data,
-      accommodation: `${raw.hotelName} — ${raw.roomName}`,
-      accommodationPhoto: raw.hotelPhoto ?? data.accommodationPhoto,
-      accommodationRoomPhotos: raw.roomPhotos.length > 0 ? raw.roomPhotos : data.accommodationRoomPhotos,
-      accommodationLocation: raw.location ?? data.accommodationLocation,
-      accommodationRoomSpecs: raw.roomSpecs ?? data.accommodationRoomSpecs,
-      accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
-      // Occupancy caps snapshotted straight from the picked room — feeds the
-      // "rooms & mattresses needed for this party" readout below. A manual
-      // mattress count from before (if this day was previously hand-typed)
-      // no longer means anything once a real catalog room is behind it.
-      accommodationMaxAdults: raw.maxAdults,
-      accommodationMaxChildren: raw.maxChildren,
-      accommodationExtraBedCapacity: raw.extraBedCapacity,
-      manualExtraBeds: null,
-      manualHotelPricePerNight: null, manualExtraBedRate: null,
-      hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
-      meals: hotelMeals.length > 0 ? hotelMeals : data.meals,
-      // The hotel's own check-in/check-out policy — previously never fetched
-      // at all, so this always stayed blank unless typed in by hand. Stored
-      // as 24h "HH:MM" on the hotel record (<input type="time">) — converted
-      // to "2:00 PM" here so it reads the same as a hand-typed value both in
-      // this field and in the document.
-      hotelCheckIn: raw.checkInTime ? formatTime12h(raw.checkInTime) : data.hotelCheckIn,
-      hotelCheckOut: raw.checkOutTime ? formatTime12h(raw.checkOutTime) : data.hotelCheckOut,
-      // Links this night to the real hotel_room_pricing row so the package
-      // price can be computed from its actual date/occupancy-aware rate.
-      roomPricingId: raw.id,
-    });
-    if (totalDays > 1) {
-      setLastRoom(raw);
-      setShowRoomApplyPrompt(true);
-    }
-  }
-
-  // Falls back to the unscoped fleet catalog only when there's neither a
-  // city nor an exact pickup point to price against yet (e.g. route stops
-  // not filled in) — once either is available, cab_pricing (real, bookable
-  // rates) takes over.
-  async function fetchCabOptions(query: string, page: number = 1): Promise<Option[]> {
-    const hasPickupPoint = data.transportPickupLat != null && data.transportPickupLng != null;
-    if (!searchCabCity && !hasPickupPoint) {
-      // Unscoped fleet catalog fallback (no destination/pickup to price
-      // against yet) — capped at 20 server-side with no page param, so
-      // there's nothing further to load here.
-      const results = await searchVehiclesForBuilder(query);
-      return results.map((v): Option & { raw: VehicleResult } => ({
-        id: v.id,
-        label: v.name,
-        description: `${CAB_LABELS[v.type] ?? v.type} · ${v.passengerCapacity} seats${v.hasAc ? " · AC" : ""}`,
-        thumbnail: v.thumbnail ?? undefined,
-        raw: v,
-      }));
-    }
-    // Prefer the exact pickup point (chosen from the Location catalog) over
-    // a geocoded guess of the city name — real coordinates make the
-    // nearest-priced-city fallback and displayed distances actually accurate.
-    // searchCabsForBuilder tolerates an empty city string as long as
-    // refCoords is set, going straight to the nearest-priced-city fallback.
-    const refCoords = hasPickupPoint
-      ? { lat: data.transportPickupLat as number, lng: data.transportPickupLng as number }
-      : cabCityCoords;
-    const distanceRefLabel = hasPickupPoint ? data.transportPickup : searchCabCity;
-
-    const { rows: results } = await searchCabsForBuilder(searchCabCity, query, refCoords, page);
-    return results.map((r): Option & { raw: CabPricingResult } => ({
-      id: r.id,
-      label: r.vehicleName,
-      description: [
-        `₹${r.price.toLocaleString("en-IN")}/${r.pricingType === "PER_DAY" ? "day" : r.pricingType.toLowerCase()}`,
-        `${CAB_LABELS[r.vehicleType] ?? r.vehicleType} · ${r.passengerCapacity} seats${r.hasAc ? " · AC" : ""}`,
-        r.cityName && r.cityName.toLowerCase() !== searchCabCity.toLowerCase()
-          ? `nearest priced city: ${r.cityName}${r.distanceKm != null ? ` (${r.distanceKm} km away)` : ""}`
-          : (r.distanceKm != null ? `${r.distanceKm} km from ${distanceRefLabel}` : null),
-      ].filter(Boolean).join(" · "),
-      thumbnail: r.thumbnail ?? undefined,
-      raw: r,
-    }));
-  }
-
-  function handleCabSelect(_id: number | null, option?: Option) {
-    const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
-    if (!raw) return;
-    // Only a CabPricingResult references a real, priceable cab_pricing row —
-    // raw.id on a plain VehicleResult pick is a vehicles.id from the
-    // unscoped fleet catalog, not a rate to compute season pricing from.
-    const isPriced = "vehicleName" in raw;
-    const vehicle: VehicleResult = isPriced
-      ? {
-          id: raw.id, name: raw.vehicleName, type: raw.vehicleType,
-          passengerCapacity: raw.passengerCapacity, hasAc: raw.hasAc, thumbnail: raw.thumbnail,
-        }
-      : raw;
-    const cabPricingId = isPriced ? raw.id : null;
-    onChange({
-      ...data,
-      transport: vehicle.name,
-      transportPhoto: vehicle.thumbnail ?? data.transportPhoto,
-      transportVehicleType: CAB_LABELS[vehicle.type] ?? vehicle.type,
-      transportSeats: vehicle.passengerCapacity,
-      cabPricingId,
-      // See applyVehicleToDays below — a reassignment drops the previous
-      // quantity and any extra cabs, which pricing would otherwise keep
-      // charging for behind a day that shows one vehicle.
-      cabQuantity: null,
-      extraCabs: [],
-    });
-    if (totalDays > 1) {
-      setLastVehicle(vehicle);
-      setLastCabPricingId(cabPricingId);
-      setShowApplyPrompt(true);
-    }
-  }
-
-  // Collapsed-state summary dots — lets an exec scan the whole trip for
-  // gaps (e.g. "Day 4 has no cab yet") without opening every card.
-  const hasHotel = !!data.accommodation || data.hotelPending;
-  const hasCab = !!data.transport || data.cabPricingId != null;
-  const hasMeals = data.meals.length > 0;
-  const hasActivities = data.activities.some((a) => a.title.trim());
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      className={cn(
-        "rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm overflow-hidden",
-        isDragging && "z-10 shadow-lg",
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-dashboard-base-100 border-b border-dashboard-base-300">
-        <button
-          type="button"
-          className="flex items-center justify-center shrink-0 size-6 -ml-1 mr-0.5 text-dashboard-base-content/30 hover:text-dashboard-base-content/70 cursor-grab active:cursor-grabbing touch-none"
-          title="Drag to reorder this day"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={15} />
-        </button>
-        <button onClick={() => setOpen(!open)} className="flex items-center gap-2 flex-1 text-left min-w-0">
-          <div className="h-7 w-7 rounded-lg bg-linear-to-br from-dashboard-primary to-dashboard-primary/80 text-dashboard-primary-content text-xs font-bold flex items-center justify-center shrink-0">
-            {day}
-          </div>
-          <div className="flex-1 min-w-0">
-            {open
-              ? <Input
-                value={data.title}
-                onChange={(e) => onChange({ ...data, title: e.target.value })}
-                placeholder={`Day ${day} title…`}
-                className="h-7 text-sm font-semibold border-0 p-0 shadow-none bg-transparent focus-visible:ring-0 text-dashboard-base-content"
-                onClick={(e) => e.stopPropagation()}
-              />
-              : <span className="text-sm font-semibold truncate text-dashboard-base-content">
-                {data.title || `Day ${day}`}
-              </span>
-            }
-          </div>
-          {!open && (
-            <div className="flex items-center gap-1 shrink-0" title="Hotel · Transport · Meals · Activities">
-              <span className={cn("size-1.5 rounded-full", hasHotel ? "bg-amber-500" : "bg-dashboard-base-300")} />
-              <span className={cn("size-1.5 rounded-full", hasCab ? "bg-sky-500" : "bg-dashboard-base-300")} />
-              <span className={cn("size-1.5 rounded-full", hasMeals ? "bg-emerald-500" : "bg-dashboard-base-300")} />
-              <span className={cn("size-1.5 rounded-full", hasActivities ? "bg-violet-500" : "bg-dashboard-base-300")} />
-            </div>
-          )}
-        </button>
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => setOpen(!open)}
-            className="p-1 rounded hover:bg-dashboard-base-300 transition-colors text-dashboard-base-content/50"
-          >
-            {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-          <button
-            onClick={onRemove}
-            className="p-1 rounded hover:bg-dashboard-error/10 text-dashboard-error transition-colors"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      </div>
-
-      {open && (
-        <div className="p-4 space-y-4">
-          {/* Description */}
-          {(focusSection === "all" || focusSection === "details") && (
-            <div>
-              <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block rounded-md">Day Description</label>
-              <Textarea
-                value={data.description}
-                onChange={(e) => onChange({ ...data, description: e.target.value })}
-                placeholder="Describe the day's plan, sightseeing, transfers…"
-                rows={3}
-                className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
-          )}
-
-          {/* Accommodation */}
-          {(focusSection === "all" || focusSection === "hotel") && (
-          <DaySectionCard
-            icon={Hotel}
-            label="Hotel Info"
-            color="amber"
-            action={(data.accommodation || data.roomPricingId != null) && (
-              <RemoveSectionActions
-                onRemove={handleHotelRoomClear}
-                onRemoveAll={() => onRemoveRoomFromDays(Array.from({ length: totalDays }, (_, i) => i + 1))}
-                totalDays={totalDays}
-              />
-            )}
-          >
-            {data.hotelPending || hotelRequestComposing ? (
-              <HotelRequestPanel
-                data={data}
-                onChange={onChange}
-                mealTypes={mealTypes}
-                composing={hotelRequestComposing}
-                onStartEdit={() => setHotelRequestComposing(true)}
-                onSubmit={() => {
-                  onChange({
-                    ...data,
-                    hotelPending: true,
-                    // Proof to saveCustomPackage that the exec actually saw
-                    // this rejection before resubmitting — see
-                    // hotelRejectionAcknowledged's doc comment in action.ts.
-                    hotelRejectionAcknowledged: true,
-                    hotelRejectedAt: null, hotelRejectedByName: null, hotelRejectionNote: null,
-                  });
-                  setHotelRequestComposing(false);
-                  onHotelRequestSubmitted();
-                }}
-                onCancelEdit={() => setHotelRequestComposing(false)}
-                onRemoveRequest={() => {
-                  onChange({
-                    ...data,
-                    hotelPending: false, hotelPendingNote: "", hotelRequestType: null,
-                    roomsCount: null, manualExtraBeds: null, hotelMealPlan: "",
-                  });
-                  setHotelRequestComposing(false);
-                  onHotelRequestSubmitted();
-                }}
-              />
-            ) : (
-              <>
-            {stayPreference && stayPreference.length > 0 && (
-              <p className="text-[11px] text-dashboard-base-content/70 -mt-1.5 flex flex-wrap items-center gap-1">
-                <span className="text-dashboard-base-content/50">Client wants:</span>
-                {stayPreference.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-dashboard-primary/10 text-dashboard-primary font-medium"
-                  >
-                    {STAY_LABELS[t] ?? t}
-                  </span>
-                ))}
-              </p>
-            )}
-            {data.hotelFilledAt && (
-              <p className="text-[11px] text-emerald-700 flex items-center gap-1 -mt-1">
-                <CheckCircle size={11} /> Filled by {data.hotelFilledByName ?? "hotel team"} on {new Date(data.hotelFilledAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                {data.manualHotelPricePerNight != null && ` · ₹${data.manualHotelPricePerNight.toLocaleString("en-IN")}/night`}
-              </p>
-            )}
-            {data.hotelFillNote && (
-              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 flex items-start gap-1.5">
-                <StickyNote size={11} className="shrink-0 mt-0.5" />
-                <span>
-                  <span className="font-medium">Note from hotel team:</span> {data.hotelFillNote}
-                </span>
-              </p>
-            )}
-            <div>
-              {/* No separate city field — this day's stop (from Route:
-                 Destinations & Nights) is the default search scope
-                 automatically. Typing a hotel name, city, or state in the
-                 search itself reaches anywhere, so switching cities never
-                 needs a dedicated input. */}
-              <HotelRoomPicker
-                value={data.roomPricingId}
-                initialLabel={data.accommodation}
-                searchCity={searchCity}
-                refCoords={cityCoords}
-                onSelect={handleHotelRoomSelect}
-                onClear={handleHotelRoomClear}
-                placeholder={searchCity ? `Search hotels near ${searchCity}…` : "Search hotels by name, city, or state…"}
-                travelDate={nightISOForDay(travelDate, day)}
-              />
-              <p className="text-[10px] text-dashboard-base-content/40 mt-1">
-                {data.accommodation ? `Currently: ${data.accommodation} — click above to change it. ` : ""}
-                {searchCity ? `Showing hotels near ${searchCity} by default — search above for a different city.` : "Search by hotel name, city, or state."}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange({
-                    ...data,
-                    accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
-                    accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
-                    accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
-                    roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
-                    hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-                    manualHotelPricePerNight: null, manualExtraBedRate: null,
-                    hotelRequestType: null, hotelPendingNote: "",
-                  });
-                  setHotelRequestComposing(true);
-                }}
-                className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-white cursor-pointer bg-red-500 px-2 py-1 rounded-lg"
-              >
-                Request hotel
-              </button>
-            </div>
-
-            {/* Rooms/mattresses needed — auto-computed from the room's own
-               capacity + traveller count when a catalog room is picked
-               (overridable, for a group splitting across separately booked
-               rooms rather than sharing by pure occupancy); plain manual
-               counts for a hand-typed/hotel-team-filled day, which has no
-               catalog capacity to compute from. */}
-            {data.roomPricingId != null ? (
-              <RoomCapacitySummary data={data} adults={adults} childrenCount={childrenCount} onChange={onChange} />
-            ) : (data.accommodation || data.hotelFilledAt) ? (
-              <ManualHotelCapacityInputs data={data} onChange={onChange} />
-            ) : null}
-
-            {/* Additional, different room types for the same night — e.g. one
-               couple in this room, another in a different room type. */}
-            {(data.extraRooms ?? []).length > 0 && (
-              <div className="space-y-2">
-                {(data.extraRooms ?? []).map((room, i) => (
-                  <div key={i} className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 p-2">
-                    <div className="flex-1 min-w-0">
-                      <HotelRoomPicker
-                        value={room.roomPricingId || null}
-                        initialLabel={room.label}
-                        searchCity={searchCity}
-                        refCoords={cityCoords}
-                        travelDate={nightISOForDay(travelDate, day)}
-                        onSelect={(r) => {
-                          const next = [...(data.extraRooms ?? [])];
-                          next[i] = {
-                            roomPricingId: r.id,
-                            label: `${r.hotelName} — ${r.roomName}`,
-                            quantity: next[i].quantity,
-                            thumbnail: r.roomPhotos[0] ?? r.hotelPhoto ?? null,
-                            roomCapacity: r.roomCapacity,
-                            roomSpecs: r.roomSpecs,
-                          };
-                          onChange({ ...data, extraRooms: next });
-                        }}
-                        onClear={() => {
-                          const next = [...(data.extraRooms ?? [])];
-                          next[i] = { ...next[i], roomPricingId: 0, label: "" };
-                          onChange({ ...data, extraRooms: next });
-                        }}
-                        placeholder="Search another room type…"
-                      />
-                    </div>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={room.quantity}
-                      onChange={(e) => {
-                        const next = [...(data.extraRooms ?? [])];
-                        next[i] = { ...next[i], quantity: Math.max(1, parseInt(e.target.value, 10) || 1) };
-                        onChange({ ...data, extraRooms: next });
-                      }}
-                      className="text-sm h-9 w-16 shrink-0 border-dashboard-base-300 rounded-md"
-                    />
-                    <Button
-                      type="button" variant="ghost" size="icon"
-                      className="h-9 w-9 shrink-0 text-dashboard-error hover:bg-dashboard-error/10"
-                      onClick={() => onChange({
-                        ...data,
-                        extraRooms: (data.extraRooms ?? []).filter((_, idx) => idx !== i),
-                      })}
-                    >
-                      <Trash2 size={13} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <Button
-              type="button" variant="outline" size="sm"
-              className="h-8 text-xs gap-1.5"
-              onClick={() => onChange({
-                ...data,
-                extraRooms: [...(data.extraRooms ?? []), { roomPricingId: 0, label: "", quantity: 1 }],
-              })}
-            >
-              <Plus size={12} /> Add another room type
-            </Button>
-
-            {showRoomApplyPrompt && lastRoom && (
-              <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-dashboard-base-content/80">
-                    Use <span className="font-medium">{lastRoom.hotelName} — {lastRoom.roomName}</span> for other nights too?
-                  </p>
-                  <button
-                    type="button"
-                    onClick={dismissRoomApplyPrompt}
-                    className="text-dashboard-base-content/40 hover:text-dashboard-base-content/70 shrink-0"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <Button
-                    type="button" size="sm" variant="outline"
-                    className="h-6 text-[11px] px-2"
-                    onClick={() => {
-                      onApplyRoomToDays(lastRoom, Array.from({ length: totalDays }, (_, i) => i + 1));
-                      dismissRoomApplyPrompt();
-                    }}
-                  >
-                    All {totalDays} days
-                  </Button>
-                  <Button
-                    type="button" size="sm" variant="outline"
-                    className="h-6 text-[11px] px-2"
-                    onClick={() => setRoomCustomDaysOpen((v) => !v)}
-                  >
-                    Custom days…
-                  </Button>
-                  <Button
-                    type="button" size="sm" variant="ghost"
-                    className="h-6 text-[11px] px-2"
-                    onClick={dismissRoomApplyPrompt}
-                  >
-                    Just this day
-                  </Button>
-                </div>
-                {roomCustomDaysOpen && (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-dashboard-primary/20">
-                    {Array.from({ length: totalDays }, (_, i) => i + 1).map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setRoomSelectedDays((prev) =>
-                          prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
-                        )}
-                        className={cn(
-                          "h-6 w-6 rounded-md border text-[11px] font-medium transition-colors",
-                          roomSelectedDays.includes(d)
-                            ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
-                            : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200",
-                        )}
-                      >
-                        {d}
-                      </button>
-                    ))}
-                    <Button
-                      type="button" size="sm"
-                      className="h-6 text-[11px] px-2 ml-1"
-                      disabled={roomSelectedDays.length === 0}
-                      onClick={() => {
-                        onApplyRoomToDays(lastRoom, roomSelectedDays);
-                        dismissRoomApplyPrompt();
-                      }}
-                    >
-                      Apply to {roomSelectedDays.length || ""} day{roomSelectedDays.length !== 1 ? "s" : ""}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <HotelPhotoGallery
-              hotelPhoto={data.accommodationPhoto || undefined}
-              roomPhotos={data.accommodationRoomPhotos}
-              alt={data.accommodation || "Hotel"}
-              onClear={() => onChange({ ...data, accommodationPhoto: "", accommodationRoomPhotos: [] })}
-            />
-            <Input
-              value={data.accommodation}
-              onChange={(e) => onChange({ ...data, accommodation: e.target.value })}
-              placeholder="Hotel name / type"
-              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Location</label>
-                <Input
-                  value={data.accommodationLocation}
-                  onChange={(e) => onChange({ ...data, accommodationLocation: e.target.value })}
-                  placeholder="City, State"
-                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Room Specs</label>
-                <Input
-                  value={data.accommodationRoomSpecs}
-                  onChange={(e) => onChange({ ...data, accommodationRoomSpecs: e.target.value })}
-                  placeholder="1 Double Bed | Mountain View"
-                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] text-dashboard-base-content/60 mb-1 flex items-center gap-1 block">
-                  <LogIn size={10} /> Check-In
-                </label>
-                <Input
-                  value={data.hotelCheckIn}
-                  onChange={(e) => onChange({ ...data, hotelCheckIn: e.target.value })}
-                  placeholder="2:00 PM"
-                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-dashboard-base-content/60 mb-1 flex items-center gap-1 block">
-                  <LogOut size={10} /> Check-Out
-                </label>
-                <Input
-                  value={data.hotelCheckOut}
-                  onChange={(e) => onChange({ ...data, hotelCheckOut: e.target.value })}
-                  placeholder="11:00 AM"
-                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Meal Plan</label>
-              <Input
-                value={data.hotelMealPlan}
-                onChange={(e) => onChange({ ...data, hotelMealPlan: e.target.value })}
-                placeholder="MAP - Breakfast & Dinner"
-                className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
-              </>
-            )}
-          </DaySectionCard>
-          )}
-
-          {/* Add-ons added for this day — shown right below the Hotel section */}
-          {(focusSection === "all" || focusSection === "hotel") && (
-          <DaySectionCard
-            icon={Gift}
-            label="Add-ons"
-            color="rose"
-            badge={dayAddons.length > 0 && (
-              <span className="text-[10px] font-semibold text-rose-600 bg-rose-100 rounded-full px-1.5 py-0.5 shrink-0">
-                {dayAddons.length}
-              </span>
-            )}
-            action={
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onAddAddon}
-                className="h-6 px-2 text-[11px] gap-1 border-rose-200 text-rose-700 hover:bg-rose-100 rounded-md shrink-0"
-              >
-                <Plus size={11} /> Add Add-on
-              </Button>
-            }
-          >
-            <p className="text-[11px] text-dashboard-base-content/50 -mt-1">
-              Honeymoon kit, permits, etc. added for this day — priced into the package total, shown here in the itinerary
-              document under Day {day}&apos;s hotel.
-            </p>
-            {dayAddons.length === 0 ? (
-              <p className="text-[11px] text-dashboard-base-content/40 italic">No add-ons for this day yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {dayAddons.map(({ addon, index }) => (
-                  <div key={index} className="rounded-lg border border-rose-100 bg-rose-50/30 p-2.5 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={addon.name}
-                        onChange={(e) => onUpdateAddon(index, { name: e.target.value })}
-                        placeholder="e.g. Honeymoon Kit"
-                        className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md bg-dashboard-base-100"
-                      />
-                      <Input
-                        type="number" min={0}
-                        value={addon.price ?? ""}
-                        onChange={(e) => onUpdateAddon(index, { price: e.target.value ? Number(e.target.value) : null })}
-                        placeholder="₹ / unit"
-                        className="text-sm h-8 w-24 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md bg-dashboard-base-100"
-                      />
-                      <Input
-                        type="number" min={1}
-                        value={addon.quantity}
-                        onChange={(e) => onUpdateAddon(index, { quantity: e.target.value ? Number(e.target.value) : 1 })}
-                        placeholder="Qty"
-                        className="text-sm h-8 w-16 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md bg-dashboard-base-100"
-                      />
-                      <span className="text-xs font-semibold text-dashboard-base-content/70 w-20 text-right shrink-0">
-                        ₹{((addon.price ?? 0) * (addon.quantity || 1)).toLocaleString("en-IN")}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onRemoveAddon(index)}
-                        className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                    <Textarea
-                      value={addon.notes}
-                      onChange={(e) => onUpdateAddon(index, { notes: e.target.value })}
-                      placeholder="What's included — e.g. candle light dinner, cake, bed decoration…"
-                      rows={2}
-                      className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md bg-dashboard-base-100"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </DaySectionCard>
-          )}
-
-          {/* Transport */}
-          {(focusSection === "all" || focusSection === "cab") && (
-          <DaySectionCard
-            icon={Car}
-            label="Transport / Cab"
-            color="sky"
-            action={(data.transport || data.cabPricingId != null) && (
-              <RemoveSectionActions
-                onRemove={handleCabRemove}
-                onRemoveAll={() => onRemoveCabFromDays(Array.from({ length: totalDays }, (_, i) => i + 1))}
-                totalDays={totalDays}
-              />
-            )}
-          >
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div>
-                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Pickup Point</label>
-                <LocationSearchSelect
-                  value={data.transportPickup
-                    ? {
-                        id: "pickup", name: data.transportPickup, type: "AREA",
-                        breadcrumb: data.transportPickup, slug: "",
-                        latitude: data.transportPickupLat, longitude: data.transportPickupLng,
-                      }
-                    : null}
-                  onChange={(loc: LocationValue | null) => onChange({
-                    ...data,
-                    transportPickup:    loc?.name ?? "",
-                    transportPickupLat: loc?.latitude ?? null,
-                    transportPickupLng: loc?.longitude ?? null,
-                  })}
-                  types={TRANSFER_TYPES}
-                  placeholder="Search a pickup location…"
-                />
-                {data.transportPickupLat != null && (
-                  <p className="text-[10px] text-dashboard-base-content/40 mt-1">
-                    Located — cab search below prioritizes this exact point.
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Drop Point</label>
-                <Input
-                  value={data.transportDrop}
-                  onChange={(e) => onChange({ ...data, transportDrop: e.target.value })}
-                  placeholder="Drop point"
-                  className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
-            </div>
-
-            <div className="mb-2">
-              <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">
-                Search location (city) — defaults to this day&apos;s stop, editable
-              </label>
-              <Input
-                value={searchCabCity}
-                onChange={(e) => setSearchCabCity(e.target.value)}
-                placeholder="e.g. Manali"
-                className="text-sm h-8 mb-2 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <SearchSelect
-                value={null}
-                onChange={handleCabSelect}
-                fetchOptions={fetchCabOptions}
-                pageSize={CAB_SEARCH_PAGE_SIZE}
-                placeholder={
-                  searchCabCity ? `Search cabs in ${searchCabCity}…`
-                    : data.transportPickup ? `Search cabs near ${data.transportPickup}…`
-                    : "Search cab / vehicle fleet…"
-                }
-              />
-              {(searchCabCity || data.transportPickup) && (
-                <p className="text-[10px] text-dashboard-base-content/40 mt-1">
-                  Shows real cab pricing for {searchCabCity || data.transportPickup} — or the nearest city with rates configured, if none exist there yet.
-                </p>
-              )}
-            </div>
-
-            {/* Cab quantity — e.g. 2 of the same vehicle for a large group. */}
-            {data.cabPricingId != null && (
-              <div className="flex items-center gap-2 mb-2">
-                <label className="text-[11px] text-dashboard-base-content/60 shrink-0">Quantity</label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={data.cabQuantity ?? ""}
-                  onChange={(e) => onChange({
-                    ...data,
-                    cabQuantity: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-                  })}
-                  placeholder="1"
-                  className="text-sm h-8 w-20 shrink-0 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
-            )}
-
-            {/* Additional, different cabs for the same day — e.g. one sedan
-               plus one SUV, each with its own quantity. */}
-            {(data.extraCabs ?? []).length > 0 && (
-              <div className="space-y-2 mb-2">
-                {(data.extraCabs ?? []).map((cab, i) => (
-                  <div key={i} className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 p-2">
-                    <div className="flex-1 min-w-0">
-                      <SearchSelect
-                        value={null}
-                        onChange={(_id, option) => {
-                          const raw = (option as (Option & { raw: VehicleResult | CabPricingResult }) | undefined)?.raw;
-                          if (!raw) return;
-                          const isPriced = "vehicleName" in raw;
-                          const vehicleType = isPriced ? raw.vehicleType : raw.type;
-                          const next = [...(data.extraCabs ?? [])];
-                          next[i] = {
-                            cabPricingId: isPriced ? raw.id : null,
-                            label: isPriced ? raw.vehicleName : raw.name,
-                            quantity: next[i].quantity,
-                            vehicleType: CAB_LABELS[vehicleType] ?? vehicleType,
-                            seats: raw.passengerCapacity,
-                            thumbnail: raw.thumbnail ?? null,
-                          };
-                          onChange({ ...data, extraCabs: next });
-                        }}
-                        fetchOptions={fetchCabOptions}
-                        pageSize={CAB_SEARCH_PAGE_SIZE}
-                        placeholder={cab.label || "Search another cab…"}
-                      />
-                    </div>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={cab.quantity}
-                      onChange={(e) => {
-                        const next = [...(data.extraCabs ?? [])];
-                        next[i] = { ...next[i], quantity: Math.max(1, parseInt(e.target.value, 10) || 1) };
-                        onChange({ ...data, extraCabs: next });
-                      }}
-                      className="text-sm h-9 w-16 shrink-0 border-dashboard-base-300 rounded-md"
-                    />
-                    <Button
-                      type="button" variant="ghost" size="icon"
-                      className="h-9 w-9 shrink-0 text-dashboard-error hover:bg-dashboard-error/10"
-                      onClick={() => onChange({
-                        ...data,
-                        extraCabs: (data.extraCabs ?? []).filter((_, idx) => idx !== i),
-                      })}
-                    >
-                      <Trash2 size={13} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <Button
-              type="button" variant="outline" size="sm"
-              className="h-8 text-xs gap-1.5 mb-2"
-              onClick={() => onChange({
-                ...data,
-                extraCabs: [...(data.extraCabs ?? []), { cabPricingId: null, label: "", quantity: 1 }],
-              })}
-            >
-              <Plus size={12} /> Add another cab
-            </Button>
-
-            {showApplyPrompt && lastVehicle && (
-              <div className="mb-2 rounded-md border border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-2 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-dashboard-base-content/80">
-                    Use <span className="font-medium">{lastVehicle.name}</span> for other days too?
-                  </p>
-                  <button
-                    type="button"
-                    onClick={dismissApplyPrompt}
-                    className="text-dashboard-base-content/40 hover:text-dashboard-base-content/70 shrink-0"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <Button
-                    type="button" size="sm" variant="outline"
-                    className="h-6 text-[11px] px-2"
-                    onClick={() => {
-                      onApplyVehicleToDays(lastVehicle, Array.from({ length: totalDays }, (_, i) => i + 1), lastCabPricingId);
-                      dismissApplyPrompt();
-                    }}
-                  >
-                    All {totalDays} days
-                  </Button>
-                  <Button
-                    type="button" size="sm" variant="outline"
-                    className="h-6 text-[11px] px-2"
-                    onClick={() => setCustomDaysOpen((v) => !v)}
-                  >
-                    Custom days…
-                  </Button>
-                  <Button
-                    type="button" size="sm" variant="ghost"
-                    className="h-6 text-[11px] px-2"
-                    onClick={dismissApplyPrompt}
-                  >
-                    Just this day
-                  </Button>
-                </div>
-                {customDaysOpen && (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-dashboard-primary/20">
-                    {Array.from({ length: totalDays }, (_, i) => i + 1).map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setSelectedDays((prev) =>
-                          prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
-                        )}
-                        className={cn(
-                          "h-6 w-6 rounded-md border text-[11px] font-medium transition-colors",
-                          selectedDays.includes(d)
-                            ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
-                            : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200",
-                        )}
-                      >
-                        {d}
-                      </button>
-                    ))}
-                    <Button
-                      type="button" size="sm"
-                      className="h-6 text-[11px] px-2 ml-1"
-                      disabled={selectedDays.length === 0}
-                      onClick={() => {
-                        onApplyVehicleToDays(lastVehicle, selectedDays, lastCabPricingId);
-                        dismissApplyPrompt();
-                      }}
-                    >
-                      Apply to {selectedDays.length || ""} day{selectedDays.length !== 1 ? "s" : ""}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {data.transportPhoto && (
-              <div className="mb-2">
-                <PhotoPreview
-                  src={data.transportPhoto}
-                  alt={data.transport || "Vehicle"}
-                  onRemove={() => onChange({ ...data, transportPhoto: "" })}
-                />
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <Input
-                value={data.transport}
-                onChange={(e) => onChange({ ...data, transport: e.target.value })}
-                placeholder="Vehicle name"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <Input
-                value={data.transportVehicleType}
-                onChange={(e) => onChange({ ...data, transportVehicleType: e.target.value })}
-                placeholder="Type, e.g. SUV"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="number"
-                value={data.transportSeats ?? ""}
-                onChange={(e) => onChange({ ...data, transportSeats: e.target.value ? Number(e.target.value) : null })}
-                placeholder="Seats"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <Input
-                type="number"
-                value={data.transportDistanceKm ?? ""}
-                onChange={(e) => onChange({ ...data, transportDistanceKm: e.target.value ? Number(e.target.value) : null })}
-                placeholder="Distance (km)"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
-            <div className="mt-2">
-              <Input
-                value={data.transportTravelTime}
-                onChange={(e) => onChange({ ...data, transportTravelTime: e.target.value })}
-                placeholder="Estimated travel time, e.g. 3h 15m"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
-          </DaySectionCard>
-          )}
-
-          {/* Meals */}
-          {(focusSection === "all" || focusSection === "meals") && (
-          <DaySectionCard icon={Utensils} label="Meals Included" color="emerald">
-            {/* What's actually eaten ON this day — breakfast is pulled from
-               the PREVIOUS day's hotel (see computeShiftedMeals), matching
-               the Day-wise Summary table and the client-facing document.
-               Purely informational: nothing here is directly editable,
-               since it's derived from two different days' data. */}
-            <div className="rounded-md bg-emerald-50 border border-emerald-200 px-2.5 py-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Actually served on Day {day}</p>
-              <p className="text-xs text-emerald-800 mt-0.5">
-                {shiftedMeals.length > 0 ? shiftedMeals.join(", ") : "No meals"}
-              </p>
-            </div>
-            <p className="text-[10px] text-dashboard-base-content/50">
-              This hotel&apos;s plan covers (tonight&apos;s dinner + tomorrow&apos;s breakfast, if included):
-            </p>
-            {data.roomPricingId != null ? (
-              // A real room is selected — its meal plan is fixed (covered_meals
-              // on the room's meal_type), so only those meals show and none can
-              // be toggled on/off here; clear the room search to go back to
-              // free-text meals below.
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {data.meals.length > 0 ? (
-                    data.meals.map((m) => (
-                      <span
-                        key={m}
-                        className="text-xs px-3 py-1 rounded-full border font-medium bg-emerald-600 text-white border-emerald-600"
-                      >
-                        {m}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-dashboard-base-content/40 italic">No meals included with this room</span>
-                  )}
-                </div>
-                <p className="text-[10px] text-dashboard-base-content/40 mt-1">
-                  Set by the selected room&apos;s meal plan.
-                </p>
-              </>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {MEAL_OPTIONS.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => toggleMeal(m)}
-                    className={cn(
-                      "text-xs px-3 py-1 rounded-full border font-medium transition-all",
-                      data.meals.includes(m)
-                        ? "bg-emerald-600 text-white border-emerald-600"
-                        : "bg-dashboard-base-200 text-dashboard-base-content/50 border-dashboard-base-300 hover:border-emerald-400 hover:text-emerald-700 cursor-pointer"
-                    )}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            )}
-          </DaySectionCard>
-          )}
-
-          {/* Activities */}
-          {(focusSection === "all" || focusSection === "activities") && (
-            <ActivityListEditor
-              activities={data.activities}
-              location={searchCity}
-              onChange={(activities) => onChange({ ...data, activities })}
-            />
-          )}
-
-          {/* Notes */}
-          {(focusSection === "all" || focusSection === "details") && (
-            <div>
-              <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Notes</label>
-              <Input
-                value={data.notes}
-                onChange={(e) => onChange({ ...data, notes: e.target.value })}
-                placeholder="Any additional note for this day…"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Form State Type
+//
+// Lives in builder-context.tsx so the preview's inline editors and the task
+// drawers can share it without importing from this page module. The shape is
+// unchanged — see the note there on why this stays a plain useState pair.
 // ─────────────────────────────────────────────────────────────────────────────
-interface PackageForm {
-  title: string;
-  description: string;
-  coverImage: string;
-  /** Vertical focal point for the cover image's object-position (0 = top,
-   * 50 = center, 100 = bottom) — lets an awkwardly-cropped photo be
-   * re-centered without re-uploading it. */
-  coverImagePosition: number;
-  destination: string;
-  startingPoint: string;
-  totalDays: number;
-  totalNights: number;
-  travelDate: string;
-  adults: number;
-  children: number;
-  infants: number;
-  /** Index-aligned with children/infants above — see the schema comment on
-   * custom_packages.childrenAges. Resized (padded/truncated) automatically
-   * whenever the count input changes, see the Travellers section handler. */
-  childrenAges: number[];
-  infantAges: number[];
-  pricePerPerson: string;
-  totalPrice: string;
-  marginPercentage: string;
-  gstPercentage: string;
-  currency: string;
-  inclusions: string[];
-  exclusions: string[];
-  /** Read-only — costing's per-package removals of standard/added inclusion
-   * and exclusion lines (see custom_packages.removedInclusions), hydrated
-   * from the saved package and applied when building previewForm below.
-   * Never sent back by saveCustomPackage. */
-  removedInclusions: string[];
-  removedExclusions: string[];
-  termsNotes: string;
-  termsConditions: string[];
-  paymentPolicy: string[];
-  amendmentPolicy: string[];
-  travelBenefits: string[];
-  customPolicySections: PolicySection[];
-  /** Per-package additions to the six standard lists above — anyone
-   * (including a Sales Executive, who can't touch the standard lists
-   * themselves) can add/remove these. See ExtraPolicyItems. */
-  extraPolicyItems: ExtraPolicyItems;
-  stops: StopInput[];
-  itineraries: DayItinerary[];
-  /** Each row is one flight or train leg (onward, return, connecting…) —
-   * flightsIncluded/flightFrom/etc are derived from this list at save/preview
-   * time (see deriveTransportFields) instead of being separately toggled. */
-  tickets: TicketInput[];
-  /** Priced add-ons — honeymoon kit, permits, etc. Subtotal (price × qty)
-   * feeds into computeFinalPricing at the standard (25% default) margin. */
-  addOns: AddonInput[];
-  execName: string;
-  execEmail: string;
-  execDesignation: string;
-}
-
-// resizeAges and the age helpers now live in ../traveller-ages, shared with the
-// v2 builder, the costing panel and markPackageReady's server-side guard — the
-// unset sentinel has to mean the same thing in all four places.
 
 /** Sum of stop nights → total nights/days + a joined destination string. */
 function recalcFromStops(stops: StopInput[]) {
@@ -2524,27 +314,6 @@ function recalcFromStops(stops: StopInput[]) {
   };
 }
 
-
-/** Retries a flaky async call — this environment's Neon database has
- * routine cold-start/pooling blips, and several call sites in this file
- * (initial package load, hotel/cab pricing) used to have no error handling
- * at all: one failed request left them stuck forever with nothing telling
- * the exec why. This guarantees SOME outcome — success, or a real thrown
- * error the caller can catch and surface — instead of an unhandled
- * rejection that just hangs the UI. Backs off a little longer each retry
- * since a prolonged outage isn't helped by hammering it every second. */
-async function retryAsync<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
-  let lastErr: unknown;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      if (i < attempts) await new Promise((r) => setTimeout(r, 800 * i));
-    }
-  }
-  throw lastErr;
-}
 
 /** "2h 15m" / "1d 4h" — how long it took to go from assignment to sent,
  * so an exec (and later, reporting) can see whether this tool is actually
@@ -2560,6 +329,33 @@ function formatDuration(ms: number): string {
   return `${mins}m`;
 }
 
+const TICKET_TYPE_ICONS: Record<TicketInput["type"], React.ElementType> = {
+  FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter,
+  BUS: Bus, OTHER: Ticket,
+};
+const TICKET_PROVIDER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
+  FLIGHT: "Airline, e.g. IndiGo",
+  TRAIN: "Train name, e.g. Rajdhani Express",
+  HELICOPTER: "Operator, e.g. Pawan Hans",
+  BUS: "Operator, e.g. HRTC",
+  // Doubles as this ticket's display name for OTHER — the ticket card shows
+  // this text once typed, instead of just "Other".
+  OTHER: "What is it? e.g. Ferry Transfer, Zipline",
+};
+const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
+  FLIGHT: "Flight no., e.g. 6E-204",
+  TRAIN: "Train no., e.g. 12951",
+  HELICOPTER: "Flight/booking no.",
+  BUS: "Bus/booking no.",
+  OTHER: "Booking no.",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Itinerary Builder — see the functions inside the component for the
+// build/copy/apply flow itself; these are just the module-scope pieces that
+// don't need `form`.
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** Detects the "[label](https://...)" markdown-link/citation pattern
  * sometimes left behind when copying a JSON response out of ChatGPT's chat
  * bubble (as opposed to its code block's own copy button) — a link wrapped
@@ -2573,223 +369,17 @@ function looksLikeMarkdownLinkCorruption(value: unknown): boolean {
   return false;
 }
 
-const emptyDay = (day: number): DayItinerary => ({
-  day, title: "", description: "", activities: [],
-  meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
-  accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
-  accommodationStarRating: "",
-  roomPricingId: null,
-  hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-  hotelPending: false, hotelPendingNote: "", hotelRequestType: null, manualHotelPricePerNight: null,
-  hotelFilledAt: null, hotelFilledByName: null,
-  transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
-  transportPickup: "", transportPickupLat: null, transportPickupLng: null,
-  transportDrop: "", transportDropLat: null, transportDropLng: null, transportDistanceKm: null, transportTravelTime: "",
-  cabPricingId: null,
-  notes: "",
-});
-
-const emptyTicket = (type: TicketInput["type"]): TicketInput => ({
-  type, provider: "", ticketNumber: "",
-  fromPlace: "", toPlace: "", travelDate: "", departureTime: "", arrivalTime: "", durationText: "",
-  adults: 0, children: 0, infants: 0, ticketCount: 1,
-  fare: null, notes: "",
-});
-
-const TICKET_TYPE_LABELS: Record<TicketInput["type"], string> = {
-  FLIGHT: "Flight", TRAIN: "Train", HELICOPTER: "Helicopter", BUS: "Bus", OTHER: "Other",
+type AIItineraryActivity = { title?: string; description?: string; photos?: string[] };
+type AIItineraryDay = {
+  day?: number; title?: string; description?: string;
+  transportPickup?: string; transportDrop?: string; transportDistanceKm?: number;
+  travelTimeApprox?: string; activities?: AIItineraryActivity[];
 };
-const TICKET_TYPE_ICONS: Record<TicketInput["type"], typeof Plane> = {
-  FLIGHT: Plane, TRAIN: TrainFront, HELICOPTER: Helicopter, BUS: Bus, OTHER: Package,
+type AIItineraryResponse = {
+  description?: string; coverImage?: string;
+  stops?: { name?: string; image?: string }[];
+  days?: AIItineraryDay[];
 };
-const TICKET_PROVIDER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
-  FLIGHT: "Airline, e.g. IndiGo",
-  TRAIN: "Train name, e.g. Rajdhani Express",
-  HELICOPTER: "Operator, e.g. Pawan Hans",
-  BUS: "Operator, e.g. VRL Travels",
-  // Doubles as this ticket's display name for OTHER — see TicketEditorCard's
-  // header below, which shows this text once typed instead of just "Other".
-  OTHER: "What is it? e.g. Ferry Transfer, Zipline",
-};
-const TICKET_NUMBER_PLACEHOLDERS: Record<TicketInput["type"], string> = {
-  FLIGHT: "Flight no., e.g. 6E-204",
-  TRAIN: "Train no., e.g. 12951",
-  HELICOPTER: "Flight/booking no.",
-  BUS: "Booking/seat no.",
-  OTHER: "Booking/reference no. (optional)",
-};
-
-/** "14:30", "09:05" (24h, matches <input type="time">) → minutes-since-midnight,
- * assuming arrival is the next day when it's earlier than departure. */
-function computeDurationText(departureTime: string, arrivalTime: string): string {
-  if (!departureTime || !arrivalTime) return "";
-  const [dh, dm] = departureTime.split(":").map(Number);
-  const [ah, am] = arrivalTime.split(":").map(Number);
-  if ([dh, dm, ah, am].some((n) => Number.isNaN(n))) return "";
-  let diff = (ah * 60 + am) - (dh * 60 + dm);
-  if (diff < 0) diff += 24 * 60;
-  const hours = Math.floor(diff / 60);
-  const mins = diff % 60;
-  if (hours === 0) return `${mins}m`;
-  if (mins === 0) return `${hours}h`;
-  return `${hours}h ${mins}m`;
-}
-
-/** One flight or train leg — every field the exec would need for a ticket
- * confirmation (pax breakdown, travel date, times, auto-computed journey
- * length, fare). Journey length is derived, not typed. */
-function TicketEditorCard({
-  ticket, onChange, onRemove,
-}: {
-  ticket: TicketInput;
-  onChange: (patch: Partial<TicketInput>) => void;
-  onRemove: () => void;
-}) {
-  const Icon = TICKET_TYPE_ICONS[ticket.type];
-
-  function text(key: keyof TicketInput) {
-    return (e: React.ChangeEvent<HTMLInputElement>) => onChange({ [key]: e.target.value });
-  }
-  function num(key: keyof TicketInput) {
-    return (e: React.ChangeEvent<HTMLInputElement>) => onChange({ [key]: e.target.value ? Number(e.target.value) : 0 });
-  }
-  // Journey length is derived from both times, not typed — recompute it
-  // against whichever field just changed plus whatever the other already was.
-  function time(key: "departureTime" | "arrivalTime") {
-    return (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      const departureTime = key === "departureTime" ? value : ticket.departureTime;
-      const arrivalTime = key === "arrivalTime" ? value : ticket.arrivalTime;
-      onChange({ [key]: value, durationText: computeDurationText(departureTime, arrivalTime) });
-    };
-  }
-
-  return (
-    <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-3.5 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs font-bold text-dashboard-base-content">
-          <Icon size={13} className="text-dashboard-primary" />
-          {ticket.type === "OTHER" && ticket.provider ? ticket.provider : TICKET_TYPE_LABELS[ticket.type]}
-        </span>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="p-1 rounded hover:bg-dashboard-error/10 text-dashboard-error transition-colors"
-        >
-          <Trash2 size={13} />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Input
-          value={ticket.provider}
-          onChange={text("provider")}
-          placeholder={TICKET_PROVIDER_PLACEHOLDERS[ticket.type]}
-          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-        <Input
-          value={ticket.ticketNumber}
-          onChange={text("ticketNumber")}
-          placeholder={TICKET_NUMBER_PLACEHOLDERS[ticket.type]}
-          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Input
-          value={ticket.fromPlace}
-          onChange={text("fromPlace")}
-          placeholder="Departure (from)"
-          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-        <Input
-          value={ticket.toPlace}
-          onChange={text("toPlace")}
-          placeholder="Arrival (to)"
-          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-      </div>
-
-      <div>
-        <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Travel date</label>
-        <Input
-          type="date"
-          min={new Date().toISOString().slice(0, 10)}
-          value={ticket.travelDate}
-          onChange={text("travelDate")}
-          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Departure time</label>
-          <Input
-            type="time"
-            value={ticket.departureTime}
-            onChange={time("departureTime")}
-            className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Arrival time</label>
-          <Input
-            type="time"
-            value={ticket.arrivalTime}
-            onChange={time("arrivalTime")}
-            className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-          />
-        </div>
-      </div>
-
-      {ticket.durationText && (
-        <p className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1 -mt-1">
-          <Icon size={10} className="text-dashboard-primary" /> Journey length: <span className="font-semibold text-dashboard-base-content">{ticket.durationText}</span>
-        </p>
-      )}
-
-      <div className="grid grid-cols-4 gap-2">
-        <div>
-          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Adults</label>
-          <Input type="number" min={0} value={ticket.adults} onChange={num("adults")} className="text-sm h-8 border-dashboard-base-300 rounded-md" />
-        </div>
-        <div>
-          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Children</label>
-          <Input type="number" min={0} value={ticket.children} onChange={num("children")} className="text-sm h-8 border-dashboard-base-300 rounded-md" />
-        </div>
-        <div>
-          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">Infants</label>
-          <Input type="number" min={0} value={ticket.infants} onChange={num("infants")} className="text-sm h-8 border-dashboard-base-300 rounded-md" />
-        </div>
-        <div>
-          <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block">No. of tickets</label>
-          <Input type="number" min={0} value={ticket.ticketCount} onChange={num("ticketCount")} className="text-sm h-8 border-dashboard-base-300 rounded-md" />
-        </div>
-      </div>
-
-      <div>
-        <label className="text-[10px] text-dashboard-base-content/50 mb-0.5 block flex items-center gap-1">
-          <IndianRupee size={9} /> Fare (total for this ticket)
-        </label>
-        <Input
-          type="number" min={0}
-          value={ticket.fare ?? ""}
-          onChange={(e) => onChange({ fare: e.target.value ? Number(e.target.value) : null })}
-          placeholder="0"
-          className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-        />
-      </div>
-
-      <Textarea
-        value={ticket.notes}
-        onChange={(e) => onChange({ notes: e.target.value })}
-        placeholder="Notes (optional) — e.g. class, baggage allowance"
-        rows={2}
-        className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-      />
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
@@ -2805,11 +395,6 @@ export default function PackageBuilderDetailPage() {
 
   const [query, setQuery] = useState<QueryDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  // Set only when the initial load fails after retries — distinct from
-  // `!query` below (a legitimate "nothing here yet" state) so a transient
-  // connection failure shows "couldn't load, try again" instead of either
-  // hanging on the spinner forever or being misread as "this doesn't exist".
-  const [loadError, setLoadError] = useState<string | null>(null);
   // Inclusions/exclusions/policies/benefits are company-wide standard
   // content — edited only on /dashboard/itinerary-settings, never per
   // package. See the "Load itinerary settings" effect below.
@@ -2827,45 +412,60 @@ export default function PackageBuilderDetailPage() {
   const [hotelPricing, setHotelPricing] = useState<BuilderHotelPricingResult | null>(null);
   const [computingPrice, setComputingPrice] = useState(false);
   const [cabPricing, setCabPricing] = useState<BuilderCabPricingResult | null>(null);
-  const [computingCabPrice, setComputingCabPrice] = useState(false);
-  // Real destination photos for the preview document's "Places You'll Visit"
-  // strip — resolved by name via the same catalog lookup the cover-photo
-  // suggestion already uses, so a route stop like "Manali" picks up the
-  // actual destination photo automatically, no manual upload needed.
+  // Real destination photos for the document's "Places You Gonna Visit" strip,
+  // resolved by name through the same catalog lookup the cover-photo
+  // suggestion uses — so a stop called "Manali" gets the actual destination
+  // photo with no upload. A per-tile override still wins (see StopTile).
   const [stopImages, setStopImages] = useState<Record<string, string | null>>({});
-
-  // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (external
-  // LLM, no direct API call from here). See buildAIPrompt/applyAIItinerary.
-  const [aiDialogOpen, setAiDialogOpen] = useState(false);
-  const [aiJsonInput, setAiJsonInput] = useState("");
+  const [computingCabPrice, setComputingCabPrice] = useState(false);
 
   // Itinerary tab "focus mode" — see FOCUS_SECTIONS.
   const [focusSection, setFocusSection] = useState<FocusSection>("all");
+
+  // AI Itinerary Builder — copy-a-prompt / paste-back-JSON workflow (no
+  // direct LLM API call from this app). Lives at the top level rather than
+  // inside a panel because its trigger sits in the top toolbar, next to
+  // Change Template — see buildAIPrompt/applyAIItinerary and the button
+  // below. aiParseError is shown inline in the dialog (not just a toast)
+  // so the exec can see exactly what's wrong while they fix the paste.
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiJsonInput, setAiJsonInput] = useState("");
+  const [aiParseError, setAiParseError] = useState<string | null>(null);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
+  /** The stay standards, as the document's columns and price cards read them.
+      Kept beside the form rather than in it: they are saved per standard,
+      server-side, while `form` only ever describes the recommended one (which
+      is what the day rows carry). */
+  const [stayOptions, setStayOptions] = useState<PreviewData["stayOptions"]>([]);
+  /** Set while a duplicate is waiting for its first save. Stay options live
+      server-side, keyed to a package id, so a duplicate cannot carry them in
+      its payload — they are cloned once this draft has an id of its own. */
+  const [cloneStayOptionsFrom, setCloneStayOptionsFrom] = useState<string | null>(null);
+  const reloadStayOptions = useCallback(async () => {
+    try { setStayOptions(await getStayOptionsForDocument(packageId)); }
+    catch { /* the columns are one section; a failed read must not blank the editor */ }
+  }, [packageId]);
+  useEffect(() => { void reloadStayOptions(); }, [reloadStayOptions]);
+  // Optional message for costing, shown on verify-packages — cleared each
+  // time the dialog opens so it never carries a stale note from a previous
+  // cycle into a new submission by accident.
+  const [readyNote, setReadyNote] = useState("");
   const [confirmShareOpen, setConfirmShareOpen] = useState(false);
 
-  // There's no autosave in this builder (unlike v2) — every other edit
-  // waits for an explicit Save Draft click, which is fine for most fields
-  // since nothing outside this tab is watching them. A hotel request is
-  // different: submitting one is supposed to put the day in the hotel
-  // team's queue (/dashboard/hotel-requests) right away, not whenever the
-  // exec next happens to save. A plain `handleSave()` call from inside the
-  // submit handler would still read the pre-update `form` (setForm's
-  // update hasn't committed yet in the same tick) — so this fires from an
-  // effect instead, which only runs after the state it depends on has
-  // actually landed.
-  const [pendingHotelRequestSave, setPendingHotelRequestSave] = useState(false);
-
-  const [form, setForm] = useState<PackageForm>({
+  // useState with history — see use-undoable-state.ts. Same signature, so
+  // every existing setForm call site below is unchanged and undo covers all
+  // of them rather than only the ones wired up deliberately.
+  const [form, setForm, history] = useUndoableState<PackageForm>({
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
     adults: 1, children: 0, infants: 0, childrenAges: [], infantAges: [],
     pricePerPerson: "", totalPrice: "",
     marginPercentage: "25", gstPercentage: "5",
+    discountType: null, discountValue: "", discountNote: "",
     currency: "INR",
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
@@ -2884,6 +484,9 @@ export default function PackageBuilderDetailPage() {
     addOns: [],
     execName: "", execEmail: "", execDesignation: "",
   });
+  // Stable across renders, unlike `history` itself (which re-memoises as
+  // canUndo/canRedo flip) — safe to depend on from the load effects below.
+  const { reset: resetForm } = history;
 
   // Drag-to-reorder day cards — same dnd-kit pattern as ActivityListEditor's
   // dndIds above: a stable id per row, tracked separately from the day data
@@ -2897,6 +500,29 @@ export default function PackageBuilderDetailPage() {
     setDayDndIds(form.itineraries.map((_, i) => `day-${i}`));
   }
   const daySensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  // ── Undo / redo shortcuts ───────────────────────────────────────────────────
+  // Skipped while focus is in a text field: the browser's own undo inside an
+  // <input> is what someone means by Cmd-Z mid-sentence, and hijacking it to
+  // roll back the whole package would be startling. EditableText commits on
+  // blur, so once they leave the field the package-level history has it.
+  // isLocked itself is derived much further down, after the data loads —
+  // read the same condition off `query` here rather than hoisting it.
+  const historyLocked = query?.customPackage?.status === "READY";
+  useEffect(() => {
+    if (historyLocked) return;
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      const el = document.activeElement;
+      const typing = el instanceof HTMLElement
+        && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (typing) return;
+      e.preventDefault();
+      if (e.shiftKey) history.redo(); else history.undo();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [historyLocked, history]);
 
   // ── Current user's role — gates editing of the standard content lists ──────
   useEffect(() => {
@@ -2925,7 +551,7 @@ export default function PackageBuilderDetailPage() {
     getItinerarySettings().then((settings) => {
       if (cancelled) return;
       setItinerarySettings(settings);
-      setForm((f) => ({
+      resetForm((f) => ({
         ...f,
         inclusions: settings.inclusions,
         exclusions: settings.exclusions,
@@ -2937,7 +563,7 @@ export default function PackageBuilderDetailPage() {
       }));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [resetForm]);
 
   // ── Load package ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2947,19 +573,17 @@ export default function PackageBuilderDetailPage() {
     // slower async destination-cover fetch resolves afterwards and clobbers
     // the correctly-applied package cover with the generic destination one.
     let cancelled = false;
-    setLoadError(null);
     (async () => {
-     try {
       // The package is the anchor now (a query can have several), so it's
       // looked up by its own id first. A miss doesn't mean "not found" — it
       // means this is a brand-new, not-yet-saved draft (the caller always
       // navigates here with a freshly-generated id before the first Save),
       // so fall back to the linked query's lead info for prefill, or a fully
       // blank shell for a package started with no query at all.
-      let data = await retryAsync(() => getPackageDetail(packageId));
+      let data = await getPackageDetail(packageId);
       if (cancelled) return;
       if (!data) {
-        data = fromQueryId ? await retryAsync(() => getQueryLeadInfo(fromQueryId)) : null;
+        data = fromQueryId ? await getQueryLeadInfo(fromQueryId) : null;
         if (cancelled) return;
         if (!data) {
           data = {
@@ -2978,7 +602,7 @@ export default function PackageBuilderDetailPage() {
       const t = r?.travellers;
       const tr = r?.transport;
 
-      setForm((f) => ({
+      resetForm((f) => ({
         ...f,
         title: `${j?.destinations?.[0] ?? data.destination ?? "Custom"} Tour Package`,
         destination: j?.destinations?.join(", ") ?? data.destination ?? "",
@@ -3016,7 +640,7 @@ export default function PackageBuilderDetailPage() {
 
       if (data.customPackage) {
         const cp = data.customPackage;
-        setForm((f) => ({
+        resetForm((f) => ({
           ...f,
           title: cp.title,
           description: cp.description ?? "",
@@ -3044,6 +668,9 @@ export default function PackageBuilderDetailPage() {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
+          discountType: cp.discountType ?? null,
+          discountValue: cp.discountValue != null ? String(cp.discountValue) : "",
+          discountNote: cp.discountNote ?? "",
           // Inclusions/exclusions/termsConditions/paymentPolicy/amendmentPolicy/
           // travelBenefits are intentionally NOT re-hydrated from cp here —
           // they're company-wide global content, always sourced live from
@@ -3129,6 +756,9 @@ export default function PackageBuilderDetailPage() {
               coverImage: payload.coverImage || f.coverImage,
               startingPoint: payload.startingPoint || f.startingPoint,
             }));
+            // The payload describes the day rows, which carry the recommended
+            // option only. The rest are cloned after the first save.
+            if (payload.sourceCustomPackageId) setCloneStayOptionsFrom(payload.sourceCustomPackageId);
             toast.success(`Copied "${payload.title}" into this draft`);
           } catch (err) {
             console.error("Failed to apply copied package payload", err);
@@ -3137,15 +767,9 @@ export default function PackageBuilderDetailPage() {
       }
 
       setLoading(false);
-     } catch (err) {
-      if (cancelled) return;
-      console.error("[load package]", err);
-      setLoadError("Couldn't load this package. Check your connection and try again.");
-      setLoading(false);
-     }
     })();
     return () => { cancelled = true; };
-  }, [packageId, fromQueryId]);
+  }, [packageId, fromQueryId, resetForm, setForm]);
 
   // ── Auto-price from travel date + hotel selected + pax counts ──────────────
   // Recomputes the real hotel cost (season/occupancy-aware) whenever any of
@@ -3170,23 +794,15 @@ export default function PackageBuilderDetailPage() {
     let cancelled = false;
     setComputingPrice(true);
     const timer = setTimeout(async () => {
-      const input = { travelDate: form.travelDate || null, adults: form.adults, children: form.children, days };
-      // retryAsync means a transient failure (Neon cold-start/pooling blips
-      // this app hits routinely) resolves on its own most of the time; if it
-      // still fails, this stops the spinner and says so instead of leaving
-      // computingPrice stuck true forever with the hotel just never
-      // appearing and nothing in the UI explaining why.
-      try {
-        const result = await retryAsync(() => computeBuilderHotelPricing(input));
-        if (cancelled) return;
-        setHotelPricing(result);
-      } catch (err) {
-        if (cancelled) return;
-        console.error("[computeBuilderHotelPricing]", err);
-        toast.error("Couldn't price the hotel — check your connection and try again.");
-      } finally {
-        if (!cancelled) setComputingPrice(false);
-      }
+      const result = await computeBuilderHotelPricing({
+        travelDate: form.travelDate || null,
+        adults: form.adults,
+        children: form.children,
+        days,
+      });
+      if (cancelled) return;
+      setHotelPricing(result);
+      setComputingPrice(false);
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3197,6 +813,27 @@ export default function PackageBuilderDetailPage() {
   // day they're assigned to (season/weekday-weekend aware), PER_KM cabs by
   // that day's transportDistanceKm, so a multi-day cab hire naturally sums
   // across however many days it was applied to.
+  // Per-day cost for the preview's own cost chips — folded together from the
+  // two pricing results the effects above already compute, so this adds no
+  // work and can never disagree with the breakdown they feed.
+  const dayCosts = useMemo(() => {
+    const map = new Map<number, DayCost>();
+    const put = (day: number, patch: Partial<DayCost>) => {
+      const cur = map.get(day) ?? { hotel: 0, cab: 0, total: 0, overridden: false };
+      const next = { ...cur, ...patch };
+      next.total = next.hotel + next.cab;
+      map.set(day, next);
+    };
+    for (const d of hotelPricing?.days ?? []) {
+      put(d.day, { hotel: d.total, overridden: !!d.overridden });
+    }
+    for (const d of cabPricing?.days ?? []) {
+      const cur = map.get(d.day);
+      put(d.day, { cab: d.total, overridden: (cur?.overridden ?? false) || !!d.overridden });
+    }
+    return map;
+  }, [hotelPricing, cabPricing]);
+
   const cabPricingKey = form.itineraries
     .map((it) => `${it.day}:${it.cabPricingId ?? ""}:${it.transportDistanceKm ?? ""}:${it.cabQuantity ?? ""}:${JSON.stringify(it.extraCabs ?? [])}:${it.cabPriceOverride ?? ""}:${it.transport}`)
     .join("|");
@@ -3219,59 +856,24 @@ export default function PackageBuilderDetailPage() {
     let cancelled = false;
     setComputingCabPrice(true);
     const timer = setTimeout(async () => {
-      const input = { travelDate: form.travelDate || null, days };
-      // Same retry-then-surface treatment as the hotel effect above — a
-      // failed request used to leave computingCabPrice stuck true forever.
-      try {
-        const result = await retryAsync(() => computeBuilderCabPricing(input));
-        if (cancelled) return;
-        setCabPricing(result);
-      } catch (err) {
-        if (cancelled) return;
-        console.error("[computeBuilderCabPricing]", err);
-        toast.error("Couldn't price the cab — check your connection and try again.");
-      } finally {
-        if (!cancelled) setComputingCabPrice(false);
-      }
+      const result = await computeBuilderCabPricing({
+        travelDate: form.travelDate || null,
+        days,
+      });
+      if (cancelled) return;
+      setCabPricing(result);
+      setComputingCabPrice(false);
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.travelDate, cabPricingKey]);
 
-  // ── Keep the saved price synced to the live computation ────────────────────
-  // Mirrors `form.pricePerPerson` and `form.totalPrice` to the live computed
-  // price whenever any pricing input changes, instead of requiring an
-  // explicit "Use ₹X as Price Per Person" click after every edit. This is
-  // what used to go stale: an exec would fix a hotel/cab price after a
-  // costing rejection, forget to re-apply, and resubmit with the old total
-  // still saved — the preview/PDF then showed a different number than the
-  // live Pricing tab. `totalPrice` is set to the exact `finalPrice` (not
-  // `perPerson * pax`) so it matches the Pricing tab's total to the rupee —
-  // multiplying the *rounded* per-person value back out by headcount used to
-  // drift the header/PDF total off the Pricing tab's exact total by up to
-  // `pax` rupees. Never runs once the package is locked for review (READY)
-  // or already sent (SENT), so an approved/quoted price never silently
-  // drifts if catalog rates change later — checked inline off `query` rather
-  // than the `isLocked`/`pkgSent`/`packageEditable` variables below since
-  // this has to run before the loading/not-found early returns (rules-of-
-  // hooks), before those are declared.
+  // ── Resolve real destination photos for the "Places" strip ────────────────
+  // Keyed by name and only fetched for names not already resolved, so editing
+  // an unrelated part of the package doesn't re-request them.
+  const stopNamesKey = form.stops.map((st) => st.name.trim()).filter(Boolean).join("|");
   useEffect(() => {
-    const status = query?.customPackage?.status;
-    if (status === "READY" || status === "SENT") return;
-    const { finalPrice, perPerson } = computeFinalPricing();
-    if (finalPrice <= 0) return;
-    const nextPP = String(perPerson);
-    const nextTotal = String(finalPrice);
-    setForm((f) => (f.pricePerPerson === nextPP && f.totalPrice === nextTotal
-      ? f
-      : { ...f, pricePerPerson: nextPP, totalPrice: nextTotal }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage, form.tickets, form.addOns, form.adults, form.children, query?.customPackage?.status]);
-
-  // ── Resolve real destination photos for the preview's "Places" strip ───────
-  const stopNamesKey = form.stops.map((s) => s.name.trim()).filter(Boolean).join("|");
-  useEffect(() => {
-    const names = [...new Set(form.stops.map((s) => s.name.trim()).filter(Boolean))];
+    const names = [...new Set(form.stops.map((st) => st.name.trim()).filter(Boolean))];
     const missing = names.filter((n) => !(n in stopImages));
     if (missing.length === 0) return;
     let cancelled = false;
@@ -3329,11 +931,66 @@ export default function PackageBuilderDetailPage() {
     };
   }
 
+  // A blocked re-request (see saveCustomPackage's staleHotelRequestDays) must
+  // never be silent — this tab's copy of the day predates a fill that happened
+  // elsewhere, so the request didn't take. Rather than just telling the exec
+  // to reload, pull the fresh day(s) and merge them straight into local state:
+  // they see the real filled hotel immediately, and — just as important —
+  // their tab is now caught up, so a follow-up remove/re-request on the same
+  // day actually goes through instead of hitting this same block again.
+  async function warnStaleHotelRequests(days: number[] | undefined) {
+    if (!days?.length) return;
+    const fresh = await getPackageDetail(packageId);
+    const freshItineraries = fresh?.customPackage?.itineraries;
+    if (freshItineraries) {
+      setForm((f) => ({ ...f, itineraries: mergeStaleHotelDays(f.itineraries, freshItineraries, days) }));
+    }
+    const list = days.join(", ");
+    toast.warning(
+      `Day ${list}'s hotel was filled by the team while you had this open — synced to the latest just now.`,
+      { description: "If it's still not right, remove it and request again — that'll go through this time.", duration: 12000 },
+    );
+  }
+
   function applyComputedPricing() {
     const { finalPrice, perPerson } = computeFinalPricing();
     if (finalPrice <= 0) return;
+    // Both fields, and `totalPrice` from the exact `finalPrice` rather than
+    // `perPerson * pax` — see the sync effect below for why that distinction
+    // is worth the extra line.
     setForm((f) => ({ ...f, pricePerPerson: String(perPerson), totalPrice: String(finalPrice) }));
   }
+
+  // ── Keep the saved price synced to the live computation ────────────────────
+  // Mirrors `form.pricePerPerson` and `form.totalPrice` to the live computed
+  // price whenever any pricing input changes, instead of requiring an explicit
+  // "Use ₹X as Price Per Person" click after every edit. This is what used to
+  // go stale: an exec would fix a hotel/cab price after a costing rejection,
+  // forget to re-apply, and resubmit with the old total still saved — the
+  // preview/PDF then showed a different number than the live Pricing tab.
+  //
+  // `totalPrice` is set to the exact `finalPrice` (not `perPerson * pax`) so it
+  // matches the Pricing tab to the rupee — multiplying the *rounded* per-person
+  // value back out by headcount used to drift the header/PDF total off the
+  // Pricing tab's exact total by up to `pax` rupees.
+  //
+  // Never runs once the package is locked for review (READY) or already sent
+  // (SENT), so an approved/quoted price never silently drifts if catalog rates
+  // change later — checked inline off `query` rather than the `isLocked`/
+  // `pkgSent` variables declared further down, since this has to sit above the
+  // loading/not-found early returns to satisfy the rules of hooks.
+  useEffect(() => {
+    const status = query?.customPackage?.status;
+    if (status === "READY" || status === "SENT") return;
+    const { finalPrice, perPerson } = computeFinalPricing();
+    if (finalPrice <= 0) return;
+    const nextPP = String(perPerson);
+    const nextTotal = String(finalPrice);
+    setForm((f) => (f.pricePerPerson === nextPP && f.totalPrice === nextTotal
+      ? f
+      : { ...f, pricePerPerson: nextPP, totalPrice: nextTotal }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage, form.tickets, form.addOns, form.adults, form.children, query?.customPackage?.status]);
 
   // Re-syncs `query` AND the price fields inside `form` from a fresh fetch.
   // `form` is local state hydrated once on mount (see the initial load effect
@@ -3357,50 +1014,287 @@ export default function PackageBuilderDetailPage() {
     }
   }
 
-  // ── Save ───────────────────────────────────────────────────────────────────
-  // A blocked re-request (see saveCustomPackage's staleHotelRequestDays) must
-  // never be silent — this tab's copy of the day predates a fill that
-  // happened elsewhere, so the request didn't take; warn and point at a
-  // reload rather than let the exec believe it went through.
-  function warnStaleHotelRequests(days: number[] | undefined) {
-    if (!days?.length) return;
-    const list = days.join(", ");
-    toast.warning(
-      `Day ${list} was filled by the hotel team while you had this package open — your re-request didn't go through.`,
-      { description: "Reload the page to see the filled hotel, then request again if it's still not right.", duration: 12000 },
-    );
+  // ── AI Itinerary Builder ─────────────────────────────────────────────────
+  // Copy-a-prompt / paste-back-JSON workflow: no direct LLM API call from
+  // this app — the exec copies the generated prompt into their own ChatGPT
+  // session, pastes the JSON it returns back here, and we parse + merge it
+  // into the form. Kept strictly additive (never overwrites a day/field the
+  // exec has already filled in).
+  //
+  // Gated behind validateBeforeAIBuilder: the prompt is built FROM the
+  // trip's own setup (dates, destinations, travellers, margin) — opening it
+  // before those exist would just generate a prompt full of placeholders,
+  // which is worse than not offering the button at all.
+  function validateBeforeAIBuilder(): string | null {
+    if (!form.travelDate) return "Add a travel date before using the AI Itinerary Builder.";
+    if (form.stops.length === 0 && !form.destination.trim()) {
+      return "Add at least one destination (Route: Destinations & Nights) before using the AI Itinerary Builder.";
+    }
+    if (form.totalNights < 1) return "Add at least one night's stay before using the AI Itinerary Builder.";
+    if (form.adults + form.children < 1) return "Add at least one traveller before using the AI Itinerary Builder.";
+    const margin = parseFloat(form.marginPercentage);
+    if (!form.marginPercentage.trim() || Number.isNaN(margin) || margin <= 0) {
+      return "Set a margin percentage before using the AI Itinerary Builder.";
+    }
+    return null;
   }
 
-  /**
-   * The submit was refused because hotels are still outstanding.
+  function openAIBuilder() {
+    const error = validateBeforeAIBuilder();
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    setAiJsonInput("");
+    setAiParseError(null);
+    setAiDialogOpen(true);
+  }
+
+  /** Builds the copy-paste prompt from the package's current state — title,
+   * day count, destinations with night counts (falls back to the single
+   * `destination` + total nights when no stops have been added yet), pickup
+   * point, and the last day's drop point. */
+  function buildAIPrompt(): string {
+    const destinationsLine = form.stops.length > 0
+      ? form.stops.map((s) => `${s.name} (${s.nights} Night${s.nights !== 1 ? "s" : ""})`).join(", ")
+      : `${form.destination || "the destination"} (${Math.max(form.totalNights, 1)} Night${Math.max(form.totalNights, 1) !== 1 ? "s" : ""})`;
+    const pickup = form.startingPoint.trim() || "(not specified — choose a sensible pickup point for this destination)";
+    const lastDay = form.itineraries[form.itineraries.length - 1];
+    const drop = lastDay?.transportDrop.trim() || "(not specified — same as the pickup point unless the route suggests otherwise)";
+    const totalPax = form.adults + form.children;
+    const paxLine = `${form.adults} Adult${form.adults !== 1 ? "s" : ""}` +
+      (form.children > 0 ? ` + ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "");
+
+    return `AI Itinerary Builder Prompt
+
+Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
+
+Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). If you look anything up (e.g. to find real image URLs), still write the result as a plain string value, not a hyperlink/citation. A markdown link anywhere inside the JSON will break the import.
+
+Package: "${form.title || "Untitled Package"}" — ${form.totalDays} Day${form.totalDays !== 1 ? "s" : ""} / ${form.totalNights} Night${form.totalNights !== 1 ? "s" : ""}
+Destinations (in order, with nights at each): ${destinationsLine}
+Travellers: ${paxLine}${totalPax === 0 ? " (assume 2 adults if unspecified)" : ""}
+Pickup point: ${pickup}
+Drop point: ${drop}
+
+Spend the itinerary days in the order the destinations are listed, matching the night count at each one.
+
+Return exactly this JSON shape:
+
+{
+  "description": "2-3 sentence overview of the whole trip",
+  "coverImage": "<a real, working, high-quality landscape photo URL representing the overall trip>",
+  "stops": [
+    { "name": "<destination name, matching the list above>", "image": "<real landscape photo URL of this destination>" }
+  ],
+  "days": [
+    {
+      "day": 1,
+      "title": "<day title, under 10 words>",
+      "description": "<day description, 35-55 words — see style example below>",
+      "transportPickup": "<pickup point for this day's transfer>",
+      "transportDrop": "<drop point for this day's transfer>",
+      "transportDistanceKm": <approximate distance in km as a number>,
+      "travelTimeApprox": "<approx travel time, e.g. \\"2h 30m\\">",
+      "activities": [
+        {
+          "title": "<activity title, a short descriptive phrase — see style example below>",
+          "description": "<activity description, 25-40 words — see style example below>",
+          "photos": ["<real landscape photo URL 1>", "<real landscape photo URL 2>", "<real landscape photo URL 3>"]
+        }
+      ]
+    }
+  ]
+}
+
+Style examples (match this tone, level of detail, and length — not generic one-liners):
+
+Day description:
+"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
+
+Activity title + description:
+"Tea Garden Walk in Munnar" — "Take a refreshing walk through Munnar's sprawling tea plantations, surrounded by rolling green hills and fresh mountain air. Enjoy scenic views, learn about tea cultivation, and experience the tranquil beauty of Kerala's famous hill station."
+
+Note activity titles are a full descriptive phrase naming the place (e.g. "Tea Garden Walk in Munnar", "Fort Kochi Heritage Walk") — never a bare noun like "Tea Gardens" or "Fort Kochi" alone.
+
+Rules:
+- Exactly one "days" entry per day (${form.totalDays} total), numbered sequentially from 1.
+- 2-3 activities per day is enough — don't overload the day.
+- Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
+- Do not include hotel or cab pricing/selection — that's handled separately, manually.
+- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.
+- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
+  }
+
+  function copyAIPrompt() {
+    navigator.clipboard.writeText(buildAIPrompt());
+    toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
+  }
+
+  /** One-click paste of the AI's JSON reply from the clipboard into the
+   * response box below, instead of clicking in and pressing Ctrl+V. */
+  async function pasteAIJson() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        toast.error("Clipboard is empty");
+        return;
+      }
+      setAiJsonInput(text);
+      setAiParseError(null);
+    } catch {
+      toast.error("Couldn't read the clipboard — your browser may need permission. Paste manually instead.");
+    }
+  }
+
+  /** Parses the pasted JSON and merges it into the form — fills only empty
+   * fields (title/description/pickup/drop/distance), replaces a day's
+   * activities only when that day currently has none, and extends the
+   * itinerary if the response has more days than currently exist. Never
+   * touches hotel/cab selection (roomPricingId/cabPricingId untouched).
+   * Every failure sets aiParseError with a specific, actionable message
+   * instead of a generic "something went wrong" — shown inline in the
+   * dialog so it stays visible while the exec fixes the paste. */
+  function applyAIItinerary() {
+    setAiParseError(null);
+    const raw = aiJsonInput.trim();
+    if (!raw) {
+      setAiParseError("Paste the JSON response before generating.");
+      return;
+    }
+
+    let parsed: AIItineraryResponse;
+    try {
+      const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "the JSON couldn't be parsed";
+      setAiParseError(`That doesn't look like valid JSON — ${detail}. Make sure you copied the whole response, including the opening and closing braces.`);
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setAiParseError('Unexpected response shape — expected a JSON object with "description", "stops", and "days", but got something else.');
+      return;
+    }
+    if (!Array.isArray(parsed.days) || parsed.days.length === 0) {
+      setAiParseError('The response has no "days" array, so there\'s nothing to apply — ask it to resend using the exact JSON shape from the prompt.');
+      return;
+    }
+    if (looksLikeMarkdownLinkCorruption(parsed)) {
+      setAiParseError(
+        "This response looks corrupted — it has markdown links mixed into the text (a common artifact of copying from ChatGPT's chat bubble instead of its code block). Ask it to resend as a single ```json code block with no citations, then paste that instead.",
+      );
+      return;
+    }
+
+    try {
+      setForm((f) => {
+        const next = { ...f };
+
+        if (parsed.description && !next.description.trim()) next.description = parsed.description;
+        if (parsed.coverImage && !next.coverImage.trim()) next.coverImage = parsed.coverImage;
+
+        if (Array.isArray(parsed.stops) && parsed.stops.length > 0) {
+          const validStops = parsed.stops.filter((s): s is { name: string; image?: string } => !!s?.name);
+          if (next.stops.length === 0 && validStops.length > 0) {
+            const perStopNights = Math.max(1, Math.round((next.totalNights || validStops.length) / validStops.length));
+            next.stops = validStops.map((s) => ({ name: s.name, nights: perStopNights, image: s.image || undefined }));
+          } else {
+            next.stops = next.stops.map((st) => {
+              if (st.image) return st;
+              const match = validStops.find((s) => s.name.trim().toLowerCase() === st.name.trim().toLowerCase());
+              return match?.image ? { ...st, image: match.image } : st;
+            });
+          }
+        }
+
+        const byDayNum = new Map<number, AIItineraryDay>();
+        parsed.days!.forEach((d, i) => { if (d) byDayNum.set(d.day ?? i + 1, d); });
+
+        let itineraries = next.itineraries;
+        if (parsed.days!.length > itineraries.length) {
+          const extra = Array.from(
+            { length: parsed.days!.length - itineraries.length },
+            (_, i) => emptyDay(itineraries.length + i + 1),
+          );
+          itineraries = [...itineraries, ...extra];
+          next.totalDays = itineraries.length;
+          next.totalNights = Math.max(0, itineraries.length - 1);
+        }
+
+        next.itineraries = itineraries.map((day) => {
+          const src = byDayNum.get(day.day);
+          if (!src) return day;
+          const updated = { ...day };
+          if (src.title && !updated.title.trim()) updated.title = src.title;
+          if (src.description && !updated.description.trim()) updated.description = src.description;
+          if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
+          if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
+          if (src.transportDistanceKm != null && updated.transportDistanceKm == null) updated.transportDistanceKm = src.transportDistanceKm;
+          if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
+          if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
+            updated.activities = src.activities
+              .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
+              .map((a) => {
+                const photos = Array.isArray(a.photos) ? a.photos.filter((p): p is string => !!p).slice(0, 3) : [];
+                return {
+                  title: a.title,
+                  description: a.description ?? "",
+                  photo: photos[0] ?? "",
+                  photos,
+                  photoLabels: photos.map(() => a.title),
+                };
+              });
+          }
+          return updated;
+        });
+
+        return next;
+      });
+    } catch (err) {
+      setAiParseError(`Couldn't apply that response — ${err instanceof Error ? err.message : "its shape didn't match what was expected"}.`);
+      return;
+    }
+
+    setAiJsonInput("");
+    setAiParseError(null);
+    setAiDialogOpen(false);
+    toast.success("Itinerary generated from the AI response.");
+  }
+
+  // ── Save ───────────────────────────────────────────────────────────────────
+  /** Runs after any successful save.
    *
-   * Deliberately richer than the plain error toast next to it: this is the one
-   * refusal the exec can actually do something about, and what they do differs
-   * per day — a day still with the hotel team is a wait, a day sent back is
-   * theirs to fix. Same shape and duration as warnStaleHotelRequests above, so
-   * hotel-request news at Mark Ready always looks the same.
+   * Two jobs, both about stay options, which live server-side and so cannot
+   * ride along in the save payload:
+   *
+   *   - a duplicate's options are cloned once this draft has an id of its own
+   *     (the payload only describes the day rows, which carry the recommended
+   *     option and nothing else);
+   *   - the document re-reads them, because a save re-mirrors the recommended
+   *     option from the day rows and the copy held here would otherwise keep
+   *     showing the hotel that was just replaced.
+   *
+   * The re-read is skipped below two options, where nothing in the document
+   * reads them — the columns and the per-option price cards both require more
+   * than one — so an ordinary single-stay package pays nothing for this.
    */
-  function warnOpenHotelRequests(open: { waiting: number[]; rejected: number[] }) {
-    const lines: string[] = [];
-    if (open.waiting.length) {
-      lines.push(`Day ${open.waiting.join(", ")} still with the hotel team — they'll come back filled.`);
+  async function afterSuccessfulSave() {
+    if (cloneStayOptionsFrom) {
+      const from = cloneStayOptionsFrom;
+      // Cleared first and unconditionally: a failure reports itself rather than
+      // retrying on every subsequent save.
+      setCloneStayOptionsFrom(null);
+      const cloned = await cloneStayOptionsInto(from, packageId);
+      if (!cloned.success) toast.error(cloned.error ?? "Couldn't copy the stay options across.");
+      await reloadStayOptions();
+      return;
     }
-    if (open.rejected.length) {
-      lines.push(`Day ${open.rejected.join(", ")} sent back to you — edit the request and resubmit, or pick a hotel yourself.`);
-    }
-    toast.warning("Not sent — this package still has an open hotel request", {
-      description: `${lines.join(" ")} Costing can't be edited once submitted, so the hotels have to be settled first.`,
-      duration: 12000,
-    });
+    if ((stayOptions?.length ?? 0) > 1) await reloadStayOptions();
   }
 
   function handleSave(status: "DRAFT" | "READY" = "DRAFT") {
     startSave(async () => {
-      // saveCustomPackage normally returns {success:false, error} on a
-      // handled failure (already toasted below) — this catches the other
-      // case, an unexpected thrown exception (e.g. a dropped connection
-      // mid-request), which previously left the Save button just silently
-      // finishing with nothing saved and no explanation.
       try {
         const result = await saveCustomPackage({
           id: packageId,
@@ -3410,34 +1304,98 @@ export default function PackageBuilderDetailPage() {
           totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
           marginPercentage: parseFloat(form.marginPercentage) || 0,
           gstPercentage: parseFloat(form.gstPercentage) || 0,
+          discountType: form.discountType,
+          discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+          discountNote: form.discountNote,
           status,
         });
         if (result.success) {
+          // The server now has it, so the crash-recovery copy is redundant.
+          localDraft.clear();
           setSavedOk(true);
           setTimeout(() => setSavedOk(false), 3000);
-          warnStaleHotelRequests(result.staleHotelRequestDays);
+          await warnStaleHotelRequests(result.staleHotelRequestDays);
+          await afterSuccessfulSave();
         } else {
           toast.error(result.error ?? "Failed to save");
         }
       } catch (err) {
+        // Previously unhandled — a thrown exception here (dropped connection,
+        // or a stale page bundle calling a Server Action ID a new deploy
+        // removed) left Save just silently finishing with nothing saved.
         console.error("[saveCustomPackage]", err);
-        toast.error("Couldn't save — check your connection and try again.");
+        reportActionError(err, "Couldn't save — check your connection and try again.");
       }
     });
   }
 
-  // Fires the save `pendingHotelRequestSave` above queued up, now that
-  // `form` has actually picked up the hotel-request change that requested
-  // it. Deliberately not a plain call inside the submit handler — see that
-  // state's own comment.
+  // ── Mark ready for costing review ───────────────────────────────────────────
+  // ── Autosave ────────────────────────────────────────────────────────────────
+  // Deliberately conservative, because this writes real data:
+  //
+  //   • DRAFT only. A package under costing review (READY) or already SENT is
+  //     never touched — those are locked anyway, and silently rewriting one
+  //     mid-review is precisely the thing nobody would forgive.
+  //   • Never on load. It arms only after the first real edit, so opening a
+  //     package and closing it again writes nothing.
+  //   • Never changes status. It is exactly the "Save Draft" the exec already
+  //     presses, on a timer.
+  //
+  // Explicit Save Draft stays: autosave removes the tax of remembering it, not
+  // the ability to force one.
+  // The other half of autosave: a localStorage copy written every ~800ms, so a
+  // crash, a closed laptop or a stray refresh can't lose the seconds between
+  // server saves. Cleared whenever a server save lands, which is what makes a
+  // draft's mere existence mean "there was unsaved work".
+  const localDraft = useLocalDraft<PackageForm>({
+    packageId,
+    form,
+    armed: !loading && !!query && query.customPackage?.status !== "READY",
+  });
+
+  const AUTOSAVE_DELAY_MS = 3000;
+  const autosaveArmed = useRef(false);
+  const lastSavedSnapshot = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!pendingHotelRequestSave) return;
-    setPendingHotelRequestSave(false);
+    if (loading || !query) return;
+    const status = query.customPackage?.status;
+    if (status && status !== "DRAFT") return;
+
+    const snapshot = JSON.stringify(form);
+    // First pass after load records the baseline without saving — this is what
+    // stops a freshly-opened package from writing itself back untouched.
+    if (!autosaveArmed.current) {
+      autosaveArmed.current = true;
+      lastSavedSnapshot.current = snapshot;
+      return;
+    }
+    if (snapshot === lastSavedSnapshot.current) return;
+
+    const timer = setTimeout(() => {
+      lastSavedSnapshot.current = snapshot;
+      handleSave("DRAFT");
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // handleSave is stable enough for this purpose and intentionally omitted —
+    // including it would re-arm the timer on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, loading, query]);
+
+  // See BuilderContextValue.requestSaveNow — bypasses the autosave debounce
+  // above for an edit meant to take effect immediately (a submitted hotel
+  // request). Deferred to an effect rather than called straight from the
+  // trigger site for the same reason autosave itself reads `form` from a
+  // dependency array instead of a closure: the setForm that made the change
+  // hasn't committed yet in the same tick it was requested.
+  const [pendingImmediateSave, setPendingImmediateSave] = useState(false);
+  useEffect(() => {
+    if (!pendingImmediateSave) return;
+    setPendingImmediateSave(false);
     handleSave("DRAFT");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingHotelRequestSave]);
+  }, [pendingImmediateSave]);
 
-  // ── Mark ready for costing review ───────────────────────────────────────────
   // The ONLY way a package moves forward from the builder into review — no
   // direct "send to client" from here. This locks nothing and notifies no
   // one; it just hands the package to /dashboard/verify-packages, where
@@ -3453,11 +1411,16 @@ export default function PackageBuilderDetailPage() {
     if (validationError) {
       toast.error(validationError);
       return;
-    }    const pendingDay = form.itineraries.find((it) => it.hotelPending);
+    }
+    // Nights without a hotel no longer stop a submission — see the note in
+    // markPackageReady. A package with no stays at all is a legitimate quote.
+
+    const pendingDay = form.itineraries.find((it) => it.hotelPending);
     if (pendingDay) {
       toast.error(`Day ${pendingDay.day} is still awaiting the hotel team — fill in or undo the pending hotel request before submitting for review.`);
       return;
     }
+    setReadyNote("");
     setConfirmReadyOpen(true);
   }
 
@@ -3476,15 +1439,19 @@ export default function PackageBuilderDetailPage() {
           totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
           marginPercentage: parseFloat(form.marginPercentage) || 0,
           gstPercentage: parseFloat(form.gstPercentage) || 0,
+          discountType: form.discountType,
+          discountValue: form.discountValue ? parseFloat(form.discountValue) : null,
+          discountNote: form.discountNote,
           status: "READY",
         });
         if (!result.success) {
           toast.error(result.error ?? "Failed to save");
           return;
         }
-        warnStaleHotelRequests(result.staleHotelRequestDays);
+        await warnStaleHotelRequests(result.staleHotelRequestDays);
+        await afterSuccessfulSave();
 
-        const result2 = await markPackageReady(packageId);
+        const result2 = await markPackageReady(packageId, readyNote);
         if (result2.success) {
           toast.success("Submitted for costing review");
           // Without this, `query.customPackage.status` stays whatever it was
@@ -3492,16 +1459,14 @@ export default function PackageBuilderDetailPage() {
           // enabled and Mark Ready stays visible/clickable until a manual
           // reload, letting the exec keep editing a package that's already
           // out for costing review.
-          const fresh = await retryAsync(() => getPackageDetail(packageId));
+          const fresh = await getPackageDetail(packageId);
           if (fresh) syncPricingFromFresh(fresh);
-        } else if (result2.openHotelRequests) {
-          warnOpenHotelRequests(result2.openHotelRequests);
         } else {
           toast.error(result2.error ?? "Failed to mark package ready");
         }
       } catch (err) {
         console.error("[handleMarkReady]", err);
-        toast.error("Couldn't submit for review — check your connection and try again.");
+        reportActionError(err, "Couldn't submit for review — check your connection and try again.");
       }
     });
   }
@@ -3542,126 +1507,23 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
-  // ── Day helpers ────────────────────────────────────────────────────────────
-  // Appends blank day cards to reach targetDays — never removes any, even
-  // when targetDays is smaller, so a mis-typed Duration can never silently
-  // wipe out a day an exec already filled in. Shrinking is only ever done
-  // explicitly, via the "Sync now" button on the day-count mismatch warning.
-  function growItinerariesTo(itineraries: DayItinerary[], targetDays: number): DayItinerary[] {
-    if (targetDays <= itineraries.length) return itineraries;
-    const extra = Array.from(
-      { length: targetDays - itineraries.length },
-      (_, i) => emptyDay(itineraries.length + i + 1),
-    );
-    return [...itineraries, ...extra];
-  }
 
-  // "Sync now" on the mismatch warning — reconciles the day cards to exactly
-  // match Duration, in either direction. Removing days here is an explicit,
-  // informed click (unlike the Duration field itself, which only ever grows
-  // the list) so trimming trailing, presumably-unwanted day cards is safe.
-  function syncItinerariesToDuration() {
-    setForm((f) => {
-      const target = f.totalDays;
-      const itineraries = target >= f.itineraries.length
-        ? growItinerariesTo(f.itineraries, target)
-        : f.itineraries.slice(0, target);
-      return { ...f, itineraries };
-    });
-  }
 
-  function addDay() {
-    setForm((f) => {
-      const next = f.itineraries.length + 1;
-      return {
-        ...f,
-        itineraries: [...f.itineraries, emptyDay(next)],
-        totalDays: next,
-        totalNights: next - 1,
-      };
-    });
-  }
 
-  function removeDay(idx: number) {
-    setForm((f) => {
-      const days = f.itineraries
-        .filter((_, i) => i !== idx)
-        .map((d, i) => ({ ...d, day: i + 1 }));
-      return { ...f, itineraries: days, totalDays: days.length, totalNights: Math.max(0, days.length - 1) };
-    });
-  }
 
-  // Drag-reorder — hotel/cab/activities travel automatically since they're
-  // already embedded fields on the DayItinerary object being moved. Add-ons
-  // are the one piece of "the whole day" that live outside it, in their own
-  // form.addOns array keyed by day *number* rather than array position, so
-  // they need an explicit remap (old day number → new day number) or they'd
-  // silently stay pinned to whichever content ends up at that slot instead
-  // of following the day they were actually added for.
-  function handleDayDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = dayDndIds.indexOf(String(active.id));
-    const newIndex = dayDndIds.indexOf(String(over.id));
-    if (oldIndex === -1 || newIndex === -1) return;
-    setForm((f) => {
-      const reorderedRaw = arrayMove(f.itineraries, oldIndex, newIndex);
-      const dayNumberMap = new Map(reorderedRaw.map((d, i) => [d.day, i + 1]));
-      const itineraries = reorderedRaw.map((d, i) => ({ ...d, day: i + 1 }));
-      const addOns = f.addOns.map((a) => (
-        a.day != null && dayNumberMap.has(a.day) ? { ...a, day: dayNumberMap.get(a.day)! } : a
-      ));
-      return { ...f, itineraries, addOns };
-    });
-    setDayDndIds((ids) => arrayMove(ids, oldIndex, newIndex));
-  }
 
-  // A costing correction (hotelPriceOverride/cabPriceOverride) is tied to
-  // whatever hotel/cab was priced when it was set. saveCustomPackage already
-  // invalidates it server-side the moment the selection actually changes
-  // (see hotelSelectionChanged/cabSelectionChanged in package-builder/
-  // action.ts) — but that only takes effect once a save round-trips and the
-  // form is refreshed from the server, which plain "Save Draft" never does
-  // (only Mark Ready/Share re-sync via syncPricingFromFresh). Until then the
-  // live preview kept computing off the stale override, so swapping a hotel
-  // or cab right after a costing rejection silently left the old corrected
-  // price on screen — mirror the same invalidation here, client-side and
-  // immediately, so the preview always matches what's actually selected.
-  function updateDay(idx: number, day: DayItinerary) {
-    setForm((f) => {
-      const its = [...f.itineraries];
-      const existing = its[idx];
-      const hotelChanged = !existing
-        || existing.roomPricingId !== day.roomPricingId
-        || existing.roomsCount !== day.roomsCount
-        || existing.manualExtraBeds !== day.manualExtraBeds
-        || existing.manualHotelPricePerNight !== day.manualHotelPricePerNight
-        || existing.manualExtraBedRate !== day.manualExtraBedRate
-        || existing.accommodation !== day.accommodation
-        || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(day.extraRooms ?? []);
-      const cabChanged = !existing
-        || existing.cabPricingId !== day.cabPricingId
-        || existing.transportDistanceKm !== day.transportDistanceKm
-        || existing.cabQuantity !== day.cabQuantity
-        || JSON.stringify(existing.extraCabs ?? []) !== JSON.stringify(day.extraCabs ?? []);
-      its[idx] = {
-        ...day,
-        hotelPriceOverride: hotelChanged ? null : day.hotelPriceOverride,
-        cabPriceOverride: cabChanged ? null : day.cabPriceOverride,
-      };
-      return { ...f, itineraries: its };
-    });
-  }
 
   /** Single handler for every editable photo in the live preview (stops,
    * hotel, room, transport, activities) — the edit button's ImageEditTarget
-   * says exactly which one, so there's one place that knows how to write
-   * each into `form` instead of a callback per photo. */
+   * says exactly which one, so there's one place that knows how to write each
+   * into `form` instead of a callback per photo. */
   function handleItineraryImageChange(target: ImageEditTarget, url: string) {
+    // A stop lives on form.stops, not on a day, so it can't go through the
+    // per-day mapping below.
     if (target.kind === "stop") {
       setForm((f) => ({
         ...f,
-        stops: f.stops.map((s, i) => (i === target.stopIndex ? { ...s, image: url } : s)),
+        stops: f.stops.map((st, i) => (i === target.stopIndex ? { ...st, image: url } : st)),
       }));
       return;
     }
@@ -3825,7 +1687,9 @@ export default function PackageBuilderDetailPage() {
               manualExtraBeds: null,
               manualHotelPricePerNight: null, manualExtraBedRate: null,
               hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
-              meals: hotelMeals.length > 0 ? hotelMeals : it.meals,
+              // Always the current room's plan, never a stale fallback — see
+              // the same fix in day-mutations.ts's applyHotelRoomSelection.
+              meals: hotelMeals,
               hotelCheckIn: room.checkInTime ? formatTime12h(room.checkInTime) : it.hotelCheckIn,
               hotelCheckOut: room.checkOutTime ? formatTime12h(room.checkOutTime) : it.hotelCheckOut,
               roomPricingId: room.id,
@@ -3946,219 +1810,6 @@ export default function PackageBuilderDetailPage() {
     });
   }
 
-  // ── AI Itinerary Builder ────────────────────────────────────────────────────
-  // Copy-a-prompt / paste-back-JSON workflow: no direct LLM API call from this
-  // app — the exec copies the generated prompt into their own ChatGPT session,
-  // pastes the JSON it returns back here, and we parse + merge it into the
-  // form. Kept strictly additive (never overwrites a day/field the exec has
-  // already filled in), same philosophy as autoFillDayTitles/autoFillPickupDrop.
-
-  /** Builds the copy-paste prompt from the package's current state — title,
-   * day count, destinations with night counts (falls back to the single
-   * `destination` + total nights when no stops have been added yet), pickup
-   * point, and the last day's drop point. */
-  function buildAIPrompt(): string {
-    const destinationsLine = form.stops.length > 0
-      ? form.stops.map((s) => `${s.name} (${s.nights} Night${s.nights !== 1 ? "s" : ""})`).join(", ")
-      : `${form.destination || "the destination"} (${Math.max(form.totalNights, 1)} Night${Math.max(form.totalNights, 1) !== 1 ? "s" : ""})`;
-    const pickup = form.startingPoint.trim() || "(not specified — choose a sensible pickup point for this destination)";
-    const lastDay = form.itineraries[form.itineraries.length - 1];
-    const drop = lastDay?.transportDrop.trim() || "(not specified — same as the pickup point unless the route suggests otherwise)";
-    const totalPax = form.adults + form.children;
-    const paxLine = `${form.adults} Adult${form.adults !== 1 ? "s" : ""}` +
-      (form.children > 0 ? ` + ${form.children} Child${form.children !== 1 ? "ren" : ""}` : "");
-
-    return `AI Itinerary Builder Prompt
-
-Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
-
-Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). If you look anything up (e.g. to find real image URLs), still write the result as a plain string value, not a hyperlink/citation. A markdown link anywhere inside the JSON will break the import.
-
-Package: "${form.title || "Untitled Package"}" — ${form.totalDays} Day${form.totalDays !== 1 ? "s" : ""} / ${form.totalNights} Night${form.totalNights !== 1 ? "s" : ""}
-Destinations (in order, with nights at each): ${destinationsLine}
-Travellers: ${paxLine}${totalPax === 0 ? " (assume 2 adults if unspecified)" : ""}
-Pickup point: ${pickup}
-Drop point: ${drop}
-
-Spend the itinerary days in the order the destinations are listed, matching the night count at each one.
-
-Return exactly this JSON shape:
-
-{
-  "description": "2-3 sentence overview of the whole trip",
-  "coverImage": "<a real, working, high-quality landscape photo URL representing the overall trip>",
-  "stops": [
-    { "name": "<destination name, matching the list above>", "image": "<real landscape photo URL of this destination>" }
-  ],
-  "days": [
-    {
-      "day": 1,
-      "title": "<day title, under 10 words>",
-      "description": "<day description, 35-55 words — see style example below>",
-      "transportPickup": "<pickup point for this day's transfer>",
-      "transportDrop": "<drop point for this day's transfer>",
-      "transportDistanceKm": <approximate distance in km as a number>,
-      "travelTimeApprox": "<approx travel time, e.g. \\"2h 30m\\">",
-      "activities": [
-        {
-          "title": "<activity title, a short descriptive phrase — see style example below>",
-          "description": "<activity description, 25-40 words — see style example below>",
-          "photos": ["<real landscape photo URL 1>", "<real landscape photo URL 2>", "<real landscape photo URL 3>"]
-        }
-      ]
-    }
-  ]
-}
-
-Style examples (match this tone, level of detail, and length — not generic one-liners):
-
-Day description:
-"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
-
-Activity title + description:
-"Tea Garden Walk in Munnar" — "Take a refreshing walk through Munnar's sprawling tea plantations, surrounded by rolling green hills and fresh mountain air. Enjoy scenic views, learn about tea cultivation, and experience the tranquil beauty of Kerala's famous hill station."
-
-Note activity titles are a full descriptive phrase naming the place (e.g. "Tea Garden Walk in Munnar", "Fort Kochi Heritage Walk") — never a bare noun like "Tea Gardens" or "Fort Kochi" alone.
-
-Rules:
-- Exactly one "days" entry per day (${form.totalDays} total), numbered sequentially from 1.
-- 2-3 activities per day is enough — don't overload the day.
-- Every image must be a REAL, WORKING, direct image URL that actually loads — from Unsplash, Pexels, Pixabay, a Google Images result, or any other real photo source. Landscape orientation, high quality, visually relevant to that destination/activity. Double-check each URL is real before including it — do not invent or guess a URL.
-- Do not include hotel or cab pricing/selection — that's handled separately, manually.
-- Keep titles and descriptions professional and vivid, matching the style examples above — no fluff, no emojis.
-- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
-  }
-
-  function copyAIPrompt() {
-    navigator.clipboard.writeText(buildAIPrompt());
-    toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
-  }
-
-  type AIItineraryActivity = { title?: string; description?: string; photos?: string[] };
-  type AIItineraryDay = {
-    day?: number; title?: string; description?: string;
-    transportPickup?: string; transportDrop?: string; transportDistanceKm?: number;
-    travelTimeApprox?: string; activities?: AIItineraryActivity[];
-  };
-  type AIItineraryResponse = {
-    description?: string; coverImage?: string;
-    stops?: { name?: string; image?: string }[];
-    days?: AIItineraryDay[];
-  };
-
-  /** Parses the pasted JSON and merges it into the form — fills only empty
-   * fields (title/description/pickup/drop/distance), replaces a day's
-   * activities only when that day currently has none, and extends the
-   * itinerary if the response has more days than currently exist. Never
-   * touches hotel/cab selection (roomPricingId/cabPricingId untouched). */
-  function applyAIItinerary() {
-    let parsed: AIItineraryResponse;
-    try {
-      const cleaned = aiJsonInput.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      toast.error("That doesn't look like valid JSON — check the format and try again.");
-      return;
-    }
-    if (!parsed || typeof parsed !== "object") {
-      toast.error("Unexpected response shape — please try again.");
-      return;
-    }
-    if (looksLikeMarkdownLinkCorruption(parsed)) {
-      toast.error(
-        "This response looks corrupted — it has markdown links mixed into the text (a common artifact of copying from ChatGPT's chat bubble instead of its code block). Ask it to resend as a single ```json code block with no citations, then paste that instead.",
-        { duration: 9000 },
-      );
-      return;
-    }
-
-    try {
-      setForm((f) => {
-        const next = { ...f };
-
-        if (parsed.description && !next.description.trim()) next.description = parsed.description;
-        if (parsed.coverImage && !next.coverImage.trim()) next.coverImage = parsed.coverImage;
-
-        if (Array.isArray(parsed.stops) && parsed.stops.length > 0) {
-          const validStops = parsed.stops.filter((s): s is { name: string; image?: string } => !!s?.name);
-          if (next.stops.length === 0 && validStops.length > 0) {
-            const perStopNights = Math.max(1, Math.round((next.totalNights || validStops.length) / validStops.length));
-            next.stops = validStops.map((s) => ({ name: s.name, nights: perStopNights, image: s.image || undefined }));
-          } else {
-            next.stops = next.stops.map((st) => {
-              if (st.image) return st;
-              const match = validStops.find((s) => s.name.trim().toLowerCase() === st.name.trim().toLowerCase());
-              return match?.image ? { ...st, image: match.image } : st;
-            });
-          }
-        }
-
-        if (Array.isArray(parsed.days) && parsed.days.length > 0) {
-          const byDayNum = new Map<number, AIItineraryDay>();
-          // The model doesn't always honor the prompt's "number, not a string"
-          // instruction (e.g. "day": "1", "transportDistanceKm": "35") — every
-          // numeric field pulled out of the parsed JSON below goes through
-          // Number(...) rather than being trusted as already the right type,
-          // since a raw string handed to a Prisma Float/Int column throws at
-          // save time with no useful message (see saveCustomPackage's catch).
-          parsed.days.forEach((d, i) => { if (d) byDayNum.set(Number(d.day) || i + 1, d); });
-
-          let itineraries = next.itineraries;
-          if (parsed.days.length > itineraries.length) {
-            const extra = Array.from(
-              { length: parsed.days.length - itineraries.length },
-              (_, i) => emptyDay(itineraries.length + i + 1),
-            );
-            itineraries = [...itineraries, ...extra];
-            next.totalDays = itineraries.length;
-            next.totalNights = Math.max(0, itineraries.length - 1);
-          }
-
-          next.itineraries = itineraries.map((day) => {
-            const src = byDayNum.get(day.day);
-            if (!src) return day;
-            const updated = { ...day };
-            if (src.title && !updated.title.trim()) updated.title = src.title;
-            if (src.description && !updated.description.trim()) updated.description = src.description;
-            if (src.transportPickup && !updated.transportPickup.trim()) updated.transportPickup = src.transportPickup;
-            if (src.transportDrop && !updated.transportDrop.trim()) updated.transportDrop = src.transportDrop;
-            if (src.transportDistanceKm != null && updated.transportDistanceKm == null) {
-              const distanceKm = Number(src.transportDistanceKm);
-              if (!Number.isNaN(distanceKm)) updated.transportDistanceKm = distanceKm;
-            }
-            if (src.travelTimeApprox && !updated.transportTravelTime.trim()) updated.transportTravelTime = src.travelTimeApprox;
-            if (Array.isArray(src.activities) && src.activities.length > 0 && updated.activities.every((a) => !a.title.trim())) {
-              updated.activities = src.activities
-                .filter((a): a is { title: string; description?: string; photos?: string[] } => !!a?.title)
-                .map((a) => {
-                  const photos = Array.isArray(a.photos)
-                    ? a.photos.filter((p): p is string => typeof p === "string" && !!p).slice(0, 3)
-                    : [];
-                  return {
-                    title: a.title,
-                    description: a.description ?? "",
-                    photo: photos[0] ?? "",
-                    photos,
-                    photoLabels: photos.map(() => a.title),
-                  };
-                });
-            }
-            return updated;
-          });
-        }
-
-        return next;
-      });
-    } catch {
-      toast.error("Couldn't apply that response — its shape didn't match what was expected.");
-      return;
-    }
-
-    setAiJsonInput("");
-    setAiDialogOpen(false);
-    toast.success("Itinerary generated from the AI response.");
-  }
-
   function field<K extends keyof PackageForm>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -4187,17 +1838,6 @@ Rules:
     return (
       <div className="h-screen flex items-center justify-center bg-dashboard-base-200">
         <Loader2 className="animate-spin text-dashboard-primary h-8 w-8" />
-      </div>
-    );
-  }
-  if (loadError) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center gap-3 bg-dashboard-base-200 px-4 text-center">
-        <AlertCircle className="text-dashboard-error h-8 w-8" />
-        <p className="text-sm text-dashboard-base-content/70 max-w-sm">{loadError}</p>
-        <Button size="sm" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
       </div>
     );
   }
@@ -4284,6 +1924,7 @@ Rules:
     amendmentPolicy: [...form.amendmentPolicy, ...form.extraPolicyItems.amendmentPolicy],
     travelBenefits: [...form.travelBenefits, ...form.extraPolicyItems.travelBenefits],
     stopImages,
+    stayOptions,
     clientName: query.name ?? "",
     clientPhone: query.phone ? `${query.countryCode} ${query.phone}` : "",
     clientEmail: query.email ?? "",
@@ -4295,6 +1936,8 @@ Rules:
           address: itinerarySettings.companyAddress,
           description: itinerarySettings.companyDescription,
           disclaimer: itinerarySettings.documentDisclaimer,
+          defaultTemplate: itinerarySettings.defaultTemplate,
+          themeOverrides: itinerarySettings.themeOverrides,
         }
       : undefined,
   };
@@ -4313,6 +1956,53 @@ Rules:
     // Print already strips this via the `.print-reset` @media print rule in
     // ItineraryDocument's PRINT_STYLES (height: auto !important etc.), so
     // PDF export/print still gets the full, unclipped document.
+    // Everything below can reach form state through useBuilder() instead of
+    // having it threaded down as props — which is what lets the preview
+    // document on the left edit the itinerary directly. canEdit carries the
+    // same lock the right-hand panel has always honoured, from one place.
+    <PackageBuilderProvider
+      form={form} setForm={setForm} canEdit={!isLocked} dayCosts={dayCosts}
+      requestSaveNow={() => setPendingImmediateSave(true)}
+      refreshStayOptions={reloadStayOptions}
+    >
+    {/* Mounted once; what it shows is driven by the context's drawer target,
+        so a clickable hotel in the preview doesn't need to own this UI. */}
+
+    {/* Unsaved work found from a previous session. Restored on click rather
+        than automatically: the draft is only ever a few seconds ahead of the
+        server copy, so the cost of asking is one click, and the cost of
+        silently resurrecting edits somebody deliberately abandoned is worse.
+        Undo covers it either way once applied. */}
+    {localDraft.found && (
+      <div className="no-print fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 shadow-lg">
+        <AlertCircle size={15} className="text-amber-600 shrink-0" />
+        <p className="text-xs text-amber-900">
+          Unsaved changes from {new Date(localDraft.found.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })} were
+          recovered from this browser.
+        </p>
+        <Button
+          type="button" size="sm"
+          className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+          onClick={() => {
+            const recovered = localDraft.found!.form;
+            // Through setForm, not reset — restoring IS an edit, so undo can
+            // take you back to the server copy if it wasn't what you wanted.
+            setForm(() => recovered);
+            localDraft.dismiss();
+            toast.success("Unsaved changes restored");
+          }}
+        >
+          Restore
+        </Button>
+        <button
+          type="button"
+          onClick={localDraft.dismiss}
+          className="text-xs text-amber-800/70 hover:text-amber-900"
+        >
+          Discard
+        </button>
+      </div>
+    )}
     <div className="print-reset h-screen overflow-hidden flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
@@ -4334,9 +2024,10 @@ Rules:
                 {j?.destinations?.join(" › ") ?? query.destination ?? "—"}
               </p>
             </div>
-            {/* Duplicating a package used to strand the original: the query
-                row links one package, and the builder knew nothing of the
-                rest. Renders only when there is more than one. */}
+            {/* Only when the query carries more than one package — see
+                PackageSwitcher. The lead's name above is shared by all of
+                them, so without this the header cannot tell two quotes for
+                the same client apart. */}
             <PackageSwitcher
               packageId={packageId}
               basePath="/dashboard/package-builder"
@@ -4377,6 +2068,18 @@ Rules:
                   <span className="hidden sm:inline text-xs">Change Template</span>
                 </Button>
               </CreatePackageDialog>
+            )}
+
+            {!isLocked && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10 rounded-md"
+                onClick={openAIBuilder}
+              >
+                <Wand2 size={13} />
+                <span className="hidden sm:inline text-xs">AI Itinerary Builder</span>
+              </Button>
             )}
 
             {pkgSent ? (
@@ -4458,7 +2161,56 @@ Rules:
               </Button>
             )}
 
-            <ItineraryPdfExport form={previewForm} />
+            {/* Running total, always visible. The breakdown still lives on the
+                Pricing tab; what matters here is that the number moves while
+                you work rather than only when you go looking for it. */}
+            {(hotelPricing || cabPricing) && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("pricing")}
+                title="Open the full pricing breakdown"
+                className="hidden md:flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-dashboard-base-300 hover:bg-dashboard-base-200 transition-colors"
+              >
+                <span className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wider">
+                  Total
+                </span>
+                <span className="text-xs font-bold tabular-nums text-dashboard-base-content">
+                  ₹{computeFinalPricing().finalPrice.toLocaleString("en-IN")}
+                </span>
+                {computingPrice || computingCabPrice ? (
+                  <Loader2 size={11} className="animate-spin text-dashboard-base-content/40" />
+                ) : null}
+              </button>
+            )}
+
+            {/* Undo / redo. Hidden once the package is locked for costing
+                review, where nothing is editable to undo in the first place. */}
+            {!isLocked && (
+              <div className="flex items-center gap-0.5">
+                <Button
+                  variant="ghost" size="sm"
+                  className="h-8 w-8 p-0 rounded-md"
+                  onClick={history.undo}
+                  disabled={!history.canUndo}
+                  title="Undo (⌘Z)"
+                  aria-label="Undo"
+                >
+                  <Undo2 size={14} />
+                </Button>
+                <Button
+                  variant="ghost" size="sm"
+                  className="h-8 w-8 p-0 rounded-md"
+                  onClick={history.redo}
+                  disabled={!history.canRedo}
+                  title="Redo (⌘⇧Z)"
+                  aria-label="Redo"
+                >
+                  <Redo2 size={14} />
+                </Button>
+              </div>
+            )}
+
+            <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
             <ClientLinkButton packageId={packageId} isLive={pkgSent} />
 
             {!isLocked && !pkgSent && (
@@ -4480,38 +2232,6 @@ Rules:
         </div>
       </header>
 
-      {/* ── Quoted at more than one standard ──────────────────────────────────
-          This builder has no stay-option UI: it reads and writes the day row,
-          and the day row carries the RECOMMENDED option only. So a hotel
-          changed here changes that one column, and the others keep whatever
-          they had — which on the client's document is one trip with two
-          hotels that no longer agree.
-
-          Saving is not blocked: the rest of the package (days, tickets,
-          add-ons, pricing) is edited here exactly as before, and an exec sent
-          to v1 by a link or a habit should not be stranded. But it stops
-          being silent, which is the whole problem — the mismatch used to
-          surface on the client's page.
-
-          Renders only for the packages it applies to. One option is every
-          package built before this existed and most built since. */}
-      {(query?.customPackage?.stayOptions?.length ?? 0) > 1 && (
-        <div className="no-print border-b border-amber-200 bg-amber-50 px-4 py-2 dark:border-amber-900 dark:bg-amber-950/30">
-          <p className="text-xs text-amber-900 dark:text-amber-200">
-            <span className="font-semibold">
-              This package quotes {query!.customPackage!.stayOptions!.length} stays
-            </span>{" "}
-            — {query!.customPackage!.stayOptions!.map((o) => o.label).join(", ")}. Hotel changes made here apply
-            only to{" "}
-            <span className="font-semibold">
-              {query!.customPackage!.stayOptions!.find((o) => o.isRecommended)?.label
-                ?? query!.customPackage!.stayOptions![0].label}
-            </span>
-            , the recommended one. Open this package in the new builder to edit the others.
-          </p>
-        </div>
-      )}
-
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
       {/* justify-center + the aside's max-w below keep the preview+editor pair
           from drifting apart into a big dead grey gap on wide screens — the
@@ -4521,19 +2241,34 @@ Rules:
           bare aside background between it and the editor panel. Capping the
           aside and centering the whole pair turns that into a normal, even
           page margin instead. */}
-      <div className="print-reset flex justify-center relative h-[calc(100vh-3.5rem)]">
+      {/* Outermost boundary. The two inside it cover the document and the
+          sidebar's panel body, but a throw in the rail, the layers column or
+          this row's own chrome would sail past both and unmount everything —
+          presenting as a blank page under a working header, which is exactly
+          how it looked. Nothing below here is allowed to do that silently. */}
+      <BuilderErrorBoundary label="The builder">
+      <div className="print-reset flex relative h-[calc(100vh-3.5rem)]">
+        {/* Day layers — order and navigation for the preview beside it.
+            Desktop only: on a narrow screen the preview already takes the whole
+            viewport and a third column would leave nothing for it. */}
+        <div className="no-print hidden xl:flex">
+          <DayLayersRail />
+        </div>
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="print-reset hidden lg:block flex-1 max-w-[880px] border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
-          <div className="print-reset px-6 py-8">
+        <aside className="print-reset hidden lg:block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
+          <div className="print-reset px-6 pb-8">
+            <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
               form={previewForm}
               onCoverImageChange={isLocked ? undefined : (url) => setForm((f) => ({ ...f, coverImage: url }))}
               onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={isLocked ? undefined : handleItineraryImageChange}
               onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
+              stayEditing={isLocked ? undefined : { packageId, onStayOptionsChanged: reloadStayOptions }}
               variant="flat"
             />
+            </BuilderErrorBoundary>
           </div>
         </aside>
 
@@ -4553,67 +2288,24 @@ Rules:
               onCoverImagePositionChange={isLocked ? undefined : (pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
               onImageChange={isLocked ? undefined : handleItineraryImageChange}
               onActivityCaptionChange={isLocked ? undefined : handleActivityCaptionChange}
+              stayEditing={isLocked ? undefined : { packageId, onStayOptionsChanged: reloadStayOptions }}
               variant="flat"
               />
             </div>
           </div>
         )}
 
-        {/* ── RIGHT: Tabbed Editor ──────────────────────────────────────────────── */}
-        <main className="no-print w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
-          <div className="px-4 pt-5 pb-4">
-
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
-              {/* Compact pill nav — short labels + tight padding so all six
-                 fit without the abrupt horizontal clipping a full-width
-                 label set forced at this panel's width. The fade mask on
-                 the right is a scroll affordance for narrower (lg) widths
-                 where it still doesn't quite fit, so a partially-hidden
-                 last tab reads as "scroll for more" instead of "cut off". */}
-              <div className="sticky top-0 z-10 -mx-4 px-4 bg-dashboard-base-200/95 backdrop-blur">
-                <div className="relative">
-                  <TabsList className="w-full max-w-full overflow-x-auto flex-nowrap justify-start bg-transparent p-0 gap-1">
-                    <TabsTrigger value="client" className="gap-1.5 flex-none px-3 py-2">
-                      <User size={13} /> Client
-                    </TabsTrigger>
-                    <TabsTrigger value="details" className="gap-1.5 flex-none px-3 py-2">
-                      <Package size={13} /> Package
-                    </TabsTrigger>
-                    <TabsTrigger value="itinerary" className="gap-1.5 flex-none px-3 py-2">
-                      <Calendar size={13} /> Itinerary
-                    </TabsTrigger>
-                    <TabsTrigger value="tickets" className="gap-1.5 flex-none px-3 py-2">
-                      <Plane size={13} /> Tickets
-                    </TabsTrigger>
-                    <TabsTrigger value="pricing" className="gap-1.5 flex-none px-3 py-2">
-                      <IndianRupee size={13} /> Pricing
-                    </TabsTrigger>
-                    <TabsTrigger value="inclusions" className="gap-1.5 flex-none px-3 py-2">
-                      <ListChecks size={13} /> Inclusions
-                    </TabsTrigger>
-                  </TabsList>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-linear-to-l from-dashboard-base-200 to-transparent" />
-                </div>
-              </div>
-
-              {/* Awaiting-review / verified / rejected banners — shown above
-                 the tab panels so they're visible no matter which tab is
-                 open. isLocked alone only means "sent to costing" — it stays
-                 true after costing approves it too, so this must branch on
-                 pkgVerified as well or an already-approved package keeps
-                 showing the stale "awaiting review" message (see the
-                 toolbar/sidebar, which already do this same check). */}
-              {isLocked && pkgVerified ? (
-                <div className="flex items-start gap-2.5 rounded-xl border border-green-300 bg-green-50 px-4 py-3">
-                  <CheckCircle className="size-4 mt-0.5 shrink-0 text-green-600" />
-                  <div>
-                    <p className="text-sm font-semibold text-green-800">Approved by costing</p>
-                    <p className="text-xs text-green-700 mt-0.5">
-                      This package has been verified and is ready to share with the client. To make changes, click Request Revision above — that pulls it back for editing.
-                    </p>
-                  </div>
-                </div>
-              ) : isLocked ? (
+        {/* ── RIGHT: rail + panel ────────────────────────────────────────────────
+            One surface for everything that isn't the document: the rail's
+            persistent sections, and whichever contextual drawer the preview
+            has opened. See BuilderSidebar. */}
+        <BuilderSidebar
+          clientPanel={
+            <fieldset disabled={isLocked} className="contents">
+              <div className="p-4 space-y-4">
+              {/* Awaiting-review / rejected banners — shown above the tab
+                 panels so they're visible no matter which tab is open. */}
+              {isLocked && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
                   <Clock className="size-4 mt-0.5 shrink-0 text-amber-600" />
                   <div>
@@ -4623,7 +2315,7 @@ Rules:
                     </p>
                   </div>
                 </div>
-              ) : null}
+              )}
               {!isLocked && query.customPackage?.rejectedAt && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-red-300 bg-red-50 px-4 py-3">
                   <XCircle className="size-4 mt-0.5 shrink-0 text-red-600" />
@@ -4649,1123 +2341,12 @@ Rules:
                 </div>
               )}
 
-              {/* Every tab's actual form fields live inside this fieldset —
-                 disabling it (native <fieldset disabled>) blocks every
-                 descendant input/select/textarea/button at once, including
-                 dialog TRIGGER buttons (HotelRoomPicker, image uploads,
-                 etc.) — their dialog content is portaled outside this DOM
-                 subtree, but since the trigger itself never becomes
-                 clickable, the dialog can never open. TabsList above stays
-                 outside this fieldset so switching tabs to LOOK at the
-                 (still fully visible) itinerary always works. */}
-              <fieldset disabled={isLocked} className="contents">
-
-              {/* ── Tab: Client Info ─────────────────────────────────────────────── */}
-              <TabsContent value="client" className="space-y-3">
                 <ClientDetailsSidebar query={query} j={j} t={t} b={b} s={s} tr={tr} ac={ac} />
-              </TabsContent>
 
-              {/* ── Tab: Package Details ─────────────────────────────────────────── */}
-              <TabsContent value="details" className="space-y-6">
-                {/* Package Overview */}
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <Package size={15} className="text-dashboard-primary" /> Package Overview
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="sm:col-span-2">
-                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block ">Package Title *</label>
-                      <Input
-                        value={form.title}
-                        onChange={field("title")}
-                        placeholder="e.g. Manali Adventure Package"
-                        className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Package Description</label>
-                      <Textarea
-                        value={form.description}
-                        onChange={field("description")}
-                        placeholder="A short intro shown under the title on the itinerary — e.g. Experience the magic of Manali on this specially curated 5-day adventure…"
-                        rows={2}
-                        className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-medium text-dashboard-base-content/90">Cover Image</label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={useDestinationPhoto}
-                          disabled={isFetchingCover || !form.destination}
-                          className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
-                        >
-                          {isFetchingCover ? <Loader2 size={11} className="animate-spin" /> : <ImageIcon size={11} />}
-                          Use destination photo
-                        </Button>
-                      </div>
-                      <ImageDropField
-                        value={form.coverImage}
-                        onChange={(url) => setForm((f) => ({ ...f, coverImage: url }))}
-                        position={form.coverImagePosition}
-                        onPositionChange={(pos) => setForm((f) => ({ ...f, coverImagePosition: pos }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Destination(s)</label>
-                      <Input
-                        value={form.destination}
-                        onChange={field("destination")}
-                        placeholder="Manali, Bhuntar, Kullu"
-                        disabled={form.stops.length > 0}
-                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Pickup Point</label>
-                      <Input
-                        value={form.startingPoint}
-                        onChange={field("startingPoint")}
-                        placeholder="Delhi"
-                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Travel Date</label>
-                      <Input
-                        type="date"
-                        min={new Date().toISOString().slice(0, 10)}
-                        value={form.travelDate}
-                        onChange={field("travelDate")}
-                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Duration</label>
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <Input
-                            type="number" min={1}
-                            value={form.totalDays}
-                            disabled={form.stops.length > 0}
-                            onChange={(e) => {
-                              const days = Math.max(1, +e.target.value || 1);
-                              setForm((f) => ({
-                                ...f,
-                                totalDays: days,
-                                totalNights: Math.max(0, days - 1),
-                                // Grows the itinerary to match — never shrinks
-                                // it here, so an exec's already-filled-in days
-                                // are never silently dropped by a typo.
-                                itineraries: growItinerariesTo(f.itineraries, days),
-                              }));
-                            }}
-                            className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
-                          />
-                          <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Days</p>
-                        </div>
-                        <div className="flex-1">
-                          <Input
-                            type="number" min={0}
-                            value={form.totalNights}
-                            disabled={form.stops.length > 0}
-                            onChange={(e) => {
-                              const nights = Math.max(0, +e.target.value || 0);
-                              const days = nights + 1;
-                              setForm((f) => ({
-                                ...f,
-                                totalNights: nights,
-                                totalDays: days,
-                                itineraries: growItinerariesTo(f.itineraries, days),
-                              }));
-                            }}
-                            className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
-                          />
-                          <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Nights</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="sm:col-span-2 pt-2 border-t border-dashboard-base-300">
-                      <RouteStopsEditor
-                        stops={form.stops}
-                        onChange={(stops) => setForm((f) => ({
-                          ...f,
-                          stops,
-                          ...(stops.length > 0 ? recalcFromStops(stops) : {}),
-                        }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Travellers */}
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <Users size={15} className="text-dashboard-primary" /> Travellers
-                  </h2>
-                  <div className="grid grid-cols-3 gap-3">
-                    {(["adults", "children", "infants"] as const).map((key) => (
-                      <div key={key}>
-                        <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block capitalize">{key}</label>
-                        <Input
-                          type="number" min={0}
-                          value={form[key]}
-                          onChange={(e) => {
-                            const n = Math.max(0, +e.target.value || 0);
-                            setForm((f) => ({
-                              ...f,
-                              [key]: n,
-                              ...(key === "children" ? { childrenAges: resizeAges(f.childrenAges, n) } : {}),
-                              ...(key === "infants" ? { infantAges: resizeAges(f.infantAges, n) } : {}),
-                            }));
-                          }}
-                          className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  {(form.children > 0 || form.infants > 0) && (
-                    <div className="grid grid-cols-2 gap-3 pt-1 border-t border-dashboard-base-300/60">
-                      {form.children > 0 && (
-                        <div className="pt-3">
-                          <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
-                            Children&apos;s Ages <span className="text-dashboard-error">*</span>
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {form.childrenAges.map((age, i) => (
-                              <Input
-                                key={i}
-                                type="number" min={CHILD_AGE_MIN} max={CHILD_AGE_MAX}
-                                // Empty while unanswered rather than a
-                                // prefilled 0 — see ../traveller-ages.
-                                value={ageInputValue(age)}
-                                placeholder="–"
-                                onChange={(e) => {
-                                  const v = parseAgeInput(e.target.value, CHILD_AGE_MIN, CHILD_AGE_MAX);
-                                  setForm((f) => ({
-                                    ...f,
-                                    childrenAges: f.childrenAges.map((a, idx) => idx === i ? v : a),
-                                  }));
-                                }}
-                                title={`Child ${i + 1}`}
-                                className={`text-sm h-9 w-14 text-center focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md ${age < CHILD_AGE_MIN ? "border-dashboard-warning/70 bg-dashboard-warning/5" : "border-dashboard-base-300"}`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {form.infants > 0 && (
-                        <div className="pt-3">
-                          <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block">
-                            Infants&apos; Ages <span className="text-dashboard-error">*</span>
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {form.infantAges.map((age, i) => (
-                              <Input
-                                key={i}
-                                type="number" min={INFANT_AGE_MIN} max={INFANT_AGE_MAX}
-                                value={ageInputValue(age)}
-                                placeholder="–"
-                                onChange={(e) => {
-                                  const v = parseAgeInput(e.target.value, INFANT_AGE_MIN, INFANT_AGE_MAX);
-                                  setForm((f) => ({
-                                    ...f,
-                                    infantAges: f.infantAges.map((a, idx) => idx === i ? v : a),
-                                  }));
-                                }}
-                                title={`Infant ${i + 1}`}
-                                className={`text-sm h-9 w-14 text-center focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md ${age < INFANT_AGE_MIN ? "border-dashboard-warning/70 bg-dashboard-warning/5" : "border-dashboard-base-300"}`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <p className="text-[11px] text-dashboard-base-content/50">
-                    Pricing is computed automatically from hotels, cabs, tickets, margin & GST — see the Pricing Breakdown tab.
-                  </p>
-                </div>
-
-                {/* Add-ons */}
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                      <Gift size={15} className="text-dashboard-primary" /> Add-ons
-                    </h2>
-                    <Button type="button" variant="outline" size="sm" onClick={() => addAddon()}>
-                      <Plus size={13} className="mr-1.5" /> Add Add-on
-                    </Button>
-                  </div>
-                  <p className="text-[11px] text-dashboard-base-content/50">
-                    Priced extras — honeymoon kit, permits, adventure sport fees, etc. Each unit price × quantity feeds into the
-                    package total on the Pricing Breakdown tab, at the same {form.marginPercentage || 0}% margin as hotels/cabs.
-                  </p>
-                  {form.addOns.length === 0 ? (
-                    <p className="text-[11px] text-dashboard-base-content/40 italic">No add-ons yet.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {form.addOns.map((addon, idx) => (
-                        <div key={idx} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/20 p-2.5 space-y-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-semibold text-dashboard-base-content/50 bg-dashboard-base-200 rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap">
-                              {addon.day != null ? `Day ${addon.day}` : "General"}
-                            </span>
-                            <Input
-                              value={addon.name}
-                              onChange={(e) => updateAddon(idx, { name: e.target.value })}
-                              placeholder="e.g. Honeymoon Kit"
-                              className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                            />
-                            <Input
-                              type="number" min={0}
-                              value={addon.price ?? ""}
-                              onChange={(e) => updateAddon(idx, { price: e.target.value ? Number(e.target.value) : null })}
-                              placeholder="₹ / unit"
-                              className="text-sm h-8 w-28 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                            />
-                            <Input
-                              type="number" min={1}
-                              value={addon.quantity}
-                              onChange={(e) => updateAddon(idx, { quantity: e.target.value ? Number(e.target.value) : 1 })}
-                              placeholder="Qty"
-                              className="text-sm h-8 w-20 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                            />
-                            <span className="text-xs font-semibold text-dashboard-base-content/70 w-24 text-right shrink-0">
-                              ₹{((addon.price ?? 0) * (addon.quantity || 1)).toLocaleString("en-IN")}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeAddon(idx)}
-                              className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                          <Textarea
-                            value={addon.notes}
-                            onChange={(e) => updateAddon(idx, { notes: e.target.value })}
-                            placeholder="What's included — e.g. candle light dinner, cake, bed decoration…"
-                            rows={2}
-                            className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Flights, Train & Helicopter */}
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                      <Plane size={15} className="text-dashboard-primary" /> Flights, Train & Helicopter
-                    </h2>
-                    <p className="text-xs text-dashboard-base-content/60 mt-1">
-                      {form.tickets.length > 0
-                        ? `${form.tickets.length} ticket${form.tickets.length !== 1 ? "s" : ""} added — priced into the package total.`
-                        : "Add flight, train or helicopter tickets, with fares, on the Tickets tab."}
-                    </p>
-                  </div>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setActiveTab("tickets")}>
-                    <Plane size={13} className="mr-1.5" /> Manage Tickets
-                  </Button>
-                </div>
-              </TabsContent>
-
-              {/* ── Tab: Itinerary ───────────────────────────────────────────────── */}
-              <TabsContent value="itinerary" className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <Calendar size={15} className="text-dashboard-primary" />
-                    Day-wise Itinerary
-                    <Badge variant="outline" className="text-xs font-normal border-dashboard-base-300 text-dashboard-base-content/50">
-                      {form.itineraries.length} days
-                    </Badge>
-                  </h2>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 border-dashboard-base-300 text-dashboard-base-content rounded-md"
-                        >
-                          <Wand2 size={13} /> Tools <ChevronDown size={12} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-64">
-                        <DropdownMenuItem onClick={autoFillDayTitles}>
-                          <Sparkles size={13} className="mr-2 text-dashboard-base-content/60" />
-                          Auto-fill Titles
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={autoFillPickupDrop}>
-                          <Car size={13} className="mr-2 text-dashboard-base-content/60" />
-                          Auto-fill Pickup/Drop
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setAiDialogOpen(true)}>
-                          <Wand2 size={13} className="mr-2 text-dashboard-base-content/60" />
-                          AI Itinerary Builder
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1 border-dashboard-base-300 duration-300 transition-transform hover:scale-105 text-dashboard-base-content rounded-md"
-                      onClick={addDay}
-                    >
-                      <Plus size={13} /> Add Day
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Focus mode — narrows every day card below to just one
-                   section at a time, so filling in e.g. every day's hotel
-                   back-to-back doesn't mean scrolling past cab/meals/
-                   activities each time. Counts show how many days still
-                   need that section filled in. */}
-                <div className="flex items-center gap-1 overflow-x-auto rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/50 p-1">
-                  {FOCUS_SECTIONS.map(({ value, label, icon: SectionIcon }) => {
-                    const done = focusDoneCounts[value];
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setFocusSection(value)}
-                        className={cn(
-                          "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors shrink-0",
-                          focusSection === value
-                            ? "bg-dashboard-primary text-dashboard-primary-content shadow-sm"
-                            : "text-dashboard-base-content/60 hover:bg-dashboard-base-100",
-                        )}
-                      >
-                        <SectionIcon size={12} /> {label}
-                        {done !== undefined && (
-                          <span
-                            className={cn(
-                              "text-[10px] rounded-full px-1.5 leading-4",
-                              focusSection === value
-                                ? "bg-dashboard-primary-content/20"
-                                : done < form.itineraries.length
-                                  ? "bg-dashboard-warning/20 text-dashboard-warning-content"
-                                  : "bg-dashboard-base-300/60",
-                            )}
-                          >
-                            {done}/{form.itineraries.length}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {focusSection !== "all" && (
-                  <p className="text-[11px] text-dashboard-base-content/50 flex items-center gap-1 -mt-1">
-                    <Eye size={11} className="shrink-0" />
-                    Focused on {FOCUS_SECTIONS.find((s) => s.value === focusSection)?.label} — other sections are hidden below across every day.
-                    <button
-                      type="button"
-                      onClick={() => setFocusSection("all")}
-                      className="text-dashboard-primary hover:underline shrink-0"
-                    >
-                      Show all
-                    </button>
-                  </p>
-                )}
-
-                {form.itineraries.length !== form.totalDays && (
-                  <div className="flex items-center justify-between gap-3 rounded-lg border border-dashboard-warning/40 bg-dashboard-warning/10 px-3 py-2">
-                    <p className="text-xs text-dashboard-warning-content flex items-center gap-1.5">
-                      <AlertCircle size={13} className="shrink-0" />
-                      Duration is set to {form.totalDays} day{form.totalDays !== 1 ? "s" : ""}, but there {form.itineraries.length === 1 ? "is" : "are"} {form.itineraries.length} day card{form.itineraries.length !== 1 ? "s" : ""} below — these won&apos;t match on the client-facing document.
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs px-2.5 shrink-0 border-dashboard-warning/50 text-dashboard-warning-content hover:bg-dashboard-warning/20 rounded-md"
-                      onClick={syncItinerariesToDuration}
-                    >
-                      Sync now
-                    </Button>
-                  </div>
-                )}
-
-                <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
-                  <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle className="text-sm flex items-center gap-2">
-                        <Wand2 size={15} className="text-dashboard-primary" /> AI Itinerary Builder
-                      </DialogTitle>
-                      <DialogDescription className="text-xs">
-                        Copy the prompt below into ChatGPT, then paste the JSON it gives you back — day titles, descriptions, activities, and photos get filled in at once. Only empty fields are touched; hotel/cab selection stays manual.
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-xs font-semibold text-dashboard-base-content/90">Step 1 — Copy this prompt</label>
-                          <Button variant="outline" size="sm" onClick={copyAIPrompt} className="h-7 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md">
-                            <Copy size={11} /> Copy Prompt
-                          </Button>
-                        </div>
-                        <Textarea
-                          readOnly
-                          value={buildAIPrompt()}
-                          rows={8}
-                          className="text-[11px] font-mono resize-none border-dashboard-base-300 bg-dashboard-base-200/40 rounded-md"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-semibold text-dashboard-base-content/90 mb-1.5 block">
-                          Step 2 — Paste the JSON response here
-                        </label>
-                        <Textarea
-                          value={aiJsonInput}
-                          onChange={(e) => setAiJsonInput(e.target.value)}
-                          rows={8}
-                          placeholder="Paste the JSON ChatGPT gave you…"
-                          className="text-[11px] font-mono resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                        />
-                      </div>
-
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setAiDialogOpen(false)} className="border-dashboard-base-300 rounded-md">
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={applyAIItinerary}
-                          disabled={!aiJsonInput.trim()}
-                          className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md"
-                        >
-                          <Wand2 size={13} /> Generate Package
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
-                <DndContext sensors={daySensors} onDragEnd={handleDayDragEnd}>
-                  <SortableContext items={dayDndIds} strategy={verticalListSortingStrategy}>
-                    {form.itineraries.map((day, idx) => (
-                      <DayCard
-                        key={dayDndIds[idx]}
-                        dndId={dayDndIds[idx]}
-                        day={day.day}
-                        data={day}
-                        location={dayLocations[idx]}
-                        totalDays={form.itineraries.length}
-                        travelDate={form.travelDate}
-                        adults={form.adults}
-                        childrenCount={form.children}
-                        onChange={(d) => updateDay(idx, d)}
-                        onRemove={() => removeDay(idx)}
-                        onApplyVehicleToDays={applyVehicleToDays}
-                        onApplyRoomToDays={applyRoomToDays}
-                        onRemoveRoomFromDays={removeRoomFromDays}
-                        onRemoveCabFromDays={removeCabFromDays}
-                        stayPreference={s?.types}
-                        focusSection={focusSection}
-                        shiftedMeals={shiftedMeals[idx]}
-                        mealTypes={mealTypes}
-                        dayAddons={form.addOns
-                          .map((addon, index) => ({ addon, index }))
-                          .filter(({ addon }) => addon.day === day.day)}
-                        onAddAddon={() => addAddon(day.day)}
-                        onUpdateAddon={updateAddon}
-                        onRemoveAddon={removeAddon}
-                        onHotelRequestSubmitted={() => setPendingHotelRequestSave(true)}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
-              </TabsContent>
-
-              {/* ── Tab: Tickets ─────────────────────────────────────────────────── */}
-              <TabsContent value="tickets" className="space-y-4">
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                      <Plane size={15} className="text-dashboard-primary" /> Flight, Train, Helicopter, Bus & Other Tickets
-                    </h2>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("FLIGHT")}>
-                        <Plus size={13} className="mr-1" /> <Plane size={12} className="mr-1" /> Add Flight
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("TRAIN")}>
-                        <Plus size={13} className="mr-1" /> <TrainFront size={12} className="mr-1" /> Add Train
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("HELICOPTER")}>
-                        <Plus size={13} className="mr-1" /> <Helicopter size={12} className="mr-1" /> Add Helicopter
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("BUS")}>
-                        <Plus size={13} className="mr-1" /> <Bus size={12} className="mr-1" /> Add Bus
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => addTicket("OTHER")}>
-                        <Plus size={13} className="mr-1" /> <Package size={12} className="mr-1" /> Add Other
-                      </Button>
-                    </div>
-                  </div>
-
-                  {form.tickets.length === 0 ? (
-                    <p className="text-xs text-dashboard-base-content/50">
-                      No tickets added yet — add a flight or train leg above if the client wants one booked as part of this package.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {form.tickets.map((ticket, idx) => (
-                        <TicketEditorCard
-                          key={idx}
-                          ticket={ticket}
-                          onChange={(patch) => updateTicket(idx, patch)}
-                          onRemove={() => removeTicket(idx)}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {form.tickets.length > 0 && (
-                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-dashboard-base-300">
-                      <p className="text-xs text-dashboard-base-content/60">
-                        {form.tickets.length} ticket{form.tickets.length !== 1 ? "s" : ""} — fare total feeds into the Pricing Breakdown tab
-                      </p>
-                      <p className="text-sm font-bold text-dashboard-base-content">
-                        ₹{form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0).toLocaleString("en-IN")}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-
-              {/* ── Tab: Pricing Breakdown ───────────────────────────────────────── */}
-              <TabsContent value="pricing" className="space-y-4">
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-4">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <IndianRupee size={15} className="text-dashboard-primary" /> Pricing Breakdown
-                  </h2>
-
-                  {(computingPrice || computingCabPrice) ? (
-                    <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/60">
-                      <Loader2 size={12} className="animate-spin" /> Calculating price from hotels, cabs + dates…
-                    </div>
-                  ) : (hotelPricing && hotelPricing.days.length > 0) || (cabPricing && cabPricing.days.length > 0) || form.tickets.length > 0 || form.addOns.length > 0 ? (
-                    <>
-                      {hotelPricing && hotelPricing.days.length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
-                            <Hotel size={12} /> Hotels
-                          </h3>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Hotel Subtotal</p>
-                              <p className="text-base font-bold text-dashboard-base-content">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</p>
-                            </div>
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Nights Priced</p>
-                              <p className="text-base font-bold text-dashboard-base-content">{hotelPricing.nightsCounted}</p>
-                            </div>
-                          </div>
-
-                          <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
-                                  <th className="text-left px-3 py-2 font-semibold">Day</th>
-                                  <th className="text-left px-3 py-2 font-semibold">Hotel</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Rooms</th>
-                                  <th className="text-right px-3 py-2 font-semibold">₹/Room</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Extra Beds</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(() => {
-                                  // Groups same-day rows (primary room + any extra room types) so
-                                  // a day with multiple different rooms gets an explicit
-                                  // "₹3,400 + ₹2,500 = ₹5,900" line under it, instead of leaving
-                                  // an exec to manually add up scattered rows sharing a day number.
-                                  const groups = new Map<number, typeof hotelPricing.days>();
-                                  for (const d of hotelPricing.days) {
-                                    groups.set(d.day, [...(groups.get(d.day) ?? []), d]);
-                                  }
-                                  return [...groups.entries()].flatMap(([day, lines]) => [
-                                    ...lines.map((d, i) => (
-                                      <tr key={`${day}-${i}`} className="border-t border-dashboard-base-300">
-                                        <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
-                                        <td className="px-3 py-2 text-dashboard-base-content/70">{d.hotelName} — {d.roomName}{d.planName ? ` · ${d.planName}` : ""}</td>
-                                        <td className="px-3 py-2 text-right">{d.roomsNeeded}</td>
-                                        <td className="px-3 py-2 text-right">₹{d.pricePerRoom.toLocaleString("en-IN")}</td>
-                                        <td className="px-3 py-2 text-right">{d.mattresses > 0 ? `${d.mattresses} × ₹${d.extraBedRate.toLocaleString("en-IN")}` : "—"}</td>
-                                        <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
-                                      </tr>
-                                    )),
-                                    ...(lines.length > 1 ? [
-                                      <tr key={`${day}-sum`} className="border-t border-dashed border-dashboard-base-300 bg-dashboard-base-200/30">
-                                        <td colSpan={5} className="px-3 py-1.5 text-right text-dashboard-base-content/60">
-                                          Day {day} total: {lines.map((d) => `₹${d.total.toLocaleString("en-IN")}`).join(" + ")}
-                                        </td>
-                                        <td className="px-3 py-1.5 text-right font-semibold">
-                                          = ₹{lines.reduce((sum, d) => sum + d.total, 0).toLocaleString("en-IN")}
-                                        </td>
-                                      </tr>,
-                                    ] : []),
-                                  ]);
-                                })()}
-                              </tbody>
-                              <tfoot>
-                                <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
-                                  <td colSpan={5} className="px-3 py-2 text-right font-semibold">Hotel Subtotal</td>
-                                  <td className="px-3 py-2 text-right font-bold">₹{hotelPricing.hotelSubtotal.toLocaleString("en-IN")}</td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {cabPricing && cabPricing.days.length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
-                            <Car size={12} /> Cabs
-                          </h3>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Cab Subtotal</p>
-                              <p className="text-base font-bold text-dashboard-base-content">₹{cabPricing.cabSubtotal.toLocaleString("en-IN")}</p>
-                            </div>
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Days Priced</p>
-                              <p className="text-base font-bold text-dashboard-base-content">{cabPricing.daysCounted}</p>
-                            </div>
-                          </div>
-
-                          <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
-                                  <th className="text-left px-3 py-2 font-semibold">Day</th>
-                                  <th className="text-left px-3 py-2 font-semibold">Vehicle</th>
-                                  <th className="text-left px-3 py-2 font-semibold">Rate Type</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Rate</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Distance</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(() => {
-                                  // Same day-grouping as the hotel table above — a day with
-                                  // multiple different cabs gets an explicit sum line.
-                                  const groups = new Map<number, typeof cabPricing.days>();
-                                  for (const d of cabPricing.days) {
-                                    groups.set(d.day, [...(groups.get(d.day) ?? []), d]);
-                                  }
-                                  return [...groups.entries()].flatMap(([day, lines]) => [
-                                    ...lines.map((d, i) => (
-                                      <tr key={`${day}-${i}`} className="border-t border-dashboard-base-300">
-                                        <td className="px-3 py-2 font-medium whitespace-nowrap">Day {d.day}</td>
-                                        <td className="px-3 py-2 text-dashboard-base-content/70">
-                                          {d.vehicleName}
-                                          {d.gap && <span className="ml-1.5 text-[10px] font-medium text-amber-600">no rate</span>}
-                                        </td>
-                                        <td className="px-3 py-2 text-dashboard-base-content/70">
-                                          {d.gap
-                                            ? "—"
-                                            : `${d.pricingType === "PER_KM" ? "Per KM" : "Per Day"}${d.isWeekend ? " · weekend" : ""}`}
-                                        </td>
-                                        <td className="px-3 py-2 text-right">₹{d.rate.toLocaleString("en-IN")}{d.pricingType === "PER_KM" ? "/km" : "/day"}</td>
-                                        <td className="px-3 py-2 text-right">{d.pricingType === "PER_KM" && d.distanceKm != null ? `${d.distanceKm} km` : "—"}</td>
-                                        <td className="px-3 py-2 text-right font-semibold">₹{d.total.toLocaleString("en-IN")}</td>
-                                      </tr>
-                                    )),
-                                    ...(lines.length > 1 ? [
-                                      <tr key={`${day}-sum`} className="border-t border-dashed border-dashboard-base-300 bg-dashboard-base-200/30">
-                                        <td colSpan={5} className="px-3 py-1.5 text-right text-dashboard-base-content/60">
-                                          Day {day} total: {lines.map((d) => `₹${d.total.toLocaleString("en-IN")}`).join(" + ")}
-                                        </td>
-                                        <td className="px-3 py-1.5 text-right font-semibold">
-                                          = ₹{lines.reduce((sum, d) => sum + d.total, 0).toLocaleString("en-IN")}
-                                        </td>
-                                      </tr>,
-                                    ] : []),
-                                  ]);
-                                })()}
-                              </tbody>
-                              <tfoot>
-                                <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
-                                  <td colSpan={5} className="px-3 py-2 text-right font-semibold">Cab Subtotal</td>
-                                  <td className="px-3 py-2 text-right font-bold">₹{cabPricing.cabSubtotal.toLocaleString("en-IN")}</td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.tickets.length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
-                            <Plane size={12} /> Tickets
-                          </h3>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Tickets Subtotal</p>
-                              <p className="text-base font-bold text-dashboard-base-content">
-                                ₹{form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0).toLocaleString("en-IN")}
-                              </p>
-                            </div>
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Legs Priced</p>
-                              <p className="text-base font-bold text-dashboard-base-content">{form.tickets.length}</p>
-                            </div>
-                          </div>
-
-                          <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
-                                  <th className="text-left px-3 py-2 font-semibold">Type</th>
-                                  <th className="text-left px-3 py-2 font-semibold">Provider</th>
-                                  <th className="text-left px-3 py-2 font-semibold">Route</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Pax</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Fare</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {form.tickets.map((t, idx) => (
-                                  <tr key={idx} className="border-t border-dashboard-base-300">
-                                    <td className="px-3 py-2 font-medium whitespace-nowrap">{TICKET_TYPE_LABELS[t.type]}</td>
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">{[t.provider, t.ticketNumber].filter(Boolean).join(" ") || "—"}</td>
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">{t.fromPlace || "—"} → {t.toPlace || "—"}</td>
-                                    <td className="px-3 py-2 text-right">{t.adults + t.children + t.infants}</td>
-                                    <td className="px-3 py-2 text-right font-semibold">₹{(t.fare ?? 0).toLocaleString("en-IN")}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              <tfoot>
-                                <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
-                                  <td colSpan={4} className="px-3 py-2 text-right font-semibold">Tickets Subtotal</td>
-                                  <td className="px-3 py-2 text-right font-bold">
-                                    ₹{form.tickets.reduce((sum, t) => sum + (t.fare ?? 0), 0).toLocaleString("en-IN")}
-                                  </td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.addOns.length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5">
-                            <Gift size={12} /> Add-ons
-                          </h3>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Add-ons Subtotal</p>
-                              <p className="text-base font-bold text-dashboard-base-content">
-                                ₹{form.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0).toLocaleString("en-IN")}
-                              </p>
-                            </div>
-                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
-                              <p className="text-[11px] text-dashboard-base-content/60 mb-0.5">Items</p>
-                              <p className="text-base font-bold text-dashboard-base-content">{form.addOns.length}</p>
-                            </div>
-                          </div>
-
-                          <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-dashboard-base-200/60 text-dashboard-base-content/60">
-                                  <th className="text-left px-3 py-2 font-semibold">Add-on</th>
-                                  <th className="text-right px-3 py-2 font-semibold">₹/unit</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Qty</th>
-                                  <th className="text-right px-3 py-2 font-semibold">Total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {form.addOns.map((a, idx) => (
-                                  <tr key={idx} className="border-t border-dashboard-base-300">
-                                    <td className="px-3 py-2 font-medium whitespace-nowrap">{a.name || "Untitled add-on"}</td>
-                                    <td className="px-3 py-2 text-right">₹{(a.price ?? 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-3 py-2 text-right">{a.quantity || 1}</td>
-                                    <td className="px-3 py-2 text-right font-semibold">₹{((a.price ?? 0) * (a.quantity || 1)).toLocaleString("en-IN")}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              <tfoot>
-                                <tr className="border-t border-dashboard-base-300 bg-dashboard-base-200/40">
-                                  <td colSpan={3} className="px-3 py-2 text-right font-semibold">Add-ons Subtotal</td>
-                                  <td className="px-3 py-2 text-right font-bold">
-                                    ₹{form.addOns.reduce((sum, a) => sum + (a.price ?? 0) * (a.quantity || 1), 0).toLocaleString("en-IN")}
-                                  </td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      <p className="text-[11px] text-dashboard-base-content/50">
-                        Hotels are computed from each day&apos;s selected room (season/occupancy-aware rate) and adult/child count; cabs from each
-                        day&apos;s selected cab (season/weekday-weekend-aware rate, per day or per km as configured) — both checked against the travel date;
-                        tickets from the fares entered on the Tickets tab; add-ons from the Add-ons list in Package Details. Hotel/cab/add-ons carry
-                        the margin % set below; ticket fares only ever carry a flat {TICKET_MARGIN_PCT}% margin, regardless of that setting.
-                        Activities aren&apos;t priced automatically — factor those into the ₹/Person field in Package Details if needed.
-                      </p>
-
-                      {/* Margin + GST */}
-                      <div className="space-y-3 pt-1 border-t border-dashboard-base-300">
-                        <h3 className="text-xs font-semibold text-dashboard-base-content/80 flex items-center gap-1.5 pt-3">
-                          <Percent size={12} /> Margin & GST
-                        </h3>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Margin %</label>
-                            <Input
-                              type="number" min={0} step="0.1"
-                              value={form.marginPercentage}
-                              onChange={field("marginPercentage")}
-                              placeholder="25"
-                              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">GST %</label>
-                            <Input
-                              type="number" min={0} step="0.1"
-                              value={form.gstPercentage}
-                              onChange={field("gstPercentage")}
-                              placeholder="5"
-                              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                            />
-                          </div>
-                        </div>
-
-                        {(() => {
-                          const p = computeFinalPricing();
-                          if (p.baseCost <= 0) return null;
-                          return (
-                            <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
-                              <table className="w-full text-xs">
-                                <tbody>
-                                  <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">Hotel + Cab Base</td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabBase.toLocaleString("en-IN")}</td>
-                                  </tr>
-                                  {p.addonsSubtotal > 0 && (
-                                    <tr className="border-b border-dashboard-base-300">
-                                      <td className="px-3 py-2 text-dashboard-base-content/70">Add-ons Base</td>
-                                      <td className="px-3 py-2 text-right font-medium">₹{p.addonsSubtotal.toLocaleString("en-IN")}</td>
-                                    </tr>
-                                  )}
-                                  <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">
-                                      + Margin on Hotel/Cab{p.addonsSubtotal > 0 ? "/Add-ons" : ""} ({p.marginPct}%)
-                                    </td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.hotelCabMarginAmount.toLocaleString("en-IN")}</td>
-                                  </tr>
-                                  {p.ticketsSubtotal > 0 && (
-                                    <>
-                                      <tr className="border-b border-dashboard-base-300">
-                                        <td className="px-3 py-2 text-dashboard-base-content/70">Tickets Base (Flight/Train)</td>
-                                        <td className="px-3 py-2 text-right font-medium">₹{p.ticketsSubtotal.toLocaleString("en-IN")}</td>
-                                      </tr>
-                                      <tr className="border-b border-dashboard-base-300">
-                                        <td className="px-3 py-2 text-dashboard-base-content/70">+ Margin on Tickets ({TICKET_MARGIN_PCT}% fixed)</td>
-                                        <td className="px-3 py-2 text-right font-medium">₹{p.ticketsMarginAmount.toLocaleString("en-IN")}</td>
-                                      </tr>
-                                    </>
-                                  )}
-                                  <tr className="border-b border-dashboard-base-300 bg-dashboard-base-200/40">
-                                    <td className="px-3 py-2 font-semibold">= Subtotal</td>
-                                    <td className="px-3 py-2 text-right font-semibold">₹{p.taxable.toLocaleString("en-IN")}</td>
-                                  </tr>
-                                  <tr className="border-b border-dashboard-base-300">
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">+ GST ({p.gstPct}%)</td>
-                                    <td className="px-3 py-2 text-right font-medium">₹{p.gstAmount.toLocaleString("en-IN")}</td>
-                                  </tr>
-                                  <tr className="bg-dashboard-primary/5">
-                                    <td className="px-3 py-2 font-bold text-dashboard-base-content">= Final Price</td>
-                                    <td className="px-3 py-2 text-right font-bold text-dashboard-primary">₹{p.finalPrice.toLocaleString("en-IN")}</td>
-                                  </tr>
-                                  <tr>
-                                    <td className="px-3 py-2 text-dashboard-base-content/70">Per Person</td>
-                                    <td className="px-3 py-2 text-right font-semibold">₹{p.perPerson.toLocaleString("en-IN")}</td>
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      <Button
-                        type="button" size="sm" variant="outline"
-                        className="border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10"
-                        onClick={applyComputedPricing}
-                      >
-                        Use ₹{computeFinalPricing().perPerson.toLocaleString("en-IN")} as Price Per Person
-                      </Button>
-                    </>
-                  ) : (
-                    <p className="text-xs text-dashboard-base-content/50">
-                      No hotel rooms, priced cabs, or tickets added yet — search real inventory in the Itinerary tab, or add fares on the Tickets tab, to see a computed breakdown here.
-                    </p>
-                  )}
-                </div>
-              </TabsContent>
-
-              {/* ── Tab: Inclusions & Terms ──────────────────────────────────────── */}
-              <TabsContent value="inclusions" className="space-y-6">
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-dashboard-base-300 bg-dashboard-base-200/40 px-4 py-3">
-                  <p className="text-xs text-dashboard-base-content/70 flex items-center gap-1.5">
-                    <Lock size={12} /> The standard lists below are company-wide, applied to every itinerary — edited only in Itinerary Settings. Add something just for this package under &quot;Package-specific additions&quot;.
-                  </p>
-                  {!isSalesExecutive && (
-                    <Link
-                      href="/dashboard/itinerary-settings"
-                      target="_blank"
-                      className="text-xs font-semibold text-dashboard-primary hover:underline flex items-center gap-1 shrink-0"
-                    >
-                      Manage <ExternalLink size={12} />
-                    </Link>
-                  )}
-                </div>
-
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <CheckCircle size={15} className="text-dashboard-primary" /> Inclusions & Exclusions
-                  </h2>
-                  <EditableList
-                    label="Inclusions"
-                    items={form.inclusions}
-                    onChange={(v) => setForm((f) => ({ ...f, inclusions: v }))}
-                    placeholder="Add inclusion…"
-                    readOnly
-                  />
-                  <ExtraPolicyItemsEditor
-                    items={form.extraPolicyItems.inclusions}
-                    onChange={(v) => updateExtraPolicyItems("inclusions", v)}
-                    placeholder="e.g. Complimentary airport pickup…"
-                  />
-                  <div className="pt-1 border-t border-dashboard-base-300" />
-                  <EditableList
-                    label="Exclusions"
-                    items={form.exclusions}
-                    onChange={(v) => setForm((f) => ({ ...f, exclusions: v }))}
-                    placeholder="Add exclusion…"
-                    readOnly
-                  />
-                  <ExtraPolicyItemsEditor
-                    items={form.extraPolicyItems.exclusions}
-                    onChange={(v) => updateExtraPolicyItems("exclusions", v)}
-                    placeholder="e.g. Adventure sports insurance…"
-                  />
-                </div>
-
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <Info size={15} className="text-dashboard-primary" /> Policies
-                  </h2>
-                  <EditableList
-                    label="Terms & Conditions"
-                    items={form.termsConditions}
-                    onChange={(v) => setForm((f) => ({ ...f, termsConditions: v }))}
-                    placeholder="Add a term…"
-                    readOnly
-                  />
-                  <ExtraPolicyItemsEditor
-                    items={form.extraPolicyItems.termsConditions}
-                    onChange={(v) => updateExtraPolicyItems("termsConditions", v)}
-                    placeholder="Add a term specific to this package…"
-                  />
-                  <div className="pt-1 border-t border-dashboard-base-300" />
-                  <EditableList
-                    label="Payment Policy"
-                    items={form.paymentPolicy}
-                    onChange={(v) => setForm((f) => ({ ...f, paymentPolicy: v }))}
-                    placeholder="Add a payment rule…"
-                    readOnly
-                  />
-                  <ExtraPolicyItemsEditor
-                    items={form.extraPolicyItems.paymentPolicy}
-                    onChange={(v) => updateExtraPolicyItems("paymentPolicy", v)}
-                    placeholder="Add a payment rule specific to this package…"
-                  />
-                  <div className="pt-1 border-t border-dashboard-base-300" />
-                  <EditableList
-                    label="Amendment Policy"
-                    items={form.amendmentPolicy}
-                    onChange={(v) => setForm((f) => ({ ...f, amendmentPolicy: v }))}
-                    placeholder="Add an amendment rule…"
-                    readOnly
-                  />
-                  <ExtraPolicyItemsEditor
-                    items={form.extraPolicyItems.amendmentPolicy}
-                    onChange={(v) => updateExtraPolicyItems("amendmentPolicy", v)}
-                    placeholder="Add an amendment rule specific to this package…"
-                  />
-                </div>
-
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <Sparkles size={15} className="text-dashboard-primary" /> Why Book With Us
-                  </h2>
-                  <EditableList
-                    label="Benefits"
-                    items={form.travelBenefits}
-                    onChange={(v) => setForm((f) => ({ ...f, travelBenefits: v }))}
-                    placeholder="Add a benefit…"
-                    readOnly
-                  />
-                  <ExtraPolicyItemsEditor
-                    items={form.extraPolicyItems.travelBenefits}
-                    onChange={(v) => updateExtraPolicyItems("travelBenefits", v)}
-                    placeholder="Add a benefit specific to this package…"
-                  />
-                </div>
-
-                {form.customPolicySections.length > 0 && (
-                  <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-5">
-                    <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                      <Info size={15} className="text-dashboard-primary" /> Custom Policy Sections
-                    </h2>
-                    {form.customPolicySections.map((section) => (
-                      <EditableList
-                        key={section.id}
-                        label={section.title || "Untitled section"}
-                        items={section.items}
-                        onChange={() => {}}
-                        readOnly
-                      />
-                    ))}
-                  </div>
-                )}
-
-                <div className="rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-sm p-5 space-y-3">
-                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                    <Info size={15} className="text-dashboard-primary" /> Terms & Notes
-                  </h2>
-                  <Textarea
-                    value={form.termsNotes}
-                    onChange={field("termsNotes")}
-                    rows={4}
-                    placeholder="Payment terms, cancellation policy, important notes…"
-                    className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                </div>
-              </TabsContent>
-
-              </fieldset>
-            </Tabs>
-
+                {/* Save / Mark Ready / Share. In the Client tab because
+                    that's where an exec starts and finishes — the actions
+                    that move a package forward belong beside the lead it's
+                    for, not floating over the document. */}
             {/* Bottom action bar */}
             {pkgSent ? (
               <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
@@ -5836,23 +2417,77 @@ Rules:
                 </Button>
               </div>
             )}
-          </div>
-        </main>
+              </div>
+            </fieldset>
+          }
+          tablesPanel={
+            <DataTablesPanel
+              packageId={packageId}
+              hotelPricing={hotelPricing}
+              cabPricing={cabPricing}
+            />
+          }
+          tripPanel={
+            <fieldset disabled={isLocked} className="contents">
+              <TripSetupPanel
+                computed={computeFinalPricing()}
+                onApplyPrice={applyComputedPricing}
+              />
+            </fieldset>
+          }
+        />
       </div>
+      </BuilderErrorBoundary>
 
       <AlertDialog open={confirmReadyOpen} onOpenChange={setConfirmReadyOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
+            <AlertDialogMedia className="bg-dashboard-success/10 text-dashboard-success">
+              <ShieldCheck />
+            </AlertDialogMedia>
             <AlertDialogTitle>Submit for costing review?</AlertDialogTitle>
             <AlertDialogDescription>
-              Once this package goes under costing review, you won&apos;t be able to change anything —
-              editing stays locked until the costing team either approves it, or rejects it
-              back to you with a reason.
+              The costing team checks pricing before this package can be shared with the client.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <div className="space-y-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-3">
+            <div className="flex items-start gap-2">
+              <Lock size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
+              <p className="text-xs text-dashboard-base-content/70">Editing locks the moment you submit</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
+              <p className="text-xs text-dashboard-base-content/70">Approved — you can then share it with the client</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <RotateCcw size={13} className="text-dashboard-base-content/45 shrink-0 mt-0.5" />
+              <p className="text-xs text-dashboard-base-content/70">Rejected — comes back to you with a reason to fix</p>
+            </div>
+          </div>
+
+          <label className="space-y-1.5 block">
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-dashboard-base-content/70">
+              <ChatText size={12} /> Message for costing
+              <span className="font-normal text-dashboard-base-content/40">(optional)</span>
+            </span>
+            <textarea
+              value={readyNote}
+              onChange={(e) => setReadyNote(e.target.value)}
+              placeholder="e.g. client is price-sensitive, or day 3's hotel is a manual entry — please double-check the rate…"
+              rows={3}
+              className="w-full rounded-lg border border-dashboard-base-300 px-3 py-2 text-xs resize-y focus-visible:outline-2 focus-visible:outline-dashboard-primary/40 focus-visible:border-dashboard-primary/40"
+            />
+          </label>
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleMarkReady}>Mark Ready</AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleMarkReady}
+              className="gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
+            >
+              <Send size={13} /> Mark Ready
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -5872,7 +2507,76 @@ Rules:
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={aiDialogOpen} onOpenChange={(o) => { setAiDialogOpen(o); if (!o) setAiParseError(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-dashboard-base-300">
+            <div className="flex items-center gap-2.5">
+              <span className="flex items-center justify-center size-8 rounded-lg bg-dashboard-primary/10 text-dashboard-primary shrink-0">
+                <Wand2 size={16} />
+              </span>
+              <div>
+                <DialogTitle className="text-sm font-semibold">AI Itinerary Builder</DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  Copy the prompt into ChatGPT (or any LLM), then paste its JSON reply back here.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="px-6 py-5 space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-dashboard-base-content">Paste the JSON response here</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={copyAIPrompt} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
+                    <Copy size={11} /> Copy Prompt
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={pasteAIJson} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
+                    <ClipboardPaste size={11} /> Paste Prompt
+                  </Button>
+                </div>
+              </div>
+              <Textarea
+                value={aiJsonInput}
+                onChange={(e) => { setAiJsonInput(e.target.value); if (aiParseError) setAiParseError(null); }}
+                rows={9}
+                placeholder="Paste the JSON the AI gave you…"
+                className={cn(
+                  "text-[11px] font-mono resize-none rounded-lg",
+                  aiParseError
+                    ? "border-dashboard-error focus-visible:ring-dashboard-error/20 focus-visible:border-dashboard-error"
+                    : "border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary",
+                )}
+              />
+              {aiParseError && (
+                <div className="flex items-start gap-2 rounded-lg border border-dashboard-error/30 bg-dashboard-error/5 px-3 py-2">
+                  <AlertTriangle size={13} className="mt-0.5 text-dashboard-error shrink-0" />
+                  <p className="text-[11px] leading-relaxed text-dashboard-error">{aiParseError}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 px-6 py-4 border-t border-dashboard-base-300 bg-dashboard-base-100">
+            <Button variant="outline" size="sm" onClick={() => setAiDialogOpen(false)} className="border-dashboard-base-300 rounded-md">
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={applyAIItinerary}
+              disabled={!aiJsonInput.trim()}
+              className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md"
+            >
+              <Wand2 size={13} /> Generate Itinerary
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+    </PackageBuilderProvider>
   );
 }
 
@@ -5920,7 +2624,7 @@ function PreviousVersionDialog({ snapshot }: { snapshot: unknown }) {
             <p className="font-semibold text-sm">{v.title}</p>
             <p className="text-dashboard-base-content/60">
               {v.totalDays}D / {v.totalNights}N · {v.adults}A {v.children > 0 && `${v.children}C `}{v.infants > 0 && `${v.infants}I`}
-              {v.travelDate && ` · ${new Date(v.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`}
+              {v.travelDate && ` · ${formatCalendarDayLong(dayCalendarDate(v.travelDate, 1))}`}
             </p>
             {v.pricePerPerson != null && (
               <p className="text-dashboard-base-content/60">
@@ -6162,7 +2866,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
           <InfoRow label="From" value={j.startingPoint} />
           <InfoRow label="Date" value={
             j.travelDate
-              ? new Date(j.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+              ? formatCalendarDayLong(dayCalendarDate(j.travelDate, 1))
               : undefined
           } />
           <InfoRow label="Duration" value={`${j.noOfDays} Days / ${j.noOfNights} Nights`} />

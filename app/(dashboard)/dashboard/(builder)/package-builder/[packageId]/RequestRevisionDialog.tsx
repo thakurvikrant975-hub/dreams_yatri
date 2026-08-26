@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "./builder-icons";
 import { toast } from "sonner";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Label } from "@/app/(dashboard)/dashboard/(main)/components/ui/label";
@@ -10,7 +10,7 @@ import {
     Dialog, DialogContent, DialogHeader,
     DialogTitle, DialogTrigger, DialogDescription,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
-import { requestPackageRevision } from "../action";
+import { requestPackageRevision } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 type Props = {
     packageId: string;

@@ -74,10 +74,11 @@ export function EditablePolicyList({
   }
 
   function commitAdd() {
-    const value = draft.trim();
+    let value = draft.trim();
     setDraft("");
     setAdding(false);
     if (!value || !builder) return;
+    if (vetoable) value = value.charAt(0).toUpperCase() + value.slice(1);
     builder.setForm((f) => addExtraPolicyItem(f, listKey, value));
   }
 

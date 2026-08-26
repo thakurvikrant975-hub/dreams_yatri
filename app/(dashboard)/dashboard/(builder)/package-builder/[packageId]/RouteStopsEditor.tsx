@@ -16,7 +16,7 @@ import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/compone
 import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import type { StopInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
-export function RouteStopsEditor({ stops, onChange, limitReason, dayCount }: {
+export function RouteStopsEditor({ stops, onChange, limitReason, dayCount, onSync }: {
   stops: StopInput[];
   onChange: (v: StopInput[]) => void;
   /** Why another stop can't be added, or undefined when one can. Passed in
@@ -27,6 +27,10 @@ export function RouteStopsEditor({ stops, onChange, limitReason, dayCount }: {
    * layers rail without touching the route. Passed in for the same reason as
    * limitReason: only the caller knows it. Omit to skip the mismatch check. */
   dayCount?: number;
+  /** Adds/removes itinerary days to match the nights above (see
+   * syncItineraryWithStops) — shown as a button on the mismatch warning
+   * below. Omit to show the warning without an action, same as before. */
+  onSync?: () => void;
 }) {
   // Per-row toggle: pick from the real locations catalog (default) vs a
   // plain free-text field, for places not in the catalog yet.
@@ -158,13 +162,24 @@ export function RouteStopsEditor({ stops, onChange, limitReason, dayCount }: {
       )}
 
       {dayMismatch && (
-        <p className="flex items-start gap-1.5 text-[11px] text-dashboard-warning bg-dashboard-warning/10 border border-dashboard-warning/25 rounded-md px-2 py-1.5 mt-1.5">
+        <div className="flex items-start gap-1.5 text-[11px] text-dashboard-warning bg-dashboard-warning/10 border border-dashboard-warning/25 rounded-md px-2 py-1.5 mt-1.5">
           <AlertTriangle size={12} className="shrink-0 mt-0.5" />
-          <span>
+          <span className="flex-1">
             Nights add up to {impliedDays}D / {totalNights}N, but this trip has {dayCount} day{dayCount !== 1 ? "s" : ""}.
-            Adjust the nights above so they match.
+            {onSync ? " Sync to add or remove days to match." : " Adjust the nights above so they match."}
           </span>
-        </p>
+          {onSync && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onSync}
+              className="h-6 px-2 text-[11px] shrink-0 border-dashboard-warning/40 text-dashboard-warning hover:bg-dashboard-warning/15"
+            >
+              Sync Itinerary
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

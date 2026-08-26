@@ -72,6 +72,38 @@ export function EditPersonalDialog({ profile }: { profile: ProfileData }) {
                             />
                             {errors?.alternativeMobile && <p className="text-xs text-destructive">{errors.alternativeMobile[0]}</p>}
                         </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="officialMobile">Official Mobile</Label>
+                            <Input
+                                id="officialMobile" name="officialMobile"
+                                defaultValue={profile.officialMobile ?? ""}
+                                placeholder="9876543210"
+                            />
+                            {errors?.officialMobile && <p className="text-xs text-destructive">{errors.officialMobile[0]}</p>}
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="gender">Gender</Label>
+                            <select
+                                id="gender" name="gender"
+                                defaultValue={profile.gender ?? ""}
+                                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="">Select…</option>
+                                <option value="MALE">Male</option>
+                                <option value="FEMALE">Female</option>
+                                <option value="OTHER">Other</option>
+                                <option value="PREFER_NOT_TO_SAY">Can&apos;t say</option>
+                            </select>
+                            {errors?.gender && <p className="text-xs text-destructive">{errors.gender[0]}</p>}
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                            <Input
+                                id="dateOfBirth" name="dateOfBirth" type="date"
+                                defaultValue={profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().slice(0, 10) : ""}
+                            />
+                            {errors?.dateOfBirth && <p className="text-xs text-destructive">{errors.dateOfBirth[0]}</p>}
+                        </div>
 
                         <DialogFooter>
                             <Button type="submit" disabled={isPending}>

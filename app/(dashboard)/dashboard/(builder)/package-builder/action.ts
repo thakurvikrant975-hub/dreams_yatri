@@ -5,6 +5,7 @@ import { normalizeMealLabels } from "./meals";
 import { getCurrentActor, logTimeline } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
+import { formatStoredCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
 import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing, computeStayOptionPricing } from "@/app/services/package-pricing.service";
@@ -693,7 +694,7 @@ export type CabSortOption = "price_asc" | "price_desc" | "seats_desc" | "seats_a
 
 // Sorted cheapest-first by default, so a city split across two same-named
 // location rows (e.g. two "Goa" rows — a state-wide entry and an unrelated
-// duplicate — see the package-builder-v2 split investigation) can have an
+// duplicate — see the package-builder split investigation) can have an
 // entirely cheaper vehicle group (bikes) fill the whole page and permanently
 // hide a pricier group (cars/buses). The classic "Search cabs in <city>"
 // combobox now paginates properly (SearchSelect's "Load more" button), so
@@ -1054,6 +1055,17 @@ export interface DayItinerary {
    * only (not written back by saveCustomPackage). */
   hotelFilledAt?:     Date | null;
   hotelFilledByName?: string | null;
+  /** Set (only) by beginHotelRequest/its v1 equivalent, when withdrawing a
+   * day that had `hotelFilledAt` set at that moment — proof the exec's own
+   * tab actually displayed the filled hotel before they chose to discard it
+   * and request a different one. Withdrawing always clears hotelFilledAt
+   * client-side (so the stale "Filled by X" banner doesn't linger through
+   * the new request), which otherwise looks byte-for-byte identical, to
+   * saveCustomPackage, to a stale pre-fill tab blindly clobbering a fill it
+   * never saw — the exact case the staleResurrection guard exists to catch.
+   * This is the same "I've seen it, let me proceed" gesture as
+   * hotelRejectionAcknowledged below. Not persisted itself. */
+  hotelFillAcknowledged?: boolean;
   /** Read-only — the hotel team's internal note left when filling this day
    * in, for display only (not written back by saveCustomPackage, and never
    * included in the itinerary PDF — see ItineraryDocument.tsx). */
@@ -2383,122 +2395,140 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     // Normalized defensively since it's untrusted input.
     const effectiveExtraPolicyItems = normalizeExtraPolicyItems(extraPolicyItems) as unknown as Prisma.InputJsonValue;
 
-    // Upsert the custom package (unique on its own id, client-generated on
-    // first save — see PackageInput.id — not on queryId, since a query can
-    // now have several packages).
-    const pkg = await db.custom_packages.upsert({
-      where:  { id },
-      create: {
-        id,
-        queryId,
-        title,
-        description:     description || null,
-        coverImage:      coverImage || null,
-        coverImagePosition,
-        destination,
-        startingPoint:   startingPoint || null,
-        totalDays,
-        totalNights,
-        travelDate:      travelDate ? new Date(travelDate) : null,
-        adults,
-        children,
-        infants,
-        childrenAges:    childrenAges ?? [],
-        infantAges:      infantAges ?? [],
-        pricePerPerson:  pricePerPerson ?? null,
-        totalPrice:      totalPrice ?? null,
-        marginPercentage,
-        gstPercentage,
-        discountType:  discountType ?? null,
-        discountValue: discountValue ?? null,
-        discountNote:  discountNote?.trim() || null,
-        currency,
-        inclusions:      effectiveInclusions,
-        exclusions:      effectiveExclusions,
-        termsNotes:      termsNotes || null,
-        termsConditions: effectiveTermsConditions,
-        paymentPolicy:   effectivePaymentPolicy,
-        amendmentPolicy: effectiveAmendmentPolicy,
-        travelBenefits:  effectiveTravelBenefits,
-        customPolicySections: effectiveCustomPolicySections,
-        extraPolicyItems: effectiveExtraPolicyItems,
-        flightsIncluded,
-        flightNotes:     flightNotes || null,
-        flightFrom:      flightFrom || null,
-        flightTo:        flightTo || null,
-        trainIncluded,
-        trainNotes:      trainNotes || null,
-        trainFrom:       trainFrom || null,
-        trainTo:         trainTo || null,
-        status:          nextStatus,
-        builtBy,
-        builtByName:     builtByName || null,
-      },
-      update: {
-        title,
-        description:     description || null,
-        coverImage:      coverImage || null,
-        coverImagePosition,
-        destination,
-        startingPoint:   startingPoint || null,
-        totalDays,
-        totalNights,
-        travelDate:      travelDate ? new Date(travelDate) : null,
-        adults,
-        children,
-        infants,
-        childrenAges:    childrenAges ?? [],
-        infantAges:      infantAges ?? [],
-        // Margin, GST and the discount are absent from this update on purpose,
-        // at every status.
-        //
-        // They are costing's levers (see workspace-caps: the exec has
-        // editMargin: false and cannot even see these numbers), and the one
-        // path that writes them — updatePackagePricing — re-checks that
-        // capability and records the change. Accepting them here gave the rule
-        // a hole on both sides: a crafted payload could set a margin the sender
-        // was never allowed to set, and an ordinary save from an editor opened
-        // before a correction would post the pre-correction values back over
-        // it. With autosave now running for costing, the second one would have
-        // happened on a timer, seconds after their own correction, silently.
-        //
-        // They are still written on `create` below — a new package needs its
-        // opening margin and GST from somewhere, and that is the house default
-        // the form carries.
-        //
-        // pricePerPerson/totalPrice stay the exec's while a package is theirs:
-        // the builder keeps them synced to the live computation as they work.
-        // At READY they are costing's, via updatePackagePricing and approve.
-        ...(pricingLocked ? {} : {
-          pricePerPerson:  pricePerPerson ?? null,
-          totalPrice:      totalPrice ?? null,
-        }),
-        currency,
-        inclusions:      effectiveInclusions,
-        exclusions:      effectiveExclusions,
-        termsNotes:      termsNotes || null,
-        termsConditions: effectiveTermsConditions,
-        paymentPolicy:   effectivePaymentPolicy,
-        amendmentPolicy: effectiveAmendmentPolicy,
-        travelBenefits:  effectiveTravelBenefits,
-        customPolicySections: effectiveCustomPolicySections,
-        extraPolicyItems: effectiveExtraPolicyItems,
-        flightsIncluded,
-        flightNotes:     flightNotes || null,
-        flightFrom:      flightFrom || null,
-        flightTo:        flightTo || null,
-        trainIncluded,
-        trainNotes:      trainNotes || null,
-        trainFrom:       trainFrom || null,
-        trainTo:         trainTo || null,
-        status:          nextStatus,
-        // builtBy/builtByName are set on create and never rewritten. They name
-        // whoever BUILT the package, which is not the same as whoever last
-        // saved it — now that costing saves too, echoing the current actor here
-        // would quietly reassign authorship to the reviewer.
-        ...(previousSnapshot ? { previousSnapshot } : {}),
-      },
-    });
+    // Explicit create-or-update on the custom package (unique on its own id,
+    // client-generated on first save — see PackageInput.id — not on queryId,
+    // since a query can now have several packages).
+    //
+    // NOT db.custom_packages.upsert(): under this Prisma version's driver
+    // adapter, upsert first attempts an INSERT using the `create` data and
+    // only falls back to UPDATE on a duplicate-key error. For an existing
+    // READY package, that attempted INSERT reuses nextStatus (= "READY")
+    // without setting readyAt (create never does — see below), and Postgres
+    // validates check constraints before it notices the primary-key
+    // conflict — so ready_status_requires_ready_at fails on the doomed
+    // INSERT before Prisma ever reaches its update fallback, on every single
+    // save of every READY package, regardless of the row's actual (valid)
+    // readyAt. `existing` is already fetched above, so branching on it here
+    // skips the INSERT attempt entirely for a package that already exists.
+    const pkg = existing
+      ? await db.custom_packages.update({
+          where: { id },
+          data: {
+            title,
+            description:     description || null,
+            coverImage:      coverImage || null,
+            coverImagePosition,
+            destination,
+            startingPoint:   startingPoint || null,
+            totalDays,
+            totalNights,
+            travelDate:      travelDate ? new Date(travelDate) : null,
+            adults,
+            children,
+            infants,
+            childrenAges:    childrenAges ?? [],
+            infantAges:      infantAges ?? [],
+            // Margin, GST and the discount are absent from this update on
+            // purpose, at every status.
+            //
+            // They are costing's levers (see workspace-caps: the exec has
+            // editMargin: false and cannot even see these numbers), and the
+            // one path that writes them — updatePackagePricing — re-checks
+            // that capability and records the change. Accepting them here
+            // gave the rule a hole on both sides: a crafted payload could
+            // set a margin the sender was never allowed to set, and an
+            // ordinary save from an editor opened before a correction would
+            // post the pre-correction values back over it. With autosave now
+            // running for costing, the second one would have happened on a
+            // timer, seconds after their own correction, silently.
+            //
+            // They are still written on create below — a new package needs
+            // its opening margin and GST from somewhere, and that is the
+            // house default the form carries.
+            //
+            // pricePerPerson/totalPrice stay the exec's while a package is
+            // theirs: the builder keeps them synced to the live computation
+            // as they work. At READY they are costing's, via
+            // updatePackagePricing and approve.
+            ...(pricingLocked ? {} : {
+              pricePerPerson:  pricePerPerson ?? null,
+              totalPrice:      totalPrice ?? null,
+            }),
+            currency,
+            inclusions:      effectiveInclusions,
+            exclusions:      effectiveExclusions,
+            termsNotes:      termsNotes || null,
+            termsConditions: effectiveTermsConditions,
+            paymentPolicy:   effectivePaymentPolicy,
+            amendmentPolicy: effectiveAmendmentPolicy,
+            travelBenefits:  effectiveTravelBenefits,
+            customPolicySections: effectiveCustomPolicySections,
+            extraPolicyItems: effectiveExtraPolicyItems,
+            flightsIncluded,
+            flightNotes:     flightNotes || null,
+            flightFrom:      flightFrom || null,
+            flightTo:        flightTo || null,
+            trainIncluded,
+            trainNotes:      trainNotes || null,
+            trainFrom:       trainFrom || null,
+            trainTo:         trainTo || null,
+            status:          nextStatus,
+            // builtBy/builtByName are set on create and never rewritten.
+            // They name whoever BUILT the package, which is not the same as
+            // whoever last saved it — now that costing saves too, echoing
+            // the current actor here would quietly reassign authorship to
+            // the reviewer.
+            ...(previousSnapshot ? { previousSnapshot } : {}),
+          },
+        })
+      : await db.custom_packages.create({
+          data: {
+            id,
+            queryId,
+            title,
+            description:     description || null,
+            coverImage:      coverImage || null,
+            coverImagePosition,
+            destination,
+            startingPoint:   startingPoint || null,
+            totalDays,
+            totalNights,
+            travelDate:      travelDate ? new Date(travelDate) : null,
+            adults,
+            children,
+            infants,
+            childrenAges:    childrenAges ?? [],
+            infantAges:      infantAges ?? [],
+            pricePerPerson:  pricePerPerson ?? null,
+            totalPrice:      totalPrice ?? null,
+            marginPercentage,
+            gstPercentage,
+            discountType:  discountType ?? null,
+            discountValue: discountValue ?? null,
+            discountNote:  discountNote?.trim() || null,
+            currency,
+            inclusions:      effectiveInclusions,
+            exclusions:      effectiveExclusions,
+            termsNotes:      termsNotes || null,
+            termsConditions: effectiveTermsConditions,
+            paymentPolicy:   effectivePaymentPolicy,
+            amendmentPolicy: effectiveAmendmentPolicy,
+            travelBenefits:  effectiveTravelBenefits,
+            customPolicySections: effectiveCustomPolicySections,
+            extraPolicyItems: effectiveExtraPolicyItems,
+            flightsIncluded,
+            flightNotes:     flightNotes || null,
+            flightFrom:      flightFrom || null,
+            flightTo:        flightTo || null,
+            trainIncluded,
+            trainNotes:      trainNotes || null,
+            trainFrom:       trainFrom || null,
+            trainTo:         trainTo || null,
+            status:          nextStatus,
+            builtBy,
+            builtByName:     builtByName || null,
+          },
+        });
 
     // Replace route stops — delete all then recreate (no nested children, so
     // createMany is fine here, unlike itineraries below).
@@ -2538,6 +2568,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         hotelRejectedAt: true, hotelRejectedById: true, hotelRejectedByName: true, hotelRejectionNote: true, hotelRejectedNotifiedAt: true,
         hotelPriceOverride: true, cabPriceOverride: true,
         roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
+        accommodationPhoto: true, accommodationRoomPhotos: true, accommodationLocation: true, accommodationRoomSpecs: true,
+        accommodationStarRating: true, accommodationRoomCapacity: true, accommodationMaxAdults: true, accommodationMaxChildren: true,
+        accommodationExtraBedCapacity: true, hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
       },
     });
@@ -2608,12 +2641,24 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
           // wasn't right) from the stale-tab race this guard exists to catch:
           // the hotel team fills a day in a separate tab/page while the exec
           // still has an older, pre-fill copy of this form open and saves for
-          // an unrelated reason. The client's own hotelFilledAt (read-only,
-          // loaded at page-open time — see the DayItinerary comment above)
-          // only matches the DB's current one if the exec's snapshot already
-          // knew about this exact fill, which a stale tab's never would.
-          const clientSawThisFill = alreadyFilled && it.hotelFilledAt != null
-            && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime();
+          // an unrelated reason.
+          //
+          // Two independent proofs the client actually saw this exact fill:
+          // (1) its own hotelFilledAt (read-only, loaded at page-open time —
+          // see the DayItinerary comment above) matches the DB's current one
+          // — a stale tab's never would; or (2) hotelFillAcknowledged, set by
+          // beginHotelRequest/its v1 equivalent when the exec withdrew a day
+          // that had hotelFilledAt set at that moment. (2) exists because
+          // withdrawing always clears hotelFilledAt client-side first (so the
+          // stale banner doesn't linger through the new request), which would
+          // otherwise make every legitimate "saw it, want a different one"
+          // re-request look identical to the stale-tab case (1) exists to
+          // catch — it.hotelFilledAt is null either way by the time this save
+          // fires, so (1) alone can never pass for a withdraw-then-request.
+          const clientSawThisFill = alreadyFilled && (
+            it.hotelFillAcknowledged === true
+            || (it.hotelFilledAt != null && new Date(it.hotelFilledAt).getTime() === existing!.hotelFilledAt!.getTime())
+          );
           const staleResurrection = alreadyFilled && !clientSawThisFill;
           if (it.hotelPending && staleResurrection) staleHotelRequestDays.push(it.day);
           const clearedRejection = !!existing?.hotelRejectedAt && it.hotelRejectionAcknowledged === true;
@@ -2628,19 +2673,25 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               title:              it.title,
               description:        it.description || null,
               meals:              normalizeMealLabels(it.meals),
-              accommodation:      it.accommodation || null,
-              accommodationPhoto: it.accommodationPhoto || null,
-              accommodationRoomPhotos: it.accommodationRoomPhotos ?? [],
-              accommodationLocation: it.accommodationLocation || null,
-              accommodationRoomSpecs: it.accommodationRoomSpecs || null,
-              accommodationStarRating: it.accommodationStarRating || null,
-              accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
-              accommodationMaxAdults: it.accommodationMaxAdults ?? null,
-              accommodationMaxChildren: it.accommodationMaxChildren ?? null,
-              accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
-              manualExtraBeds:    it.manualExtraBeds ?? null,
-              roomPricingId:      it.roomPricingId ?? null,
-              roomsCount:         it.roomsCount ?? null,
+              // Same staleResurrection guard as hotelFilledAt/By/ByName below:
+              // a stale pre-fill tab's payload for these is genuinely blank
+              // (the request form never sets them — only the fill does), so
+              // trusting it here silently reverted a completed fill's hotel
+              // back to "no hotel" while leaving the "Filled by X" banner
+              // intact, since that banner alone was previously protected.
+              accommodation:      staleResurrection ? (existing?.accommodation ?? null) : (it.accommodation || null),
+              accommodationPhoto: staleResurrection ? (existing?.accommodationPhoto ?? null) : (it.accommodationPhoto || null),
+              accommodationRoomPhotos: staleResurrection ? (existing?.accommodationRoomPhotos ?? []) : (it.accommodationRoomPhotos ?? []),
+              accommodationLocation: staleResurrection ? (existing?.accommodationLocation ?? null) : (it.accommodationLocation || null),
+              accommodationRoomSpecs: staleResurrection ? (existing?.accommodationRoomSpecs ?? null) : (it.accommodationRoomSpecs || null),
+              accommodationStarRating: staleResurrection ? (existing?.accommodationStarRating ?? null) : (it.accommodationStarRating || null),
+              accommodationRoomCapacity: staleResurrection ? (existing?.accommodationRoomCapacity ?? null) : (it.accommodationRoomCapacity ?? null),
+              accommodationMaxAdults: staleResurrection ? (existing?.accommodationMaxAdults ?? null) : (it.accommodationMaxAdults ?? null),
+              accommodationMaxChildren: staleResurrection ? (existing?.accommodationMaxChildren ?? null) : (it.accommodationMaxChildren ?? null),
+              accommodationExtraBedCapacity: staleResurrection ? (existing?.accommodationExtraBedCapacity ?? null) : (it.accommodationExtraBedCapacity ?? null),
+              manualExtraBeds:    staleResurrection ? (existing?.manualExtraBeds ?? null) : (it.manualExtraBeds ?? null),
+              roomPricingId:      staleResurrection ? (existing?.roomPricingId ?? null) : (it.roomPricingId ?? null),
+              roomsCount:         staleResurrection ? (existing?.roomsCount ?? null) : (it.roomsCount ?? null),
               hotelPending,
               hotelPendingNote:   hotelPending ? (it.hotelPendingNote || null) : null,
               hotelRequestType:   hotelPending ? (it.hotelRequestType || null) : null,
@@ -2664,21 +2715,26 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               hotelRejectedByName:     clearedRejection ? null : (existing?.hotelRejectedByName ?? null),
               hotelRejectionNote:      clearedRejection ? null : (existing?.hotelRejectionNote ?? null),
               hotelRejectedNotifiedAt: clearedRejection ? null : (existing?.hotelRejectedNotifiedAt ?? null),
-              manualHotelPricePerNight: it.manualHotelPricePerNight ?? null,
-              manualExtraBedRate: it.manualExtraBedRate ?? null,
+              manualHotelPricePerNight: staleResurrection ? (existing?.manualHotelPricePerNight ?? null) : (it.manualHotelPricePerNight ?? null),
+              manualExtraBedRate: staleResurrection ? (existing?.manualExtraBedRate ?? null) : (it.manualExtraBedRate ?? null),
               // Costing-only corrections — never sourced from the exec's own
               // form (it doesn't expose them). Carried forward as-is unless
               // this save actually changed the hotel/cab it was priced
               // against, in which case it no longer applies.
-              hotelPriceOverride: hotelSelectionChanged(existing, it) ? null : existing!.hotelPriceOverride,
+              // staleResurrection means the hotel actually being kept is
+              // `existing`'s (the DB's), not `it`'s stale payload — so the
+              // selection hasn't really changed even though the raw client
+              // snapshot diffs from `existing`; skip the check entirely so a
+              // valid override isn't wiped for a change that isn't happening.
+              hotelPriceOverride: (!staleResurrection && hotelSelectionChanged(existing, it)) ? null : existing!.hotelPriceOverride,
               cabPriceOverride:   cabSelectionChanged(existing, it) ? null : existing!.cabPriceOverride,
               // Drop any "add another room" row the exec never finished
               // picking a room for (roomPricingId still 0, the picker's
               // "unselected" sentinel) rather than persisting junk entries.
               extraRooms:         (it.extraRooms ?? []).filter((r) => r.roomPricingId > 0) as unknown as Prisma.InputJsonValue,
-              hotelCheckIn:       it.hotelCheckIn || null,
-              hotelCheckOut:      it.hotelCheckOut || null,
-              hotelMealPlan:      it.hotelMealPlan || null,
+              hotelCheckIn:       staleResurrection ? (existing?.hotelCheckIn ?? null) : (it.hotelCheckIn || null),
+              hotelCheckOut:      staleResurrection ? (existing?.hotelCheckOut ?? null) : (it.hotelCheckOut || null),
+              hotelMealPlan:      staleResurrection ? (existing?.hotelMealPlan ?? null) : (it.hotelMealPlan || null),
               transport:          it.transport || null,
               transportPhoto:     it.transportPhoto || null,
               transportVehicleType: it.transportVehicleType || null,
@@ -3074,11 +3130,7 @@ async function sendPackageToClient(packageId: string): Promise<{
     const country   = pkg.query.countryCode ?? "91";
     const fullPhone = rawPhone.startsWith(country) ? rawPhone : `${country}${rawPhone}`;
 
-    const travelDateStr = pkg.travelDate
-      ? new Date(pkg.travelDate).toLocaleDateString("en-IN", {
-          day: "2-digit", month: "short", year: "numeric",
-        })
-      : "TBD";
+    const travelDateStr = formatStoredCalendarDayLong(pkg.travelDate) || "TBD";
 
     const paxLine =
       `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}` +
@@ -3354,7 +3406,6 @@ export async function markPackageReady(
 
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
     // The detail page specifically — costing's own actions (approve/reject
     // in verify-packages/actions.ts) already revalidate this, but a
@@ -3469,7 +3520,6 @@ export async function requestPackageRevision(packageId: string, note: string): P
 
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
     revalidatePath("/dashboard/verify-packages");
     revalidatePath(`/dashboard/verify-packages/${packageId}`);
     revalidatePath("/dashboard/sales-query");
@@ -3595,7 +3645,6 @@ export async function shareCustomPackageWithClient(packageId: string): Promise<{
     revalidatePath("/dashboard/sales-query");
     revalidatePath("/dashboard/package-builder");
     revalidatePath(`/dashboard/package-builder/${packageId}`);
-    revalidatePath(`/dashboard/package-builder-v2/${packageId}`);
 
     return { success: true, whatsappUrl: sendResult.whatsappUrl, shareUrl: sendResult.shareUrl };
   } catch (err) {

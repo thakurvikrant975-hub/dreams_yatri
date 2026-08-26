@@ -88,23 +88,12 @@ export const ALL_HREFS = [
 export function resolveNavHref(pathname: string): string | null {
   if (ALL_HREFS.includes(pathname)) return pathname;
 
-  // The second builder is the same page as far as permission goes, but its
-  // path is "-v2", not a child of "/dashboard/package-builder" — so the
-  // prefix loop below matched nothing and the layout let it through without
-  // consulting page access at all. Harmless while v2 was a side door; not
-  // once it is the only one the dashboard opens, at which point a role
-  // denied Package Builder could still walk into it.
-  //
-  // Aliased rather than listed as its own href: an admin who grants Package
-  // Builder means both, and a second checkbox for the same feature is a way
-  // to get them out of step.
-  //
   // The review route is the exception, and it matters: it is costing's screen,
   // not an exec's. A Costing Manager is granted Verify Packages and NOT
   // Package Builder, so sending /review to the builder's key locked the
   // reviewers out of their own review — which is exactly what happened the
   // first time this alias shipped.
-  if (pathname.startsWith("/dashboard/package-builder-v2")) {
+  if (pathname.startsWith("/dashboard/package-builder")) {
     return pathname.endsWith("/review")
       ? "/dashboard/verify-packages"
       : "/dashboard/package-builder";

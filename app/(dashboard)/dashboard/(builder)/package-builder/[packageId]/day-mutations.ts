@@ -44,9 +44,12 @@ export function applyHotelRoomSelection(
   day: DayItinerary,
   raw: HotelRoomResult,
 ): DayItinerary {
-  // Which meals this room's plan actually covers, rather than leaving the
-  // exec to toggle them by hand — falls back to whatever was already set if
-  // the plan has no structured meals configured (e.g. a room-only rate).
+  // Which meals this room's plan actually covers — the ONLY source of a
+  // day's meals now (no manual toggle exists any more). Always overwrites
+  // whatever was there before, including down to an empty array for a
+  // room-only (EP) rate with no structured meals configured — a day's meals
+  // must always mirror its CURRENT hotel, never a stale value left over from
+  // a previous one.
   const hotelMeals = raw.coveredMeals
     .map((k) => MEAL_KEY_LABELS[k])
     .filter((v): v is string => !!v);
@@ -81,7 +84,7 @@ export function applyHotelRoomSelection(
     manualHotelPricePerNight: null,
     manualExtraBedRate: null,
     hotelMealPlan: raw.mealPlanName ?? day.hotelMealPlan,
-    meals: hotelMeals.length > 0 ? hotelMeals : day.meals,
+    meals: hotelMeals,
     // The hotel's own check-in/check-out policy. Stored as 24h "HH:MM" on the
     // hotel record (<input type="time">) — converted here so it reads the same
     // as a hand-typed value both in the field and in the document.
@@ -118,6 +121,16 @@ export function applyHotelRoomSelection(
 export function removeStay(day: DayItinerary): DayItinerary {
   return {
     ...day,
+    // Proof for saveCustomPackage's staleResurrection guard that clearing
+    // hotelFilledAt below isn't a stale tab discarding a fill it never saw —
+    // read from `day` (this call's own copy) BEFORE it's cleared. Set here,
+    // not just in beginHotelRequest (which calls this), because a plain
+    // "Remove" action calls removeStay directly — if only beginHotelRequest
+    // set this, removing a hotel first and requesting a new one as two
+    // separate clicks would lose the signal: by the second click,
+    // hotelFilledAt is already null from the first, so `!!day.hotelFilledAt`
+    // would read false regardless of whether the exec really saw the fill.
+    hotelFillAcknowledged: !!day.hotelFilledAt,
     accommodation: "",
     accommodationPhoto: "",
     accommodationRoomPhotos: [],
@@ -439,6 +452,9 @@ export const STAY_TYPE_LABELS: Record<string, string> = {
  */
 export function beginHotelRequest(day: DayItinerary): DayItinerary {
   return {
+    // hotelFillAcknowledged is set inside removeStay itself (see its
+    // comment) — it also covers a plain "Remove" action calling removeStay
+    // directly, not just this path.
     ...removeStay(day),
     manualExtraBeds: null,
     manualHotelPricePerNight: null,

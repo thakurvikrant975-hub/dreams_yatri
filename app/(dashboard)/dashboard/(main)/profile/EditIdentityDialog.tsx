@@ -23,6 +23,9 @@ export function EditIdentityDialog({ profile }: { profile: ProfileData }) {
     const [aadhaarFile, setAadhaarFile] = useState<UploadedImage | null>(
         profile.aadhaarFileKey ? { key: profile.aadhaarFileKey, url: profile.aadhaarFileUrl ?? "" } : null,
     );
+    const [aadhaarBackFile, setAadhaarBackFile] = useState<UploadedImage | null>(
+        profile.aadhaarBackFileKey ? { key: profile.aadhaarBackFileKey, url: profile.aadhaarBackFileUrl ?? "" } : null,
+    );
     const [panFile, setPanFile] = useState<UploadedImage | null>(
         profile.panFileKey ? { key: profile.panFileKey, url: profile.panFileUrl ?? "" } : null,
     );
@@ -40,6 +43,10 @@ export function EditIdentityDialog({ profile }: { profile: ProfileData }) {
             if (aadhaarFile?.key) {
                 fd.append("aadhaarFileKey", aadhaarFile.key);
                 fd.append("aadhaarFileUrl", aadhaarFile.url);
+            }
+            if (aadhaarBackFile?.key) {
+                fd.append("aadhaarBackFileKey", aadhaarBackFile.key);
+                fd.append("aadhaarBackFileUrl", aadhaarBackFile.url);
             }
             if (panFile?.key) {
                 fd.append("panFileKey", panFile.key);
@@ -86,11 +93,21 @@ export function EditIdentityDialog({ profile }: { profile: ProfileData }) {
                             </div>
                             <ImageUpload
                                 name="_aadhaar_unused"
-                                label="Upload Aadhaar Card"
+                                label="Upload Aadhaar Card (Front)"
                                 folder="team-members"
                                 aspectRatio="wide"
+                                maxSizeMB={2}
                                 value={aadhaarFile}
                                 onChange={setAadhaarFile}
+                            />
+                            <ImageUpload
+                                name="_aadhaar_back_unused"
+                                label="Upload Aadhaar Card (Back)"
+                                folder="team-members"
+                                aspectRatio="wide"
+                                maxSizeMB={2}
+                                value={aadhaarBackFile}
+                                onChange={setAadhaarBackFile}
                             />
                         </div>
 

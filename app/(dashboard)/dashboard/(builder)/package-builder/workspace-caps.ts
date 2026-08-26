@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Roles that matter here. Anything else falls through to the read-only set —
- * a Platform Manager can open a package and look, and that is all. */
+ * it can open a package and look, and that is all. */
 export type WorkspaceRole =
   | "exec"
   | "costing"
@@ -111,7 +111,12 @@ const NONE: WorkspaceCaps = {
 export function workspaceRoleOf(teamRoleName: string | null | undefined): WorkspaceRole {
   const name = (teamRoleName ?? "").trim().toLowerCase();
   if (!name) return "other";
-  if (name.includes("costing")) return "costing";
+  // Platform Managers review pricing alongside the costing team — the queue is
+  // small enough that it needs cover, and they are the role that already owns
+  // the house-wide settings the review is checked against. Same capabilities,
+  // not a lesser set: a reviewer who can see the margin but not act on it can
+  // only ask someone else to click approve, which is not cover.
+  if (name.includes("costing") || name.includes("platform manager")) return "costing";
   // Travel Expert and Sales Executive both build packages; Team Leaders build
   // and oversee. All three are "the exec" as far as this workspace cares.
   if (name.includes("sales") || name.includes("travel expert") || name.includes("team leader")) return "exec";

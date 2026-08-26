@@ -1,6 +1,7 @@
 import { db } from "@/app/lib/db";
 import { sendEmail } from "@/app/lib/functions/sendEmail";
 import { packageItineraryTemplate, packageItineraryTextTemplate } from "@/app/components/email-template/packageItineraryTemplate";
+import { formatStoredCalendarDayLong } from "@/app/lib/dates/calendar-day";
 
 /**
  * Emails the client a full, branded copy of their itinerary — a richer
@@ -50,9 +51,7 @@ export async function emailPackageToClient(
         })
       : null;
 
-    const travelDateStr = pkg.travelDate
-      ? new Date(pkg.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-      : "TBD";
+    const travelDateStr = formatStoredCalendarDayLong(pkg.travelDate) || "TBD";
     const paxLine =
       `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}` +
       (pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : "") +

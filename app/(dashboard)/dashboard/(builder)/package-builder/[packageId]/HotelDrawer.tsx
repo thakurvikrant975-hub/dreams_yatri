@@ -158,13 +158,17 @@ export function HotelReplaceView({ day }: { day: number }) {
   const [total, setTotal] = useState(0);
   const [sortBy, setSortBy] = useState<HotelSortOption>("price_asc");
   const [mealFilter, setMealFilter] = useState<string[]>([]);
+  // Mutually exclusive with mealFilter — "only room-only rates" and "must
+  // cover these meals" can't both apply at once, same as HotelRoomPicker's
+  // (unused, but still the reference) pattern.
+  const [noMealsOnly, setNoMealsOnly] = useState(false);
   const [starFilter, setStarFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const mealFilterKey = mealFilter.join(",");
   const activeFilterCount = (starFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + mealFilter.length
-    + (radiusKm !== DEFAULT_RADIUS_KM ? 1 : 0);
+    + (noMealsOnly ? 1 : 0) + (radiusKm !== DEFAULT_RADIUS_KM ? 1 : 0);
 
   // This day's actual calendar date — so the price shown is what this room
   // would actually cost on THIS night, not a flat catalog rate that may be
@@ -193,7 +197,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO, radiusKm);
+        const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, noMealsOnly, dayDateISO, radiusKm);
         if (token === reqRef.current) {
           setResults(rows);
           setPage(1);
@@ -207,7 +211,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, query, coords, sortBy, mealFilterKey, starFilter, categoryFilter, dayDateISO, radiusKm]);
+  }, [city, query, coords, sortBy, mealFilterKey, noMealsOnly, starFilter, categoryFilter, dayDateISO, radiusKm]);
 
   const hasMore = results.length < total;
 
@@ -216,7 +220,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, null, dayDateISO, radiusKm);
+      const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, noMealsOnly, dayDateISO, radiusKm);
       setResults((prev) => [...prev, ...rows]);
       setPage(nextPage);
       setTotal(t);
@@ -352,7 +356,7 @@ export function HotelReplaceView({ day }: { day: number }) {
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); setRadiusKm(DEFAULT_RADIUS_KM); }}
+                onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); setNoMealsOnly(false); setRadiusKm(DEFAULT_RADIUS_KM); }}
                 className="text-[10.5px] font-medium text-dashboard-error/75 hover:text-dashboard-error"
               >
                 Clear all
@@ -398,14 +402,17 @@ export function HotelReplaceView({ day }: { day: number }) {
 
           <FilterRow label="Meals">
             {MEAL_FILTER_CHIPS.map((m) => {
-              const active = mealFilter.includes(m.value);
+              const active = !noMealsOnly && mealFilter.includes(m.value);
               return (
                 <button
                   key={m.value}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => setMealFilter((prev) =>
-                    prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value])}
+                  onClick={() => {
+                    setNoMealsOnly(false);
+                    setMealFilter((prev) =>
+                      prev.includes(m.value) ? prev.filter((v) => v !== m.value) : [...prev, m.value]);
+                  }}
                   className={cn(
                     "flex items-center gap-1 rounded-[7px] border px-2 py-1 text-[11px] font-medium cursor-pointer transition-colors duration-[120ms]",
                     active ? MEAL_CHIP_ACTIVE_STYLES[m.value] : MEAL_BADGE_STYLES[m.value],
@@ -415,6 +422,22 @@ export function HotelReplaceView({ day }: { day: number }) {
                 </button>
               );
             })}
+            {/* Room-only / EP rates — mutually exclusive with the meal chips
+                above, since "must cover these meals" and "covers none" can't
+                both hold. */}
+            <button
+              type="button"
+              aria-pressed={noMealsOnly}
+              onClick={() => { setNoMealsOnly((v) => !v); setMealFilter([]); }}
+              className={cn(
+                "flex items-center gap-1 rounded-[7px] border px-2 py-1 text-[11px] font-medium cursor-pointer transition-colors duration-[120ms]",
+                noMealsOnly
+                  ? "border-slate-500 bg-slate-500 text-white"
+                  : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+              )}
+            >
+              No meals
+            </button>
           </FilterRow>
         </div>
       )}
@@ -467,7 +490,13 @@ export function HotelReplaceView({ day }: { day: number }) {
             max_adults: room.maxAdults,
             max_children: room.maxChildren,
           }, itin.roomsCount);
-          const nightly = room.pricePerNight * plan.rooms;
+          const roomCost = room.pricePerNight * plan.rooms;
+          // Same mattressCost calculation package-pricing.service.ts uses for
+          // the real quote — without it this preview understated the total
+          // for any room needing extra beds, since only the base room rate
+          // was multiplied through before.
+          const mattressCost = (room.extraBedRate ?? 0) * plan.mattresses;
+          const nightly = roomCost + mattressCost;
 
           return (
             <OptionRow
@@ -553,6 +582,17 @@ export function HotelReplaceView({ day }: { day: number }) {
                   <p className="text-[10px] text-dashboard-base-content/50">
                     per night{room.isSeasonalRate && " · seasonal"}
                   </p>
+                  {/* Breakdown behind the total above — the single room's own
+                      rate for this date, and the mattress charge if this
+                      party needs any (both already folded into nightly). */}
+                  <p className="text-[9.5px] text-dashboard-base-content/45 tabular-nums">
+                    ₹{room.pricePerNight.toLocaleString("en-IN")}/room{plan.rooms > 1 ? ` × ${plan.rooms}` : ""}
+                  </p>
+                  {plan.mattresses > 0 && (room.extraBedRate ?? 0) > 0 && (
+                    <p className="text-[9.5px] text-dashboard-base-content/45 tabular-nums">
+                      + ₹{room.extraBedRate!.toLocaleString("en-IN")}/mattress × {plan.mattresses}
+                    </p>
+                  )}
                 </>
               }
             />

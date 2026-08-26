@@ -8,6 +8,7 @@ import { createLog } from "../lib/logger";
 import { actionError } from "@/app/lib/action-error";
 import {
   PersonalDetailsSchema, FamilyDetailsSchema, IdentityDocumentsSchema, ChangePasswordSchema,
+  OnboardingPersonalSchema,
 } from "@/app/lib/validators/profile";
 
 export type ProfileFormState = {
@@ -27,10 +28,12 @@ async function requireSelf() {
 
 const PROFILE_SELECT = {
   id: true, name: true, email: true, isActive: true, joiningDate: true, lastLoginAt: true,
-  designation: true, employeeId: true,
+  designation: true, employeeId: true, gender: true, officialMobile: true, joiningDateUnknown: true,
+  dateOfBirth: true,
   personalEmail: true, personalMobile: true, alternativeMobile: true,
   fatherName: true, fatherMobile: true, motherName: true, motherMobile: true,
   aadhaarNumber: true, aadhaarFileKey: true, aadhaarFileUrl: true,
+  aadhaarBackFileKey: true, aadhaarBackFileUrl: true,
   panNumber: true, panFileKey: true, panFileUrl: true,
   profilePicKey: true, profilePicUrl: true,
   department: { select: { id: true, name: true } },
@@ -77,13 +80,20 @@ export async function updatePersonalDetails(
     personalEmail: (formData.get("personalEmail") as string) || "",
     personalMobile: (formData.get("personalMobile") as string) || undefined,
     alternativeMobile: (formData.get("alternativeMobile") as string) || undefined,
+    officialMobile: (formData.get("officialMobile") as string) || undefined,
+    gender: (formData.get("gender") as string) || undefined,
+    dateOfBirth: (formData.get("dateOfBirth") as string) || undefined,
   });
   if (!parsed.success) {
     return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors };
   }
 
   try {
-    await db.teamMember.update({ where: { id: self.id }, data: parsed.data });
+    const { dateOfBirth, ...rest } = parsed.data;
+    await db.teamMember.update({
+      where: { id: self.id },
+      data: { ...rest, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined },
+    });
     await createLog({
       action: "UPDATE", entity: "TeamMember", entityId: self.id, entitySlug: self.name,
       newData: parsed.data, metadata: { operation: "update_personal_details", scope: "self_service" },
@@ -142,6 +152,8 @@ export async function updateIdentityDocuments(
     aadhaarNumber: (formData.get("aadhaarNumber") as string) || undefined,
     aadhaarFileKey: (formData.get("aadhaarFileKey") as string) || undefined,
     aadhaarFileUrl: (formData.get("aadhaarFileUrl") as string) || undefined,
+    aadhaarBackFileKey: (formData.get("aadhaarBackFileKey") as string) || undefined,
+    aadhaarBackFileUrl: (formData.get("aadhaarBackFileUrl") as string) || undefined,
     panNumber: (formData.get("panNumber") as string) || undefined,
     panFileKey: (formData.get("panFileKey") as string) || undefined,
     panFileUrl: (formData.get("panFileUrl") as string) || undefined,
@@ -154,7 +166,11 @@ export async function updateIdentityDocuments(
     // Keep existing file unless a new one was uploaded in this submission.
     const current = await db.teamMember.findUnique({
       where: { id: self.id },
-      select: { aadhaarFileKey: true, aadhaarFileUrl: true, panFileKey: true, panFileUrl: true },
+      select: {
+        aadhaarFileKey: true, aadhaarFileUrl: true,
+        aadhaarBackFileKey: true, aadhaarBackFileUrl: true,
+        panFileKey: true, panFileUrl: true,
+      },
     });
 
     await db.teamMember.update({
@@ -164,6 +180,8 @@ export async function updateIdentityDocuments(
         panNumber: parsed.data.panNumber,
         aadhaarFileKey: parsed.data.aadhaarFileKey ?? current?.aadhaarFileKey ?? null,
         aadhaarFileUrl: parsed.data.aadhaarFileUrl ?? current?.aadhaarFileUrl ?? null,
+        aadhaarBackFileKey: parsed.data.aadhaarBackFileKey ?? current?.aadhaarBackFileKey ?? null,
+        aadhaarBackFileUrl: parsed.data.aadhaarBackFileUrl ?? current?.aadhaarBackFileUrl ?? null,
         panFileKey: parsed.data.panFileKey ?? current?.panFileKey ?? null,
         panFileUrl: parsed.data.panFileUrl ?? current?.panFileUrl ?? null,
       },
@@ -175,6 +193,112 @@ export async function updateIdentityDocuments(
     });
     revalidatePath("/dashboard/profile");
     return { success: true, message: "Identity documents updated" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+// ── Onboarding popup ("May I know you 🥰") ──────────────────────────────────
+// One combined submit across both tabs, rather than the personal/family/
+// identity split above — the popup is a single flow, so there's no reason to
+// make someone save twice. Reuses the same validators as the ordinary
+// profile-edit dialogs, tightened for the fields that are actually required
+// to dismiss the popup (see OnboardingPersonalSchema); family/identity stay
+// fully optional here, same as everywhere else.
+
+export async function completeOnboardingProfile(
+  _prev: ProfileFormState,
+  formData: FormData,
+): Promise<ProfileFormState> {
+  const self = await requireSelf();
+  if (!self) return { success: false, message: "Unauthorized" };
+
+  const personal = OnboardingPersonalSchema.safeParse({
+    gender: (formData.get("gender") as string) || undefined,
+    personalEmail: (formData.get("personalEmail") as string) || "",
+    personalMobile: (formData.get("personalMobile") as string) || "",
+    alternativeMobile: (formData.get("alternativeMobile") as string) || "",
+    officialMobile: (formData.get("officialMobile") as string) || undefined,
+    joiningDate: (formData.get("joiningDate") as string) || undefined,
+    joiningDateUnknown: formData.get("joiningDateUnknown") === "true",
+  });
+  if (!personal.success) {
+    return { success: false, message: "A few required fields still need filling in", errors: personal.error.flatten().fieldErrors };
+  }
+
+  const family = FamilyDetailsSchema.safeParse({
+    fatherName: (formData.get("fatherName") as string) || undefined,
+    fatherMobile: (formData.get("fatherMobile") as string) || undefined,
+    motherName: (formData.get("motherName") as string) || undefined,
+    motherMobile: (formData.get("motherMobile") as string) || undefined,
+  });
+  if (!family.success) {
+    return { success: false, message: "Validation failed", errors: family.error.flatten().fieldErrors };
+  }
+
+  const identity = IdentityDocumentsSchema.safeParse({
+    aadhaarNumber: (formData.get("aadhaarNumber") as string) || undefined,
+    aadhaarFileKey: (formData.get("aadhaarFileKey") as string) || undefined,
+    aadhaarFileUrl: (formData.get("aadhaarFileUrl") as string) || undefined,
+    aadhaarBackFileKey: (formData.get("aadhaarBackFileKey") as string) || undefined,
+    aadhaarBackFileUrl: (formData.get("aadhaarBackFileUrl") as string) || undefined,
+    panNumber: (formData.get("panNumber") as string) || undefined,
+    panFileKey: (formData.get("panFileKey") as string) || undefined,
+    panFileUrl: (formData.get("panFileUrl") as string) || undefined,
+  });
+  if (!identity.success) {
+    return { success: false, message: "Validation failed", errors: identity.error.flatten().fieldErrors };
+  }
+
+  try {
+    // Same "keep existing file unless a new one was uploaded" rule as
+    // updateIdentityDocuments — this popup can be dismissed and reopened
+    // across several visits, so a resubmission must not clobber a file
+    // uploaded on an earlier pass with an empty one from this pass.
+    const current = await db.teamMember.findUnique({
+      where: { id: self.id },
+      select: {
+        aadhaarFileKey: true, aadhaarFileUrl: true,
+        aadhaarBackFileKey: true, aadhaarBackFileUrl: true,
+        panFileKey: true, panFileUrl: true,
+      },
+    });
+
+    await db.teamMember.update({
+      where: { id: self.id },
+      data: {
+        gender: personal.data.gender,
+        personalEmail: personal.data.personalEmail,
+        personalMobile: personal.data.personalMobile,
+        alternativeMobile: personal.data.alternativeMobile,
+        officialMobile: personal.data.officialMobile,
+        // undefined (not null) when unset — leaves the column untouched
+        // rather than wiping a date that was already there.
+        joiningDate: personal.data.joiningDate ? new Date(personal.data.joiningDate) : undefined,
+        joiningDateUnknown: personal.data.joiningDateUnknown,
+        fatherName: family.data.fatherName,
+        fatherMobile: family.data.fatherMobile,
+        motherName: family.data.motherName,
+        motherMobile: family.data.motherMobile,
+        aadhaarNumber: identity.data.aadhaarNumber,
+        panNumber: identity.data.panNumber,
+        aadhaarFileKey: identity.data.aadhaarFileKey ?? current?.aadhaarFileKey ?? null,
+        aadhaarFileUrl: identity.data.aadhaarFileUrl ?? current?.aadhaarFileUrl ?? null,
+        aadhaarBackFileKey: identity.data.aadhaarBackFileKey ?? current?.aadhaarBackFileKey ?? null,
+        aadhaarBackFileUrl: identity.data.aadhaarBackFileUrl ?? current?.aadhaarBackFileUrl ?? null,
+        panFileKey: identity.data.panFileKey ?? current?.panFileKey ?? null,
+        panFileUrl: identity.data.panFileUrl ?? current?.panFileUrl ?? null,
+      },
+    });
+    await createLog({
+      action: "UPDATE", entity: "TeamMember", entityId: self.id, entitySlug: self.name,
+      newData: { gender: personal.data.gender, joiningDateUnknown: personal.data.joiningDateUnknown },
+      metadata: { operation: "complete_onboarding_profile", scope: "self_service" },
+    });
+    revalidatePath("/dashboard/profile");
+    revalidatePath("/dashboard");
+    return { success: true, message: "Thanks for sharing — all set! 🎉" };
   } catch (e) {
     console.error(e);
     return actionError(e);

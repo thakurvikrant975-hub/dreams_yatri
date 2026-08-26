@@ -11,28 +11,25 @@
 //
 // Lives here rather than in either builder's ItineraryDocument so there is one
 // answer to "what date is day 4", reachable from both.
+//
+// The actual date arithmetic is centralized in app/lib/dates/calendar-day.ts
+// (see that file for why bare `new Date(dateString)` is unsafe) — re-exported
+// here under this module's established names so no call site had to change.
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { calendarDayOfTrip, formatCalendarDayISO } from "@/app/lib/dates/calendar-day";
 
 /** Day N's calendar date. Day 1 is the travel date itself. Null when there is
  * no travel date to anchor to yet — the caller then has no night to filter by
  * and the catalog shows everything, which is correct: nothing is known to be
  * out of season. */
 export function dayCalendarDate(travelDate: string | null | undefined, dayNumber: number): Date | null {
-  if (!travelDate) return null;
-  const base = new Date(travelDate);
-  if (Number.isNaN(base.getTime())) return null;
-  return new Date(base.getTime() + (dayNumber - 1) * 24 * 60 * 60 * 1000);
+  return calendarDayOfTrip(travelDate, dayNumber);
 }
 
 /** The same date as `YYYY-MM-DD`, which is what searchHotelRoomsForBuilder
- * matches seasons against.
- *
- * Built from the local parts, never toISOString(): that converts to UTC and
- * hands the search the night before for anyone east of Greenwich — which is
- * everyone using this. A season starting on the 4th would then miss a booking
- * made for the 4th. */
+ * matches seasons against. */
 export function nightISOForDay(travelDate: string | null | undefined, dayNumber: number): string | null {
   const d = dayCalendarDate(travelDate, dayNumber);
-  if (!d) return null;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return d ? formatCalendarDayISO(d) : null;
 }

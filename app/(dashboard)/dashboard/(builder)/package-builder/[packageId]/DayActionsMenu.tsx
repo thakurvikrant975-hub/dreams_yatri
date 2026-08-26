@@ -126,7 +126,9 @@ function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, 
     },
     {
       icon: Utensils,
-      label: hasMeals ? "Edit meals" : "Add meals",
+      // No manual add/edit any more — meals are entirely the picked hotel's
+      // plan (see applyHotelRoomSelection), so this is a view, not an action.
+      label: "View meals",
       on: hasMeals,
       target: { kind: "meals-edit", day },
     },

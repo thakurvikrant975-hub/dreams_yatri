@@ -86,7 +86,7 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
                 ))}
               </ul>
             </div>
-          )}
+          )} 
           {form.amendmentPolicy.length > 0 && (
             <div className="rounded-2xl border border-purple-100 bg-purple-50/30 p-4 sm:col-span-2">
               <div className="flex items-center gap-2 mb-2">

@@ -11,9 +11,17 @@ const MEMBER_SELECT = {
   email: true,
   isActive: true,
   joiningDate: true,
+  joiningDateUnknown: true,
   lastLoginAt: true,
   profilePicKey: true,
   profilePicUrl: true,
+  // The onboarding popup's required fields — selected here (not a separate
+  // query) so the layout can decide whether to show it in the same fetch it
+  // already runs for nav/header on every dashboard page.
+  gender: true,
+  personalEmail: true,
+  personalMobile: true,
+  alternativeMobile: true,
   department: {
     select: { id: true, name: true },
   },

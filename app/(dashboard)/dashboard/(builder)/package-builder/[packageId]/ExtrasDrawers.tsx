@@ -14,12 +14,11 @@
 //            (deriveTransportFields) rather than from any day.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
 import { Plus, Trash2, Gift, Utensils } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
-import { getHotelRoomByIdForBuilder, type TicketInput, type AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import type { TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { useBuilder } from "./builder-context";
 import { NOTE_TONES, noteTone, type NoteTone } from "./ItineraryDocument";
 import {
@@ -38,87 +37,29 @@ const MEAL_KEY_LABELS: Record<string, string> = {
 };
 
 export function MealsView({ day }: { day: number }) {
-  const { form, updateDay } = useBuilder();
+  const { form } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
   // Breakfast is eaten on the morning of day N but SERVED by the night N-1
   // hotel, so it is stored against day N-1 — see computeShiftedMeals, which is
   // what the document draws from.
-  //
-  // This drawer used to read and write day N's own row for all three meals,
-  // which meant the breakfast an exec could see on day 3 was not the
-  // breakfast day 3's toggle controlled. It showed "Not included" beside a
-  // breakfast printed right there on the document, and switching it on added
-  // a SECOND one, to day 4. The only way to remove what you were looking at
-  // was to guess that it lived on the day before.
-  //
-  // So breakfast now reads and writes where it actually lives, and the rest
-  // stay on this day. What the drawer says is now what the document shows.
   const prevItin = day > 1 ? form.itineraries.find((it) => it.day === day - 1) : undefined;
   /** Which day's row holds this meal. */
   const rowFor = (meal: string) => (meal === "Breakfast" ? prevItin : itin);
 
-  const roomPricingId = itin?.roomPricingId ?? null;
-
-  // A catalog room's meal plan is ground truth for what's actually served —
-  // re-fetched here (not trusted from itin.meals) since that field used to be
-  // freely hand-editable and could still be holding a meal this room never
-  // actually included. Corrects it in place the moment the drawer opens, so
-  // stale hand-added meals from before this fix get fixed too, not just
-  // blocked going forward.
-  const [roomMeals, setRoomMeals] = useState<string[] | null>(null);
-  const [prevRoomMeals, setPrevRoomMeals] = useState<string[] | null>(null);
-  const prevRoomPricingId = prevItin?.roomPricingId ?? null;
-  useEffect(() => {
-    let cancelled = false;
-    const load = (id: number | null, set: (v: string[] | null) => void) => {
-      if (id == null) { set(null); return; }
-      getHotelRoomByIdForBuilder(id, null).then((room) => {
-        if (cancelled || !room) return;
-        set(room.coveredMeals.map((k) => MEAL_KEY_LABELS[k]).filter((v): v is string => !!v));
-      });
-    };
-    load(roomPricingId, setRoomMeals);
-    // Breakfast is served by the night before, so its plan is that room's.
-    load(prevRoomPricingId, setPrevRoomMeals);
-    return () => { cancelled = true; };
-  }, [roomPricingId, prevRoomPricingId]);
-
-  // The room's plan is applied ONCE, when the room is picked —
-  // applyHotelRoomSelection writes meals along with the rest of the stay. It
-  // used to be re-applied here on every open, which is what made a meal
-  // impossible to remove: the exec switched dinner off, came back, and the
-  // room's plan had written it straight back.
-  //
-  // What the room covers is now shown rather than enforced.
-
   if (!itin) return null;
 
-  const hasCatalogRoom = roomPricingId != null;
+  const hasCatalogRoom = itin.roomPricingId != null;
 
-  /** Is this meal on, as the DOCUMENT shows it for this day? */
+  /** Is this meal included, as the DOCUMENT shows it for this day? Purely a
+   * read of what applyHotelRoomSelection already wrote — there is no manual
+   * override any more. Meals are the hotel's plan, full stop; to change them,
+   * change the hotel. */
   const isOn = (meal: string) => rowFor(meal)?.meals.includes(meal) ?? false;
 
-  /** Does the room's own rate cover this meal? Shown beside the toggle so a
-   * deviation is visible — never to prevent one. A rate that includes dinner
-   * is a fact about the rate, not a promise the client wants it, and the exec
-   * is the one talking to them. Breakfast reads the PREVIOUS night's room,
-   * since that is the kitchen that serves it. */
-  const inRoomPlan = (meal: string) => (meal === "Breakfast" ? prevRoomMeals : roomMeals)?.includes(meal) ?? false;
-
-  function toggle(meal: string) {
-    const row = rowFor(meal);
-    // Day 1 has no night before it, so there is no breakfast to serve — the
-    // document does not print one either.
-    if (!row) return;
-    const has = row.meals.includes(meal);
-    updateDay(row.day, {
-      meals: has ? row.meals.filter((m) => m !== meal) : [...row.meals, meal],
-    });
-  }
-
-  // Every meal the day can carry, always. Filtering to the room's plan meant a
-  // meal the exec switched off vanished from the drawer, leaving no way back.
+  // Every meal the day can carry, always — so a day with no breakfast (no
+  // night before it, or a room-only rate) still shows the full picture rather
+  // than silently omitting a row.
   const visibleMeals = STANDARD_MEALS.filter((meal) => rowFor(meal) != null);
 
   return (
@@ -127,43 +68,26 @@ export function MealsView({ day }: { day: number }) {
         {visibleMeals.map((meal) => {
           const on = isOn(meal);
           return (
-            <button
+            <div
               key={meal}
-              type="button"
-              onClick={() => toggle(meal)}
               className={cn(
-                "w-full flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors",
+                "w-full flex items-center gap-2.5 rounded-xl border p-3",
                 on
                   ? "border-dashboard-primary bg-dashboard-primary/5"
-                  : "border-dashboard-base-300 hover:bg-dashboard-base-200/50",
+                  : "border-dashboard-base-300 opacity-60",
               )}
             >
               <Utensils size={13} className={on ? "text-dashboard-primary" : "text-dashboard-base-content/40"} />
               <span className="text-sm font-medium flex-1">{meal}</span>
-              <span className="flex items-center gap-1.5 shrink-0">
-                {/* What the rate covers, when it differs from what is being
-                    quoted — so an exec who drops a meal the room includes can
-                    see they have done it, and put it back. */}
-                {inRoomPlan(meal) !== on && (
-                  <span className={cn(
-                    "rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide",
-                    inRoomPlan(meal)
-                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-                      : "bg-dashboard-base-300 text-dashboard-base-content/60",
-                  )}>
-                    {inRoomPlan(meal) ? "in room rate" : "extra"}
-                  </span>
-                )}
-                <span className="text-[11px] text-dashboard-base-content/50">{on ? "Included" : "Not included"}</span>
-              </span>
-            </button>
+              <span className="text-[11px] text-dashboard-base-content/50">{on ? "Included" : "Not included"}</span>
+            </div>
           );
         })}
       </div>
       <p className="text-[11px] text-dashboard-base-content/45">
         {hasCatalogRoom
-          ? "The room's rate sets these when it's picked, and you can change them afterwards — a client who isn't taking dinner shouldn't be quoted one. Switching a meal off doesn't reduce the room rate, only what the itinerary promises."
-          : "No catalog room is picked for this day, so meals are set by hand."}
+          ? "Set by this day's hotel — pick a different room or meal plan to change what's included here."
+          : "No hotel is picked for this day, so there's nothing to serve."}
       </p>
     </div>
   );
@@ -577,7 +501,7 @@ function TicketPax({ ticket, packagePax, onChange }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function StopsView() {
-  const { form, setForm } = useBuilder();
+  const { form, setForm, syncDaysWithStops } = useBuilder();
 
   return (
     <div className="p-5 space-y-4">
@@ -586,6 +510,7 @@ export function StopsView() {
         onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
         limitReason={stopLimitReason(form.stops.length, form.itineraries.length)}
         dayCount={form.itineraries.length}
+        onSync={syncDaysWithStops}
       />
       <div className="rounded-lg bg-dashboard-base-200/50 px-3 py-2.5 space-y-1">
         <p className="text-[11px] text-dashboard-base-content/70">
