@@ -19,6 +19,7 @@ import { getStayOptionsForDocument } from "@/app/(dashboard)/dashboard/(builder)
 // file at runtime.
 import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 import type { ThemeOverrides } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/doc-theme-data";
+import { computePaymentSchedule } from "@/app/services/payment-policy/engine";
 
 /** Mirrors ExtraPolicyItems in package-builder/action.ts — can't import it
  * directly since that's a "use server" file (only async function exports
@@ -74,6 +75,43 @@ function resolveSharedDiscount(
     amount,
     label: discountLabel({ type: rowType, value: rowValue }, amount),
   };
+}
+
+/** The up-front amount, and the words for it.
+ *
+ * Reads computePaymentSchedule so the page can never disagree with the payment
+ * step. Three outcomes matter to a client, and they are genuinely different
+ * sentences:
+ *
+ *   DEPOSIT_ALLOWED          — pay a share now, the rest before travel
+ *   FULL_NEAR_TRAVEL         — travel is inside the balance window, so it is
+ *                              all due now; offering a deposit would be a lie
+ *   FULL_DEPOSIT_COVERS_TOTAL— the minimum is at or above the trip's price, so
+ *                              a "deposit" is just the whole thing
+ *
+ * Null when there is no price or no travel date yet — a package still being
+ * built has nothing honest to say here.
+ */
+function depositMessage(
+  totalPrice: number | null | undefined,
+  travelDate: Date | null | undefined,
+): { amount: number; isFull: boolean; balance: number; balanceDueDate: string | null } | null {
+  if (!totalPrice || totalPrice <= 0 || !travelDate) return null;
+  try {
+    const s = computePaymentSchedule({
+      totalPaise: Math.round(totalPrice * 100),
+      travelDate: travelDate.toISOString().slice(0, 10),
+    });
+    return {
+      amount: Math.round(s.depositPaise / 100),
+      isFull: s.plan === "FULL",
+      balance: Math.round(s.balancePaise / 100),
+      balanceDueDate: s.balanceDueDate,
+    };
+  } catch {
+    // A travel date the engine rejects must not take the whole page down.
+    return null;
+  }
 }
 
 export async function getSharedPackage(packageId: string): Promise<PreviewData | null> {
@@ -210,6 +248,12 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     childrenAges:    pkg.childrenAges ?? [],
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
+    // What it takes to hold the booking, computed by the same engine that
+    // charges for it. Sent from the server rather than worked out in the
+    // browser on purpose: the floor and the percentage can be overridden by
+    // environment, and a client-side copy would quietly show one number while
+    // checkout took another — on a page whose whole job is asking for money.
+    bookingDeposit:  depositMessage(pkg.totalPrice, pkg.travelDate),
     currency:        pkg.currency,
     // The concession, for the document's saving badge. Read from the frozen
     // snapshot rather than recomputed: this page is the client's copy of what

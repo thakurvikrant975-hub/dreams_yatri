@@ -33,8 +33,8 @@ const RIGHT_ZIGZAG = (fill: string) => (
 
 const variants = {
   success: {
-    bg:       'bg-success-200/80',
-    zigzag:   '#C8F9D8',
+    bg:       'bg-success-200',
+    zigzag:   '#B9F8CF',
     text:     'text-success-700/85',
   },
   primary: {

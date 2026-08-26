@@ -24,10 +24,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { ArrowRight, Loader2, Printer } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
+import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 import { PUBLISHED_THEME } from "./published-theme";
+
+/** "12 Sep 2026" — the balance date, in the form a client reads rather than
+ *  the ISO the engine returns. */
+function formatDueDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
 
 export function PublishedItinerary({ form, packageId }: { form: PreviewData; packageId: string }) {
   return (
@@ -72,6 +82,16 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
   const chosen = options.find((o) => o.id === chosenId) ?? null;
 
   const { handleBookNow, submitting, error } = useBookCustomPackage(packageId, chosenId);
+  // Only meaningful against the package's own total. A client who has picked a
+  // different standard is being quoted that column's price, and the deposit
+  // for it is not this one — so it is withheld rather than shown wrong.
+  // Both the deposit and the discount describe the PACKAGE's own total. A
+  // client who has switched to another standard is being quoted that column's
+  // price, and neither figure was computed against it — so both are withheld
+  // rather than shown against a number they do not belong to.
+  const onPackagePrice = !(multi && chosen && chosen.id !== options.find((o) => o.isRecommended)?.id);
+  const deposit = onPackagePrice ? form.bookingDeposit ?? null : null;
+  const discount = onPackagePrice ? form.discount ?? null : null;
   const totalPax = form.adults + form.children;
 
   // The chosen option's price leads once there is a choice, because that is the
@@ -94,11 +114,10 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
                 type="button"
                 onClick={() => setChosenId(o.id)}
                 aria-pressed={on}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  on
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${on
                     ? "border-primary-500 bg-primary-50 font-semibold text-primary-600"
                     : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                }`}
+                  }`}
               >
                 {o.label}
                 {o.isRecommended && <span className="ml-1 text-[10px] opacity-70">recommended</span>}
@@ -119,40 +138,88 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
           property: this bar is outside the document, so none of the zoom
           compensation that property is divided by applies to it. */}
       <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="font-heading text-lg font-bold tracking-tight text-primary-500 truncate">{priceStr}</p>
-          <p className="text-xs text-neutral-500">
-            Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
-            {chosen && multi && <> · <span className="font-medium text-neutral-700">{chosen.label}</span></>}
-          </p>
+        <div className="min-w-0 flex-1 flex items-center justify-between">
+          <div>
+            {/* What it was, then what it is. The struck figure alone reads as a
+              correction — the green saving beside it is what says a concession
+              was made, which is the part a client repeats to whoever else is
+              deciding with them. */}
+          {/* A div, not a p: SavingsBadge renders a div for its serrated
+              edges, and a div inside a p is invalid HTML — the browser closes
+              the paragraph early and React's hydration then disagrees with
+              the DOM it finds. Nothing here is a paragraph anyway; it is a
+              row of figures. */}
+          <div className="flex items-baseline gap-2 truncate">
+            {discount && (
+              <span className="text-sm text-neutral-400 line-through tabular-nums shrink-0">
+                {form.currency} {Math.round(discount.originalPrice).toLocaleString("en-IN")}
+              </span>
+            )}
+            <span className="font-heading text-lg font-bold tracking-tight text-primary-500">{priceStr}</span>
+            {discount && (
+              // The same badge the document's price panel uses, so the saving
+              // looks like one thing in both places. Its serrated edges are
+              // absolutely positioned outside the box, hence the margin — the
+              // flex gap alone would clip them against the price.
+              <SavingsBadge amount={discount.label} prefix="" className="shrink-0 mx-1.5" />
+            )}
+          </div>
+            <p className="text-xs text-neutral-500">
+              Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
+              {chosen && multi && <> · <span className="font-medium text-neutral-700">{chosen.label}</span></>}
+            </p>
+          </div>
+          {/* What it actually takes to hold this, on the line under the total.
+              A client reading a five-figure number decides against it before
+              they reach a Book button that would have asked for a quarter of
+              it — so the smaller number belongs beside the larger one, not a
+              step further into the flow.
+
+              Never restated arithmetic: the amount comes from the same engine
+              that charges it, so the two cannot drift. When the whole trip is
+              due — travel inside the balance window, or the minimum already
+              covering the price — it says so instead, because offering a
+              deposit that checkout will refuse is worse than offering none. */}
+          {deposit && (
+            <p className="mt-0.5 text-xs font-medium">
+              {deposit.isFull ? (
+                <span className="text-warning-700">Full payment due at booking</span>
+              ) : (
+                <>
+                  <span className="font-semibold text-neutral-800">
+                    Book with {form.currency} {deposit.amount.toLocaleString("en-IN")}
+                  </span>
+                  <span className="text-neutral-500">
+                    {" — balance "}
+                    {form.currency} {deposit.balance.toLocaleString("en-IN")}
+                    {deposit.balanceDueDate && ` by ${formatDueDate(deposit.balanceDueDate)}`}
+                  </span>
+                </>
+              )}
+            </p>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {/* The browser's own "Save as PDF" is right here in its print dialog,
-              and the document's PRINT_STYLES already produce the exact A4 the
-              exec exports — so the client gets the PDF without this page
-              shipping the html2canvas/jsPDF exporter to every visitor. */}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
-          >
-            <Printer size={14} />
-            <span className="hidden sm:inline">Save as PDF</span>
-          </button>
-
           {priceValue ? (
             <button
               type="button"
               onClick={handleBookNow}
               disabled={submitting}
-              className="flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-lg bg-white bg-linear-to-r from-primary-500/85 to-primary-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:from-primary-400/85 hover:to-primary-500 disabled:opacity-60 disabled:cursor-not-allowed font-heading cursor-pointer"
             >
               {/* Names the option being bought, so what is about to be charged
                   is stated rather than inferred from a chip further up. */}
+              Book {multi && chosen ? chosen.label : "Now"}
+              {/* Only the icon changes while submitting. Swapping the whole
+                  label for a spinner collapsed the button to the width of the
+                  spinner — the one control on the page jumping and shrinking
+                  at the exact moment a client has committed to paying. Both
+                  glyphs are 14px, so the width does not move at all; the
+                  disabled state and the dimming carry the rest. */}
               {submitting
                 ? <Loader2 size={14} className="animate-spin" />
-                : <>Book {multi && chosen ? chosen.label : "Now"} <ArrowRight size={14} /></>}
+                : <ArrowRight size={14} />}
             </button>
           ) : null}
         </div>

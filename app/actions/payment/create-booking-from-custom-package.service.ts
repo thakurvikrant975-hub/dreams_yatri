@@ -37,12 +37,22 @@ export async function createBookingFromCustomPackage(params: {
      * Absent means the recommended one. Validated against the package rather
      * than trusted: it arrives from a public page and decides what is charged. */
     stayOptionId?: string | null;
+    /** What the client chose on the review step. Absent means take the
+     * schedule's own answer, which is what the flow did before there was a
+     * review step to choose on. */
+    paymentChoice?: "FULL" | "DEPOSIT";
+    /** The package total the client was shown on the review step, in rupees.
+     * Not used to price anything — the price still comes from the database —
+     * but compared against it, so a booking cannot be taken at an amount the
+     * client never saw. Absent skips the check, for callers with nothing to
+     * compare. */
+    expectedTotal?: number | null;
 }): Promise<CreateBookingResult> {
     const { customPackageId, userId, stayOptionId } = params;
 
     const cp = await db.custom_packages.findUnique({
         where: { id: customPackageId },
-        include: { query: { select: { id: true, name: true, phone: true, countryCode: true, email: true } } },
+        include: { query: { select: { id: true, name: true, phone: true, countryCode: true, email: true, assignedTo: true, assignedToName: true } } },
     });
     // A "blank" package with no linked query has no client to book for, and
     // can never reach SENT (see sendPackageToClient) — bail the same as a
@@ -52,16 +62,38 @@ export async function createBookingFromCustomPackage(params: {
     // closure below (property narrowing on `cp.query` doesn't).
     const query = cp.query;
 
-    // ── Resume path: this custom package already became a booking ─────────────
-    // sourceQueryId is @unique on Booking — a clean idempotency key once we
-    // know this package has a linked query.
+    // ── Resume path ───────────────────────────────────────────────────────────
+    // sourceQueryId is @unique on Booking, so there is at most one booking per
+    // QUERY — and a query can carry several packages, which is the whole point
+    // of quoting a client two ways.
+    //
+    // That made this dangerous. Any booking on the query answered for every
+    // package on it, so a client holding quote B pressed Book and was handed
+    // quote A's booking: a payment page for an itinerary they had not read, at
+    // a price they had not agreed. Silently, and 49 queries in production have
+    // more than one sent quote.
+    //
+    // packageUrl records which package a booking actually came from, so the
+    // two cases can be told apart. Same package is a genuine resume — an
+    // abandoned payment, a second tab — and returns the booking as before. A
+    // different package is refused and says so, because one trip is one
+    // booking and the client needs to know the first one exists rather than
+    // be quietly redirected into it.
+    const thisPackageUrl = `/custom-package/${cp.id}`;
     const existing = await db.booking.findUnique({
         where: { sourceQueryId: query.id },
-        select: { id: true, userId: true, bookingNumber: true },
+        select: { id: true, userId: true, bookingNumber: true, packageUrl: true },
     });
     if (existing) {
         if (existing.userId !== userId) {
             return { success: false, reason: "invalid", message: "Booking belongs to another user." };
+        }
+        if (existing.packageUrl && existing.packageUrl !== thisPackageUrl) {
+            return {
+                success: false,
+                reason: "invalid",
+                message: "You already have a booking for this trip, made from a different quote. Open it from My Bookings, or ask your travel manager to change it.",
+            };
         }
         return { success: true, bookingId: existing.id, bookingNumber: existing.bookingNumber };
     }
@@ -99,6 +131,27 @@ export async function createBookingFromCustomPackage(params: {
         ? chosenOption.totalPrice!
         : cp.totalPrice;
 
+    // ── What the client was shown is what the client pays ─────────────────
+    // The review step renders a price; this service re-reads it when the
+    // button is pressed. An exec editing the package in between — which they
+    // may, a sent package stays editable — moved the number underneath a
+    // client who had already decided, and the first they would know of it is
+    // the gateway asking for a different amount.
+    //
+    // The database still decides the price. This only refuses to charge one
+    // the client has not seen, and sends them back to look again.
+    if (
+        params.expectedTotal != null &&
+        bookedPrice != null &&
+        Math.round(bookedPrice) !== Math.round(params.expectedTotal)
+    ) {
+        return {
+            success: false,
+            reason: "invalid",
+            message: "This package's price changed while you were reviewing it. Please refresh to see the current price before paying.",
+        };
+    }
+
     if (bookedPrice == null || bookedPrice <= 0) {
         return { success: false, reason: "error", message: "This package doesn't have a price set yet — please contact your travel manager." };
     }
@@ -114,16 +167,27 @@ export async function createBookingFromCustomPackage(params: {
         ? (await db.destinations.findFirst({ where: { name: { equals: destinationName, mode: "insensitive" } } }))
             ?? (await db.destinations.findFirst({ where: { name: { contains: destinationName, mode: "insensitive" } } }))
         : null;
-    if (!destination) {
-        return { success: false, reason: "error", message: "This package isn't ready for online payment yet — please contact your travel manager." };
-    }
+    // No match is not a failure. Booking.destinationId is nullable, and an
+    // exec types a destination as a client says it — "North Goa, South Goa",
+    // "Meghalaya & Assam" — which is often nothing the catalogue has a row
+    // for. Refusing on that turned away 81% of sent packages, with a message
+    // that blamed the package for not being "ready for online payment" when
+    // the only thing missing was a row in a table the client never sees.
+    //
+    // The booking carries the package's own destination text either way; the
+    // id is a convenience for grouping, not a requirement for taking money.
 
     // ── Server-derived payment schedule — same pure-function call createBooking
     // makes, same global deposit/cutoff config, no per-package override. ──
     const totalPaise = rupeesToPaise(bookedPrice);
     const schedule = computePaymentSchedule({ totalPaise, travelDate: isoDate(cp.travelDate) });
 
-    const useFull = schedule.plan === "FULL";
+    // The engine decides whether a deposit is ALLOWED; the client decides
+    // whether to use one. Paying in full is always permitted — it is the same
+    // money sooner — so a FULL choice is honoured even when the schedule would
+    // have allowed a deposit. The reverse is not: a client cannot choose a
+    // deposit on a booking the policy says must be paid in full.
+    const useFull = schedule.plan === "FULL" || params.paymentChoice === "FULL";
     const todayISO = schedule.installments[0].dueDate;
     const effPlan: "FULL" | "DEPOSIT" = useFull ? "FULL" : "DEPOSIT";
     const effDepositPaise = useFull ? totalPaise : schedule.depositPaise;
@@ -146,7 +210,7 @@ export async function createBookingFromCustomPackage(params: {
             data: {
                 bookingNumber: genBookingNumber(),
                 userId,
-                destinationId: destination.id,
+                destinationId: destination?.id ?? null,
                 tripType: "Leisure",
                 startDate,
                 endDate,
@@ -162,8 +226,17 @@ export async function createBookingFromCustomPackage(params: {
                 paymentPlan: effPlan,
                 paymentStatus: "PENDING",
                 priceSnapshot: cp.pricingSnapshot ?? undefined,
-                packageUrl: `/custom-package/${cp.id}`,
+                // Also the discriminator the resume path above reads.
+                packageUrl: thisPackageUrl,
                 sourceQueryId: query.id,
+                // Who sold it. The lead's current owner rather than whoever
+                // built the package: credit follows a reassigned query, and
+                // the client may book weeks after the quote was written.
+                //
+                // It is also what separates a sale from a website booking —
+                // a booking with no sales agent came in on its own.
+                salesAgentId: query.assignedTo ?? null,
+                salesAgentName: query.assignedToName ?? null,
                 // What was sold, frozen: the option can be renamed or removed
                 // on the package afterwards, and ops needs to know which hotels
                 // to hold. See the schema comment.

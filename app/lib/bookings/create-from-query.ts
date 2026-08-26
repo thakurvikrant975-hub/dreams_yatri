@@ -104,6 +104,13 @@ export async function tryCreateBookingFromConvertedQuery(
                 currency,
                 status: "PENDING_REVIEW",
                 sourceQueryId: query.id,
+                // Which package this booking is FOR, not just which query it
+                // came from. The client-facing path reads this to tell a
+                // genuine resume from an attempt to book a second quote on the
+                // same query — without it, a booking created here answers for
+                // every quote on the query and the client is handed the wrong
+                // one. Null only when the query had no package at all.
+                packageUrl: cp ? `/custom-package/${cp.id}` : null,
                 convertedAt: new Date(),
                 salesAgentId: actorId ?? null,
                 salesAgentName: actorName ?? null,

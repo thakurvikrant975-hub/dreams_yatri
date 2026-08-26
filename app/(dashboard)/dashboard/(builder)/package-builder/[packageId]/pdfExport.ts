@@ -100,23 +100,63 @@ function computePageBreaks(totalHeightPx: number, pageHeightPx: number, unsafeRa
   const breaks: number[] = [];
   let cursor = 0;
   while (cursor < totalHeightPx) {
-    let next = Math.min(cursor + pageHeightPx, totalHeightPx);
-    const blocking = unsafeRanges.find((r) => r.top < next && next < r.bottom && r.top > cursor);
-    if (blocking) {
-      // Always push the block to the next page instead — a page ending with
-      // some extra blank space reads far more professional than a photo or
-      // paragraph sliced in half. The only time it's left alone is a block
-      // genuinely taller than one whole page, which has no page-sized spot
-      // it could ever fit into no matter where it starts.
-      const blockHeight = blocking.bottom - blocking.top;
-      if (blockHeight <= pageHeightPx) {
-        next = blocking.top;
-      }
-    }
+    const tentative = Math.min(cursor + pageHeightPx, totalHeightPx);
+    const next = Math.max(cursor + 1, resolveBreak(cursor, tentative, pageHeightPx, unsafeRanges));
     breaks.push(next);
     cursor = next;
   }
   return breaks;
+}
+
+/** Walks a tentative cut back to the top of the don't-split block it lands
+ * inside of, repeating until the cut is clear of every one of them.
+ *
+ * Two things this has to get right, both of which the earlier single
+ * `unsafeRanges.find(...)` got wrong:
+ *
+ *  1. **An oversized range must not hide the one that actually matters.**
+ *     Ranges arrive in DOM order, so an ancestor always comes before its own
+ *     children — and the document body (`<main>`) is itself marked
+ *     break-inside:avoid. Taking the FIRST straddling range therefore picked
+ *     `<main>` for the very first cut every time; being taller than a page it
+ *     was then left alone as "nowhere it could fit", and the card genuinely
+ *     being split — nested inside it, never even looked at — got sliced
+ *     through. That is the half-line of text at the page 1/2 seam. Ranges
+ *     too tall to ever fit a page are now filtered out first, so the search
+ *     always continues down to a block that CAN be moved.
+ *
+ *  2. **Moving the cut can land it inside a different block.** Pushing back
+ *     to a card's top can drop the cut into the middle of whatever sits just
+ *     above it (a section heading's keep-with-next padding, most often), so
+ *     the walk repeats rather than trusting one pass. Bounded, because a
+ *     malformed set of ranges must not spin here; the loop always moves the
+ *     cut strictly earlier, so it terminates on its own well before the cap
+ *     in every real document.
+ */
+function resolveBreak(
+  cursor: number, tentative: number, pageHeightPx: number,
+  unsafeRanges: { top: number; bottom: number }[],
+): number {
+  let next = tentative;
+  for (let pass = 0; pass < 32; pass++) {
+    let earliest: number | null = null;
+    for (const r of unsafeRanges) {
+      // A block taller than a whole page has no page-sized spot it could
+      // ever fit into no matter where it starts, so it gets split wherever
+      // the cut falls — but it must not stop the search for a splittable
+      // block nested inside it.
+      if (r.bottom - r.top > pageHeightPx) continue;
+      if (r.top > cursor && r.top < next && next < r.bottom) {
+        if (earliest === null || r.top < earliest) earliest = r.top;
+      }
+    }
+    // A page ending with some extra blank space reads far more professional
+    // than a photo or paragraph sliced in half, so the block moves whole to
+    // the next page.
+    if (earliest === null) return next;
+    next = earliest;
+  }
+  return next;
 }
 
 /** Cross-origin images load and display fine as a plain <img>/mask source,
@@ -414,6 +454,343 @@ async function captureMapsSeparately(root: HTMLElement, scale: number): Promise<
   return patches;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Capture-time CSS shims
+//
+// html2canvas-pro re-implements CSS painting by hand, and two of the things it
+// gets wrong are used on nearly every card in the document — which is why the
+// exported PDF stopped looking like the template it was captured from. Both are
+// fixed the same way: rewrite the offending declaration into something the
+// library DOES paint correctly, on the off-screen capture twin only, and undo
+// it once the capture is done. Nothing here touches the on-screen preview, the
+// published page, or Cmd-P print, all three of which render in a real browser
+// engine and were always correct.
+//
+// Verified against html2canvas-pro 2.2.4 in Chromium. If a future version fixes
+// these natively, the shims become no-ops rather than a second wrong answer:
+// each one first reads what the browser actually computed and re-expresses that
+// same value, so a correctly-rendered declaration ends up unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Colour-interpolation hints in a gradient, e.g. the ` in oklab` that Tailwind
+ * v4 puts in EVERY `bg-linear-*` / `bg-radial-*` it generates.
+ *
+ * html2canvas's gradient parser predates that syntax and does not skip it, with
+ * two different failure modes depending on the direction:
+ *
+ *   `bg-linear-to-b`  → Chrome computes `linear-gradient(in oklab, A, B)`
+ *                       (it drops the redundant `to bottom`), and the parser
+ *                       reads `in oklab` as if it were a colour stop — one
+ *                       bogus stop is prepended and the whole ramp is wrong.
+ *   `bg-linear-to-br` → Chrome computes `linear-gradient(to right bottom in
+ *                       oklab, A, B)`; the parser matches the direction by
+ *                       exact string, fails, and falls back to 0rad — a
+ *                       to-bottom-right gradient renders bottom-to-TOP.
+ *
+ * Stripping the hint leaves a plain gradient both the parser and the browser
+ * agree on. The only thing lost is the interpolation space itself: stops are
+ * blended through sRGB rather than Oklab, which moves the mid-tones of a
+ * two-colour ramp by a shade and is invisible next to the ramp running
+ * backwards. */
+const GRADIENT_INTERPOLATION_HINT =
+  /\s*\bin\s+(?:oklab|oklch|srgb-linear|srgb|hsl|hwb|lab|lch|xyz-d50|xyz-d65|xyz)(?:\s+(?:shorter|longer|increasing|decreasing)\s+hue)?/g;
+
+function stripGradientInterpolationHints(root: HTMLElement): () => void {
+  const restore: [HTMLElement, string][] = [];
+  for (const el of [root, ...root.querySelectorAll<HTMLElement>("*")]) {
+    const computed = getComputedStyle(el).backgroundImage;
+    if (!computed || computed === "none" || !computed.includes("gradient(")) continue;
+    const rewritten = computed
+      .replace(GRADIENT_INTERPOLATION_HINT, "")
+      // `linear-gradient(in oklab, A, B)` strips down to a leading comma —
+      // `linear-gradient(, A, B)` is not a value the browser will accept, and
+      // an unparsable background-image would drop the gradient altogether.
+      .replace(/\(\s*,\s*/g, "(");
+    if (rewritten === computed) continue;
+    restore.push([el, el.style.backgroundImage]);
+    el.style.backgroundImage = rewritten;
+  }
+  return () => { for (const [el, value] of restore) el.style.backgroundImage = value; };
+}
+
+type ShadowLayer = { color: string; x: number; y: number; blur: number; spread: number; inset: boolean };
+
+/** Splits a computed `box-shadow` into its layers. Chrome serialises each one
+ * colour-first (`rgba(0, 0, 0, 0.1) 0px 10px 15px -3px`, `inset` last if
+ * present) and separates layers with commas that the colour functions also
+ * contain, hence the depth-aware split rather than `.split(",")`. */
+function parseBoxShadow(value: string): ShadowLayer[] {
+  const raw: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    else if (ch === "," && depth === 0) { raw.push(value.slice(start, i)); start = i + 1; }
+  }
+  raw.push(value.slice(start));
+
+  const layers: ShadowLayer[] = [];
+  for (const entry of raw) {
+    const inset = /\binset\b/.test(entry);
+    const rest = entry.replace(/\binset\b/g, " ").trim();
+    const color = rest.match(/^(?:[a-zA-Z-]+\([^)]*\)|#[0-9a-fA-F]{3,8}|[a-zA-Z]+)/)?.[0];
+    if (!color) continue;
+    const lengths = rest.slice(color.length).trim().split(/\s+/).filter(Boolean).map(parseFloat);
+    if (lengths.length < 2 || lengths.some(Number.isNaN)) continue;
+    layers.push({
+      color, inset,
+      x: lengths[0], y: lengths[1], blur: lengths[2] ?? 0, spread: lengths[3] ?? 0,
+    });
+  }
+  return layers;
+}
+
+type Radii = [number, number, number, number];
+
+/** Corner radii in px, in CSS order (TL, TR, BR, BL), resolved against the box
+ * and clamped the way the browser clamps them — `rounded-pill` computes to
+ * 9999px and has to come back as half the shorter side, or every rounded-rect
+ * drawn below would be a garbled self-intersecting path. */
+function readRadii(style: CSSStyleDeclaration, width: number, height: number): Radii {
+  const one = (value: string, extent: number): number => {
+    const first = value.trim().split(/\s+/)[0] ?? "0";
+    const n = parseFloat(first);
+    if (Number.isNaN(n)) return 0;
+    return first.endsWith("%") ? (n / 100) * extent : n;
+  };
+  const radii: Radii = [
+    one(style.borderTopLeftRadius, width),
+    one(style.borderTopRightRadius, width),
+    one(style.borderBottomRightRadius, width),
+    one(style.borderBottomLeftRadius, width),
+  ];
+  // CSS "overlapping curves" rule: scale every corner by the tightest side.
+  const factor = Math.min(
+    1,
+    width / Math.max(radii[0] + radii[1], 0.001),
+    width / Math.max(radii[3] + radii[2], 0.001),
+    height / Math.max(radii[0] + radii[3], 0.001),
+    height / Math.max(radii[1] + radii[2], 0.001),
+  );
+  return radii.map((r) => Math.max(0, r * factor)) as Radii;
+}
+
+function roundedRectPath(x: number, y: number, w: number, h: number, radii: Radii): string {
+  const max = Math.min(w, h) / 2;
+  const [tl, tr, br, bl] = radii.map((r) => Math.max(0, Math.min(r, max)));
+  return [
+    `M${x + tl},${y}`,
+    `H${x + w - tr}`, tr ? `A${tr},${tr} 0 0 1 ${x + w},${y + tr}` : "",
+    `V${y + h - br}`, br ? `A${br},${br} 0 0 1 ${x + w - br},${y + h}` : "",
+    `H${x + bl}`, bl ? `A${bl},${bl} 0 0 1 ${x},${y + h - bl}` : "",
+    `V${y + tl}`, tl ? `A${tl},${tl} 0 0 1 ${x + tl},${y}` : "",
+    "Z",
+  ].filter(Boolean).join(" ");
+}
+
+let shadowNodeSeq = 0;
+
+/**
+ * Repaints every `box-shadow` in the document as something html2canvas can
+ * actually draw, because its own box-shadow renderer is wrong in both
+ * directions and both are all over this template:
+ *
+ *  - **An outer shadow renders as nothing at all.** Every `shadow-lg
+ *    shadow-neutral-200/80` card lost the lift that separates it from the
+ *    paper, which is most of why the exported page reads flat next to the
+ *    preview it was captured from.
+ *  - **An inset shadow — every `ring-inset` — renders as a thick opaque slab
+ *    OUTSIDE the element, with square corners.** On a `rounded-pill` it floods
+ *    the whole shape: the hero's "3 Days | 2 Nights" chip exported as a solid
+ *    red blob rather than a hairline outline, and the Prepared-For card
+ *    exported inside a grey band it does not have on screen.
+ *
+ * Both are replaced by an absolutely-positioned stand-in inserted immediately
+ * before the element, so it paints behind it exactly where the real shadow sat,
+ * and removed again afterwards:
+ *
+ *  - outer → an inline `<svg>` whose blurred rounded rect html2canvas rasterises
+ *    through the browser itself (it serialises SVG to an image rather than
+ *    re-implementing it, so `feGaussianBlur` is the browser's own and comes out
+ *    right). Masked to punch out the element's own box, since CSS never paints
+ *    an outer shadow inside the border box and the stand-in must not either.
+ *  - inset ring → a plain bordered box, the one border-ish thing html2canvas
+ *    draws correctly, laid over the element's padding box.
+ *
+ * Only the pure ring form of an inset shadow (no offset, no blur) is
+ * reconstructed — that is what `ring-inset` generates and all this document
+ * uses. A blurred inset shadow is simply dropped rather than approximated
+ * badly; dropping one is what the library already did with every outer shadow.
+ */
+function repaintBoxShadows(root: HTMLElement): () => void {
+  const restore: [HTMLElement, string, string][] = [];
+  const added: HTMLElement[] = [];
+
+  for (const el of root.querySelectorAll<HTMLElement>("*")) {
+    const style = getComputedStyle(el);
+    if (style.boxShadow === "none" || !style.boxShadow) continue;
+    if (style.visibility === "hidden" || style.display === "none") continue;
+    const parent = el.parentElement;
+    if (!parent) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+
+    const layers = parseBoxShadow(style.boxShadow);
+    if (layers.length === 0) continue;
+
+    restore.push([el, el.style.boxShadow, el.style.position]);
+    el.style.boxShadow = "none";
+    // A stand-in only paints behind its element if the element is itself
+    // positioned — an unpositioned box is painted in an earlier pass than any
+    // positioned sibling, whatever the DOM order. `relative` with no offsets
+    // moves nothing, and is undone with the rest of this below.
+    //
+    // Skipped where it would not be free: `relative` also makes the element a
+    // containing block, so an absolutely-positioned descendant currently
+    // anchored to some ancestor further up would jump to this box instead —
+    // a photo caption or a hero scrim landing somewhere it does not belong,
+    // which is a far worse export than the thing being fixed. Those keep
+    // their stand-in painted in front; it is masked to the element's own
+    // outline either way, so all that costs is a pale halo drawn over a
+    // neighbour instead of under it.
+    if (style.position === "static" && !hasPositionedDescendant(el)) {
+      el.style.position = "relative";
+    }
+
+    const radii = readRadii(style, rect.width, rect.height);
+    const outer = layers.filter((l) => !l.inset);
+    const rings = layers.filter((l) => l.inset && l.blur === 0 && l.x === 0 && l.y === 0 && l.spread > 0);
+
+    if (outer.length > 0) added.push(placeStandIn(parent, el, rect, outerShadowSvg(rect, radii, outer)));
+    for (const ring of rings) {
+      added.push(placeStandIn(parent, el, rect, insetRingBox(style, rect, radii, ring)));
+    }
+  }
+
+  return () => {
+    for (const node of added) node.remove();
+    for (const [el, boxShadow, position] of restore) {
+      el.style.boxShadow = boxShadow;
+      el.style.position = position;
+    }
+  };
+}
+
+function hasPositionedDescendant(el: HTMLElement): boolean {
+  for (const child of el.querySelectorAll<HTMLElement>("*")) {
+    const position = getComputedStyle(child).position;
+    if (position === "absolute" || position === "fixed") return true;
+  }
+  return false;
+}
+
+/** A stand-in, and where its top-left corner sits relative to the element's
+ * border box — negative for a shadow, whose blur spills outwards, positive for
+ * a ring, which sits in on the padding box. */
+type StandIn = { node: HTMLElement; dx: number; dy: number };
+
+/** Drops a stand-in into the flow immediately before `el` and nudges it onto
+ * `el`'s own rectangle. Absolute positioning resolves against whichever
+ * ancestor happens to be positioned, which is not knowable from here on an
+ * arbitrary card — so rather than guess, the node is inserted at 0,0, measured
+ * where it actually landed, and offset by the difference. Being absolute, it
+ * takes no space, which is what keeps it safe to do inside a flex row or a
+ * grid cell. */
+function placeStandIn(parent: HTMLElement, el: HTMLElement, rect: DOMRect, standIn: StandIn): HTMLElement {
+  const { node, dx, dy } = standIn;
+  node.style.position = "absolute";
+  node.style.left = "0";
+  node.style.top = "0";
+  node.style.pointerEvents = "none";
+  parent.insertBefore(node, el);
+  const placed = node.getBoundingClientRect();
+  node.style.left = `${rect.left + dx - placed.left}px`;
+  node.style.top = `${rect.top + dy - placed.top}px`;
+  return node;
+}
+
+function outerShadowSvg(rect: DOMRect, radii: Radii, layers: ShadowLayer[]): StandIn {
+  const bleed = Math.ceil(Math.max(
+    ...layers.map((l) => Math.abs(l.x) + Math.abs(l.y) + l.blur * 1.5 + Math.max(l.spread, 0)),
+  )) + 2;
+  const w = rect.width + bleed * 2;
+  const h = rect.height + bleed * 2;
+  const id = `dy-shadow-${shadowNodeSeq++}`;
+
+  // Painted back to front so the FIRST layer in the CSS value ends up on top,
+  // which is the order the spec stacks them in.
+  const shapes = layers.slice().reverse().map((l, i) => {
+    const grow = l.spread;
+    const x = bleed + l.x - grow;
+    const y = bleed + l.y - grow;
+    const sw = Math.max(0, rect.width + grow * 2);
+    const sh = Math.max(0, rect.height + grow * 2);
+    const spreadRadii = radii.map((r) => (r > 0 ? Math.max(0, r + grow) : 0)) as Radii;
+    const path = roundedRectPath(x, y, sw, sh, spreadRadii);
+    const filter = l.blur > 0 ? ` filter="url(#${id}-b${i})"` : "";
+    return `<path d="${path}" fill="${l.color}"${filter}/>`;
+  }).join("");
+
+  // A CSS blur radius is twice the Gaussian's standard deviation.
+  const filters = layers.slice().reverse().map((l, i) => (l.blur > 0
+    ? `<filter id="${id}-b${i}" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="${l.blur / 2}"/></filter>`
+    : "")).join("");
+
+  const node = document.createElement("div");
+  node.setAttribute("data-pdf-shadow", "");
+  node.style.width = `${w}px`;
+  node.style.height = `${h}px`;
+  node.innerHTML =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
+    + `<defs>${filters}`
+    // Everything is drawn through a mask that knocks out the element's own
+    // box: the stand-in sits behind the element, but an element with a
+    // translucent (or absent) background would otherwise show the shadow
+    // through its middle, which a real box-shadow never does.
+    + `<mask id="${id}-m" maskUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}">`
+    + `<rect x="0" y="0" width="${w}" height="${h}" fill="#fff"/>`
+    + `<path d="${roundedRectPath(bleed, bleed, rect.width, rect.height, radii)}" fill="#000"/>`
+    + `</mask></defs>`
+    + `<g mask="url(#${id}-m)">${shapes}</g>`
+    + `</svg>`;
+  return { node, dx: -bleed, dy: -bleed };
+}
+
+function insetRingBox(style: CSSStyleDeclaration, rect: DOMRect, radii: Radii, ring: ShadowLayer): StandIn {
+  // An inset shadow is painted inside the border, so the ring sits on the
+  // padding box — which matters for the hero's duration chip, the one place
+  // here that carries a border and a ring at once.
+  const top = parseFloat(style.borderTopWidth) || 0;
+  const right = parseFloat(style.borderRightWidth) || 0;
+  const bottom = parseFloat(style.borderBottomWidth) || 0;
+  const left = parseFloat(style.borderLeftWidth) || 0;
+  const w = Math.max(0, rect.width - left - right);
+  const h = Math.max(0, rect.height - top - bottom);
+  const inner: Radii = [
+    Math.max(0, radii[0] - Math.max(top, left)),
+    Math.max(0, radii[1] - Math.max(top, right)),
+    Math.max(0, radii[2] - Math.max(bottom, right)),
+    Math.max(0, radii[3] - Math.max(bottom, left)),
+  ];
+
+  const node = document.createElement("div");
+  node.setAttribute("data-pdf-ring", "");
+  node.style.boxSizing = "border-box";
+  node.style.width = `${w}px`;
+  node.style.height = `${h}px`;
+  node.style.border = `${ring.spread}px solid ${ring.color}`;
+  node.style.borderRadius = inner.map((r) => `${r}px`).join(" ");
+  return { node, dx: left, dy: top };
+}
+
+/** Every capture-time CSS rewrite, applied together and undone together. */
+function applyCaptureCssShims(root: HTMLElement): () => void {
+  const undo = [stripGradientInterpolationHints(root), repaintBoxShadows(root)];
+  return () => { for (const fn of undo.reverse()) fn(); };
+}
+
 export type PdfCaptureResult = {
   pages: PdfPage[];
   /** Human-readable "<photo label>: <reason>" entries for any photo that
@@ -482,12 +859,23 @@ async function captureToPdfPagesInner(root: HTMLElement, scale: number): Promise
   // whose height changes once its content finishes loading.
   const unsafeRanges = findUnsafeRanges(root);
 
-  const canvas = await html2canvas(root, {
-    scale,
-    useCORS: true,
-    backgroundColor: "#ffffff",
-    windowWidth: rootWidthPx,
-  });
+  // Rewrites of the declarations html2canvas paints incorrectly — gradients
+  // and box-shadows, see applyCaptureCssShims. Applied last, once every
+  // measurement above is taken: the stand-ins they insert are absolutely
+  // positioned and change no geometry, but they'd add meaningless entries to
+  // the unsafe-range list if they were in the tree when it was built.
+  const undoShims = applyCaptureCssShims(root);
+  let canvas: HTMLCanvasElement;
+  try {
+    canvas = await html2canvas(root, {
+      scale,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      windowWidth: rootWidthPx,
+    });
+  } finally {
+    undoShims();
+  }
 
   // Paint onto a FRESH canvas rather than reusing html2canvas's own output
   // context directly: html2canvas's internal renderer performs many nested

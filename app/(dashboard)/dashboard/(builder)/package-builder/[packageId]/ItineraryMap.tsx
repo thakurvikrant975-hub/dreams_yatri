@@ -352,6 +352,15 @@ export function ItineraryMap({
     ...(trainLeg ? (["train"] as const) : []),
   ]));
 
+  // The map is switched off: the whole body below sits inside one JSX comment.
+  // The wrapper was still rendering, which put an empty white card between the
+  // last day of the itinerary and the inclusions — nothing in it, no heading,
+  // just a bordered gap a client reads as something that failed to load.
+  //
+  // Turning the map back on: delete this return along with the comment markers
+  // around the body, and everything below works as it did.
+  return null;
+
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-4" style={{ breakInside: "avoid" }}>
       {/* <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-500 mb-3">Route Map</h3>

@@ -43,7 +43,7 @@ export default async function CustomPackagePage({
     // in the middle is what made this look like a PDF someone embedded rather
     // than the page it is. The ground matches the document's own paper so the
     // two meet without a seam on screens wider than the page.
-    <div className="min-h-screen bg-[#F9FAFB]">
+    <div className="min-h-screen bg-white">
       <ViewTracker packageId={id} />
       <PublishedItinerary form={data} packageId={id} />
     </div>
