@@ -3,7 +3,24 @@ import { z } from "zod";
 const optionalTrimmed = (max: number) =>
   z.string().max(max).optional().transform((s) => s?.trim() || undefined);
 
+// A name typed with its honorific baked in ("Late Mr. Ramesh Kumar") — the
+// title is captured as its own field (see NameTitleSchema) so this strips any
+// such prefix back off, keeping the stored name plain regardless of how it
+// was typed. Runs in a loop since "Late Mr." is two prefixes in a row.
+const HONORIFIC_PREFIX_RE = /^(mr|mrs|ms|miss|dr|shri|smt|late)\.?\s+/i;
+function stripHonorificPrefix(s: string): string {
+  let out = s;
+  while (HONORIFIC_PREFIX_RE.test(out)) out = out.replace(HONORIFIC_PREFIX_RE, "");
+  return out;
+}
+const optionalCleanName = (max: number) =>
+  z.string().max(max).optional().transform((s) => {
+    const trimmed = s?.trim();
+    return trimmed ? stripHonorificPrefix(trimmed).trim() || undefined : undefined;
+  });
+
 export const GenderSchema = z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]);
+export const NameTitleSchema = z.enum(["MR", "MRS", "LATE_MR", "LATE_MRS", "DR"]);
 
 export const PersonalDetailsSchema = z.object({
   personalEmail: z.string().email("Enter a valid email").optional().or(z.literal("")).transform((s) => s || undefined),
@@ -38,9 +55,11 @@ export const OnboardingPersonalSchema = z.object({
 export type OnboardingPersonalInput = z.infer<typeof OnboardingPersonalSchema>;
 
 export const FamilyDetailsSchema = z.object({
-  fatherName: optionalTrimmed(255),
+  fatherName: optionalCleanName(255),
+  fatherTitle: NameTitleSchema.optional(),
   fatherMobile: optionalTrimmed(15),
-  motherName: optionalTrimmed(255),
+  motherName: optionalCleanName(255),
+  motherTitle: NameTitleSchema.optional(),
   motherMobile: optionalTrimmed(15),
 });
 export type FamilyDetailsInput = z.infer<typeof FamilyDetailsSchema>;
@@ -50,7 +69,7 @@ export const IdentityDocumentsSchema = z.object({
     .string()
     .optional()
     .transform((s) => s?.replace(/\s/g, "").trim() || undefined)
-    .refine((s) => !s || /^\d{12}$/.test(s), "Aadhaar number must be 12 digits"),
+    .refine((s) => !s || /^\d{12}$/.test(s), "Aadhaar number is invalid — must be exactly 12 digits"),
   aadhaarFileKey: optionalTrimmed(500),
   aadhaarFileUrl: optionalTrimmed(1000),
   aadhaarBackFileKey: optionalTrimmed(500),
@@ -59,7 +78,7 @@ export const IdentityDocumentsSchema = z.object({
     .string()
     .optional()
     .transform((s) => s?.toUpperCase().trim() || undefined)
-    .refine((s) => !s || /^[A-Z]{5}\d{4}[A-Z]$/.test(s), "PAN must be in the format ABCDE1234F"),
+    .refine((s) => !s || /^[A-Z]{5}\d{4}[A-Z]$/.test(s), "PAN number is invalid — must be in the format ABCDE1234F"),
   panFileKey: optionalTrimmed(500),
   panFileUrl: optionalTrimmed(1000),
 });
