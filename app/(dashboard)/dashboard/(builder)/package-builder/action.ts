@@ -1338,6 +1338,19 @@ export async function copyPackageIntoDraft(
   // raw hotel_room_pricing id, so it's looked up separately here — lets a
   // copied template count toward auto-computed pricing immediately, instead
   // of requiring the exec to re-pick every room via search first.
+  //
+  // A multi-night stay only has ONE itinerary_stays row, on its first day
+  // (num_nights says how many days it covers) — exactly like
+  // fetchPackagePageData's own hotel-object propagation loop below. Missing
+  // this fan-out used to leave every night after the first with no
+  // roomPricingId at all: the accommodation text/capacity snapshot still came
+  // from data.itinerary[].hotel (which DOES propagate), so the copied draft
+  // looked fully booked with the right room count, but priced those nights
+  // at ₹0 with no visible reason why. Only the id is carried forward, not a
+  // cached rate — computeBuilderHotelPricing resolves each night's own price
+  // off this id and that night's actual date, so a fanned-out night still
+  // prices at whatever that date's rate is (seasonal or otherwise), never a
+  // copy of the first night's number.
   const roomPricingByDay = new Map<number, number>();
   if (data.selectedRoute && data.selectedStay) {
     const stayRows = await db.package_itineraries.findMany({
@@ -1350,13 +1363,18 @@ export async function copyPackageIntoDraft(
         day: true,
         itineraryStays: {
           where: { stay_category_id: data.selectedStay.id },
-          select: { room_pricing_id: true },
+          select: { room_pricing_id: true, num_nights: true },
         },
       },
+      orderBy: { day: "asc" },
     });
     for (const row of stayRows) {
-      const roomPricingId = row.itineraryStays[0]?.room_pricing_id;
-      if (roomPricingId != null) roomPricingByDay.set(row.day, roomPricingId);
+      const stay = row.itineraryStays[0];
+      if (stay == null) continue;
+      const numNights = stay.num_nights ?? 1;
+      for (let d = row.day; d < row.day + numNights; d++) {
+        roomPricingByDay.set(d, stay.room_pricing_id);
+      }
     }
   }
 
