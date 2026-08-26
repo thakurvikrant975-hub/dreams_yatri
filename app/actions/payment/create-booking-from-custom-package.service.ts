@@ -56,16 +56,38 @@ export async function createBookingFromCustomPackage(params: {
     // closure below (property narrowing on `cp.query` doesn't).
     const query = cp.query;
 
-    // ── Resume path: this custom package already became a booking ─────────────
-    // sourceQueryId is @unique on Booking — a clean idempotency key once we
-    // know this package has a linked query.
+    // ── Resume path ───────────────────────────────────────────────────────────
+    // sourceQueryId is @unique on Booking, so there is at most one booking per
+    // QUERY — and a query can carry several packages, which is the whole point
+    // of quoting a client two ways.
+    //
+    // That made this dangerous. Any booking on the query answered for every
+    // package on it, so a client holding quote B pressed Book and was handed
+    // quote A's booking: a payment page for an itinerary they had not read, at
+    // a price they had not agreed. Silently, and 49 queries in production have
+    // more than one sent quote.
+    //
+    // packageUrl records which package a booking actually came from, so the
+    // two cases can be told apart. Same package is a genuine resume — an
+    // abandoned payment, a second tab — and returns the booking as before. A
+    // different package is refused and says so, because one trip is one
+    // booking and the client needs to know the first one exists rather than
+    // be quietly redirected into it.
+    const thisPackageUrl = `/custom-package/${cp.id}`;
     const existing = await db.booking.findUnique({
         where: { sourceQueryId: query.id },
-        select: { id: true, userId: true, bookingNumber: true },
+        select: { id: true, userId: true, bookingNumber: true, packageUrl: true },
     });
     if (existing) {
         if (existing.userId !== userId) {
             return { success: false, reason: "invalid", message: "Booking belongs to another user." };
+        }
+        if (existing.packageUrl && existing.packageUrl !== thisPackageUrl) {
+            return {
+                success: false,
+                reason: "invalid",
+                message: "You already have a booking for this trip, made from a different quote. Open it from My Bookings, or ask your travel manager to change it.",
+            };
         }
         return { success: true, bookingId: existing.id, bookingNumber: existing.bookingNumber };
     }
@@ -177,7 +199,8 @@ export async function createBookingFromCustomPackage(params: {
                 paymentPlan: effPlan,
                 paymentStatus: "PENDING",
                 priceSnapshot: cp.pricingSnapshot ?? undefined,
-                packageUrl: `/custom-package/${cp.id}`,
+                // Also the discriminator the resume path above reads.
+                packageUrl: thisPackageUrl,
                 sourceQueryId: query.id,
                 // Who sold it. The lead's current owner rather than whoever
                 // built the package: credit follows a reassigned query, and
