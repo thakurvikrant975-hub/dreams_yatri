@@ -16,7 +16,7 @@ import { OfflineDetector } from "./components/dashboard/OfflineDetector";
 import { NumberInputScrollGuard } from "./components/dashboard/NumberInputScrollGuard";
 import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminderprovider";
 import { PackageStatusNotifier } from "./(sales)/sales-query/PackageStatusNotifier";
-import { OnboardingPopup } from "./components/dashboard/OnboardingPopup";
+import { ProfileCompletionBadge } from "./components/dashboard/ProfileCompletionBadge";
 import { getMyProfile } from "./profile/actions";
 
 function parsePageAccess(raw: unknown): string[] {
@@ -127,7 +127,11 @@ export default async function DashboardLayout({
   // bring it back on every page change again.
   const snoozed = !!(await cookies()).get("dy_onboarding_snooze")?.value;
   const needsOnboarding = missingRequiredFields && !snoozed;
-  const onboardingProfile = needsOnboarding ? await getMyProfile() : null;
+  // Fetched unconditionally now (not just when the gate is due) so the
+  // header's ProfileCompletionBadge always has something to open, letting
+  // anyone jump into this form voluntarily instead of only when required
+  // fields force it.
+  const onboardingProfile = await getMyProfile();
 
   return (
     <SidebarProvider>
@@ -155,6 +159,13 @@ export default async function DashboardLayout({
           <SidebarTrigger />
 
           <div className="flex items-center gap-3 ml-auto">
+            {onboardingProfile && (
+              <ProfileCompletionBadge
+                profile={onboardingProfile}
+                isComplete={!missingRequiredFields}
+                autoOpen={needsOnboarding}
+              />
+            )}
             {isSales && <SalesTargetBadge memberId={realMember.id} />}
 {/* 
             <SalesStatusToggle
@@ -184,7 +195,6 @@ export default async function DashboardLayout({
       <NumberInputScrollGuard />
       {isSales && <FollowUpReminderProvider />}
       {isSales && <PackageStatusNotifier />}
-      {onboardingProfile && <OnboardingPopup profile={onboardingProfile} />}
     </SidebarProvider>
   );
 }
