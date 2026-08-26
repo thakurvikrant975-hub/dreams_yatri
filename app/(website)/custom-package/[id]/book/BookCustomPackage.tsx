@@ -80,7 +80,12 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await createCustomPackageBookingDraft(summary.packageId, summary.optionId, choice);
+      // The total this page put in front of the client, sent so the service
+      // can refuse to charge a different one. Not a price — a claim about
+      // what was seen.
+      const res = await createCustomPackageBookingDraft(
+        summary.packageId, summary.optionId, choice, summary.total,
+      );
       if (!res.success) {
         setSubmitting(false);
         if (res.reason === "unauthenticated") {
@@ -93,6 +98,10 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
           return;
         }
         setError(res.message ?? "Could not start your booking. Please try again.");
+        // A price that moved is the one failure the client can clear
+        // themselves, and only by re-reading the page. Refreshed for them, so
+        // the figures on screen are the ones the next attempt will use.
+        if (res.message?.includes("price changed")) router.refresh();
         return;
       }
       router.push(`/bookings/${res.bookingId}/pay`);

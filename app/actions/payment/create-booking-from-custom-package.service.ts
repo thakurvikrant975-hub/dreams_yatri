@@ -41,6 +41,12 @@ export async function createBookingFromCustomPackage(params: {
      * schedule's own answer, which is what the flow did before there was a
      * review step to choose on. */
     paymentChoice?: "FULL" | "DEPOSIT";
+    /** The package total the client was shown on the review step, in rupees.
+     * Not used to price anything — the price still comes from the database —
+     * but compared against it, so a booking cannot be taken at an amount the
+     * client never saw. Absent skips the check, for callers with nothing to
+     * compare. */
+    expectedTotal?: number | null;
 }): Promise<CreateBookingResult> {
     const { customPackageId, userId, stayOptionId } = params;
 
@@ -124,6 +130,27 @@ export async function createBookingFromCustomPackage(params: {
     const bookedPrice = chosenOption && !chosenOption.isRecommended
         ? chosenOption.totalPrice!
         : cp.totalPrice;
+
+    // ── What the client was shown is what the client pays ─────────────────
+    // The review step renders a price; this service re-reads it when the
+    // button is pressed. An exec editing the package in between — which they
+    // may, a sent package stays editable — moved the number underneath a
+    // client who had already decided, and the first they would know of it is
+    // the gateway asking for a different amount.
+    //
+    // The database still decides the price. This only refuses to charge one
+    // the client has not seen, and sends them back to look again.
+    if (
+        params.expectedTotal != null &&
+        bookedPrice != null &&
+        Math.round(bookedPrice) !== Math.round(params.expectedTotal)
+    ) {
+        return {
+            success: false,
+            reason: "invalid",
+            message: "This package's price changed while you were reviewing it. Please refresh to see the current price before paying.",
+        };
+    }
 
     if (bookedPrice == null || bookedPrice <= 0) {
         return { success: false, reason: "error", message: "This package doesn't have a price set yet — please contact your travel manager." };
