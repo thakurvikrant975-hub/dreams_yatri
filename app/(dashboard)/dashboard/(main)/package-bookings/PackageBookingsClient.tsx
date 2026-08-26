@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { BookCheck, CalendarClock, CircleCheck, CircleX, ClipboardList, IndianRupee } from "lucide-react";
 import type { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
+import { getEffectiveMember } from "../lib/get-current-member";
 import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { PackageBookingsTable } from "./PackageBookingsTable";
 import {
@@ -56,7 +57,25 @@ async function BookingsData({
     paymentStatus: string;
     status: string;
 }) {
+    // ── Whose bookings this viewer may see ────────────────────────────────
+    // A sales executive is answerable for the trips they sold and for nothing
+    // else, so the list — and every tile above it — is theirs alone. Team
+    // leaders oversee the desk and see all of it, as they do everywhere else
+    // in the workspace; so does anyone whose role is not a selling one, which
+    // is ops and administration.
+    //
+    // Applied to the counts and the revenue as well as the rows. Scoping only
+    // the table would have left an exec reading the company's total revenue
+    // above a list of their own four bookings.
+    const member = await getEffectiveMember();
+    const roleName = (member?.member?.teamRole?.name ?? "").trim().toLowerCase();
+    const sells = roleName.includes("sales") || roleName.includes("travel expert");
+    const oversees = roleName.includes("team leader");
+    const mine: Prisma.BookingWhereInput =
+        sells && !oversees && member?.member?.id ? { salesAgentId: member.member.id } : {};
+
     const where: Prisma.BookingWhereInput = {
+        ...mine,
         ...(paymentStatus
             ? { paymentStatus: paymentStatus as Prisma.BookingWhereInput["paymentStatus"] }
             : {}),
@@ -77,13 +96,13 @@ async function BookingsData({
     };
 
     const [total, upcoming, pendingReview, confirmed, cancelled, revenue, bookings] = await Promise.all([
-        db.booking.count(),
-        db.booking.count({ where: { status: "UPCOMING" } }),
-        db.booking.count({ where: { status: "PENDING_REVIEW" } }),
-        db.booking.count({ where: { status: "CONFIRMED" } }),
-        db.booking.count({ where: { status: "CANCELLED" } }),
+        db.booking.count({ where: mine }),
+        db.booking.count({ where: { ...mine, status: "UPCOMING" } }),
+        db.booking.count({ where: { ...mine, status: "PENDING_REVIEW" } }),
+        db.booking.count({ where: { ...mine, status: "CONFIRMED" } }),
+        db.booking.count({ where: { ...mine, status: "CANCELLED" } }),
         db.booking.aggregate({
-            where: { status: { not: "CANCELLED" } },
+            where: { ...mine, status: { not: "CANCELLED" } },
             _sum: { totalAmount_paise: true },
         }),
         db.booking.findMany({

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getEffectiveMember } from "../../lib/get-current-member";
 import { ExternalLink, Hotel, Ticket, ArrowRight, Car, UtensilsCrossed, CalendarDays, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaiseRoundedUp } from "@/app/lib/money";
@@ -340,6 +341,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         where: { id },
         select: {
             id: true, bookingNumber: true, status: true, paymentStatus: true, paymentPlan: true, tripType: true,
+            salesAgentId: true,
             startDate: true, endDate: true, duration: true, travellers: true, createdAt: true, currency: true,
             totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
             contactEmail: true, contactPhone: true, gstStateCode: true, cancelReason: true, cancelledAt: true,
@@ -362,6 +364,20 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     });
 
     if (!booking) notFound();
+
+    // A selling role reaches only its own bookings. The list is already
+    // scoped, but a booking id in a URL is guessable and shareable, and this
+    // page carries the client's contact details, what they paid and the
+    // hotels held for them. Team leaders oversee the desk and see all of it;
+    // so does every non-selling role, which is ops and administration.
+    //
+    // notFound rather than a refusal: a booking that is not this exec's is
+    // not theirs to know exists.
+    const viewer = await getEffectiveMember();
+    const viewerRole = (viewer?.member?.teamRole?.name ?? "").trim().toLowerCase();
+    const viewerSells = viewerRole.includes("sales") || viewerRole.includes("travel expert");
+    const viewerOversees = viewerRole.includes("team leader");
+    if (viewerSells && !viewerOversees && booking.salesAgentId !== viewer?.member?.id) notFound();
 
     const isFull = booking.paymentPlan === "FULL";
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
