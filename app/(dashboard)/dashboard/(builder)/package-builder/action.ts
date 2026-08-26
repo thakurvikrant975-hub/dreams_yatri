@@ -1399,6 +1399,28 @@ export async function copyPackageIntoDraft(
     }
   }
 
+  // Same gap as roomPricingId used to be, for cabs: fetchPackagePageData's
+  // itinerary_transfers shape carries a vehicle NAME/photo for display but no
+  // cab_pricing id, so a copied day's cabPricingId was always left null —
+  // every "Use Template" package priced every cab day at ₹0 with only a
+  // small "No cab rate set" flag to notice it by (see the gap branch in
+  // computeBuilderCabPricing). The rate data lives one level up, on the
+  // package's own cab TYPE options (data.cabTypes — package_cab_types), each
+  // with its own day_from/day_to segments rather than a per-day row, so it's
+  // fanned out the same way roomPricingByDay is above. Uses whichever cab
+  // type is marked default (falling back to the first option) — the same
+  // "pick the one thing a copy can commit to without asking" rule the rest
+  // of this function already follows for the recommended stay.
+  const cabPricingByDay = new Map<number, number>();
+  const defaultCabType = data.cabTypes.find((ct) => ct.is_default) ?? data.cabTypes[0];
+  if (defaultCabType) {
+    for (const seg of defaultCabType.segments) {
+      for (let d = seg.day_from; d <= seg.day_to; d++) {
+        cabPricingByDay.set(d, seg.cab_pricing_id);
+      }
+    }
+  }
+
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
 
@@ -1476,10 +1498,7 @@ export async function copyPackageIntoDraft(
       // The catalog itinerary_transfers model has no travel-time field to
       // copy from — left blank, same as the other transfer fields noted above.
       transportTravelTime: "",
-      // fetchPackagePageData doesn't expose the transfer's raw cab_pricing id
-      // either — left null on copy, same as transportPickupLat/Lng; the exec
-      // can re-pick the cab via search to back-fill it for auto-pricing.
-      cabPricingId:       null,
+      cabPricingId:       cabPricingByDay.get(day.day) ?? null,
       notes:              day.notes.map((n) => n.message).join(" "),
     };
   });
