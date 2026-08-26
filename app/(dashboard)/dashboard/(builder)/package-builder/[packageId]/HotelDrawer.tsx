@@ -531,6 +531,10 @@ export function HotelReplaceView({ day }: { day: number }) {
               meta={
                 <>
                   {room.starRating && <span>{room.starRating}</span>}
+                  {/* Same hotel NAME can exist in more than one city — the
+                      exec needs to see WHERE this particular result actually
+                      is before picking it, not just recognize the name. */}
+                  {room.location && <span>{room.location}</span>}
                   {room.roadKm != null && (
                     <span className="flex items-center gap-0.5">
                       <MapPin size={9} /> {room.roadKm.toFixed(1)} km by road
