@@ -3382,13 +3382,21 @@ function HeroCover({
             by a few px (the negative margin), which is what makes the pair a
             lockup instead of two stacked lines.
 
+            The leading is what keeps that overlap a few px rather than a
+            collision. Dancing Script's descenders run well past its em box, so
+            `leading-none` left the tail of a "y" hanging BELOW this span
+            entirely — the negative margin then pulled the title up into it and
+            the name sat across the title's caps. 1.3 is enough line box to
+            hold the descender, so the margin is once again shortening a real
+            gap rather than eating one that was never there.
+
             `pointer-events-none` because it sits over the editable h1 — the
             name comes from the originating query and isn't editable here, and
             without this it would swallow clicks meant for the title. */}
           {form.clientName && (
             <span
               aria-hidden="true"
-              className="-mb-1 ml-1 -rotate-2 origin-bottom-left text-primary-400 text-[34px] leading-none pointer-events-none select-none font-bold block w-max "
+              className="-mb-1 ml-1 -rotate-2 origin-bottom-left text-primary-400 text-[34px] leading-[1.3] pointer-events-none select-none font-bold block w-max "
               style={{
                 fontFamily: "var(--font-script)",
                 fontWeight: 700,
@@ -4193,27 +4201,27 @@ export function ItineraryDocument({
                     <span className="flex items-center justify-center size-5 rounded-lg bg-white/10 ring-1 ring-inset ring-white/15 shrink-0">
                       <IndianRupee size={12} color="#FFFFFF" />
                     </span>
-                    <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-white/70">
+                    <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-white/85">
                       Price Summary
                     </h2>
                   </div>
 
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <div className="space-y-1">
-                      <p className="text-[15px] text-white/90 font-medium">{paxLine}</p>
-                      {perPersonStr && <p className="text-[13.5px] text-white/55">{perPersonStr}</p>}
+                      <p className="text-[15px] text-white font-medium">{paxLine}</p>
+                      {perPersonStr && <p className="text-[13.5px] text-white/80">{perPersonStr}</p>}
                       {form.infants > 0 && (
-                        <p className="text-[12px] text-white/45">Infant charges as applicable / on request</p>
+                        <p className="text-[12px] text-white/70">Infant charges as applicable / on request</p>
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="text-[12px] text-white/55 mb-1">Total package price</p>
+                      <p className="text-[12px] text-white/85 mb-1">Total package price</p>
                       {/* The saving stated plainly above the payable figure. A
                           struck-through number alone reads as a correction; the
                           badge says it is a concession. */}
                       {form.discount && (
                         <div className="flex items-center justify-end gap-2.5 mb-1.5 pr-1">
-                          <span className="text-[15px] text-white/45 line-through">
+                          <span className="text-[15px] text-white/70 line-through">
                             {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
                           </span>
                           <SavingsBadge amount={form.discount.label} prefix="" />
@@ -4249,7 +4257,7 @@ export function ItineraryDocument({
                               border: `1px solid ${c.isRecommended ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)"}`,
                             }}
                           >
-                            <p className="flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-widest text-white/60">
+                            <p className="flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-widest text-white/80">
                               {c.label}
                               {c.isRecommended && (
                                 <span className="rounded-full bg-white/85 px-1.5 py-px text-[9.5px] font-bold text-neutral-900">
@@ -4267,14 +4275,14 @@ export function ItineraryDocument({
                                 : "On request"}
                             </p>
                             {(c.pricePerPerson ?? 0) > 0 && (
-                              <p className="text-[11.5px] text-white/55">
+                              <p className="text-[11.5px] text-white/80">
                                 {form.currency} {Math.round(c.pricePerPerson!).toLocaleString("en-IN")} per person
                               </p>
                             )}
                           </div>
                         ))}
                       </div>
-                      <p className="text-[11px] text-white/45">
+                      <p className="text-[11px] text-white/70">
                         The itinerary above is the same for every standard — only the hotels change.
                       </p>
                     </div>
