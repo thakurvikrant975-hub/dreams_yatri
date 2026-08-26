@@ -267,7 +267,7 @@ function buildRouteSteps(form: PreviewData): RouteStep[] {
 function RouteStrip({ form, steps }: { form: PreviewData; steps: RouteStep[] }) {
   if (steps.length === 0) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-800">
+      <span className="inline-flex items-center gap-1.5 text-[16px] leading-[22px] font-semibold text-neutral-800">
         <MapPin size={14} className="shrink-0 text-neutral-400" />
         {form.startingPoint ? `${form.startingPoint} → ` : ""}{form.destination || "—"}
       </span>
@@ -279,13 +279,13 @@ function RouteStrip({ form, steps }: { form: PreviewData; steps: RouteStep[] }) 
       {steps.map((step, i) => (
         <div key={i} className="flex items-center gap-1">
           {i > 0 && <ArrowRight size={11} className="text-neutral-400/90 shrink-0 mx-0.5" />}
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200/80 bg-white px-2 py-0.5 text-[10px] font-medium text-neutral-800 whitespace-nowrap shadow-lg shadow-neutral-200/80">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200/80 bg-white px-2 py-0.5 text-[12px] font-medium text-neutral-800 whitespace-nowrap shadow-lg shadow-neutral-200/80">
             {step.kind === "stop"
               ? <MapPin size={12} className="shrink-0 text-neutral-400/90" />
               : <Car size={12} className="shrink-0 text-neutral-400/90" />}
             {step.label}
             {step.nights != null && (
-              <span className="rounded-full bg-neutral-200/80 px-1 py-0.5 text-[7px] font-bold text-neutral-600">
+              <span className="rounded-full bg-neutral-200/80 px-1 py-0.5 text-[9px] font-bold text-neutral-600">
                 {step.nights}N
               </span>
             )}
@@ -570,7 +570,7 @@ function SectionHeader({
   if (tone === "muted" || !Icon) {
     return (
       <div className="flex items-center gap-2.5" style={{ breakAfter: "avoid" }}>
-        <h2 className={cn(DISPLAY, "text-[13px] font-semibold font-heading whitespace-nowrap text-neutral-900")}>
+        <h2 className={cn(DISPLAY, "text-[15px] font-semibold font-heading whitespace-nowrap text-neutral-900")}>
           {label}
         </h2>
         <span className="h-px flex-1 bg-neutral-300/60" />
@@ -589,7 +589,7 @@ function SectionHeader({
           <Icon size={14} className="text-white" />
         </span>
         <h2
-          className={cn(DISPLAY, "text-sm text-primary-950 font-semibold font-heading whitespace-nowrap")}
+          className={cn(DISPLAY, "text-[16px] leading-[22px] text-primary-950 font-semibold font-heading whitespace-nowrap")}
           style={{  letterSpacing: "-0.01em" }}
         >
           {label}
@@ -601,7 +601,7 @@ function SectionHeader({
         <button
           type="button"
           onClick={onAdd}
-          className="builder-only no-print shrink-0 flex items-center gap-1 rounded-md border border-dashed border-dashboard-base-300 px-2 py-0.5 text-[10px] font-medium transition-colors hover:bg-dashboard-primary/6"
+          className="builder-only no-print shrink-0 flex items-center gap-1 rounded-md border border-dashed border-dashboard-base-300 px-2 py-0.5 text-[12px] font-medium transition-colors hover:bg-dashboard-primary/6"
           style={{ color: DOC.accent }}
         >
           <Plus size={10} /> {addLabel}
@@ -654,7 +654,7 @@ function PolicyBlock({ label, items, listKey }: {
         {!listKey && builder?.canEdit && (
           <IconTip label="Company-wide content — edited in Itinerary Settings">
             <span
-              className="builder-only no-print shrink-0 flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider text-neutral-500/90"
+              className="builder-only no-print shrink-0 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-500/90"
             >
               <Lock size={9} /> Company-wide
             </span>
@@ -665,7 +665,7 @@ function PolicyBlock({ label, items, listKey }: {
         <EditablePolicyList
           items={items}
           listKey={listKey}
-          itemClassName="text-[11px] pl-0.5 !p-0 space-y-1.5 text-neutral-800"
+          itemClassName="text-[13px] pl-0.5 !p-0 space-y-1.5 text-neutral-800"
           marker={() => (
             <span
               className="mt-1.5 size-0.75 rounded-full shrink-0"
@@ -674,7 +674,7 @@ function PolicyBlock({ label, items, listKey }: {
           )}
         />
       ) : (
-        <ul className="space-y-1.5 text-[11px] pl-0.5" style={{ color: DOC.inkSoft }}>
+        <ul className="space-y-1.5 text-[13px] pl-0.5" style={{ color: DOC.inkSoft }}>
           {items.map((t) => (
             <li key={t} className="flex items-start gap-2">
               <span
@@ -764,7 +764,7 @@ function DayNote({ day }: { day: DayItinerary }) {
                 field={{ scope: "day", day: day.day, key: "notesTitle" }}
                 placeholder={t.label}
                 fallback={t.label}
-                className="block text-[9px] font-semibold uppercase tracking-[0.13em]"
+                className="block text-[11px] font-semibold uppercase tracking-[0.13em]"
                 style={{ color: t.icon }}
               />
 
@@ -775,7 +775,7 @@ function DayNote({ day }: { day: DayItinerary }) {
               value={day.notes}
               field={{ scope: "day", day: day.day, key: "notes" }}
               placeholder="Add the note…"
-              className="block text-[11px] leading-relaxed mt-0.5"
+              className="block text-[13px] leading-relaxed mt-0.5"
               style={{ color: t.ink }}
             />
           </div>
@@ -865,7 +865,7 @@ function GapBadge({ gaps }: { gaps: Gaps }) {
   if (!builder?.canEdit || gaps.length === 0) return null;
   return (
     <span
-      className="builder-only no-print inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap align-middle"
+      className="builder-only no-print inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold whitespace-nowrap align-middle"
       // Literal hex for the usual reason — see DOC. This one is belt and
       // braces, since builder-only already keeps it out of the export.
       style={{ backgroundColor: "#FDF4E7", color: "#8A5A16", border: "1px solid #F2DEBE" }}
@@ -913,17 +913,17 @@ function StayTimeline({ day, checkInDate, checkOutDate }: {
           <CheckInIcon />
         </span>
         <span className="flex flex-col items-start gap-0.5">
-          <span className="text-[9px] font-medium text-neutral-700/90 font-heading whitespace-nowrap">Check In:</span>
+          <span className="text-[11px] font-medium text-neutral-700/90 font-heading whitespace-nowrap">Check In:</span>
           <EditableText
             value={day.hotelCheckIn}
             field={{ scope: "day", day: day.day, key: "hotelCheckIn" }}
             placeholder="set"
             fallback="—"
             display={formatTime12h}
-            className={cn(DISPLAY, "text-[12px] font-semibold font-heading text-neutral-900 whitespace-nowrap")}
+            className={cn(DISPLAY, "text-[14px] font-semibold font-heading text-neutral-900 whitespace-nowrap")}
           />
           {checkInDate && (
-            <span className="text-[10px] text-neutral-500/90">{formatShortDate(checkInDate)}</span>
+            <span className="text-[12px] text-neutral-500/90">{formatShortDate(checkInDate)}</span>
           )}
         </span>
       </div>
@@ -933,7 +933,7 @@ function StayTimeline({ day, checkInDate, checkOutDate }: {
       <div className="flex-1 flex items-center gap-1 min-w-0 px-1">
         <span className="flex-1 min-w-0 border-b-[0.15em] border-dashed border-neutral-300/70" />
         <span className="flex items-center gap-1 shrink-0 rounded-md bg-neutral-50 ring-1 ring-inset ring-neutral-300 px-2 py-0.5">
-          <span className="text-[11px] font-medium text-neutral-800">1N</span>
+          <span className="text-[13px] font-medium text-neutral-800">1N</span>
           <StarAndCrescentIcon weight="duotone" className="size-3 text-neutral-400/90 -rotate-20" />
         </span>
         <span className="flex-1 min-w-0 border-b-[0.15em] border-dashed border-neutral-300/70" />
@@ -944,17 +944,17 @@ function StayTimeline({ day, checkInDate, checkOutDate }: {
           <CheckOutIcon />
         </span>
         <span className="flex flex-col items-end gap-0.5">
-          <span className="text-[9px] font-medium text-neutral-700/90 font-heading whitespace-nowrap">Check Out:</span>
+          <span className="text-[11px] font-medium text-neutral-700/90 font-heading whitespace-nowrap">Check Out:</span>
           <EditableText
             value={day.hotelCheckOut}
             field={{ scope: "day", day: day.day, key: "hotelCheckOut" }}
             placeholder="set"
             fallback="—"
             display={formatTime12h}
-            className={cn(DISPLAY, "text-[12px] font-semibold font-heading text-neutral-900 whitespace-nowrap")}
+            className={cn(DISPLAY, "text-[14px] font-semibold font-heading text-neutral-900 whitespace-nowrap")}
           />
           {checkOutDate && (
-            <span className="text-[10px] text-neutral-500/90">{formatShortDate(checkOutDate)}</span>
+            <span className="text-[12px] text-neutral-500/90">{formatShortDate(checkOutDate)}</span>
           )}
         </span>
       </div>
@@ -996,13 +996,13 @@ function TransferTimeline({ day }: { day: DayItinerary }) {
             <MapPinIcon weight="duotone" className="size-4.5 text-neutral-400/90" />
           </span>
           <span className="flex items-baseline gap-2 min-w-0">
-            <span className="text-[11px] text-neutral-700/90 font-heading shrink-0">Pickup Point:</span>
+            <span className="text-[13px] text-neutral-700/90 font-heading shrink-0">Pickup Point:</span>
             <EditableText
               value={day.transportPickup}
               field={{ scope: "day", day: day.day, key: "transportPickup" }}
               placeholder="set pickup"
               fallback="—"
-              className={cn(DISPLAY, "text-[12px] font-semibold font-heading text-neutral-900 truncate")}
+              className={cn(DISPLAY, "text-[14px] font-semibold font-heading text-neutral-900 truncate")}
             />
           </span>
         </div>
@@ -1014,7 +1014,7 @@ function TransferTimeline({ day }: { day: DayItinerary }) {
       <div className="w-full flex items-stretch min-h-7">
         <span className="w-8 shrink-0" />
         <span className="flex-1 border-l-[0.15em] border-neutral-200 px-3 flex items-center gap-1 ml-5.5">
-          <span className="text-[11px] font-medium text-neutral-500/90 flex items-center gap-1">
+          <span className="text-[13px] font-medium text-neutral-500/90 flex items-center gap-1">
             <EditableText
               value={hasDistance ? `${day.transportDistanceKm} km` : ""}
               field={{ scope: "day", day: day.day, key: "transportDistanceKm" }}
@@ -1038,13 +1038,13 @@ function TransferTimeline({ day }: { day: DayItinerary }) {
             <MapPinIcon weight="duotone" className="size-4.5 text-neutral-400/90" />
           </span>
           <span className="flex items-baseline gap-2 min-w-0">
-            <span className="text-[11px] text-neutral-700/90 font-heading shrink-0">Drop Point:</span>
+            <span className="text-[13px] text-neutral-700/90 font-heading shrink-0">Drop Point:</span>
             <EditableText
               value={day.transportDrop}
               field={{ scope: "day", day: day.day, key: "transportDrop" }}
               placeholder="set drop"
               fallback="—"
-              className={cn(DISPLAY, "text-[12px] font-semibold font-heading text-neutral-900 truncate")}
+              className={cn(DISPLAY, "text-[14px] font-semibold font-heading text-neutral-900 truncate")}
             />
           </span>
         </div>
@@ -1061,7 +1061,7 @@ function StayStars({ raw }: { raw: string }) {
   if (!Number.isFinite(n) || n < 1 || n > 7) {
     return (
       <span
-        className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em]"
+        className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.1em]"
         style={{ color: DOC.inkMuted }}
       >
         {value}
@@ -1093,12 +1093,12 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
     <>
       <Icon size={16} className="shrink-0 text-neutral-400/90" />
       <span
-        className="text-[11px] font-semibold uppercase tracking-[0.14em] shrink-0 text-neutral-700/90 "
+        className="text-[13px] font-semibold uppercase tracking-[0.14em] shrink-0 text-neutral-700/90 "
       >
         {label}
       </span>
       {meta && (
-        <span className="text-[10px] truncate min-w-0 text-neutral-500/90" >
+        <span className="text-[12px] truncate min-w-0 text-neutral-500/90" >
           {meta}
         </span>
       )}
@@ -1108,7 +1108,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
         // into the exported PDF (html2canvas rasterises the screen DOM — see
         // the data-exporting rule in PRINT_STYLES).
         <span
-          className="builder-only no-print text-[9px] font-semibold uppercase tracking-widest shrink-0 opacity-0 group-hover/sub:opacity-100 group-hover/section:opacity-100 transition-opacity"
+          className="builder-only no-print text-[11px] font-semibold uppercase tracking-widest shrink-0 opacity-0 group-hover/sub:opacity-100 group-hover/section:opacity-100 transition-opacity"
           style={{ color: DOC.accent }}
         >
           Edit
@@ -1183,7 +1183,7 @@ function ActivityRow({
                 value={activity.title}
                 field={{ scope: "activity", day: dayNumber, index: activityIndex, key: "title" }}
                 placeholder="Activity name…"
-                className="block text-[12.5px] font-semibold font-heading text-neutral-900"
+                className="block text-[14.5px] font-semibold font-heading text-neutral-900"
               />
               <EditableText
                 as="p"
@@ -1191,14 +1191,14 @@ function ActivityRow({
                 value={activity.description}
                 field={{ scope: "activity", day: dayNumber, index: activityIndex, key: "description" }}
                 placeholder="Describe this experience…"
-                className="block text-xs text-neutral-700/90 mt-0.5"
+                className="block text-[14px] leading-[18px] text-neutral-700/90 mt-0.5"
               />
             </>
           ) : (
             <>
-              <p className="text-xs font-semibold text-neutral-800">{activity.title}</p>
+              <p className="text-[14px] leading-[18px] font-semibold text-neutral-800">{activity.title}</p>
               {activity.description && (
-                <p className="text-xs text-neutral-500 mt-0.5">{activity.description}</p>
+                <p className="text-[14px] leading-[18px] text-neutral-500 mt-0.5">{activity.description}</p>
               )}
             </>
           )}
@@ -1206,7 +1206,7 @@ function ActivityRow({
       </div>
       {slots.length > 0 && (
         <div className="ml-7 space-y-1.5">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-primary-600">Glimpses of the experience</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-primary-600">Glimpses of the experience</p>
           <div className="grid grid-cols-3 gap-1.5">
             {slots.map((src, i) => (
               <div key={i} className="group/img relative rounded-lg overflow-hidden">
@@ -1214,7 +1214,7 @@ function ActivityRow({
                   <>
                     <SafeImg src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
                     <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent px-1.5 py-1 pt-3">
-                      <p className="text-[9px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
+                      <p className="text-[11px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
                     </div>
                   </>
                 ) : (
@@ -1261,7 +1261,7 @@ function MealsRow({ meals }: { meals: string[] }) {
           {included.map(({ key, label, icon: Icon }) => (
             <div
               key={key}
-              className="flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium bg-white bg-linear-to-b from-white via-neutral-50 to-neutral-200/70 border-neutral-200 text-emerald-900"
+              className="flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[13px] font-medium bg-white bg-linear-to-b from-white via-neutral-50 to-neutral-200/70 border-neutral-200 text-emerald-900"
             >
               <span className="flex items-center gap-1">
                 <Icon size={14} className="text-emerald-600" />
@@ -1273,7 +1273,7 @@ function MealsRow({ meals }: { meals: string[] }) {
         </div>
       )}
       {extras.length > 0 && (
-        <p className="text-[10px] text-neutral-500">+ {extras.join(", ")}</p>
+        <p className="text-[12px] text-neutral-500">+ {extras.join(", ")}</p>
       )}
     </div>
   );
@@ -1309,25 +1309,25 @@ function TermsAndConditions({ text }: { text: string }) {
         <span className="flex items-center justify-center size-5 rounded-lg bg-primary-50 p-1 ring-1 ring-inset ring-primary-200/80 shadow-sm shadow-primary-200/80 shrink-0">
           <Info size={16} className="text-primary-500" />
         </span>
-        <h3 className={cn(DISPLAY, "text-[13px] font-semibold font-heading text-neutral-900")}>Additional Notes</h3>
+        <h3 className={cn(DISPLAY, "text-[15px] font-semibold font-heading text-neutral-900")}>Additional Notes</h3>
       </div>
       <div className="p-4 space-y-3.5">
         {blocks.map((block, i) => (
           <div key={i} className="space-y-1.5">
             {block.title && (
-              <p className="text-xs font-bold text-neutral-900">{block.title}</p>
+              <p className="text-[14px] leading-[18px] font-bold text-neutral-900">{block.title}</p>
             )}
             {block.isList ? (
               <ul className="space-y-1">
                 {block.items.map((item, j) => (
-                  <li key={j} className="flex items-start gap-2 text-xs text-neutral-700/90 leading-relaxed">
+                  <li key={j} className="flex items-start gap-2 text-[14px] text-neutral-700/90 leading-relaxed">
                     <span className="mt-1.75 size-1 rounded-full bg-primary-400 shrink-0" />
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-neutral-600 leading-relaxed">{block.items[0]}</p>
+              <p className="text-[14px] text-neutral-600 leading-relaxed">{block.items[0]}</p>
             )}
           </div>
         ))}
@@ -1449,7 +1449,7 @@ export function DaySummaryTable({
   const headCell = "text-left font-semibold px-3 py-2.5";
   const bodyCell = "px-3 py-3 text-neutral-800";
   /** Sub-lines under a cell's main value — the day's date, the final drop. */
-  const mutedLine = "block text-[10px] text-neutral-500/90";
+  const mutedLine = "block text-[12px] text-neutral-500/90";
   /** Icon tint for the meal line. A literal hex passed as a `color` PROP, not
    * a text-emerald-500 class: an inline SVG's stroke is the one thing
    * html2canvas-pro can't resolve from an oklch token, so a classed icon comes
@@ -1486,7 +1486,7 @@ export function DaySummaryTable({
       className="rounded-lg overflow-hidden shadow-lg shadow-neutral-200/80"
       style={{ backgroundColor: DOC.card }}
     >
-      <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
+      <table className="w-full text-[16px] leading-[22px] border-separate" style={{ borderSpacing: 0 }}>
         {/* print:table-header-group repeats the header on every page the table
             spills onto — a five-column table read across a page break is
             otherwise unlabelled. Same reason the voucher carries it. */}
@@ -1535,7 +1535,7 @@ export function DaySummaryTable({
                     onOpen={() => { builder?.setSelectedDay(d.day); scrollToDay(d.day); }}
                     value={
                       <>
-                        <span className="block text-xs font-bold" style={{ color: DOC.accent }}>Day {d.day}</span>
+                        <span className="block text-[14px] leading-[18px] font-bold" style={{ color: DOC.accent }}>Day {d.day}</span>
                         {date && (
                           <span className={cn(mutedLine, "mt-0.5")}>{formatShortDate(date)}</span>
                         )}
@@ -1613,7 +1613,7 @@ export function DaySummaryTable({
                         })()}
                         {mealLine && (
                           <span
-                            className="flex items-center gap-1 text-[10px] mt-0.5"
+                            className="flex items-center gap-1 text-[12px] mt-0.5"
                             style={{ color: DOC.positive }}
                           >
                             <Utensils size={9} color={MEAL_ICON} className="shrink-0" />
@@ -1713,9 +1713,9 @@ function StopTile({ stop, img, onImageChange, stopIndex }: {
           fallback="—"
           displayTransform={titleCase}
           placeholder="Where to?"
-          className="block text-white text-base font-bold font-heading leading-tight"
+          className="block text-white text-[18px] font-bold font-heading leading-tight"
         />
-        <p className="text-white/75 text-[11px] font-medium">
+        <p className="text-white/75 text-[13px] font-medium">
           {stop.nights} Night{stop.nights !== 1 ? "s" : ""}
         </p>
       </div>
@@ -1896,7 +1896,7 @@ function TicketCard({ ticket, index, packagePax }: {
             <span className="flex items-center justify-center size-5 rounded-lg bg-primary-50 p-1 ring-1 ring-inset ring-primary-200/80 shadow-sm shadow-primary-200/80 shrink-0">
               <Icon size={16} className="text-primary-500" />
             </span>
-            <p className="text-xs font-semibold text-neutral-800 truncate flex items-center gap-1">
+            <p className="text-[14px] leading-[18px] font-semibold text-neutral-800 truncate flex items-center gap-1">
               <EditableText
                 value={ticket.provider}
                 field={f("provider")}
@@ -1923,7 +1923,7 @@ function TicketCard({ ticket, index, packagePax }: {
           <div className="flex items-center gap-2 shrink-0">
             {/* Dates and times stay drawer-only — see TicketTextKey. */}
             {ticket.travelDate && (
-              <span className="text-[10px] font-semibold text-neutral-800">{formatTicketDate(ticket.travelDate)}</span>
+              <span className="text-[12px] font-semibold text-neutral-800">{formatTicketDate(ticket.travelDate)}</span>
             )}
           </div>
         </div>
@@ -1938,9 +1938,9 @@ function TicketCard({ ticket, index, packagePax }: {
                 field={f("fromPlace")}
                 fallback="—"
                 placeholder="From"
-                className="block text-sm font-bold text-neutral-800"
+                className="block text-[16px] leading-[22px] font-bold text-neutral-800"
               />
-              {ticket.departureTime && <p className="text-[11px] text-neutral-500/90">{formatTime12h(ticket.departureTime)}</p>}
+              {ticket.departureTime && <p className="text-[13px] text-neutral-500/90">{formatTime12h(ticket.departureTime)}</p>}
             </div>
             <div className="flex flex-col items-center gap-1 shrink-0 px-1">
               <Icon size={14} className="text-neutral-400" />
@@ -1949,7 +1949,7 @@ function TicketCard({ ticket, index, packagePax }: {
                 value={ticket.durationText ?? ""}
                 field={f("durationText")}
                 placeholder="2h 10m"
-                className="text-[9px] text-neutral-400 font-medium whitespace-nowrap"
+                className="text-[11px] text-neutral-400 font-medium whitespace-nowrap"
               />
             </div>
             <div className="flex-1 min-w-0 text-right">
@@ -1959,14 +1959,14 @@ function TicketCard({ ticket, index, packagePax }: {
                 field={f("toPlace")}
                 fallback="—"
                 placeholder="To"
-                className="block text-sm font-bold text-neutral-800"
+                className="block text-[16px] leading-[22px] font-bold text-neutral-800"
               />
-              {ticket.arrivalTime && <p className="text-[11px] text-neutral-500/90">{formatTime12h(ticket.arrivalTime)}</p>}
+              {ticket.arrivalTime && <p className="text-[13px] text-neutral-500/90">{formatTime12h(ticket.arrivalTime)}</p>}
             </div>
           </div>
 
           {footerLine && (
-            <p className="text-[11px] text-neutral-500/90 flex items-center gap-1 pt-1.5 border-t border-neutral-200/80">
+            <p className="text-[13px] text-neutral-500/90 flex items-center gap-1 pt-1.5 border-t border-neutral-200/80">
               <Users size={12} className="text-neutral-400/90 shrink-0" /> {footerLine}
             </p>
           )}
@@ -1977,7 +1977,7 @@ function TicketCard({ ticket, index, packagePax }: {
             value={ticket.notes ?? ""}
             field={f("notes")}
             placeholder="Add a note about this leg…"
-            className="block text-[11px] text-neutral-800 italic"
+            className="block text-[13px] text-neutral-800 italic"
           />
         </div>
       </div>
@@ -2071,7 +2071,7 @@ function AddonCard({ addon, index }: {
               what html2canvas-pro fails to resolve from an oklch token. */}
             <Gift size={11} color={DOC.accent} />
           </span>
-          <p className="text-xs font-semibold text-neutral-800 truncate flex-1">
+          <p className="text-[14px] leading-[18px] font-semibold text-neutral-800 truncate flex-1">
             <EditableText value={addon.name} field={f("name")} placeholder="Add-on name" />
             {/* Quantity is numeric and priced against, so it stays in the drawer
               — see AddonTextKey. */}
@@ -2086,7 +2086,7 @@ function AddonCard({ addon, index }: {
           value={addon.notes ?? ""}
           field={f("notes")}
           placeholder="What this includes…"
-          className="block p-3 text-[11px] text-neutral-500 leading-relaxed"
+          className="block p-3 text-[13px] text-neutral-500 leading-relaxed"
         />
       </div>
     </EditableSection>
@@ -2216,7 +2216,7 @@ function PackageAddMenu() {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center" className="w-56">
-        <DropdownMenuLabel className="text-[11px]">Add to this package</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[13px]">Add to this package</DropdownMenuLabel>
         {items.map(({ icon: Icon, label, onSelect }) => (
           <DropdownMenuItem key={label} onSelect={onSelect}>
             <Icon size={13} /> {label}
@@ -2241,7 +2241,7 @@ function DayAddonsSection({ addOns, day }: { addOns: AddonInput[]; day: number }
     <div className="space-y-2" style={{ breakInside: "avoid" }}>
       <div className="flex items-center gap-2 px-1">
         <Gift size={11} color={DOC.accent} className="shrink-0" />
-        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: DOC.accent }}>Add-ons Included</p>
+        <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: DOC.accent }}>Add-ons Included</p>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {items.map(({ a, index }) => <AddonCard key={index} addon={a} index={index} />)}
@@ -2347,7 +2347,7 @@ function StayColumnPicker({
         }}
       />
       {saving && (
-        <p className="flex items-center gap-1 pt-1 text-[10px] text-dashboard-base-content/50">
+        <p className="flex items-center gap-1 pt-1 text-[12px] text-dashboard-base-content/50">
           <Loader2 size={9} className="animate-spin" /> Saving all {nights} night{nights !== 1 ? "s" : ""}…
         </p>
       )}
@@ -2397,20 +2397,20 @@ function StayColumns({
         style={{ backgroundColor: DOC.card, border: `1px solid ${DOC.rule}` }}
       >
         <div className="min-w-0">
-          <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: DOC.inkMuted }}>Check In</p>
-          <p className="text-[11.5px] font-semibold" style={{ color: DOC.ink }}>{checkIn || "—"}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: DOC.inkMuted }}>Check In</p>
+          <p className="text-[13.5px] font-semibold" style={{ color: DOC.ink }}>{checkIn || "—"}</p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="h-px w-8" style={{ backgroundColor: DOC.rule }} />
-          <span className="text-[11px] font-bold whitespace-nowrap" style={{ color: DOC.ink }}>
+          <span className="text-[13px] font-bold whitespace-nowrap" style={{ color: DOC.ink }}>
             {nights}N
           </span>
           <MoonStar size={11} color={DOC.accent} />
           <span className="h-px w-8" style={{ backgroundColor: DOC.rule }} />
         </div>
         <div className="min-w-0 text-right">
-          <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: DOC.inkMuted }}>Check Out</p>
-          <p className="text-[11.5px] font-semibold" style={{ color: DOC.ink }}>{checkOut || "—"}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: DOC.inkMuted }}>Check Out</p>
+          <p className="text-[13.5px] font-semibold" style={{ color: DOC.ink }}>{checkOut || "—"}</p>
         </div>
       </div>
 
@@ -2448,7 +2448,7 @@ function StayColumns({
                     under it so it reads before the hotel's name does. */}
                 {c.isRecommended && (
                   <span
-                    className="absolute top-1.5 left-1.5 rounded-full px-2 py-0.5 text-[8.5px] font-bold uppercase tracking-wide text-white"
+                    className="absolute top-1.5 left-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-white"
                     style={{ backgroundColor: DOC.accent }}
                   >
                     Recommended
@@ -2458,11 +2458,11 @@ function StayColumns({
               </div>
 
               <div className="px-2.5 py-2 space-y-0.5 flex-1">
-                <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: c.isRecommended ? DOC.accentInk : DOC.inkMuted }}>
+                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: c.isRecommended ? DOC.accentInk : DOC.inkMuted }}>
                   {c.label}
                 </p>
                 <p
-                  className="text-[11.5px] font-semibold leading-tight flex items-start gap-1"
+                  className="text-[13.5px] font-semibold leading-tight flex items-start gap-1"
                   style={{ color: cell.hotel ? DOC.ink : DOC.inkMuted }}
                 >
                   <span className="min-w-0">{cell.hotel ? titleCase(hotelName ?? cell.hotel) : "No hotel picked yet"}</span>
@@ -2473,17 +2473,17 @@ function StayColumns({
                   {cell.hotel && cell.starRating ? <StayStars raw={cell.starRating} /> : null}
                 </p>
                 {roomName && (
-                  <p className="text-[10px] leading-tight" style={{ color: DOC.inkSoft }}>{roomName}</p>
+                  <p className="text-[12px] leading-tight" style={{ color: DOC.inkSoft }}>{roomName}</p>
                 )}
                 {cell.location && (
-                  <p className="text-[10px] leading-tight" style={{ color: DOC.inkMuted }}>{cell.location}</p>
+                  <p className="text-[12px] leading-tight" style={{ color: DOC.inkMuted }}>{cell.location}</p>
                 )}
                 {/* The board is a property of the hotel, not of the day, so it
                     belongs in the column — a Premium stay can include dinner
                     where the Standard one does not. The day's own MEALS
                     section still covers what the trip includes. */}
                 {cell.mealPlan && (
-                  <p className="flex items-center gap-1 text-[10px] leading-tight pt-0.5" style={{ color: DOC.positive }}>
+                  <p className="flex items-center gap-1 text-[12px] leading-tight pt-0.5" style={{ color: DOC.positive }}>
                     <Utensils size={9} /> {cell.mealPlan}
                   </p>
                 )}
@@ -2778,7 +2778,7 @@ function DayCardPreview({
         <span
           className={cn(DISPLAY, "shrink-0 font-bold leading-none")}
           style={{
-            fontSize: "30px",
+            fontSize: "32px",
             color: DOC.accent,
             // Optical alignment: the numeral's cap-height sits slightly above
             // the title's baseline on `items-baseline` alone.
@@ -2798,10 +2798,10 @@ function DayCardPreview({
             field={{ scope: "day", day: day.day, key: "title" }}
             placeholder={`Day ${day.day}`}
             fallback={`Day ${day.day}`}
-            className={cn(DISPLAY, "block text-base font-semibold leading-tight font-heading")}
+            className={cn(DISPLAY, "block text-[18px] font-semibold leading-tight font-heading")}
             style={{ color: DOC.ink, letterSpacing: "-0.01em" }}
           />
-          <p className="text-[10.5px] mt-0.5 text-neutral-500/90" >
+          <p className="text-[12.5px] mt-0.5 text-neutral-500/90" >
             Day {day.day}{checkInDate && ` · ${formatShortDate(checkInDate)}`}
           </p>
         </div>
@@ -2816,7 +2816,7 @@ function DayCardPreview({
           value={day.description}
           field={{ scope: "day", day: day.day, key: "description" }}
           placeholder="Add a description for this day…"
-          className="block text-xs text-neutral-700/90 leading-relaxed"
+          className="block text-[14px] text-neutral-700/90 leading-relaxed"
         />
 
         {/* A day with no stay yet. Only ever rendered in the builder, where a
@@ -2866,7 +2866,7 @@ function DayCardPreview({
                     style={{ backgroundColor: DOC.paper, border: `1px solid ${DOC.rule}` }}
                   >
                     <MoonStar size={12} color={DOC.accent} className="shrink-0" />
-                    <p className="text-[11.5px] flex-1 min-w-0" style={{ color: DOC.inkSoft }}>
+                    <p className="text-[13.5px] flex-1 min-w-0" style={{ color: DOC.inkSoft }}>
                       <span className="font-semibold" style={{ color: DOC.ink }}>
                         {day.accommodationLocation?.trim() || "Your stay"}
                       </span>
@@ -2893,7 +2893,7 @@ function DayCardPreview({
                     style={{ backgroundColor: DOC.paper, border: `1px solid ${DOC.rule}` }}
                   >
                     <MoonStar size={12} color={DOC.accent} className="shrink-0" />
-                    <p className="text-[11.5px] flex-1 min-w-0 flex items-baseline flex-wrap gap-x-1.5" style={{ color: DOC.inkSoft }}>
+                    <p className="text-[13.5px] flex-1 min-w-0 flex items-baseline flex-wrap gap-x-1.5" style={{ color: DOC.inkSoft }}>
                       <span className="font-semibold" style={{ color: DOC.ink }}>
                         {day.accommodation}
                       </span>
@@ -2917,7 +2917,7 @@ function DayCardPreview({
                     They rate this property — parked at the right-hand edge of
                     a "Stay" heading they read as a score for the day. */}
                       <p
-                        className={cn(DISPLAY, "text-[12.5px] font-heading text-neutral-900 font-semibold flex items-baseline flex-wrap gap-x-1.5 gap-y-0.5")}
+                        className={cn(DISPLAY, "text-[14.5px] font-heading text-neutral-900 font-semibold flex items-baseline flex-wrap gap-x-1.5 gap-y-0.5")}
                         style={{ color: DOC.ink }}
                       >
                         <EditableText
@@ -2934,7 +2934,7 @@ function DayCardPreview({
 
                       <div className="flex items-center gap-3">
                         {(day.accommodationLocation || (builder?.canEdit && !fromCatalog)) && (
-                          <p className="text-[11px] text-neutral-500/90 flex items-center gap-1">
+                          <p className="text-[13px] text-neutral-500/90 flex items-center gap-1">
                             <MapPin size={13} className="text-neutral-400/90 shrink-0" />
                             <EditableText
                               value={day.accommodationLocation}
@@ -2946,7 +2946,7 @@ function DayCardPreview({
                           </p>
                         )}
 
-                        <p className="text-[11px] text-neutral-500/90 flex items-center gap-1">
+                        <p className="text-[13px] text-neutral-500/90 flex items-center gap-1">
                           <Users size={13} className="text-neutral-400/90 shrink-0" />
                           {occupancyText(day, adults, childCount)}
                         </p>
@@ -2959,7 +2959,7 @@ function DayCardPreview({
                       )}
 
                       {(day.accommodationRoomSpecs || (builder?.canEdit && !fromCatalog)) && (
-                        <p className="text-[11px] text-neutral-500/90">
+                        <p className="text-[13px] text-neutral-500/90">
                           <EditableText
                             value={day.accommodationRoomSpecs}
                             field={{ scope: "day", day: day.day, key: "accommodationRoomSpecs" }}
@@ -2971,7 +2971,7 @@ function DayCardPreview({
                       )}
 
                       {(mealText || builder?.canEdit) && (
-                        <p className="text-[11px] text-emerald-600 flex items-center gap-1">
+                        <p className="text-[13px] text-emerald-600 flex items-center gap-1">
                           <Utensils size={10} className="text-emerald-500 shrink-0" />
                           {mealText ?? (
                             <EditableText
@@ -2996,11 +2996,11 @@ function DayCardPreview({
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <p className="text-[11px] font-semibold text-neutral-700 truncate">
+                                <p className="text-[13px] font-semibold text-neutral-700 truncate">
                                   + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
                                 </p>
                                 {r.roomSpecs && (
-                                  <p className="text-[10px] text-neutral-400 truncate">{r.roomSpecs}</p>
+                                  <p className="text-[12px] text-neutral-400 truncate">{r.roomSpecs}</p>
                                 )}
                               </div>
                             </div>
@@ -3064,11 +3064,11 @@ function DayCardPreview({
                 <div className={cn("flex gap-5", SUBHEAD_INDENT)}>
                   <div className="flex-1 min-w-0 space-y-2">
                     {day.transport && (
-                      <p className="text-sm font-semibold font-heading text-neutral-900 text-[12.5px]">
+                      <p className="text-[16px] leading-[22px] font-semibold font-heading text-neutral-900 text-[14.5px]">
                         {day.cabQuantity && day.cabQuantity > 1 ? `${day.cabQuantity}× ` : ""}
                         {day.transport}
-                        {day.transportVehicleType && <span className="font-normal text-neutral-500/90 text-[11px]"> · {day.transportVehicleType}</span>}
-                        {day.transportSeats && <span className="font-normal text-neutral-500/90 text-[11px]"> · {day.transportSeats} Seats</span>}
+                        {day.transportVehicleType && <span className="font-normal text-neutral-500/90 text-[13px]"> · {day.transportVehicleType}</span>}
+                        {day.transportSeats && <span className="font-normal text-neutral-500/90 text-[13px]"> · {day.transportSeats} Seats</span>}
                         {" "}
                         <GapBadge gaps={transportGaps(day)} />
                       </p>
@@ -3090,7 +3090,7 @@ function DayCardPreview({
                                 <Car size={10} className="text-neutral-300" />
                               </div>
                             )}
-                            <p className="text-[11px] font-semibold text-neutral-700 truncate">
+                            <p className="text-[13px] font-semibold text-neutral-700 truncate">
                               + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
                               {c.vehicleType && <span className="font-normal text-neutral-400"> · {c.vehicleType}</span>}
                               {c.seats && <span className="font-normal text-neutral-400"> · {c.seats} Seats</span>}
@@ -3109,7 +3109,7 @@ function DayCardPreview({
                           <img src={day.transportPhoto} alt="" className="w-52 h-36 object-cover" />
                           {day.transport && (
                             <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-6">
-                              <p className="text-xs text-white font-medium truncate">{day.transport}</p>
+                              <p className="text-[14px] leading-[18px] text-white font-medium truncate">{day.transport}</p>
                             </div>
                           )}
                         </>
@@ -3388,7 +3388,7 @@ function HeroCover({
           {form.clientName && (
             <span
               aria-hidden="true"
-              className="-mb-1 ml-1 -rotate-2 origin-bottom-left text-primary-400 text-[32px] leading-none pointer-events-none select-none font-bold block w-max "
+              className="-mb-1 ml-1 -rotate-2 origin-bottom-left text-primary-400 text-[34px] leading-none pointer-events-none select-none font-bold block w-max "
               style={{
                 fontFamily: "var(--font-script)",
                 fontWeight: 700,
@@ -3407,7 +3407,7 @@ function HeroCover({
             field={{ scope: "package", key: "title" }}
             placeholder="Name this package…"
             fallback="Untitled Package"
-            className={cn(DISPLAY, "inline font-heading text-[34px] leading-[1.08] font-bold text-white ")}
+            className={cn(DISPLAY, "inline font-heading text-[36px] leading-[1.08] font-bold text-white ")}
             style={{
               maxWidth: "150mm",
               letterSpacing: "-0.02em",
@@ -3421,12 +3421,12 @@ function HeroCover({
             days because "6 days" alone is the figure people misread. */}
           {form.totalDays > 0 && (
             <div className="mt-2 mb-2 flex gap-3 items-center">
-              <span className="inline-flex items-center gap-2.5 rounded-pill border border-primary-100 ring-[0.12em] ring-inset ring-primary-400 px-3 py-1 text-white  text-[11px]  backdrop-md font-heading font-bold bg-primary-400/5">
+              <span className="inline-flex items-center gap-2.5 rounded-pill border border-primary-100 ring-[0.12em] ring-inset ring-primary-400 px-3 py-1 text-white  text-[13px]  backdrop-md font-heading font-bold bg-primary-400/5">
                 {form.totalDays} Day{form.totalDays !== 1 ? "s" : ""}
                 <span className="h-3.5 w-px bg-primary-300" />
                 {form.totalNights} Night{form.totalNights !== 1 ? "s" : ""}
               </span>
-              <span className="text-white text-lg font-bold font-heading">TRIP</span>
+              <span className="text-white text-[20px] leading-[30px] font-bold font-heading">TRIP</span>
             </div>
           )}
 
@@ -3480,17 +3480,17 @@ function StatCell({ icon: Icon, label, value, onOpen }: {
       title={onOpen ? `Edit ${label.toLowerCase()}` : undefined}
     >
       {onOpen && (
-        <span className="builder-only no-print absolute top-1.5 right-2 text-[9px] font-semibold uppercase tracking-wide text-dashboard-primary opacity-0 group-hover/stat:opacity-100 transition-opacity">
+        <span className="builder-only no-print absolute top-1.5 right-2 text-[11px] font-semibold uppercase tracking-wide text-dashboard-primary opacity-0 group-hover/stat:opacity-100 transition-opacity">
           edit
         </span>
       )}
       <p
-        className="flex items-center gap-1.5 mb-1 text-[11px] font-medium whitespace-nowrap text-neutral-500/90"
+        className="flex items-center gap-1.5 mb-1 text-[13px] font-medium whitespace-nowrap text-neutral-500/90"
       >
         <Icon size={16} className="text-neutral-400/90" /> {label}
       </p>
       <p
-        className={cn(DISPLAY, "font-bold font-heading text-sm leading-tight truncate text-neutral-900")}
+        className={cn(DISPLAY, "font-bold font-heading text-[16px] leading-tight truncate text-neutral-900")}
       >
         {value}
       </p>
@@ -3524,7 +3524,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
         <div className="flex flex-wrap items-start justify-between gap-8 pb-7 border-b border-white/10">
           <div className="space-y-3" style={{ maxWidth: "95mm" }}>
             <DyLogo className="h-7 text-primary-500" />
-            <p className="text-slate-400 text-[11px] leading-relaxed">
+            <p className="text-slate-400 text-[13px] leading-relaxed">
               {description}
             </p>
           </div>
@@ -3536,8 +3536,8 @@ function DocumentFooter({ form }: { form: PreviewData }) {
                   <Icon size={13} />
                 </span>
                 <div>
-                  <p className="text-[8px] font-bold text-slate-500 tracking-widest uppercase leading-none mb-0.5">{label}</p>
-                  <p className="text-[11px] text-slate-200 font-medium">{value}</p>
+                  <p className="text-[10px] font-bold text-slate-500 tracking-widest uppercase leading-none mb-0.5">{label}</p>
+                  <p className="text-[13px] text-slate-200 font-medium">{value}</p>
                 </div>
               </div>
             ))}
@@ -3546,15 +3546,15 @@ function DocumentFooter({ form }: { form: PreviewData }) {
 
         {form.execName && (
           <div className="flex flex-wrap items-center justify-between gap-3 py-4 border-b border-white/10">
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[13px] text-slate-400">
               Crafted for you by <span className="text-white font-semibold">{form.execName}</span>
               {form.execDesignation && <span> · {form.execDesignation}</span>}
             </p>
-            {form.execEmail && <p className="text-[11px] text-primary-400 font-medium">{form.execEmail}</p>}
+            {form.execEmail && <p className="text-[13px] text-primary-400 font-medium">{form.execEmail}</p>}
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 text-[10px] text-slate-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 text-[12px] text-slate-500">
           <p>© {new Date().getFullYear()} Dreams Yatri. All rights reserved.</p>
           <p>{disclaimer}</p>
         </div>
@@ -3890,7 +3890,7 @@ export function ItineraryDocument({
                     onClick={() => setContactsOpen((open) => !open)}
                     aria-expanded={contactsOpen}
                     aria-controls="masthead-contact"
-                    className="masthead-contact-toggle flex items-center gap-1 rounded-full border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600"
+                    className="masthead-contact-toggle flex items-center gap-1 rounded-full border border-neutral-200 px-2.5 py-1 text-[13px] text-neutral-600"
                   >
                     Contact
                     <ChevronDown
@@ -3903,7 +3903,7 @@ export function ItineraryDocument({
               <div
                 id="masthead-contact"
                 data-open={contactsOpen ? "" : undefined}
-                className="masthead-contact h-9  text-[10.5px] flex items-center gap-4 text-neutral-800"
+                className="masthead-contact h-9  text-[12.5px] flex items-center gap-4 text-neutral-800"
               >
                 <p className="flex items-center justify-end gap-1.5">
                   <Phone size={16} className="text-neutral-400/90" /> {form.companySettings?.phone ?? COMPANY_PHONE}
@@ -3940,7 +3940,15 @@ export function ItineraryDocument({
           </div>
 
           {/* ── Body ──────────────────────────────────────────────────────────── */}
-          <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7 " style={{ breakInside: "avoid" }}>
+          {/* No breakInside:avoid here. It used to carry one, which read as
+            "never split the body" — an instruction no paginator can honour,
+            since the body is the whole document and always taller than a page.
+            Browser print ignored it; the PDF exporter did not, and took it as
+            the block covering the very first page cut, then gave up on that
+            cut because a page-tall block has nowhere to move to — slicing
+            straight through the card that was actually being split. Cards
+            below declare their own, at a size a page can hold. */}
+          <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7 ">
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination
               || form.description.trim() || builder?.canEdit) && (
                 <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
@@ -3948,53 +3956,53 @@ export function ItineraryDocument({
                     <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x divide-neutral-200/85">
                       {/* Prepared For — the client this itinerary is going to */}
                       <div className="p-3.5">
-                        <p className="text-[9px] font-bold text-primary-600/90 uppercase tracking-widest mb-1.5 flex items-center"> <span className="text-lg">🤩</span> &nbsp; Prepared With Love For </p>
+                        <p className="text-[11px] font-bold text-primary-600/90 uppercase tracking-widest mb-1.5 flex items-center"> <span className="text-[20px] leading-[30px]">🤩</span> &nbsp; Prepared With Love For </p>
                         {form.clientName ? (
                           <>
-                            <p className={cn(DISPLAY, "text-xl font-bold font-heading text-neutral-900 truncate")}>{form.clientName}</p>
+                            <p className={cn(DISPLAY, "text-[22px] leading-[30px] font-bold font-heading text-neutral-900 truncate")}>{form.clientName}</p>
                             <div className="flex flex-wrap gap-1.5 mt-1.5">
-                              <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-50 px-2 py-0.5 rounded-full ring-1 ring-inset ring-neutral-200/80 shadow-sm shadow-neutral-200/80">
+                              <span className="text-[12px] font-semibold text-neutral-600 bg-neutral-50 px-2 py-0.5 rounded-full ring-1 ring-inset ring-neutral-200/80 shadow-sm shadow-neutral-200/80">
                                 {form.adults} Adult{form.adults !== 1 ? "s" : ""}
                               </span>
                               {form.children > 0 && (
-                                <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
+                                <span className="text-[12px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
                                   {form.children} Child{form.children !== 1 ? "ren" : ""}
                                 </span>
                               )}
                               {form.infants > 0 && (
-                                <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
+                                <span className="text-[12px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
                                   {form.infants} Infant{form.infants !== 1 ? "s" : ""}
                                 </span>
                               )}
                             </div>
                             {form.queryId && (
-                              <p className="text-[11px] text-neutral-500 mt-1.5 font-medium tracking-wide">
+                              <p className="text-[13px] text-neutral-500 mt-1.5 font-medium tracking-wide">
                                 Ref: {refCode(form.queryId)}
                               </p>
                             )}
                           </>
                         ) : (
-                          <p className="text-xs text-neutral-400 italic">—</p>
+                          <p className="text-[14px] leading-[18px] text-neutral-400 italic">—</p>
                         )}
                       </div>
 
                       {/* Your Travel Manager — the exec who built it */}
                       <div className="p-3.5">
-                        <p className="text-[9px] font-bold text-neutral-700/90 uppercase tracking-widest mb-1.5">Your Travel Manager</p>
+                        <p className="text-[11px] font-bold text-neutral-700/90 uppercase tracking-widest mb-1.5">Your Travel Manager</p>
                         {form.execName ? (
                           <>
-                            <p className={cn(DISPLAY, "text-xl font-bold font-heading text-neutral-900 truncate")}>
+                            <p className={cn(DISPLAY, "text-[22px] leading-[30px] font-bold font-heading text-neutral-900 truncate")}>
                               {form.execName}
                               {form.execDesignation && <span className="font-normal text-neutral-500"> · {form.execDesignation}</span>}
                             </p>
                             {form.execEmail && (
-                              <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-neutral-700/90 text-[11px] mt-1.5 hover:underline w-fit">
+                              <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-neutral-700/90 text-[13px] mt-1.5 hover:underline w-fit">
                                 <Mail size={16} className="text-neutral-400/90" /> {form.execEmail}
                               </a>
                             )}
                           </>
                         ) : (
-                          <p className="text-xs text-neutral-400 italic">—</p>
+                          <p className="text-[14px] leading-[18px] text-neutral-400 italic">—</p>
                         )}
                       </div>
                     </div>
@@ -4005,7 +4013,7 @@ export function ItineraryDocument({
                   five or six chips and would have been squeezed into a third of
                   the card, wrapping into a stack of one-chip lines. */}
                   <div className="border-t border-neutral-200/80 p-3.5">
-                    <p className="text-[9px] font-bold text-neutral-500/90 uppercase tracking-widest mb-2">Your Route</p>
+                    <p className="text-[11px] font-bold text-neutral-500/90 uppercase tracking-widest mb-2">Your Route</p>
                     <RouteStrip form={form} steps={routeSteps} />
                   </div>
 
@@ -4026,7 +4034,7 @@ export function ItineraryDocument({
                         value={form.description}
                         field={{ scope: "package", key: "description" }}
                         placeholder="Describe this package for the client — click to add…"
-                        className="block text-sm text-neutral-800 leading-relaxed"
+                        className="block text-[16px] text-neutral-800 leading-relaxed"
                       />
                     </div>
                   )}
@@ -4099,14 +4107,14 @@ export function ItineraryDocument({
                   <span className="flex items-center justify-center size-5 rounded-lg bg-white p-1 ring-1 ring-inset ring-emerald-200/80 shadow-sm shadow-emerald-200/80 shrink-0">
                     <CheckCircle size={16} color={DOC.positive} />
                   </span>
-                  <h3 className={cn(DISPLAY, "text-[13px] font-semibold font-heading text-neutral-900")}>
+                  <h3 className={cn(DISPLAY, "text-[15px] font-semibold font-heading text-neutral-900")}>
                     Inclusions
                   </h3>
                 </div>
                 <EditablePolicyList
                   items={form.inclusions}
                   listKey="inclusions"
-                  itemClassName="text-[11.5px] text-neutral-700/90"
+                  itemClassName="text-[13.5px] text-neutral-700/90"
                   marker={() => <CheckCircle size={12} color={DOC.positive} className="shrink-0 mt-0.5" />}
                 />
               </div>
@@ -4115,14 +4123,14 @@ export function ItineraryDocument({
                   <span className="flex items-center justify-center size-5 rounded-lg bg-white p-1 ring-1 ring-inset ring-primary-200/80 shadow-sm shadow-primary-200/80 shrink-0">
                     <XCircle size={16} color={DOC.accent} />
                   </span>
-                  <h3 className={cn(DISPLAY, "text-[13px] font-semibold font-heading text-neutral-900")}>
+                  <h3 className={cn(DISPLAY, "text-[15px] font-semibold font-heading text-neutral-900")}>
                     Exclusions
                   </h3>
                 </div>
                 <EditablePolicyList
                   items={form.exclusions}
                   listKey="exclusions"
-                  itemClassName="text-[11.5px] text-neutral-700/90"
+                  itemClassName="text-[13.5px] text-neutral-700/90"
                   marker={() => <XCircle size={12} color="#D98B7F" className="shrink-0 mt-0.5" />}
                 />
               </div>
@@ -4140,10 +4148,13 @@ export function ItineraryDocument({
             </div>
 
             {/* Price summary — the document's second focal point after the hero.
-              On the Tailwind gray ramp the rest of the document uses
-              (neutral-800 → 950) rather than the warm near-black it carried
-              from the old paper palette, which read as pasted in from another
-              file.
+              Carried on the brand red (primary-500) rather than the near-black
+              it used to sit on: the total is the one number the client comes
+              back to, and the hero already establishes red as this document's
+              emphasis colour, so the two focal points now answer each other
+              instead of the price block reading as a slab borrowed from
+              somewhere else. Same three-step ramp as before (a lighter step,
+              the base, a darker one) so the card keeps its depth.
 
               The decoration is inline SVG, not a background image: it has to
               survive the PDF, and html2canvas rasterises inline vector reliably
@@ -4154,7 +4165,7 @@ export function ItineraryDocument({
               className="relative rounded-lg overflow-hidden shadow-lg shadow-neutral-300/60"
               style={{ breakInside: "avoid" }}
             >
-              <div className="relative p-5 bg-neutral-900 bg-linear-to-br from-neutral-800 via-neutral-900 to-neutral-950">
+              <div className="relative p-5 bg-primary-500 bg-linear-to-br from-primary-400 via-primary-500 to-primary-600">
                 {/* aria-hidden + pointer-events-none: this is texture, not
                     content, and must never be announced or swallow a click. */}
                 <svg
@@ -4182,27 +4193,27 @@ export function ItineraryDocument({
                     <span className="flex items-center justify-center size-5 rounded-lg bg-white/10 ring-1 ring-inset ring-white/15 shrink-0">
                       <IndianRupee size={12} color="#FFFFFF" />
                     </span>
-                    <h2 className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-white/70">
+                    <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-white/70">
                       Price Summary
                     </h2>
                   </div>
 
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <div className="space-y-1">
-                      <p className="text-[13px] text-white/90 font-medium">{paxLine}</p>
-                      {perPersonStr && <p className="text-[11.5px] text-white/55">{perPersonStr}</p>}
+                      <p className="text-[15px] text-white/90 font-medium">{paxLine}</p>
+                      {perPersonStr && <p className="text-[13.5px] text-white/55">{perPersonStr}</p>}
                       {form.infants > 0 && (
-                        <p className="text-[10px] text-white/45">Infant charges as applicable / on request</p>
+                        <p className="text-[12px] text-white/45">Infant charges as applicable / on request</p>
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-white/55 mb-1">Total package price</p>
+                      <p className="text-[12px] text-white/55 mb-1">Total package price</p>
                       {/* The saving stated plainly above the payable figure. A
                           struck-through number alone reads as a correction; the
                           badge says it is a concession. */}
                       {form.discount && (
                         <div className="flex items-center justify-end gap-2.5 mb-1.5 pr-1">
-                          <span className="text-[13px] text-white/45 line-through">
+                          <span className="text-[15px] text-white/45 line-through">
                             {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
                           </span>
                           <SavingsBadge amount={form.discount.label} prefix="" />
@@ -4210,7 +4221,7 @@ export function ItineraryDocument({
                       )}
                       <p
                         className={cn(DISPLAY, "font-bold text-white leading-none font-heading")}
-                        style={{ fontSize: "26px", letterSpacing: "-0.02em" }}
+                        style={{ fontSize: "28px", letterSpacing: "-0.02em" }}
                       >
                         {priceStr}
                       </p>
@@ -4238,15 +4249,15 @@ export function ItineraryDocument({
                               border: `1px solid ${c.isRecommended ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)"}`,
                             }}
                           >
-                            <p className="flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-widest text-white/60">
+                            <p className="flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-widest text-white/60">
                               {c.label}
                               {c.isRecommended && (
-                                <span className="rounded-full bg-white/85 px-1.5 py-px text-[7.5px] font-bold text-neutral-900">
+                                <span className="rounded-full bg-white/85 px-1.5 py-px text-[9.5px] font-bold text-neutral-900">
                                   Recommended
                                 </span>
                               )}
                             </p>
-                            <p className={cn(DISPLAY, "font-bold text-white leading-tight font-heading mt-0.5")} style={{ fontSize: "15px" }}>
+                            <p className={cn(DISPLAY, "font-bold text-white leading-tight font-heading mt-0.5")} style={{ fontSize: "17px" }}>
                               {/* Zero means no rate behind those nights yet,
                                   not a free stay — saying "on request" is the
                                   only honest reading, and printing 0 would
@@ -4256,14 +4267,14 @@ export function ItineraryDocument({
                                 : "On request"}
                             </p>
                             {(c.pricePerPerson ?? 0) > 0 && (
-                              <p className="text-[9.5px] text-white/55">
+                              <p className="text-[11.5px] text-white/55">
                                 {form.currency} {Math.round(c.pricePerPerson!).toLocaleString("en-IN")} per person
                               </p>
                             )}
                           </div>
                         ))}
                       </div>
-                      <p className="text-[9px] text-white/45">
+                      <p className="text-[11px] text-white/45">
                         The itinerary above is the same for every standard — only the hotels change.
                       </p>
                     </div>
@@ -4298,7 +4309,7 @@ export function ItineraryDocument({
                   <span className="relative flex items-center justify-center size-6 rounded-lg bg-white p-1 ring-1 ring-inset ring-primary-200/80 shadow-sm shadow-primary-200/80 shrink-0">
                     <Sparkles size={16} className="text-primary-500" />
                   </span>
-                  <h3 className={cn(DISPLAY, "relative text-[13px] font-semibold font-heading text-neutral-900")}>
+                  <h3 className={cn(DISPLAY, "relative text-[15px] font-semibold font-heading text-neutral-900")}>
                     Why book with us
                   </h3>
                 </div>
@@ -4307,7 +4318,7 @@ export function ItineraryDocument({
                   listKey="travelBenefits"
                   // pt-3.5 is the ask: the list sat hard against the header rule
                   // with only the marker's own margin holding it off.
-                  itemClassName="!p-0 !px-4 !pt-3.5 !pb-3.5 text-[11px] space-y-1.5 text-neutral-700/90"
+                  itemClassName="!p-0 !px-4 !pt-3.5 !pb-3.5 text-[13px] space-y-1.5 text-neutral-700/90"
                   marker={() => (
                     <span
                       className="mt-1.5 size-1 rounded-full shrink-0 ring-2 ring-primary-100"
@@ -4342,7 +4353,7 @@ export function ItineraryDocument({
                   value={form.termsNotes}
                   field={{ scope: "package", key: "termsNotes" }}
                   placeholder="Additional terms or notes for this package — click to add…"
-                  className="block text-[11px] leading-relaxed text-neutral-800"
+                  className="block text-[13px] leading-relaxed text-neutral-800"
                 />
               )}
 
