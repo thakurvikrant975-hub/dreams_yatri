@@ -48,7 +48,18 @@ export function EditFamilyDialog({ profile }: { profile: ProfileData }) {
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
                                 <Label htmlFor="fatherName">Father&apos;s Name</Label>
-                                <Input id="fatherName" name="fatherName" defaultValue={profile.fatherName ?? ""} />
+                                <div className="flex gap-1.5">
+                                    <select
+                                        id="fatherTitle" name="fatherTitle"
+                                        defaultValue={profile.fatherTitle ?? "MR"}
+                                        className="h-9 w-24 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                        <option value="MR">Mr.</option>
+                                        <option value="LATE_MR">Late Mr.</option>
+                                        <option value="DR">Dr.</option>
+                                    </select>
+                                    <Input id="fatherName" name="fatherName" defaultValue={profile.fatherName ?? ""} className="flex-1" />
+                                </div>
                                 {errors?.fatherName && <p className="text-xs text-destructive">{errors.fatherName[0]}</p>}
                             </div>
                             <div className="space-y-1.5">
@@ -60,7 +71,18 @@ export function EditFamilyDialog({ profile }: { profile: ProfileData }) {
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
                                 <Label htmlFor="motherName">Mother&apos;s Name</Label>
-                                <Input id="motherName" name="motherName" defaultValue={profile.motherName ?? ""} />
+                                <div className="flex gap-1.5">
+                                    <select
+                                        id="motherTitle" name="motherTitle"
+                                        defaultValue={profile.motherTitle ?? "MRS"}
+                                        className="h-9 w-24 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                        <option value="MRS">Mrs.</option>
+                                        <option value="LATE_MRS">Late Mrs.</option>
+                                        <option value="DR">Dr.</option>
+                                    </select>
+                                    <Input id="motherName" name="motherName" defaultValue={profile.motherName ?? ""} className="flex-1" />
+                                </div>
                                 {errors?.motherName && <p className="text-xs text-destructive">{errors.motherName[0]}</p>}
                             </div>
                             <div className="space-y-1.5">

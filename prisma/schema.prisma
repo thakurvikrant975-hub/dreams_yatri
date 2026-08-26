@@ -824,6 +824,7 @@ model TeamMember {
   dateOfBirth            DateTime?
   fatherMobile           String?           @db.VarChar(15)
   fatherName             String?           @db.VarChar(255)
+  fatherTitle            NameTitle?
   gender                 Gender?
   /**
    * Set when the onboarding popup's "I don't remember 🤷" option is chosen
@@ -834,6 +835,7 @@ model TeamMember {
   joiningDateUnknown     Boolean           @default(false)
   motherMobile           String?           @db.VarChar(15)
   motherName             String?           @db.VarChar(255)
+  motherTitle            NameTitle?
   officialMobile         String?           @db.VarChar(15)
   panFileKey             String?
   panFileUrl             String?
@@ -3556,6 +3558,17 @@ enum Gender {
   FEMALE
   OTHER
   PREFER_NOT_TO_SAY
+}
+
+/** The honorific shown before a parent's name — kept as its own field so the
+ * name itself stays plain text ("Ramesh Kumar", not "Late Mr. Ramesh Kumar")
+ * while the UI can still prefix it consistently. */
+enum NameTitle {
+  MR
+  MRS
+  LATE_MR
+  LATE_MRS
+  DR
 }
 
 enum MaritalStatus {

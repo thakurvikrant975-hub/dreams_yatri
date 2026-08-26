@@ -20,6 +20,15 @@ const GENDER_LABELS: Record<string, string> = {
     MALE: "Male", FEMALE: "Female", OTHER: "Other", PREFER_NOT_TO_SAY: "Can't say",
 };
 
+export const NAME_TITLE_LABELS: Record<string, string> = {
+    MR: "Mr.", MRS: "Mrs.", LATE_MR: "Late Mr.", LATE_MRS: "Late Mrs.", DR: "Dr.",
+};
+
+function withTitle(title: string | null, name: string | null): string | null {
+    if (!name) return null;
+    return title && NAME_TITLE_LABELS[title] ? `${NAME_TITLE_LABELS[title]} ${name}` : name;
+}
+
 export type ProfileData = {
     id: string;
     name: string;
@@ -37,8 +46,10 @@ export type ProfileData = {
     alternativeMobile: string | null;
     officialMobile: string | null;
     fatherName: string | null;
+    fatherTitle: "MR" | "MRS" | "LATE_MR" | "LATE_MRS" | "DR" | null;
     fatherMobile: string | null;
     motherName: string | null;
+    motherTitle: "MR" | "MRS" | "LATE_MR" | "LATE_MRS" | "DR" | null;
     motherMobile: string | null;
     aadhaarNumber: string | null;
     aadhaarFileKey: string | null;
@@ -265,9 +276,9 @@ export function ProfileClient({ profile }: { profile: ProfileData }) {
                     icon={Users2}
                     action={<EditFamilyDialog profile={profile} />}
                 >
-                    <Field label="Father's Name" value={profile.fatherName} icon={Users2} />
+                    <Field label="Father's Name" value={withTitle(profile.fatherTitle, profile.fatherName)} icon={Users2} />
                     <Field label="Father's Mobile" value={profile.fatherMobile} icon={Phone} />
-                    <Field label="Mother's Name" value={profile.motherName} icon={Users2} />
+                    <Field label="Mother's Name" value={withTitle(profile.motherTitle, profile.motherName)} icon={Users2} />
                     <Field label="Mother's Mobile" value={profile.motherMobile} icon={Phone} />
                 </SectionCard>
 
