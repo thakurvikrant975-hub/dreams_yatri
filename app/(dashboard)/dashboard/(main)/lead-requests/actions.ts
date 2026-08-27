@@ -5,11 +5,11 @@ import { z } from "zod";
 import { db } from "@/app/lib/db";
 import { toTitleCase } from "@/app/lib/utils";
 import { actionError } from "@/app/lib/action-error";
-import { autoAssignLead } from "@/app/lib/queries/auto-assign";
 import {
   logTimeline, getCurrentActor, checkExistingQueryByPhone, type ExistingQueryMatch,
 } from "../(marketing)/queries/actions";
 import { createLog } from "../lib/logger";
+import { notifyMember } from "@/app/services/notifications/notify";
 
 export type LeadRequestFormState = {
   success: boolean;
@@ -105,14 +105,20 @@ export async function getLeadRequestsQueue(): Promise<LeadRequestRow[]> {
 
 /** Everything Add Query's createManualQuery does after its own validation —
  * duplicate guard, LeadProfile upsert, the package_queries row itself,
- * timeline entry, auto-assignment — reused here so an accepted request
- * becomes a query indistinguishable from one entered by hand. Kept local
- * rather than exported off createManualQuery itself: that function is bound
- * to its own much larger FormData shape (whatsapp, package, travel dates…)
- * that a lead request never carries. */
+ * timeline entry — reused here so an accepted request becomes a query
+ * indistinguishable from one entered by hand. Kept local rather than
+ * exported off createManualQuery itself: that function is bound to its own
+ * much larger FormData shape (whatsapp, package, travel dates…) that a lead
+ * request never carries.
+ *
+ * Assigned straight to whoever requested it rather than through
+ * autoAssignLead's least-loaded rotation — requesting a lead is the exec
+ * saying "this one's mine," and running it through the fair-rotation
+ * algorithm afterward could easily hand it to someone else entirely. */
 async function createQueryFromLeadRequest(input: {
   name: string; phone: string; email: string | null; destination: string;
-  actorId?: string; actorName?: string;
+  requestedById: string; requestedByName: string;
+  decidedById?: string; decidedByName?: string;
 }): Promise<{ success: true; queryId: string } | { success: false; error: string }> {
   const cleanPhone = input.phone.replace(/\s+/g, "");
   const normalizedPhone = cleanPhone.replace(/[\-().+]/g, "");
@@ -138,32 +144,38 @@ async function createQueryFromLeadRequest(input: {
       email: input.email,
       destination: input.destination,
       source: "OTHER",
-      status: "VERIFIED",
+      status: "ASSIGNED",
       verified: false,
       leadProfileId: profile.id,
+      assignedTo: input.requestedById,
+      assignedToName: input.requestedByName,
+      assignedAt: new Date(),
     },
   });
 
   await logTimeline(
     query.id,
-    `Query created from ${input.actorName ?? "a"} lead request, accepted by ${input.actorName ?? "the lead manager"}`,
-    input.actorId, input.actorName,
+    `Query created from ${input.requestedByName}'s lead request, approved by ${input.decidedByName ?? "the lead manager"} and assigned to ${input.requestedByName}`,
+    input.decidedById, input.decidedByName,
     { source: "lead_request" },
   );
-  await autoAssignLead(query.id);
 
   return { success: true, queryId: query.id };
 }
 
 async function acceptOne(
-  request: { id: string; status: string; name: string; phone: string; email: string | null; destination: string },
+  request: {
+    id: string; status: string; name: string; phone: string; email: string | null; destination: string;
+    requestedById: string; requestedByName: string;
+  },
   decidedById: string, decidedByName: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (request.status !== "PENDING") return { ok: false, error: "Already decided" };
 
   const created = await createQueryFromLeadRequest({
     name: request.name, phone: request.phone, email: request.email, destination: request.destination,
-    actorId: decidedById, actorName: decidedByName,
+    requestedById: request.requestedById, requestedByName: request.requestedByName,
+    decidedById, decidedByName,
   });
   if (!created.success) return { ok: false, error: created.error };
 
@@ -174,6 +186,15 @@ async function acceptOne(
       decidedAt: new Date(), decidedById, decidedByName,
     },
   });
+
+  await notifyMember({
+    recipientId: request.requestedById,
+    type: "LEAD_REQUEST_APPROVED",
+    title: `${request.name} — lead request approved`,
+    body: `Added to your queries, assigned to you.`,
+    link: "/dashboard/sales-query",
+  });
+
   return { ok: true };
 }
 
@@ -195,6 +216,7 @@ export async function acceptLeadRequest(id: string): Promise<{ success: boolean;
 
     revalidatePath("/dashboard/lead-requests");
     revalidatePath("/dashboard/queries");
+    revalidatePath("/dashboard/sales-query");
     return { success: true };
   } catch (e) {
     console.error(e);
@@ -223,6 +245,7 @@ export async function acceptAllLeadRequests(): Promise<{ success: boolean; accep
 
     revalidatePath("/dashboard/lead-requests");
     revalidatePath("/dashboard/queries");
+    revalidatePath("/dashboard/sales-query");
     return { success: true, accepted, skipped };
   } catch (e) {
     console.error(e);
@@ -255,6 +278,14 @@ export async function rejectLeadRequest(id: string, reason: string): Promise<{ s
     await createLog({
       action: "UPDATE", entity: "lead_request", entityId: id, entitySlug: request.name,
       metadata: { operation: "reject_lead_request", reason: trimmed },
+    });
+
+    await notifyMember({
+      recipientId: request.requestedById,
+      type: "LEAD_REQUEST_REJECTED",
+      title: `${request.name} — lead request rejected`,
+      body: trimmed,
+      link: "/dashboard/request-lead",
     });
 
     revalidatePath("/dashboard/lead-requests");
