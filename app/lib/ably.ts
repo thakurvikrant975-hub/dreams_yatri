@@ -64,3 +64,31 @@ export async function publishVerificationCounts(counts: VerificationCounts): Pro
   if (!rest) return;
   await rest.channels.get(verificationCountsChannelName()).publish("counts", counts);
 }
+
+/** One private channel per team member — unlike verification-counts (one
+ * shared channel everyone reads the same numbers on), a notification is
+ * addressed to exactly one recipient, so each gets their own channel rather
+ * than everyone subscribing to one feed and filtering client-side. The
+ * token route below is the only place allowed to grant subscribe access to
+ * a given member's own channel. */
+export function memberNotificationsChannelName(memberId: string): string {
+  return `member:${memberId}:notifications`;
+}
+
+export type NotificationPayload = {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  createdAt: string;
+};
+
+/** Best-effort publish — the row is already durably persisted (see
+ * notify.ts), so a missing/misconfigured ABLY_API_KEY only costs the live
+ * push; the bell still picks it up on its next server-rendered load. */
+export async function publishNotification(recipientId: string, notification: NotificationPayload): Promise<void> {
+  const rest = getAblyRest();
+  if (!rest) return;
+  await rest.channels.get(memberNotificationsChannelName(recipientId)).publish("notification", notification);
+}

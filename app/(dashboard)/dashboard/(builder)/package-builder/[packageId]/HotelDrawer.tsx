@@ -19,7 +19,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import {
   Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, Star,
-  Coffee, Sun, Moon, UtensilsCrossed, Sliders, Users,
+  Coffee, Sun, Moon, UtensilsCrossed, Sliders, Users, AlertTriangle,
 } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -676,6 +676,10 @@ export function HotelEditView({ day }: { day: number }) {
     max_adults: itin.accommodationMaxAdults,
     max_children: itin.accommodationMaxChildren,
   }, itin.roomsCount);
+  // Some catalog rooms genuinely can't take an extra mattress — typing a
+  // count in anyway used to silently price at ₹0 (extraBedRate has nothing
+  // to charge), which read as a free upgrade rather than the gap it is.
+  const noMattressCapacity = hasCatalogRoom && (itin.accommodationExtraBedCapacity ?? 0) <= 0;
 
   function removeStayFromDays(days: number[]) {
     const target = new Set(days);
@@ -686,6 +690,30 @@ export function HotelEditView({ day }: { day: number }) {
       ),
     }));
     toast.success(`Removed from ${days.length} day${days.length !== 1 ? "s" : ""}`);
+  }
+
+  /** Puts this same room on other days regardless of gaps — a trip that
+   * revisits one hotel later (day 1, then again day 5, then day 8, with other
+   * places between) is several separate stays at the same property, not one
+   * gapped booking. StayNights above deliberately refuses exactly that gap,
+   * because "Nights at this hotel" means one continuous stay a hotel could
+   * actually honour; this is the other case, each day standing on its own. */
+  async function applyStayToDays(days: number[]) {
+    const current = itin?.roomPricingId;
+    if (current == null) return;
+    const source = await getHotelRoomByIdForBuilder(current, null);
+    if (!source) {
+      toast.error("Couldn't load that room. Pick it again to apply it elsewhere.");
+      return;
+    }
+    const target = new Set(days);
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        target.has(it.day) ? invalidateStaleOverrides(it, applyHotelRoomSelection(it, source)) : it,
+      ),
+    }));
+    toast.success(`Applied to ${days.length} day${days.length !== 1 ? "s" : ""}`);
   }
 
   function removeHotel() {
@@ -773,6 +801,15 @@ export function HotelEditView({ day }: { day: number }) {
 
           <StayNights day={day} />
 
+          {/* For revisiting this same hotel later in the trip — no
+              back-to-back requirement, unlike the nights picker above. */}
+          <ApplyToDays
+            sourceDay={day}
+            label="Also use this hotel on…"
+            confirmLabel="Apply to selected days"
+            onApply={applyStayToDays}
+          />
+
           <Group label="This night">
             <div className="grid grid-cols-2 gap-3">
               <Field
@@ -792,17 +829,23 @@ export function HotelEditView({ day }: { day: number }) {
 
               <Field
                 label="Mattresses needed"
-                hint={`Auto: ${plan.mattresses} · up to ${itin.accommodationExtraBedCapacity ?? 0} per room`}
+                hint={noMattressCapacity ? undefined : `Auto: ${plan.mattresses} · up to ${itin.accommodationExtraBedCapacity ?? 0} per room`}
               >
                 <Input
                   type="number" min={0}
                   value={itin.manualExtraBeds ?? ""}
                   placeholder={String(plan.mattresses)}
+                  disabled={noMattressCapacity}
                   onChange={(e) => updateDay(day, {
                     manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
                   })}
                   className="h-9 text-sm"
                 />
+                {noMattressCapacity && (
+                  <p className="text-[10.5px] text-dashboard-error">
+                    This hotel has no mattress capacity — choose a different hotel for an extra bed.
+                  </p>
+                )}
               </Field>
             </div>
 
@@ -1062,31 +1105,65 @@ export function HotelRequestView({ day }: { day: number }) {
       itin.hotelMealPlan || null,
     ].filter((v): v is string => !!v);
 
+    // hotelPending stays true through a rejection (see the field's doc
+    // comment) — this day is genuinely NOT in the hotel team's queue right
+    // now, /dashboard/hotel-requests excludes it until it's resubmitted, so
+    // the plain "awaiting hotel team" framing below would be flatly wrong
+    // here. Shown instead of that box, not alongside it.
+    const isRejected = !!itin.hotelRejectedAt;
+
     return (
       <div className="p-5 space-y-4">
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2.5">
-          <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
-            <Clock size={14} /> Pending — awaiting hotel team
-          </div>
-          {chips.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {chips.map((c) => (
-                <span key={c} className="inline-flex items-center rounded-full bg-white border border-amber-300 text-amber-800 text-[11px] font-medium px-2 py-0.5">
-                  {c}
-                </span>
-              ))}
+        {isRejected ? (
+          <div className="rounded-xl border border-red-300 bg-red-50 p-3 space-y-2.5">
+            <div className="flex items-center gap-1.5 text-red-800 text-sm font-semibold">
+              <AlertTriangle size={14} /> Hotel team couldn&apos;t fulfil this
+              {itin.hotelRejectedByName ? ` — ${itin.hotelRejectedByName}` : ""}
             </div>
-          )}
-          {itin.hotelPendingNote && (
-            <p className="text-[11px] text-amber-800/90 bg-white/70 border border-amber-200 rounded-md px-2 py-1.5">
-              &quot;{itin.hotelPendingNote}&quot;
+            {chips.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {chips.map((c) => (
+                  <span key={c} className="inline-flex items-center rounded-full bg-white border border-red-300 text-red-800 text-[11px] font-medium px-2 py-0.5">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+            {itin.hotelRejectionNote && (
+              <p className="text-[11px] text-red-800/90 bg-white/70 border border-red-200 rounded-md px-2 py-1.5">
+                &quot;{itin.hotelRejectionNote}&quot;
+              </p>
+            )}
+            <p className="text-[11px] text-red-700/80">
+              Edit the request with different details and resend it, or withdraw and
+              search the catalog yourself.
             </p>
-          )}
-          <p className="text-[11px] text-amber-700/80">
-            This day is in the hotel team&apos;s queue. Submitting for costing review is
-            blocked until they fill it in.
-          </p>
-        </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2.5">
+            <div className="flex items-center gap-1.5 text-amber-800 text-sm font-semibold">
+              <Clock size={14} /> Pending — awaiting hotel team
+            </div>
+            {chips.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {chips.map((c) => (
+                  <span key={c} className="inline-flex items-center rounded-full bg-white border border-amber-300 text-amber-800 text-[11px] font-medium px-2 py-0.5">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+            {itin.hotelPendingNote && (
+              <p className="text-[11px] text-amber-800/90 bg-white/70 border border-amber-200 rounded-md px-2 py-1.5">
+                &quot;{itin.hotelPendingNote}&quot;
+              </p>
+            )}
+            <p className="text-[11px] text-amber-700/80">
+              This day is in the hotel team&apos;s queue. Submitting for costing review is
+              blocked until they fill it in.
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-col gap-2">
           <Button type="button" variant="outline" className="h-9 text-xs" onClick={() => setComposing(true)}>
@@ -1360,10 +1437,16 @@ function StayNights({ day }: { day: number }) {
       }),
     }));
     setPicked(null);
+    // "Nights 1–8" reads as one continuous stay — only true when every day
+    // in between is actually picked too. Otherwise list the days themselves
+    // so a revisit (1, 5, 8) doesn't look like a typo for "1 through 8".
+    const isContiguous = check.days.every((d, i) => i === 0 || d === check.days[i - 1] + 1);
     toast.success(
       check.days.length === 1
         ? `Day ${check.days[0]}`
-        : `Nights ${check.days[0]}–${check.days[check.days.length - 1]}`,
+        : isContiguous
+          ? `Nights ${check.days[0]}–${check.days[check.days.length - 1]}`
+          : `Days ${check.days.join(", ")}`,
     );
   }
 

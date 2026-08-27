@@ -113,3 +113,54 @@ export function useVerificationCounts(onUpdate: (counts: VerificationCounts) => 
     };
   }, []);
 }
+
+export type LiveNotification = {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  createdAt: string;
+};
+
+/**
+ * Subscribes to this team member's own private notifications channel — the
+ * header bell's live unread count and "new notification" push. Same token
+ * route as useVerificationCounts (it now grants both channels), but each
+ * member only ever gets capability on their OWN channel, so `memberId` is
+ * for the channel name only, never trusted as an auth claim client-side.
+ *
+ * Keyed by memberId (not mounted once globally): the effective-member
+ * "view as" switch can change which real member's session this is without a
+ * full page reload, and a stale subscription to the wrong member's channel
+ * would silently show someone else's notification count.
+ */
+export function useMemberNotifications(memberId: string | null, onNotification: (n: LiveNotification) => void) {
+  const onNotificationRef = useRef(onNotification);
+  onNotificationRef.current = onNotification;
+
+  useEffect(() => {
+    if (!memberId) return;
+
+    const client = new Ably.Realtime({
+      authCallback: (_tokenParams, callback) => {
+        fetch("/dashboard/api/ably/token", { method: "POST" })
+          .then((res) => {
+            if (!res.ok) throw new Error(`Token request failed (${res.status})`);
+            return res.json();
+          })
+          .then((tokenRequest) => callback(null, tokenRequest))
+          .catch((err) => callback(err instanceof Error ? err.message : String(err), null));
+      },
+    });
+
+    const channel = client.channels.get(`member:${memberId}:notifications`);
+    const handler = (msg: Ably.Message) => onNotificationRef.current(msg.data as LiveNotification);
+    channel.subscribe("notification", handler);
+
+    return () => {
+      channel.unsubscribe("notification", handler);
+      client.close();
+    };
+  }, [memberId]);
+}

@@ -628,19 +628,18 @@ export type StayAssignment =
   | { ok: false; reason: string };
 
 /**
- * Checks a proposed run of nights for one hotel.
+ * Checks a proposed set of nights for one hotel.
  *
- * Two rules, both about producing an itinerary a hotel could actually honour:
+ * Deliberately does NOT require the nights to be consecutive — a trip
+ * revisiting the same hotel later (day 1, then again day 5 and day 8, with
+ * other places between) is a real itinerary, not a mistake, and there's a
+ * separate "Also use this hotel on…" action for exactly that case. The only
+ * rule left is that every picked night has to actually exist in the
+ * itinerary.
  *
- *   consecutive — a guest cannot stay Monday and Wednesday at one hotel while
- *                 sleeping elsewhere on Tuesday and have it be one booking.
- *                 Non-contiguous nights are two separate stays, and saying so
- *                 is better than silently making a booking nobody can fulfil.
- *   in range    — every night has to exist in the itinerary.
- *
- * Deliberately NOT a rule: overlapping another hotel's run. Re-assigning
- * nights away from a previous hotel is the normal way to correct a mistake,
- * and the days simply move.
+ * Deliberately NOT a rule either: overlapping another hotel's run.
+ * Re-assigning nights away from a previous hotel is the normal way to
+ * correct a mistake, and the days simply move.
  */
 export function validateStayAssignment(
   days: DayItinerary[],
@@ -655,14 +654,6 @@ export function validateStayAssignment(
     return { ok: false, reason: `Day ${missing[0]} isn't in this itinerary.` };
   }
 
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] !== sorted[i - 1] + 1) {
-      return {
-        ok: false,
-        reason: `Nights must run back to back — day ${sorted[i - 1]} and day ${sorted[i]} have a gap. Assign the second stretch separately.`,
-      };
-    }
-  }
   return { ok: true, days: sorted };
 }
 

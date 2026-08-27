@@ -18,6 +18,8 @@ import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminder
 import { PackageStatusNotifier } from "./(sales)/sales-query/PackageStatusNotifier";
 import { ProfileCompletionBadge } from "./components/dashboard/ProfileCompletionBadge";
 import { getMyProfile } from "./profile/actions";
+import { NotificationBell } from "./components/dashboard/NotificationBell";
+import { getUnreadNotificationCount } from "./lib/notifications-actions";
 
 function parsePageAccess(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((href): href is string => typeof href === "string") : [];
@@ -110,6 +112,13 @@ export default async function DashboardLayout({
       return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0 };
     });
 
+  // Same "never take the dashboard down over a cosmetic badge" contract as
+  // the verification counts above — every page load hits this.
+  const unreadNotificationCount = await getUnreadNotificationCount().catch((e) => {
+    console.error("[dashboard layout] unread notification count failed, defaulting to 0:", e);
+    return 0;
+  });
+
   // "May I know you 🥰" onboarding popup — gated on the REAL logged-in
   // member (never the impersonated "view as" target, same rule the profile
   // page itself follows), and only on the fields that are actually required
@@ -167,6 +176,8 @@ export default async function DashboardLayout({
               />
             )}
             {isSales && <SalesTargetBadge memberId={realMember.id} />}
+            <NotificationBell memberId={realMember.id} initialUnreadCount={unreadNotificationCount} />
+
 {/* 
             <SalesStatusToggle
               memberId={realMember.id}

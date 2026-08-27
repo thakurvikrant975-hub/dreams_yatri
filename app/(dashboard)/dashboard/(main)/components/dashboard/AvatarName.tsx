@@ -5,7 +5,7 @@
 import React, { useState, useRef, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar, AvatarImage, AvatarFallback, AvatarBadge } from '../ui/avatar'
-import { User, Settings, Bell, LogOut, Users, UserX } from 'lucide-react'
+import { User, Settings, LogOut, Users, UserX } from 'lucide-react'
 import { cn } from '@/app/lib/utils'
 import { signOutEmployee } from '@/app/lib/auth-dashboard-actions'
 import { stopViewingAs } from '../../actions/view-as-actions'
@@ -151,8 +151,7 @@ const AvatarName = ({
             {[
               { icon: User, label: 'View profile', href: '/dashboard/profile' },
               { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
-              { icon: Bell, label: 'Notifications', href: '/dashboard/notifications', badge: 3 },
-            ].map(({ icon: Icon, label, href, badge }) => (
+            ].map(({ icon: Icon, label, href, badge }: { icon: typeof User; label: string; href: string; badge?: number }) => (
               <a
                 key={label}
                 href={href}

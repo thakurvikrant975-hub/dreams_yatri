@@ -4,7 +4,7 @@ import {
   BanknoteArrowDown, BanknoteX, Car, Bed, BedDouble,
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
-  ShieldCheck, NotebookPen, Eye, Users, CalendarClock,
+  ShieldCheck, NotebookPen, Eye, Users, CalendarClock, UserPlus,
   PlaneLanding, PlaneTakeoff,
 } from "lucide-react";
 import {
@@ -93,6 +93,8 @@ export const NAV_GROUPS = [
     id: "sales", label: "Sales",
     items: [
       { title: "Queries", href: "/dashboard/sales-query", icon: ChartNoAxesGantt },
+      { title: "Request Lead", href: "/dashboard/request-lead", icon: UserPlus },
+      { title: "Lead Requests", href: "/dashboard/lead-requests", icon: ClipboardCheck },
       { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
       { title: "Package Library", href: "/dashboard/package-library", icon: BookOpen },
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },

@@ -2777,7 +2777,7 @@ function DayCardPreview({
           individually protected, so a tall day can still split page-to-page at
           a clean boundary between them. */}
       <div
-        className="flex items-baseline gap-3.5 px-4 pt-3.5 pb-3 relative z-10 after:absolute after:inset-px after:bg-linear-to-b after:from-white after:to-neutral-50 after:rounded-t-xl after:-z-10"
+        className="flex items-baseline gap-3.5 px-4 pt-3.5 pb-3 relative z-10 after:absolute after:inset-px after:bg-linear-to-b after:from-white after:to-grey-50 after:rounded-t-xl after:-z-10"
         style={{ borderBottom: `1px solid ${DOC.rule}` }}
       >
         <span

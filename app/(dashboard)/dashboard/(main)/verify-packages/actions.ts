@@ -18,6 +18,7 @@ import { getCurrentActor, logTimeline, type ActionResult } from "../(marketing)/
 import { actionError } from "@/app/lib/action-error";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { createLog } from "../lib/logger";
+import { notifyMember } from "@/app/services/notifications/notify";
 import { computeFinalPackagePricing, persistStayOptionPricing } from "@/app/services/package-pricing.service";
 import { getItinerarySettings } from "../itinerary-settings/actions";
 import { getEffectiveMember } from "../lib/get-current-member";
@@ -79,7 +80,7 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
 
         const pkg = await db.custom_packages.findUnique({
             where: { id: packageId },
-            select: { id: true, status: true, queryId: true, totalPrice: true, title: true },
+            select: { id: true, status: true, queryId: true, totalPrice: true, title: true, builtBy: true },
         });
         if (!pkg) return { success: false, message: "Package not found" };
         if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review — the exec needs to mark it ready first." };
@@ -153,6 +154,16 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
         }
         await broadcastVerificationCounts();
 
+        if (pkg.builtBy) {
+            await notifyMember({
+                recipientId: pkg.builtBy,
+                type: "PACKAGE_APPROVED",
+                title: `${pkg.title} — approved by costing`,
+                body: `You can now share this with the client.${priceNote}`,
+                link: `/dashboard/package-builder/${packageId}`,
+            });
+        }
+
         revalidateAll(packageId);
         return {
             success: true, data: undefined,
@@ -184,7 +195,7 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
         const { actor } = await getCurrentActor();
         const pkg = await db.custom_packages.findUnique({
             where: { id: packageId },
-            select: { id: true, status: true, queryId: true },
+            select: { id: true, status: true, queryId: true, title: true, builtBy: true },
         });
         if (!pkg) return { success: false, message: "Package not found" };
         if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review." };
@@ -221,6 +232,16 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
             );
         }
         await broadcastVerificationCounts();
+
+        if (pkg.builtBy) {
+            await notifyMember({
+                recipientId: pkg.builtBy,
+                type: "PACKAGE_REJECTED",
+                title: `${pkg.title} — sent back for rework`,
+                body: reason?.label ?? "Costing sent this back — check the notes.",
+                link: `/dashboard/package-builder/${packageId}`,
+            });
+        }
 
         revalidateAll(packageId);
         return { success: true, data: undefined, message: "Package sent back for rework" };
