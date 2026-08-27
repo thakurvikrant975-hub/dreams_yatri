@@ -20,14 +20,25 @@ export function RejectAllButton({ packageId, pendingCount }: { packageId: string
     function handleRejectAll() {
         if (!reason.trim()) { toast.error("A reason is required to reject these hotel requests."); return; }
         startTransition(async () => {
-            const result = await rejectAllPendingHotels(packageId, reason);
-            if (result.success) {
-                toast.success(`Rejected ${result.count} pending day${result.count !== 1 ? "s" : ""} — the sales exec has been notified.`);
-                setOpen(false);
-                setReason("");
-                router.refresh();
-            } else {
-                toast.error(result.error ?? "Failed to reject");
+            try {
+                const result = await rejectAllPendingHotels(packageId, reason);
+                if (result.success) {
+                    toast.success(`Rejected ${result.count} pending day${result.count !== 1 ? "s" : ""} — the sales exec has been notified.`);
+                    setOpen(false);
+                    setReason("");
+                    // Nothing on this package is actionable any more, so go back
+                    // to the queue rather than leaving the admin on a finished
+                    // page to navigate out of by hand.
+                    router.push("/dashboard/hotel-requests-v2");
+                } else {
+                    toast.error(result.error ?? "Failed to reject");
+                }
+            } catch (e) {
+                // An uncaught server-action error unwinds past this route's own
+                // error boundary to the unstyled global error page; caught, the
+                // dialog is still open with the reason still typed in it.
+                console.error("[RejectAllButton] reject-all failed", e);
+                toast.error("Couldn't reject these days — try again.");
             }
         });
     }

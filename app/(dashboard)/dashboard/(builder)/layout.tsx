@@ -13,6 +13,7 @@ import { Toaster } from "sonner";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveNavHref } from "@/app/(dashboard)/dashboard/(main)/lib/rbac/nav-hrefs";
+import { PackageStatusNotifier } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/PackageStatusNotifier";
 
 function parsePageAccess(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((href): href is string => typeof href === "string") : [];
@@ -45,10 +46,18 @@ export default async function BuilderLayout({
     }
   }
 
+  // The builder is where a sales exec actually spends their day, and it is the
+  // one layout this notifier was never mounted in — so "the hotel team filled
+  // your day" reached an exec only if they happened to be somewhere else in
+  // the dashboard when the ~20s poll came round. That is most of the reason
+  // fills "didn't reach" anyone: the message had nowhere to land.
+  const isSales = realMember.teamRole?.name?.toLowerCase() === "sales executive";
+
   return (
     <div className="min-h-screen bg-dashboard-base-200">
       {children}
       <Toaster position="top-center" />
+      {isSales && <PackageStatusNotifier />}
     </div>
   );
 }

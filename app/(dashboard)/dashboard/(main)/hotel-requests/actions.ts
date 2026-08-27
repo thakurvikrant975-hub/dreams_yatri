@@ -14,6 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
+import { resolveStayPhoto } from "@/app/lib/imageUrl";
 import { normalizeMealLabels } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { syncRecommendedStayFromDays } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.sync";
 import { getCurrentMember } from "../lib/get-current-member";
@@ -86,8 +87,14 @@ export async function fillPendingHotel(
         data: {
             accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
             accommodationRoomSpecs: input.roomSpecs?.trim() || null,
-            accommodationPhoto: input.hotelPhoto?.trim() || null,
-            accommodationRoomPhotos: (input.roomPhotos ?? []).map((p) => p.trim()).filter(Boolean).slice(0, 3),
+            // Same guard as the v2 queue: a day row is rendered raw, so a
+            // bare storage key here is a photo that never loads. An
+            // already-resolved URL passes through untouched.
+            accommodationPhoto: resolveStayPhoto(input.hotelPhoto?.trim()) || null,
+            accommodationRoomPhotos: (input.roomPhotos ?? [])
+                .map((p) => resolveStayPhoto(p.trim()))
+                .filter(Boolean)
+                .slice(0, 3),
             hotelCheckIn: input.checkIn?.trim() || null,
             hotelCheckOut: input.checkOut?.trim() || null,
             hotelMealPlan: input.mealPlan?.trim() || null,
