@@ -16,7 +16,7 @@ import type { ProfileData } from "../../profile/ProfileClient";
 import { cn } from "@/app/lib/utils";
 
 type Gender = "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
-type NameTitle = "MR" | "MRS" | "LATE_MR" | "LATE_MRS" | "DR";
+type NameTitle = "MR" | "MRS" | "LATE_MR" | "LATE_MRS";
 
 // Which tab each server-side error key lives on — used to jump to whichever
 // tab actually has the problem instead of guessing from a couple of names.
@@ -267,7 +267,6 @@ export function OnboardingPopup({
                   >
                     <option value="MR">Mr.</option>
                     <option value="LATE_MR">Late Mr.</option>
-                    <option value="DR">Dr.</option>
                   </select>
                   <Input value={fatherName} onChange={(e) => setFatherName(e.target.value)} className="flex-1" />
                 </div>
@@ -290,7 +289,6 @@ export function OnboardingPopup({
                   >
                     <option value="MRS">Mrs.</option>
                     <option value="LATE_MRS">Late Mrs.</option>
-                    <option value="DR">Dr.</option>
                   </select>
                   <Input value={motherName} onChange={(e) => setMotherName(e.target.value)} className="flex-1" />
                 </div>

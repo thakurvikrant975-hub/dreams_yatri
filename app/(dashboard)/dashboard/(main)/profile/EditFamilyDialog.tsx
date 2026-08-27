@@ -56,7 +56,6 @@ export function EditFamilyDialog({ profile }: { profile: ProfileData }) {
                                     >
                                         <option value="MR">Mr.</option>
                                         <option value="LATE_MR">Late Mr.</option>
-                                        <option value="DR">Dr.</option>
                                     </select>
                                     <Input id="fatherName" name="fatherName" defaultValue={profile.fatherName ?? ""} className="flex-1" />
                                 </div>
@@ -79,7 +78,6 @@ export function EditFamilyDialog({ profile }: { profile: ProfileData }) {
                                     >
                                         <option value="MRS">Mrs.</option>
                                         <option value="LATE_MRS">Late Mrs.</option>
-                                        <option value="DR">Dr.</option>
                                     </select>
                                     <Input id="motherName" name="motherName" defaultValue={profile.motherName ?? ""} className="flex-1" />
                                 </div>

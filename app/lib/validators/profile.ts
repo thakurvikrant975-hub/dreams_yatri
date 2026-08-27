@@ -20,7 +20,7 @@ const optionalCleanName = (max: number) =>
   });
 
 export const GenderSchema = z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]);
-export const NameTitleSchema = z.enum(["MR", "MRS", "LATE_MR", "LATE_MRS", "DR"]);
+export const NameTitleSchema = z.enum(["MR", "MRS", "LATE_MR", "LATE_MRS"]);
 
 export const PersonalDetailsSchema = z.object({
   personalEmail: z.string().email("Enter a valid email").optional().or(z.literal("")).transform((s) => s || undefined),

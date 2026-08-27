@@ -21,7 +21,7 @@ const GENDER_LABELS: Record<string, string> = {
 };
 
 export const NAME_TITLE_LABELS: Record<string, string> = {
-    MR: "Mr.", MRS: "Mrs.", LATE_MR: "Late Mr.", LATE_MRS: "Late Mrs.", DR: "Dr.",
+    MR: "Mr.", MRS: "Mrs.", LATE_MR: "Late Mr.", LATE_MRS: "Late Mrs.",
 };
 
 function withTitle(title: string | null, name: string | null): string | null {
@@ -46,10 +46,10 @@ export type ProfileData = {
     alternativeMobile: string | null;
     officialMobile: string | null;
     fatherName: string | null;
-    fatherTitle: "MR" | "MRS" | "LATE_MR" | "LATE_MRS" | "DR" | null;
+    fatherTitle: "MR" | "MRS" | "LATE_MR" | "LATE_MRS" | null;
     fatherMobile: string | null;
     motherName: string | null;
-    motherTitle: "MR" | "MRS" | "LATE_MR" | "LATE_MRS" | "DR" | null;
+    motherTitle: "MR" | "MRS" | "LATE_MR" | "LATE_MRS" | null;
     motherMobile: string | null;
     aadhaarNumber: string | null;
     aadhaarFileKey: string | null;

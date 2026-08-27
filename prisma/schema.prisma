@@ -3578,7 +3578,6 @@ enum NameTitle {
   MRS
   LATE_MR
   LATE_MRS
-  DR
 }
 
 enum MaritalStatus {
