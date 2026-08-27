@@ -12,6 +12,8 @@
     "seed:blogs": "tsx --env-file=.env prisma/seeds/blogs.ts",
     "seed:test-skus": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/seed-test-payment-skus.ts",
     "seed:test-skus:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/seed-test-payment-skus.ts",
+    "seed:sales-test": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/seed-sales-workflow-test.ts",
+    "seed:sales-test:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/seed-sales-workflow-test.ts",
     "verify:test-skus": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/verify-test-payment-skus.ts",
     "verify:test-skus:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/verify-test-payment-skus.ts",
     "reindex:locations": "tsx --env-file=.env scripts/reindex-locations.ts",
