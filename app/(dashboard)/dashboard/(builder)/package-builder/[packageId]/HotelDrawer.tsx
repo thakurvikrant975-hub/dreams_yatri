@@ -1205,12 +1205,19 @@ export function HotelRequestView({ day }: { day: number }) {
           </div>
         )}
 
-        <ApplyToDays
-          sourceDay={day}
-          label="Same hotel needed on other days? Ask once for all of them"
-          confirmLabel="Send the same request for"
-          onApply={requestOnDays}
-        />
+        {/* Not offered on a rejected day: the team has just said they can't
+            source this, and copying that same request onto three more days
+            would spread a "no" rather than save anyone a step. Edit it into
+            something fulfillable first — the copy is there again once it is
+            back to plain pending. */}
+        {!isRejected && (
+          <ApplyToDays
+            sourceDay={day}
+            label="Same hotel needed on other days? Ask once for all of them"
+            confirmLabel="Send the same request for"
+            onApply={requestOnDays}
+          />
+        )}
 
         <div className="flex flex-col gap-2">
           <Button type="button" variant="outline" className="h-9 text-xs" onClick={() => setComposing(true)}>
