@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import {
-  CalendarClock, Download, Loader2, Plus, X, Wallet, TriangleAlert,
-} from "lucide-react";
+import { ChevronDown, Download, Loader2 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { cpl, EMPTY_SPEND, type SpendInput } from "./leadSheetPdf";
 import type { LeadReportData, Platform, Medium } from "./actions";
@@ -16,10 +14,9 @@ type Props = {
 };
 
 // ── Time helpers ───────────────────────────────────────────────────────────
-// Everything the picker deals in is IST wall-clock text ("2026-08-27T13:00").
-// Building the presets from the formatted IST parts rather than from the
-// browser's own clock keeps the page honest for anyone running it from a
-// different timezone.
+// The picker deals only in IST wall-clock text ("2026-08-27T13:00"). Presets
+// are built from formatted IST parts rather than the browser's own clock, so
+// the page reads the same from anywhere.
 
 const IST_TZ = "Asia/Kolkata";
 
@@ -46,7 +43,7 @@ function fmtRangeLabel(fromLocal: string, toLocal: string): string {
       day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}),
       hour: "numeric", minute: "2-digit", hour12: true,
     }).format(new Date(`${v}:00`));
-  return `${fmt(fromLocal, false)} → ${fmt(toLocal, true)}`;
+  return `${fmt(fromLocal, false)} to ${fmt(toLocal, true)}`;
 }
 
 function fmtTime(iso: string): string {
@@ -60,11 +57,10 @@ const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 const money = (n: number) => `₹${inr.format(Math.round(n))}`;
 
 // ── Spend persistence ──────────────────────────────────────────────────────
-// The spend figures aren't in the database yet (they live in the ad
-// consoles), so they're typed in here and remembered per-day in this
-// browser. That means re-running the same day's report doesn't mean
-// re-typing the same numbers, without pretending this is shared state —
-// a second person opening the report sees empty spend fields.
+// Spend isn't in the database (it lives in the ad consoles), so it's typed in
+// here and remembered per-day in this browser — re-running the same day's
+// report shouldn't mean re-typing the same numbers. Deliberately not shared
+// state: another person opening the report sees empty fields.
 
 const SPEND_KEY_PREFIX = "dy_lead_report_spend:";
 
@@ -92,70 +88,77 @@ function saveSpend(dayKey: string, spend: SpendInput) {
   }
 }
 
-// ── Small presentational pieces ────────────────────────────────────────────
-
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn("rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden", className)}>
-      {children}
-    </div>
-  );
+function hasAnySpend(spend: SpendInput): boolean {
+  return spend.google.spent != null || spend.meta.spent != null
+    || Object.values(spend.perDestination).some((v) => v > 0);
 }
 
-function CardTitle({ icon: Icon, children, hint }: { icon?: React.ElementType; children: React.ReactNode; hint?: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 px-4 py-3 border-b border-dashboard-base-300">
-      <div className="flex items-center gap-2">
-        {Icon && <Icon className="h-4 w-4 text-dashboard-primary shrink-0" />}
-        <h2 className="text-sm font-semibold text-dashboard-base-content">{children}</h2>
-      </div>
-      {hint && <span className="text-[11px] text-dashboard-base-content/50 text-right">{hint}</span>}
-    </div>
-  );
-}
+// ── Shared bits ────────────────────────────────────────────────────────────
 
-function NumberField({
-  label, value, onChange, placeholder,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-  placeholder?: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-dashboard-base-content/50">{label}</span>
-      <div className="flex items-center gap-1 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2 h-9 focus-within:ring-2 focus-within:ring-dashboard-primary/40">
-        <span className="text-dashboard-base-content/40 text-sm">₹</span>
-        <input
-          type="number"
-          min={0}
-          inputMode="numeric"
-          value={value ?? ""}
-          placeholder={placeholder}
-          onChange={(e) => {
-            const v = e.target.value.trim();
-            onChange(v === "" ? null : Math.max(0, Number(v)));
-          }}
-          className="w-full bg-transparent outline-none text-sm tabular-nums"
-        />
-      </div>
-    </label>
-  );
-}
-
-const PLATFORM_STYLE: Record<Platform, { ring: string; text: string; bar: string }> = {
-  GOOGLE: { ring: "border-t-[#EA4335]", text: "text-[#EA4335]", bar: "bg-[#EA4335]" },
-  META: { ring: "border-t-[#1877F2]", text: "text-[#1877F2]", bar: "bg-[#1877F2]" },
-  OTHER: { ring: "border-t-dashboard-base-300", text: "text-dashboard-base-content/60", bar: "bg-dashboard-base-content/40" },
+const PLATFORM_TEXT: Record<Platform, string> = {
+  GOOGLE: "text-[#EA4335]",
+  META: "text-[#1877F2]",
+  OTHER: "text-dashboard-base-content/60",
 };
 
 const MEDIUM_LABEL: Record<Medium, string> = { FORM: "form", CALL: "call", WHATSAPP: "WhatsApp" };
 
 function sourcePhrase(platform: Platform | null, medium: Medium | null): string {
-  if (!platform || !medium) return "Direct / no lead";
+  if (!platform || !medium) return "Direct";
   const p = platform === "OTHER" ? "Untagged" : platform === "GOOGLE" ? "Google" : "Meta";
   return `${p} ${MEDIUM_LABEL[medium]}`;
+}
+
+function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="space-y-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-dashboard-base-content">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("rounded-lg border border-dashboard-base-300 bg-dashboard-base-100", className)}>
+      {children}
+    </div>
+  );
+}
+
+/** A bare rupee input. Used only inside the spend drawer, so it stays small
+ * and unlabelled-by-default — the surrounding row carries the label. */
+function MoneyInput({
+  value, onChange, placeholder, className,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn(
+      "flex items-center gap-1 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2 h-8",
+      "focus-within:border-dashboard-primary", className,
+    )}>
+      <span className="text-dashboard-base-content/40 text-xs">₹</span>
+      <input
+        type="number"
+        min={0}
+        inputMode="numeric"
+        value={value ?? ""}
+        placeholder={placeholder}
+        onChange={(e) => {
+          const v = e.target.value.trim();
+          onChange(v === "" ? null : Math.max(0, Number(v)));
+        }}
+        className="w-full bg-transparent outline-none text-sm tabular-nums"
+      />
+    </div>
+  );
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
@@ -168,23 +171,22 @@ export function LeadReportClient({ data, generatedByName }: Props) {
 
   const [from, setFrom] = useState(data.range.fromLocal);
   const [to, setTo] = useState(data.range.toLocal);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [spendOpen, setSpendOpen] = useState(false);
   const [spend, setSpend] = useState<SpendInput>(EMPTY_SPEND);
-  const [extraDest, setExtraDest] = useState("");
 
-  // The window's start date keys the remembered spend — a report that runs
-  // from yesterday 11am belongs to yesterday's ad spend.
+  // The window's start date keys the remembered spend — a report running from
+  // yesterday 11am belongs to yesterday's ad spend.
   const spendDayKey = data.range.fromLocal.slice(0, 10);
 
-  // Loaded in an effect rather than in useState's initializer: localStorage
-  // doesn't exist during the server render, and reading it inline would
-  // produce a hydration mismatch.
+  // Read in an effect, not in useState's initialiser: localStorage doesn't
+  // exist during the server render and reading it inline would mismatch on
+  // hydration. Opening the drawer when there's something in it means she sees
+  // her own numbers straight away instead of an empty collapsed row.
   useEffect(() => {
-    setSpend(loadSpend(spendDayKey));
-  }, [spendDayKey]);
-
-  const updateSpend = useCallback((next: SpendInput) => {
-    setSpend(next);
-    saveSpend(spendDayKey, next);
+    const loaded = loadSpend(spendDayKey);
+    setSpend(loaded);
+    if (hasAnySpend(loaded)) setSpendOpen(true);
   }, [spendDayKey]);
 
   useEffect(() => {
@@ -192,8 +194,10 @@ export function LeadReportClient({ data, generatedByName }: Props) {
     setTo(data.range.toLocal);
   }, [data.range.fromLocal, data.range.toLocal]);
 
-  const dirty = from !== data.range.fromLocal || to !== data.range.toLocal;
-  const invalid = Boolean(from && to && from > to);
+  const updateSpend = useCallback((next: SpendInput) => {
+    setSpend(next);
+    saveSpend(spendDayKey, next);
+  }, [spendDayKey]);
 
   const applyRange = useCallback((nextFrom: string, nextTo: string) => {
     if (!nextFrom || !nextTo || nextFrom > nextTo) return;
@@ -207,36 +211,30 @@ export function LeadReportClient({ data, generatedByName }: Props) {
     const now = istLocal(new Date());
     const today = now.slice(0, 10);
     const yesterday = istDayOffset(-1);
+    // `endsNow` presets run to the current minute, which has moved on by the
+    // time the page renders — so they're matched on their start alone. Their
+    // starts are distinct, so there's no ambiguity.
     return [
-      { label: "Today so far", from: `${today}T00:00`, to: now },
-      { label: "Yesterday", from: `${yesterday}T00:00`, to: `${yesterday}T23:59` },
-      { label: "Since yesterday 11 AM", from: `${yesterday}T11:00`, to: now },
-      { label: "Last night onwards", from: `${yesterday}T20:00`, to: now },
+      { label: "Today", from: `${today}T00:00`, to: now, endsNow: true },
+      { label: "Yesterday", from: `${yesterday}T00:00`, to: `${yesterday}T23:59`, endsNow: false },
+      { label: "Since yesterday 11 AM", from: `${yesterday}T11:00`, to: now, endsNow: true },
     ];
   }, []);
 
+  const invalid = Boolean(from && to && from > to);
   const google = data.platforms[0];
   const meta = data.platforms[1];
   const other = data.platforms[2];
 
+  const showCpl = hasAnySpend(spend);
   const totalSpent = (spend.google.spent ?? 0) + (spend.meta.spent ?? 0);
-  const anySpend = spend.google.spent != null || spend.meta.spent != null;
-  const blendedCpl = anySpend ? cpl(totalSpent, data.totals.leads) : null;
+  const blendedCpl = showCpl ? cpl(totalSpent, data.totals.leads) : null;
 
-  // Destinations offered for spend entry: the ones that actually got leads,
-  // plus any the user added by hand for spend that produced none.
-  const destKeys = useMemo(() => {
-    const keys = data.destinations
-      .filter((d) => d.destination !== "Not specified")
-      .map((d) => d.destination);
-    const known = new Set(keys.map((k) => k.toLowerCase()));
-    for (const key of Object.keys(spend.perDestination)) {
-      if (!known.has(key.toLowerCase())) {
-        keys.push(key.replace(/\b\w/g, (c) => c.toUpperCase()));
-      }
-    }
-    return keys;
-  }, [data.destinations, spend.perDestination]);
+  // Destinations offered for spend entry are the ones that actually got leads.
+  const destNames = useMemo(
+    () => data.destinations.filter((d) => d.destination !== "Not specified").map((d) => d.destination),
+    [data.destinations],
+  );
 
   function setDestSpend(destination: string, value: number | null) {
     const next = { ...spend, perDestination: { ...spend.perDestination } };
@@ -244,13 +242,6 @@ export function LeadReportClient({ data, generatedByName }: Props) {
     if (value == null) delete next.perDestination[key];
     else next.perDestination[key] = value;
     updateSpend(next);
-  }
-
-  function addDestination() {
-    const name = extraDest.trim();
-    if (!name) return;
-    setDestSpend(name, 0);
-    setExtraDest("");
   }
 
   async function handleDownload() {
@@ -268,392 +259,324 @@ export function LeadReportClient({ data, generatedByName }: Props) {
     }
   }
 
-  const leadCount = data.totals.leads;
-
   return (
-    <div className="space-y-5">
-      {/* ── Range bar ──────────────────────────────────────────────────── */}
-      <Card>
-        <div className="flex flex-wrap items-end gap-3 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-dashboard-base-200">
-            {presets.map((p) => {
-              const active = data.range.fromLocal === p.from && data.range.toLocal === p.to;
-              return (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => { setFrom(p.from); setTo(p.to); applyRange(p.from, p.to); }}
-                  className={cn(
-                    "px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer",
-                    active
-                      ? "bg-dashboard-primary text-dashboard-primary-content shadow-sm"
-                      : "text-dashboard-base-content/60 hover:text-dashboard-base-content hover:bg-dashboard-base-100",
-                  )}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
+    <div className="space-y-7 max-w-5xl">
 
-          <div className="flex items-end gap-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-dashboard-base-content/50">From</span>
-              <div className="flex items-center gap-1.5 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2 h-9">
-                <CalendarClock className="h-3.5 w-3.5 text-dashboard-base-content/40 shrink-0" />
-                <input
-                  type="datetime-local"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                  className="bg-transparent outline-none text-sm cursor-pointer"
-                />
-              </div>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-dashboard-base-content/50">To</span>
-              <div className={cn(
-                "flex items-center gap-1.5 rounded-md border bg-dashboard-base-100 px-2 h-9",
-                invalid ? "border-red-400" : "border-dashboard-base-300",
-              )}>
-                <CalendarClock className="h-3.5 w-3.5 text-dashboard-base-content/40 shrink-0" />
-                <input
-                  type="datetime-local"
-                  value={to}
-                  min={from || undefined}
-                  onChange={(e) => setTo(e.target.value)}
-                  className="bg-transparent outline-none text-sm cursor-pointer"
-                />
-              </div>
-            </label>
+      {/* ── Step 1: the window ─────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {presets.map((p) => {
+          const active = !customOpen
+            && data.range.fromLocal === p.from
+            && (p.endsNow || data.range.toLocal === p.to);
+          return (
             <button
+              key={p.label}
               type="button"
-              disabled={invalid || !dirty || isPending}
-              onClick={() => applyRange(from, to)}
+              onClick={() => { setCustomOpen(false); applyRange(p.from, p.to); }}
               className={cn(
-                "h-9 px-4 rounded-md text-xs font-semibold transition-colors",
-                invalid || !dirty
-                  ? "bg-dashboard-base-200 text-dashboard-base-content/40 cursor-not-allowed"
-                  : "bg-dashboard-primary text-dashboard-primary-content hover:opacity-90 cursor-pointer",
+                "h-9 px-3.5 rounded-md text-sm transition-colors cursor-pointer border",
+                active
+                  ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary font-medium"
+                  : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200",
               )}
             >
-              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Apply"}
+              {p.label}
             </button>
-          </div>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setCustomOpen((v) => !v)}
+          className={cn(
+            "h-9 px-3.5 rounded-md text-sm border transition-colors cursor-pointer",
+            customOpen
+              ? "border-dashboard-primary text-dashboard-primary font-medium"
+              : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200",
+          )}
+        >
+          Custom range
+        </button>
 
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-xs text-dashboard-base-content/50 hidden lg:inline">
-              All times IST
-            </span>
-            <button
-              type="button"
-              onClick={handleDownload}
-              disabled={downloading}
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-dashboard-primary text-dashboard-primary-content text-xs font-semibold hover:opacity-90 disabled:opacity-60 cursor-pointer"
-            >
-              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              Download PDF
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="ml-auto inline-flex items-center gap-2 h-9 px-4 rounded-md bg-dashboard-primary text-dashboard-primary-content text-sm font-medium hover:opacity-90 disabled:opacity-60 cursor-pointer"
+        >
+          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          Download PDF
+        </button>
+      </div>
 
-        {invalid && (
-          <p className="px-4 pb-3 text-xs text-red-500">
-            The “from” time is after the “to” time.
-          </p>
-        )}
-      </Card>
+      {customOpen && (
+        <Panel className="p-3 flex flex-wrap items-end gap-3 -mt-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-dashboard-base-content/60">From</span>
+            <input
+              type="datetime-local"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-9 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 text-sm outline-none focus:border-dashboard-primary cursor-pointer"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-dashboard-base-content/60">To</span>
+            <input
+              type="datetime-local"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              className={cn(
+                "h-9 rounded-md border bg-dashboard-base-100 px-2.5 text-sm outline-none cursor-pointer",
+                invalid ? "border-red-400" : "border-dashboard-base-300 focus:border-dashboard-primary",
+              )}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={invalid || isPending}
+            onClick={() => applyRange(from, to)}
+            className="h-9 px-4 rounded-md bg-dashboard-primary text-dashboard-primary-content text-sm font-medium disabled:opacity-40 hover:opacity-90 cursor-pointer"
+          >
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Show"}
+          </button>
+          {invalid && <span className="text-xs text-red-500 self-center">Start is after end.</span>}
+        </Panel>
+      )}
 
-      {/* ── Summary strip ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <p className="text-sm text-dashboard-base-content/60 -mt-4">
+        Showing {fmtRangeLabel(data.range.fromLocal, data.range.toLocal)} · all times IST
+      </p>
+
+      {/* ── Step 2: the three numbers that matter ──────────────────────── */}
+      <div className="grid grid-cols-3 divide-x divide-dashboard-base-300 rounded-lg border border-dashboard-base-300 bg-dashboard-base-100">
         {[
-          { label: "Total leads", value: String(leadCount) },
-          { label: "Given to team", value: String(data.totals.assignedInWindow) },
-          { label: "Payments", value: String(data.payments.length) },
-          { label: "Payment value", value: money(data.paymentsTotal) },
-          { label: "Blended CPL", value: blendedCpl != null ? money(blendedCpl) : "—" },
+          { label: "Leads received", value: String(data.totals.leads), sub: null },
+          { label: "Given to team", value: String(data.totals.assignedInWindow), sub: null },
+          {
+            label: "Payments",
+            value: String(data.payments.length),
+            sub: data.payments.length > 0 ? money(data.paymentsTotal) : null,
+          },
         ].map((s) => (
-          <Card key={s.label} className="px-4 py-3">
-            <p className="text-xl font-semibold text-dashboard-base-content tabular-nums">{s.value}</p>
-            <p className="text-[11px] uppercase tracking-wide text-dashboard-base-content/50 mt-0.5">{s.label}</p>
-          </Card>
+          <div key={s.label} className="px-4 py-4">
+            <p className="text-2xl font-semibold tabular-nums text-dashboard-base-content">{s.value}</p>
+            <p className="text-xs text-dashboard-base-content/60 mt-1">
+              {s.label}
+              {s.sub && <span className="text-dashboard-base-content/80 font-medium"> · {s.sub}</span>}
+            </p>
+          </div>
         ))}
       </div>
 
-      <p className="text-xs text-dashboard-base-content/50 -mt-2">
-        Window: {fmtRangeLabel(data.range.fromLocal, data.range.toLocal)}
-      </p>
-
-      {/* ── Ad spend entry ─────────────────────────────────────────────── */}
-      <Card>
-        <CardTitle icon={Wallet} hint="Not stored in the database yet — remembered in this browser for this date">
-          Ad spend for this window
-        </CardTitle>
-        <div className="p-4 space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            {([
-              ["Google", "google"],
-              ["Meta", "meta"],
-            ] as const).map(([label, key]) => {
-              const block = key === "google" ? google : meta;
-              const s = spend[key];
-              const value = s.spent != null ? cpl(s.spent, block.total) : null;
-              return (
-                <div key={key} className="rounded-lg border border-dashboard-base-300 p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className={cn("text-sm font-semibold", PLATFORM_STYLE[key === "google" ? "GOOGLE" : "META"].text)}>
-                      {label}
-                    </span>
-                    <span className="text-xs text-dashboard-base-content/50">{block.total} leads</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <NumberField
-                      label="Budget"
-                      value={s.budget}
-                      placeholder="5783"
-                      onChange={(v) => updateSpend({ ...spend, [key]: { ...s, budget: v } })}
-                    />
-                    <NumberField
-                      label="Spent"
-                      value={s.spent}
-                      placeholder="4852"
-                      onChange={(v) => updateSpend({ ...spend, [key]: { ...s, spent: v } })}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-dashboard-base-300">
-                    <span className="text-dashboard-base-content/50 pt-2">
-                      {s.budget != null && s.spent != null
-                        ? `Budget left ${money(Math.max(0, s.budget - s.spent))}`
-                        : "Enter budget and spend"}
-                    </span>
-                    <span className="font-semibold text-dashboard-base-content pt-2 tabular-nums">
-                      CPL {value != null ? money(value) : "—"}
-                    </span>
-                  </div>
+      {/* ── Step 3: where they came from ───────────────────────────────── */}
+      <Section
+        title="Where the leads came from"
+        action={blendedCpl != null ? (
+          <span className="text-xs text-dashboard-base-content/60">
+            Overall cost per lead <span className="font-semibold text-dashboard-base-content">{money(blendedCpl)}</span>
+          </span>
+        ) : undefined}
+      >
+        <div className="grid sm:grid-cols-2 gap-3">
+          {[google, meta].map((block) => {
+            const key = block.platform === "GOOGLE" ? "google" : "meta";
+            const s = spend[key as "google" | "meta"];
+            const value = s.spent != null ? cpl(s.spent, block.total) : null;
+            return (
+              <Panel key={block.platform} className="p-4">
+                <div className="flex items-baseline justify-between">
+                  <h3 className={cn("text-sm font-semibold", PLATFORM_TEXT[block.platform])}>{block.label}</h3>
+                  <span className="text-2xl font-semibold tabular-nums text-dashboard-base-content">{block.total}</span>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Per-destination spend */}
-          <div className="space-y-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-dashboard-base-content/50">
-              Spend by destination (optional)
-            </p>
-            {destKeys.length === 0 ? (
-              <p className="text-xs text-dashboard-base-content/50">
-                No destinations in this window yet.
-              </p>
-            ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {destKeys.map((dest) => {
-                  const row = data.destinations.find((d) => d.destination.toLowerCase() === dest.toLowerCase());
-                  const leads = row?.total ?? 0;
-                  const value = spend.perDestination[dest.toLowerCase()] ?? null;
-                  const destCpl = cpl(value, leads);
-                  return (
-                    <div key={dest} className="flex items-center gap-2 rounded-md border border-dashboard-base-300 px-2.5 py-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium truncate text-dashboard-base-content">{dest}</p>
-                        <p className="text-[11px] text-dashboard-base-content/50 tabular-nums">
-                          {leads} lead{leads === 1 ? "" : "s"}
-                          {destCpl != null && <> · CPL {money(destCpl)}</>}
-                          {value != null && leads === 0 && <span className="text-red-500"> · no leads</span>}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 rounded border border-dashboard-base-300 px-1.5 h-8 w-24 shrink-0">
-                        <span className="text-dashboard-base-content/40 text-xs">₹</span>
-                        <input
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          value={value ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value.trim();
-                            setDestSpend(dest, v === "" ? null : Math.max(0, Number(v)));
-                          }}
-                          className="w-full bg-transparent outline-none text-xs tabular-nums"
-                        />
-                      </div>
-                      {value != null && (
-                        <button
-                          type="button"
-                          onClick={() => setDestSpend(dest, null)}
-                          className="text-dashboard-base-content/30 hover:text-red-500 transition-colors shrink-0"
-                          aria-label={`Clear spend for ${dest}`}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* A destination can take budget and return nothing — it won't be
-                in the lead data, so it has to be addable by hand. */}
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                value={extraDest}
-                onChange={(e) => setExtraDest(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDestination(); } }}
-                placeholder="Add a destination with spend but no leads…"
-                className="h-8 flex-1 max-w-xs rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 text-xs outline-none focus:ring-2 focus:ring-dashboard-primary/40"
-              />
-              <button
-                type="button"
-                onClick={addDestination}
-                disabled={!extraDest.trim()}
-                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-dashboard-base-300 text-xs font-medium hover:bg-dashboard-base-200 disabled:opacity-40 cursor-pointer"
-              >
-                <Plus className="h-3 w-3" /> Add
-              </button>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* ── Platform panels ────────────────────────────────────────────── */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {[google, meta].map((block) => {
-          const key = block.platform === "GOOGLE" ? "google" : "meta";
-          const s = spend[key as "google" | "meta"];
-          const style = PLATFORM_STYLE[block.platform];
-          const value = s.spent != null ? cpl(s.spent, block.total) : null;
-          return (
-            <Card key={block.platform} className={cn("border-t-2", style.ring)}>
-              <div className="p-4 space-y-3">
-                <h3 className={cn("text-sm font-semibold", style.text)}>Leads by {block.label}</h3>
-                <dl className="space-y-1.5 text-sm">
-                  {[
-                    ["Form / mail leads", block.formLeads],
-                    ["Calling leads", block.callLeads],
-                    ["WhatsApp leads", block.whatsappLeads],
-                  ].map(([label, v]) => (
-                    <div key={String(label)} className="flex items-center justify-between">
+                <dl className="mt-3 space-y-1 text-sm">
+                  {([
+                    ["Form / mail", block.formLeads],
+                    ["Calling", block.callLeads],
+                    ["WhatsApp", block.whatsappLeads],
+                  ] as const).map(([label, v]) => (
+                    <div key={label} className="flex items-center justify-between">
                       <dt className="text-dashboard-base-content/60">{label}</dt>
-                      <dd className="font-semibold tabular-nums text-dashboard-base-content">{v}</dd>
+                      <dd className="tabular-nums text-dashboard-base-content">{v}</dd>
                     </div>
                   ))}
                 </dl>
-                <div className="flex items-center justify-between rounded-md bg-dashboard-base-200 px-3 py-2">
-                  <span className="text-sm font-semibold text-dashboard-base-content">Total {block.label} leads</span>
-                  <span className="text-sm font-bold tabular-nums text-dashboard-base-content">{block.total}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-dashboard-base-content/60">
-                  <span>{block.assigned} assigned · {block.unassigned} unassigned</span>
-                  {value != null && (
-                    <span className={cn("font-semibold", style.text)}>CPL {money(value)}</span>
-                  )}
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      {other.total > 0 && (
-        <Card className="border-amber-300/60">
-          <div className="flex items-start gap-2.5 px-4 py-3">
-            <TriangleAlert className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-            <div className="text-xs">
-              <p className="font-semibold text-dashboard-base-content">
-                {other.total} lead{other.total === 1 ? "" : "s"} not attributed to a platform
-              </p>
-              <p className="text-dashboard-base-content/60 mt-0.5">
-                {other.formLeads} form · {other.callLeads} calling · {other.whatsappLeads} WhatsApp.
-                {data.totals.untaggedCalls > 0 && (
-                  <> {data.totals.untaggedCalls} of these {data.totals.untaggedCalls === 1 ? "is a phone lead" : "are phone leads"} entered without a source tag, so the calling counts above are understated.</>
+                {value != null && (
+                  <p className="mt-3 pt-2.5 border-t border-dashboard-base-300 text-sm flex items-center justify-between">
+                    <span className="text-dashboard-base-content/60">Cost per lead</span>
+                    <span className="font-semibold tabular-nums text-dashboard-base-content">{money(value)}</span>
+                  </p>
                 )}
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
+              </Panel>
+            );
+          })}
+        </div>
 
-      {/* ── Destination table ──────────────────────────────────────────── */}
-      <Card>
-        <CardTitle hint="CPL uses the spend entered above">Leads by destination</CardTitle>
-        <div className="overflow-x-auto">
+        {/* One quiet line rather than a warning card — it's a caveat, not an
+            error, and it should read as a footnote to the two panels above. */}
+        {other.total > 0 && (
+          <p className="text-xs text-dashboard-base-content/50">
+            {other.total} more lead{other.total === 1 ? "" : "s"} had no source tag
+            ({other.formLeads} form · {other.callLeads} calling · {other.whatsappLeads} WhatsApp)
+            {data.totals.untaggedCalls > 0 && <> — the calling counts above are understated by {data.totals.untaggedCalls}.</>}
+          </p>
+        )}
+      </Section>
+
+      {/* ── Step 4: destinations ───────────────────────────────────────── */}
+      <Section title="Destinations">
+        <Panel className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-dashboard-base-300 text-[11px] uppercase tracking-wide text-dashboard-base-content/50">
-                <th className="text-left font-medium px-4 py-2">Destination</th>
-                <th className="text-right font-medium px-3 py-2">Leads</th>
-                <th className="text-right font-medium px-3 py-2">Google</th>
-                <th className="text-right font-medium px-3 py-2">Meta</th>
-                <th className="text-right font-medium px-3 py-2">Other</th>
-                <th className="text-right font-medium px-3 py-2">Assigned</th>
-                <th className="text-right font-medium px-4 py-2">CPL</th>
+              <tr className="text-xs text-dashboard-base-content/50 border-b border-dashboard-base-300">
+                <th className="text-left font-normal px-4 py-2.5">Destination</th>
+                <th className="text-right font-normal px-3 py-2.5">Leads</th>
+                <th className="text-right font-normal px-3 py-2.5">Google</th>
+                <th className="text-right font-normal px-3 py-2.5">Meta</th>
+                {showCpl && <th className="text-right font-normal px-4 py-2.5">Cost per lead</th>}
               </tr>
             </thead>
             <tbody>
               {data.destinations.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-dashboard-base-content/50 text-xs">
+                  <td colSpan={showCpl ? 5 : 4} className="px-4 py-8 text-center text-dashboard-base-content/50">
                     No leads in this window.
                   </td>
                 </tr>
               ) : data.destinations.map((row) => {
-                const destSpend = spend.perDestination[row.destination.toLowerCase()] ?? null;
-                const destCpl = cpl(destSpend, row.total);
+                const destCpl = cpl(spend.perDestination[row.destination.toLowerCase()] ?? null, row.total);
                 return (
-                  <tr key={row.destination} className="border-b border-dashboard-base-300/60 last:border-0">
-                    <td className="px-4 py-2 font-medium text-dashboard-base-content">{row.destination}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold">{row.total}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-dashboard-base-content/60">{row.google}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-dashboard-base-content/60">{row.meta}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-dashboard-base-content/60">{row.other}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-dashboard-base-content/60">{row.assigned}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {destCpl != null ? money(destCpl) : <span className="text-dashboard-base-content/30">—</span>}
-                    </td>
+                  <tr key={row.destination} className="border-b border-dashboard-base-300/50 last:border-0">
+                    <td className="px-4 py-2.5 text-dashboard-base-content">{row.destination}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-medium text-dashboard-base-content">{row.total}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-dashboard-base-content/60">{row.google}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-dashboard-base-content/60">{row.meta}</td>
+                    {showCpl && (
+                      <td className="px-4 py-2.5 text-right tabular-nums text-dashboard-base-content/60">
+                        {destCpl != null ? money(destCpl) : "—"}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
-      </Card>
+        </Panel>
+      </Section>
 
-      {/* ── Payments ───────────────────────────────────────────────────── */}
-      <Card>
-        <CardTitle hint={data.payments.length > 0 ? `${money(data.paymentsTotal)} total` : undefined}>
-          Payments received
-        </CardTitle>
-        <div className="overflow-x-auto">
+      {/* ── Step 5: payments ───────────────────────────────────────────── */}
+      <Section
+        title="Payments"
+        action={data.payments.length > 0
+          ? <span className="text-xs text-dashboard-base-content/60">{money(data.paymentsTotal)} total</span>
+          : undefined}
+      >
+        <Panel className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-dashboard-base-300 text-[11px] uppercase tracking-wide text-dashboard-base-content/50">
-                <th className="text-left font-medium px-4 py-2">Time</th>
-                <th className="text-left font-medium px-3 py-2">Client</th>
-                <th className="text-left font-medium px-3 py-2">Sales exec</th>
-                <th className="text-left font-medium px-3 py-2">Destination</th>
-                <th className="text-left font-medium px-3 py-2">Source</th>
-                <th className="text-right font-medium px-4 py-2">Amount</th>
+              <tr className="text-xs text-dashboard-base-content/50 border-b border-dashboard-base-300">
+                <th className="text-left font-normal px-4 py-2.5">Time</th>
+                <th className="text-left font-normal px-3 py-2.5">Client</th>
+                <th className="text-left font-normal px-3 py-2.5">Sales exec</th>
+                <th className="text-left font-normal px-3 py-2.5">Destination</th>
+                <th className="text-left font-normal px-3 py-2.5">Source</th>
+                <th className="text-right font-normal px-4 py-2.5">Amount</th>
               </tr>
             </thead>
             <tbody>
               {data.payments.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-dashboard-base-content/50 text-xs">
-                    No payments captured in this window.
+                  <td colSpan={6} className="px-4 py-8 text-center text-dashboard-base-content/50">
+                    No payments in this window.
                   </td>
                 </tr>
               ) : data.payments.map((p) => (
-                <tr key={p.id} className="border-b border-dashboard-base-300/60 last:border-0">
-                  <td className="px-4 py-2 text-dashboard-base-content/60 whitespace-nowrap">{fmtTime(p.paidAt)}</td>
-                  <td className="px-3 py-2 font-medium text-dashboard-base-content">{p.clientName}</td>
-                  <td className="px-3 py-2 text-dashboard-base-content/60">{p.agentName ?? "—"}</td>
-                  <td className="px-3 py-2 text-dashboard-base-content/60">{p.destination ?? "—"}</td>
-                  <td className="px-3 py-2 text-dashboard-base-content/60">{sourcePhrase(p.platform, p.medium)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums font-semibold text-emerald-600">{money(p.amount)}</td>
+                <tr key={p.id} className="border-b border-dashboard-base-300/50 last:border-0">
+                  <td className="px-4 py-2.5 text-dashboard-base-content/60 whitespace-nowrap">{fmtTime(p.paidAt)}</td>
+                  <td className="px-3 py-2.5 text-dashboard-base-content">{p.clientName}</td>
+                  <td className="px-3 py-2.5 text-dashboard-base-content/60">{p.agentName ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-dashboard-base-content/60">{p.destination ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-dashboard-base-content/60">{sourcePhrase(p.platform, p.medium)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums font-medium text-dashboard-base-content">{money(p.amount)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      </Card>
+        </Panel>
+      </Section>
+
+      {/* ── Optional: ad spend ─────────────────────────────────────────── */}
+      {/* Last and collapsed, because it's the only part that isn't just read
+          off the screen — it's data entry, and it's optional. Everything above
+          works without it; filling it in adds the cost-per-lead figures. */}
+      <Panel>
+        <button
+          type="button"
+          onClick={() => setSpendOpen((v) => !v)}
+          className="w-full flex items-center gap-2 px-4 py-3 text-left cursor-pointer"
+        >
+          <ChevronDown className={cn("h-4 w-4 text-dashboard-base-content/40 transition-transform", spendOpen && "rotate-180")} />
+          <span className="text-sm font-medium text-dashboard-base-content">Ad spend</span>
+          <span className="text-xs text-dashboard-base-content/50">
+            {showCpl ? `${money(totalSpent)} entered — shows cost per lead` : "Optional — add it to see cost per lead"}
+          </span>
+        </button>
+
+        {spendOpen && (
+          <div className="px-4 pb-4 space-y-4 border-t border-dashboard-base-300 pt-4">
+            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
+              {([["Google", "google"], ["Meta", "meta"]] as const).map(([label, key]) => {
+                const s = spend[key];
+                return (
+                  <div key={key} className="space-y-2">
+                    <p className={cn("text-xs font-medium", PLATFORM_TEXT[key === "google" ? "GOOGLE" : "META"])}>{label}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="space-y-1">
+                        <span className="text-xs text-dashboard-base-content/60">Budget</span>
+                        <MoneyInput
+                          value={s.budget}
+                          placeholder="5783"
+                          onChange={(v) => updateSpend({ ...spend, [key]: { ...s, budget: v } })}
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs text-dashboard-base-content/60">Spent</span>
+                        <MoneyInput
+                          value={s.spent}
+                          placeholder="4852"
+                          onChange={(v) => updateSpend({ ...spend, [key]: { ...s, spent: v } })}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {destNames.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <p className="text-xs text-dashboard-base-content/60">Spend per destination (optional)</p>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {destNames.map((dest) => (
+                    <label key={dest} className="flex items-center gap-2">
+                      <span className="text-xs text-dashboard-base-content/70 flex-1 truncate">{dest}</span>
+                      <MoneyInput
+                        className="w-24 shrink-0"
+                        value={spend.perDestination[dest.toLowerCase()] ?? null}
+                        onChange={(v) => setDestSpend(dest, v)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-dashboard-base-content/45">
+              Saved in this browser for {spendDayKey}. Not shared with the team.
+            </p>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

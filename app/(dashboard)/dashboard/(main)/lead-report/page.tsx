@@ -40,7 +40,7 @@ export default async function LeadReportPage({
     <div className="space-y-6">
       <PageHeader
         title="Lead Report"
-        description="Pick a time window, add the day's ad spend, and export the report as a PDF"
+        description="Pick a time window and download the report as a PDF"
         icon={FileSpreadsheet}
       />
       <LeadReportClient data={data} generatedByName={ctx?.member.name} />
