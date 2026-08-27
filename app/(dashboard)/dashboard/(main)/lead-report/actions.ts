@@ -1,5 +1,8 @@
 import "server-only";
 import { db } from "@/app/lib/db";
+import { istDayKey, istLocalToDate } from "./ist";
+
+export { istLocalToDate, dateToIstLocal, istDayKey, IST_TZ } from "./ist";
 
 /**
  * The lead manager's daily report — the dashboard equivalent of the sheet
@@ -18,45 +21,6 @@ import { db } from "@/app/lib/db";
  *     and a window like "1pm–3pm" means IST wall-clock, so a server running
  *     in UTC must not be allowed to shift it by 5:30.
  */
-
-/** IST is a fixed UTC+05:30 with no DST, so the offset can be a constant —
- * no timezone database lookup is needed to convert either direction. */
-const IST_OFFSET = "+05:30";
-export const IST_TZ = "Asia/Kolkata";
-
-/** Converts an IST wall-clock `datetime-local` string ("2026-08-27T13:00",
- * as produced by the picker) into the absolute instant it names. Appending
- * the fixed offset lets the platform's own parser do the arithmetic, which
- * is why this never depends on the server's local timezone. */
-export function istLocalToDate(local: string): Date {
-  const withSeconds = local.length === 16 ? `${local}:00` : local;
-  return new Date(`${withSeconds}${IST_OFFSET}`);
-}
-
-/** The IST calendar day an instant falls on, as YYYY-MM-DD. The payments
- * list is grouped by this: a report run from yesterday evening to this
- * afternoon has to separate last night's payments from today's, the way the
- * handwritten sheet always did. */
-export function istDayKey(d: Date | string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: IST_TZ, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(typeof d === "string" ? new Date(d) : d);
-}
-
-/** The inverse — an instant rendered back as the `datetime-local` value that
- * names it in IST, for seeding the picker's defaults server-side. */
-export function dateToIstLocal(d: Date): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: IST_TZ,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(d);
-  const get = (t: string) => parts.find((p) => p.type === t)!.value;
-  // en-CA gives 24-hour parts, but midnight can come back as "24" — the
-  // datetime-local input rejects that, and it means hour 00 of the same day.
-  const hour = get("hour") === "24" ? "00" : get("hour");
-  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
-}
 
 // ── Platform + medium classification ────────────────────────────────────
 
@@ -168,6 +132,10 @@ export type PaymentRow = {
   platform: Platform | null;
   medium: Medium | null;
   gateway: string;
+  /** True for a payment typed into the report by hand rather than read from
+   * the payments table — an offline one (cash, bank transfer) that never
+   * reaches a gateway. The server never sets this; see manual-payments.ts. */
+  isManual?: boolean;
 };
 
 export type LeadReportData = {

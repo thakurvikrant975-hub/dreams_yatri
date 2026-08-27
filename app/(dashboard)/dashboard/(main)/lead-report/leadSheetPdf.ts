@@ -486,7 +486,7 @@ export function buildLeadSheetPdf(
         }
         const cells = [
           fmtIstClock(p.paidAt),
-          p.clientName,
+          p.isManual ? `${p.clientName} (offline)` : p.clientName,
           p.agentName ?? "—",
           p.destination ?? "—",
           sourcePhrase(p.platform, p.medium),
@@ -526,7 +526,21 @@ export function buildLeadSheetPdf(
     );
     setInk(MONEY);
     pdf.text(money(data.paymentsTotal), MARGIN + CONTENT_WIDTH - 5, y + 4.8, { align: "right" });
-    y += 12;
+    y += 9;
+
+    const manualCount = data.payments.filter((p) => p.isManual).length;
+    if (manualCount > 0) {
+      const manualTotal = data.payments.filter((p) => p.isManual).reduce((sum, p) => sum + p.amount, 0);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7.5);
+      setInk(MUTED);
+      pdf.text(
+        `${manualCount} of these (${money(manualTotal)}) were entered by hand as offline payments — they are not in the payments table.`,
+        MARGIN + 2.5, y + 2,
+      );
+      y += 6;
+    }
+    y += 3;
   }
 
   // ── Accuracy note ─────────────────────────────────────────────────────
