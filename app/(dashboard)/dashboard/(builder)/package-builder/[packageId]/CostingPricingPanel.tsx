@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { AlertOctagon, Users } from "lucide-react";
-import { travellersLine } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { travellersLine, ageBandsLine, bandsOf, bandMismatchLines } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { StayOptionsComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionsComparison";
 import { useBuilder } from "./builder-context";
 import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
@@ -103,19 +103,43 @@ export function CostingPricingPanel({
   // trip with a cab every day read as six days of cabs and nothing said which
   // day was missing. See the gap branch in computeBuilderCabPricing.
   const cabGapDays = cabDays.filter((l) => l.gap).map((l) => l.day);
+  // Travellers whose age puts them in a different band than the box they were
+  // entered in. Never blocking — the price already follows the age — but the
+  // reviewer is comparing the traveller line to the rooms, and this is the
+  // only thing that explains a difference between them.
+  const mismatches = bandMismatchLines(form);
 
   return (
     <div className="p-3 space-y-3">
-      {/* Who is travelling, with the children's ages spelled out. The reviewer
-          is checking rooms and mattresses against each hotel's child policy —
-          free under 5, extra bed under 12 — and that is a different answer for
-          a 4-year-old than for an 11-year-old. The head count alone (which is
-          all the per-person line below carries) can't settle it, and asking
-          the exec is a round-trip. Ages are required before a package can
-          reach this panel at all — see traveller-ages.ts. */}
-      <div className="flex items-start gap-2 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/50 px-3 py-2">
-        <Users className="size-3.5 shrink-0 mt-0.5 text-dashboard-neutral" />
-        <p className="text-[11px] text-dashboard-base-content">{travellersLine(form)}</p>
+      {/* Who is travelling, with the children's ages spelled out, and the age
+          bands this package was priced by.
+          The reviewer is checking rooms and mattresses against each hotel's
+          child policy, and that is a different answer for a 4-year-old than
+          for an 11-year-old. The head count alone (which is all the per-person
+          line below carries) can't settle it, and asking the exec is a
+          round-trip. The bands matter for the same reason and were previously
+          invisible here: an exec quoting a property that treats under-5s as
+          infants sets the band to 5, and the rooms below were built for a
+          smaller party than the traveller line reads. Ages are required before
+          a package can reach this panel at all — see traveller-ages.ts. */}
+      <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/50 px-3 py-2 space-y-1">
+        <div className="flex items-start gap-2">
+          <Users className="size-3.5 shrink-0 mt-0.5 text-dashboard-neutral" />
+          <p className="text-[11px] text-dashboard-base-content">{travellersLine(form)}</p>
+        </div>
+        <p className="text-[10px] text-dashboard-base-content/55 pl-5.5">
+          {ageBandsLine(bandsOf(form))}
+        </p>
+        {mismatches.length > 0 && (
+          <div className="pl-5.5 space-y-0.5">
+            {mismatches.map((line) => (
+              <p key={line} className="text-[10px] text-amber-700">{line}</p>
+            ))}
+            <p className="text-[10px] text-dashboard-base-content/50">
+              Rooms and the per-person figure below already follow the band, not the box.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* The options side by side, when there is more than one. Above the

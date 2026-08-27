@@ -30,7 +30,8 @@ import { RouteStopsEditor } from "./RouteStopsEditor";
 import { recalcFromStops } from "./day-mutations";
 import {
   resizeAges, ageInputValue, parseAgeInput, travellersMissingAges,
-  CHILD_AGE_MIN, CHILD_AGE_MAX, INFANT_AGE_MIN, INFANT_AGE_MAX,
+  bandsOf, bandOf, ageBandsLine, pricedPartyLine, bandMismatchLines,
+  normalizeAgeBands, BAND_LIMITS, AGE_MIN, AGE_MAX,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 function Block({ icon: Icon, title, children }: {
@@ -43,6 +44,48 @@ function Block({ icon: Icon, title, children }: {
       </h2>
       {children}
     </section>
+  );
+}
+
+/** One traveller's age box.
+ *
+ * Shows the band the typed age lands in whenever that isn't the box's own —
+ * at the field, not just in the summary below, because the correction (move
+ * them to the other box, or widen the band) is made right here. Tinted rather
+ * than red-flagged: a 4-year-old under Children on a package whose infant band
+ * runs to 5 is a perfectly ordinary thing for an exec to have typed, and the
+ * price is right regardless. */
+function AgeInput({ age, label, expected, bands, onChange }: {
+  age: number;
+  label: string;
+  expected: "child" | "infant";
+  bands: { infantMaxAge: number; childMaxAge: number };
+  onChange: (v: number) => void;
+}) {
+  const band = bandOf(age, bands);
+  const off = band != null && band !== expected;
+  return (
+    <div className="space-y-0.5">
+      <Input
+        type="number" min={AGE_MIN} max={AGE_MAX}
+        // Empty, not 0, while unanswered — see traveller-ages.ts. A prefilled
+        // 0 was the whole reason costing kept receiving ages nobody had
+        // actually entered.
+        value={ageInputValue(age)}
+        placeholder="–"
+        onChange={(e) => onChange(parseAgeInput(e.target.value))}
+        className={cn(
+          "h-8 w-14 text-sm",
+          off && "border-dashboard-warning/70 bg-dashboard-warning/5",
+        )}
+        aria-label={label}
+      />
+      {off && (
+        <span className="block text-center text-[9px] font-medium text-dashboard-warning">
+          {band === "adult" ? "adult" : band === "child" ? "child" : "infant"}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -62,10 +105,25 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
 }) {
   const { form, setForm, canEdit, syncDaysWithStops } = useBuilder();
   const missingAges = travellersMissingAges(form);
+  const bands = bandsOf(form);
+  const mismatches = bandMismatchLines(form);
 
   function field<K extends keyof PackageForm>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value as PackageForm[K] }));
+  }
+
+  /** Both boundaries are stored raw and normalised on read, so an exec can
+   * type through an intermediate value (clearing "12" to type "10" passes
+   * through empty) without the other bound jumping to keep the pair valid.
+   * normalizeAgeBands is what guarantees infant < child everywhere it counts. */
+  function setBand(key: "infantMaxAge" | "childMaxAge", raw: string) {
+    const parsed = parseInt(raw, 10);
+    const limits = BAND_LIMITS[key];
+    const next = Number.isNaN(parsed)
+      ? limits.min
+      : Math.min(limits.max, Math.max(limits.min, parsed));
+    setForm((f) => ({ ...f, ...normalizeAgeBands({ ...f, [key]: next }) }));
   }
 
   return (
@@ -118,6 +176,58 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
       </Block>
 
       <Block icon={Users} title="Travellers">
+        {/* The bands come FIRST, above the counts, because they change what
+            the counts mean. Reading down, the panel now says "on this trip an
+            infant is 0–2 and a child is 3–12 — now, how many of each?", which
+            is the order the question is actually asked in when an exec rings
+            a property. Underneath the boxes, both, is the party as pricing
+            reads it. */}
+        <div className="rounded-[10px] border border-dashboard-base-300 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-medium text-dashboard-base-content/70 flex items-center gap-1">
+              <Baby size={11} /> Age bands for this package
+            </span>
+            {(bands.infantMaxAge !== 2 || bands.childMaxAge !== 12) && (
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, infantMaxAge: 2, childMaxAge: 12 }))}
+                className="text-[10px] font-medium text-dashboard-primary hover:underline cursor-pointer"
+              >
+                Reset to 2 / 12
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="space-y-1">
+              <span className="text-[11px] text-dashboard-base-content/60">Infant up to (yrs)</span>
+              <Input
+                type="number"
+                min={BAND_LIMITS.infantMaxAge.min} max={BAND_LIMITS.infantMaxAge.max}
+                value={form.infantMaxAge}
+                onChange={(e) => setBand("infantMaxAge", e.target.value)}
+                className="h-9 text-sm"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[11px] text-dashboard-base-content/60">Child up to (yrs)</span>
+              <Input
+                type="number"
+                min={BAND_LIMITS.childMaxAge.min} max={BAND_LIMITS.childMaxAge.max}
+                value={form.childMaxAge}
+                onChange={(e) => setBand("childMaxAge", e.target.value)}
+                className="h-9 text-sm"
+              />
+            </label>
+          </div>
+          <p className="text-[11px] text-dashboard-base-content/55">{ageBandsLine(bands)}</p>
+          <p className="text-[10px] text-dashboard-base-content/45">
+            Defaults are the industry ones. Hotels don&apos;t all agree — many treat
+            under-5s as infants and charge a child rate above that — so set these to
+            what the stays on this trip actually use. Beds, mattresses and the
+            per-person price all follow the band, not the box.
+          </p>
+        </div>
+
         <div className="grid grid-cols-3 gap-3">
           {(["adults", "children", "infants"] as const).map((key) => (
             <label key={key} className="space-y-1">
@@ -138,6 +248,11 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                 }}
                 className="h-9 text-sm"
               />
+              <span className="block text-[10px] text-dashboard-base-content/40">
+                {key === "adults" ? `${bands.childMaxAge + 1}+ yrs`
+                  : key === "children" ? `${bands.infantMaxAge + 1}–${bands.childMaxAge} yrs`
+                    : `0–${bands.infantMaxAge} yrs`}
+              </span>
             </label>
           ))}
         </div>
@@ -151,26 +266,16 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {form.childrenAges.map((age, i) => (
-                    <Input
+                    <AgeInput
                       key={i}
-                      type="number" min={CHILD_AGE_MIN} max={CHILD_AGE_MAX}
-                      // Empty, not 0, while unanswered — see traveller-ages.ts.
-                      // A prefilled 0 was the whole reason costing kept
-                      // receiving ages nobody had actually entered.
-                      value={ageInputValue(age)}
-                      placeholder="–"
-                      onChange={(e) => {
-                        const v = parseAgeInput(e.target.value, CHILD_AGE_MIN, CHILD_AGE_MAX);
-                        setForm((f) => ({
-                          ...f,
-                          childrenAges: f.childrenAges.map((a, idx) => (idx === i ? v : a)),
-                        }));
-                      }}
-                      className={cn(
-                        "h-8 w-14 text-sm",
-                        age < CHILD_AGE_MIN && "border-dashboard-warning/70 bg-dashboard-warning/5",
-                      )}
-                      aria-label={`Child ${i + 1} age`}
+                      age={age}
+                      label={`Child ${i + 1} age`}
+                      expected="child"
+                      bands={bands}
+                      onChange={(v) => setForm((f) => ({
+                        ...f,
+                        childrenAges: f.childrenAges.map((a, idx) => (idx === i ? v : a)),
+                      }))}
                     />
                   ))}
                 </div>
@@ -183,23 +288,16 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {form.infantAges.map((age, i) => (
-                    <Input
+                    <AgeInput
                       key={i}
-                      type="number" min={INFANT_AGE_MIN} max={INFANT_AGE_MAX}
-                      value={ageInputValue(age)}
-                      placeholder="–"
-                      onChange={(e) => {
-                        const v = parseAgeInput(e.target.value, INFANT_AGE_MIN, INFANT_AGE_MAX);
-                        setForm((f) => ({
-                          ...f,
-                          infantAges: f.infantAges.map((a, idx) => (idx === i ? v : a)),
-                        }));
-                      }}
-                      className={cn(
-                        "h-8 w-14 text-sm",
-                        age < INFANT_AGE_MIN && "border-dashboard-warning/70 bg-dashboard-warning/5",
-                      )}
-                      aria-label={`Infant ${i + 1} age`}
+                      age={age}
+                      label={`Infant ${i + 1} age`}
+                      expected="infant"
+                      bands={bands}
+                      onChange={(v) => setForm((f) => ({
+                        ...f,
+                        infantAges: f.infantAges.map((a, idx) => (idx === i ? v : a)),
+                      }))}
                     />
                   ))}
                 </div>
@@ -210,14 +308,32 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                 the exec gets after clicking Mark Ready and being turned away. */}
             {missingAges.length > 0 && (
               <p className="text-[11px] text-dashboard-warning">
-                {missingAges.join(", ")} still {missingAges.length === 1 ? "needs an age" : "need ages"} — costing
-                prices hotel child policies off it, so this can&apos;t go to review without them.
+                {missingAges.join(", ")} still {missingAges.length === 1 ? "needs an age" : "need ages"} — rooms,
+                mattresses and the per-person price are worked out from the age, so this
+                can&apos;t go to review without them.
               </p>
+            )}
+
+            {/* An age outside its box's band is not an error and never blocks:
+                the price already follows the age. But the itinerary still reads
+                "2 Children", so the difference has to be visible somewhere or
+                it looks like the rooms were built wrong. */}
+            {mismatches.length > 0 && (
+              <div className="rounded-[10px] border border-dashboard-warning/40 bg-dashboard-warning/5 p-2.5 space-y-1">
+                {mismatches.map((line) => (
+                  <p key={line} className="text-[11px] text-dashboard-base-content/75">{line}</p>
+                ))}
+                <p className="text-[10px] text-dashboard-base-content/50">
+                  Priced correctly either way — move them to the right box if the
+                  itinerary should read that way too.
+                </p>
+              </div>
             )}
           </div>
         )}
         <p className="text-[11px] text-dashboard-base-content/45">
-          Rooms, mattresses and every price are worked out from this.
+          Priced as <span className="font-medium text-dashboard-base-content/70">{pricedPartyLine(form)}</span> —
+          rooms, mattresses and every price are worked out from this.
         </p>
       </Block>
 

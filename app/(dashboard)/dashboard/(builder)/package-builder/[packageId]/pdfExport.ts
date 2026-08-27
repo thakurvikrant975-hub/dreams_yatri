@@ -35,6 +35,10 @@ export function validateItineraryRequiredFields(form: {
    * once children/infants > 0, since that's what grows these arrays. */
   childrenAges?: number[];
   infantAges?: number[];
+  /** The package's own age bands — carried through so the message names the
+   * bands this quote is actually priced by, not the industry defaults. */
+  infantMaxAge?: number | null;
+  childMaxAge?: number | null;
 }): string | null {
   if (!form.travelDate) return "Add a travel date before generating the PDF or sending to the client.";
   if ((form.adults || 0) + (form.children || 0) + (form.infants || 0) < 1) {
@@ -51,6 +55,8 @@ export function validateItineraryRequiredFields(form: {
     infants: form.infants || 0,
     childrenAges: form.childrenAges ?? [],
     infantAges: form.infantAges ?? [],
+    infantMaxAge: form.infantMaxAge,
+    childMaxAge: form.childMaxAge,
   });
   if (agesError) return agesError;
   return null;

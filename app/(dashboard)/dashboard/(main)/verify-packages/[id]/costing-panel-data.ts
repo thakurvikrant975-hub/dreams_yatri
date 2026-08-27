@@ -14,7 +14,7 @@
 import { db } from "@/app/lib/db";
 import { getRejectionReasons } from "../../(marketing)/queries/actions";
 import { getItinerarySettings } from "../../itinerary-settings/actions";
-import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, travellersOf } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import type { PricingSnapshot } from "./VerifyPackageDetailClient";
@@ -35,6 +35,7 @@ export async function loadCostingPanelData(id: string) {
                 totalDays: true, totalNights: true, travelDate: true,
                 adults: true, children: true, infants: true,
                 childrenAges: true, infantAges: true,
+                infantMaxAge: true, childMaxAge: true,
                 pricePerPerson: true, totalPrice: true, currency: true,
                 marginPercentage: true, gstPercentage: true,
                 discountType: true, discountValue: true, discountNote: true,
@@ -107,7 +108,7 @@ export async function loadCostingPanelData(id: string) {
         const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
         const [hotelPricing, cabPricing] = await Promise.all([
             computeBuilderHotelPricing({
-                travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
+                travelDate: travelDateIso, ...travellersOf(pkg),
                 days: pkg.itineraries.map((it) => ({
                     day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount,
                     manualExtraBeds: it.manualExtraBeds,

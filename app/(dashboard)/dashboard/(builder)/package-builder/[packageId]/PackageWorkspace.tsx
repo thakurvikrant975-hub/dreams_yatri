@@ -20,7 +20,7 @@ import {
 } from "./builder-icons";
 import { Menu } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { resizeAges } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { resizeAges, normalizeAgeBands, DEFAULT_AGE_BANDS, pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
@@ -511,6 +511,7 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     title: "", description: "", coverImage: "", coverImagePosition: 50, destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
     adults: 1, children: 0, infants: 0, childrenAges: [], infantAges: [],
+    ...DEFAULT_AGE_BANDS,
     pricePerPerson: "", totalPrice: "",
     marginPercentage: "25", gstPercentage: "5",
     discountType: null, discountValue: "", discountNote: "",
@@ -670,6 +671,7 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
         // have no reason to do, because the count is already right.
         childrenAges: resizeAges([], t?.children ?? 0),
         infantAges: resizeAges([], t?.infants ?? 0),
+        ...DEFAULT_AGE_BANDS,
         // Seed a blank ticket of the right type when the client asked for
         // flights/train on the original query and there's no draft (and no
         // tickets) yet — a nudge to fill it in on the Tickets tab, not a
@@ -712,6 +714,10 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
           // is the one thing an exec has no reason to do.
           childrenAges: resizeAges(cp.childrenAges ?? [], cp.children ?? 0),
           infantAges: resizeAges(cp.infantAges ?? [], cp.infants ?? 0),
+          // Normalised on the way in so a row saved before the bands existed
+          // (or one with the two crossed) hydrates into a usable pair rather
+          // than an empty child band. See traveller-ages.ts.
+          ...normalizeAgeBands(cp),
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
@@ -821,6 +827,13 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   // those three inputs change. `form.pricePerPerson`/`totalPrice` themselves
   // get kept in sync with this automatically (see the pricing-sync effect
   // below, near `isLocked`) — no manual "apply" step needed anymore.
+  /** Everything that can change how many beds this party needs — the counts,
+   * every entered age, and both band boundaries. */
+  const partyKey = [
+    form.adults, form.children, form.infants,
+    form.childrenAges.join(","), form.infantAges.join(","),
+    form.infantMaxAge, form.childMaxAge,
+  ].join("|");
   const roomPricingKey = form.itineraries
     .map((it) => `${it.day}:${it.roomPricingId ?? ""}:${it.roomsCount ?? ""}:${it.manualExtraBeds ?? ""}:${JSON.stringify(it.extraRooms ?? [])}:${it.manualHotelPricePerNight ?? ""}:${it.manualExtraBedRate ?? ""}:${it.hotelPriceOverride ?? ""}`)
     .join("|");
@@ -841,8 +854,16 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     const timer = setTimeout(async () => {
       const result = await computeBuilderHotelPricing({
         travelDate: form.travelDate || null,
+        // The party as entered, ages and bands included — the split into
+        // adult and child beds happens inside the pricing call so this
+        // preview can't disagree with the costing screen. See traveller-ages.
         adults: form.adults,
         children: form.children,
+        infants: form.infants,
+        childrenAges: form.childrenAges,
+        infantAges: form.infantAges,
+        infantMaxAge: form.infantMaxAge,
+        childMaxAge: form.childMaxAge,
         days,
       });
       if (cancelled) return;
@@ -850,8 +871,11 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
       setComputingPrice(false);
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
+    // partyKey, not the raw counts: an age or a band edit changes how many
+    // adult beds the same three travellers need, and keying on the counts
+    // alone left the preview priced for the party from before the edit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.travelDate, form.adults, form.children, roomPricingKey]);
+  }, [form.travelDate, partyKey, roomPricingKey]);
 
   // ── Auto-price from travel date + cab selected ──────────────────────────────
   // Same pattern as the hotel effect above — PER_DAY cabs are priced per the

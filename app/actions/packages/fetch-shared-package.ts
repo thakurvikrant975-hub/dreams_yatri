@@ -128,6 +128,9 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       title: true, description: true, coverImage: true, coverImagePosition: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
       childrenAges: true,
+      infantAges: true,
+      infantMaxAge: true,
+      childMaxAge: true,
       pricePerPerson: true, totalPrice: true, currency: true,
       discountType: true, discountValue: true, pricingSnapshot: true,
       inclusions: true, exclusions: true, removedInclusions: true, removedExclusions: true, termsNotes: true,
@@ -247,6 +250,9 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     // Without these the client's own page divided the total by every head
     // including a toddler, and quoted a per-person figure nobody would pay.
     childrenAges:    pkg.childrenAges ?? [],
+    infantAges:      pkg.infantAges ?? [],
+    infantMaxAge:    pkg.infantMaxAge,
+    childMaxAge:     pkg.childMaxAge,
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     // What it takes to hold the booking, computed by the same engine that

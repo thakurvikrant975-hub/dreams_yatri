@@ -63,6 +63,13 @@ export interface PackageForm {
    * package-builder/traveller-ages.ts. */
   childrenAges: number[];
   infantAges: number[];
+  /** The age boundaries this package is priced by — infant ≤ infantMaxAge <
+   * child ≤ childMaxAge < adult, both inclusive. Editable in Trip Setup
+   * because hotels don't agree on them; everything that counts beds, rooms,
+   * mattresses or paying heads reads the band, not the count columns above.
+   * See package-builder/traveller-ages.ts. */
+  infantMaxAge: number;
+  childMaxAge: number;
   pricePerPerson: string;
   totalPrice: string;
   marginPercentage: string;

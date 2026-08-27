@@ -8,7 +8,7 @@ import { getHeroImage, getThumbnailImage, resolveStayPhoto } from "@/app/lib/ima
 import { formatStoredCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing, computeStayOptionPricing } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing, computeStayOptionPricing, travellersOf } from "@/app/services/package-pricing.service";
 import { baseRatePricingError } from "@/app/services/package-price-utils";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
@@ -22,7 +22,7 @@ import { classifyActionError } from "@/app/lib/action-error";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
-import { missingTravellerAgesError, payingPaxOf } from "./traveller-ages";
+import { missingTravellerAgesError, payingPaxOf, normalizeAgeBands } from "./traveller-ages";
 import { syncRecommendedStayFromDays } from "./stay-options.sync";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
@@ -935,6 +935,9 @@ export interface QueryDetail {
     infants:         number;
     childrenAges:    number[];
     infantAges:      number[];
+    /** Age bands this package is priced by — see traveller-ages.ts. */
+    infantMaxAge:    number;
+    childMaxAge:     number;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
@@ -1179,6 +1182,8 @@ export interface PackageInput {
   infants:         number;
   childrenAges:    number[];
   infantAges:      number[];
+  infantMaxAge:    number;
+  childMaxAge:     number;
   pricePerPerson:  number | null;
   totalPrice:      number | null;
   marginPercentage: number;
@@ -1957,6 +1962,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       infants:         true,
       childrenAges:    true,
       infantAges:      true,
+      infantMaxAge:    true,
+      childMaxAge:     true,
       pricePerPerson:  true,
       totalPrice:      true,
       marginPercentage: true,
@@ -2217,6 +2224,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     const {
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants, childrenAges, infantAges,
+      infantMaxAge, childMaxAge,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
       discountType, discountValue, discountNote,
       termsNotes, extraPolicyItems,
@@ -2428,6 +2436,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             infants,
             childrenAges:    childrenAges ?? [],
             infantAges:      infantAges ?? [],
+            // Normalised on the way in, not trusted from the form: these
+            // decide who needs a bed and who is a paying head, and a payload
+            // with the two boundaries crossed would leave the package with an
+            // empty child band. See normalizeAgeBands.
+            ...normalizeAgeBands({ infantMaxAge, childMaxAge }),
             // Margin, GST and the discount are absent from this update on
             // purpose, at every status.
             //
@@ -2499,6 +2512,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             infants,
             childrenAges:    childrenAges ?? [],
             infantAges:      infantAges ?? [],
+            // Normalised on the way in, not trusted from the form: these
+            // decide who needs a bed and who is a paying head, and a payload
+            // with the two boundaries crossed would leave the package with an
+            // empty child band. See normalizeAgeBands.
+            ...normalizeAgeBands({ infantMaxAge, childMaxAge }),
             pricePerPerson:  pricePerPerson ?? null,
             totalPrice:      totalPrice ?? null,
             marginPercentage,
@@ -3019,8 +3037,7 @@ async function sendPackageToClient(packageId: string): Promise<{
     const [hotelPricing, cabPricing] = await Promise.all([
       computeBuilderHotelPricing({
         travelDate: travelDateIso,
-        adults:     pkg.adults,
-        children:   pkg.children,
+        ...travellersOf(pkg),
         days: pkg.itineraries.map((it) => ({
           day:           it.day,
           roomPricingId: it.roomPricingId,
@@ -3250,6 +3267,7 @@ export async function markPackageReady(
           verified: true, rejectedAt: true, revisionRequestedAt: true,
           builtBy: true, query: { select: { assignedTo: true } },
           children: true, infants: true, childrenAges: true, infantAges: true,
+          infantMaxAge: true, childMaxAge: true,
         },
       }),
       getEffectiveMember(),

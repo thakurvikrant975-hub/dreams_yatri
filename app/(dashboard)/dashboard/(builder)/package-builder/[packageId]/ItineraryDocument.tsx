@@ -18,7 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { cn } from "@/app/lib/utils";
-import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { payingPaxOf, pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { ItineraryMap } from "./ItineraryMap";
 import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
@@ -415,11 +415,15 @@ export interface PreviewData {
   adults: number;
   children: number;
   infants: number;
-  /** Needed to divide the total into a per-person figure: a child under five
-   * is not a head that pays a share. Optional because packages built before
-   * ages were collected have none — those divide by everyone, as they always
-   * did. See payingPaxOf. */
+  /** Needed twice over: to sort travellers into the beds they actually need,
+   * and to divide the total into a per-person figure — an infant is not a head
+   * that pays a share. Optional because packages built before ages were
+   * collected have none; those divide by everyone, as they always did. The two
+   * band bounds default to the industry 2/12 when absent. See traveller-ages. */
   childrenAges?: number[];
+  infantAges?: number[];
+  infantMaxAge?: number | null;
+  childMaxAge?: number | null;
   /** What it takes to hold the booking, from the payment policy engine — see
    * getSharedPackage. Only the client's page supplies it; the builder and the
    * PDF leave it undefined and say nothing about payment terms. */
@@ -3806,6 +3810,12 @@ export function ItineraryDocument({
   // The heads the headline is divided by, which is not everyone travelling:
   // a four-year-old is not paying a fifth of the trip. See payingPaxOf.
   const payingPax = payingPaxOf(form);
+  // The party the ROOMS were built for. A 14-year-old on a package whose child
+  // band ends at 12 needs an adult bed, and the day cards' "2 Rooms | 3 Adults"
+  // line has to say the same thing the price was computed from — it reads as a
+  // bug when the document counts the party one way and the total another.
+  // See traveller-ages.ts / pricingPartyOf.
+  const pricedParty = pricingPartyOf(form);
   // Both figures describe the SAME standard. Left as the package's own while
   // the headline followed the recommended one, the card read "INR 15,750" next
   // to "~INR 5,513 per person" — two different standards, side by side, with
@@ -4068,8 +4078,8 @@ export function ItineraryDocument({
                     key={d.day}
                     day={d}
                     allDays={form.itineraries}
-                    adults={form.adults}
-                    childCount={form.children}
+                    adults={pricedParty.adults}
+                    childCount={pricedParty.children}
                     travelDate={form.travelDate}
                     onImageChange={onImageChange}
                     onActivityCaptionChange={onActivityCaptionChange}
@@ -4150,8 +4160,8 @@ export function ItineraryDocument({
                 itineraries={form.itineraries}
                 travelDate={form.travelDate}
                 stops={form.stops}
-                adults={form.adults}
-                childCount={form.children}
+                adults={pricedParty.adults}
+                childCount={pricedParty.children}
               />
             </div>
 
