@@ -48,6 +48,45 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
     const pendingDays = pkg.itineraries.filter((it) => it.hotelPending && !it.hotelRejectedAt);
     const paxLabel = `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}${pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : ""}`;
 
+    const locationOf = (it: (typeof pendingDays)[number]) =>
+        it.accommodationLocation || dayLocations[it.day - 1] || null;
+
+    // ── One stay, one form ───────────────────────────────────────────────────
+    //
+    // A five-day package with the same property booked for the first three
+    // nights arrived here as three separate requests, so the hotel team filled
+    // the same hotel, room, rate, meal plan and photos in three times over —
+    // one phone call typed out three times.
+    //
+    // Consecutive pending days asking for the same thing in the same town are
+    // one stay, and are collapsed into a single card covering all of them.
+    // Consecutiveness is the load-bearing part: same-town days with another
+    // town in between are an out-and-back, not one continuous booking, and
+    // must not be merged. Anything not merged is still offered as a tickable
+    // day on the card, so a judgement call this can't make is still one click.
+    // Stringified rather than concatenated: a note reading "2, deluxe" must not
+    // be able to collide with a different request whose fields happen to join
+    // into the same string.
+    const groupKey = (it: (typeof pendingDays)[number]) => JSON.stringify([
+        (locationOf(it) ?? "").split(",")[0]?.trim().toLowerCase() ?? "",
+        it.hotelRequestType ?? "",
+        it.roomsCount ?? null,
+        it.manualExtraBeds ?? null,
+        it.hotelMealPlan ?? "",
+        it.hotelPendingNote ?? "",
+    ]);
+
+    const stayGroups: (typeof pendingDays)[] = [];
+    for (const it of pendingDays) {
+        const current = stayGroups[stayGroups.length - 1];
+        const previous = current?.[current.length - 1];
+        if (previous && previous.day === it.day - 1 && groupKey(previous) === groupKey(it)) {
+            current.push(it);
+        } else {
+            stayGroups.push([it]);
+        }
+    }
+
     return (
         <div className="space-y-5 max-w-3xl">
             <Link href="/dashboard/hotel-requests-v2" className="inline-flex items-center gap-1 text-sm text-dashboard-neutral hover:text-dashboard-primary transition-colors">
@@ -77,8 +116,9 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                             <RejectAllButton packageId={pkg.id} pendingCount={pendingDays.length} />
                         </div>
                     )}
-                    {pendingDays.map((it) => {
-                        const location = it.accommodationLocation || dayLocations[it.day - 1] || null;
+                    {stayGroups.map((group) => {
+                        const it = group[0];
+                        const location = locationOf(it);
                         const dayDate = pkg.travelDate
                             ? new Date(new Date(pkg.travelDate).getTime() + (it.day - 1) * 24 * 60 * 60 * 1000)
                             : null;
@@ -95,10 +135,12 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                                 dayDateISO={dayDate ? dayDate.toISOString().slice(0, 10) : null}
                                 siblingDays={pendingDays
                                     .filter((o) => o.day !== it.day)
-                                    .map((o) => ({
-                                        day: o.day,
-                                        location: o.accommodationLocation || dayLocations[o.day - 1] || null,
-                                    }))}
+                                    .map((o) => ({ day: o.day, location: locationOf(o) }))}
+                                // Ticked on arrival rather than guessed at in
+                                // the browser: the grouping above already
+                                // decided these nights are one stay, and it can
+                                // see the whole request to do it.
+                                groupDays={group.slice(1).map((o) => o.day)}
                                 paxLabel={paxLabel}
                                 note={it.hotelPendingNote}
                                 requestedType={it.hotelRequestType}

@@ -14,6 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
+import { resolveStayPhoto } from "@/app/lib/imageUrl";
 import { normalizeMealLabels } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
@@ -92,15 +93,47 @@ export type FillHotelInput = {
     alsoDays?: number[];
 };
 
+/** Not exported: a "use server" module's exports must all be async
+ * functions, and this is only ever needed inside this file. */
+type FillHotelResult = {
+    success: boolean; error?: string; allDaysFilled?: boolean; filledDays?: number[];
+    /** Days that saved but still cannot be priced — costing would show ₹0. */
+    unpricedDays?: number[];
+};
+
+/**
+ * A server action that THROWS is a very different thing from one that returns
+ * an error. Next re-throws it on the client, and it travels past this route's
+ * own error boundary out to the unstyled global-error page — the blank white
+ * screen the hotel team hits mid-fill, from which the only way back is a
+ * reload and then re-navigating to the queue from scratch.
+ *
+ * Nothing that can go wrong in here is unrecoverable from the caller's point
+ * of view, so it is all reported instead. The wrapper is separate from the
+ * work so the work below can go on reading as one straight-line procedure.
+ */
 export async function fillPendingHotel(
     packageId: string,
     day: number,
     input: FillHotelInput,
-): Promise<{
-    success: boolean; error?: string; allDaysFilled?: boolean; filledDays?: number[];
-    /** Days that saved but still cannot be priced — costing would show ₹0. */
-    unpricedDays?: number[];
-}> {
+): Promise<FillHotelResult> {
+    try {
+        return await runFillPendingHotel(packageId, day, input);
+    } catch (e) {
+        console.error("[fillPendingHotel]", { packageId, day }, e);
+        return {
+            success: false,
+            error: "Something went wrong saving this hotel. Reload the page to see what did save, "
+                + "then try again — and tell the dev team if it keeps happening.",
+        };
+    }
+}
+
+async function runFillPendingHotel(
+    packageId: string,
+    day: number,
+    input: FillHotelInput,
+): Promise<FillHotelResult> {
     const auth = await requireMember();
     if (!auth.ok) return { success: false, error: auth.error };
 
@@ -148,8 +181,16 @@ export async function fillPendingHotel(
         data: {
             accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
             accommodationRoomSpecs: input.roomSpecs?.trim() || null,
-            accommodationPhoto: input.hotelPhoto?.trim() || null,
-            accommodationRoomPhotos: (input.roomPhotos ?? []).map((p) => p.trim()).filter(Boolean).slice(0, 3),
+            // Resolved here rather than trusted from the form. A day row is
+            // rendered raw by the builder, the PDF and the client-facing page,
+            // so a bare storage key arriving from any client is a photo that
+            // silently fails to load — see resolveStayPhoto. A value that is
+            // already a URL passes through untouched.
+            accommodationPhoto: resolveStayPhoto(input.hotelPhoto?.trim()) || null,
+            accommodationRoomPhotos: (input.roomPhotos ?? [])
+                .map((p) => resolveStayPhoto(p.trim()))
+                .filter(Boolean)
+                .slice(0, 3),
             hotelCheckIn: input.checkIn?.trim() || null,
             hotelCheckOut: input.checkOut?.trim() || null,
             // Same rule as the counts below: the meal plan is part of what the
@@ -291,6 +332,20 @@ export async function rejectPendingHotel(
     day: number,
     reason: string,
 ): Promise<RejectResult> {
+    try {
+        return await runRejectPendingHotel(packageId, day, reason);
+    } catch (e) {
+        // Same reasoning as fillPendingHotel's wrapper — see the comment there.
+        console.error("[rejectPendingHotel]", { packageId, day }, e);
+        return { success: false, error: "Something went wrong rejecting this day. Reload the page and try again." };
+    }
+}
+
+async function runRejectPendingHotel(
+    packageId: string,
+    day: number,
+    reason: string,
+): Promise<RejectResult> {
     const auth = await requireMember();
     if (!auth.ok) return { success: false, error: auth.error };
 
@@ -341,6 +396,19 @@ export async function rejectPendingHotel(
  * shared reason — for when nothing in the whole request is fulfillable
  * (wrong budget, wrong destination entirely) rather than a single day. */
 export async function rejectAllPendingHotels(
+    packageId: string,
+    reason: string,
+): Promise<RejectResult> {
+    try {
+        return await runRejectAllPendingHotels(packageId, reason);
+    } catch (e) {
+        // Same reasoning as fillPendingHotel's wrapper — see the comment there.
+        console.error("[rejectAllPendingHotels]", { packageId }, e);
+        return { success: false, error: "Something went wrong rejecting these days. Reload the page and try again." };
+    }
+}
+
+async function runRejectAllPendingHotels(
     packageId: string,
     reason: string,
 ): Promise<RejectResult> {

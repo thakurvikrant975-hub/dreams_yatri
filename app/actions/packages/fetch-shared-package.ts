@@ -7,6 +7,7 @@
 // a draft/in-progress itinerary is never visible via this path, even to
 // someone who knows the id.
 
+import { resolveStayPhoto } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
@@ -312,8 +313,11 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       })),
       meals:                     it.meals,
       accommodation:             it.accommodation ?? "",
-      accommodationPhoto:        it.accommodationPhoto ?? "",
-      accommodationRoomPhotos:   it.accommodationRoomPhotos,
+      // Same heal as the builder's own loader: a day filled by the hotel
+      // team before the queue stopped storing bare storage keys would
+      // otherwise show the client a broken image on the shared page.
+      accommodationPhoto:        resolveStayPhoto(it.accommodationPhoto),
+      accommodationRoomPhotos:   (it.accommodationRoomPhotos ?? []).map(resolveStayPhoto).filter(Boolean),
       accommodationLocation:     it.accommodationLocation ?? "",
       accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
       accommodationStarRating:   it.accommodationStarRating ?? "",

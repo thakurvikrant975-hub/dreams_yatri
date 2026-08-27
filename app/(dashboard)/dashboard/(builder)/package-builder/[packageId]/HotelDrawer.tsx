@@ -1055,7 +1055,7 @@ export function HotelEditView({ day }: { day: number }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HotelRequestView({ day }: { day: number }) {
-  const { form, replaceDay, openDrawer, closeDrawer, requestSaveNow } = useBuilder();
+  const { form, setForm, replaceDay, openDrawer, closeDrawer, requestSaveNow } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
   const [mealTypes, setMealTypes] = useState<{ id: number; name: string }[]>([]);
@@ -1093,6 +1093,46 @@ export function HotelRequestView({ day }: { day: number }) {
     requestSaveNow();
     toast.success(`Day ${day}: request withdrawn`);
     openDrawer({ kind: "hotel-replace", day });
+  }
+
+  /**
+   * Sends this exact request to further days as well.
+   *
+   * One property booked for three nights is one request, but this drawer only
+   * ever knew how to ask for a single day — so a three-night stay meant the
+   * exec composing the same request three times, and then the hotel team
+   * sourcing the same property three times off three separate queue entries.
+   * The specs are copied wholesale (type, rooms, mattresses, meal plan, note)
+   * because that is what makes it the same request; each day still gets its own
+   * row, which is what the fill queue and the pricing engine both work in.
+   *
+   * Mirrors "Use this day's hotel on other days" above it: a stay that spans
+   * nights is the normal case, and both halves of the flow now say so.
+   */
+  function requestOnDays(days: number[]) {
+    const target = new Set(days);
+    const source = form.itineraries.find((it) => it.day === day);
+    if (!source) return;
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) => (target.has(it.day)
+        ? submitHotelRequest({
+          // Clears any catalog room still sitting on the target day — a
+          // request and a picked room are mutually exclusive, exactly as
+          // beginHotelRequest enforces for the day being composed.
+          ...beginHotelRequest(it),
+          hotelRequestType: source.hotelRequestType,
+          hotelMealPlan: source.hotelMealPlan,
+          roomsCount: source.roomsCount,
+          manualExtraBeds: source.manualExtraBeds,
+          hotelPendingNote: source.hotelPendingNote,
+        })
+        : it)),
+    }));
+    requestSaveNow();
+    toast.success(
+      `Same request sent for day${days.length !== 1 ? "s" : ""} ${days.sort((a, b) => a - b).join(", ")}`,
+    );
   }
 
   // ── Submitted, not being edited ──────────────────────────────────────────
@@ -1164,6 +1204,13 @@ export function HotelRequestView({ day }: { day: number }) {
             </p>
           </div>
         )}
+
+        <ApplyToDays
+          sourceDay={day}
+          label="Same hotel needed on other days? Ask once for all of them"
+          confirmLabel="Send the same request for"
+          onApply={requestOnDays}
+        />
 
         <div className="flex flex-col gap-2">
           <Button type="button" variant="outline" className="h-9 text-xs" onClick={() => setComposing(true)}>
