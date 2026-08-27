@@ -769,6 +769,29 @@ model TeamRole {
   @@map("team_roles")
 }
 
+/**
+ * An org-chart grouping of sales executives under one Team Leader, managed
+ * by a Sales Manager — reporting/analytics only, not a routing construct
+ * (the auto-assign round robin in auto-assign.ts still treats every Sales
+ * Executive as one pool regardless of team). A member belongs to at most
+ * one team at a time (setTeamMembers/setTeamLeader overwrite salesTeamId
+ * rather than using a join table). The leader keeps their existing
+ * TeamRole and is auto-included in `members` so analytics can always
+ * treat `members` as the complete roster with no leader special-casing.
+ */
+model SalesTeam {
+  id          String       @id @default(cuid())
+  name        String       @unique @db.VarChar(100)
+  leaderId    String?      @unique
+  leader      TeamMember?  @relation("SalesTeamLeader", fields: [leaderId], references: [id])
+  members     TeamMember[] @relation("SalesTeamMembers")
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("sales_teams")
+}
+
 model TeamMember {
   id                     String            @id @default(cuid())
   name                   String            @db.VarChar(255)
@@ -776,6 +799,7 @@ model TeamMember {
   password               String?
   departmentId           String?
   teamRoleId             String?
+  salesTeamId            String?
   isActive               Boolean           @default(true)
   /**
    * Per-member override for the round-robin auto-assign (see
@@ -855,11 +879,14 @@ model TeamMember {
   notifications          Notification[]
   department             Department?       @relation(fields: [departmentId], references: [id])
   teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
+  salesTeam              SalesTeam?        @relation("SalesTeamMembers", fields: [salesTeamId], references: [id])
+  ledSalesTeam           SalesTeam?        @relation("SalesTeamLeader")
 
   @@index([email])
   @@index([employeeId])
   @@index([departmentId])
   @@index([teamRoleId])
+  @@index([salesTeamId])
   @@map("team_members")
 }
 
