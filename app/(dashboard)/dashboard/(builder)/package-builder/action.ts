@@ -996,6 +996,11 @@ export interface DayItinerary {
   description:        string;
   activities:         ActivityInput[];
   meals:              string[];
+  /** Added on top of whatever the hotel provides — see the field's own doc
+   * comment in schema.prisma. Optional so every existing call site that
+   * builds a DayItinerary without it still type-checks; treated as [] when
+   * absent. */
+  extraMeals?:        string[];
   accommodation:      string;
   accommodationPhoto: string;
   accommodationRoomPhotos: string[];
@@ -1569,7 +1574,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       itineraries: {
         orderBy: { day: "asc" },
         select: {
-          id: true, day: true, title: true, description: true, meals: true,
+          id: true, day: true, title: true, description: true, meals: true, extraMeals: true,
           accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
           accommodationLocation: true, accommodationRoomSpecs: true, accommodationStarRating: true,
           accommodationRoomCapacity: true,
@@ -1602,7 +1607,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
   const itineraries: DayItinerary[] = cp.itineraries.map((it) => {
     const n = normalizeItinerary(it);
     return {
-      day: n.day, title: n.title, description: n.description, meals: n.meals,
+      day: n.day, title: n.title, description: n.description, meals: n.meals, extraMeals: n.extraMeals,
       activities: n.activities.map((a) => ({
         title: a.title, description: a.description, photo: a.photo, photos: a.photos, photoLabels: a.photoLabels,
       })),
@@ -1784,6 +1789,7 @@ function normalizeActivity(a: {
 
 function normalizeItinerary(it: {
   id: string; day: number; title: string; description: string | null; meals: string[];
+  extraMeals?: string[];
   accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
   accommodationLocation: string | null; accommodationRoomSpecs: string | null;
   accommodationStarRating: string | null; accommodationRoomCapacity: number | null;
@@ -1817,6 +1823,7 @@ function normalizeItinerary(it: {
     description:               it.description ?? "",
     activities:                it.activities.map(normalizeActivity),
     meals:                     normalizeMealLabels(it.meals),
+    extraMeals:                it.extraMeals ?? [],
     accommodation:             it.accommodation ?? "",
     accommodationPhoto:        it.accommodationPhoto ?? "",
     accommodationRoomPhotos:   it.accommodationRoomPhotos ?? [],
@@ -2043,6 +2050,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           title:              true,
           description:        true,
           meals:              true,
+          extraMeals:         true,
           accommodation:      true,
           accommodationPhoto: true,
           accommodationRoomPhotos: true,
@@ -2710,6 +2718,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               title:              it.title,
               description:        it.description || null,
               meals:              normalizeMealLabels(it.meals),
+              extraMeals:         it.extraMeals ?? [],
               // Same staleResurrection guard as hotelFilledAt/By/ByName below:
               // a stale pre-fill tab's payload for these is genuinely blank
               // (the request form never sets them — only the fill does), so

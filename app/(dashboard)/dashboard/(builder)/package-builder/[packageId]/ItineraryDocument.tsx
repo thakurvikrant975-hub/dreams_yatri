@@ -1361,6 +1361,11 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
       if (m.toLowerCase().includes("breakfast")) continue;
       chosen.add(m);
     }
+    // Added on top of whatever the hotel provides — an arrival-day breakfast
+    // being the whole reason this exists, since Day 1 has no prior night to
+    // shift one in from above. Never shifted itself: an extra meal is a flat
+    // statement of what this exact day includes, not another night's stay.
+    for (const m of day.extraMeals ?? []) chosen.add(m);
     return orderMeals([...chosen]);
   });
 }
