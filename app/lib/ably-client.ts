@@ -113,3 +113,56 @@ export function useVerificationCounts(onUpdate: (counts: VerificationCounts) => 
     };
   }, []);
 }
+
+export type BookingWon = {
+  bookingId: string;
+  bookingNumber: string;
+  packageTitle: string;
+  clientName: string | null;
+  amountPaise: number;
+  currency: string;
+};
+
+/**
+ * Subscribes a sales exec to their OWN landings channel for the component's
+ * lifetime — a booking confirming anywhere (webhook or reconcile) pops on
+ * their open dashboard with no refresh and no polling.
+ *
+ * `memberId` only names the channel; it is not what grants access. The token
+ * minted by /dashboard/api/ably/token carries a capability for that member's
+ * channel alone, so passing someone else's id here simply fails to attach.
+ */
+export function useBookingWon(memberId: string | null, onWon: (won: BookingWon) => void) {
+  // Kept current through an effect rather than assigned during render (which
+  // the other two hooks in this file still do, and which react-hooks/refs
+  // rightly flags). The subscription below must not tear down and re-attach
+  // every time the caller passes a fresh closure, so the handler is reached
+  // through a ref rather than named in the effect's deps.
+  const onWonRef = useRef(onWon);
+  useEffect(() => { onWonRef.current = onWon; }, [onWon]);
+
+  useEffect(() => {
+    if (!memberId) return;
+
+    const client = new Ably.Realtime({
+      authCallback: (_tokenParams, callback) => {
+        fetch("/dashboard/api/ably/token", { method: "POST" })
+          .then((res) => {
+            if (!res.ok) throw new Error(`Token request failed (${res.status})`);
+            return res.json();
+          })
+          .then((tokenRequest) => callback(null, tokenRequest))
+          .catch((err) => callback(err instanceof Error ? err.message : String(err), null));
+      },
+    });
+
+    const channel = client.channels.get(`sales-agent:${memberId}`);
+    const handler = (msg: Ably.Message) => onWonRef.current(msg.data as BookingWon);
+    channel.subscribe("booking-won", handler);
+
+    return () => {
+      channel.unsubscribe("booking-won", handler);
+      client.close();
+    };
+  }, [memberId]);
+}

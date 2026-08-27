@@ -24,10 +24,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { useBookCustomPackage } from "./useBookCustomPackage";
+import type { SharedPackageBooking } from "@/app/actions/packages/fetch-shared-package";
 import { PUBLISHED_THEME } from "./published-theme";
 
 /** "12 Sep 2026" — the balance date, in the form a client reads rather than
@@ -39,7 +41,13 @@ function formatDueDate(iso: string): string {
     : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function PublishedItinerary({ form, packageId }: { form: PreviewData; packageId: string }) {
+export function PublishedItinerary({ form, packageId, booking }: {
+  form: PreviewData;
+  packageId: string;
+  /** The confirmed booking made from this link, when there is one — turns the
+   * sticky Book bar into a receipt. Null until the client actually pays. */
+  booking: SharedPackageBooking | null;
+}) {
   return (
     <>
       {/* The website's own presentation of the document — its width, its
@@ -62,8 +70,45 @@ export function PublishedItinerary({ form, packageId }: { form: PreviewData; pac
         <ItineraryDocument form={form} published variant="page" />
       </div>
 
-      <BookingBar form={form} packageId={packageId} />
+      {/* Once it is paid for, the bar stops asking for money and becomes the
+          receipt. Two components rather than a branch inside one: BookingBar
+          holds the stay-option and deposit state, and an early return above
+          those hooks would skip them. */}
+      {booking
+        ? <PaidBar booking={booking} />
+        : <BookingBar form={form} packageId={packageId} />}
     </>
+  );
+}
+
+/** The client keeps this link and reopens it after paying, so the bar has to
+ * answer "did that go through?" and give them somewhere to go. Leaving a live
+ * "Book Now" here is also how one trip gets paid for twice. */
+function PaidBar({ booking }: { booking: SharedPackageBooking }) {
+  return (
+    <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-success-200 bg-success-50/95 backdrop-blur px-4 py-3">
+      <div className="mx-auto w-full max-w-4xl flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success-100 text-success-700">
+            <Check size={17} strokeWidth={3} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-success-900">
+              Payment received — you&apos;re booked!
+            </span>
+            <span className="block text-xs text-success-800/80">
+              {booking.paidLabel} · Booking {booking.bookingNumber}
+            </span>
+          </span>
+        </div>
+        <Link
+          href={`/bookings/${booking.id}`}
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-success-700 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-success-800"
+        >
+          View booking &amp; invoice <ArrowRight size={15} />
+        </Link>
+      </div>
+    </div>
   );
 }
 

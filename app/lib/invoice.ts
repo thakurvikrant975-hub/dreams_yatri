@@ -28,6 +28,13 @@ export type InvoiceBookingData = {
     contactPhone: string | null;
     gstStateCode: string | null;
     package: { title: string | null } | null;
+    /** A custom package booked off a share link has no `package` row at all —
+     *  the itinerary lives in custom_packages, which Booking reaches only
+     *  through the packageUrl string, so it cannot be selected as a relation.
+     *  Whoever builds this resolves the title (see resolveCustomPackageTitle)
+     *  and passes it here; without it the invoice names a bespoke trip after
+     *  its destination, which is not what the client agreed to buy. */
+    customPackageTitle?: string | null;
     destination?: { name: string | null } | null;
     user: { name: string | null; email: string | null } | null;
     /** Hotel legs. A direct hotel booking has exactly one and no `package`; a
@@ -79,6 +86,9 @@ export type InvoiceViewModel = {
 export const INVOICE_BOOKING_SELECT = {
     bookingNumber: true, createdAt: true, startDate: true, endDate: true, travellers: true,
     totalAmount_paise: true, priceSnapshot: true, contactEmail: true, contactPhone: true, gstStateCode: true,
+    // Carries the custom package's id for a share-link booking — see
+    // customPackageTitle above and resolveCustomPackageTitle below.
+    packageUrl: true,
     package: { select: { title: true } },
     destination: { select: { name: true } },
     user: { select: { name: true, email: true } },
@@ -130,7 +140,7 @@ export function buildInvoiceViewModel(booking: InvoiceBookingData): InvoiceViewM
         lineItemLabel = `${hotelName} — ${stay.roomType}`;
         lineItemDetail = `${nights} night${nights !== 1 ? "s" : ""} · ${stay.roomsCount} room${stay.roomsCount !== 1 ? "s" : ""}`;
     } else {
-        lineItemLabel = booking.package?.title ?? booking.destination?.name ?? "Holiday package";
+        lineItemLabel = booking.package?.title ?? booking.customPackageTitle ?? booking.destination?.name ?? "Holiday package";
         lineItemDetail = `${booking.travellers} traveller${booking.travellers !== 1 ? "s" : ""}`;
     }
 
@@ -243,4 +253,22 @@ export function bookingToInvoiceDocument(booking: InvoiceBookingData): InvoiceDo
         balance: v.balance,
         terms: [...INVOICE_TERMS],
     };
+}
+
+/**
+ * The title of the custom package a share-link booking was made from, or null
+ * for a catalogue/hotel booking.
+ *
+ * Booking stores that link as `packageUrl` (`/custom-package/<id>`) rather
+ * than a foreign key — a custom package is not a catalogue `packages` row and
+ * never gets an entry in it — so this is a lookup, not a join, and callers do
+ * it once alongside their own booking fetch.
+ */
+export async function resolveCustomPackageTitle(
+    db: { custom_packages: { findUnique(args: { where: { id: string }; select: { title: true } }): Promise<{ title: string } | null> } },
+    packageUrl: string | null | undefined,
+): Promise<string | null> {
+    const id = packageUrl?.match(/^\/custom-package\/([^/?#]+)/)?.[1];
+    if (!id) return null;
+    return (await db.custom_packages.findUnique({ where: { id }, select: { title: true } }))?.title ?? null;
 }

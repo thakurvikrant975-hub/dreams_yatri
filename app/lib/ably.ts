@@ -64,3 +64,30 @@ export async function publishVerificationCounts(counts: VerificationCounts): Pro
   if (!rest) return;
   await rest.channels.get(verificationCountsChannelName()).publish("counts", counts);
 }
+
+/** One channel per sales exec — private to them, so the token endpoint can
+ * scope a browser client to its own member id and nobody watches another
+ * exec's sales landing. */
+export function salesAgentChannelName(memberId: string): string {
+  return `sales-agent:${memberId}`;
+}
+
+export type BookingWon = {
+  bookingId: string;
+  bookingNumber: string;
+  /** What they sold, already resolved server-side — the client toast should
+   * not have to know how a custom package differs from a catalogue one. */
+  packageTitle: string;
+  clientName: string | null;
+  amountPaise: number;
+  currency: string;
+};
+
+/** Best-effort publish — never throws. The booking is already confirmed and
+ * durable by the time this runs; the toast is a moment of recognition on top
+ * of it, and losing one must never fail a payment confirmation. */
+export async function publishBookingWon(memberId: string, won: BookingWon): Promise<void> {
+  const rest = getAblyRest();
+  if (!rest) return;
+  await rest.channels.get(salesAgentChannelName(memberId)).publish("booking-won", won);
+}

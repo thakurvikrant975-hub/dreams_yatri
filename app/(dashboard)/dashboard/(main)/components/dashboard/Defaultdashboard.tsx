@@ -12,6 +12,7 @@ import { Skeleton } from "../ui/skeleton";
 import type { CurrentMember } from "@/app/types/members";
 import { GreetingBanner } from "./Greetingbanner";
 import { FunNotification } from "./Funnotification";
+import { BookingWonToast } from "./BookingWonToast";
 import { StatCard, StatGrid } from "./Statcard";
 import { db } from "@/app/lib/db";
 import { cn } from "@/app/lib/utils";
@@ -72,6 +73,9 @@ async function DefaultDashboardContent({ member }: { member: CurrentMember }) {
   return (
     <div className="space-y-6">
       <FunNotification memberId={member.id} />
+      {/* Renders nothing — holds the live subscription that congratulates this
+          exec the moment a trip they sold is paid for. */}
+      <BookingWonToast memberId={member.id} />
 
       {/* KPI overview */}
       <StatGrid cols={4}>

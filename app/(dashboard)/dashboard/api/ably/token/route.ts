@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { getAblyRest, verificationCountsChannelName } from "@/app/lib/ably";
+import { getAblyRest, verificationCountsChannelName, salesAgentChannelName } from "@/app/lib/ably";
 import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 
 /**
@@ -22,10 +22,16 @@ export async function POST() {
         return NextResponse.json({ error: "Live updates are temporarily unavailable." }, { status: 503 });
     }
 
-    const channel = verificationCountsChannelName();
     const tokenRequest = await rest.auth.createTokenRequest({
         clientId: `member:${member.id}`,
-        capability: { [channel]: ["subscribe"] },
+        capability: {
+            // Shared: the Verify Hotels / Verify Cabs pending badge.
+            [verificationCountsChannelName()]: ["subscribe"],
+            // Private: this member's own sales channel, keyed by their id, so
+            // the capability itself is what stops one exec subscribing to
+            // another's landings rather than a check in the client.
+            [salesAgentChannelName(member.id)]: ["subscribe"],
+        },
         ttl: 60 * 60 * 1000, // 1 hour — the client SDK re-requests on expiry
     });
 

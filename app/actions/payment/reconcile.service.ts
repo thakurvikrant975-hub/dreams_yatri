@@ -3,9 +3,8 @@ import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { ChargeStatus, RefundStatus, GatewayId } from "@/app/lib/payments/types";
 import { finalizeCapturedPayment } from "./finalize.service";
-import { confirmHotelReservationForBooking } from "./hotel-confirmation";
+import { runPaymentConfirmedEffects } from "./confirmation-effects";
 import { notifyRefund } from "@/app/services/notifications/booking-notify";
-import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 
 /**
  * Reconciliation — the safety net for missed/late webhooks.
@@ -58,10 +57,17 @@ export async function reconcilePendingPayments(opts?: {
                         webhookEventId: null,
                     }),
                 );
-                if (fin.result === "finalized" && fin.purpose === "INITIAL") {
-                    try { await confirmHotelReservationForBooking(fin.bookingId); } catch (e) { console.error("[recon] hotel confirm failed", e); }
-                    await broadcastVerificationCounts();
-                }
+                // Identical to the webhook's, and shared with it rather than
+                // copied: this branch previously confirmed hotels and moved
+                // the badge counts but sent neither the customer's
+                // confirmation nor their invoice, so a booking the webhook
+                // missed was also a booking nobody was told about.
+                await runPaymentConfirmedEffects({
+                    confirmInitial: fin.result === "finalized" && fin.purpose === "INITIAL",
+                    isNewCapture: fin.result === "finalized",
+                    bookingId: fin.result === "finalized" ? fin.bookingId : undefined,
+                    paymentId: p.id,
+                });
                 finalized++;
             } else if (status.state === "failed") {
                 await db.payment.update({ where: { id: p.id }, data: { status: "FAILED", failureReason: "reconciled: no successful payment" } });

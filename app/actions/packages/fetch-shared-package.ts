@@ -368,3 +368,41 @@ export async function markPackageViewed(packageId: string): Promise<void> {
     data: { viewCount: { increment: 1 }, viewedAt: new Date() },
   }).catch(() => {});
 }
+
+export type SharedPackageBooking = {
+    id: string;
+    bookingNumber: string;
+    paidLabel: string;
+};
+
+/**
+ * The confirmed booking made from this share link, if there is one.
+ *
+ * The client's copy of the itinerary is a long-lived URL — they keep it, they
+ * forward it, they open it again after paying. Without this it offered "Book
+ * Now" forever, so the page that just took their money still read as though it
+ * had not, and there was nowhere to go to see what they had bought.
+ *
+ * Matched on `packageUrl` rather than a relation: a custom package has no
+ * catalogue `packages` row, so the booking records the share link it came
+ * through and that string is the only join there is. Only a paid booking
+ * counts — a draft abandoned at the payment sheet must leave the Book button
+ * exactly where it was.
+ */
+export async function getSharedPackageBooking(packageId: string): Promise<SharedPackageBooking | null> {
+    const booking = await db.booking.findFirst({
+        where: {
+            packageUrl: `/custom-package/${packageId}`,
+            paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
+            status: { notIn: ["CANCELLED", "REJECTED"] },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, bookingNumber: true, paymentStatus: true },
+    });
+    if (!booking) return null;
+    return {
+        id: booking.id,
+        bookingNumber: booking.bookingNumber,
+        paidLabel: booking.paymentStatus === "FULLY_PAID" ? "Paid in full" : "Deposit paid",
+    };
+}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getSharedPackage } from "@/app/actions/packages/fetch-shared-package";
+import { getSharedPackage, getSharedPackageBooking } from "@/app/actions/packages/fetch-shared-package";
 import { ViewTracker } from "./ViewTracker";
 import { PublishedItinerary } from "./components/PublishedItinerary";
 
@@ -23,6 +23,9 @@ export default async function CustomPackagePage({
 }) {
   const { id } = await params;
   const data = await getSharedPackage(id);
+  // The client keeps this link and reopens it after paying — see
+  // getSharedPackageBooking for why the page has to know.
+  const booking = data ? await getSharedPackageBooking(id) : null;
 
   if (!data) {
     return (
@@ -45,7 +48,7 @@ export default async function CustomPackagePage({
     // two meet without a seam on screens wider than the page.
     <div className="min-h-screen bg-white">
       <ViewTracker packageId={id} />
-      <PublishedItinerary form={data} packageId={id} />
+      <PublishedItinerary form={data} packageId={id} booking={booking} />
     </div>
   );
 }
