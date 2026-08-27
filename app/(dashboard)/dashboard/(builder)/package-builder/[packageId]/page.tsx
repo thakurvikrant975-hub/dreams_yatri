@@ -19,7 +19,7 @@ import {
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, BedDouble, Undo2, Redo2, Ticket,
-  ShieldCheck, ChatText, Wand2, Copy, ClipboardPaste, AlertTriangle,
+  ShieldCheck, ChatText, Wand2, Copy, ClipboardPaste, AlertTriangle, BookOpen,
 } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { PackageSwitcher } from "@/app/(dashboard)/dashboard/(builder)/package-builder/PackageSwitcher";
@@ -60,6 +60,7 @@ import {
   type ExtraPolicyItems,
   getCurrentUserRole,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { saveCustomPackageToLibrary } from "@/app/(dashboard)/dashboard/(main)/package-templates/actions";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, formatTime12h, computeShiftedMeals, dayCalendarDate, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
@@ -435,6 +436,8 @@ export default function PackageBuilderDetailPage() {
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
+  const [isSavingToLibrary, startSaveToLibrary] = useTransition();
+  const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
   /** The stay standards, as the document's columns and price cards read them.
       Kept beside the form rather than in it: they are saved per standard,
@@ -1480,6 +1483,21 @@ Rules:
     setConfirmShareOpen(true);
   }
 
+  // ── Save to Library — costing-approved packages only, see PackageTemplate ──
+  function handleSaveToLibrary() {
+    startSaveToLibrary(async () => {
+      const result = await saveCustomPackageToLibrary(packageId);
+      if (result.success) {
+        toast.success(
+          `Saved to library — ${result.activityCount} activit${result.activityCount === 1 ? "y" : "ies"} included, awaiting your team leader's review.`,
+        );
+        setSavedToLibrary(true);
+      } else {
+        toast.error(result.error ?? "Failed to save to library");
+      }
+    });
+  }
+
   function handleShare() {
     setConfirmShareOpen(false);
     startShare(async () => {
@@ -2125,6 +2143,19 @@ Rules:
                   </Button>
                 </RequestRevisionDialog>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                  onClick={handleSaveToLibrary}
+                  disabled={isSavingToLibrary || savedToLibrary}
+                >
+                  {isSavingToLibrary
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <BookOpen size={13} />
+                  }
+                  <span className="hidden sm:inline text-xs">{savedToLibrary ? "Saved to Library" : "Save to Library"}</span>
+                </Button>
+                <Button
                   size="sm"
                   className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
                   onClick={handleShareClick}
@@ -2397,6 +2428,15 @@ Rules:
                     Request Revision
                   </Button>
                 </RequestRevisionDialog>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
+                  onClick={handleSaveToLibrary}
+                  disabled={isSavingToLibrary || savedToLibrary}
+                >
+                  {isSavingToLibrary ? <Loader2 size={14} className="animate-spin" /> : <BookOpen size={14} />}
+                  {savedToLibrary ? "Saved to Library" : "Save to Library"}
+                </Button>
                 <Button
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleShareClick}

@@ -62,6 +62,8 @@ export const ALL_HREFS = [
   "/dashboard/lead-requests",
   "/dashboard/sales-teams",
   "/dashboard/my-team",
+  "/dashboard/package-templates",
+  "/dashboard/activity-templates",
   "/dashboard/package-library",
   "/dashboard/package-builder",
   "/dashboard/verify-packages",
