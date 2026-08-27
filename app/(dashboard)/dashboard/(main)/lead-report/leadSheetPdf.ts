@@ -74,11 +74,26 @@ function fmtIstRange(fromIso: string, toIso: string): string {
   return `${dt(fromIso, false)}  to  ${dt(toIso, true)}  IST`;
 }
 
-function fmtIstTime(iso: string): string {
+function fmtIstClock(iso: string): string {
   return new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
+    timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true,
   }).format(new Date(iso));
+}
+
+/** "Today" / "Yesterday" / a plain date, matching the page's payment
+ * headings. Resolved against the IST day so a report generated late at
+ * night still names the buckets the way the reader would. */
+function dayHeading(dayKey: string): string {
+  const istDay = (d: Date) => new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
+  if (dayKey === istDay(now)) return "Today";
+  if (dayKey === istDay(yesterday)) return "Yesterday";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric", month: "short", year: "numeric",
+  }).format(new Date(`${dayKey}T00:00:00`));
 }
 
 const MEDIUM_LABEL: Record<Medium, string> = {
@@ -142,9 +157,9 @@ export function buildLeadSheetPdf(
   const summary: [string, string][] = [
     ["Total leads", String(data.totals.leads)],
     ["Given to team", String(data.totals.assignedInWindow)],
+    ["Cost per lead", blendedCpl != null ? money(blendedCpl) : "—"],
     ["Payments", String(data.payments.length)],
     ["Payment value", money(data.paymentsTotal)],
-    ["Blended CPL", blendedCpl != null ? money(blendedCpl) : "—"],
   ];
   const gap = 3;
   const boxW = (CONTENT_WIDTH - gap * (summary.length - 1)) / summary.length;
@@ -432,49 +447,83 @@ export function buildLeadSheetPdf(
     pdf.text("No payments captured in this window.", MARGIN + 2.5, y + 5);
     y += 11;
   } else {
-    drawTableHeader(payCols);
-    data.payments.forEach((p, i) => {
-      ensureSpace(8);
-      if (y === MARGIN) drawTableHeader(payCols);
-      if (i % 2 === 1) {
-        pdf.setFillColor(249, 249, 250);
-        pdf.rect(MARGIN, y, CONTENT_WIDTH, 6.2, "F");
-      }
-      const cells = [
-        fmtIstTime(p.paidAt),
-        p.clientName,
-        p.agentName ?? "—",
-        p.destination ?? "—",
-        sourcePhrase(p.platform, p.medium),
-        money(p.amount),
-      ];
+    // Grouped by IST day, matching the page: "what came in overnight" and
+    // "what came in today" were separate boxes on the handwritten sheet, and
+    // on a window spanning midnight one flat list loses that.
+    const groups = new Map<string, typeof data.payments>();
+    for (const p of data.payments) {
+      const bucket = groups.get(p.dayKey) ?? [];
+      bucket.push(p);
+      groups.set(p.dayKey, bucket);
+    }
+    const days = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+    for (const [dayKey, rows] of days) {
+      const dayTotal = rows.reduce((sum, r) => sum + r.amount, 0);
+
+      // Day heading — kept with its own header and first rows.
+      ensureSpace(8 + TABLE_KEEP);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9.5);
+      setInk(INK);
+      pdf.text(dayHeading(dayKey), MARGIN, y + 4);
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(8);
-      let x = MARGIN + 2.5;
-      payCols.forEach((col, ci) => {
-        if (ci === 5) {
-          pdf.setFont("helvetica", "bold");
-          setInk(MONEY);
-        } else {
-          setInk(ci === 1 ? INK : MUTED);
-        }
-        pdf.text(truncate(cells[ci], col.width), col.align === "right" ? x + col.width - 5 : x, y + 4.3, {
-          align: col.align === "right" ? "right" : "left",
-        });
-        if (ci === 5) pdf.setFont("helvetica", "normal");
-        x += col.width;
-      });
-      y += 6.2;
-    });
+      setInk(MUTED);
+      pdf.text(
+        `${rows.length} payment${rows.length === 1 ? "" : "s"} · ${money(dayTotal)}`,
+        MARGIN + CONTENT_WIDTH, y + 4, { align: "right" },
+      );
+      y += 7;
 
-    // Total row
+      drawTableHeader(payCols);
+      rows.forEach((p, i) => {
+        ensureSpace(8);
+        if (y === MARGIN) drawTableHeader(payCols);
+        if (i % 2 === 1) {
+          pdf.setFillColor(249, 249, 250);
+          pdf.rect(MARGIN, y, CONTENT_WIDTH, 6.2, "F");
+        }
+        const cells = [
+          fmtIstClock(p.paidAt),
+          p.clientName,
+          p.agentName ?? "—",
+          p.destination ?? "—",
+          sourcePhrase(p.platform, p.medium),
+          money(p.amount),
+        ];
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        let x = MARGIN + 2.5;
+        payCols.forEach((col, ci) => {
+          if (ci === 5) {
+            pdf.setFont("helvetica", "bold");
+            setInk(MONEY);
+          } else {
+            setInk(ci === 1 ? INK : MUTED);
+          }
+          pdf.text(truncate(cells[ci], col.width), col.align === "right" ? x + col.width - 5 : x, y + 4.3, {
+            align: col.align === "right" ? "right" : "left",
+          });
+          if (ci === 5) pdf.setFont("helvetica", "normal");
+          x += col.width;
+        });
+        y += 6.2;
+      });
+      y += 4;
+    }
+
+    // Grand total across every day in the window.
     ensureSpace(9);
     pdf.setFillColor(240, 240, 242);
     pdf.rect(MARGIN, y, CONTENT_WIDTH, 7, "F");
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8.5);
     setInk(INK);
-    pdf.text(`${data.payments.length} payment${data.payments.length === 1 ? "" : "s"}`, MARGIN + 2.5, y + 4.8);
+    pdf.text(
+      `${data.payments.length} payment${data.payments.length === 1 ? "" : "s"} in this window`,
+      MARGIN + 2.5, y + 4.8,
+    );
     setInk(MONEY);
     pdf.text(money(data.paymentsTotal), MARGIN + CONTENT_WIDTH - 5, y + 4.8, { align: "right" });
     y += 12;

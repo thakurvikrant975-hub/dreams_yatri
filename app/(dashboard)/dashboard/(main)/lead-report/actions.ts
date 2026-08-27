@@ -33,6 +33,16 @@ export function istLocalToDate(local: string): Date {
   return new Date(`${withSeconds}${IST_OFFSET}`);
 }
 
+/** The IST calendar day an instant falls on, as YYYY-MM-DD. The payments
+ * list is grouped by this: a report run from yesterday evening to this
+ * afternoon has to separate last night's payments from today's, the way the
+ * handwritten sheet always did. */
+export function istDayKey(d: Date | string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: IST_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(typeof d === "string" ? new Date(d) : d);
+}
+
 /** The inverse — an instant rendered back as the `datetime-local` value that
  * names it in IST, for seeding the picker's defaults server-side. */
 export function dateToIstLocal(d: Date): string {
@@ -144,6 +154,9 @@ export type PaymentRow = {
   id: string;
   /** ISO instant — formatted for display in IST at the edges. */
   paidAt: string;
+  /** IST calendar day (YYYY-MM-DD) this payment lands on, so the page and the
+   * PDF group the list into the same buckets without recomputing it. */
+  dayKey: string;
   amount: number;
   bookingNumber: string;
   clientName: string;
@@ -276,9 +289,11 @@ export async function getLeadReport(fromLocal: string, toLocal: string): Promise
   // ── Payments ──────────────────────────────────────────────────────────
   const paymentRows: PaymentRow[] = payments.map((p) => {
     const q = p.booking?.sourceQuery;
+    const paidAt = p.paidAt ?? new Date();
     return {
       id: p.id,
-      paidAt: (p.paidAt ?? new Date()).toISOString(),
+      paidAt: paidAt.toISOString(),
+      dayKey: istDayKey(paidAt),
       amount: Number(p.amount),
       bookingNumber: p.booking?.bookingNumber ?? "—",
       clientName: q?.name ?? p.booking?.user?.name ?? "—",
