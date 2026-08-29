@@ -227,9 +227,7 @@ export function OnboardingPopup({
                 {errors?.personalMobile && <p className="text-xs text-destructive">{errors.personalMobile[0]}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>
-                  Alternate Mobile <span className="text-destructive">*</span>
-                </Label>
+                <Label>Alternate Mobile</Label>
                 <Input value={alternativeMobile} onChange={(e) => setAlternativeMobile(e.target.value)} placeholder="9876543210" />
                 {errors?.alternativeMobile && <p className="text-xs text-destructive">{errors.alternativeMobile[0]}</p>}
               </div>

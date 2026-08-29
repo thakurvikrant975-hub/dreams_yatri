@@ -126,7 +126,6 @@ export default async function DashboardLayout({
   // docs) is optional and never blocks this from clearing.
   const missingRequiredFields = !realMember.gender
     || !realMember.personalMobile
-    || !realMember.alternativeMobile
     || !realMember.personalEmail
     || (!realMember.joiningDate && !realMember.joiningDateUnknown);
   // Dismissing the popup (X, Escape, outside click — see OnboardingPopup's

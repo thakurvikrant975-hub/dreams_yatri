@@ -40,7 +40,7 @@ export const OnboardingPersonalSchema = z.object({
   gender: GenderSchema,
   personalEmail: z.string().email("Enter a valid email"),
   personalMobile: z.string().trim().min(1, "Personal mobile is required").max(15),
-  alternativeMobile: z.string().trim().min(1, "Alternate mobile is required").max(15),
+  alternativeMobile: optionalTrimmed(15),
   officialMobile: optionalTrimmed(15),
   // Exactly one of these two must hold: a real date, or the "don't
   // remember" flag — enforced by .refine below rather than by making
