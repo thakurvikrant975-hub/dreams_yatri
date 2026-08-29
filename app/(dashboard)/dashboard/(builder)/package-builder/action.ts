@@ -1428,6 +1428,14 @@ export async function copyPackageIntoDraft(
 
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
+    // itinerary_transfers is optional per-day catalog content, decoupled from
+    // the package's cab rate segments above — a day can carry a priced
+    // cabPricingId with no matching transfer row at all (transfers are
+    // frequently never filled in). Without this fallback that day copied a
+    // real cabPricingId (so pricing charged for it) but every transport/*
+    // display field stayed blank, so the Day Summary table's Cab column
+    // showed "—" for a day the total was already charging for.
+    const cabForDay = cabPricingByDay.get(day.day) != null ? defaultCabType : undefined;
 
     const rawHotelPhoto = day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
     const rawRoomPhotos = (day.hotel?.room_images ?? [])
@@ -1486,10 +1494,12 @@ export async function copyPackageIntoDraft(
       hotelFilledAt:      null,
       hotelFilledByName:  null,
       hotelFillNote:      null,
-      transport:          transfer?.vehicle_name ?? "",
-      transportPhoto:     transfer?.vehicle_image_key ? getThumbnailImage(transfer.vehicle_image_key) : "",
-      transportVehicleType: transfer?.vehicle_type ?? "",
-      transportSeats:     transfer?.vehicle_capacity ?? null,
+      transport:          transfer?.vehicle_name ?? cabForDay?.label ?? "",
+      transportPhoto:     (transfer?.vehicle_image_key ?? cabForDay?.vehicle.image_key)
+                             ? getThumbnailImage((transfer?.vehicle_image_key ?? cabForDay!.vehicle.image_key)!)
+                             : "",
+      transportVehicleType: transfer?.vehicle_type ?? cabForDay?.vehicle.type ?? "",
+      transportSeats:     transfer?.vehicle_capacity ?? cabForDay?.vehicle.passenger_capacity ?? null,
       transportPickup:    transfer?.pickup_name ?? "",
       // fetchPackagePageData doesn't expose the transfer route's raw lat/lng —
       // left null on copy, same as roomPricingId used to be; the exec can
