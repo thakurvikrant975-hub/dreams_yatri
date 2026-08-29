@@ -1357,9 +1357,19 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
     const chosen = new Set<string>();
     const prevMeals = i > 0 ? itineraries[i - 1].meals : [];
     if (prevMeals.some((m) => m.toLowerCase().includes("breakfast"))) chosen.add("Breakfast");
-    for (const m of day.meals) {
-      if (m.toLowerCase().includes("breakfast")) continue;
-      chosen.add(m);
+    // A day's own meals field can go stale once its hotel is removed — the
+    // save path trusts it verbatim from the client with no guard (unlike
+    // accommodation/roomPricingId, which do get cleared), so a day that once
+    // had a room can end up with no hotel but a leftover "Dinner" still
+    // marked included. Same fix as the pricing side of this bug (a manual
+    // hotel needs a name before it's charged for) — a day needs an actual
+    // hotel, catalog or hand-typed, before its own stored meals count here.
+    const hasHotel = day.roomPricingId != null || !!day.accommodation?.trim();
+    if (hasHotel) {
+      for (const m of day.meals) {
+        if (m.toLowerCase().includes("breakfast")) continue;
+        chosen.add(m);
+      }
     }
     // Added on top of whatever the hotel provides — an arrival-day breakfast
     // being the whole reason this exists, since Day 1 has no prior night to

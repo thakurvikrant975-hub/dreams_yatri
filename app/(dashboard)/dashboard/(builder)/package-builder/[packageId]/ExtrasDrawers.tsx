@@ -54,8 +54,19 @@ export function MealsView({ day }: { day: number }) {
   /** Is this meal included, as the DOCUMENT shows it for this day? Purely a
    * read of what applyHotelRoomSelection already wrote — there is no manual
    * override any more. Meals are the hotel's plan, full stop; to change them,
-   * change the hotel. */
-  const isOn = (meal: string) => rowFor(meal)?.meals.includes(meal) ?? false;
+   * change the hotel.
+   *
+   * Requires the row to still have its catalog room, not just a non-empty
+   * `meals` array — same stale-field guard as computeShiftedMeals in
+   * ItineraryDocument.tsx. Older saves could leave `meals` populated on a day
+   * whose hotel was since removed (removeStay clears it now, but a package
+   * built before that fix can still carry the leftover value), which used to
+   * show a meal as "Included" here with the panel's own "no hotel" note
+   * printed right below it. */
+  const isOn = (meal: string) => {
+    const row = rowFor(meal);
+    return row?.roomPricingId != null && row.meals.includes(meal);
+  };
 
   // Every meal the day can carry, always — so a day with no breakfast (no
   // night before it, or a room-only rate) still shows the full picture rather
