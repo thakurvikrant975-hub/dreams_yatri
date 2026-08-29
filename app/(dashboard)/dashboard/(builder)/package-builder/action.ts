@@ -1425,17 +1425,17 @@ export async function copyPackageIntoDraft(
 
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
-    // Touring days (no itinerary_transfers row — those only cover pickup/
-    // drop legs) still get a cabPricingId from cabPricingByDay above, but had
-    // no vehicle to show for it: transport/transportVehicleType/
-    // transportSeats were only ever sourced from `transfer`, so a day priced
-    // off the default cab type's segment displayed no cab at all in the
-    // itinerary or document, even though costing charged for one correctly
-    // (cabPricingId doesn't care whether transport is blank). Same gap as
-    // roomPricingId/cabPricingId themselves, one level up: the fix there
-    // resolved the PRICE from cabTypes; this resolves the DISPLAY the same
-    // way, from the same default cab type's own vehicle.
-    const fallbackVehicle = !transfer && cabPricingByDay.has(day.day) ? defaultCabType?.vehicle : undefined;
+    // A day can carry an itinerary_transfers row for pickup/drop logistics
+    // (route_id) with no vehicle actually attached to it (vehicle_id null) —
+    // not just a missing row entirely. Gating this fallback on `!transfer`
+    // only covered the "no row at all" case, so a route where every day has
+    // a transfer row but none of them have a vehicle (the common shape —
+    // vehicle is decided by the cab type segment, not the transfer leg)
+    // still displayed no cab anywhere, even though cabPricingId priced it
+    // correctly. Per-field ?? below already falls through past a present-
+    // but-vehicle-less transfer; the fallback itself just needs to stop
+    // requiring the row's absence.
+    const fallbackVehicle = cabPricingByDay.has(day.day) ? defaultCabType?.vehicle : undefined;
 
     const rawHotelPhoto = day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
     const rawRoomPhotos = (day.hotel?.room_images ?? [])
