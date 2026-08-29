@@ -895,6 +895,22 @@ export function HotelEditView({ day }: { day: number }) {
             <Input
               value={itin.accommodation}
               onChange={(e) => updateDay(day, { accommodation: e.target.value })}
+              onBlur={() => {
+                // Clearing this field used to leave the price/room count
+                // behind — nothing else here is wired to it, so the day kept
+                // charging for a hotel with no name left to show for it (see
+                // computeBuilderHotelPricing's manual-price branch). Only on
+                // blur, not onChange, so a select-all-then-retype doesn't
+                // wipe the numbers over its own momentary empty value.
+                if (!itin.accommodation?.trim()) {
+                  updateDay(day, {
+                    roomsCount: null,
+                    manualHotelPricePerNight: null,
+                    manualExtraBeds: null,
+                    manualExtraBedRate: null,
+                  });
+                }
+              }}
               placeholder="e.g. Snow Valley Resorts — Deluxe"
               className="h-9 text-sm"
             />

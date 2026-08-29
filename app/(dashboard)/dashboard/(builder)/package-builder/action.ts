@@ -1425,6 +1425,17 @@ export async function copyPackageIntoDraft(
 
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
+    // Touring days (no itinerary_transfers row — those only cover pickup/
+    // drop legs) still get a cabPricingId from cabPricingByDay above, but had
+    // no vehicle to show for it: transport/transportVehicleType/
+    // transportSeats were only ever sourced from `transfer`, so a day priced
+    // off the default cab type's segment displayed no cab at all in the
+    // itinerary or document, even though costing charged for one correctly
+    // (cabPricingId doesn't care whether transport is blank). Same gap as
+    // roomPricingId/cabPricingId themselves, one level up: the fix there
+    // resolved the PRICE from cabTypes; this resolves the DISPLAY the same
+    // way, from the same default cab type's own vehicle.
+    const fallbackVehicle = !transfer && cabPricingByDay.has(day.day) ? defaultCabType?.vehicle : undefined;
 
     const rawHotelPhoto = day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
     const rawRoomPhotos = (day.hotel?.room_images ?? [])
@@ -1483,10 +1494,12 @@ export async function copyPackageIntoDraft(
       hotelFilledAt:      null,
       hotelFilledByName:  null,
       hotelFillNote:      null,
-      transport:          transfer?.vehicle_name ?? "",
-      transportPhoto:     transfer?.vehicle_image_key ? getThumbnailImage(transfer.vehicle_image_key) : "",
-      transportVehicleType: transfer?.vehicle_type ?? "",
-      transportSeats:     transfer?.vehicle_capacity ?? null,
+      transport:          transfer?.vehicle_name ?? fallbackVehicle?.name ?? "",
+      transportPhoto:     transfer?.vehicle_image_key
+        ? getThumbnailImage(transfer.vehicle_image_key)
+        : (fallbackVehicle?.image_key ? getThumbnailImage(fallbackVehicle.image_key) : ""),
+      transportVehicleType: transfer?.vehicle_type ?? fallbackVehicle?.type ?? "",
+      transportSeats:     transfer?.vehicle_capacity ?? fallbackVehicle?.passenger_capacity ?? null,
       transportPickup:    transfer?.pickup_name ?? "",
       // fetchPackagePageData doesn't expose the transfer route's raw lat/lng —
       // left null on copy, same as roomPricingId used to be; the exec can

@@ -1370,12 +1370,22 @@ export async function computeBuilderHotelPricing(input: {
         total,
         baseRate: dayDate != null && !isSeasonal,
       });
-    } else if (d.manualHotelPricePerNight != null) {
+    } else if (d.manualHotelPricePerNight != null && d.manualHotelName?.trim()) {
       // Hand-typed (exec) or hotel-team-filled — no catalog room, so no
       // occupancy math, just the flat per-room price and room count entered
       // directly. Mattresses/extra beds still get their own line — the exec
       // or hotel team enters manualExtraBeds + manualExtraBedRate the same
       // way a catalog room's own extra_bed_rate charges for them.
+      //
+      // Also requires a hotel name, not just a price: clearing the "Hotel &
+      // room" field in the builder used to leave manualHotelPricePerNight/
+      // roomsCount behind (only the name field itself was wired to the input
+      // it lived on), so a day the exec had emptied out still silently
+      // charged for a hotel that no longer appeared anywhere in the
+      // itinerary — production's exact failure mode, priced with no name to
+      // show for it. HotelDrawer's name field now clears these together on
+      // blur (see its onBlur), but this check is the backstop: no name, no
+      // charge, regardless of what stale numbers are still sitting in the row.
       const roomsNeeded = d.roomsCount && d.roomsCount > 0 ? d.roomsCount : 1;
       const mattresses = Math.max(0, d.manualExtraBeds ?? 0);
       const extraBedRate = d.manualExtraBedRate ?? 0;
