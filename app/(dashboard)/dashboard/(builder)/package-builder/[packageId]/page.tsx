@@ -60,7 +60,6 @@ import {
   type ExtraPolicyItems,
   getCurrentUserRole,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
-import { saveCustomPackageToLibrary } from "@/app/(dashboard)/dashboard/(main)/package-templates/actions";
 import { computeBuilderHotelPricing, type BuilderHotelPricingResult, computeBuilderCabPricing, type BuilderCabPricingResult } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { ItineraryDocument, formatTime12h, computeShiftedMeals, dayCalendarDate, type PreviewData, type ImageEditTarget } from "./ItineraryDocument";
@@ -69,6 +68,7 @@ import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
+import { SaveToLibraryDialog } from "./SaveToLibraryDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { getStayOptionsForDocument, cloneStayOptionsInto } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -436,7 +436,6 @@ export default function PackageBuilderDetailPage() {
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
-  const [isSavingToLibrary, startSaveToLibrary] = useTransition();
   const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
   /** The stay standards, as the document's columns and price cards read them.
@@ -1484,18 +1483,11 @@ Rules:
   }
 
   // ── Save to Library — costing-approved packages only, see PackageTemplate ──
-  function handleSaveToLibrary() {
-    startSaveToLibrary(async () => {
-      const result = await saveCustomPackageToLibrary(packageId);
-      if (result.success) {
-        toast.success(
-          `Saved to library — ${result.activityCount} activit${result.activityCount === 1 ? "y" : "ies"} included, awaiting your team leader's review.`,
-        );
-        setSavedToLibrary(true);
-      } else {
-        toast.error(result.error ?? "Failed to save to library");
-      }
-    });
+  // Submission itself (with the title/description/destination the dialog
+  // lets an exec adjust) lives in SaveToLibraryDialog; this just records that
+  // it happened so both trigger buttons flip to "Saved to Library".
+  function handleSavedToLibrary() {
+    setSavedToLibrary(true);
   }
 
   function handleShare() {
@@ -2142,19 +2134,23 @@ Rules:
                     <span className="hidden sm:inline text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
-                  onClick={handleSaveToLibrary}
-                  disabled={isSavingToLibrary || savedToLibrary}
+                <SaveToLibraryDialog
+                  packageId={packageId}
+                  title={form.title}
+                  description={form.description}
+                  destination={form.destination}
+                  onSuccess={handleSavedToLibrary}
                 >
-                  {isSavingToLibrary
-                    ? <Loader2 size={13} className="animate-spin" />
-                    : <BookOpen size={13} />
-                  }
-                  <span className="hidden sm:inline text-xs">{savedToLibrary ? "Saved to Library" : "Save to Library"}</span>
-                </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                    disabled={savedToLibrary}
+                  >
+                    <BookOpen size={13} />
+                    <span className="hidden sm:inline text-xs">{savedToLibrary ? "Saved to Library" : "Save to Library"}</span>
+                  </Button>
+                </SaveToLibraryDialog>
                 <Button
                   size="sm"
                   className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
@@ -2428,15 +2424,22 @@ Rules:
                     Request Revision
                   </Button>
                 </RequestRevisionDialog>
-                <Button
-                  variant="outline"
-                  className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
-                  onClick={handleSaveToLibrary}
-                  disabled={isSavingToLibrary || savedToLibrary}
+                <SaveToLibraryDialog
+                  packageId={packageId}
+                  title={form.title}
+                  description={form.description}
+                  destination={form.destination}
+                  onSuccess={handleSavedToLibrary}
                 >
-                  {isSavingToLibrary ? <Loader2 size={14} className="animate-spin" /> : <BookOpen size={14} />}
-                  {savedToLibrary ? "Saved to Library" : "Save to Library"}
-                </Button>
+                  <Button
+                    variant="outline"
+                    className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
+                    disabled={savedToLibrary}
+                  >
+                    <BookOpen size={14} />
+                    {savedToLibrary ? "Saved to Library" : "Save to Library"}
+                  </Button>
+                </SaveToLibraryDialog>
                 <Button
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleShareClick}

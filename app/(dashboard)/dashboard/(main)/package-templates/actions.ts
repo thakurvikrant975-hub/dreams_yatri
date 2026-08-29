@@ -53,8 +53,34 @@ async function getAuthenticatedMember() {
 
 // ── Save to Library ──────────────────────────────────────────────────────────
 
+/** Counts templates already in the library for a destination — not the trip's
+ * own booked packages. Shown in the Save to Library dialog so whoever is
+ * submitting can see, before they commit, whether this destination already
+ * has coverage or would be the first. Excludes rejected submissions, same as
+ * the duplicate-source check below, since a rejected template isn't really
+ * "in the library". Case/whitespace-insensitive: destinations are free text
+ * ("Goa" vs "goa " vs "GOA") rather than a fixed list. */
+export async function getLibraryDestinationCount(destination: string): Promise<number> {
+  const actor = await getAuthenticatedMember();
+  if (!actor) return 0;
+
+  const trimmed = destination.trim();
+  if (!trimmed) return 0;
+
+  return db.packageTemplate.count({
+    where: { status: { not: "REJECTED" }, destination: { equals: trimmed, mode: "insensitive" } },
+  });
+}
+
 export async function saveCustomPackageToLibrary(
   customPackageId: string,
+  /** Lets the Save to Library dialog submit an edited title/description/
+   * destination without first writing them back onto the source package —
+   * the template is its own record, and a team's library-facing name for a
+   * stay ("Goa Beach Escape") is often not the internal booking title
+   * ("Sharma Family — 4N Goa"). Falls back to the package's own fields when
+   * omitted, so a bare call behaves exactly as it always has. */
+  overrides?: { title?: string; description?: string; destination?: string },
 ): Promise<{ success: true; packageTemplateId: string; activityCount: number } | { success: false; error: string }> {
   const actor = await getAuthenticatedMember();
   if (!actor) return { success: false, error: "Unauthorized" };
@@ -128,12 +154,16 @@ export async function saveCustomPackageToLibrary(
       .map((a) => ({ ...a, day: it.day })),
   );
 
+  const resolvedTitle = overrides?.title?.trim() || pkg.title;
+  const resolvedDescription = overrides?.description?.trim() || pkg.description;
+  const resolvedDestination = overrides?.destination?.trim() || pkg.destination;
+
   const created = await db.$transaction(async (tx) => {
     const template = await tx.packageTemplate.create({
       data: {
-        title: pkg.title,
-        description: pkg.description,
-        destination: pkg.destination,
+        title: resolvedTitle,
+        description: resolvedDescription,
+        destination: resolvedDestination,
         coverImage: pkg.coverImage,
         totalDays: pkg.totalDays,
         totalNights: pkg.totalNights,
@@ -156,7 +186,7 @@ export async function saveCustomPackageToLibrary(
           photos: a.photos,
           photoLabels: a.photoLabels,
           day: a.day,
-          destination: pkg.destination,
+          destination: resolvedDestination,
           packageTemplateId: template.id,
           submittedById: actor.id,
           submittedByName: actor.name,
@@ -175,7 +205,7 @@ export async function saveCustomPackageToLibrary(
       await notifyMember({
         recipientId: leader.leaderId,
         type: "LIBRARY_PACKAGE_SUBMITTED",
-        title: `${actor.name} saved "${pkg.title}" to the library`,
+        title: `${actor.name} saved "${resolvedTitle}" to the library`,
         body: `${flattenedActivities.length} activit${flattenedActivities.length === 1 ? "y" : "ies"} included — awaiting your review.`,
         link: "/dashboard/package-templates",
       });
