@@ -57,3 +57,26 @@ export function normalizeMealLabels(meals: readonly string[] | null | undefined)
   }
   return out;
 }
+
+/**
+ * Reads meal names out of a free-text meal-plan label — "MAP - Breakfast &
+ * Dinner" -> ["Breakfast", "Dinner"].
+ *
+ * custom_itineraries.hotelMealPlan (free text) and .meals (this structured
+ * array) are filled by different form fields — a hotel request fulfilled by
+ * typing/selecting only the plan text, or a day edited "by hand" in the
+ * builder, can leave hotelMealPlan set while meals stays empty. Anywhere that
+ * reads .meals should fall back to this so the day still shows what the plan
+ * text already says, rather than going blank next to a hotel card that
+ * renders the same text directly.
+ */
+export function mealsFromPlanText(planText: string | null | undefined): string[] {
+  if (!planText) return [];
+  const lower = planText.toLowerCase();
+  const found: string[] = [];
+  if (lower.includes("breakfast")) found.push("Breakfast");
+  if (lower.includes("lunch")) found.push("Lunch");
+  if (lower.includes("dinner")) found.push("Dinner");
+  if (lower.includes("tea") || lower.includes("snacks")) found.push("Tea & Snacks");
+  return found;
+}

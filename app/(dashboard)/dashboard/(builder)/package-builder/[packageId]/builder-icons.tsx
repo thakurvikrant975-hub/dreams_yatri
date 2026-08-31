@@ -42,6 +42,7 @@ import {
   ArrowsDownUp as PhArrowsDownUp,
   Baby as PhBaby,
   Bed as PhBed,
+  BookBookmark as PhBookBookmark,
   BowlSteam as PhBowlSteam,
   Buildings as PhBuildings,
   Bus as PhBus,
@@ -203,6 +204,7 @@ export const Compass = filled(PhCompass);
 export const Milestone = filled(PhFlagPennant);
 export const Ticket = filled(PhTicket);
 export const Package = filled(PhPackage);
+export const BookOpen = filled(PhBookBookmark);
 export const Gift = filled(PhGift);
 export const Sparkles = filled(PhSparkle);
 export const Star = filled(PhStar);

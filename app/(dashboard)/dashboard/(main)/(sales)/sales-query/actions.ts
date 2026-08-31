@@ -125,11 +125,25 @@ export async function getSalesQueries(): Promise<SalesQueryRow[]> {
         orderBy: { assignedAt: "desc" },
     }) as any[];
 
+    // PackageTemplate has no FK/relation to custom_packages (sourcePackageId
+    // is an informal string link — see the model comment), so the "saved to
+    // library" status can't ride along in the include above. One batched
+    // lookup across every package on this page instead of a per-row query.
+    const allPackageIds = queries.flatMap((q) => (q.custom_packages ?? []).map((cp: { id: string }) => cp.id));
+    const templates = allPackageIds.length > 0
+        ? await db.packageTemplate.findMany({
+            where: { sourcePackageId: { in: allPackageIds } },
+            select: { sourcePackageId: true, status: true },
+        })
+        : [];
+    const libraryStatusByPackageId = new Map(templates.map((t) => [t.sourcePackageId, t.status]));
+
     return queries.map((q) => ({
         ...q,
         rejectionReason:  q.rejection_reasons ?? null,
         totalLeadQueries: 1,
-        customPackages:   (q.custom_packages ?? []).map(mapCustomPackage),
+        customPackages:   (q.custom_packages ?? []).map((cp: { id: string }) =>
+            mapCustomPackage(cp, libraryStatusByPackageId.get(cp.id) ?? null)),
     })) as SalesQueryRow[];
 }
 

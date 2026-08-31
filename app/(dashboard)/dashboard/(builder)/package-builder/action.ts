@@ -895,6 +895,12 @@ export interface QueryDetail {
     /** The linked query's id, or null for a blank package — immutable after
      * creation. */
     queryId:         string | null;
+    /** Set only on a hidden library-template working copy (see
+     * getOrCreateTemplateWorkingCopy in package-templates/actions.ts) — never
+     * set on a real booking. Gates the builder's toolbar to a single "Save to
+     * Template" action in place of Mark Ready/Share/Save-to-Library, which
+     * don't mean anything for a template with no client. */
+    templateId:      string | null;
     /** The stay standards this package quotes, in display order. Names only:
      * a builder that cannot edit them still has to be able to say that it
      * cannot — v1 writes the day row, which carries the recommended option
@@ -1436,16 +1442,15 @@ export async function copyPackageIntoDraft(
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
     // A day can carry an itinerary_transfers row for pickup/drop logistics
-    // (route_id) with no vehicle actually attached to it (vehicle_id null) —
-    // not just a missing row entirely. Gating this fallback on `!transfer`
-    // only covered the "no row at all" case, so a route where every day has
-    // a transfer row but none of them have a vehicle (the common shape —
-    // vehicle is decided by the cab type segment, not the transfer leg)
-    // still displayed no cab anywhere, even though cabPricingId priced it
-    // correctly. Per-field ?? below already falls through past a present-
-    // but-vehicle-less transfer; the fallback itself just needs to stop
-    // requiring the row's absence.
-    const fallbackVehicle = cabPricingByDay.has(day.day) ? defaultCabType?.vehicle : undefined;
+    // (route_id) with no vehicle actually attached to it (vehicle_id null),
+    // or no transfer row at all — transfers are frequently never filled in.
+    // Either way the day still has a priced cabPricingId from the segment
+    // fan-out above, so without this fallback it charged for a cab while
+    // every transport/* display field (and the Day Summary table's Cab
+    // column) stayed blank. Per-field ?? below already falls through past a
+    // present-but-vehicle-less transfer; this only needs to stop requiring
+    // the row's absence outright.
+    const cabForDay = cabPricingByDay.has(day.day) ? defaultCabType : undefined;
 
     const rawHotelPhoto = day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
     const rawRoomPhotos = (day.hotel?.room_images ?? [])
@@ -1504,12 +1509,12 @@ export async function copyPackageIntoDraft(
       hotelFilledAt:      null,
       hotelFilledByName:  null,
       hotelFillNote:      null,
-      transport:          transfer?.vehicle_name ?? fallbackVehicle?.name ?? "",
-      transportPhoto:     transfer?.vehicle_image_key
-        ? getThumbnailImage(transfer.vehicle_image_key)
-        : (fallbackVehicle?.image_key ? getThumbnailImage(fallbackVehicle.image_key) : ""),
-      transportVehicleType: transfer?.vehicle_type ?? fallbackVehicle?.type ?? "",
-      transportSeats:     transfer?.vehicle_capacity ?? fallbackVehicle?.passenger_capacity ?? null,
+      transport:          transfer?.vehicle_name ?? cabForDay?.label ?? "",
+      transportPhoto:     (transfer?.vehicle_image_key ?? cabForDay?.vehicle.image_key)
+                             ? getThumbnailImage((transfer?.vehicle_image_key ?? cabForDay!.vehicle.image_key)!)
+                             : "",
+      transportVehicleType: transfer?.vehicle_type ?? cabForDay?.vehicle.type ?? "",
+      transportSeats:     transfer?.vehicle_capacity ?? cabForDay?.vehicle.passenger_capacity ?? null,
       transportPickup:    transfer?.pickup_name ?? "",
       // fetchPackagePageData doesn't expose the transfer route's raw lat/lng —
       // left null on copy, same as roomPricingId used to be; the exec can
@@ -1999,6 +2004,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
     select: {
       id:              true,
       queryId:         true,
+      templateId:      true,
       status:          true,
       sentAt:          true,
       readyAt:         true,

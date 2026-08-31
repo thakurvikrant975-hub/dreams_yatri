@@ -17,7 +17,7 @@ import {
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
-import { SalesQueryStatusBadge, PackageVerificationBadge, PackageSentBadge, HotelRequestBadge } from "./Salesquerybadges";
+import { SalesQueryStatusBadge, PackageVerificationBadge, PackageSentBadge, HotelRequestBadge, LibraryStatusBadge } from "./Salesquerybadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
@@ -403,7 +403,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                 {q.customPackages.filter((p) => p.verified).length}/{q.customPackages.length} Approved
                             </Badge>
                         )}
-                        {(latest?.readyAt || latest?.hotelRequestStatus) && (
+                        {(latest?.readyAt || latest?.hotelRequestStatus || latest?.libraryStatus) && (
                             <div className="flex flex-col items-center gap-1">
                                 {latest.readyAt && (
                                     <>
@@ -412,6 +412,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                     </>
                                 )}
                                 <HotelRequestBadge pkg={latest} />
+                                <LibraryStatusBadge pkg={latest} />
                             </div>
                         )}
                     </div>
