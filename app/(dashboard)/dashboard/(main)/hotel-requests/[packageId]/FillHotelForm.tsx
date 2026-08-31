@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban } from "lucide-react";
+import { CheckCircle2, Hotel, LogIn, LogOut, BedDouble, ClipboardList, StickyNote, Camera, XCircle, Ban, CalendarRange } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
@@ -33,7 +33,7 @@ type MealType = { id: number; name: string; covered_meals: string[] };
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
     requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypes,
-    rejectedAt, rejectedByName, rejectionNote,
+    rejectedAt, rejectedByName, rejectionNote, siblingDays = [], groupDays = [],
 }: {
     packageId: string;
     day: number;
@@ -59,6 +59,14 @@ export function FillHotelForm({
     rejectedAt?: Date | null;
     rejectedByName?: string | null;
     rejectionNote?: string | null;
+    /** The package's other still-pending days, so one stay covering several
+     * nights can be filled from a single submit instead of once per day. */
+    siblingDays?: { day: number; location: string | null }[];
+    /** The further days this card already covers — consecutive pending days
+     * asking for the same thing in the same town, grouped by the queue rather
+     * than guessed at here (see groupPendingStayDays). Ticked on arrival, and
+     * still untickable: a day turned off comes back as its own card. */
+    groupDays?: number[];
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -79,6 +87,7 @@ export function FillHotelForm({
     const [meals, setMeals] = useState<string[]>(
         requestedPlanMatch ? requestedPlanMatch.covered_meals.map((k) => MEAL_KEY_LABELS[k] ?? k) : [],
     );
+    const [alsoDays, setAlsoDays] = useState<number[]>(groupDays);
     const [done, setDone] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
@@ -114,13 +123,17 @@ export function FillHotelForm({
                 mealPlan,
                 meals,
                 note: notes,
+                alsoDays,
             });
             if (result.success) {
                 setDone(true);
+                const covered = 1 + alsoDays.length;
                 toast.success(
                     result.allDaysFilled
                         ? "Hotel filled — every day on this package is done. Back to the sales exec to submit."
-                        : "Hotel filled for this day",
+                        : covered > 1
+                            ? `Hotel filled for ${covered} nights (day ${[day, ...alsoDays].sort((a, b) => a - b).join(", ")})`
+                            : "Hotel filled for this day",
                 );
                 router.refresh();
             } else {
@@ -261,6 +274,46 @@ export function FillHotelForm({
                             &quot;{note}&quot;
                         </p>
                     )}
+                </div>
+            )}
+
+            {siblingDays.length > 0 && (
+                <div className="rounded-md border border-dashboard-border bg-dashboard-muted/40 px-2.5 py-2 space-y-1.5">
+                    <p className="text-[11px] font-semibold text-dashboard-base-content flex items-center gap-1">
+                        <CalendarRange className="size-3" /> This stay also covers
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {siblingDays.map((sd) => {
+                            const on = alsoDays.includes(sd.day);
+                            return (
+                                <button
+                                    key={sd.day}
+                                    type="button"
+                                    onClick={() => setAlsoDays((prev) =>
+                                        prev.includes(sd.day) ? prev.filter((d) => d !== sd.day) : [...prev, sd.day])}
+                                    className={cn(
+                                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
+                                        on
+                                            ? "bg-emerald-600 border-emerald-600 text-white"
+                                            : "bg-white border-dashboard-border text-dashboard-neutral hover:border-emerald-400",
+                                    )}
+                                >
+                                    {on && <CheckCircle2 className="size-2.5" />}
+                                    Day {sd.day}
+                                    {sd.location && (
+                                        <span className={cn("font-normal", on ? "text-emerald-50" : "opacity-70")}>
+                                            · {sd.location.split(",")[0]}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="text-[10px] text-dashboard-neutral">
+                        {alsoDays.length > 0
+                            ? "Filled with the same hotel, room and rate. Rooms and mattresses follow each day's own request."
+                            : "Only this day will be filled."}
+                    </p>
                 </div>
             )}
 

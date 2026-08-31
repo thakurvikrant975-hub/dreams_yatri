@@ -61,6 +61,10 @@ export type FillHotelInput = {
      * check-in") — shown in the builder's Hotel Info card, never in the
      * itinerary PDF. See custom_itineraries.hotelFillNote. */
     note?: string;
+    /** Further pending days this same stay covers — one property held for
+     * three nights is one booking, and was three identical trips through this
+     * form. Filled in the same transaction as `day` itself. */
+    alsoDays?: number[];
 };
 
 export async function fillPendingHotel(
@@ -76,15 +80,27 @@ export async function fillPendingHotel(
     if (!hotelName) return { success: false, error: "Hotel name is required." };
     if (!(input.pricePerNight > 0)) return { success: false, error: "Enter a valid B2B price." };
 
-    const row = await db.custom_itineraries.findFirst({
-        where: { customPackageId: packageId, day },
-        select: { id: true, hotelPending: true },
+    const days = Array.from(new Set([day, ...(input.alsoDays ?? [])]));
+    const rows = await db.custom_itineraries.findMany({
+        where: { customPackageId: packageId, day: { in: days } },
+        select: {
+            id: true, day: true, hotelPending: true,
+            roomsCount: true, manualExtraBeds: true, hotelMealPlan: true,
+        },
     });
-    if (!row) return { success: false, error: "This day couldn't be found." };
-    if (!row.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
+    const primary = rows.find((r) => r.day === day);
+    if (!primary) return { success: false, error: "This day couldn't be found." };
+    if (!primary.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
 
-    await db.custom_itineraries.update({
-        where: { id: row.id },
+    // A day that stopped being pending between render and submit — someone else
+    // in the queue got to it — is dropped rather than overwritten.
+    const targets = rows.filter((r) => r.hotelPending);
+
+    const typedRooms = Math.max(1, Math.round(input.roomsCount) || 1);
+    const typedBeds = Math.max(0, Math.round(input.extraBeds ?? 0));
+
+    await db.$transaction(targets.map((target) => db.custom_itineraries.update({
+        where: { id: target.id },
         data: {
             accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
             accommodationRoomSpecs: input.roomSpecs?.trim() || null,
@@ -98,10 +114,19 @@ export async function fillPendingHotel(
                 .slice(0, 3),
             hotelCheckIn: input.checkIn?.trim() || null,
             hotelCheckOut: input.checkOut?.trim() || null,
-            hotelMealPlan: input.mealPlan?.trim() || null,
+            // Same rule as the counts below: the meal plan is part of what the
+            // exec asked for on each night and can differ between them, so a
+            // day carried along keeps its own rather than inheriting this
+            // form's.
+            hotelMealPlan: target.day === day
+                ? (input.mealPlan?.trim() || null)
+                : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null),
             meals: normalizeMealLabels(input.meals),
-            roomsCount: Math.max(1, Math.round(input.roomsCount) || 1),
-            manualExtraBeds: Math.max(0, Math.round(input.extraBeds ?? 0)),
+            // The form's own day takes what was typed; a day carried along
+            // keeps the count its own request asked for, falling back to the
+            // typed one.
+            roomsCount: target.day === day ? typedRooms : (target.roomsCount ?? typedRooms),
+            manualExtraBeds: target.day === day ? typedBeds : (target.manualExtraBeds ?? typedBeds),
             manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
             manualHotelPricePerNight: input.pricePerNight,
             hotelPending: false,
@@ -110,7 +135,7 @@ export async function fillPendingHotel(
             hotelFilledByName: auth.member.name,
             hotelFillNote: input.note?.trim() || null,
         },
-    });
+    })));
 
     // Costing prices a package from its stay options (custom_itinerary_stays),
     // not from the day row this fill writes. stay-options.sync.ts calls the day
@@ -148,16 +173,20 @@ export async function fillPendingHotel(
     if (pkg?.queryId) {
         await logTimeline(
             pkg.queryId,
-            `Hotel filled for day ${day} by ${auth.member.name}${allDaysFilled ? " — every day is now filled, back to the exec to submit" : ""}`,
+            `Hotel filled for ${targets.length > 1 ? `days ${targets.map((t) => t.day).sort((a, b) => a - b).join(", ")}` : `day ${day}`}`
+            + ` by ${auth.member.name}${allDaysFilled ? " — every day is now filled, back to the exec to submit" : ""}`,
             auth.member.id, auth.member.name,
         );
     }
 
     if (pkg?.builtBy) {
+        const dayLabel = targets.length > 1
+            ? `Days ${targets.map((t) => t.day).sort((a, b) => a - b).join(", ")}`
+            : `Day ${day}`;
         await notifyMember({
             recipientId: pkg.builtBy,
             type: "HOTEL_FILLED",
-            title: `${pkg.title ?? "Your package"} — hotel filled for Day ${day}`,
+            title: `${pkg.title ?? "Your package"} — hotel filled for ${dayLabel}`,
             body: allDaysFilled
                 ? "Every day is now filled — ready for you to submit."
                 : `${hotelName} added by ${auth.member.name}.`,

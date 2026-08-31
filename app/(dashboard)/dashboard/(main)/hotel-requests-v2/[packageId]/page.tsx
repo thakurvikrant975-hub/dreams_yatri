@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Users } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
+import { groupPendingStayDays, stayDayLocation } from "@/app/lib/hotel-request-stay-groups";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { FillHotelForm } from "./FillHotelForm";
 import { RejectAllButton } from "./RejectAllButton";
@@ -48,44 +49,10 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
     const pendingDays = pkg.itineraries.filter((it) => it.hotelPending && !it.hotelRejectedAt);
     const paxLabel = `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}${pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : ""}`;
 
-    const locationOf = (it: (typeof pendingDays)[number]) =>
-        it.accommodationLocation || dayLocations[it.day - 1] || null;
-
-    // ── One stay, one form ───────────────────────────────────────────────────
-    //
-    // A five-day package with the same property booked for the first three
-    // nights arrived here as three separate requests, so the hotel team filled
-    // the same hotel, room, rate, meal plan and photos in three times over —
-    // one phone call typed out three times.
-    //
-    // Consecutive pending days asking for the same thing in the same town are
-    // one stay, and are collapsed into a single card covering all of them.
-    // Consecutiveness is the load-bearing part: same-town days with another
-    // town in between are an out-and-back, not one continuous booking, and
-    // must not be merged. Anything not merged is still offered as a tickable
-    // day on the card, so a judgement call this can't make is still one click.
-    // Stringified rather than concatenated: a note reading "2, deluxe" must not
-    // be able to collide with a different request whose fields happen to join
-    // into the same string.
-    const groupKey = (it: (typeof pendingDays)[number]) => JSON.stringify([
-        (locationOf(it) ?? "").split(",")[0]?.trim().toLowerCase() ?? "",
-        it.hotelRequestType ?? "",
-        it.roomsCount ?? null,
-        it.manualExtraBeds ?? null,
-        it.hotelMealPlan ?? "",
-        it.hotelPendingNote ?? "",
-    ]);
-
-    const stayGroups: (typeof pendingDays)[] = [];
-    for (const it of pendingDays) {
-        const current = stayGroups[stayGroups.length - 1];
-        const previous = current?.[current.length - 1];
-        if (previous && previous.day === it.day - 1 && groupKey(previous) === groupKey(it)) {
-            current.push(it);
-        } else {
-            stayGroups.push([it]);
-        }
-    }
+    const locationOf = (it: (typeof pendingDays)[number]) => stayDayLocation(it, dayLocations);
+    // One stay, one form — see groupPendingStayDays for why a gap in the days
+    // always splits a group even when the request is word-for-word identical.
+    const stayGroups = groupPendingStayDays(pendingDays, dayLocations);
 
     return (
         <div className="space-y-5 max-w-3xl">
