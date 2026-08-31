@@ -41,6 +41,11 @@ export function validateItineraryRequiredFields(form: {
   childMaxAge?: number | null;
 }): string | null {
   if (!form.travelDate) return "Add a travel date before generating the PDF or sending to the client.";
+  // Plain string comparison against a same-format "YYYY-MM-DD" floor works
+  // because that format sorts lexicographically the same as chronologically —
+  // no Date parsing (and its timezone footguns) needed for a same-day check.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  if (form.travelDate < todayIso) return "Travel date can't be in the past — pick today or a later date.";
   if ((form.adults || 0) + (form.children || 0) + (form.infants || 0) < 1) {
     return "Add at least one traveller before generating the PDF or sending to the client.";
   }
