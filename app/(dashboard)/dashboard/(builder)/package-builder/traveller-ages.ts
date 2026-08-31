@@ -35,6 +35,17 @@
 /** No age entered yet. Not 0 — an infant of 0 is a real, common answer. */
 export const AGE_UNSET = -1;
 
+/** A child is 0–17. 0 is permitted rather than treated as "must be an infant":
+ * this rule also gates PDF preview (see validateItineraryRequiredFields), and
+ * the stricter version would have stopped old drafts — the ones padded with
+ * zeroes before the -1 sentinel existed — from previewing at all. The sentinel
+ * is what "not answered" means now, so 0 no longer has to carry that job. */
+export const CHILD_AGE_MIN = 0;
+export const CHILD_AGE_MAX = 17;
+/** Airlines and hotels both cut infancy at 2. */
+export const INFANT_AGE_MIN = 0;
+export const INFANT_AGE_MAX = 2;
+
 /** The oldest age anyone can be typed as. Not a band boundary — just the top
  * of the number inputs, so a fat-fingered "144" doesn't reach pricing. */
 export const AGE_MAX = 17;
@@ -158,26 +169,11 @@ export function bandsOf(t: Pick<TravellerAges, "infantMaxAge" | "childMaxAge">):
 }
 
 /** The labels of every traveller still missing a usable age, in the order they
- * appear on the form ("Child 2", "Infant 1"). Empty when the package is
- * complete — which is every package travelling adults-only.
- *
- * Only genuinely absent ages count as missing. An age that is present but sits
- * in a different band than its box (a 14-year-old typed under Children on a
- * package whose child band ends at 12) is NOT missing — it is answered, it is
- * priced correctly by the band it falls in, and it is reported separately by
- * bandMismatches below. Blocking on it would stop an exec submitting a package
- * whose numbers are already right. */
-export function travellersMissingAges(t: TravellerAges): string[] {
-  const missing: string[] = [];
-  for (let i = 0; i < (t.children || 0); i++) {
-    const age = t.childrenAges?.[i];
-    if (age == null || age < AGE_MIN || age > AGE_MAX) missing.push(`Child ${i + 1}`);
-  }
-  for (let i = 0; i < (t.infants || 0); i++) {
-    const age = t.infantAges?.[i];
-    if (age == null || age < AGE_MIN || age > AGE_MAX) missing.push(`Infant ${i + 1}`);
-  }
-  return missing;
+ * appear on the form ("Child 2", "Infant 1"). Always empty — an age is no
+ * longer required to submit a package; entering one is optional and only
+ * feeds travellersLine/costing display when present. */
+export function travellersMissingAges(_t: TravellerAges): string[] {
+  return [];
 }
 
 /** The blocking message for the submit path, or null when nothing is missing.
@@ -307,16 +303,15 @@ export function pricingPartyOf(
 
 /** How many heads the package price is divided by.
  *
- * Everyone in the adult and child bands; nobody in the infant band. An infant
- * gets no bed and is charged for by nobody, so they are not a share of the
- * trip — dividing by them makes the per-person number smaller than anyone will
- * actually pay. The total is right either way; this only decides what the
- * total is divided BY.
+ * Adults only — children and infants share the room and the trip their
+ * parents are already paying for, not an extra slice of it. The total still
+ * reflects a paying child's real hotel and meal cost; this only decides what
+ * that total is divided BY for the headline "per person" figure.
  *
- * Which ages count as infants is the package's own infantMaxAge, so an exec
- * quoting a property that treats under-5s as infants sets the band to 5 and
- * the headline figure follows. That is what the old hard-coded "under 5 is
- * free" line was approximating for every package at once.
+ * The band fields below are accepted but unused: every call site passes the
+ * whole party, and narrowing the signature would break them for no gain. The
+ * bands still decide what each traveller COSTS (see classifyTravellers) —
+ * they just no longer decide how many heads the total is split across.
  */
 export function payingPaxOf(input: {
   adults: number;
@@ -327,16 +322,7 @@ export function payingPaxOf(input: {
   infantMaxAge?: number | null;
   childMaxAge?: number | null;
 }): number {
-  const party = classifyTravellers({
-    adults: input.adults,
-    children: input.children,
-    infants: input.infants ?? 0,
-    childrenAges: input.childrenAges ?? [],
-    infantAges: input.infantAges ?? [],
-    infantMaxAge: input.infantMaxAge,
-    childMaxAge: input.childMaxAge,
-  });
-  return Math.max(0, party.adults + party.children);
+  return Math.max(0, input.adults);
 }
 
 /** "2 Adults, 1 Child (age 7), 1 Infant (age 1)" — the traveller line as

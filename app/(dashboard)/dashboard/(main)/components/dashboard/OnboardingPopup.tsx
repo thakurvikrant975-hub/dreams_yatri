@@ -16,6 +16,12 @@ import type { ProfileData } from "../../profile/ProfileClient";
 import { cn } from "@/app/lib/utils";
 
 type Gender = "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+type NameTitle = "MR" | "MRS" | "LATE_MR" | "LATE_MRS";
+
+// Which tab each server-side error key lives on — used to jump to whichever
+// tab actually has the problem instead of guessing from a couple of names.
+const PERSONAL_ERROR_KEYS = ["gender", "personalEmail", "personalMobile", "alternativeMobile", "officialMobile", "joiningDate"];
+const FAMILY_ERROR_KEYS = ["fatherName", "fatherMobile", "motherName", "motherMobile", "aadhaarNumber", "panNumber"];
 
 const GENDER_OPTIONS: { value: Gender; label: string; strip: string; ring: string }[] = [
   { value: "MALE", label: "Male 💙", strip: "bg-blue-500", ring: "ring-blue-400/60 bg-blue-50 dark:bg-blue-950/30" },
@@ -27,13 +33,21 @@ const GENDER_OPTIONS: { value: Gender; label: string; strip: string; ring: strin
   },
 ];
 
-/** Shows only when a real gap exists — see `isProfileIncomplete` in the
- * dashboard layout, which decides whether to mount this at all. Dismissible
- * (this isn't a hostage situation), but reappears on the next page load
- * until the required fields below are actually filled in. */
-export function OnboardingPopup({ profile }: { profile: ProfileData }) {
+/** Open state is controlled by the caller: the dashboard layout auto-opens it
+ * the first time a required field is missing (see `needsOnboarding` there),
+ * and the header's ProfileCompletionBadge opens the same instance on demand
+ * so someone can review or edit these details anytime, not just when gated.
+ * Dismissible either way (this isn't a hostage situation) — closing it via
+ * Radix's own triggers (X, Escape, outside click) snoozes the auto-gate for
+ * ten minutes without affecting the header button. */
+export function OnboardingPopup({
+  profile, open, onOpenChange,
+}: {
+  profile: ProfileData;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(true);
   const [tab, setTab] = useState<"personal" | "family">("personal");
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]> | undefined>();
@@ -49,8 +63,10 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
   const [joiningDateUnknown, setJoiningDateUnknown] = useState(profile.joiningDateUnknown);
 
   const [fatherName, setFatherName] = useState(profile.fatherName ?? "");
+  const [fatherTitle, setFatherTitle] = useState(profile.fatherTitle ?? "MR");
   const [fatherMobile, setFatherMobile] = useState(profile.fatherMobile ?? "");
   const [motherName, setMotherName] = useState(profile.motherName ?? "");
+  const [motherTitle, setMotherTitle] = useState(profile.motherTitle ?? "MRS");
   const [motherMobile, setMotherMobile] = useState(profile.motherMobile ?? "");
   const [aadhaarNumber, setAadhaarNumber] = useState(profile.aadhaarNumber ?? "");
   const [panNumber, setPanNumber] = useState(profile.panNumber ?? "");
@@ -81,9 +97,9 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
       if (officialMobile) fd.append("officialMobile", officialMobile);
       if (joiningDate) fd.append("joiningDate", joiningDate);
       fd.append("joiningDateUnknown", String(joiningDateUnknown));
-      if (fatherName) fd.append("fatherName", fatherName);
+      if (fatherName) { fd.append("fatherName", fatherName); fd.append("fatherTitle", fatherTitle); }
       if (fatherMobile) fd.append("fatherMobile", fatherMobile);
-      if (motherName) fd.append("motherName", motherName);
+      if (motherName) { fd.append("motherName", motherName); fd.append("motherTitle", motherTitle); }
       if (motherMobile) fd.append("motherMobile", motherMobile);
       if (aadhaarNumber) fd.append("aadhaarNumber", aadhaarNumber);
       if (panNumber) fd.append("panNumber", panNumber);
@@ -94,13 +110,15 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
       const result: ProfileFormState = await completeOnboardingProfile({ success: false, message: "" }, fd);
       if (result.success) {
         toast.success(result.message);
-        setOpen(false);
+        onOpenChange(false);
         setErrors(undefined);
         router.refresh();
       } else {
         toast.error(result.message);
         setErrors(result.errors);
-        if (result.errors && !result.errors.fatherName && !result.errors.motherName) setTab("personal");
+        const keys = Object.keys(result.errors ?? {});
+        if (keys.some((k) => PERSONAL_ERROR_KEYS.includes(k))) setTab("personal");
+        else if (keys.some((k) => FAMILY_ERROR_KEYS.includes(k))) setTab("family");
       }
     });
   }
@@ -108,14 +126,14 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
   const selectedGender = GENDER_OPTIONS.find((g) => g.value === gender);
 
   // Only reached by Radix's own close triggers (X button, Escape, outside
-  // click) — the success path below calls setOpen directly, not this, so
-  // completing the form never sets a snooze it doesn't need. The layout
-  // checks this same cookie server-side and skips mounting the popup at all
+  // click) — the success path above calls onOpenChange directly, not this,
+  // so completing the form never sets a snooze it doesn't need. The layout
+  // checks this same cookie server-side and skips auto-opening the popup
   // while it's live, so dismissing it genuinely buys ten quiet minutes
   // rather than just hiding this one render.
   function handleOpenChange(next: boolean) {
     if (!next) document.cookie = "dy_onboarding_snooze=1; max-age=600; path=/";
-    setOpen(next);
+    onOpenChange(next);
   }
 
   return (
@@ -123,7 +141,7 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            May I know you <span aria-hidden> Guchu Puchu 🥰</span>
+            May I know you <span aria-hidden> Dear 🥰</span>
           </DialogTitle>
           <DialogDescription>
             A few details so the team can actually take care of you.
@@ -209,9 +227,7 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
                 {errors?.personalMobile && <p className="text-xs text-destructive">{errors.personalMobile[0]}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>
-                  Alternate Mobile <span className="text-destructive">*</span>
-                </Label>
+                <Label>Alternate Mobile</Label>
                 <Input value={alternativeMobile} onChange={(e) => setAlternativeMobile(e.target.value)} placeholder="9876543210" />
                 {errors?.alternativeMobile && <p className="text-xs text-destructive">{errors.alternativeMobile[0]}</p>}
               </div>
@@ -220,6 +236,7 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
             <div className="space-y-1.5">
               <Label>Official Mobile</Label>
               <Input value={officialMobile} onChange={(e) => setOfficialMobile(e.target.value)} placeholder="9876543210" />
+              {errors?.officialMobile && <p className="text-xs text-destructive">{errors.officialMobile[0]}</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -240,21 +257,45 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Father&apos;s Name</Label>
-                <Input value={fatherName} onChange={(e) => setFatherName(e.target.value)} />
+                <div className="flex gap-1.5">
+                  <select
+                    value={fatherTitle}
+                    onChange={(e) => setFatherTitle(e.target.value as NameTitle)}
+                    className="h-9 w-18 shrink-0 rounded-md border border-input bg-background px-1.5 text-sm"
+                  >
+                    <option value="MR">Mr.</option>
+                    <option value="LATE_MR">Late Mr.</option>
+                  </select>
+                  <Input value={fatherName} onChange={(e) => setFatherName(e.target.value)} className="flex-1" />
+                </div>
+                {errors?.fatherName && <p className="text-xs text-destructive">{errors.fatherName[0]}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>Father&apos;s Mobile</Label>
                 <Input value={fatherMobile} onChange={(e) => setFatherMobile(e.target.value)} placeholder="9876543210" />
+                {errors?.fatherMobile && <p className="text-xs text-destructive">{errors.fatherMobile[0]}</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Mother&apos;s Name</Label>
-                <Input value={motherName} onChange={(e) => setMotherName(e.target.value)} />
+                <div className="flex gap-1.5">
+                  <select
+                    value={motherTitle}
+                    onChange={(e) => setMotherTitle(e.target.value as NameTitle)}
+                    className="h-9 w-18 shrink-0 rounded-md border border-input bg-background px-1.5 text-sm"
+                  >
+                    <option value="MRS">Mrs.</option>
+                    <option value="LATE_MRS">Late Mrs.</option>
+                  </select>
+                  <Input value={motherName} onChange={(e) => setMotherName(e.target.value)} className="flex-1" />
+                </div>
+                {errors?.motherName && <p className="text-xs text-destructive">{errors.motherName[0]}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>Mother&apos;s Mobile</Label>
                 <Input value={motherMobile} onChange={(e) => setMotherMobile(e.target.value)} placeholder="9876543210" />
+                {errors?.motherMobile && <p className="text-xs text-destructive">{errors.motherMobile[0]}</p>}
               </div>
             </div>
 
@@ -266,6 +307,7 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
                 placeholder="123456789012"
                 maxLength={12}
               />
+              {errors?.aadhaarNumber && <p className="text-xs text-destructive">{errors.aadhaarNumber[0]}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <ImageUpload
@@ -286,6 +328,7 @@ export function OnboardingPopup({ profile }: { profile: ProfileData }) {
                 placeholder="ABCDE1234F"
                 maxLength={10}
               />
+              {errors?.panNumber && <p className="text-xs text-destructive">{errors.panNumber[0]}</p>}
             </div>
             <ImageUpload
               name="_pan_unused" label="Upload PAN Card" folder="team-members"

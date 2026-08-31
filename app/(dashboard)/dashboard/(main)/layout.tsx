@@ -16,8 +16,10 @@ import { OfflineDetector } from "./components/dashboard/OfflineDetector";
 import { NumberInputScrollGuard } from "./components/dashboard/NumberInputScrollGuard";
 import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminderprovider";
 import { PackageStatusNotifier } from "./(sales)/sales-query/PackageStatusNotifier";
-import { OnboardingPopup } from "./components/dashboard/OnboardingPopup";
+import { ProfileCompletionBadge } from "./components/dashboard/ProfileCompletionBadge";
 import { getMyProfile } from "./profile/actions";
+import { NotificationBell } from "./components/dashboard/NotificationBell";
+import { getUnreadNotificationCount } from "./lib/notifications-actions";
 
 function parsePageAccess(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((href): href is string => typeof href === "string") : [];
@@ -110,6 +112,13 @@ export default async function DashboardLayout({
       return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0 };
     });
 
+  // Same "never take the dashboard down over a cosmetic badge" contract as
+  // the verification counts above — every page load hits this.
+  const unreadNotificationCount = await getUnreadNotificationCount().catch((e) => {
+    console.error("[dashboard layout] unread notification count failed, defaulting to 0:", e);
+    return 0;
+  });
+
   // "May I know you 🥰" onboarding popup — gated on the REAL logged-in
   // member (never the impersonated "view as" target, same rule the profile
   // page itself follows), and only on the fields that are actually required
@@ -117,7 +126,6 @@ export default async function DashboardLayout({
   // docs) is optional and never blocks this from clearing.
   const missingRequiredFields = !realMember.gender
     || !realMember.personalMobile
-    || !realMember.alternativeMobile
     || !realMember.personalEmail
     || (!realMember.joiningDate && !realMember.joiningDateUnknown);
   // Dismissing the popup (X, Escape, outside click — see OnboardingPopup's
@@ -127,7 +135,11 @@ export default async function DashboardLayout({
   // bring it back on every page change again.
   const snoozed = !!(await cookies()).get("dy_onboarding_snooze")?.value;
   const needsOnboarding = missingRequiredFields && !snoozed;
-  const onboardingProfile = needsOnboarding ? await getMyProfile() : null;
+  // Fetched unconditionally now (not just when the gate is due) so the
+  // header's ProfileCompletionBadge always has something to open, letting
+  // anyone jump into this form voluntarily instead of only when required
+  // fields force it.
+  const onboardingProfile = await getMyProfile();
 
   return (
     <SidebarProvider>
@@ -155,7 +167,16 @@ export default async function DashboardLayout({
           <SidebarTrigger />
 
           <div className="flex items-center gap-3 ml-auto">
+            {onboardingProfile && (
+              <ProfileCompletionBadge
+                profile={onboardingProfile}
+                isComplete={!missingRequiredFields}
+                autoOpen={needsOnboarding}
+              />
+            )}
             {isSales && <SalesTargetBadge memberId={realMember.id} />}
+            <NotificationBell memberId={realMember.id} initialUnreadCount={unreadNotificationCount} />
+
 {/* 
             <SalesStatusToggle
               memberId={realMember.id}
@@ -184,7 +205,6 @@ export default async function DashboardLayout({
       <NumberInputScrollGuard />
       {isSales && <FollowUpReminderProvider />}
       {isSales && <PackageStatusNotifier />}
-      {onboardingProfile && <OnboardingPopup profile={onboardingProfile} />}
     </SidebarProvider>
   );
 }

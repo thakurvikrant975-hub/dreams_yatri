@@ -21,6 +21,22 @@ function relevanceRank(name: string, officialName: string | null, q: string): nu
   return 5;
 }
 
+// A property or attraction is routinely named after the town it's in ("a
+// hotel literally named 'Nainital'", ~8km from the actual town centre — a
+// 25km+ drive in the hills). Any caller that resolves a bare place name to
+// "the" location without its own `types` filter — geocodeCity being the
+// confirmed case, priced hotel distance came out wrong because this exact
+// tie broke toward the hotel — means a real place, not a property or POI
+// inside one. This tiebreak makes that the default for every caller, not
+// just the ones that remember to filter, so the same class of bug can't
+// resurface through a different unfiltered lookup later.
+const NON_PLACE_TYPES = new Set<LocationType>([
+  "HOTEL", "ACTIVITY", "AIRPORT", "BUS_STATION", "TRAIN_STATION", "PORT", "ROUTE_STOP",
+] as LocationType[]);
+function typePriority(type: LocationType): number {
+  return NON_PLACE_TYPES.has(type) ? 1 : 0;
+}
+
 // Cap on rows fetched for in-memory relevance ranking (a text query rarely
 // matches more than a few dozen locations) — bounds cost while still letting
 // us rank the whole match set before slicing out the requested page.
@@ -61,7 +77,20 @@ export async function GET(req: NextRequest) {
           }
           const r = await idx.search(q, { limit, offset, filter: filters.join(" AND ") });
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return NextResponse.json((r.hits as any[]).map((h) => ({
+          let hits = r.hits as any[];
+          // Same tiebreak as the Postgres path below — only when the caller
+          // hasn't already scoped `types` itself. Reorders ONLY among hits
+          // that exactly match the query text, so it can't touch Meili's own
+          // fuzzy/typo-tolerant ranking for anything else.
+          if (!types?.length) {
+            const query = q.toLowerCase();
+            hits = [...hits].sort((a, b) => {
+              const aExact = String(a.name ?? "").toLowerCase() === query;
+              const bExact = String(b.name ?? "").toLowerCase() === query;
+              return aExact && bExact ? typePriority(a.type) - typePriority(b.type) : 0;
+            });
+          }
+          return NextResponse.json(hits.map((h) => ({
             source:       "local",
             id:           String(h.id),
             name:         h.name,
@@ -201,7 +230,10 @@ export async function GET(req: NextRequest) {
     });
 
     if (hasQuery) {
-      rows.sort((a, b) => relevanceRank(a.name, a.official_name, q) - relevanceRank(b.name, b.official_name, q));
+      rows.sort((a, b) => {
+        const rankDiff = relevanceRank(a.name, a.official_name, q) - relevanceRank(b.name, b.official_name, q);
+        return rankDiff !== 0 ? rankDiff : typePriority(a.type) - typePriority(b.type);
+      });
     }
     const paged = hasQuery ? rows.slice(offset, offset + limit) : rows;
 

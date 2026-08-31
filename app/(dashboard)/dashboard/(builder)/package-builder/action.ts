@@ -996,6 +996,11 @@ export interface DayItinerary {
   description:        string;
   activities:         ActivityInput[];
   meals:              string[];
+  /** Added on top of whatever the hotel provides — see the field's own doc
+   * comment in schema.prisma. Optional so every existing call site that
+   * builds a DayItinerary without it still type-checks; treated as [] when
+   * absent. */
+  extraMeals?:        string[];
   accommodation:      string;
   accommodationPhoto: string;
   accommodationRoomPhotos: string[];
@@ -1345,6 +1350,19 @@ export async function copyPackageIntoDraft(
   // raw hotel_room_pricing id, so it's looked up separately here — lets a
   // copied template count toward auto-computed pricing immediately, instead
   // of requiring the exec to re-pick every room via search first.
+  //
+  // A multi-night stay only has ONE itinerary_stays row, on its first day
+  // (num_nights says how many days it covers) — exactly like
+  // fetchPackagePageData's own hotel-object propagation loop below. Missing
+  // this fan-out used to leave every night after the first with no
+  // roomPricingId at all: the accommodation text/capacity snapshot still came
+  // from data.itinerary[].hotel (which DOES propagate), so the copied draft
+  // looked fully booked with the right room count, but priced those nights
+  // at ₹0 with no visible reason why. Only the id is carried forward, not a
+  // cached rate — computeBuilderHotelPricing resolves each night's own price
+  // off this id and that night's actual date, so a fanned-out night still
+  // prices at whatever that date's rate is (seasonal or otherwise), never a
+  // copy of the first night's number.
   const roomPricingByDay = new Map<number, number>();
   if (data.selectedRoute && data.selectedStay) {
     const stayRows = await db.package_itineraries.findMany({
@@ -1357,13 +1375,18 @@ export async function copyPackageIntoDraft(
         day: true,
         itineraryStays: {
           where: { stay_category_id: data.selectedStay.id },
-          select: { room_pricing_id: true },
+          select: { room_pricing_id: true, num_nights: true },
         },
       },
+      orderBy: { day: "asc" },
     });
     for (const row of stayRows) {
-      const roomPricingId = row.itineraryStays[0]?.room_pricing_id;
-      if (roomPricingId != null) roomPricingByDay.set(row.day, roomPricingId);
+      const stay = row.itineraryStays[0];
+      if (stay == null) continue;
+      const numNights = stay.num_nights ?? 1;
+      for (let d = row.day; d < row.day + numNights; d++) {
+        roomPricingByDay.set(d, stay.room_pricing_id);
+      }
     }
   }
 
@@ -1388,8 +1411,41 @@ export async function copyPackageIntoDraft(
     }
   }
 
+  // Same gap as roomPricingId used to be, for cabs: fetchPackagePageData's
+  // itinerary_transfers shape carries a vehicle NAME/photo for display but no
+  // cab_pricing id, so a copied day's cabPricingId was always left null —
+  // every "Use Template" package priced every cab day at ₹0 with only a
+  // small "No cab rate set" flag to notice it by (see the gap branch in
+  // computeBuilderCabPricing). The rate data lives one level up, on the
+  // package's own cab TYPE options (data.cabTypes — package_cab_types), each
+  // with its own day_from/day_to segments rather than a per-day row, so it's
+  // fanned out the same way roomPricingByDay is above. Uses whichever cab
+  // type is marked default (falling back to the first option) — the same
+  // "pick the one thing a copy can commit to without asking" rule the rest
+  // of this function already follows for the recommended stay.
+  const cabPricingByDay = new Map<number, number>();
+  const defaultCabType = data.cabTypes.find((ct) => ct.is_default) ?? data.cabTypes[0];
+  if (defaultCabType) {
+    for (const seg of defaultCabType.segments) {
+      for (let d = seg.day_from; d <= seg.day_to; d++) {
+        cabPricingByDay.set(d, seg.cab_pricing_id);
+      }
+    }
+  }
+
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
+    // A day can carry an itinerary_transfers row for pickup/drop logistics
+    // (route_id) with no vehicle actually attached to it (vehicle_id null) —
+    // not just a missing row entirely. Gating this fallback on `!transfer`
+    // only covered the "no row at all" case, so a route where every day has
+    // a transfer row but none of them have a vehicle (the common shape —
+    // vehicle is decided by the cab type segment, not the transfer leg)
+    // still displayed no cab anywhere, even though cabPricingId priced it
+    // correctly. Per-field ?? below already falls through past a present-
+    // but-vehicle-less transfer; the fallback itself just needs to stop
+    // requiring the row's absence.
+    const fallbackVehicle = cabPricingByDay.has(day.day) ? defaultCabType?.vehicle : undefined;
 
     const rawHotelPhoto = day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
     const rawRoomPhotos = (day.hotel?.room_images ?? [])
@@ -1448,10 +1504,12 @@ export async function copyPackageIntoDraft(
       hotelFilledAt:      null,
       hotelFilledByName:  null,
       hotelFillNote:      null,
-      transport:          transfer?.vehicle_name ?? "",
-      transportPhoto:     transfer?.vehicle_image_key ? getThumbnailImage(transfer.vehicle_image_key) : "",
-      transportVehicleType: transfer?.vehicle_type ?? "",
-      transportSeats:     transfer?.vehicle_capacity ?? null,
+      transport:          transfer?.vehicle_name ?? fallbackVehicle?.name ?? "",
+      transportPhoto:     transfer?.vehicle_image_key
+        ? getThumbnailImage(transfer.vehicle_image_key)
+        : (fallbackVehicle?.image_key ? getThumbnailImage(fallbackVehicle.image_key) : ""),
+      transportVehicleType: transfer?.vehicle_type ?? fallbackVehicle?.type ?? "",
+      transportSeats:     transfer?.vehicle_capacity ?? fallbackVehicle?.passenger_capacity ?? null,
       transportPickup:    transfer?.pickup_name ?? "",
       // fetchPackagePageData doesn't expose the transfer route's raw lat/lng —
       // left null on copy, same as roomPricingId used to be; the exec can
@@ -1465,10 +1523,7 @@ export async function copyPackageIntoDraft(
       // The catalog itinerary_transfers model has no travel-time field to
       // copy from — left blank, same as the other transfer fields noted above.
       transportTravelTime: "",
-      // fetchPackagePageData doesn't expose the transfer's raw cab_pricing id
-      // either — left null on copy, same as transportPickupLat/Lng; the exec
-      // can re-pick the cab via search to back-fill it for auto-pricing.
-      cabPricingId:       null,
+      cabPricingId:       cabPricingByDay.get(day.day) ?? null,
       notes:              day.notes.map((n) => n.message).join(" "),
     };
   });
@@ -1539,7 +1594,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       itineraries: {
         orderBy: { day: "asc" },
         select: {
-          id: true, day: true, title: true, description: true, meals: true,
+          id: true, day: true, title: true, description: true, meals: true, extraMeals: true,
           accommodation: true, accommodationPhoto: true, accommodationRoomPhotos: true,
           accommodationLocation: true, accommodationRoomSpecs: true, accommodationStarRating: true,
           accommodationRoomCapacity: true,
@@ -1573,7 +1628,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
   const itineraries: DayItinerary[] = cp.itineraries.map((it) => {
     const n = normalizeItinerary(it);
     return {
-      day: n.day, title: n.title, description: n.description, meals: n.meals,
+      day: n.day, title: n.title, description: n.description, meals: n.meals, extraMeals: n.extraMeals,
       activities: n.activities.map((a) => ({
         title: a.title, description: a.description, photo: a.photo, photos: a.photos, photoLabels: a.photoLabels,
       })),
@@ -1622,7 +1677,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
     // an id of its own — the payload itself only describes the day rows, which
     // hold the recommended option and nothing else.
     sourceCustomPackageId: sourcePackageId,
-    title:         `${cp.title} (Copy)`,
+    title:         cp.title,
     description:   cp.description ?? "",
     coverImage:    cp.coverImage ?? "",
     coverImagePosition: cp.coverImagePosition,
@@ -1756,6 +1811,7 @@ function normalizeActivity(a: {
 
 function normalizeItinerary(it: {
   id: string; day: number; title: string; description: string | null; meals: string[];
+  extraMeals?: string[];
   accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
   accommodationLocation: string | null; accommodationRoomSpecs: string | null;
   accommodationStarRating: string | null; accommodationRoomCapacity: number | null;
@@ -1790,6 +1846,7 @@ function normalizeItinerary(it: {
     description:               it.description ?? "",
     activities:                it.activities.map(normalizeActivity),
     meals:                     normalizeMealLabels(it.meals),
+    extraMeals:                it.extraMeals ?? [],
     accommodation:             it.accommodation ?? "",
     // Resolved on the way out so a day written before the fill queue stopped
     // storing bare storage keys still shows its photos, and heals for good the
@@ -2022,6 +2079,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           title:              true,
           description:        true,
           meals:              true,
+          extraMeals:         true,
           accommodation:      true,
           accommodationPhoto: true,
           accommodationRoomPhotos: true,
@@ -2702,6 +2760,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               title:              it.title,
               description:        it.description || null,
               meals:              normalizeMealLabels(it.meals),
+              extraMeals:         it.extraMeals ?? [],
               // Same staleResurrection guard as hotelFilledAt/By/ByName below:
               // a stale pre-fill tab's payload for these is genuinely blank
               // (the request form never sets them — only the fill does), so

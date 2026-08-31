@@ -824,6 +824,7 @@ model TeamMember {
   dateOfBirth            DateTime?
   fatherMobile           String?           @db.VarChar(15)
   fatherName             String?           @db.VarChar(255)
+  fatherTitle            NameTitle?
   gender                 Gender?
   /**
    * Set when the onboarding popup's "I don't remember 🤷" option is chosen
@@ -834,6 +835,7 @@ model TeamMember {
   joiningDateUnknown     Boolean           @default(false)
   motherMobile           String?           @db.VarChar(15)
   motherName             String?           @db.VarChar(255)
+  motherTitle            NameTitle?
   officialMobile         String?           @db.VarChar(15)
   panFileKey             String?
   panFileUrl             String?
@@ -850,6 +852,7 @@ model TeamMember {
   hotelBookings          Booking[]         @relation("BookingHotelAssignee")
   opsBookings            Booking[]         @relation("BookingOpsAssignee")
   manualDocuments        ManualDocument[]  @relation("ManualDocumentAuthor")
+  notifications          Notification[]
   department             Department?       @relation(fields: [departmentId], references: [id])
   teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
 
@@ -1130,6 +1133,32 @@ model HotelOwnerNotification {
 
   @@index([owner_id, created_at])
   @@map("hotel_owner_notifications")
+}
+
+/**
+ * The dashboard header's notification bell — one row per event a team member
+ * should see (package approved/rejected by costing, hotel request filled/
+ * rejected, and so on). Mirrors HotelOwnerNotification's shape; kept as its
+ * own model rather than reusing that one since a team member is never a
+ * HotelOwner and the two audiences must never be able to see each other's
+ * rows. Written at the same call sites that already fire a toast for these
+ * events (see notify.ts) and pushed live over Ably so the header's unread
+ * count updates without a poll or a page reload.
+ */
+model Notification {
+  id          String    @id @default(cuid())
+  recipientId String
+  recipient   TeamMember @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  body        String?
+  link        String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([recipientId, createdAt])
+  @@index([recipientId, readAt])
+  @@map("notifications")
 }
 
 model HotelOwnerFeedback {
@@ -2645,6 +2674,44 @@ model package_queries {
   @@index([phone])
 }
 
+/**
+ * A sales executive's ask to have a lead added — reviewed by a lead manager
+ * (accept turns it into a real package_queries row via the same creation path
+ * as Add Query, reject requires a reason) rather than writing directly into
+ * package_queries, so a bad/duplicate submission never reaches the real
+ * pipeline unreviewed.
+ */
+model LeadRequest {
+  id               String            @id @default(cuid())
+  name             String            @db.VarChar(255)
+  phone            String            @db.VarChar(20)
+  email            String?
+  destination      String
+  status           LeadRequestStatus @default(PENDING)
+  requestedById    String
+  requestedByName  String
+  /** Required when status is REJECTED — enforced in the action, not here. */
+  rejectionReason  String?
+  decidedAt        DateTime?
+  decidedById      String?
+  decidedByName    String?
+  /** Set once accepted — the package_queries row this request became. */
+  resultingQueryId String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([status])
+  @@index([requestedById])
+  @@index([phone])
+  @@map("lead_requests")
+}
+
+enum LeadRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model custom_packages {
   id                      String                        @id @default(cuid())
   /**
@@ -3201,6 +3268,16 @@ model custom_itineraries {
   title                         String
   description                   String?
   meals                         String[]
+  /**
+   * Meals added on top of whatever the current hotel provides — e.g. an
+   * arrival-day breakfast the derived list can never include, since Day 1
+   * has no prior night for computeShiftedMeals to shift one in from. Purely
+   * additive and independent of roomPricingId: unlike the old manual meal
+   * toggle (removed once meals started deriving from the hotel's own plan),
+   * this never goes stale when the hotel changes, because it was never a
+   * substitute for the derived list in the first place — it only adds to it.
+   */
+  extraMeals                    String[]                      @default([])
   accommodation                 String?
   accommodationPhoto            String?
   accommodationRoomPhotos       String[]                      @default([])
@@ -3591,6 +3668,16 @@ enum Gender {
   FEMALE
   OTHER
   PREFER_NOT_TO_SAY
+}
+
+/** The honorific shown before a parent's name — kept as its own field so the
+ * name itself stays plain text ("Ramesh Kumar", not "Late Mr. Ramesh Kumar")
+ * while the UI can still prefix it consistently. */
+enum NameTitle {
+  MR
+  MRS
+  LATE_MR
+  LATE_MRS
 }
 
 enum MaritalStatus {

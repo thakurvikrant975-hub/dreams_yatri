@@ -31,7 +31,8 @@ const PROFILE_SELECT = {
   designation: true, employeeId: true, gender: true, officialMobile: true, joiningDateUnknown: true,
   dateOfBirth: true,
   personalEmail: true, personalMobile: true, alternativeMobile: true,
-  fatherName: true, fatherMobile: true, motherName: true, motherMobile: true,
+  fatherName: true, fatherTitle: true, fatherMobile: true,
+  motherName: true, motherTitle: true, motherMobile: true,
   aadhaarNumber: true, aadhaarFileKey: true, aadhaarFileUrl: true,
   aadhaarBackFileKey: true, aadhaarBackFileUrl: true,
   panNumber: true, panFileKey: true, panFileUrl: true,
@@ -117,12 +118,14 @@ export async function updateFamilyDetails(
 
   const parsed = FamilyDetailsSchema.safeParse({
     fatherName: (formData.get("fatherName") as string) || undefined,
+    fatherTitle: (formData.get("fatherTitle") as string) || undefined,
     fatherMobile: (formData.get("fatherMobile") as string) || undefined,
     motherName: (formData.get("motherName") as string) || undefined,
+    motherTitle: (formData.get("motherTitle") as string) || undefined,
     motherMobile: (formData.get("motherMobile") as string) || undefined,
   });
   if (!parsed.success) {
-    return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors };
+    return { success: false, message: "Please check the family details below", errors: parsed.error.flatten().fieldErrors };
   }
 
   try {
@@ -229,12 +232,14 @@ export async function completeOnboardingProfile(
 
   const family = FamilyDetailsSchema.safeParse({
     fatherName: (formData.get("fatherName") as string) || undefined,
+    fatherTitle: (formData.get("fatherTitle") as string) || undefined,
     fatherMobile: (formData.get("fatherMobile") as string) || undefined,
     motherName: (formData.get("motherName") as string) || undefined,
+    motherTitle: (formData.get("motherTitle") as string) || undefined,
     motherMobile: (formData.get("motherMobile") as string) || undefined,
   });
   if (!family.success) {
-    return { success: false, message: "Validation failed", errors: family.error.flatten().fieldErrors };
+    return { success: false, message: "Please check the family details below", errors: family.error.flatten().fieldErrors };
   }
 
   const identity = IdentityDocumentsSchema.safeParse({
@@ -248,7 +253,33 @@ export async function completeOnboardingProfile(
     panFileUrl: (formData.get("panFileUrl") as string) || undefined,
   });
   if (!identity.success) {
-    return { success: false, message: "Validation failed", errors: identity.error.flatten().fieldErrors };
+    return { success: false, message: "Please check the identity details below", errors: identity.error.flatten().fieldErrors };
+  }
+
+  // Every mobile number entered must be distinct — except father's and
+  // mother's, which routinely ARE the same real-world number (one parent
+  // handles calls for both) and are explicitly allowed to match.
+  const PHONE_FIELDS: { key: string; label: string; value: string | undefined }[] = [
+    { key: "personalMobile", label: "Personal Mobile", value: personal.data.personalMobile },
+    { key: "alternativeMobile", label: "Alternate Mobile", value: personal.data.alternativeMobile },
+    { key: "officialMobile", label: "Official Mobile", value: personal.data.officialMobile },
+    { key: "fatherMobile", label: "Father's Mobile", value: family.data.fatherMobile },
+    { key: "motherMobile", label: "Mother's Mobile", value: family.data.motherMobile },
+  ];
+  const phoneErrors: Record<string, string[]> = {};
+  for (let i = 0; i < PHONE_FIELDS.length; i++) {
+    for (let j = i + 1; j < PHONE_FIELDS.length; j++) {
+      const a = PHONE_FIELDS[i];
+      const b = PHONE_FIELDS[j];
+      const isParentPair = (a.key === "fatherMobile" && b.key === "motherMobile")
+        || (a.key === "motherMobile" && b.key === "fatherMobile");
+      if (isParentPair || !a.value || !b.value || a.value !== b.value) continue;
+      (phoneErrors[a.key] ??= []).push(`Same as ${b.label} — mobile numbers must be different`);
+      (phoneErrors[b.key] ??= []).push(`Same as ${a.label} — mobile numbers must be different`);
+    }
+  }
+  if (Object.keys(phoneErrors).length > 0) {
+    return { success: false, message: "Some mobile numbers are duplicated", errors: phoneErrors };
   }
 
   try {
@@ -278,8 +309,10 @@ export async function completeOnboardingProfile(
         joiningDate: personal.data.joiningDate ? new Date(personal.data.joiningDate) : undefined,
         joiningDateUnknown: personal.data.joiningDateUnknown,
         fatherName: family.data.fatherName,
+        fatherTitle: family.data.fatherTitle,
         fatherMobile: family.data.fatherMobile,
         motherName: family.data.motherName,
+        motherTitle: family.data.motherTitle,
         motherMobile: family.data.motherMobile,
         aadhaarNumber: identity.data.aadhaarNumber,
         panNumber: identity.data.panNumber,

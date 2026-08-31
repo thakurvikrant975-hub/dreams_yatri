@@ -59,6 +59,8 @@ export const ALL_HREFS = [
   // Sales
   "/sales-dashboard",
   "/dashboard/sales-query",
+  "/dashboard/request-lead",
+  "/dashboard/lead-requests",
   "/dashboard/package-library",
   "/dashboard/package-builder",
   "/dashboard/verify-packages",

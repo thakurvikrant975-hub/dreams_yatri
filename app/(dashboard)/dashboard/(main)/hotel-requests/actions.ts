@@ -20,6 +20,7 @@ import { syncRecommendedStayFromDays } from "@/app/(dashboard)/dashboard/(builde
 import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
+import { notifyMember } from "@/app/services/notifications/notify";
 
 type Member = NonNullable<Awaited<ReturnType<typeof getCurrentMember>>>;
 
@@ -124,7 +125,7 @@ export async function fillPendingHotel(
 
     const pkg = await db.custom_packages.findUnique({
         where: { id: packageId },
-        select: { queryId: true },
+        select: { queryId: true, title: true, builtBy: true },
     });
 
     const remainingPending = await db.custom_itineraries.count({
@@ -150,6 +151,18 @@ export async function fillPendingHotel(
             `Hotel filled for day ${day} by ${auth.member.name}${allDaysFilled ? " — every day is now filled, back to the exec to submit" : ""}`,
             auth.member.id, auth.member.name,
         );
+    }
+
+    if (pkg?.builtBy) {
+        await notifyMember({
+            recipientId: pkg.builtBy,
+            type: "HOTEL_FILLED",
+            title: `${pkg.title ?? "Your package"} — hotel filled for Day ${day}`,
+            body: allDaysFilled
+                ? "Every day is now filled — ready for you to submit."
+                : `${hotelName} added by ${auth.member.name}.`,
+            link: `/dashboard/package-builder/${packageId}`,
+        });
     }
 
     await broadcastVerificationCounts();
@@ -207,7 +220,16 @@ export async function rejectPendingHotel(
         },
     });
 
-    const pkg = await db.custom_packages.findUnique({ where: { id: packageId }, select: { queryId: true } });
+    const pkg = await db.custom_packages.findUnique({ where: { id: packageId }, select: { queryId: true, title: true, builtBy: true } });
+    if (pkg?.builtBy) {
+        await notifyMember({
+            recipientId: pkg.builtBy,
+            type: "HOTEL_REQUEST_REJECTED",
+            title: `${pkg.title ?? "Your package"} — hotel request rejected for Day ${day}`,
+            body: note,
+            link: `/dashboard/package-builder/${packageId}`,
+        });
+    }
     if (pkg?.queryId) {
         await logTimeline(
             pkg.queryId,
@@ -250,9 +272,18 @@ export async function rejectAllPendingHotels(
         },
     });
 
-    const pkg = await db.custom_packages.findUnique({ where: { id: packageId }, select: { queryId: true } });
+    const pkg = await db.custom_packages.findUnique({ where: { id: packageId }, select: { queryId: true, title: true, builtBy: true } });
+    const days = rows.map((r) => r.day).sort((a, b) => a - b).join(", ");
+    if (pkg?.builtBy) {
+        await notifyMember({
+            recipientId: pkg.builtBy,
+            type: "HOTEL_REQUEST_REJECTED",
+            title: `${pkg.title ?? "Your package"} — ${rows.length} hotel request${rows.length !== 1 ? "s" : ""} rejected`,
+            body: `Day ${days}: ${note}`,
+            link: `/dashboard/package-builder/${packageId}`,
+        });
+    }
     if (pkg?.queryId) {
-        const days = rows.map((r) => r.day).sort((a, b) => a - b).join(", ");
         await logTimeline(
             pkg.queryId,
             `Hotel requests rejected for ${rows.length} day${rows.length !== 1 ? "s" : ""} (Day ${days}) by ${auth.member.name}: ${note}`,

@@ -2346,14 +2346,29 @@ Rules:
             <fieldset disabled={isLocked} className="contents">
               <div className="p-4 space-y-4">
               {/* Awaiting-review / rejected banners — shown above the tab
-                 panels so they're visible no matter which tab is open. */}
-              {isLocked && (
+                 panels so they're visible no matter which tab is open.
+                 isLocked alone only says "still with costing" — once
+                 verified it's approved and waiting on YOU to share it, a
+                 different state that needs its own message even though
+                 editing stays disabled either way (see fieldset above). */}
+              {isLocked && !pkgVerified && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
                   <Clock className="size-4 mt-0.5 shrink-0 text-amber-600" />
                   <div>
                     <p className="text-sm font-semibold text-amber-800">Awaiting costing review</p>
                     <p className="text-xs text-amber-700 mt-0.5">
                       This package is with the costing team for pricing verification — editing is disabled until they verify &amp; send it, or reject it back to you.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {isLocked && pkgVerified && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-dashboard-success/40 bg-dashboard-success/10 px-4 py-3">
+                  <CheckCircle className="size-4 mt-0.5 shrink-0 text-dashboard-success" />
+                  <div>
+                    <p className="text-sm font-semibold text-dashboard-success">Approved — ready to share</p>
+                    <p className="text-xs text-dashboard-success/80 mt-0.5">
+                      Costing has approved this package. Share it with the client below, or request a revision if something still needs to change.
                     </p>
                   </div>
                 </div>
