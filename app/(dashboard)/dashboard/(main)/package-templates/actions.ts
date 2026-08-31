@@ -5,7 +5,10 @@ import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { getLeaderScope, getSubmitterTeam } from "@/app/lib/sales-teams/leader-scope";
 import { notifyMember } from "@/app/services/notifications/notify";
-import type { TemplateApprovalStatus } from "@/app/generated/prisma";
+import type { TemplateApprovalStatus, Prisma } from "@/app/generated/prisma";
+import {
+  parseCabSelections, type CabSelection,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 
 export type PackageTemplateSnapshotDay = {
   day: number;
@@ -20,6 +23,12 @@ export type PackageTemplateSnapshotDay = {
   transport: string | null;
   transportVehicleType: string | null;
   transportSeats: number | null;
+  /** Every additional cab beyond the primary one above (e.g. one Sedan + one
+   * SUV) — same shape the builder's own extraCabs uses (see
+   * DaySummaryTable in ItineraryDocument.tsx), so a multi-cab day still
+   * shows every cab wherever this snapshot is read from, not just the
+   * first. */
+  extraCabs: CabSelection[];
   notes: string | null;
   notesTitle: string | null;
   notesType: string | null;
@@ -29,6 +38,15 @@ export type PackageTemplateSnapshotDay = {
   }[];
 };
 
+/** One leg of the route, package-level rather than per-day — mirrors
+ * custom_package_stops (name + nights), which is where a package's own
+ * "Places You Gonna Visit" tiles and Day-wise Summary destinations come
+ * from. */
+export type PackageTemplateSnapshotStop = {
+  name: string;
+  nights: number;
+};
+
 export type PackageTemplateSnapshot = {
   inclusions: string[];
   exclusions: string[];
@@ -36,10 +54,13 @@ export type PackageTemplateSnapshot = {
   termsConditions: string[];
   paymentPolicy: string[];
   amendmentPolicy: string[];
-  pricePerPerson: number | null;
-  totalPrice: number | null;
-  currency: string;
+  stops: PackageTemplateSnapshotStop[];
   days: PackageTemplateSnapshotDay[];
+  // Deliberately no price fields. A template is reused for a different
+  // client on a different date, so a price frozen at save time would
+  // already be stale by the time it's reused — pricing is computed fresh,
+  // live, off whatever hotel/cab the leader/exec actually picks when
+  // working from it, same as any other package.
 };
 
 async function getAuthenticatedMember() {
@@ -85,13 +106,17 @@ async function buildSnapshotFromPackage(customPackageId: string) {
       id: true, title: true, description: true, coverImage: true, destination: true,
       totalDays: true, totalNights: true, verified: true,
       inclusions: true, exclusions: true, termsNotes: true, termsConditions: true,
-      paymentPolicy: true, amendmentPolicy: true, pricePerPerson: true, totalPrice: true, currency: true,
+      paymentPolicy: true, amendmentPolicy: true,
+      stops: {
+        orderBy: { sortOrder: "asc" },
+        select: { name: true, nights: true },
+      },
       itineraries: {
         orderBy: { day: "asc" },
         select: {
           day: true, title: true, description: true, meals: true, extraMeals: true,
           accommodation: true, accommodationLocation: true, accommodationStarRating: true, accommodationRoomSpecs: true,
-          transport: true, transportVehicleType: true, transportSeats: true,
+          transport: true, transportVehicleType: true, transportSeats: true, extraCabs: true,
           notes: true, notesTitle: true, notesType: true,
           activities: {
             orderBy: { sortOrder: "asc" },
@@ -110,9 +135,7 @@ async function buildSnapshotFromPackage(customPackageId: string) {
     termsConditions: pkg.termsConditions,
     paymentPolicy: pkg.paymentPolicy,
     amendmentPolicy: pkg.amendmentPolicy,
-    pricePerPerson: pkg.pricePerPerson,
-    totalPrice: pkg.totalPrice,
-    currency: pkg.currency,
+    stops: pkg.stops,
     days: pkg.itineraries.map((it) => ({
       day: it.day,
       title: it.title,
@@ -126,6 +149,7 @@ async function buildSnapshotFromPackage(customPackageId: string) {
       transport: it.transport,
       transportVehicleType: it.transportVehicleType,
       transportSeats: it.transportSeats,
+      extraCabs: parseCabSelections(it.extraCabs),
       notes: it.notes,
       notesTitle: it.notesTitle,
       notesType: it.notesType,
@@ -226,8 +250,22 @@ export async function saveCustomPackageToLibrary(
     }
   }
 
+  // The leader notification above tells THEM a review is waiting; the
+  // submitting exec gets nothing today, so the only place they'd learn the
+  // save actually went through is the "Library: Pending" badge on their own
+  // sales-query row — easy to miss since it never got here through a
+  // notification the way approve/reject already do.
+  await notifyMember({
+    recipientId: actor.id,
+    type: "LIBRARY_PACKAGE_SUBMITTED_CONFIRMATION",
+    title: `Saved "${resolvedTitle}" to the library`,
+    body: "Awaiting your team leader's review.",
+    link: `/dashboard/package-builder/${pkg.id}`,
+  });
+
   revalidatePath("/dashboard/package-templates");
   revalidatePath("/dashboard/activity-templates");
+  revalidatePath("/dashboard/sales-query");
   return { success: true, packageTemplateId: created.id, activityCount: flattenedActivities.length };
 }
 
@@ -246,6 +284,16 @@ export type PackageTemplateRow = {
   submittedByName: string;
   submittedByTeamId: string | null;
   submittedByTeamName: string | null;
+  /** Name of submittedByTeamId's leader — the person who can act on this
+   * template (see canManage/assertCanManage below), shown so it's clear at a
+   * glance who that is even when the viewer isn't them. Null when the
+   * submitter's team currently has no leader assigned. */
+  teamLeaderName: string | null;
+  /** The route this template actually follows, e.g. [{name: "North Goa",
+   * nights: 2}, {name: "South Goa", nights: 1}] — pulled from the snapshot
+   * rather than a separate column, same source the Day-wise Summary table
+   * derives its own per-day destinations from. */
+  stops: PackageTemplateSnapshotStop[];
   submittedAt: Date;
   status: TemplateApprovalStatus;
   approvedByName: string | null;
@@ -269,6 +317,12 @@ export async function getPackageTemplatesForReview(): Promise<{
     include: { _count: { select: { activities: true } } },
   });
 
+  const teamIds = Array.from(new Set(templates.map((t) => t.submittedByTeamId).filter((id): id is string => !!id)));
+  const teams = teamIds.length > 0
+    ? await db.salesTeam.findMany({ where: { id: { in: teamIds } }, select: { id: true, leader: { select: { name: true } } } })
+    : [];
+  const leaderNameByTeamId = new Map(teams.map((t) => [t.id, t.leader?.name ?? null]));
+
   return {
     ledTeamId: scope.ledTeamId,
     rows: templates.map((t) => ({
@@ -284,6 +338,8 @@ export async function getPackageTemplatesForReview(): Promise<{
       submittedByName: t.submittedByName,
       submittedByTeamId: t.submittedByTeamId,
       submittedByTeamName: t.submittedByTeamName,
+      teamLeaderName: t.submittedByTeamId ? leaderNameByTeamId.get(t.submittedByTeamId) ?? null : null,
+      stops: (t.snapshot as unknown as PackageTemplateSnapshot | null)?.stops ?? [],
       submittedAt: t.submittedAt,
       status: t.status,
       approvedByName: t.approvedByName,
@@ -318,6 +374,13 @@ export async function approvePackageTemplate(id: string): Promise<{ success: boo
   const auth = await assertCanManage(id);
   if (!auth.ok) return { success: false, error: auth.error };
 
+  // Pull in whatever the leader edited on the working copy (see "Edit in
+  // Builder" / syncTemplateFromWorkingCopy below) so Approve doesn't ship a
+  // stale snapshot just because they didn't separately click Save to
+  // Template first. A no-op when there's no working copy for this template.
+  const synced = await syncTemplateFromWorkingCopy(id, auth.actorId, auth.actorName);
+  if (!synced.success) return { success: false, error: synced.error };
+
   const template = await db.packageTemplate.update({
     where: { id },
     data: {
@@ -336,6 +399,7 @@ export async function approvePackageTemplate(id: string): Promise<{ success: boo
   });
 
   revalidatePath("/dashboard/package-templates");
+  revalidatePath("/dashboard/sales-query");
   return { success: true };
 }
 
@@ -365,6 +429,7 @@ export async function rejectPackageTemplate(id: string, reason: string): Promise
   });
 
   revalidatePath("/dashboard/package-templates");
+  revalidatePath("/dashboard/sales-query");
   return { success: true };
 }
 
@@ -452,9 +517,13 @@ export async function getOrCreateTemplateWorkingCopy(
       // reseeds it from itinerary_settings on the working copy's first save,
       // same as any other blank package.
       travelBenefits: [],
-      pricePerPerson: snapshot.pricePerPerson,
-      totalPrice: snapshot.totalPrice,
-      currency: snapshot.currency,
+      // No pricePerPerson/totalPrice here — the snapshot deliberately never
+      // captured them (see PackageTemplateSnapshot), so the working copy
+      // starts unpriced and the builder computes a fresh price live off
+      // whatever hotel/cab actually gets picked, same as any blank package.
+      stops: {
+        create: snapshot.stops.map((s, i) => ({ name: s.name, nights: s.nights, sortOrder: i })),
+      },
       itineraries: {
         create: snapshot.days.map((d) => ({
           day: d.day,
@@ -469,6 +538,7 @@ export async function getOrCreateTemplateWorkingCopy(
           transport: d.transport,
           transportVehicleType: d.transportVehicleType,
           transportSeats: d.transportSeats,
+          extraCabs: d.extraCabs as unknown as Prisma.InputJsonValue,
           notes: d.notes,
           notesTitle: d.notesTitle,
           notesType: d.notesType,
@@ -489,24 +559,25 @@ export async function getOrCreateTemplateWorkingCopy(
   return { success: true, packageId: created.id };
 }
 
-/** Team-leader-only. Writes the working copy's current state back into the
- * template's snapshot + top-level fields, and refreshes the template's
- * ActivityTemplate rows to match — the reverse of getOrCreateTemplateWorkingCopy,
- * sharing the same snapshot-building logic Save to Library uses. */
-export async function saveTemplateWorkingCopy(
+/** Writes a template's working copy (if one exists) back into the template's
+ * snapshot + top-level fields, and refreshes its ActivityTemplate rows to
+ * match. Shared by the explicit Save to Template button (saveTemplateWorkingCopy)
+ * and by approvePackageTemplate, so approving always ships whatever the
+ * leader last edited in the builder rather than a stale snapshot. A missing
+ * working copy is not an error here — most templates never get one. */
+async function syncTemplateFromWorkingCopy(
   templateId: string,
+  actorId: string,
+  actorName: string,
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const auth = await assertCanManage(templateId);
-  if (!auth.ok) return { success: false, error: auth.error };
-
   const workingCopy = await db.custom_packages.findFirst({ where: { templateId }, select: { id: true } });
-  if (!workingCopy) return { success: false, error: "No working copy found — open it from Edit in Builder first" };
+  if (!workingCopy) return { success: true };
 
   const built = await buildSnapshotFromPackage(workingCopy.id);
   if (!built) return { success: false, error: "Working copy package not found" };
   const { pkg, snapshot, flattenedActivities } = built;
 
-  const { teamId, teamName } = await getSubmitterTeam(auth.actorId);
+  const { teamId, teamName } = await getSubmitterTeam(actorId);
 
   await db.$transaction(async (tx) => {
     await tx.packageTemplate.update({
@@ -537,14 +608,32 @@ export async function saveTemplateWorkingCopy(
           day: a.day,
           destination: pkg.destination,
           packageTemplateId: templateId,
-          submittedById: auth.actorId,
-          submittedByName: auth.actorName,
+          submittedById: actorId,
+          submittedByName: actorName,
           submittedByTeamId: teamId,
           submittedByTeamName: teamName,
         })),
       });
     }
   });
+
+  return { success: true };
+}
+
+/** Team-leader-only. Writes the working copy's current state back into the
+ * template's snapshot + top-level fields — the reverse of
+ * getOrCreateTemplateWorkingCopy. */
+export async function saveTemplateWorkingCopy(
+  templateId: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const auth = await assertCanManage(templateId);
+  if (!auth.ok) return { success: false, error: auth.error };
+
+  const workingCopy = await db.custom_packages.findFirst({ where: { templateId }, select: { id: true } });
+  if (!workingCopy) return { success: false, error: "No working copy found — open it from Edit in Builder first" };
+
+  const result = await syncTemplateFromWorkingCopy(templateId, auth.actorId, auth.actorName);
+  if (!result.success) return result;
 
   revalidatePath("/dashboard/package-templates");
   revalidatePath("/dashboard/activity-templates");

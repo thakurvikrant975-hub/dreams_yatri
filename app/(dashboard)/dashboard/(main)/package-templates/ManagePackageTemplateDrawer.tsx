@@ -79,7 +79,7 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
   function openInBuilder() {
     startOpeningBuilder(async () => {
       const result = await getOrCreateTemplateWorkingCopy(template!.id);
-      if (result.success) router.push(`/dashboard/package-builder/${result.packageId}`);
+      if (result.success) window.open(`/dashboard/package-builder/${result.packageId}`, "_blank", "noopener,noreferrer");
       else toast.error(result.error ?? "Failed to open in builder");
     });
   }
@@ -126,9 +126,10 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
                 Edit in Builder
               </Button>
               <p className="text-[11px] text-muted-foreground">
-                Opens the full package builder — hotels, cabs, activities, everything — on a working copy of this
-                template. Nothing saves back here until you click Save to Template inside the builder, and the
-                original package this was saved from is never touched.
+                Opens the full package builder in a new tab — hotels, cabs, activities, everything — on a working
+                copy of this template. Click Save to Template inside the builder any time, or just come back here
+                and Approve — approving also saves your latest edits. The original package this was saved from is
+                never touched.
               </p>
             </div>
           )}
@@ -159,6 +160,11 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
                   {day.transport && (
                     <p className="text-xs flex items-center gap-1.5"><Car className="h-3 w-3 shrink-0" /> {day.transport}</p>
                   )}
+                  {day.extraCabs.map((c, i) => (
+                    <p key={i} className="text-xs flex items-center gap-1.5 text-muted-foreground pl-4.5">
+                      + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}{c.vehicleType ? ` · ${c.vehicleType}` : ""}
+                    </p>
+                  ))}
                   {(day.meals.length > 0 || day.extraMeals.length > 0) && (
                     <p className="text-xs flex items-center gap-1.5"><Utensils className="h-3 w-3 shrink-0" /> {[...day.meals, ...day.extraMeals].join(", ")}</p>
                   )}

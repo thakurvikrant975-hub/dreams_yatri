@@ -21,7 +21,7 @@
 // So this is the block that survives when the six tabs go.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { CalendarDays, Users, MapPin, Percent, Baby, IndianRupee } from "./builder-icons";
+import { CalendarDays, Users, MapPin, Baby, IndianRupee } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -74,7 +74,18 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1">
             <span className="text-[11px] text-dashboard-base-content/60">Travel date</span>
-            <Input type="date" value={form.travelDate} onChange={field("travelDate")} className="h-9 text-sm" />
+            <Input
+              type="date"
+              value={form.travelDate}
+              onChange={field("travelDate")}
+              // Browser-native floor on the picker itself — belt-and-braces
+              // with the same rule in validateItineraryRequiredFields, which
+              // is what actually blocks Download/Preview/Send if this is
+              // ever bypassed (typed/pasted, or an already-past date left
+              // over from before today).
+              min={new Date().toISOString().slice(0, 10)}
+              className="h-9 text-sm"
+            />
           </label>
           <label className="space-y-1">
             <span className="text-[11px] text-dashboard-base-content/60">Pickup point</span>
@@ -218,32 +229,6 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
         )}
         <p className="text-[11px] text-dashboard-base-content/45">
           Rooms, mattresses and every price are worked out from this.
-        </p>
-      </Block>
-
-      <Block icon={Percent} title="Margin & tax">
-        <div className="grid grid-cols-2 gap-3">
-          <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Margin %</span>
-            <Input
-              type="number" min={0}
-              value={form.marginPercentage}
-              onChange={field("marginPercentage")}
-              className="h-9 text-sm"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">GST %</span>
-            <Input
-              type="number" min={0}
-              value={form.gstPercentage}
-              onChange={field("gstPercentage")}
-              className="h-9 text-sm"
-            />
-          </label>
-        </div>
-        <p className="text-[11px] text-dashboard-base-content/45">
-          Applied on top of the hotel, cab, ticket and add-on costs.
         </p>
       </Block>
 
