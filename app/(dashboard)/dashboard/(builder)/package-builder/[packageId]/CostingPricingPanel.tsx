@@ -27,6 +27,7 @@
 
 import { AlertOctagon, Users } from "lucide-react";
 import { travellersLine, ageBandsLine, bandsOf, bandMismatchLines } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { hotelGapLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-diagnostics";
 import { StayOptionsComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionsComparison";
 import { useBuilder } from "./builder-context";
 import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
@@ -190,10 +191,8 @@ export function CostingPricingPanel({
               {l.roomName ? ` · ${l.roomName}` : ""}
             </p>
             {l.overridden && <p className="text-[10px] text-amber-700 mt-0.5">Corrected by costing</p>}
-            {l.gap && (
-              <p className="text-[10px] text-amber-700 mt-0.5">
-                {l.gap === "no-room-price" ? "No room rate set" : "Mattresses have no rate"}
-              </p>
+            {hotelGapLabel(l.gap) && (
+              <p className="text-[10px] text-amber-700 mt-0.5">{hotelGapLabel(l.gap)}</p>
             )}
           </div>
         ))}

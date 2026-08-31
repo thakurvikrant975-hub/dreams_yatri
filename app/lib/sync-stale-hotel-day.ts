@@ -8,6 +8,7 @@ const HOTEL_FIELDS = [
   "accommodation", "accommodationPhoto", "accommodationRoomPhotos", "accommodationLocation",
   "accommodationRoomSpecs", "accommodationStarRating", "accommodationRoomCapacity",
   "accommodationMaxAdults", "accommodationMaxChildren", "accommodationExtraBedCapacity",
+  "accommodationExtraBedRate",
   "manualExtraBeds", "roomPricingId", "roomsCount", "manualHotelPricePerNight", "manualExtraBedRate",
   "hotelCheckIn", "hotelCheckOut", "hotelMealPlan",
   "hotelPending", "hotelPendingNote", "hotelRequestType",

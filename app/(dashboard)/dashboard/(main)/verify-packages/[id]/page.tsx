@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { getRejectionReasons } from "../../(marketing)/queries/actions";
 import { getItinerarySettings } from "../../itinerary-settings/actions";
-import { computeBuilderHotelPricing, computeBuilderCabPricing, travellersOf } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
-import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { payingPaxOf, travellersOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 export const metadata: Metadata = {
     title: "Package Verification - Dashboard",

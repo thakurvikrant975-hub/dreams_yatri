@@ -270,6 +270,32 @@ export function classifyTravellers(
   return { adults, children, infants, mismatches };
 }
 
+/** The traveller half of a computeBuilderHotelPricing call, straight off a
+ * package row.
+ *
+ * Spread rather than passed field-by-field so adding a band or an age list
+ * later reaches every caller at once — the failure mode this replaces was
+ * three call sites passing `adults`/`children` and a fourth passing the ages
+ * too, quietly pricing the same party into different rooms.
+ *
+ * Lives here rather than beside computeBuilderHotelPricing because that module
+ * is "use server", where every export must be an async function. */
+export function travellersOf(pkg: {
+  adults: number; children: number; infants?: number;
+  childrenAges?: number[]; infantAges?: number[];
+  infantMaxAge?: number | null; childMaxAge?: number | null;
+}) {
+  return {
+    adults: pkg.adults,
+    children: pkg.children,
+    infants: pkg.infants ?? 0,
+    childrenAges: pkg.childrenAges ?? [],
+    infantAges: pkg.infantAges ?? [],
+    infantMaxAge: pkg.infantMaxAge,
+    childMaxAge: pkg.childMaxAge,
+  };
+}
+
 /** Just the two numbers every room/mattress/occupancy calculation takes.
  * Sugar over classifyTravellers so call sites read as what they're asking for. */
 export function pricingPartyOf(

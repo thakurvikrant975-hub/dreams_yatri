@@ -26,6 +26,7 @@ import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/packag
 import {
     payingPaxOf, travellersLine as travellersLineOf, ageBandsLine, bandsOf, bandMismatchLines,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { hotelGapLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-diagnostics";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
 // rather than an if/else chain — a ticket type that isn't FLIGHT/HELICOPTER
@@ -41,7 +42,7 @@ const TICKET_TYPE_ICONS: Record<string, typeof PlaneTakeoff> = {
 export type PricingSnapshot = {
     lockedAt: string;
     currency: string;
-    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: "no-room-price" | "no-mattress-rate" }[]; overridden?: boolean };
+    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: string }[]; overridden?: boolean };
     cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number; overridden?: boolean; gap?: "no-cab-rate" }[]; overridden?: boolean };
     tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
     addOns?: { subtotal: number; lines: { name: string; price: number; quantity: number; day: number | null }[] };
@@ -627,12 +628,11 @@ export function VerifyPackageDetailClient({
                                                         {/* These days used to be omitted from the breakdown entirely, so
                                                             the subtotal was quietly short and there was nothing on screen
                                                             to review. They now show, at ₹0, saying what is missing. */}
-                                                        {l.gap && (
+                                                        {hotelGapLabel(l.gap) && (
                                                             <p className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
                                                                 <AlertCircle className="size-3 shrink-0" />
-                                                                {l.gap === "no-room-price"
-                                                                    ? "No room rate set — this day is priced at ₹0"
-                                                                    : `${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} with no rate — charging ₹0 for them`}
+                                                                {hotelGapLabel(l.gap)}
+                                                                {l.gap === "no-room-price" && " — this day is priced at ₹0"}
                                                             </p>
                                                         )}
                                                     </div>

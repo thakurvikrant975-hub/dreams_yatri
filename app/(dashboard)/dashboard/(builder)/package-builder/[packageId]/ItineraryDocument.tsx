@@ -28,6 +28,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { StarAndCrescentIcon, MapPinIcon, RoadHorizonIcon } from "@phosphor-icons/react";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { formatTime12h } from "./time-format";
 import {
   continuesStayFrom, stayRun, removeStay, removeTransport, moveActivityTo, removeActivity,
   emptyTicket, emptyAddon, stopLimitReason, recalcFromStops,
@@ -318,15 +319,10 @@ export function titleCase(text: string): string {
   return text.replace(/\w\S*/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
 }
 
-/** "14:30" (24h, as stored from <input type="time">) → "2:30 PM". */
-export function formatTime12h(hhmm: string): string {
-  if (!hhmm) return "";
-  const [h, m] = hhmm.split(":").map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
-}
+// Defined in ./time-format so the pure day-mutations module can use it
+// without importing this file (and, behind it, the database). Re-exported
+// because every existing import of formatTime12h points here.
+export { formatTime12h };
 
 /** "2026-07-14" → "Tue, 14 Jul 2026". */
 function formatTicketDate(iso: string): string {
@@ -2320,6 +2316,7 @@ function StayColumnPicker({
             accommodationMaxAdults: mapped.accommodationMaxAdults,
             accommodationMaxChildren: mapped.accommodationMaxChildren,
             accommodationExtraBedCapacity: mapped.accommodationExtraBedCapacity,
+            accommodationExtraBedRate: mapped.accommodationExtraBedRate,
             roomPricingId: mapped.roomPricingId,
             roomsCount: mapped.roomsCount,
             hotelCheckIn: mapped.hotelCheckIn,

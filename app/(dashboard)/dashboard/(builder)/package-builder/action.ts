@@ -8,7 +8,7 @@ import { getHeroImage, getThumbnailImage, resolveStayPhoto } from "@/app/lib/ima
 import { formatStoredCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
-import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing, computeStayOptionPricing, travellersOf } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOptionPricing, computeStayOptionPricing } from "@/app/services/package-pricing.service";
 import { baseRatePricingError } from "@/app/services/package-price-utils";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
@@ -22,7 +22,7 @@ import { classifyActionError } from "@/app/lib/action-error";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
-import { missingTravellerAgesError, payingPaxOf, normalizeAgeBands } from "./traveller-ages";
+import { missingTravellerAgesError, payingPaxOf, normalizeAgeBands, travellersOf } from "./traveller-ages";
 import { syncRecommendedStayFromDays } from "./stay-options.sync";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
@@ -1013,6 +1013,11 @@ export interface DayItinerary {
   accommodationMaxAdults?: number | null;
   accommodationMaxChildren?: number | null;
   accommodationExtraBedCapacity?: number | null;
+  /** The room's catalog rate per extra mattress at pick time. Diagnostic only —
+   * pricing resolves the live rate (or manualExtraBedRate) — but it is the only
+   * thing that lets the builder say "these mattresses will cost the client ₹0"
+   * before costing finds it. See stay-diagnostics.ts. */
+  accommodationExtraBedRate?: number | null;
   /** Mattress/rollaway-bed count for a day with NO roomPricingId — set by
    * the hotel team filling an "Add Hotels by Team" request, or typed
    * directly here for a hand-entered hotel. A catalog-picked room's
@@ -1539,6 +1544,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           accommodationLocation: true, accommodationRoomSpecs: true, accommodationStarRating: true,
           accommodationRoomCapacity: true,
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
+          accommodationExtraBedRate: true,
           manualExtraBeds: true,
           roomPricingId: true, roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
@@ -1576,7 +1582,8 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       accommodationRoomSpecs: n.accommodationRoomSpecs, accommodationStarRating: n.accommodationStarRating,
       accommodationRoomCapacity: n.accommodationRoomCapacity,
       accommodationMaxAdults: n.accommodationMaxAdults, accommodationMaxChildren: n.accommodationMaxChildren,
-      accommodationExtraBedCapacity: n.accommodationExtraBedCapacity, manualExtraBeds: n.manualExtraBeds,
+      accommodationExtraBedCapacity: n.accommodationExtraBedCapacity,
+      accommodationExtraBedRate: n.accommodationExtraBedRate, manualExtraBeds: n.manualExtraBeds,
       roomPricingId: n.roomPricingId, roomsCount: n.roomsCount, extraRooms: n.extraRooms,
       hotelCheckIn: n.hotelCheckIn, hotelCheckOut: n.hotelCheckOut, hotelMealPlan: n.hotelMealPlan,
       hotelPending: n.hotelPending, hotelPendingNote: n.hotelPendingNote,
@@ -1753,6 +1760,7 @@ function normalizeItinerary(it: {
   accommodationLocation: string | null; accommodationRoomSpecs: string | null;
   accommodationStarRating: string | null; accommodationRoomCapacity: number | null;
   accommodationMaxAdults: number | null; accommodationMaxChildren: number | null; accommodationExtraBedCapacity: number | null;
+  accommodationExtraBedRate: number | null;
   manualExtraBeds: number | null;
   roomPricingId: number | null;
   roomsCount: number | null;
@@ -1795,6 +1803,7 @@ function normalizeItinerary(it: {
     accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
     accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
     accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
+    accommodationExtraBedRate: it.accommodationExtraBedRate ?? null,
     manualExtraBeds:           it.manualExtraBeds ?? null,
     roomPricingId:             it.roomPricingId ?? null,
     roomsCount:                it.roomsCount ?? null,
@@ -2023,6 +2032,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           accommodationMaxAdults: true,
           accommodationMaxChildren: true,
           accommodationExtraBedCapacity: true,
+          accommodationExtraBedRate: true,
           manualExtraBeds:    true,
           roomPricingId:      true,
           roomsCount:         true,
@@ -2588,7 +2598,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
         accommodationPhoto: true, accommodationRoomPhotos: true, accommodationLocation: true, accommodationRoomSpecs: true,
         accommodationStarRating: true, accommodationRoomCapacity: true, accommodationMaxAdults: true, accommodationMaxChildren: true,
-        accommodationExtraBedCapacity: true, hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
+        accommodationExtraBedCapacity: true, accommodationExtraBedRate: true,
+        hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
       },
     });
@@ -2707,6 +2718,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               accommodationMaxAdults: staleResurrection ? (existing?.accommodationMaxAdults ?? null) : (it.accommodationMaxAdults ?? null),
               accommodationMaxChildren: staleResurrection ? (existing?.accommodationMaxChildren ?? null) : (it.accommodationMaxChildren ?? null),
               accommodationExtraBedCapacity: staleResurrection ? (existing?.accommodationExtraBedCapacity ?? null) : (it.accommodationExtraBedCapacity ?? null),
+              accommodationExtraBedRate: staleResurrection ? (existing?.accommodationExtraBedRate ?? null) : (it.accommodationExtraBedRate ?? null),
               manualExtraBeds:    staleResurrection ? (existing?.manualExtraBeds ?? null) : (it.manualExtraBeds ?? null),
               roomPricingId:      staleResurrection ? (existing?.roomPricingId ?? null) : (it.roomPricingId ?? null),
               roomsCount:         staleResurrection ? (existing?.roomsCount ?? null) : (it.roomsCount ?? null),

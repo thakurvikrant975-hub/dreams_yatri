@@ -4194,6 +4194,10 @@ model custom_itinerary_stays {
   accommodationMaxAdults        Int?
   accommodationMaxChildren      Int?
   accommodationExtraBedCapacity Int?
+  /// Mirrors custom_itineraries.accommodationExtraBedRate — see the note
+  /// there. In STAY_FIELDS, so applying an option to a day carries the rate
+  /// with the room instead of leaving the day's previous one behind.
+  accommodationExtraBedRate     Float?
 
   roomPricingId            Int?
   roomsCount               Int?

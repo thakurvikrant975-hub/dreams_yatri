@@ -11,7 +11,7 @@ import { resolveHotelSeasonPricing } from "../lib/hotel-season-pricing";
 import { resolvePackageMargin } from "../lib/package-margin-season";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { composePackagePrice, baseRateDays } from "./package-price-utils";
-import { payingPaxOf, pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { payingPaxOf, pricingPartyOf, travellersOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -1123,27 +1123,6 @@ export async function computePackagePrice(
 // exactly the same way a catalog stay is, just without the cab/activity/permit
 // layers that only exist for catalog packages.
 
-/** The traveller half of a computeBuilderHotelPricing call, straight off a
- * package row. Spread rather than passed field-by-field so adding a band or an
- * age list later reaches every caller at once — the failure mode this replaces
- * was three call sites passing `adults`/`children` and a fourth passing the
- * ages too, quietly pricing the same party into different rooms. */
-export function travellersOf(pkg: {
-  adults: number; children: number; infants?: number;
-  childrenAges?: number[]; infantAges?: number[];
-  infantMaxAge?: number | null; childMaxAge?: number | null;
-}) {
-  return {
-    adults: pkg.adults,
-    children: pkg.children,
-    infants: pkg.infants ?? 0,
-    childrenAges: pkg.childrenAges ?? [],
-    infantAges: pkg.infantAges ?? [],
-    infantMaxAge: pkg.infantMaxAge,
-    childMaxAge: pkg.childMaxAge,
-  };
-}
-
 export type BuilderHotelDayLine = {
   day: number;
   hotelName: string;
@@ -1165,7 +1144,7 @@ export type BuilderHotelDayLine = {
    * subtotal was silently short and costing had no way to see the day existed,
    * which is the worst possible failure for a review screen. Such a day now
    * emits a ₹0 line carrying the reason instead of vanishing. */
-  gap?: "no-room-price" | "no-mattress-rate";
+  gap?: "no-room-price" | "no-mattress-rate" | "mattresses-not-enabled" | "mattresses-over-capacity";
   /** True when this line priced off the room's BASE rate because no season
    * covers its date.
    *
@@ -1408,6 +1387,31 @@ export async function computeBuilderHotelPricing(input: {
       const total = roomsCost + mattresses * extraBedRate;
       hotelSubtotal += total;
 
+      // Mattress gaps on a CATALOG room, which used to be unreportable.
+      //
+      // stayGaps returned nothing for a catalog day on the reasoning that a
+      // real hotel_room_pricing row is by definition priced. It is — for the
+      // room. Its extra_bed_rate is a separate column and is very often null,
+      // and its room's extra_bed_capacity is very often 0, so an exec's typed
+      // mattress count reached costing either charged at nothing or recorded
+      // against a room that cannot physically take it. Both are hotel-team
+      // data neither the exec nor the reviewer can see from here, so both have
+      // to be named on the line rather than left to be discovered.
+      //
+      // Deliberately not corrected — a genuinely complimentary mattress is a
+      // real thing, and guessing a rate would be worse than reporting none.
+      // Same rules as stayMattressIssues in stay-diagnostics.ts, restated here
+      // because this is the copy costing reads.
+      const extraBedCapacity = rp.room?.extra_bed_capacity ?? 0;
+      const mattressGap =
+        mattresses > 0 && extraBedCapacity <= 0
+          ? "mattresses-not-enabled" as const
+          : mattresses > extraBedCapacity * roomsNeeded
+            ? "mattresses-over-capacity" as const
+            : mattresses > 0 && extraBedRate === 0
+              ? "no-mattress-rate" as const
+              : undefined;
+
       lines.push({
         day: d.day,
         hotelName: rp.hotel.name,
@@ -1419,6 +1423,7 @@ export async function computeBuilderHotelPricing(input: {
         extraBedRate,
         total,
         baseRate: dayDate != null && !isSeasonal,
+        ...(mattressGap ? { gap: mattressGap } : {}),
       });
     } else if (d.manualHotelPricePerNight != null) {
       // Hand-typed (exec) or hotel-team-filled — no catalog room, so no

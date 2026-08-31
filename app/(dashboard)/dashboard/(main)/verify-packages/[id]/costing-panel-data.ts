@@ -14,12 +14,12 @@
 import { db } from "@/app/lib/db";
 import { getRejectionReasons } from "../../(marketing)/queries/actions";
 import { getItinerarySettings } from "../../itinerary-settings/actions";
-import { computeBuilderHotelPricing, computeBuilderCabPricing, travellersOf } from "@/app/services/package-pricing.service";
+import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/services/package-pricing.service";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import type { PricingSnapshot } from "./VerifyPackageDetailClient";
 import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
-import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { payingPaxOf, travellersOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 /** Tickets carry a lower margin than hotels and cabs — same split
  * sendPackageToClient applies when it freezes the real snapshot. */

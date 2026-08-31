@@ -19,3 +19,8 @@ ALTER TABLE "custom_packages" ADD COLUMN "childMaxAge"  INTEGER NOT NULL DEFAULT
 -- nothing on screen to say so. Diagnostic only — pricing still reads the live
 -- rate row (or the exec's manualExtraBedRate override).
 ALTER TABLE "custom_itineraries" ADD COLUMN "accommodationExtraBedRate" DOUBLE PRECISION;
+
+-- Stay options mirror the day's hotel columns (STAY_FIELDS), so the rate has
+-- to exist on both sides or applying an option to a day would leave the day's
+-- previous rate behind.
+ALTER TABLE "custom_itinerary_stays" ADD COLUMN "accommodationExtraBedRate" DOUBLE PRECISION;

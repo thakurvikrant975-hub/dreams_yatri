@@ -81,6 +81,7 @@ import { useLocalDraft } from "./use-local-draft";
 import { emptyDay, emptyTicket } from "./day-mutations";
 import { BuilderSidebar } from "./BuilderSidebar";
 import { BuilderErrorBoundary } from "./BuilderErrorBoundary";
+import { blockingStayIssuesError } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-diagnostics";
 import { DayLayersRail } from "./DayLayersRail";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1449,6 +1450,21 @@ Rules:
   }
 
   function handleMarkReady() {
+    // A mattress count nothing can honour — a room with no extra beds enabled,
+    // or more mattresses than the booked rooms hold — is the single most
+    // common reason a package comes back from costing, and the exec has no way
+    // to see it from the document. Named here, before the one-way door: once
+    // submitted, the package is locked and the fix costs a full round-trip.
+    // The rule is the same one costing's own breakdown applies (see
+    // stay-diagnostics.ts / computeBuilderHotelPricing).
+    const stayError = blockingStayIssuesError(form.itineraries, pricingPartyOf(form));
+    if (stayError) {
+      toast.error("Not sent — a stay can't be costed as it stands", {
+        description: stayError,
+        duration: 14000,
+      });
+      return;
+    }
     setConfirmReadyOpen(false);
     startSend(async () => {
       try {
@@ -1708,6 +1724,7 @@ Rules:
               accommodationMaxAdults: room.maxAdults,
               accommodationMaxChildren: room.maxChildren,
               accommodationExtraBedCapacity: room.extraBedCapacity,
+              accommodationExtraBedRate: room.extraBedRate,
               manualExtraBeds: null,
               manualHotelPricePerNight: null, manualExtraBedRate: null,
               hotelMealPlan: room.mealPlanName ?? it.hotelMealPlan,
@@ -1744,6 +1761,7 @@ Rules:
               accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
               accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
               accommodationMaxAdults: null, accommodationMaxChildren: null, accommodationExtraBedCapacity: null,
+              accommodationExtraBedRate: null,
               roomPricingId: null, roomsCount: null, extraRooms: [], manualExtraBeds: null,
               manualHotelPricePerNight: null, manualExtraBedRate: null,
               hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "", meals: [],

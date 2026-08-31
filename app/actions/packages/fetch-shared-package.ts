@@ -161,6 +161,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
           // Needed by occupancyText — without the real caps it falls back to
           // base beds alone and over-reports the room count to the client.
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
+          accommodationExtraBedRate: true,
           roomsCount: true, extraRooms: true,
           notesType: true,
           notesTitle: true,
@@ -333,6 +334,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
       accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
       accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
+      accommodationExtraBedRate: it.accommodationExtraBedRate ?? null,
       roomPricingId:             null,
       roomsCount:                it.roomsCount ?? null,
       extraRooms:                parseRoomSelections(it.extraRooms),

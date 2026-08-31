@@ -19,7 +19,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import {
   Hotel, Loader2, MapPin, Search, Trash2, BedDouble, CheckIcon, Clock, Send, Plus, Star,
-  Coffee, Sun, Moon, UtensilsCrossed, Sliders, Users,
+  Coffee, Sun, Moon, UtensilsCrossed, Sliders, Users, AlertTriangle,
 } from "./builder-icons";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -35,6 +35,10 @@ import { geocodeCity } from "./geocode-city";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import {
+  stayMattressIssues, effectiveMattressCount, type StayIssue,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-diagnostics";
 import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
 import { Field, OptionRow, Chip, Empty, Segmented, Group, Card } from "./builder-ui";
@@ -44,6 +48,7 @@ import {
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
   addExtraRoom, updateExtraRoom, removeExtraRoom, beginManualHotel,
   stayRun, validateStayAssignment,
+  staySpecOf, applyStaySpec, inconsistentStayNights, type StaySpec,
 } from "./day-mutations";
 
 const MEAL_FILTER_CHIPS: { value: string; label: string; icon: React.ElementType }[] = [
@@ -254,6 +259,13 @@ export function HotelReplaceView({ day }: { day: number }) {
       toast.error("Couldn't load that room. Pick it again to apply it elsewhere.");
       return;
     }
+    // Captured before the map below, from THIS day, because that is what the
+    // exec means by "use this day's hotel on other days" — the hotel and how
+    // they set it up, not the hotel alone. Without it each target night kept
+    // its own roomsCount and fell back to its own auto-derived mattress
+    // count, so one party in one hotel came out as 2 mattresses on Monday and
+    // 1 on Tuesday. See StaySpec in day-mutations.ts.
+    const spec = staySpecOf(itin!);
     const target = new Set(days);
     setForm((f) => ({
       ...f,
@@ -262,11 +274,14 @@ export function HotelReplaceView({ day }: { day: number }) {
       // instead, for exactly the same reason it exists there.
       itineraries: f.itineraries.map((it) =>
         target.has(it.day)
-          ? invalidateStaleOverrides(it, applyHotelRoomSelection(it, source))
+          ? invalidateStaleOverrides(it, applyStaySpec(applyHotelRoomSelection(it, source), spec))
           : it,
       ),
     }));
-    toast.success(`Applied to ${days.length} day${days.length !== 1 ? "s" : ""}`);
+    toast.success(
+      `Applied to ${days.length} day${days.length !== 1 ? "s" : ""}`,
+      { description: staySpecSummary(spec) ?? undefined },
+    );
   }
 
 
@@ -484,7 +499,11 @@ export function HotelReplaceView({ day }: { day: number }) {
           // What this option would actually cost for THIS party — the same
           // calculation the priced total uses, so the number shown while
           // choosing is the number that lands on the quote.
-          const plan = planRoomOccupancy(form.adults, form.children, {
+          // Sorted by age band, like every other room calculation — a
+          // 14-year-old needs an adult bed on a package whose child band ends
+          // at 12, and this preview has to agree with the price it quotes.
+          const party = pricingPartyOf(form);
+          const plan = planRoomOccupancy(party.adults, party.children, {
             max_occupancy: room.roomCapacity,
             extra_bed_capacity: room.extraBedCapacity,
             max_adults: room.maxAdults,
@@ -556,6 +575,20 @@ export function HotelReplaceView({ day }: { day: number }) {
                     <BedDouble size={9} /> {plan.rooms} room{plan.rooms !== 1 ? "s" : ""} needed
                     {plan.mattresses > 0 && ` · ${plan.mattresses} mattress${plan.mattresses !== 1 ? "es" : ""}`}
                   </span>
+                  {/* Said here, while there is still a choice, rather than
+                      after the room is on the day and the mattress count
+                      silently refuses to take. Both are hotel-team data the
+                      exec can neither see nor fix from the builder. */}
+                  {room.extraBedCapacity <= 0 && (
+                    <span className="flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-medium text-amber-700">
+                      <AlertTriangle size={9} /> no mattresses enabled
+                    </span>
+                  )}
+                  {room.extraBedCapacity > 0 && !room.extraBedRate && (
+                    <span className="flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-medium text-amber-700">
+                      <AlertTriangle size={9} /> mattresses unpriced
+                    </span>
+                  )}
                   {room.coveredMeals.length > 0 ? (
                     room.coveredMeals.map((meal) => {
                       const Icon = MEAL_ICONS[meal] ?? UtensilsCrossed;
@@ -641,6 +674,61 @@ function StarRating({ raw }: { raw: string }) {
   );
 }
 
+/** "2 rooms · 2 mattresses" — what an "apply to other nights" action is
+ * actually copying, so the toast says what changed rather than only how many
+ * days it touched. Null when the source night set nothing explicitly and the
+ * targets will simply derive their own (identical) counts. */
+function staySpecSummary(spec: StaySpec): string | null {
+  const parts = [
+    spec.roomsCount != null ? `${spec.roomsCount} room${spec.roomsCount !== 1 ? "s" : ""}` : null,
+    spec.manualExtraBeds != null
+      ? `${spec.manualExtraBeds} mattress${spec.manualExtraBeds !== 1 ? "es" : ""}` : null,
+    spec.manualExtraBedRate != null
+      ? `₹${spec.manualExtraBedRate.toLocaleString("en-IN")}/mattress` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? `Same on every night: ${parts.join(" · ")}` : null;
+}
+
+/**
+ * Why this night's mattresses aren't what was asked for.
+ *
+ * The whole point is that the cause is never in the builder — it is a field on
+ * the hotel's own catalog record that the hotel team owns and the exec cannot
+ * see or edit. Told only "costing rejected this", an exec re-types the number
+ * and submits again. Told which field is missing and who sets it, they send one
+ * message and it is fixed for every package that room ever appears in.
+ *
+ * Rendered wherever the mattress count is edited, not behind a tooltip: this is
+ * the answer to the question being asked at that exact moment.
+ */
+function StayIssues({ issues }: { issues: StayIssue[] }) {
+  if (issues.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      {issues.map((issue) => (
+        <div
+          key={issue.code}
+          className={cn(
+            "rounded-lg border px-2.5 py-2 space-y-0.5",
+            issue.severity === "error"
+              ? "border-dashboard-error/40 bg-dashboard-error/5"
+              : "border-amber-300 bg-amber-50",
+          )}
+        >
+          <p className={cn(
+            "flex items-start gap-1.5 text-[11px] font-medium",
+            issue.severity === "error" ? "text-dashboard-error" : "text-amber-800",
+          )}>
+            <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+            {issue.message}
+          </p>
+          <p className="pl-[18px] text-[10.5px] text-dashboard-base-content/60">{issue.fix}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * The stay editor for one day.
  *
@@ -666,12 +754,46 @@ export function HotelEditView({ day }: { day: number }) {
   if (!itin) return null;
 
   const hasCatalogRoom = itin.roomPricingId != null;
-  const plan = planRoomOccupancy(form.adults, form.children, {
+  // Beds are needed by age band, not by the box a traveller was typed into —
+  // the same split the price is computed from. See traveller-ages.ts.
+  const party = pricingPartyOf(form);
+  const plan = planRoomOccupancy(party.adults, party.children, {
     max_occupancy: itin.accommodationRoomCapacity,
     extra_bed_capacity: itin.accommodationExtraBedCapacity,
     max_adults: itin.accommodationMaxAdults,
     max_children: itin.accommodationMaxChildren,
   }, itin.roomsCount);
+  // What is wrong with this night's mattresses and, more to the point, whose
+  // data is missing — see stay-diagnostics.ts.
+  const issues = stayMattressIssues(itin, party);
+  const mattressesOnThisNight = effectiveMattressCount(itin, party);
+  // Other nights of THIS stay set up differently. The bug costing kept
+  // rejecting: same hotel, same party, different mattress count between
+  // consecutive nights, with nothing in the builder saying so.
+  const driftingNights = inconsistentStayNights(form.itineraries, day);
+
+  /** Copies the first night's setup onto every other night of this stay.
+   *
+   * The first night, not this one, and deliberately: a run is identified by
+   * where it starts everywhere else in the builder (stayRun, continuesStayFrom,
+   * the "already assigned from day N" card), so aligning to anything else would
+   * make the fix depend on which night the exec happened to have open. */
+  function alignStayNights() {
+    const run = stayRun(form.itineraries, day);
+    const source = form.itineraries.find((it) => it.day === run[0]);
+    if (!source) return;
+    const spec = staySpecOf(source);
+    const target = new Set(run.slice(1));
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        target.has(it.day) ? invalidateStaleOverrides(it, applyStaySpec(it, spec)) : it,
+      ),
+    }));
+    toast.success(`Nights ${run.join(", ")} now match`, {
+      description: staySpecSummary(spec) ?? undefined,
+    });
+  }
 
   function removeStayFromDays(days: number[]) {
     const target = new Set(days);
@@ -769,6 +891,27 @@ export function HotelEditView({ day }: { day: number }) {
 
           <StayNights day={day} />
 
+          {driftingNights.length > 0 && (
+            <div className="rounded-lg border border-dashboard-error/40 bg-dashboard-error/5 p-2.5 space-y-2">
+              <p className="flex items-start gap-1.5 text-[11px] font-medium text-dashboard-error">
+                <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                {driftingNights.length === 1 ? "Night" : "Nights"} {driftingNights.join(", ")} of this
+                stay {driftingNights.length === 1 ? "is" : "are"} set up differently from night {stayRun(form.itineraries, day)[0]}.
+              </p>
+              <p className="text-[10.5px] text-dashboard-base-content/60">
+                One booking can&apos;t change its room or mattress count halfway through — costing
+                rejects the package when it does.
+              </p>
+              <Button
+                type="button" size="sm" variant="outline"
+                className="h-7 w-full text-[11px]"
+                onClick={alignStayNights}
+              >
+                Make every night match night {stayRun(form.itineraries, day)[0]}
+              </Button>
+            </div>
+          )}
+
           <Group label="This night">
             <div className="grid grid-cols-2 gap-3">
               <Field
@@ -801,6 +944,37 @@ export function HotelEditView({ day }: { day: number }) {
                 />
               </Field>
             </div>
+
+            {/* The rate, on the catalog tab, which it never had.
+                computeBuilderHotelPricing has always honoured
+                manualExtraBedRate over a catalog room's own extra_bed_rate —
+                but the only input for it lived on the "By hand" tab, so a
+                catalog room whose rate sheet prices no extra bed left the exec
+                with a mattress count they could see and a ₹0 charge they
+                couldn't, and no way to correct it without abandoning the
+                catalog room entirely. Empty means "use the room's own rate". */}
+            {mattressesOnThisNight > 0 && (
+              <Field
+                label="Rate / mattress"
+                hint={
+                  itin.accommodationExtraBedRate != null && itin.accommodationExtraBedRate > 0
+                    ? `Room's own rate: ₹${itin.accommodationExtraBedRate.toLocaleString("en-IN")}`
+                    : "This room's rate sheet prices no extra bed"
+                }
+              >
+                <Input
+                  type="number" min={0}
+                  value={itin.manualExtraBedRate ?? ""}
+                  placeholder={String(itin.accommodationExtraBedRate ?? 0)}
+                  onChange={(e) => updateDay(day, {
+                    manualExtraBedRate: e.target.value ? parseFloat(e.target.value) : null,
+                  })}
+                  className="h-9 text-sm"
+                />
+              </Field>
+            )}
+
+            <StayIssues issues={issues} />
 
             <Field label="Meal plan">
               <Input
@@ -908,6 +1082,8 @@ export function HotelEditView({ day }: { day: number }) {
               />
             </Field>
           </div>
+
+          <StayIssues issues={issues} />
 
           {/* What the four fields above actually add up to per night.
               "Price / night" reads naturally as the whole day's room bill, so
@@ -1387,12 +1563,18 @@ function StayNights({ day }: { day: number }) {
     const source = await getHotelRoomByIdForBuilder(itin!.roomPricingId!, null);
     if (!source) { setError("Couldn't load this room. Pick it again."); return; }
 
+    // One stay, one setup. Every night of a run gets this night's rooms,
+    // mattresses and mattress rate — including this night itself, which
+    // applyHotelRoomSelection would otherwise reset to the auto count on its
+    // way past. A hotel cannot honour a booking whose bed count changes
+    // halfway through the stay, and costing rejects the package when it does.
+    const spec = staySpecOf(itin!);
     const target = new Set(check.days);
     setForm((f) => ({
       ...f,
       itineraries: f.itineraries.map((it) => {
         if (target.has(it.day)) {
-          return invalidateStaleOverrides(it, applyHotelRoomSelection(it, source));
+          return invalidateStaleOverrides(it, applyStaySpec(applyHotelRoomSelection(it, source), spec));
         }
         // Dropped from the run — clear it, so unticking a night actually
         // releases it rather than leaving the hotel silently attached.
