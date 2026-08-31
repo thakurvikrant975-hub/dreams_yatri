@@ -1256,6 +1256,9 @@ export function HotelRequestView({ day }: { day: number }) {
   // Edit; hotelPending stays true throughout that, so it can't be inferred
   // from the day alone.
   const [composing, setComposing] = useState(!itin?.hotelPending);
+  // Nights beyond this one the same request should cover. Empty by default —
+  // a request is for this day unless the exec says otherwise.
+  const [alsoDays, setAlsoDays] = useState<number[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1271,14 +1274,50 @@ export function HotelRequestView({ day }: { day: number }) {
 
   if (!itin) return null;
 
+  const otherDays = form.itineraries
+    .filter((it) => it.day !== day)
+    .map((it) => ({ day: it.day, accommodation: it.accommodation }));
+
+  /** Copies this day's request onto other days and puts them in the queue
+   * too. The specs travel wholesale (type, meal plan, rooms, mattresses,
+   * note) because that is what makes it the same request; each day still
+   * gets its own row, which is what the fill queue and pricing work in. */
+  function applyRequestToDays(days: number[]) {
+    const target = new Set(days);
+    const source = form.itineraries.find((it) => it.day === day);
+    if (!source) return;
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) => (target.has(it.day)
+        ? submitHotelRequest({
+          // Clears any catalog room still sitting on the target day — a
+          // request and a picked room are mutually exclusive, exactly as
+          // beginHotelRequest enforces for the day being composed.
+          ...beginHotelRequest(it),
+          hotelRequestType: source.hotelRequestType,
+          hotelMealPlan: source.hotelMealPlan,
+          roomsCount: source.roomsCount,
+          manualExtraBeds: source.manualExtraBeds,
+          hotelPendingNote: source.hotelPendingNote,
+        })
+        : it)),
+    }));
+  }
+
   function submit() {
+    const extra = alsoDays.filter((d) => d !== day);
     replaceDay(day, submitHotelRequest);
+    if (extra.length > 0) applyRequestToDays(extra);
     setComposing(false);
+    setAlsoDays([]);
     // Saves right away rather than waiting on the autosave debounce — the
     // hotel team's queue is a separate page reading straight from the DB,
     // so "sent" below needs to actually mean saved.
     requestSaveNow();
-    toast.success(`Day ${day} sent to the hotel team`);
+    const covered = [day, ...extra].sort((a, b) => a - b);
+    toast.success(covered.length > 1
+      ? `Days ${covered.join(", ")} sent to the hotel team`
+      : `Day ${day} sent to the hotel team`);
   }
 
   function withdraw() {
@@ -1303,28 +1342,10 @@ export function HotelRequestView({ day }: { day: number }) {
    * nights is the normal case, and both halves of the flow now say so.
    */
   function requestOnDays(days: number[]) {
-    const target = new Set(days);
-    const source = form.itineraries.find((it) => it.day === day);
-    if (!source) return;
-    setForm((f) => ({
-      ...f,
-      itineraries: f.itineraries.map((it) => (target.has(it.day)
-        ? submitHotelRequest({
-          // Clears any catalog room still sitting on the target day — a
-          // request and a picked room are mutually exclusive, exactly as
-          // beginHotelRequest enforces for the day being composed.
-          ...beginHotelRequest(it),
-          hotelRequestType: source.hotelRequestType,
-          hotelMealPlan: source.hotelMealPlan,
-          roomsCount: source.roomsCount,
-          manualExtraBeds: source.manualExtraBeds,
-          hotelPendingNote: source.hotelPendingNote,
-        })
-        : it)),
-    }));
+    applyRequestToDays(days);
     requestSaveNow();
     toast.success(
-      `Same request sent for day${days.length !== 1 ? "s" : ""} ${days.sort((a, b) => a - b).join(", ")}`,
+      `Same request sent for day${days.length !== 1 ? "s" : ""} ${[...days].sort((a, b) => a - b).join(", ")}`,
     );
   }
 
@@ -1500,9 +1521,71 @@ export function HotelRequestView({ day }: { day: number }) {
         />
       </label>
 
+      {/* A hotel is usually held for a stretch of nights, not one night, and
+          asking for it one day at a time is the thing that made this the most
+          repeated job on the desk — the exec composed the same request three
+          times and the hotel team then sourced the same property from three
+          separate queue entries. Picked here, while the request is being
+          written, rather than only after it has been sent. */}
+      {otherDays.length > 0 && (
+        <div className="rounded-lg border border-dashboard-base-300 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-medium text-dashboard-base-content/70 flex items-center gap-1">
+              <Clock size={11} /> Same hotel on other nights?
+            </span>
+            {alsoDays.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setAlsoDays([])}
+                className="text-[10px] font-medium text-dashboard-base-content/50 hover:underline cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {otherDays.map((d) => {
+              const on = alsoDays.includes(d.day);
+              return (
+                <button
+                  key={d.day}
+                  type="button"
+                  aria-pressed={on}
+                  title={d.accommodation ? `Day ${d.day} currently has ${d.accommodation} — requesting will replace it` : undefined}
+                  onClick={() => setAlsoDays((prev) =>
+                    prev.includes(d.day) ? prev.filter((x) => x !== d.day) : [...prev, d.day])}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors cursor-pointer",
+                    on
+                      ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
+                      : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+                  )}
+                >
+                  Day {d.day}
+                  {d.accommodation && (
+                    <span className={cn("font-normal", on ? "opacity-80" : "opacity-50")}>· booked</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-[10px] text-dashboard-base-content/50">
+            {alsoDays.length === 0
+              ? "Only this day is being requested."
+              : `One request covering ${alsoDays.length + 1} nights. Any hotel already picked on those days is replaced.`}
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <Button type="button" className="h-9 text-xs gap-1.5 flex-1" onClick={submit}>
-          <Send size={12} /> {itin.hotelPending ? "Update request" : "Send to hotel team"}
+          <Send size={12} /> {itin.hotelPending
+            ? "Update request"
+            : alsoDays.length > 0
+              ? `Send ${alsoDays.length + 1} nights to hotel team`
+              : "Send to hotel team"}
         </Button>
         <Button
           type="button" variant="ghost" className="h-9 text-xs"
