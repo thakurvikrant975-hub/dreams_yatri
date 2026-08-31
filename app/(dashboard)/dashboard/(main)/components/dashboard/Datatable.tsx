@@ -19,7 +19,9 @@ import {
 
 // ── Column Definition ─────────────────────────────────────────────────────────
 export interface ColumnDef<T> {
-    header: string;
+    /** Usually a column label, but a header can carry its own control (e.g.
+     * a select-all checkbox) — rendered as-is either way. */
+    header: React.ReactNode;
     width?: string;
     align?: "left" | "center" | "right";
     cell: (row: T) => React.ReactNode;

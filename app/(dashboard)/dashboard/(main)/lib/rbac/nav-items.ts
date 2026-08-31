@@ -5,7 +5,7 @@ import {
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
   ShieldCheck, NotebookPen, Eye, Users, CalendarClock, UserPlus,
-  PlaneLanding, PlaneTakeoff, FileSpreadsheet,
+  PlaneLanding, PlaneTakeoff, FileSpreadsheet, UsersRound, Library, Sparkles,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -97,6 +97,10 @@ export const NAV_GROUPS = [
       { title: "Request Lead", href: "/dashboard/request-lead", icon: UserPlus },
       { title: "Lead Requests", href: "/dashboard/lead-requests", icon: ClipboardCheck },
       { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
+      { title: "Sales Teams", href: "/dashboard/sales-teams", icon: UsersRound },
+      { title: "My Team", href: "/dashboard/my-team", icon: Users },
+      { title: "Package Templates", href: "/dashboard/package-templates", icon: Library },
+      { title: "Activity Templates", href: "/dashboard/activity-templates", icon: Sparkles },
       { title: "Package Library", href: "/dashboard/package-library", icon: BookOpen },
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },
       { title: "Verify Packages", href: "/dashboard/verify-packages", icon: ShieldCheck },

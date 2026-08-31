@@ -769,6 +769,29 @@ model TeamRole {
   @@map("team_roles")
 }
 
+/**
+ * An org-chart grouping of sales executives under one Team Leader, managed
+ * by a Sales Manager — reporting/analytics only, not a routing construct
+ * (the auto-assign round robin in auto-assign.ts still treats every Sales
+ * Executive as one pool regardless of team). A member belongs to at most
+ * one team at a time (setTeamMembers/setTeamLeader overwrite salesTeamId
+ * rather than using a join table). The leader keeps their existing
+ * TeamRole and is auto-included in `members` so analytics can always
+ * treat `members` as the complete roster with no leader special-casing.
+ */
+model SalesTeam {
+  id          String       @id @default(cuid())
+  name        String       @unique @db.VarChar(100)
+  leaderId    String?      @unique
+  leader      TeamMember?  @relation("SalesTeamLeader", fields: [leaderId], references: [id])
+  members     TeamMember[] @relation("SalesTeamMembers")
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("sales_teams")
+}
+
 model TeamMember {
   id                     String            @id @default(cuid())
   name                   String            @db.VarChar(255)
@@ -776,6 +799,7 @@ model TeamMember {
   password               String?
   departmentId           String?
   teamRoleId             String?
+  salesTeamId            String?
   isActive               Boolean           @default(true)
   /**
    * Per-member override for the round-robin auto-assign (see
@@ -855,11 +879,14 @@ model TeamMember {
   notifications          Notification[]
   department             Department?       @relation(fields: [departmentId], references: [id])
   teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
+  salesTeam              SalesTeam?        @relation("SalesTeamMembers", fields: [salesTeamId], references: [id])
+  ledSalesTeam           SalesTeam?        @relation("SalesTeamLeader")
 
   @@index([email])
   @@index([employeeId])
   @@index([departmentId])
   @@index([teamRoleId])
+  @@index([salesTeamId])
   @@map("team_members")
 }
 
@@ -2721,6 +2748,21 @@ model custom_packages {
    * ahead of a lead so an exec can reuse/adapt one on the fly).
    */
   queryId                 String?
+  /**
+   * Set only on a hidden, disposable working copy created so a team leader
+   * can edit a PackageTemplate's content in the full builder without ever
+   * touching the real package it was saved from — see
+   * getOrCreateTemplateWorkingCopy in package-templates/actions.ts. Points at
+   * the PackageTemplate id; no FK, same informal-link convention as
+   * PackageTemplate.sourcePackageId. Presence of this field is what makes
+   * the builder swap Mark Ready/Share/Save-to-Library for a single "Save to
+   * Template" action, and it's why this row never needs excluding from any
+   * real dashboard: it's created DRAFT with no queryId, and that flow never
+   * marks it READY/sent/hotel-requested — the existing costing queue,
+   * hotel-requests queue, and follow-up cron are already gated on
+   * readyAt/status/hotelPending/sentAt, none of which this row ever gets.
+   */
+  templateId              String?                       @unique
   title                   String
   description             String?
   coverImage              String?
@@ -3502,6 +3544,112 @@ model custom_itinerary_activities {
   itinerary   custom_itineraries @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
 
   @@index([itineraryId])
+}
+
+enum TemplateApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/**
+ * A reusable itinerary template — created when a sales exec hits "Save to
+ * Library" on a package that costing has already verified (see
+ * verifiedAt/verifiedBy on custom_packages). `snapshot` freezes the
+ * template-relevant slice of that package's days at save time (title,
+ * activities, meals, accommodation/transport description text, notes) —
+ * deliberately NOT the live booking state (roomPricingId, hotel request
+ * status, price overrides), since none of that means anything once this is
+ * reused for a different client. Goes through the same team-leader review as
+ * ActivityTemplate, but as one package-level approval rather than per-activity.
+ *
+ * Approval is scoped to the *submitter's* team leader only — submittedByTeamId
+ * is snapshotted at submit time so the review queue can tell every team
+ * leader apart from just the one who's allowed to act (their own team's
+ * uploads); everyone else sees it read-only. See app/lib/sales-teams/
+ * leader-scope.ts for the authorization check this backs.
+ */
+model PackageTemplate {
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+  destination String?
+  coverImage  String?
+  totalDays   Int
+  totalNights Int
+  snapshot    Json
+
+  sourcePackageId    String?
+  sourcePackageTitle String?
+
+  submittedById       String
+  submittedByName     String
+  submittedByTeamId   String?
+  submittedByTeamName String?
+  submittedAt         DateTime @default(now())
+
+  status         TemplateApprovalStatus @default(PENDING)
+  approvedById   String?
+  approvedByName String?
+  approvedAt     DateTime?
+  rejectedById   String?
+  rejectedByName String?
+  rejectedAt     DateTime?
+  rejectionNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activities ActivityTemplate[]
+
+  @@index([status])
+  @@index([submittedById])
+  @@index([submittedByTeamId])
+  @@map("package_templates")
+}
+
+/**
+ * One reusable activity, flattened out of a PackageTemplate's snapshot at
+ * save time so it can be browsed/reused on its own (not just as part of the
+ * whole-package template) — same team-leader review rules as PackageTemplate,
+ * checked independently per activity.
+ */
+model ActivityTemplate {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  photo       String?
+  photos      String[] @default([])
+  photoLabels String[] @default([])
+  day         Int
+  destination String?
+
+  packageTemplateId String
+  packageTemplate   PackageTemplate @relation(fields: [packageTemplateId], references: [id], onDelete: Cascade)
+
+  submittedById       String
+  submittedByName     String
+  submittedByTeamId   String?
+  submittedByTeamName String?
+  submittedAt         DateTime @default(now())
+
+  status         TemplateApprovalStatus @default(PENDING)
+  approvedById   String?
+  approvedByName String?
+  approvedAt     DateTime?
+  rejectedById   String?
+  rejectedByName String?
+  rejectedAt     DateTime?
+  rejectionNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([submittedById])
+  @@index([submittedByTeamId])
+  @@index([packageTemplateId])
+  @@map("activity_templates")
 }
 
 model blog_posts {

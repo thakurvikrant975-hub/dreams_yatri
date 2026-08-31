@@ -21,7 +21,7 @@
 // So this is the block that survives when the six tabs go.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { CalendarDays, Users, MapPin, Percent, Baby, IndianRupee } from "./builder-icons";
+import { CalendarDays, Users, MapPin, Baby, IndianRupee } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -345,32 +345,6 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
         <p className="text-[11px] text-dashboard-base-content/45">
           Priced as <span className="font-medium text-dashboard-base-content/70">{pricedPartyLine(form)}</span> —
           rooms, mattresses and every price are worked out from this.
-        </p>
-      </Block>
-
-      <Block icon={Percent} title="Margin & tax">
-        <div className="grid grid-cols-2 gap-3">
-          <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Margin %</span>
-            <Input
-              type="number" min={0}
-              value={form.marginPercentage}
-              onChange={field("marginPercentage")}
-              className="h-9 text-sm"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">GST %</span>
-            <Input
-              type="number" min={0}
-              value={form.gstPercentage}
-              onChange={field("gstPercentage")}
-              className="h-9 text-sm"
-            />
-          </label>
-        </div>
-        <p className="text-[11px] text-dashboard-base-content/45">
-          Applied on top of the hotel, cab, ticket and add-on costs.
         </p>
       </Block>
 
