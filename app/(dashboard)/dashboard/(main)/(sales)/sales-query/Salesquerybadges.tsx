@@ -5,7 +5,7 @@ import {
     Inbox, PhoneCall, XCircle, UserCheck,
     ClipboardList, Send, ThumbsUp, ThumbsDown,
     CreditCard, CheckCircle2, Lock, CalendarClock, Clock, ShieldCheck,
-    CircleDashed, Bed,
+    CircleDashed, Bed, BookCheck, BookX, BookMarked,
 } from "lucide-react";
 import type { QueryStatus } from "./query-status";
 import type { SentPackageInfo } from "./actions";
@@ -217,6 +217,49 @@ export function PackageSentBadge({ pkg }: { pkg: SentPackageInfo }) {
             className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
         >
             <CircleDashed className="h-3 w-3" /> Not Sent Yet
+        </Badge>
+    );
+}
+
+/**
+ * Whether this package has been saved to the package library (PackageTemplate,
+ * joined by sourcePackageId — see SentPackageInfo.libraryStatus) and where
+ * that submission stands. Independent of every badge above: a package can be
+ * saved to the library at any point after costing verifies it, regardless of
+ * whether it's since been sent to the client.
+ */
+export function LibraryStatusBadge({ pkg }: { pkg: SentPackageInfo }) {
+    if (!pkg.libraryStatus) return null;
+
+    if (pkg.libraryStatus === "APPROVED") {
+        return (
+            <Badge
+                variant="outline"
+                title="Approved in the package library"
+                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-green-500/10 text-green-600 border-green-200 dark:border-green-800"
+            >
+                <BookCheck className="h-3 w-3" /> Library: Approved
+            </Badge>
+        );
+    }
+    if (pkg.libraryStatus === "REJECTED") {
+        return (
+            <Badge
+                variant="outline"
+                title="Rejected in the package library"
+                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-red-500/10 text-red-600 border-red-200 dark:border-red-800"
+            >
+                <BookX className="h-3 w-3" /> Library: Rejected
+            </Badge>
+        );
+    }
+    return (
+        <Badge
+            variant="outline"
+            title="Saved to the library, awaiting team-leader review"
+            className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
+        >
+            <BookMarked className="h-3 w-3" /> Library: Pending
         </Badge>
     );
 }

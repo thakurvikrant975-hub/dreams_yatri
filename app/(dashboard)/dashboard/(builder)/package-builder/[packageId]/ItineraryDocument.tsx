@@ -28,6 +28,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { StarAndCrescentIcon, MapPinIcon, RoadHorizonIcon } from "@phosphor-icons/react";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { mealsFromPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import {
   continuesStayFrom, stayRun, removeStay, removeTransport, moveActivityTo, removeActivity,
   emptyTicket, emptyAddon, stopLimitReason, recalcFromStops,
@@ -378,12 +379,7 @@ export function occupancyText(
 /** Parses free-text meal-plan strings ("MAP - Breakfast & Dinner") into a
  * clean "Breakfast & Dinner included" summary line. */
 export function mealIncludedText(planText: string): string | null {
-  if (!planText) return null;
-  const lower = planText.toLowerCase();
-  const found: string[] = [];
-  if (lower.includes("breakfast")) found.push("Breakfast");
-  if (lower.includes("lunch")) found.push("Lunch");
-  if (lower.includes("dinner")) found.push("Dinner");
+  const found = mealsFromPlanText(planText).filter((m) => m !== "Tea & Snacks");
   if (found.length === 0) return null;
   const joined = found.length <= 2
     ? found.join(" & ")
@@ -1355,9 +1351,16 @@ function orderMeals(meals: string[]): string[] {
 export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
   return itineraries.map((day, i) => {
     const chosen = new Set<string>();
-    const prevMeals = i > 0 ? itineraries[i - 1].meals : [];
+    const prev = i > 0 ? itineraries[i - 1] : null;
+    // A day can carry a filled-in hotelMealPlan with an empty meals array —
+    // a hotel request fulfilled via the plan-text field alone, or a stay
+    // edited "by hand" in the builder, never populated the structured array.
+    // Falling back to the same text the hotel card already shows keeps this
+    // table in sync with it instead of going blank next to it.
+    const prevMeals = prev ? (prev.meals.length > 0 ? prev.meals : mealsFromPlanText(prev.hotelMealPlan)) : [];
     if (prevMeals.some((m) => m.toLowerCase().includes("breakfast"))) chosen.add("Breakfast");
-    for (const m of day.meals) {
+    const dayMeals = day.meals.length > 0 ? day.meals : mealsFromPlanText(day.hotelMealPlan);
+    for (const m of dayMeals) {
       if (m.toLowerCase().includes("breakfast")) continue;
       chosen.add(m);
     }

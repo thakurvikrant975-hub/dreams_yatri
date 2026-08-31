@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { formatDistanceToNow, formatDistanceStrict, format } from "date-fns";
 import {
     CheckCircle2,
@@ -148,6 +148,14 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
     // component's props, so a deleted row is removed here directly rather
     // than staying (broken — reopening it 404s) until the next full reload.
     const [queries, setQueries] = useState(initialQueries);
+    // useState only reads its argument on the very first render — the
+    // Refresh button's router.refresh() re-runs the server component and
+    // sends a fresh `initialQueries` prop, but without this effect that
+    // prop update never reaches local state, so the table just sat on
+    // whatever it first mounted with no matter how many times you refreshed.
+    useEffect(() => {
+        setQueries(initialQueries);
+    }, [initialQueries]);
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState("all");
     const [filterSource, setFilterSource] = useState("all");
