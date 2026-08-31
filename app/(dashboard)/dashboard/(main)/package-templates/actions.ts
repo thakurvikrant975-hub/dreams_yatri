@@ -72,19 +72,13 @@ export async function getLibraryDestinationCount(destination: string): Promise<n
   });
 }
 
-export async function saveCustomPackageToLibrary(
-  customPackageId: string,
-  /** Lets the Save to Library dialog submit an edited title/description/
-   * destination without first writing them back onto the source package —
-   * the template is its own record, and a team's library-facing name for a
-   * stay ("Goa Beach Escape") is often not the internal booking title
-   * ("Sharma Family — 4N Goa"). Falls back to the package's own fields when
-   * omitted, so a bare call behaves exactly as it always has. */
-  overrides?: { title?: string; description?: string; destination?: string },
-): Promise<{ success: true; packageTemplateId: string; activityCount: number } | { success: false; error: string }> {
-  const actor = await getAuthenticatedMember();
-  if (!actor) return { success: false, error: "Unauthorized" };
-
+/** Shared by every path that turns a real `custom_packages` row into
+ * template-shaped data: the original Save to Library create, and Save to
+ * Template's write-back from a working copy (see getOrCreateTemplateWorkingCopy
+ * below). Kept as one function so the day/activity field mapping can't drift
+ * between the two — a field added to the snapshot shape only needs updating
+ * here. */
+async function buildSnapshotFromPackage(customPackageId: string) {
   const pkg = await db.custom_packages.findUnique({
     where: { id: customPackageId },
     select: {
@@ -107,16 +101,7 @@ export async function saveCustomPackageToLibrary(
       },
     },
   });
-  if (!pkg) return { success: false, error: "Package not found" };
-  if (!pkg.verified) return { success: false, error: "Only a costing-approved package can be saved to the library" };
-
-  const existing = await db.packageTemplate.findFirst({
-    where: { sourcePackageId: customPackageId, status: { not: "REJECTED" } },
-    select: { id: true },
-  });
-  if (existing) return { success: false, error: "This package has already been saved to the library" };
-
-  const { teamId, teamName } = await getSubmitterTeam(actor.id);
+  if (!pkg) return null;
 
   const snapshot: PackageTemplateSnapshot = {
     inclusions: pkg.inclusions,
@@ -153,6 +138,35 @@ export async function saveCustomPackageToLibrary(
       .filter((a) => a.title.trim())
       .map((a) => ({ ...a, day: it.day })),
   );
+
+  return { pkg, snapshot, flattenedActivities };
+}
+
+export async function saveCustomPackageToLibrary(
+  customPackageId: string,
+  /** Lets the Save to Library dialog submit an edited title/description/
+   * destination without first writing them back onto the source package —
+   * the template is its own record, and a team's library-facing name for a
+   * stay ("Goa Beach Escape") is often not the internal booking title
+   * ("Sharma Family — 4N Goa"). Falls back to the package's own fields when
+   * omitted, so a bare call behaves exactly as it always has. */
+  overrides?: { title?: string; description?: string; destination?: string },
+): Promise<{ success: true; packageTemplateId: string; activityCount: number } | { success: false; error: string }> {
+  const actor = await getAuthenticatedMember();
+  if (!actor) return { success: false, error: "Unauthorized" };
+
+  const built = await buildSnapshotFromPackage(customPackageId);
+  if (!built) return { success: false, error: "Package not found" };
+  const { pkg, snapshot, flattenedActivities } = built;
+  if (!pkg.verified) return { success: false, error: "Only a costing-approved package can be saved to the library" };
+
+  const existing = await db.packageTemplate.findFirst({
+    where: { sourcePackageId: customPackageId, status: { not: "REJECTED" } },
+    select: { id: true },
+  });
+  if (existing) return { success: false, error: "This package has already been saved to the library" };
+
+  const { teamId, teamName } = await getSubmitterTeam(actor.id);
 
   const resolvedTitle = overrides?.title?.trim() || pkg.title;
   const resolvedDescription = overrides?.description?.trim() || pkg.description;
@@ -371,5 +385,168 @@ export async function updatePackageTemplate(
   });
 
   revalidatePath("/dashboard/package-templates");
+  return { success: true };
+}
+
+// ── Edit in Builder ──────────────────────────────────────────────────────────
+//
+// A PackageTemplate's `snapshot` is flat, catalog-free text — nothing like
+// the real custom_packages/custom_itineraries rows the package builder is
+// built around (live hotel/cab search, pricing, a client, dates). So editing
+// a template's content with the full builder means cloning the snapshot into
+// a hidden, disposable custom_packages row (a "working copy", linked back via
+// custom_packages' own templateId field) and opening the builder against
+// THAT row's id — the real source package is never touched. Save to Template
+// (below) writes the working copy's current state back into the snapshot.
+//
+// The working copy never needs excluding from any real dashboard/report: it's
+// created DRAFT with no queryId, and this flow never marks it READY, sends
+// it, or requests a hotel for it — every queue that matters (costing review,
+// hotel requests, the follow-up cron) is already gated on
+// readyAt/status/hotelPending/sentAt, none of which this row ever gets.
+
+/** Team-leader-only (same assertCanManage rule as approve/reject). Returns
+ * the working-copy package id for this template, creating one on first use
+ * and reusing it on every later "Edit in Builder" click — edits accumulate on
+ * the working copy across sessions and only reach the template when Save to
+ * Template is explicitly clicked. */
+export async function getOrCreateTemplateWorkingCopy(
+  templateId: string,
+): Promise<{ success: true; packageId: string } | { success: false; error: string }> {
+  const auth = await assertCanManage(templateId);
+  if (!auth.ok) return { success: false, error: auth.error };
+
+  const existing = await db.custom_packages.findFirst({ where: { templateId }, select: { id: true } });
+  if (existing) return { success: true, packageId: existing.id };
+
+  const template = await db.packageTemplate.findUnique({
+    where: { id: templateId },
+    select: {
+      title: true, description: true, destination: true, coverImage: true,
+      totalDays: true, totalNights: true, snapshot: true,
+    },
+  });
+  if (!template) return { success: false, error: "Template not found" };
+  const snapshot = template.snapshot as unknown as PackageTemplateSnapshot;
+
+  const created = await db.custom_packages.create({
+    data: {
+      title: template.title,
+      description: template.description,
+      coverImage: template.coverImage,
+      destination: template.destination ?? "",
+      totalDays: template.totalDays,
+      totalNights: template.totalNights,
+      builtBy: auth.actorId,
+      builtByName: auth.actorName,
+      templateId,
+      inclusions: snapshot.inclusions,
+      exclusions: snapshot.exclusions,
+      termsNotes: snapshot.termsNotes,
+      termsConditions: snapshot.termsConditions,
+      paymentPolicy: snapshot.paymentPolicy,
+      amendmentPolicy: snapshot.amendmentPolicy,
+      // Not part of PackageTemplateSnapshot — Save to Library never captured
+      // it either, so there's nothing to restore. The column has no DB
+      // default, so it needs an explicit value; the builder's own autosave
+      // reseeds it from itinerary_settings on the working copy's first save,
+      // same as any other blank package.
+      travelBenefits: [],
+      pricePerPerson: snapshot.pricePerPerson,
+      totalPrice: snapshot.totalPrice,
+      currency: snapshot.currency,
+      itineraries: {
+        create: snapshot.days.map((d) => ({
+          day: d.day,
+          title: d.title,
+          description: d.description,
+          meals: d.meals,
+          extraMeals: d.extraMeals,
+          accommodation: d.accommodation,
+          accommodationLocation: d.accommodationLocation,
+          accommodationStarRating: d.accommodationStarRating,
+          accommodationRoomSpecs: d.accommodationRoomSpecs,
+          transport: d.transport,
+          transportVehicleType: d.transportVehicleType,
+          transportSeats: d.transportSeats,
+          notes: d.notes,
+          notesTitle: d.notesTitle,
+          notesType: d.notesType,
+          activities: {
+            create: d.activities
+              .filter((a) => a.title.trim())
+              .map((a) => ({
+                title: a.title, description: a.description,
+                photo: a.photo, photos: a.photos, photoLabels: a.photoLabels,
+              })),
+          },
+        })),
+      },
+    },
+    select: { id: true },
+  });
+
+  return { success: true, packageId: created.id };
+}
+
+/** Team-leader-only. Writes the working copy's current state back into the
+ * template's snapshot + top-level fields, and refreshes the template's
+ * ActivityTemplate rows to match — the reverse of getOrCreateTemplateWorkingCopy,
+ * sharing the same snapshot-building logic Save to Library uses. */
+export async function saveTemplateWorkingCopy(
+  templateId: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const auth = await assertCanManage(templateId);
+  if (!auth.ok) return { success: false, error: auth.error };
+
+  const workingCopy = await db.custom_packages.findFirst({ where: { templateId }, select: { id: true } });
+  if (!workingCopy) return { success: false, error: "No working copy found — open it from Edit in Builder first" };
+
+  const built = await buildSnapshotFromPackage(workingCopy.id);
+  if (!built) return { success: false, error: "Working copy package not found" };
+  const { pkg, snapshot, flattenedActivities } = built;
+
+  const { teamId, teamName } = await getSubmitterTeam(auth.actorId);
+
+  await db.$transaction(async (tx) => {
+    await tx.packageTemplate.update({
+      where: { id: templateId },
+      data: {
+        title: pkg.title,
+        description: pkg.description,
+        destination: pkg.destination,
+        coverImage: pkg.coverImage,
+        totalDays: pkg.totalDays,
+        totalNights: pkg.totalNights,
+        snapshot: snapshot as object,
+      },
+    });
+
+    // Replaced wholesale rather than diffed — simpler, and cheap enough for
+    // a per-template activity list (the create path does the same on first
+    // save, just with nothing to delete yet).
+    await tx.activityTemplate.deleteMany({ where: { packageTemplateId: templateId } });
+    if (flattenedActivities.length > 0) {
+      await tx.activityTemplate.createMany({
+        data: flattenedActivities.map((a) => ({
+          title: a.title,
+          description: a.description,
+          photo: a.photo,
+          photos: a.photos,
+          photoLabels: a.photoLabels,
+          day: a.day,
+          destination: pkg.destination,
+          packageTemplateId: templateId,
+          submittedById: auth.actorId,
+          submittedByName: auth.actorName,
+          submittedByTeamId: teamId,
+          submittedByTeamName: teamName,
+        })),
+      });
+    }
+  });
+
+  revalidatePath("/dashboard/package-templates");
+  revalidatePath("/dashboard/activity-templates");
   return { success: true };
 }

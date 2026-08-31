@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, Trash2, Crown } from "lucide-react";
+import { Loader2, Trash2, Crown, Save } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -60,6 +60,13 @@ export function ManageSalesTeamDrawer({ team, eligibleMembers, open, onOpenChang
     setMemberIds((cur) => cur.includes(id) ? cur.filter((m) => m !== id) : [...cur, id]);
   };
 
+  // Same "nothing to save" guard the rename field already has, so Save
+  // members doesn't sit there demanding a click when nothing was touched —
+  // order-independent since checkboxes don't imply an ordering.
+  const originalMemberIds = team.members.map((m) => m.id);
+  const membersDirty = memberIds.length !== originalMemberIds.length
+    || memberIds.some((id) => !originalMemberIds.includes(id));
+
   const handleRename = () => {
     if (!team || name.trim() === team.name) return;
     startTransition(async () => {
@@ -114,7 +121,12 @@ export function ManageSalesTeamDrawer({ team, eligibleMembers, open, onOpenChang
             <Label>Team name / nickname</Label>
             <div className="flex gap-2">
               <Input value={name} onChange={(e) => setName(e.target.value)} />
-              <Button variant="outline" onClick={handleRename} disabled={isPending || name.trim() === team.name}>
+              <Button
+                onClick={handleRename}
+                disabled={isPending || name.trim() === team.name}
+                className="bg-dashboard-primary text-dashboard-base-100 hover:bg-dashboard-primary/90 disabled:bg-dashboard-primary/40 disabled:text-dashboard-base-100/70"
+              >
+                {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Save
               </Button>
             </div>
@@ -143,8 +155,13 @@ export function ManageSalesTeamDrawer({ team, eligibleMembers, open, onOpenChang
           <div className="grid gap-1.5">
             <div className="flex items-center justify-between">
               <Label>Members ({memberIds.length})</Label>
-              <Button size="sm" variant="outline" onClick={handleSaveMembers} disabled={isPending}>
-                {isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+              <Button
+                size="sm"
+                onClick={handleSaveMembers}
+                disabled={isPending || !membersDirty}
+                className="bg-dashboard-primary text-dashboard-base-100 hover:bg-dashboard-primary/90 disabled:bg-dashboard-primary/40 disabled:text-dashboard-base-100/70"
+              >
+                {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Save members
               </Button>
             </div>

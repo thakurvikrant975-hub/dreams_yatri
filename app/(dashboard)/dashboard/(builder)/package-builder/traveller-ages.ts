@@ -31,21 +31,6 @@ export const AGE_UNSET = -1;
 export const CHILD_AGE_MIN = 0;
 export const CHILD_AGE_MAX = 17;
 /** Airlines and hotels both cut infancy at 2. */
-/** The oldest a child can be and still not count as a head when the package
- * price is divided into a per-person figure.
- *
- * A four-year-old sharing their parents' bed is not a fifth person paying a
- * fifth of the trip, and dividing by them makes the per-person number smaller
- * than anyone will actually pay. The total is right either way — this only
- * decides what the total is divided BY.
- *
- * Five is the line the sales team quotes to, and it is the age most hotel
- * child policies start charging at. It is deliberately not read from those
- * policies: a hotel's rule decides what a bed costs, this decides how a quote
- * reads, and one hotel on one night should not change the headline figure of
- * the whole trip. */
-export const PER_PERSON_FREE_CHILD_AGE_MAX = 4;
-
 export const INFANT_AGE_MIN = 0;
 export const INFANT_AGE_MAX = 2;
 
@@ -80,23 +65,11 @@ export type TravellerAges = {
 };
 
 /** The labels of every traveller still missing a usable age, in the order they
- * appear on the form ("Child 2", "Infant 1"). Empty when the package is
- * complete — which is every package travelling adults-only. */
-export function travellersMissingAges(t: TravellerAges): string[] {
-  const missing: string[] = [];
-  for (let i = 0; i < (t.children || 0); i++) {
-    const age = t.childrenAges?.[i];
-    if (age == null || age < CHILD_AGE_MIN || age > CHILD_AGE_MAX) {
-      missing.push(`Child ${i + 1}`);
-    }
-  }
-  for (let i = 0; i < (t.infants || 0); i++) {
-    const age = t.infantAges?.[i];
-    if (age == null || age < INFANT_AGE_MIN || age > INFANT_AGE_MAX) {
-      missing.push(`Infant ${i + 1}`);
-    }
-  }
-  return missing;
+ * appear on the form ("Child 2", "Infant 1"). Always empty — an age is no
+ * longer required to submit a package; entering one is optional and only
+ * feeds travellersLine/costing display when present. */
+export function travellersMissingAges(_t: TravellerAges): string[] {
+  return [];
 }
 
 /** The blocking message for the submit path, or null when nothing is missing.
@@ -139,24 +112,15 @@ export function travellersLine(t: TravellerAges & { adults: number }): string {
 
 /** How many heads the package price is divided by.
  *
- * Adults, plus the children old enough to count — see
- * PER_PERSON_FREE_CHILD_AGE_MAX. Infants were never counted; this brings the
- * youngest children in line with them.
- *
- * A child whose age nobody has entered yet counts as paying. It cannot be
- * shown to be under five, and the alternative — assuming it is — would quietly
- * raise the headline price of every package still being built. Ages are
- * required before a package can go to costing, so this only affects drafts.
+ * Adults only — children and infants share the room/trip their parents are
+ * already paying for, not an extra slice of it. The total itself still
+ * reflects a paying child's actual hotel/meal cost; this only decides what
+ * that total is divided BY for the headline "per person" figure.
  */
 export function payingPaxOf(input: {
   adults: number;
   children: number;
   childrenAges?: number[] | null;
 }): number {
-  const ages = input.childrenAges ?? [];
-  const freeChildren = ages
-    .slice(0, input.children)
-    .filter((age) => age != null && age >= 0 && age <= PER_PERSON_FREE_CHILD_AGE_MAX)
-    .length;
-  return Math.max(0, input.adults + input.children - freeChildren);
+  return Math.max(0, input.adults);
 }

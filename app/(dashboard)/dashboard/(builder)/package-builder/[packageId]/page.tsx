@@ -69,6 +69,7 @@ import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { SaveToLibraryDialog } from "./SaveToLibraryDialog";
+import { saveTemplateWorkingCopy } from "@/app/(dashboard)/dashboard/(main)/package-templates/actions";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { getStayOptionsForDocument, cloneStayOptionsInto } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -437,6 +438,7 @@ export default function PackageBuilderDetailPage() {
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
   const [savedToLibrary, setSavedToLibrary] = useState(false);
+  const [isSavingToTemplate, startSaveToTemplate] = useTransition();
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
   /** The stay standards, as the document's columns and price cards read them.
       Kept beside the form rather than in it: they are saved per standard,
@@ -1490,6 +1492,20 @@ Rules:
     setSavedToLibrary(true);
   }
 
+  // ── Save to Template — only on a library-template working copy, see
+  // isTemplateWorkingCopy above. Writes this working copy's current state
+  // back into the template's snapshot; the package itself just keeps
+  // autosaving as normal, same as any other draft. */
+  function handleSaveToTemplate() {
+    const templateId = query?.customPackage?.templateId;
+    if (!templateId) return;
+    startSaveToTemplate(async () => {
+      const result = await saveTemplateWorkingCopy(templateId);
+      if (result.success) toast.success("Saved to template");
+      else toast.error(result.error ?? "Failed to save to template");
+    });
+  }
+
   function handleShare() {
     setConfirmShareOpen(false);
     startShare(async () => {
@@ -1879,6 +1895,12 @@ Rules:
   const isLocked = query.customPackage?.status === "READY";
   const pkgVerified = query.customPackage?.verified ?? false;
   const pkgSent = query.customPackage?.status === "SENT";
+  // A hidden working copy created off a PackageTemplate's snapshot so a team
+  // leader can edit its content here (see getOrCreateTemplateWorkingCopy,
+  // package-templates/actions.ts) — never a real booking. Mark Ready/Share/
+  // Save-to-Library don't mean anything without a client, so this swaps them
+  // for a single Save to Template action instead.
+  const isTemplateWorkingCopy = !!query.customPackage?.templateId;
   // While the exec can still actually change hotel/cab/margin/GST inputs
   // (i.e. never during READY — locked for costing review — or SENT — already
   // quoted to the client). Reused below both by the pricing-sync effect
@@ -2241,23 +2263,46 @@ Rules:
             <ClientLinkButton packageId={packageId} isLive={pkgSent} />
 
             {!isLocked && !pkgSent && (
-              <Button
-                size="sm"
-                className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
-                onClick={handleMarkReadyClick}
-                disabled={isSending || isSaving}
-                title={validateItineraryRequiredFields(form) ?? undefined}
-              >
-                {isSending
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : <Send size={13} />
-                }
-                <span className="hidden sm:inline text-xs">Mark Ready</span>
-              </Button>
+              isTemplateWorkingCopy ? (
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                  onClick={handleSaveToTemplate}
+                  disabled={isSavingToTemplate}
+                >
+                  {isSavingToTemplate
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <BookOpen size={13} />
+                  }
+                  <span className="hidden sm:inline text-xs">Save to Template</span>
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                  onClick={handleMarkReadyClick}
+                  disabled={isSending || isSaving}
+                  title={validateItineraryRequiredFields(form) ?? undefined}
+                >
+                  {isSending
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <Send size={13} />
+                  }
+                  <span className="hidden sm:inline text-xs">Mark Ready</span>
+                </Button>
+              )
             )}
           </div>
         </div>
       </header>
+
+      {isTemplateWorkingCopy && (
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-dashboard-primary/10 border-b border-dashboard-primary/20 text-dashboard-primary text-xs font-medium">
+          <Pencil size={12} className="shrink-0" />
+          Editing a library template — this is a working copy. Changes here only reach the template when you click
+          Save to Template, and no real booking is ever touched.
+        </div>
+      )}
 
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
       {/* justify-center + the aside's max-w below keep the preview+editor pair
@@ -2464,15 +2509,26 @@ Rules:
                   {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   Save Draft
                 </Button>
-                <Button
-                  className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
-                  onClick={handleMarkReadyClick}
-                  disabled={isSending || isSaving}
-                  title={validateItineraryRequiredFields(form) ?? undefined}
-                >
-                  {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  Mark Ready
-                </Button>
+                {isTemplateWorkingCopy ? (
+                  <Button
+                    className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
+                    onClick={handleSaveToTemplate}
+                    disabled={isSavingToTemplate}
+                  >
+                    {isSavingToTemplate ? <Loader2 size={14} className="animate-spin" /> : <BookOpen size={14} />}
+                    Save to Template
+                  </Button>
+                ) : (
+                  <Button
+                    className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
+                    onClick={handleMarkReadyClick}
+                    disabled={isSending || isSaving}
+                    title={validateItineraryRequiredFields(form) ?? undefined}
+                  >
+                    {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    Mark Ready
+                  </Button>
+                )}
               </div>
             )}
               </div>

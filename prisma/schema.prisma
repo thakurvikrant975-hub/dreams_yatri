@@ -2748,6 +2748,21 @@ model custom_packages {
    * ahead of a lead so an exec can reuse/adapt one on the fly).
    */
   queryId                 String?
+  /**
+   * Set only on a hidden, disposable working copy created so a team leader
+   * can edit a PackageTemplate's content in the full builder without ever
+   * touching the real package it was saved from — see
+   * getOrCreateTemplateWorkingCopy in package-templates/actions.ts. Points at
+   * the PackageTemplate id; no FK, same informal-link convention as
+   * PackageTemplate.sourcePackageId. Presence of this field is what makes
+   * the builder swap Mark Ready/Share/Save-to-Library for a single "Save to
+   * Template" action, and it's why this row never needs excluding from any
+   * real dashboard: it's created DRAFT with no queryId, and that flow never
+   * marks it READY/sent/hotel-requested — the existing costing queue,
+   * hotel-requests queue, and follow-up cron are already gated on
+   * readyAt/status/hotelPending/sentAt, none of which this row ever gets.
+   */
+  templateId              String?                       @unique
   title                   String
   description             String?
   coverImage              String?

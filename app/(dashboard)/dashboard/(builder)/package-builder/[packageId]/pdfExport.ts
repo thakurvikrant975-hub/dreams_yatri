@@ -208,16 +208,34 @@ async function toCanvasSafeUrl(url: string): Promise<{ url: string; warning?: st
   }
 }
 
+/** Runs `fn` over `items` with at most `limit` in flight at once, rather than
+ * firing every call in parallel. A long itinerary's proxy fan-out (60-90+
+ * images through /api/pdf-image-proxy) measurably degrades under unlimited
+ * concurrency — a burst that size pushed the slowest ~10 requests' latency
+ * from ~1-2s (isolated) past 8-9s, right where they'd start reading as
+ * "Failed to fetch" rather than just slow. Capping concurrency keeps every
+ * request's own latency low instead of trying to outrun a shared ceiling. */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 async function inlineCrossOriginImages(root: HTMLElement): Promise<string[]> {
   const images = Array.from(root.querySelectorAll("img"));
-  const resolved = await Promise.all(
-    images.map(async (img) => {
-      const src = img.getAttribute("src");
-      if (!src) return null;
-      const { url: safeUrl, warning } = await toCanvasSafeUrl(src);
-      return { img, safeUrl, warning };
-    }),
-  );
+  const resolved = await mapWithConcurrency(images, 6, async (img) => {
+    const src = img.getAttribute("src");
+    if (!src) return null;
+    const { url: safeUrl, warning } = await toCanvasSafeUrl(src);
+    return { img, safeUrl, warning };
+  });
   const warnings: string[] = [];
   for (const r of resolved) {
     if (!r) continue;

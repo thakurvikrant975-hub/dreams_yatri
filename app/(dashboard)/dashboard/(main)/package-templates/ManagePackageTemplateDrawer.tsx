@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, Check, Ban, Utensils, Hotel, Car, StickyNote } from "lucide-react";
+import { Loader2, Check, Ban, Utensils, Hotel, Car, StickyNote, Pencil } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
 } from "../components/ui/sheet";
@@ -15,6 +15,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
 import {
   approvePackageTemplate, rejectPackageTemplate, updatePackageTemplate, getPackageTemplateSnapshot,
+  getOrCreateTemplateWorkingCopy,
   type PackageTemplateRow, type PackageTemplateSnapshot,
 } from "./actions";
 
@@ -27,6 +28,7 @@ interface Props {
 export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isOpeningBuilder, startOpeningBuilder] = useTransition();
   const [snapshot, setSnapshot] = useState<PackageTemplateSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
   const [title, setTitle] = useState(template?.title ?? "");
@@ -74,6 +76,14 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
     });
   }
 
+  function openInBuilder() {
+    startOpeningBuilder(async () => {
+      const result = await getOrCreateTemplateWorkingCopy(template!.id);
+      if (result.success) router.push(`/dashboard/package-builder/${result.packageId}`);
+      else toast.error(result.error ?? "Failed to open in builder");
+    });
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col sm:max-w-xl w-full">
@@ -106,6 +116,20 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
               <Button size="sm" variant="outline" className="w-fit" disabled={isPending} onClick={saveFields}>
                 Save changes
               </Button>
+            </div>
+          )}
+
+          {template.canManage && (
+            <div className="grid gap-1.5 rounded-lg border p-3">
+              <Button size="sm" className="w-fit gap-1.5" disabled={isOpeningBuilder} onClick={openInBuilder}>
+                {isOpeningBuilder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                Edit in Builder
+              </Button>
+              <p className="text-[11px] text-muted-foreground">
+                Opens the full package builder — hotels, cabs, activities, everything — on a working copy of this
+                template. Nothing saves back here until you click Save to Template inside the builder, and the
+                original package this was saved from is never touched.
+              </p>
             </div>
           )}
 

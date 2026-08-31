@@ -898,6 +898,12 @@ export interface QueryDetail {
     /** The linked query's id, or null for a blank package — immutable after
      * creation. */
     queryId:         string | null;
+    /** Set only on a hidden library-template working copy (see
+     * getOrCreateTemplateWorkingCopy in package-templates/actions.ts) — never
+     * set on a real booking. Gates the builder's toolbar to a single "Save to
+     * Template" action in place of Mark Ready/Share/Save-to-Library, which
+     * don't mean anything for a template with no client. */
+    templateId:      string | null;
     /** The stay standards this package quotes, in display order. Names only:
      * a builder that cannot edit them still has to be able to say that it
      * cannot — v1 writes the day row, which carries the recommended option
@@ -1982,6 +1988,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
     select: {
       id:              true,
       queryId:         true,
+      templateId:      true,
       status:          true,
       sentAt:          true,
       readyAt:         true,
