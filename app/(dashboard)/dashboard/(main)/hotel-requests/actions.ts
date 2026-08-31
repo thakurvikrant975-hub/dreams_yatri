@@ -67,7 +67,35 @@ export type FillHotelInput = {
     alsoDays?: number[];
 };
 
+/**
+ * A server action that THROWS is a very different thing from one that returns
+ * an error: Next re-throws it on the client and it travels past this route's
+ * error boundary out to the unstyled global-error page — a blank white screen
+ * mid-fill, recoverable only by reloading and re-navigating to the queue.
+ *
+ * The new queue was hardened against that; this one was not, and it is still
+ * where a lot of fills happen — now multi-night ones, writing several rows in
+ * a transaction. Nothing in here is unrecoverable from the caller's point of
+ * view, so it is reported rather than thrown.
+ */
 export async function fillPendingHotel(
+    packageId: string,
+    day: number,
+    input: FillHotelInput,
+): Promise<{ success: boolean; error?: string; allDaysFilled?: boolean }> {
+    try {
+        return await runFillPendingHotel(packageId, day, input);
+    } catch (e) {
+        console.error("[fillPendingHotel]", { packageId, day }, e);
+        return {
+            success: false,
+            error: "Something went wrong saving this hotel. Reload the page to see what did save, "
+                + "then try again — and tell the dev team if it keeps happening.",
+        };
+    }
+}
+
+async function runFillPendingHotel(
     packageId: string,
     day: number,
     input: FillHotelInput,
@@ -224,6 +252,22 @@ export async function rejectPendingHotel(
     packageId: string,
     day: number,
     reason: string,
+    alsoDays: number[] = [],
+): Promise<RejectResult> {
+    try {
+        return await runRejectPendingHotel(packageId, day, reason, alsoDays);
+    } catch (e) {
+        // Same reasoning as fillPendingHotel's wrapper — see the comment there.
+        console.error("[rejectPendingHotel]", { packageId, day }, e);
+        return { success: false, error: "Something went wrong rejecting this day. Reload the page and try again." };
+    }
+}
+
+async function runRejectPendingHotel(
+    packageId: string,
+    day: number,
+    reason: string,
+    alsoDays: number[] = [],
 ): Promise<RejectResult> {
     const auth = await requireMember();
     if (!auth.ok) return { success: false, error: auth.error };
@@ -231,15 +275,23 @@ export async function rejectPendingHotel(
     const note = reason.trim();
     if (!note) return { success: false, error: "A reason is required to reject a hotel request." };
 
-    const row = await db.custom_itineraries.findFirst({
-        where: { customPackageId: packageId, day },
-        select: { id: true, hotelPending: true },
+    // Rejecting covers the same nights the card covers — see the equivalent
+    // comment in the v2 queue. A grouped card that declined only its first day
+    // left the rest pending, to reappear seconds later as a fresh card.
+    const days = Array.from(new Set([day, ...alsoDays]));
+    const rows = await db.custom_itineraries.findMany({
+        where: { customPackageId: packageId, day: { in: days } },
+        select: { id: true, day: true, hotelPending: true },
     });
-    if (!row) return { success: false, error: "This day couldn't be found." };
-    if (!row.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
+    const primary = rows.find((r) => r.day === day);
+    if (!primary) return { success: false, error: "This day couldn't be found." };
+    if (!primary.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
 
-    await db.custom_itineraries.update({
-        where: { id: row.id },
+    const targets = rows.filter((r) => r.hotelPending);
+    const rejectedDays = targets.map((t) => t.day).sort((a, b) => a - b);
+
+    await db.custom_itineraries.updateMany({
+        where: { id: { in: targets.map((t) => t.id) } },
         data: {
             hotelRejectedAt: new Date(),
             hotelRejectedById: auth.member.id,
@@ -254,7 +306,8 @@ export async function rejectPendingHotel(
         await notifyMember({
             recipientId: pkg.builtBy,
             type: "HOTEL_REQUEST_REJECTED",
-            title: `${pkg.title ?? "Your package"} — hotel request rejected for Day ${day}`,
+            title: `${pkg.title ?? "Your package"} — hotel request rejected for `
+                + `${rejectedDays.length > 1 ? `Days ${rejectedDays.join(", ")}` : `Day ${day}`}`,
             body: note,
             link: `/dashboard/package-builder/${packageId}`,
         });
@@ -262,19 +315,34 @@ export async function rejectPendingHotel(
     if (pkg?.queryId) {
         await logTimeline(
             pkg.queryId,
-            `Hotel request rejected for day ${day} by ${auth.member.name}: ${note}`,
+            `Hotel request rejected for `
+            + `${rejectedDays.length > 1 ? `days ${rejectedDays.join(", ")}` : `day ${day}`}`
+            + ` by ${auth.member.name}: ${note}`,
             auth.member.id, auth.member.name,
         );
     }
 
     await afterReject(packageId);
-    return { success: true };
+    return { success: true, count: rejectedDays.length };
 }
 
 /** Declines every currently-pending day on the package at once, with one
  * shared reason — for when nothing in the whole request is fulfillable
  * (wrong budget, wrong destination entirely) rather than a single day. */
 export async function rejectAllPendingHotels(
+    packageId: string,
+    reason: string,
+): Promise<RejectResult> {
+    try {
+        return await runRejectAllPendingHotels(packageId, reason);
+    } catch (e) {
+        // Same reasoning as fillPendingHotel's wrapper — see the comment there.
+        console.error("[rejectAllPendingHotels]", { packageId }, e);
+        return { success: false, error: "Something went wrong rejecting these days. Reload the page and try again." };
+    }
+}
+
+async function runRejectAllPendingHotels(
     packageId: string,
     reason: string,
 ): Promise<RejectResult> {

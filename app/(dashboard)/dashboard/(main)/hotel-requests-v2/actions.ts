@@ -331,9 +331,10 @@ export async function rejectPendingHotel(
     packageId: string,
     day: number,
     reason: string,
+    alsoDays: number[] = [],
 ): Promise<RejectResult> {
     try {
-        return await runRejectPendingHotel(packageId, day, reason);
+        return await runRejectPendingHotel(packageId, day, reason, alsoDays);
     } catch (e) {
         // Same reasoning as fillPendingHotel's wrapper — see the comment there.
         console.error("[rejectPendingHotel]", { packageId, day }, e);
@@ -345,6 +346,7 @@ async function runRejectPendingHotel(
     packageId: string,
     day: number,
     reason: string,
+    alsoDays: number[] = [],
 ): Promise<RejectResult> {
     const auth = await requireMember();
     if (!auth.ok) return { success: false, error: auth.error };
@@ -352,15 +354,29 @@ async function runRejectPendingHotel(
     const note = reason.trim();
     if (!note) return { success: false, error: "A reason is required to reject a hotel request." };
 
-    const row = await db.custom_itineraries.findFirst({
-        where: { customPackageId: packageId, day },
-        select: { id: true, hotelPending: true },
+    // Rejecting covers the same nights the card covers.
+    //
+    // The queue groups a multi-night stay into one form (groupPendingStayDays),
+    // so a card can say "days 1-3" — and this used to decline day 1 only,
+    // leaving 2 and 3 pending to reappear as a fresh card seconds later. The
+    // decline is about the request, not one row of it, so it follows the same
+    // day set the fill does.
+    const days = Array.from(new Set([day, ...alsoDays]));
+    const rows = await db.custom_itineraries.findMany({
+        where: { customPackageId: packageId, day: { in: days } },
+        select: { id: true, day: true, hotelPending: true },
     });
-    if (!row) return { success: false, error: "This day couldn't be found." };
-    if (!row.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
+    const primary = rows.find((r) => r.day === day);
+    if (!primary) return { success: false, error: "This day couldn't be found." };
+    if (!primary.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
 
-    await db.custom_itineraries.update({
-        where: { id: row.id },
+    // Same rule as the fill: a day someone else already dealt with is dropped
+    // rather than overwritten.
+    const targets = rows.filter((r) => r.hotelPending);
+    const rejectedDays = targets.map((t) => t.day).sort((a, b) => a - b);
+
+    await db.custom_itineraries.updateMany({
+        where: { id: { in: targets.map((t) => t.id) } },
         data: {
             hotelRejectedAt: new Date(),
             hotelRejectedById: auth.member.id,
@@ -375,7 +391,8 @@ async function runRejectPendingHotel(
         await notifyMember({
             recipientId: pkg.builtBy,
             type: "HOTEL_REQUEST_REJECTED",
-            title: `${pkg.title ?? "Your package"} — hotel request rejected for Day ${day}`,
+            title: `${pkg.title ?? "Your package"} — hotel request rejected for `
+                + `${rejectedDays.length > 1 ? `Days ${rejectedDays.join(", ")}` : `Day ${day}`}`,
             body: note,
             link: `/dashboard/package-builder/${packageId}`,
         });
@@ -383,13 +400,15 @@ async function runRejectPendingHotel(
     if (pkg?.queryId) {
         await logTimeline(
             pkg.queryId,
-            `Hotel request rejected for day ${day} by ${auth.member.name}: ${note}`,
+            `Hotel request rejected for `
+            + `${rejectedDays.length > 1 ? `days ${rejectedDays.join(", ")}` : `day ${day}`}`
+            + ` by ${auth.member.name}: ${note}`,
             auth.member.id, auth.member.name,
         );
     }
 
     await afterReject(packageId);
-    return { success: true };
+    return { success: true, count: rejectedDays.length };
 }
 
 /** Declines every currently-pending day on the package at once, with one

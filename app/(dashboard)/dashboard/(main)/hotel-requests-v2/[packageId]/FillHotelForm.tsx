@@ -457,10 +457,12 @@ export function FillHotelForm({
         if (!rejectReason.trim()) { toast.error("A reason is required to reject a hotel request."); return; }
         startTransition(async () => {
             try {
-                const result = await rejectPendingHotel(packageId, day, rejectReason);
+                const result = await rejectPendingHotel(packageId, day, rejectReason, alsoDays);
                 if (result.success) {
                     setRejectDone(true);
-                    toast.success(`Day ${day} marked rejected — the sales exec has been notified.`);
+                    toast.success(result.count && result.count > 1
+                        ? `${result.count} days marked rejected — the sales exec has been notified.`
+                        : `Day ${day} marked rejected — the sales exec has been notified.`);
                     router.refresh();
                 } else {
                     toast.error(result.error ?? "Failed to reject");
@@ -593,7 +595,9 @@ export function FillHotelForm({
             {rejecting && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 space-y-2">
                     <label className="text-[11px] font-semibold text-red-800 flex items-center gap-1">
-                        <Ban className="size-3" /> Reason for rejecting Day {day}
+                        <Ban className="size-3" /> Reason for rejecting {alsoDays.length > 0
+                            ? `Days ${[day, ...alsoDays].sort((a, b) => a - b).join(", ")}`
+                            : `Day ${day}`}
                     </label>
                     <Textarea
                         value={rejectReason}
