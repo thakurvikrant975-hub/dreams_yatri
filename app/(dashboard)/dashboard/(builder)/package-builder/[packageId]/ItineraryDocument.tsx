@@ -1521,6 +1521,12 @@ export function DaySummaryTable({
             const { manualHotelName: hotelName, manualRoomName: roomName } =
               splitManualHotelName(d.accommodation);
             const mealLine = mealIncludedText(d.hotelMealPlan);
+            // Same "additional, different cab for the same day" list the
+            // detailed Transport section below shows (extraCabs, e.g. one
+            // Sedan + one SUV) — dropped here before now, so a day with two
+            // cabs only ever showed the first. Same drop-unfinished-rows
+            // filter as that section.
+            const extraCabsForDay = (d.extraCabs ?? []).filter((c) => c.label.trim());
             return (
               <tr
                 key={d.day}
@@ -1643,7 +1649,25 @@ export function DaySummaryTable({
                   <SummaryCell
                     action="Add a cab"
                     onOpen={open({ kind: "transfer-edit", day: d.day })}
-                    value={d.transport || d.transportVehicleType || null}
+                    value={(d.transport || d.transportVehicleType || extraCabsForDay.length > 0) ? (
+                      <>
+                        {(d.transport || d.transportVehicleType) && (
+                          <span className="text-neutral-900">
+                            {d.cabQuantity && d.cabQuantity > 1 ? `${d.cabQuantity}× ` : ""}
+                            {d.transport || d.transportVehicleType}
+                            {d.transport && d.transportVehicleType && (
+                              <span className="font-normal text-neutral-500/90 text-[13px]"> · {d.transportVehicleType}</span>
+                            )}
+                          </span>
+                        )}
+                        {extraCabsForDay.map((c, ci) => (
+                          <span key={ci} className={cn(mutedLine, "mt-0.5")}>
+                            + {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.label}
+                            {c.vehicleType && ` · ${c.vehicleType}`}
+                          </span>
+                        ))}
+                      </>
+                    ) : null}
                   />
                 </td>
               </tr>
