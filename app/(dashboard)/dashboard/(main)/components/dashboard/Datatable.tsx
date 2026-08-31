@@ -19,8 +19,8 @@ import {
 
 // ── Column Definition ─────────────────────────────────────────────────────────
 export interface ColumnDef<T> {
-    /** Usually a column label, but a header can carry its own control (e.g.
-     * a select-all checkbox) — rendered as-is either way. */
+    /** Usually a label; pass a node (e.g. a select-all checkbox) for a
+     * non-text header. Non-string headers are never sortable. */
     header: React.ReactNode;
     width?: string;
     align?: "left" | "center" | "right";

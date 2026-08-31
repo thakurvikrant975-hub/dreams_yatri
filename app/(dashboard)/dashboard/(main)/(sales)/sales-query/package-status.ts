@@ -35,6 +35,12 @@ export type SentPackageInfo = {
     hotelRequestNote:   string | null;
     /** Which days are in that status, for a "Day 2, Day 4" style tooltip. */
     hotelRequestDays:   number[];
+    /** This package's PackageTemplate.status, looked up by sourcePackageId —
+     * there's no FK/relation between the two tables (see PackageTemplate.
+     * sourcePackageId), so this is joined in separately by the caller rather
+     * than coming through Prisma's own `include`. Null if this package has
+     * never been saved to the library at all. See LibraryStatusBadge. */
+    libraryStatus: "PENDING" | "APPROVED" | "REJECTED" | null;
 };
 
 /** Rolls up a package's per-day hotel-request fields (see actions.ts's
@@ -70,10 +76,11 @@ function deriveHotelRequestStatus(itineraries: {
  * and the table (getSalesQueries) never drift into showing different data
  * for the same package. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function mapCustomPackage(cp: any): SentPackageInfo {
+export function mapCustomPackage(cp: any, libraryStatus: SentPackageInfo["libraryStatus"] = null): SentPackageInfo {
     return {
         ...cp,
         rejectionReasonLabel: cp.rejectionReason?.label ?? null,
         ...deriveHotelRequestStatus(cp.itineraries ?? []),
+        libraryStatus,
     };
 }

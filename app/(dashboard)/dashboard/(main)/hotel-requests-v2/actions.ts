@@ -15,7 +15,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { resolveStayPhoto } from "@/app/lib/imageUrl";
-import { normalizeMealLabels } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
+import { normalizeMealLabels, mealsFromPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
@@ -53,9 +53,10 @@ export type FillHotelInput = {
     roomPhotos?: string[];
     mealPlan?: string;
     /** Which meals are included (Breakfast/Lunch/Dinner/Tea & Snacks) — feeds
-     * custom_itineraries.meals, the field the Day-wise Summary table and PDF
-     * preview actually read (hotelMealPlan above is a separate free-text
-     * label, not rendered anywhere in the itinerary document). */
+     * custom_itineraries.meals, the field the Day-wise Summary table's Meals
+     * column reads (hotelMealPlan above is the free-text label shown on the
+     * hotel card itself). Left blank, fillPendingHotel derives it from
+     * mealPlan instead so the two stay in sync — see mealsFromPlanText. */
     meals?: string[];
     /** Internal note for the sales exec (e.g. "confirmed by phone, no early
      * check-in") — shown in the builder's Hotel Info card, never in the
@@ -176,48 +177,59 @@ async function runFillPendingHotel(
     const typedRooms = Math.max(1, Math.round(input.roomsCount) || 1);
     const typedBeds = Math.max(0, Math.round(input.extraBeds ?? 0));
 
-    await db.$transaction(targets.map((target) => db.custom_itineraries.update({
-        where: { id: target.id },
-        data: {
-            accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
-            accommodationRoomSpecs: input.roomSpecs?.trim() || null,
-            // Resolved here rather than trusted from the form. A day row is
-            // rendered raw by the builder, the PDF and the client-facing page,
-            // so a bare storage key arriving from any client is a photo that
-            // silently fails to load — see resolveStayPhoto. A value that is
-            // already a URL passes through untouched.
-            accommodationPhoto: resolveStayPhoto(input.hotelPhoto?.trim()) || null,
-            accommodationRoomPhotos: (input.roomPhotos ?? [])
-                .map((p) => resolveStayPhoto(p.trim()))
-                .filter(Boolean)
-                .slice(0, 3),
-            hotelCheckIn: input.checkIn?.trim() || null,
-            hotelCheckOut: input.checkOut?.trim() || null,
-            // Same rule as the counts below: the meal plan is part of what the
-            // exec asked for on each night and can differ between them, so a day
-            // carried along keeps its own rather than inheriting this form's.
-            hotelMealPlan: target.day === day
-                ? (input.mealPlan?.trim() || null)
-                : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null),
-            meals: normalizeMealLabels(input.meals),
-            // The form's own day takes what was typed; a day carried along keeps
-            // the count its own request asked for, falling back to the typed one.
-            roomsCount: target.day === day ? typedRooms : (target.roomsCount ?? typedRooms),
-            manualExtraBeds: target.day === day ? typedBeds : (target.manualExtraBeds ?? typedBeds),
-            manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
-            manualHotelPricePerNight: input.pricePerNight,
-            // Kept alongside the manual fields rather than instead of them:
-            // computeBuilderHotelPricing prefers roomPricingId, so the manual
-            // price becomes an inert fallback, while the accommodation name and
-            // specs above stay as the snapshot the sold document renders from.
-            roomPricingId: linkedPricingId,
-            hotelPending: false,
-            hotelFilledAt: new Date(),
-            hotelFilledById: auth.member.id,
-            hotelFilledByName: auth.member.name,
-            hotelFillNote: input.note?.trim() || null,
-        },
-    })));
+    await db.$transaction(targets.map((target) => {
+        // Same rule as the counts below: the meal plan is part of what the
+        // exec asked for on each night and can differ between them, so a day
+        // carried along keeps its own rather than inheriting this form's.
+        const effectiveMealPlan = target.day === day
+            ? (input.mealPlan?.trim() || null)
+            : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null);
+        // Falls back to reading the plan text itself when the admin filled
+        // "Meal plan" but never touched the "Meals Included" chips — the
+        // Day-wise Summary table reads this array, not the free-text plan, so
+        // an empty one here is what makes a filled hotel look meal-less there
+        // while the hotel card (which reads the plan text) is fine.
+        const effectiveMeals = input.meals?.length
+            ? normalizeMealLabels(input.meals)
+            : mealsFromPlanText(effectiveMealPlan);
+        return db.custom_itineraries.update({
+            where: { id: target.id },
+            data: {
+                accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
+                accommodationRoomSpecs: input.roomSpecs?.trim() || null,
+                // Resolved here rather than trusted from the form. A day row is
+                // rendered raw by the builder, the PDF and the client-facing page,
+                // so a bare storage key arriving from any client is a photo that
+                // silently fails to load — see resolveStayPhoto. A value that is
+                // already a URL passes through untouched.
+                accommodationPhoto: resolveStayPhoto(input.hotelPhoto?.trim()) || null,
+                accommodationRoomPhotos: (input.roomPhotos ?? [])
+                    .map((p) => resolveStayPhoto(p.trim()))
+                    .filter(Boolean)
+                    .slice(0, 3),
+                hotelCheckIn: input.checkIn?.trim() || null,
+                hotelCheckOut: input.checkOut?.trim() || null,
+                hotelMealPlan: effectiveMealPlan,
+                meals: effectiveMeals,
+                // The form's own day takes what was typed; a day carried along keeps
+                // the count its own request asked for, falling back to the typed one.
+                roomsCount: target.day === day ? typedRooms : (target.roomsCount ?? typedRooms),
+                manualExtraBeds: target.day === day ? typedBeds : (target.manualExtraBeds ?? typedBeds),
+                manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
+                manualHotelPricePerNight: input.pricePerNight,
+                // Kept alongside the manual fields rather than instead of them:
+                // computeBuilderHotelPricing prefers roomPricingId, so the manual
+                // price becomes an inert fallback, while the accommodation name and
+                // specs above stay as the snapshot the sold document renders from.
+                roomPricingId: linkedPricingId,
+                hotelPending: false,
+                hotelFilledAt: new Date(),
+                hotelFilledById: auth.member.id,
+                hotelFilledByName: auth.member.name,
+                hotelFillNote: input.note?.trim() || null,
+            },
+        });
+    }));
 
     // ── The day row is only half the story ──────────────────────────────────
     //

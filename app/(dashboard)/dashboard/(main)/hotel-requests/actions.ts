@@ -15,7 +15,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { resolveStayPhoto } from "@/app/lib/imageUrl";
-import { normalizeMealLabels } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
+import { normalizeMealLabels, mealsFromPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { syncRecommendedStayFromDays } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.sync";
 import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
@@ -127,43 +127,54 @@ async function runFillPendingHotel(
     const typedRooms = Math.max(1, Math.round(input.roomsCount) || 1);
     const typedBeds = Math.max(0, Math.round(input.extraBeds ?? 0));
 
-    await db.$transaction(targets.map((target) => db.custom_itineraries.update({
-        where: { id: target.id },
-        data: {
-            accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
-            accommodationRoomSpecs: input.roomSpecs?.trim() || null,
-            // Same guard as the v2 queue: a day row is rendered raw, so a
-            // bare storage key here is a photo that never loads. An
-            // already-resolved URL passes through untouched.
-            accommodationPhoto: resolveStayPhoto(input.hotelPhoto?.trim()) || null,
-            accommodationRoomPhotos: (input.roomPhotos ?? [])
-                .map((p) => resolveStayPhoto(p.trim()))
-                .filter(Boolean)
-                .slice(0, 3),
-            hotelCheckIn: input.checkIn?.trim() || null,
-            hotelCheckOut: input.checkOut?.trim() || null,
-            // Same rule as the counts below: the meal plan is part of what the
-            // exec asked for on each night and can differ between them, so a
-            // day carried along keeps its own rather than inheriting this
-            // form's.
-            hotelMealPlan: target.day === day
-                ? (input.mealPlan?.trim() || null)
-                : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null),
-            meals: normalizeMealLabels(input.meals),
-            // The form's own day takes what was typed; a day carried along
-            // keeps the count its own request asked for, falling back to the
-            // typed one.
-            roomsCount: target.day === day ? typedRooms : (target.roomsCount ?? typedRooms),
-            manualExtraBeds: target.day === day ? typedBeds : (target.manualExtraBeds ?? typedBeds),
-            manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
-            manualHotelPricePerNight: input.pricePerNight,
-            hotelPending: false,
-            hotelFilledAt: new Date(),
-            hotelFilledById: auth.member.id,
-            hotelFilledByName: auth.member.name,
-            hotelFillNote: input.note?.trim() || null,
-        },
-    })));
+    await db.$transaction(targets.map((target) => {
+        // Same rule as the counts below: the meal plan is part of what the
+        // exec asked for on each night and can differ between them, so a
+        // day carried along keeps its own rather than inheriting this
+        // form's.
+        const effectiveMealPlan = target.day === day
+            ? (input.mealPlan?.trim() || null)
+            : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null);
+        // Falls back to reading the plan text itself when the admin filled
+        // "Meal plan" but never touched the "Meals Included" chips — the
+        // Day-wise Summary table reads this array, not the free-text plan,
+        // so an empty one here is what makes a filled hotel look meal-less
+        // there while the hotel card (which reads the plan text) is fine.
+        const effectiveMeals = input.meals?.length
+            ? normalizeMealLabels(input.meals)
+            : mealsFromPlanText(effectiveMealPlan);
+        return db.custom_itineraries.update({
+            where: { id: target.id },
+            data: {
+                accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
+                accommodationRoomSpecs: input.roomSpecs?.trim() || null,
+                // Same guard as the v2 queue: a day row is rendered raw, so a
+                // bare storage key here is a photo that never loads. An
+                // already-resolved URL passes through untouched.
+                accommodationPhoto: resolveStayPhoto(input.hotelPhoto?.trim()) || null,
+                accommodationRoomPhotos: (input.roomPhotos ?? [])
+                    .map((p) => resolveStayPhoto(p.trim()))
+                    .filter(Boolean)
+                    .slice(0, 3),
+                hotelCheckIn: input.checkIn?.trim() || null,
+                hotelCheckOut: input.checkOut?.trim() || null,
+                hotelMealPlan: effectiveMealPlan,
+                meals: effectiveMeals,
+                // The form's own day takes what was typed; a day carried along
+                // keeps the count its own request asked for, falling back to the
+                // typed one.
+                roomsCount: target.day === day ? typedRooms : (target.roomsCount ?? typedRooms),
+                manualExtraBeds: target.day === day ? typedBeds : (target.manualExtraBeds ?? typedBeds),
+                manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
+                manualHotelPricePerNight: input.pricePerNight,
+                hotelPending: false,
+                hotelFilledAt: new Date(),
+                hotelFilledById: auth.member.id,
+                hotelFilledByName: auth.member.name,
+                hotelFillNote: input.note?.trim() || null,
+            },
+        });
+    }));
 
     // Costing prices a package from its stay options (custom_itinerary_stays),
     // not from the day row this fill writes. stay-options.sync.ts calls the day
