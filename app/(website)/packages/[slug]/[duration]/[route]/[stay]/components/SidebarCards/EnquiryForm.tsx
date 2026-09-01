@@ -17,7 +17,7 @@ type EnquiryFormProps = {
 };
 
 const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName, destination }) => {
-  const { pricing, adults, childCount, infants } = useBooking();
+  const { pricing, adults, childCount, infants, previewMode } = useBooking();
 
   const [formData, setFormData] = useState({ name: '', email: '', countryCode: DEFAULT_COUNTRY.code, mobileNumber: '' });
   const [errors,   setErrors]   = useState<EnquiryErrors>({});
@@ -50,6 +50,13 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName, destination }) =
         if (key && !fe[key]) fe[key] = issue.message;
       }
       setErrors(fe);
+      return;
+    }
+
+    // Staff preview — see PackageBookingProvider's previewMode doc. Never
+    // create a real lead from what's meant to be a read-only look.
+    if (previewMode) {
+      setFormError('Enquiries are disabled in preview mode.');
       return;
     }
 

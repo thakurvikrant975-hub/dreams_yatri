@@ -77,7 +77,7 @@ export async function getSalesPackageLibrary(params: {
 // page while staying editable.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type StayCategoryOption = { id: number; label: string; isDefault: boolean };
+export type StayCategoryOption = { id: number; label: string; isDefault: boolean; slug: string };
 
 export type TemplatePackage = LibraryPackage & {
     totalDays:           number | null;
@@ -247,7 +247,7 @@ export async function searchPackageLibraryForTemplate(params: {
         stay_categories: {
             where:   { is_active: true as const },
             orderBy: { sort_order: "asc" as const },
-            select:  { id: true, label: true, is_default: true },
+            select:  { id: true, label: true, is_default: true, slug: true },
         },
         durations: {
             where:   { is_active: true as const },
@@ -278,7 +278,7 @@ export async function searchPackageLibraryForTemplate(params: {
         stay_categories: {
             where:   { is_active: true as const },
             orderBy: { sort_order: "asc" as const },
-            select:  { id: true, label: true, is_default: true },
+            select:  { id: true, label: true, is_default: true, slug: true },
         },
         durations: {
             where:  { is_default: true as const },
@@ -337,7 +337,7 @@ export async function searchPackageLibraryForTemplate(params: {
         id: number; title: string; slug: string; thumbnail: string | null; description: string | null;
         is_active: boolean;
         destination: { name: string; region: { name: string } | null };
-        stay_categories: { id: number; label: string; is_default: boolean }[];
+        stay_categories: { id: number; label: string; is_default: boolean; slug: string }[];
         durations: { id: number; slug: string; days: number; nights: number; is_default?: boolean;
             routes: { id: number; slug: string; stops: { place_name: string }[] }[] }[];
     }): Promise<TemplatePackage> {
@@ -369,7 +369,7 @@ export async function searchPackageLibraryForTemplate(params: {
             totalNights:     duration?.nights ?? null,
             routeSummary:    route?.stops.map((s) => s.place_name).join(" → ") || null,
             stayCategorySummary: r.stay_categories.map((s) => s.label).join(", ") || null,
-            stayCategoryOptions: r.stay_categories.map((s) => ({ id: s.id, label: s.label, isDefault: s.is_default })),
+            stayCategoryOptions: r.stay_categories.map((s) => ({ id: s.id, label: s.label, isDefault: s.is_default, slug: s.slug })),
             selectedStayCategoryId: stayCategory?.id ?? null,
             estimatedPrice,
             pricePerAdult,

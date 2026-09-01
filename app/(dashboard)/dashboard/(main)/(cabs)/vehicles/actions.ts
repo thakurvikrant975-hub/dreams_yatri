@@ -7,6 +7,15 @@ import { createLog } from "../../lib/logger";
 
 const PATH = "/dashboard/vehicles";
 
+/** Trims and capitalizes just the first letter — "innova crysta" ->
+ * "Innova crysta". Leaves everything else in the string untouched, so an
+ * intentional all-caps model name ("XYLO") or an already-capitalized one
+ * isn't rewritten, only ever the lower-cased first letter typed by mistake. */
+function capitalizeFirst(name: string): string {
+  const trimmed = name.trim();
+  return trimmed ? trimmed[0].toUpperCase() + trimmed.slice(1) : trimmed;
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type VehicleRate = {
@@ -82,7 +91,7 @@ export async function createVehicle(data: {
   try {
     const created = await db.vehicles.create({
       data: {
-        name: data.name,
+        name: capitalizeFirst(data.name),
         type: data.type as never,
         passenger_capacity: data.passenger_capacity,
         luggage_bags: data.luggage_bags ?? 0,
@@ -125,7 +134,7 @@ export async function updateVehicle(
     await db.vehicles.update({
       where: { id },
       data: {
-        name: data.name,
+        name: capitalizeFirst(data.name),
         type: data.type as never,
         passenger_capacity: data.passenger_capacity,
         luggage_bags: data.luggage_bags ?? 0,
@@ -140,7 +149,7 @@ export async function updateVehicle(
       action:     "UPDATE",
       entity:     "Vehicle",
       entityId:   String(id),
-      entitySlug: data.name,
+      entitySlug: capitalizeFirst(data.name),
     });
     return { success: true as const, message: "Vehicle updated" };
   } catch (e) {

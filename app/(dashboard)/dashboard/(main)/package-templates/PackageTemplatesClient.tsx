@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -46,6 +47,16 @@ export function PackageTemplatesClient({ rows }: { rows: PackageTemplateRow[] })
   const [openingBuilderId, setOpeningBuilderId] = useState<string | null>(null);
 
   const managing = rows.find((r) => r.id === managingId) ?? null;
+  const searchParams = useSearchParams();
+
+  // Deep-link support (e.g. from CreatePackageDialog's "View" button on a
+  // library template) — opens straight to that template's read-only drawer
+  // instead of making the viewer find it in the list themselves.
+  useEffect(() => {
+    const viewId = searchParams.get("view");
+    if (viewId && rows.some((r) => r.id === viewId)) setManagingId(viewId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const byStatus = status === "all" ? rows : rows.filter((r) => r.status === status);
 

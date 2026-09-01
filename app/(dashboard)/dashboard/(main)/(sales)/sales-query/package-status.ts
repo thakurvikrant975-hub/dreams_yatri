@@ -15,6 +15,14 @@ export type SentPackageInfo = {
     totalPrice:     number | null;
     pricePerPerson: number | null;
     pdfUrl:         string | null;
+    coverImage:     string | null;
+    destination:    string | null;
+    totalDays:      number;
+    totalNights:    number;
+    /** This package's route legs, in order — same shape as
+     * PackageTemplateSnapshotStop, used for the "Copy Existing" card's route
+     * line (see CreatePackageDialog's ExistingPackageOption). */
+    stops:          { name: string; nights: number }[];
     /** The sales exec who built this package — whoever it was assigned to
      * at save time, not necessarily the query's current assignee. */
     builtByName:    string | null;
