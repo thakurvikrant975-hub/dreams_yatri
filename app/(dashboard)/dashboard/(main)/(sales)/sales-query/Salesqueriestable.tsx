@@ -302,7 +302,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                     queryId: q.id,
                     destination: q.destination,
                     packageUrl: q.packageUrl,
-                    travelDate: q.travelDate ? q.travelDate.toISOString().slice(0, 10) : q.requirements?.journey.travelDate ?? null,
+                    travelDate: q.travelDate ? q.travelDate.toISOString().slice(0, 10) : q.requirements?.journey?.travelDate ?? null,
                     travellers: q.requirements?.travellers ? {
                         adults: q.requirements.travellers.adults,
                         children: q.requirements.travellers.children,

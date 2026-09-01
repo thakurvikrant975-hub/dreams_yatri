@@ -73,7 +73,11 @@ export async function createLead(input: IntakeInput): Promise<IntakeResult> {
     const seen = await db.package_queries.findFirst({
       where: {
         createdAt: { gte: new Date(Date.now() - EXTERNAL_ID_WINDOW_MS) },
-        requirements: { path: ["externalId"], equals: externalId },
+        OR: [
+          { requirements: { path: ["leadMeta", "externalId"], equals: externalId } },
+          // Leads forwarded before the metadata was namespaced.
+          { requirements: { path: ["externalId"], equals: externalId } },
+        ],
       },
       select: { id: true },
     });
@@ -124,12 +128,18 @@ export async function createLead(input: IntakeInput): Promise<IntakeResult> {
       create: { phone: normalizePhone(phone), name, email: email || null },
     });
 
-    // `requirements` is the schema's open field — the idempotency key and any
-    // per-landing-page answers live here rather than earning columns each.
-    const requirements =
-      externalId || (extra && Object.keys(extra).length > 0)
-        ? { ...(extra ?? {}), ...(externalId ? { externalId } : {}) }
-        : undefined;
+    /*
+     * Nested under `leadMeta`, never spread across the top level.
+     *
+     * `requirements` is not a scratch field: the sales screens read a specific
+     * shape out of it (journey, travellers, stay …) and some of them reach
+     * straight through to a nested key. Writing foreign keys alongside that
+     * shape produced an object with no `journey`, which crashed the sales
+     * queue for the one exec who had been assigned such a lead. One key of our
+     * own keeps this data out of the way of that structure entirely.
+     */
+    const meta = { ...(extra ?? {}), ...(externalId ? { externalId } : {}) };
+    const requirements = Object.keys(meta).length > 0 ? { leadMeta: meta } : undefined;
 
     const created = await db.package_queries.create({
       data: {
