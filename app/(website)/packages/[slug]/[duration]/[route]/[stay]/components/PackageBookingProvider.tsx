@@ -170,6 +170,13 @@ export interface BookingContextValue {
     durationId:     number;
     routeId:        number;
     stayCategoryId: number;
+
+    /** True only for the staff-only dashboard preview of a package (see
+     * app/(dashboard)/dashboard/(builder)/preview/packages). Read by
+     * useBookQuote and EnquiryForm to refuse to create a real quote/lead
+     * from what's meant to be a read-only look — the public page never sets
+     * this, so it's always false/undefined there. */
+    previewMode?: boolean;
 }
 
 export const BookingContext = createContext<BookingContextValue | null>(null);
@@ -224,6 +231,7 @@ interface ProviderProps {
     /** Default room + inventory per itinerary stay — the basis for maxRooms. */
     stayRoomCounts:     StayRoomCount[];
     children:       ReactNode;
+    previewMode?:   boolean;
     // Initial values carried from the search page (all optional)
     /** The real per-room split from the search bar's `pax` param. Preferred
      *  over the flat trio below, which can only be split back by guessing. */
@@ -241,6 +249,7 @@ export function PackageBookingProvider({
     children,
     initialRoomGuests, initialAdults, initialChildAges, initialRooms,
     initialTravelDate, initialLeavingFrom,
+    previewMode,
 }: ProviderProps) {
     const [roomGuests, setRoomGuestsRaw] = useState<RoomGuests[]>(
         () => initialRoomGuests?.length
@@ -539,6 +548,7 @@ export function PackageBookingProvider({
             pricing, isPricingLoading, packageName, recentEnquiryCount,
             packageId, durationId, routeId, stayCategoryId,
             dateHighlight, setDateHighlight,
+            previewMode,
         }}>
             {children}
         </BookingContext.Provider>

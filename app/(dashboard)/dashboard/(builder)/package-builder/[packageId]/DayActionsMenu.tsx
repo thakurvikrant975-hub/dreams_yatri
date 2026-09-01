@@ -126,9 +126,11 @@ function dayContentItems({ day, hasStay, hasTransport, hasActivities, hasMeals, 
     },
     {
       icon: Utensils,
-      // No manual add/edit any more — meals are entirely the picked hotel's
-      // plan (see applyHotelRoomSelection), so this is a view, not an action.
-      label: "View meals",
+      // Normally the picked hotel's own plan (see applyHotelRoomSelection),
+      // but directly toggleable in the drawer too — see MealsView,
+      // ExtrasDrawers.tsx — for correcting a wrong/incomplete plan without
+      // re-picking the room or re-filling a hotel request.
+      label: "Edit meals",
       on: hasMeals,
       target: { kind: "meals-edit", day },
     },

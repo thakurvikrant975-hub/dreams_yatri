@@ -20,6 +20,7 @@ import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import type { TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { useBuilder } from "./builder-context";
+import { MEAL_LABELS } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { NOTE_TONES, noteTone, type NoteTone } from "./ItineraryDocument";
 import {
   emptyTicket, emptyAddon, computeDurationText, TICKET_TYPE_LABELS, recalcFromStops,
@@ -31,13 +32,8 @@ import { RouteStopsEditor } from "./RouteStopsEditor";
 // Meals
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STANDARD_MEALS = ["Breakfast", "Lunch", "Dinner"] as const;
-const MEAL_KEY_LABELS: Record<string, string> = {
-  breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner",
-};
-
 export function MealsView({ day }: { day: number }) {
-  const { form } = useBuilder();
+  const { form, updateDay, canEdit } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
 
   // Breakfast is eaten on the morning of day N but SERVED by the night N-1
@@ -49,15 +45,17 @@ export function MealsView({ day }: { day: number }) {
 
   if (!itin) return null;
 
-  const hasCatalogRoom = itin.roomPricingId != null;
+  const hasHotel = (row: typeof itin | undefined) => row?.roomPricingId != null || !!row?.accommodation?.trim();
 
-  /** Is this meal included, as the DOCUMENT shows it for this day? Purely a
-   * read of what applyHotelRoomSelection already wrote — there is no manual
-   * override any more. Meals are the hotel's plan, full stop; to change them,
-   * change the hotel.
+  /** Is this meal included, as the DOCUMENT shows it for this day? Normally
+   * just the hotel's own plan (see applyHotelRoomSelection) — but this array
+   * is directly editable here (see toggleMeal below), for the times costing
+   * needs to correct it without going back to whoever picked the hotel or
+   * filled the request: a wrong/incomplete meal plan blocks pricing exactly
+   * as much as a wrong room rate does.
    *
-   * Requires the row to still have its catalog room, not just a non-empty
-   * `meals` array — same stale-field guard as computeShiftedMeals in
+   * Still requires the row to actually have a hotel (hasHotel above, catalog
+   * or hand-typed) — same stale-field guard as computeShiftedMeals in
    * ItineraryDocument.tsx. Older saves could leave `meals` populated on a day
    * whose hotel was since removed (removeStay clears it now, but a package
    * built before that fix can still carry the leftover value), which used to
@@ -65,24 +63,53 @@ export function MealsView({ day }: { day: number }) {
    * printed right below it. */
   const isOn = (meal: string) => {
     const row = rowFor(meal);
-    return row?.roomPricingId != null && row.meals.includes(meal);
+    return hasHotel(row) && !!row?.meals.includes(meal);
   };
 
   // Every meal the day can carry, always — so a day with no breakfast (no
   // night before it, or a room-only rate) still shows the full picture rather
   // than silently omitting a row.
-  const visibleMeals = STANDARD_MEALS.filter((meal) => rowFor(meal) != null);
+  const visibleMeals = MEAL_LABELS.filter((meal) => rowFor(meal) != null);
+
+  /** Writes straight into the correct day's own `meals` array — breakfast
+   * onto the previous day's row, same target `rowFor` already reads from,
+   * so a toggle here changes exactly what computeShiftedMeals will show.
+   *
+   * Also rewrites that row's `hotelMealPlan` free text to match the new
+   * array, rather than leaving it alone. reconcileMealsWithPlanText
+   * (meals.ts) merges the two on every read, so a stale "MAP (Breakfast +
+   * Dinner)" label would otherwise silently resurrect a meal just removed
+   * here the next time the document renders — a real bug the first version
+   * of this control had. The trade-off is losing whatever plan-type prefix
+   * ("MAP"/"CP"/...) the original text had; acceptable for a manual
+   * correction, which is exactly what this is.
+   */
+  function toggleMeal(meal: string) {
+    const row = rowFor(meal);
+    if (!row) return;
+    const nextMeals = row.meals.includes(meal)
+      ? row.meals.filter((m) => m !== meal)
+      : [...row.meals, meal];
+    const nextMealPlan = MEAL_LABELS.filter((m) => nextMeals.includes(m)).join(", ");
+    updateDay(row.day, { meals: nextMeals, hotelMealPlan: nextMealPlan });
+  }
 
   return (
     <div className="p-5 space-y-4">
       <div className="space-y-2">
         {visibleMeals.map((meal) => {
           const on = isOn(meal);
+          const row = rowFor(meal);
+          const disabled = !canEdit || !hasHotel(row);
+          const Tag = disabled ? "div" : "button";
           return (
-            <div
+            <Tag
               key={meal}
+              type={disabled ? undefined : "button"}
+              onClick={disabled ? undefined : () => toggleMeal(meal)}
               className={cn(
-                "w-full flex items-center gap-2.5 rounded-xl border p-3",
+                "w-full flex items-center gap-2.5 rounded-xl border p-3 text-left",
+                !disabled && "cursor-pointer hover:border-dashboard-primary/60 transition-colors",
                 on
                   ? "border-dashboard-primary bg-dashboard-primary/5"
                   : "border-dashboard-base-300 opacity-60",
@@ -91,14 +118,16 @@ export function MealsView({ day }: { day: number }) {
               <Utensils size={13} className={on ? "text-dashboard-primary" : "text-dashboard-base-content/40"} />
               <span className="text-sm font-medium flex-1">{meal}</span>
               <span className="text-[11px] text-dashboard-base-content/50">{on ? "Included" : "Not included"}</span>
-            </div>
+            </Tag>
           );
         })}
       </div>
       <p className="text-[11px] text-dashboard-base-content/45">
-        {hasCatalogRoom
+        {!canEdit
           ? "Set by this day's hotel — pick a different room or meal plan to change what's included here."
-          : "No hotel is picked for this day, so there's nothing to serve."}
+          : itin.roomPricingId != null || itin.accommodation?.trim()
+            ? "Tap a meal to include or remove it for this day."
+            : "No hotel is picked for this day, so there's nothing to serve."}
       </p>
     </div>
   );

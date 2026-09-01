@@ -3601,11 +3601,33 @@ model PackageTemplate {
   updatedAt DateTime @updatedAt
 
   activities ActivityTemplate[]
+  timeline   PackageTemplateTimeline[]
 
   @@index([status])
   @@index([submittedById])
   @@index([submittedByTeamId])
   @@map("package_templates")
+}
+
+/**
+ * One event in a PackageTemplate's life — submitted, edited, approved,
+ * rejected — appended rather than overwritten, unlike the template's own
+ * approvedBy/rejectedBy fields (which only ever hold the MOST RECENT approve
+ * or reject, so a template that was rejected once and approved later loses
+ * the rejection's who/when/why the moment it's approved). Mirrors
+ * QueryTimeline's shape (see the "query_timeline" model above).
+ */
+model PackageTemplateTimeline {
+  id                String          @id @default(cuid())
+  packageTemplateId String
+  actorId           String?
+  actorName         String?
+  event             String
+  createdAt         DateTime        @default(now())
+  packageTemplate   PackageTemplate @relation(fields: [packageTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([packageTemplateId])
+  @@map("package_template_timeline")
 }
 
 /**
