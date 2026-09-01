@@ -266,7 +266,9 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                 type="button"
                 onClick={() => setStarFilter((f) => (f === star ? null : star))}
                 className={cn(
-                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                  // py-1.5 below lg: a 10px-tall chip is well under a
+                  // comfortable touch target on the primary hotel-search UI.
+                  "text-[10px] font-semibold px-2.5 py-1.5 lg:px-2 lg:py-0.5 rounded-full border transition-colors",
                   starFilter === star
                     ? "bg-amber-500 text-white border-amber-500"
                     : "bg-background text-muted-foreground border-border hover:border-amber-400 hover:text-amber-700",
@@ -285,7 +287,9 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                 onClick={() => setRadiusKm(km)}
                 title={`Include stays within ${km} km`}
                 className={cn(
-                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                  // py-1.5 below lg: a 10px-tall chip is well under a
+                  // comfortable touch target on the primary hotel-search UI.
+                  "text-[10px] font-semibold px-2.5 py-1.5 lg:px-2 lg:py-0.5 rounded-full border transition-colors",
                   radiusKm === km
                     ? "bg-sky-600 text-white border-sky-600"
                     : "bg-background text-muted-foreground border-border hover:border-sky-400 hover:text-sky-700",
@@ -300,7 +304,9 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                 type="button"
                 onClick={() => setCatFilter((f) => (f === c.value ? null : c.value))}
                 className={cn(
-                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                  // py-1.5 below lg: a 10px-tall chip is well under a
+                  // comfortable touch target on the primary hotel-search UI.
+                  "text-[10px] font-semibold px-2.5 py-1.5 lg:px-2 lg:py-0.5 rounded-full border transition-colors",
                   catFilter === c.value
                     ? "bg-violet-600 text-white border-violet-600"
                     : "bg-background text-muted-foreground border-border hover:border-violet-400 hover:text-violet-700",
@@ -320,7 +326,9 @@ export function HotelRoomPicker({ value, initialLabel, searchCity, refCoords, on
                   );
                 }}
                 className={cn(
-                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                  // py-1.5 below lg: a 10px-tall chip is well under a
+                  // comfortable touch target on the primary hotel-search UI.
+                  "text-[10px] font-semibold px-2.5 py-1.5 lg:px-2 lg:py-0.5 rounded-full border transition-colors",
                   !noMealsOnly && mealFilter.includes(m.value)
                     ? "bg-emerald-600 text-white border-emerald-600"
                     : "bg-background text-muted-foreground border-border hover:border-emerald-400 hover:text-emerald-700",

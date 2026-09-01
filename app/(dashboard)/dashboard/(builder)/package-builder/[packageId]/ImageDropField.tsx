@@ -102,18 +102,20 @@ export function ImageDropField({
               className="w-full h-full object-cover"
               style={{ objectPosition: `center ${position}%` }}
             />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/45 transition-colors flex items-center justify-center gap-2">
+            {/* Always on below lg — there's no hover on a touchscreen, so
+                without this the image reads as unchangeable on a phone. */}
+            <div className="absolute inset-0 bg-black/45 lg:bg-black/0 lg:group-hover:bg-black/45 transition-colors flex items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                className="h-8 px-3 rounded-full bg-white/95 hover:bg-white flex items-center gap-1.5 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-8 px-3 rounded-full bg-white/95 hover:bg-white flex items-center gap-1.5 text-xs font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
               >
                 <Upload size={12} /> Change
               </button>
               <button
                 type="button"
                 onClick={() => onChange("")}
-                className="h-8 w-8 rounded-full bg-white/95 hover:bg-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-8 w-8 rounded-full bg-white/95 hover:bg-white flex items-center justify-center opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
               >
                 <X size={14} />
               </button>
