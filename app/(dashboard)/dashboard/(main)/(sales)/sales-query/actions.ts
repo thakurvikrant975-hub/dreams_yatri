@@ -99,9 +99,16 @@ export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[] }
 const CUSTOM_PACKAGE_SELECT = {
     id: true, title: true, status: true, createdAt: true, sentAt: true, readyAt: true,
     totalPrice: true, pricePerPerson: true, pdfUrl: true, builtByName: true,
+    coverImage: true, destination: true, totalDays: true, totalNights: true,
     verified: true, verifiedAt: true, verifiedByName: true,
     rejectedAt: true, rejectedByName: true, rejectionNote: true,
     rejectionReason: { select: { label: true } },
+    // Route legs for the "Copy Existing" card in CreatePackageDialog — same
+    // source buildSnapshotFromPackage reads for the library snapshot.
+    stops: {
+        orderBy: { sortOrder: "asc" } as Prisma.custom_package_stopsOrderByWithRelationInput,
+        select: { name: true, nights: true },
+    },
     itineraries: {
         where: { OR: [{ hotelPending: true }, { hotelFilledAt: { not: null } }] as Prisma.custom_itinerariesWhereInput[] },
         select: { day: true, hotelPending: true, hotelRejectedAt: true, hotelRejectionNote: true, hotelFilledAt: true },

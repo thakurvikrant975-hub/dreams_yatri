@@ -15,7 +15,7 @@ export function useBookQuote() {
         adults, childCount, infants, childAges, travelDate,
         cabSelections, roomGuests,
         packageId, durationId, routeId, stayCategoryId,
-        setDateHighlight,
+        setDateHighlight, previewMode,
     } = useBooking();
 
     const router = useRouter();
@@ -34,6 +34,13 @@ export function useBookQuote() {
 
     async function book() {
         setError(null);
+
+        // Staff preview — see PackageBookingProvider's previewMode doc. Never
+        // create a real quote from what's meant to be a read-only look.
+        if (previewMode) {
+            setError('Booking is disabled in preview mode.');
+            return;
+        }
 
         if (!travelDate) {
             setError('Please pick your departure date to continue.');

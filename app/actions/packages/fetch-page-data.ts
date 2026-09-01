@@ -372,6 +372,12 @@ export type PackagePageData = {
   categories: { name: string; slug: string }[];
   policies: { type: string; title: string; points: string[] }[];
   recentEnquiryCount: number;
+  /** Live on the public site right now. Every public caller of this
+   * function only ever gets `true` here (the `where` clause already filters
+   * them out otherwise) — this only varies for `includeInactive` callers,
+   * e.g. the staff-only dashboard preview, which uses it to show an
+   * "offline" banner. */
+  is_active: boolean;
 };
 
 // ── Main fetch ─────────────────────────────────────────────────────────────
@@ -402,6 +408,7 @@ export async function fetchPackagePageData(
         description: true,
         inclusions: true,
         exclusions: true,
+        is_active: true,
         destination_id: true,
         destination: {
           select: {
@@ -907,6 +914,7 @@ export async function fetchPackagePageData(
     description: pkg.description,
     inclusions: pkg.inclusions,
     exclusions: pkg.exclusions,
+    is_active: pkg.is_active,
     destination_id: pkg.destination_id,
     destination: {
       name: pkg.destination.name,
