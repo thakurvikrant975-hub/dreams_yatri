@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -18,7 +18,7 @@ import {
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, ShieldCheck, BedDouble, Undo2, Redo2, Ticket,
 } from "./builder-icons";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { resizeAges } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -90,6 +90,21 @@ import { DayLayersRail } from "./DayLayersRail";
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner", "Tea & Snacks"];
+
+// The desktop preview zoom (see previewZoom) — one key for every package, on
+// purpose: it's "how big does MY screen need this to read", the same answer
+// regardless of which package is open, so the exec sets it once ever, not
+// once per package.
+const PREVIEW_ZOOM_STORAGE_KEY = "package-builder:preview-zoom";
+const PREVIEW_ZOOM_MIN = 0.5;
+const PREVIEW_ZOOM_MAX = 1.5;
+
+/** Where the slider's thumb — and its filled track — sit, as a 0–100
+ * position within [MIN, MAX]. Not the same number as the zoom percentage
+ * itself once MIN isn't 0, which it isn't (50%). */
+function zoomSliderPosition(zoom: number): number {
+  return ((zoom - PREVIEW_ZOOM_MIN) / (PREVIEW_ZOOM_MAX - PREVIEW_ZOOM_MIN)) * 100;
+}
 
 // hotel_room_pricing's meal_type.covered_meals comes back as lowercase keys
 // ("breakfast", "lunch", "dinner") — map to the same labels MEAL_OPTIONS uses
@@ -412,20 +427,80 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   // /dashboard/hotels/meal-types, fetched once here and shared by every day.
   const [mealTypes, setMealTypes] = useState<{ id: number; name: string }[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  // How much the A4 document has to shrink to fit the phone it is being
-  // previewed on. 794px is 210mm at 96dpi; 32px covers the overlay's padding.
-  // Recomputed on rotate/resize, and only ever while the overlay is open.
+  // Below lg: how much the A4 document has to shrink to fit the phone it's
+  // being previewed on — automatic, no control for it, recomputed on
+  // rotate/resize. 794px is 210mm at 96dpi; 24px covers the overlay's padding.
+  // At lg and up: the exec's own zoom preference — a fixed size document in a
+  // variable-width pane sometimes reads too small on a big monitor and there
+  // was no way to fix that short of the browser's own page zoom. Persisted in
+  // localStorage (see PREVIEW_ZOOM_STORAGE_KEY below) so it's set once, not
+  // every time the same package — or a different one — is reopened.
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [zoomBarOpen, setZoomBarOpen] = useState(false);
+  /** True while a finger/pointer is actually on the slider — shows the
+   * floating value bubble over the thumb, the same way a native OS volume
+   * slider does, instead of making the exec glance sideways at the % label. */
+  const [zoomDragging, setZoomDragging] = useState(false);
   useEffect(() => {
-    // Only ever shrinks, and only below lg — from there the document has its
-    // own column and should render at true size.
-    const fit = () => setPreviewZoom(
-      window.innerWidth >= 1024 ? 1 : Math.min(1, (window.innerWidth - 24) / 794),
-    );
-    fit();
+    const desktop = window.innerWidth >= 1024;
+    if (desktop) {
+      const saved = parseFloat(localStorage.getItem(PREVIEW_ZOOM_STORAGE_KEY) ?? "");
+      const initial = !isNaN(saved) && saved >= PREVIEW_ZOOM_MIN && saved <= PREVIEW_ZOOM_MAX ? saved : 1;
+      setPreviewZoom(initial);
+      // A saved preference means the exec has already found their size —
+      // open the bar only the first time there's nothing to remember yet, so
+      // it's discoverable without sitting in the way of every future visit.
+      setZoomBarOpen(isNaN(saved));
+    } else {
+      setPreviewZoom(Math.min(1, (window.innerWidth - 24) / 794));
+    }
+
+    const fit = () => {
+      // Desktop zoom is the exec's own choice, not something a resize should
+      // silently overwrite — only the mobile fit-to-screen reacts to it.
+      if (window.innerWidth < 1024) setPreviewZoom(Math.min(1, (window.innerWidth - 24) / 794));
+    };
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
   }, []);
+
+  /** Clamped, applied, and persisted — the one way the desktop zoom ever
+   * changes, so it can never drift from what's saved. */
+  const setDesktopZoom = useCallback((next: number) => {
+    const clamped = Math.min(PREVIEW_ZOOM_MAX, Math.max(PREVIEW_ZOOM_MIN, next));
+    setPreviewZoom(clamped);
+    try { localStorage.setItem(PREVIEW_ZOOM_STORAGE_KEY, String(clamped)); } catch { /* private mode, quota, etc. — the zoom still applies for this visit */ }
+  }, []);
+
+  // The pane the document scrolls in — see the scroll-anchoring effect below.
+  const previewPaneRef = useRef<HTMLElement>(null);
+  const lastPreviewZoomRef = useRef(previewZoom);
+
+  // CSS zoom scales the document's rendered height, and the browser has no
+  // idea that a shorter or taller page under the SAME scrollTop is not the
+  // same read position — so without this, dragging the slider reads as the
+  // page suddenly scrolling out from under you. zoom is linear, so the fix
+  // is linear too: whatever was at pixel Y under the old zoom is at
+  // Y × (new/old) under the new one — scroll there instead, in the same
+  // paint as the resize, so nothing visibly jumps first.
+  useLayoutEffect(() => {
+    const pane = previewPaneRef.current;
+    const last = lastPreviewZoomRef.current;
+    if (pane && last > 0 && last !== previewZoom) {
+      pane.scrollTop = pane.scrollTop * (previewZoom / last);
+    }
+    lastPreviewZoomRef.current = previewZoom;
+  }, [previewZoom]);
+
+  // Collapses the expanded bar back to its icon a moment after the exec
+  // stops touching it, the same "gets out of the way once you're done"
+  // behavior as a volume HUD — open on every visit would just be another
+  // fixed element competing with the document for space.
+  useEffect(() => {
+    if (!zoomBarOpen) return;
+    const t = setTimeout(() => setZoomBarOpen(false), 3000);
+    return () => clearTimeout(t);
+  }, [zoomBarOpen, previewZoom]);
   const [activeTab, setActiveTab] = useState("client");
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
@@ -2415,7 +2490,7 @@ Rules:
             was the one thing you could not see. It opens on the document, and
             a section covers it only when you choose one from the bottom bar.
             pb-20 clears that bar; the zoom fits 210mm onto the screen. */}
-        <aside className="print-reset block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
+        <aside ref={previewPaneRef} className="print-reset block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
           <div className="print-reset px-3 py-4 pb-20 lg:px-6 lg:py-8" style={{ zoom: previewZoom }}>
             <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
@@ -2427,6 +2502,83 @@ Rules:
               variant="flat"
             />
             </BuilderErrorBoundary>
+          </div>
+
+          {/* ── Desktop-only zoom control ─────────────────────────────────
+              A child of the scrolling pane, not the viewport — position:
+              sticky pins it to the bottom of THIS pane specifically as the
+              document scrolls past, and (being in normal flow) it's exactly
+              as wide as the column it's sitting under rather than a fixed
+              corner widget. Nothing below lg: the mobile fit-to-screen above
+              is automatic, and a manual zoom on a screen already scaled to
+              fit would just fight it. */}
+          <div className="no-print hidden lg:block sticky bottom-4 z-40 px-3 lg:px-6 mt-4">
+            {zoomBarOpen ? (
+              <div className="flex w-full max-w-2xl items-center gap-5 rounded-full bg-linear-to-b from-white to-slate-50 dark:from-neutral-800 dark:to-neutral-900 shadow-[0_10px_30px_-10px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/70 dark:ring-neutral-700 pl-6 pr-3 py-3.5">
+                {/* relative wrapper: the floating value bubble tracks the
+                    thumb's own position (zoomSliderPosition), which only
+                    means anything measured against THIS element's width. */}
+                <div className="relative flex-1">
+                  {zoomDragging && (
+                    <div
+                      className="absolute -top-10 -translate-x-1/2 pointer-events-none"
+                      style={{ left: `${zoomSliderPosition(previewZoom)}%` }}
+                    >
+                      <div className="relative rounded-md bg-neutral-900 text-white text-[11px] font-semibold px-2 py-1 shadow-lg whitespace-nowrap tabular-nums">
+                        {Math.round(previewZoom * 100)}%
+                        <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-neutral-900" />
+                      </div>
+                    </div>
+                  )}
+                  <input
+                    type="range"
+                    min={PREVIEW_ZOOM_MIN}
+                    max={PREVIEW_ZOOM_MAX}
+                    step={0.01}
+                    value={previewZoom}
+                    onChange={(e) => setDesktopZoom(Number(e.target.value))}
+                    onPointerDown={() => setZoomDragging(true)}
+                    onPointerUp={() => setZoomDragging(false)}
+                    onKeyDown={() => setZoomDragging(true)}
+                    onKeyUp={() => setZoomDragging(false)}
+                    aria-label="Preview zoom"
+                    className="w-full h-1.5 appearance-none rounded-full cursor-pointer
+                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:shadow-[0_0_0_3px_white,0_0_0_5px_rgba(37,99,235,0.35),0_2px_6px_rgba(15,23,42,0.3)] [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing
+                      [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:shadow-[0_0_0_3px_white,0_0_0_5px_rgba(37,99,235,0.35),0_2px_6px_rgba(15,23,42,0.3)] [&::-moz-range-thumb]:cursor-grab"
+                    style={{
+                      background: `linear-gradient(to right, #2563eb 0%, #60a5fa ${zoomSliderPosition(previewZoom)}%, #e2e8f0 ${zoomSliderPosition(previewZoom)}%, #e2e8f0 100%)`,
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDesktopZoom(1)}
+                  title="Reset to 100%"
+                  className="shrink-0 min-w-14 text-right text-xl font-semibold tabular-nums text-slate-400 dark:text-neutral-500 hover:text-blue-600 transition-colors"
+                >
+                  {Math.round(previewZoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomBarOpen(false)}
+                  aria-label="Collapse zoom control"
+                  title="Collapse"
+                  className="shrink-0 flex items-center justify-center size-7 rounded-full text-dashboard-base-content/35 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setZoomBarOpen(true)}
+                aria-label={`Preview zoom, ${Math.round(previewZoom * 100)}%. Click to adjust.`}
+                title={`Preview zoom: ${Math.round(previewZoom * 100)}%`}
+                className="flex items-center justify-center size-9 rounded-full border border-dashboard-base-300 bg-dashboard-base-100 shadow-lg text-dashboard-base-content/55 hover:text-dashboard-base-content hover:bg-dashboard-base-200"
+              >
+                <Search size={15} />
+              </button>
+            )}
           </div>
         </aside>
 

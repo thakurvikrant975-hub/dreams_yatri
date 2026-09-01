@@ -195,9 +195,12 @@ export function DayActionsMenu({
           "builder-only no-print absolute top-2.5 right-2.5 z-30 flex items-center gap-0.5",
           "rounded-lg p-0.5 bg-white ring-1 ring-inset ring-neutral-200  shadow-xl shadow-neutral-200/80",
           "transition-opacity duration-[120ms]",
+          // Always on below lg: there's no hover gesture on a touchscreen, and
+          // this is the only path to some day actions (see DayActionsMenu's
+          // callers) — hover-reveal stays a desktop-only nicety above it.
           menuOpen || confirmOpen
             ? "opacity-100"
-            : "opacity-0 pointer-events-none group-hover/day:opacity-100 group-hover/day:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
+            : "opacity-100 pointer-events-auto lg:opacity-0 lg:pointer-events-none lg:group-hover/day:opacity-100 lg:group-hover/day:pointer-events-auto lg:focus-within:opacity-100 lg:focus-within:pointer-events-auto",
         )}
       >
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

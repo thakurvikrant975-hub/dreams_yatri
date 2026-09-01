@@ -170,8 +170,9 @@ function ImageEditButton({
             // Visible on the image itself, AND whenever its section is hovered.
             // Hovering "Stay" should reveal everything in that section you can
             // change — its photos included — rather than making you discover
-            // each tile by sweeping the pointer across it.
-            "opacity-0 group-hover/img:opacity-100 group-hover/section:opacity-100",
+            // each tile by sweeping the pointer across it. Below lg (no hover)
+            // it's just always on — there's no gesture that would reveal it.
+            "opacity-100 lg:opacity-0 lg:group-hover/img:opacity-100 lg:group-hover/section:opacity-100",
             "focus-visible:opacity-100",
             className,
           )}
@@ -818,9 +819,13 @@ function EditableSection({ actions, children }: {
         className={cn(
           "builder-only no-print absolute -top-2.5 right-1 z-30 flex items-center gap-0.5",
           "rounded-lg ring-1 ring-inset ring-neutral-200  bg-white p-0.5 shadow-xl shadow-neutral-200/80",
-          "opacity-0 pointer-events-none transition-opacity duration-[120ms]",
-          "group-hover/section:opacity-100 group-hover/section:pointer-events-auto",
-          "focus-within:opacity-100 focus-within:pointer-events-auto",
+          // Always visible/tappable below lg: there is no hover on a
+          // touchscreen, so a control gated on it is not hidden, it is gone.
+          // Hover-reveal is a desktop-only nicety from here up.
+          "opacity-100 pointer-events-auto transition-opacity duration-[120ms]",
+          "lg:opacity-0 lg:pointer-events-none",
+          "lg:group-hover/section:opacity-100 lg:group-hover/section:pointer-events-auto",
+          "lg:focus-within:opacity-100 lg:focus-within:pointer-events-auto",
         )}
       >
         {actions.map(({ icon: Icon, label, onClick, tone }) => (
@@ -1104,7 +1109,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
         // into the exported PDF (html2canvas rasterises the screen DOM — see
         // the data-exporting rule in PRINT_STYLES).
         <span
-          className="builder-only no-print text-[11px] font-semibold uppercase tracking-widest shrink-0 opacity-0 group-hover/sub:opacity-100 group-hover/section:opacity-100 transition-opacity"
+          className="builder-only no-print text-[11px] font-semibold uppercase tracking-widest shrink-0 opacity-100 lg:opacity-0 lg:group-hover/sub:opacity-100 lg:group-hover/section:opacity-100 transition-opacity"
           style={{ color: DOC.accent }}
         >
           Edit
@@ -1496,7 +1501,12 @@ export function DaySummaryTable({
       className="rounded-lg overflow-hidden shadow-lg shadow-neutral-200/80"
       style={{ backgroundColor: DOC.card }}
     >
-      <table className="w-full text-[16px] leading-[22px] border-separate" style={{ borderSpacing: 0 }}>
+      {/* overflow-x-auto, not visible: five rich columns (Day/Destination/
+          Hotel/Meals/Cab) don't fit a phone's width, and the outer wrapper's
+          overflow-hidden (kept for the rounded corners) would otherwise just
+          clip the rest of the table instead of letting it scroll into view. */}
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px] text-[16px] leading-[22px] border-separate" style={{ borderSpacing: 0 }}>
         {/* print:table-header-group repeats the header on every page the table
             spills onto — a five-column table read across a page break is
             otherwise unlabelled. Same reason the voucher carries it. */}
@@ -1680,6 +1690,7 @@ export function DaySummaryTable({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -1773,7 +1784,7 @@ function StopTile({ stop, img, onImageChange, stopIndex }: {
               return { ...f, stops, ...recalcFromStops(stops) };
             })}
             aria-label="Remove this destination"
-            className="builder-only no-print absolute top-1.5 left-1.5 z-20 flex items-center justify-center size-6 rounded-md bg-black/45 text-white/80 opacity-0 transition-opacity group-hover/img:opacity-100 focus-visible:opacity-100 hover:bg-red-600 hover:text-white"
+            className="builder-only no-print absolute top-1.5 left-1.5 z-20 flex items-center justify-center size-6 rounded-md bg-black/45 text-white/80 opacity-100 lg:opacity-0 transition-opacity lg:group-hover/img:opacity-100 focus-visible:opacity-100 hover:bg-red-600 hover:text-white"
           >
             <Trash2 size={12} />
           </button>
@@ -2451,7 +2462,7 @@ function StayColumns({
       {/* Evenly split, so one category reads as a full-width stay and three
           share the page. Four would leave each photo too narrow to show
           anything, which is why the category list is capped at three. */}
-      <div className={cn("grid gap-2.5", shown.length === 1 ? "grid-cols-1" : shown.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+      <div className={cn("grid gap-2.5 grid-cols-1", shown.length === 1 ? "" : shown.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
         {shown.map((c) => {
           const cell = c.byDay?.[day] ?? { hotel: null };
           const { manualHotelName: hotelName, manualRoomName: roomName } = splitManualHotelName(cell.hotel ?? "");
@@ -2534,9 +2545,10 @@ function StayColumns({
                     className={cn(
                       "builder-only no-print absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5",
                       "rounded-lg ring-1 ring-inset ring-neutral-200 bg-white p-0.5 shadow-xl shadow-neutral-200/80",
-                      "opacity-0 pointer-events-none transition-opacity duration-[120ms]",
-                      "group-hover/stay:opacity-100 group-hover/stay:pointer-events-auto",
-                      "focus-within:opacity-100 focus-within:pointer-events-auto",
+                      "opacity-100 pointer-events-auto transition-opacity duration-[120ms]",
+                      "lg:opacity-0 lg:pointer-events-none",
+                      "lg:group-hover/stay:opacity-100 lg:group-hover/stay:pointer-events-auto",
+                      "lg:focus-within:opacity-100 lg:focus-within:pointer-events-auto",
                     )}
                   >
                     <button
@@ -3373,7 +3385,7 @@ function HeroCover({
           <DialogTrigger asChild>
             <button
               type="button"
-              className="no-print absolute top-4 right-4 z-20 flex items-center justify-center size-9 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white opacity-0 group-hover:opacity-100 transition-opacity"
+              className="no-print absolute top-4 right-4 z-20 flex items-center justify-center size-9 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm text-white opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               aria-label="Change cover image"
             >
               <Pencil size={15} />
@@ -3540,7 +3552,7 @@ function StatCell({ icon: Icon, label, value, onOpen }: {
       title={onOpen ? `Edit ${label.toLowerCase()}` : undefined}
     >
       {onOpen && (
-        <span className="builder-only no-print absolute top-1.5 right-2 text-[11px] font-semibold uppercase tracking-wide text-dashboard-primary opacity-0 group-hover/stat:opacity-100 transition-opacity">
+        <span className="builder-only no-print absolute top-1.5 right-2 text-[11px] font-semibold uppercase tracking-wide text-dashboard-primary opacity-100 lg:opacity-0 lg:group-hover/stat:opacity-100 transition-opacity">
           edit
         </span>
       )}
