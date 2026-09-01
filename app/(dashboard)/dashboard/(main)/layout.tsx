@@ -13,6 +13,7 @@ import { computeVerificationCounts } from "@/app/services/verification-counts.se
 import { resolveNavHref } from "./lib/rbac/nav-hrefs";
 import { Toaster } from "sonner";
 import { OfflineDetector } from "./components/dashboard/OfflineDetector";
+import { SessionTimeoutTimer } from "./components/dashboard/SessionTimeoutTimer";
 import { NumberInputScrollGuard } from "./components/dashboard/NumberInputScrollGuard";
 import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminderprovider";
 import { PackageStatusNotifier } from "./(sales)/sales-query/PackageStatusNotifier";
@@ -163,35 +164,39 @@ export default async function DashboardLayout({
         className="flex-1 overflow-y-auto min-h-screen bg-dashboard-base-200 print:overflow-visible print:min-h-0 print:bg-white"
         data-layout="dashboard"
       >
-        <div className="no-print flex justify-between items-center gap-4 px-6 py-3 sticky top-0 z-10 bg-dashboard-base-100 border-b border-dashboard-base-300">
-          <SidebarTrigger />
+        <div className="no-print sticky top-0 z-10 bg-dashboard-base-100 border-b border-dashboard-base-300">
+          <SessionTimeoutTimer expiresAt={session.expires} />
 
-          <div className="flex items-center gap-3 ml-auto">
-            {onboardingProfile && (
-              <ProfileCompletionBadge
-                profile={onboardingProfile}
-                isComplete={!missingRequiredFields}
-                autoOpen={needsOnboarding}
+          <div className="flex justify-between items-center gap-4 px-6 py-3">
+            <SidebarTrigger />
+
+            <div className="flex items-center gap-3 ml-auto">
+              {onboardingProfile && (
+                <ProfileCompletionBadge
+                  profile={onboardingProfile}
+                  isComplete={!missingRequiredFields}
+                  autoOpen={needsOnboarding}
+                />
+              )}
+              {isSales && <SalesTargetBadge memberId={realMember.id} />}
+              <NotificationBell memberId={realMember.id} initialUnreadCount={unreadNotificationCount} />
+
+{/*
+              <SalesStatusToggle
+                memberId={realMember.id}
+                initialActive={realMember.isActive}
+              /> */}
+
+              {/* Header always shows the real logged-in user's identity */}
+              <AvatarName
+                name={session.user.name ?? "Employee"}
+                email={session.user.email ?? "name@dreamsyatri.com"}
+                role={realMember.teamRole?.name ?? ""}
+                avatarSrc={realMember.profilePicUrl ?? undefined}
+                isFullStackDev={isFullStackDev}
+                viewingAs={viewingAs}
               />
-            )}
-            {isSales && <SalesTargetBadge memberId={realMember.id} />}
-            <NotificationBell memberId={realMember.id} initialUnreadCount={unreadNotificationCount} />
-
-{/* 
-            <SalesStatusToggle
-              memberId={realMember.id}
-              initialActive={realMember.isActive}
-            /> */}
-
-            {/* Header always shows the real logged-in user's identity */}
-            <AvatarName
-              name={session.user.name ?? "Employee"}
-              email={session.user.email ?? "name@dreamsyatri.com"}
-              role={realMember.teamRole?.name ?? ""}
-              avatarSrc={realMember.profilePicUrl ?? undefined}
-              isFullStackDev={isFullStackDev}
-              viewingAs={viewingAs}
-            />
+            </div>
           </div>
         </div>
 

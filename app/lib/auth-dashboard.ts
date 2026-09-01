@@ -19,7 +19,7 @@ export const {
 } = NextAuth({
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 hours
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   },
 
   // ── Custom cookie name — critical to avoid collision with public auth ──
