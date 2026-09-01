@@ -80,3 +80,30 @@ export function mealsFromPlanText(planText: string | null | undefined): string[]
   if (lower.includes("tea") || lower.includes("snacks")) found.push("Tea & Snacks");
   return found;
 }
+
+/**
+ * Merges a day's stored meals with whatever its plan text implies — keeps
+ * everything already recorded (including an extra meal the text doesn't
+ * mention) and adds only what's missing, never removes.
+ *
+ * A fully-empty-array fallback isn't enough: "Meal plan" (free text) and
+ * "Meals Included" (chips) are two independent fields on the hotel-request
+ * fill form, so it's routine to end up with a plan that reads "Breakfast &
+ * Dinner" backing an array that only got one of the two chips ticked —
+ * meals.length is 1, not 0, so a `.length > 0 ? meals : mealsFromPlanText()`
+ * check never catches it. That's exactly the case that kept resurfacing after
+ * the first fix here (custom_itineraries.meals partially, not fully, empty).
+ * Reconciling unconditionally on every read/write closes it regardless of
+ * which field whoever filled the form under-selected.
+ */
+export function reconcileMealsWithPlanText(
+  meals: readonly string[] | null | undefined,
+  planText: string | null | undefined,
+): string[] {
+  const merged = normalizeMealLabels([...(meals ?? []), ...mealsFromPlanText(planText)]);
+  return merged.sort((a, b) => {
+    const ia = MEAL_LABELS.indexOf(a as (typeof MEAL_LABELS)[number]);
+    const ib = MEAL_LABELS.indexOf(b as (typeof MEAL_LABELS)[number]);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+}

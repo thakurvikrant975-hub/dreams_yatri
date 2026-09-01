@@ -72,6 +72,42 @@ async function getAuthenticatedMember() {
   });
 }
 
+// ── Timeline ──────────────────────────────────────────────────────────────────
+//
+// Appended, not overwritten — unlike approvedBy*/rejectedBy* on the template
+// itself, which only ever hold the most recent approve or reject, this keeps
+// every submit/edit/approve/reject a template has ever been through. Mirrors
+// logTimeline in the queries module (see (marketing)/queries/actions.ts).
+
+async function logPackageTemplateTimeline(
+  packageTemplateId: string,
+  event: string,
+  actorId?: string | null,
+  actorName?: string | null,
+) {
+  await db.packageTemplateTimeline.create({
+    data: { packageTemplateId, event, actorId, actorName },
+  });
+}
+
+export type PackageTemplateTimelineEntry = {
+  id: string;
+  actorName: string | null;
+  event: string;
+  createdAt: Date;
+};
+
+export async function getPackageTemplateTimeline(
+  id: string,
+): Promise<{ timeline: PackageTemplateTimelineEntry[] } | null> {
+  const template = await db.packageTemplate.findUnique({
+    where: { id },
+    select: { timeline: { orderBy: { createdAt: "asc" } } },
+  });
+  if (!template) return null;
+  return { timeline: template.timeline };
+}
+
 // ── Save to Library ──────────────────────────────────────────────────────────
 
 /** Counts templates already in the library for a destination — not the trip's
@@ -237,6 +273,8 @@ export async function saveCustomPackageToLibrary(
     return template;
   });
 
+  await logPackageTemplateTimeline(created.id, `Submitted for review by ${actor.name}`, actor.id, actor.name);
+
   if (teamId) {
     const leader = await db.salesTeam.findUnique({ where: { id: teamId }, select: { leaderId: true } });
     if (leader?.leaderId) {
@@ -358,6 +396,56 @@ export async function getPackageTemplateSnapshot(id: string): Promise<PackageTem
   return (row?.snapshot as unknown as PackageTemplateSnapshot) ?? null;
 }
 
+// ── Browsing the approved library (CreatePackageDialog) ─────────────────────
+//
+// Anyone signed in can start a new package from an approved template — not
+// just the team leader who approved it (that's a review-queue permission,
+// see canManage/assertCanManage above; this is just reading a card grid).
+// Read-only and unpaginated: the library is small enough that client-side
+// search is enough, same as sales-query's own "existing packages" list.
+
+export type ApprovedLibraryPackage = {
+  id: string;
+  title: string;
+  description: string | null;
+  destination: string | null;
+  coverImage: string | null;
+  totalDays: number;
+  totalNights: number;
+  stops: PackageTemplateSnapshotStop[];
+  /** Who saved this to the library — shown on the card as "by {name}". */
+  submittedByName: string;
+  approvedByName: string | null;
+};
+
+export async function getApprovedPackageTemplatesForLibrary(): Promise<ApprovedLibraryPackage[]> {
+  const session = await dashboardAuth();
+  if (!session?.user?.email) return [];
+
+  const templates = await db.packageTemplate.findMany({
+    where: { status: "APPROVED" },
+    orderBy: { approvedAt: "desc" },
+    select: {
+      id: true, title: true, description: true, destination: true, coverImage: true,
+      totalDays: true, totalNights: true, snapshot: true,
+      submittedByName: true, approvedByName: true,
+    },
+  });
+
+  return templates.map((t) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    destination: t.destination,
+    coverImage: t.coverImage,
+    totalDays: t.totalDays,
+    totalNights: t.totalNights,
+    stops: (t.snapshot as unknown as PackageTemplateSnapshot | null)?.stops ?? [],
+    submittedByName: t.submittedByName,
+    approvedByName: t.approvedByName,
+  }));
+}
+
 async function assertCanManage(id: string): Promise<{ ok: true; actorId: string; actorName: string } | { ok: false; error: string }> {
   const scope = await getLeaderScope();
   if (!scope) return { ok: false, error: "Unauthorized" };
@@ -391,6 +479,8 @@ export async function approvePackageTemplate(id: string): Promise<{ success: boo
     select: { title: true, submittedById: true, sourcePackageId: true },
   });
 
+  await logPackageTemplateTimeline(id, `Approved by ${auth.actorName}`, auth.actorId, auth.actorName);
+
   await notifyMember({
     recipientId: template.submittedById,
     type: "LIBRARY_PACKAGE_APPROVED",
@@ -420,6 +510,8 @@ export async function rejectPackageTemplate(id: string, reason: string): Promise
     select: { title: true, submittedById: true, sourcePackageId: true },
   });
 
+  await logPackageTemplateTimeline(id, `Rejected by ${auth.actorName}: ${trimmed}`, auth.actorId, auth.actorName);
+
   await notifyMember({
     recipientId: template.submittedById,
     type: "LIBRARY_PACKAGE_REJECTED",
@@ -448,6 +540,8 @@ export async function updatePackageTemplate(
       destination: fields.destination.trim() || null,
     },
   });
+
+  await logPackageTemplateTimeline(id, `Details edited by ${auth.actorName}`, auth.actorId, auth.actorName);
 
   revalidatePath("/dashboard/package-templates");
   return { success: true };
@@ -634,6 +728,8 @@ export async function saveTemplateWorkingCopy(
 
   const result = await syncTemplateFromWorkingCopy(templateId, auth.actorId, auth.actorName);
   if (!result.success) return result;
+
+  await logPackageTemplateTimeline(templateId, `Content updated in builder by ${auth.actorName}`, auth.actorId, auth.actorName);
 
   revalidatePath("/dashboard/package-templates");
   revalidatePath("/dashboard/activity-templates");

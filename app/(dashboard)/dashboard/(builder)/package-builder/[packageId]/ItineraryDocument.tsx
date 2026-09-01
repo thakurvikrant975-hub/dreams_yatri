@@ -28,7 +28,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { StarAndCrescentIcon, MapPinIcon, RoadHorizonIcon } from "@phosphor-icons/react";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
-import { mealsFromPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
+import { mealsFromPlanText, reconcileMealsWithPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import {
   continuesStayFrom, stayRun, removeStay, removeTransport, moveActivityTo, removeActivity,
   emptyTicket, emptyAddon, stopLimitReason, recalcFromStops,
@@ -1352,14 +1352,16 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
   return itineraries.map((day, i) => {
     const chosen = new Set<string>();
     const prev = i > 0 ? itineraries[i - 1] : null;
-    // A day can carry a filled-in hotelMealPlan with an empty meals array —
-    // a hotel request fulfilled via the plan-text field alone, or a stay
-    // edited "by hand" in the builder, never populated the structured array.
-    // Falling back to the same text the hotel card already shows keeps this
-    // table in sync with it instead of going blank next to it.
-    const prevMeals = prev ? (prev.meals.length > 0 ? prev.meals : mealsFromPlanText(prev.hotelMealPlan)) : [];
+    // A day's stored meals can be incomplete relative to its plan text — a
+    // hotel request filled with a "Meal plan" of "Breakfast & Dinner" but
+    // only one of the two "Meals Included" chips ticked, say, or a stay
+    // edited "by hand" in the builder with no chips touched at all — so this
+    // reconciles the two (union, never removes) rather than trusting the
+    // array outright or only falling back when it's fully empty. See
+    // reconcileMealsWithPlanText.
+    const prevMeals = prev ? reconcileMealsWithPlanText(prev.meals, prev.hotelMealPlan) : [];
     if (prevMeals.some((m) => m.toLowerCase().includes("breakfast"))) chosen.add("Breakfast");
-    const dayMeals = day.meals.length > 0 ? day.meals : mealsFromPlanText(day.hotelMealPlan);
+    const dayMeals = reconcileMealsWithPlanText(day.meals, day.hotelMealPlan);
     for (const m of dayMeals) {
       if (m.toLowerCase().includes("breakfast")) continue;
       chosen.add(m);
@@ -1640,7 +1642,7 @@ export function DaySummaryTable({
                 </td>
                 <td className={bodyCell} style={cellEdges(false, isLastDay)}>
                   <SummaryCell
-                    action="View meals"
+                    action="Edit meals"
                     onOpen={open({ kind: "meals-edit", day: d.day })}
                     value={shiftedMeals[i].length > 0 ? shiftedMeals[i].join(", ") : null}
                   />
@@ -2707,8 +2709,9 @@ function DayCardPreview({
 
   const mealsActions: SectionAction[] | undefined = canEditDoc ? [
     {
-      // No manual edit any more — meals are entirely the picked hotel's plan.
-      icon: Pencil, label: "View meals",
+      // Normally the picked hotel's own plan, but directly toggleable in the
+      // drawer too — see MealsView, ExtrasDrawers.tsx.
+      icon: Pencil, label: "Edit meals",
       onClick: () => builder!.openDrawer({ kind: "meals-edit", day: day.day }),
     },
   ] : undefined;
@@ -3005,12 +3008,29 @@ function DayCardPreview({
                       {(mealText || builder?.canEdit) && (
                         <p className="text-[13px] text-emerald-600 flex items-center gap-1">
                           <Utensils size={10} className="text-emerald-500 shrink-0" />
-                          {mealText ?? (
-                            <EditableText
-                              value={day.hotelMealPlan}
-                              field={{ scope: "day", day: day.day, key: "hotelMealPlan" }}
-                              placeholder="Meal plan — e.g. MAP, Breakfast & Dinner"
-                            />
+                          {builder?.canEdit ? (
+                            // Opens the same meals drawer as "Edit meals" above
+                            // (MealsView, ExtrasDrawers.tsx), rather than
+                            // editing hotelMealPlan's free text in place.
+                            // hotelMealPlan is only HALF of what this line
+                            // reflects — a catalog room's picked plan writes
+                            // straight into the day's `meals` array too (see
+                            // applyHotelRoomSelection), and reconcileMealsWithPlanText
+                            // (meals.ts) means either field alone can keep a
+                            // meal "included" here even after the other is
+                            // cleared. The drawer is the one place that writes
+                            // both together, so it's the only edit path that
+                            // can actually make a removal stick.
+                            <button
+                              type="button"
+                              onClick={() => builder!.openDrawer({ kind: "meals-edit", day: day.day })}
+                              className="cursor-pointer rounded-[3px] hover:bg-dashboard-primary/8 focus-visible:outline-2 focus-visible:outline-dashboard-primary/60 text-left"
+                              title="Click to edit meals"
+                            >
+                              {mealText ?? "Click to set meal plan"}
+                            </button>
+                          ) : (
+                            mealText
                           )}
                         </p>
                       )}

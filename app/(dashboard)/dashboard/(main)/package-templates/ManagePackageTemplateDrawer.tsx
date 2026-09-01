@@ -4,9 +4,9 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, Check, Ban, Utensils, Hotel, Car, StickyNote, Pencil } from "lucide-react";
+import { Loader2, Check, Utensils, Hotel, Car, StickyNote, Pencil } from "lucide-react";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "../components/ui/sheet";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -14,7 +14,7 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
 import {
-  approvePackageTemplate, rejectPackageTemplate, updatePackageTemplate, getPackageTemplateSnapshot,
+  updatePackageTemplate, getPackageTemplateSnapshot,
   getOrCreateTemplateWorkingCopy,
   type PackageTemplateRow, type PackageTemplateSnapshot,
 } from "./actions";
@@ -34,8 +34,6 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
   const [title, setTitle] = useState(template?.title ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
   const [destination, setDestination] = useState(template?.destination ?? "");
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState("");
 
   useEffect(() => {
     if (!template) return;
@@ -43,30 +41,11 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
     setDescription(template.description ?? "");
     setDestination(template.destination ?? "");
     setSnapshot(null);
-    setRejecting(false);
-    setReason("");
     setLoadingSnapshot(true);
     getPackageTemplateSnapshot(template.id).then((s) => { setSnapshot(s); setLoadingSnapshot(false); });
   }, [template]);
 
   if (!template) return null;
-
-  function approve() {
-    startTransition(async () => {
-      const result = await approvePackageTemplate(template!.id);
-      if (result.success) { toast.success(`"${template!.title}" approved`); router.refresh(); onOpenChange(false); }
-      else toast.error(result.error ?? "Failed to approve");
-    });
-  }
-
-  function reject() {
-    if (!reason.trim()) { toast.error("A reason is required"); return; }
-    startTransition(async () => {
-      const result = await rejectPackageTemplate(template!.id, reason);
-      if (result.success) { toast.success("Rejected"); router.refresh(); onOpenChange(false); }
-      else toast.error(result.error ?? "Failed to reject");
-    });
-  }
 
   function saveFields() {
     startTransition(async () => {
@@ -127,9 +106,8 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
               </Button>
               <p className="text-[11px] text-muted-foreground">
                 Opens the full package builder in a new tab — hotels, cabs, activities, everything — on a working
-                copy of this template. Click Save to Template inside the builder any time, or just come back here
-                and Approve — approving also saves your latest edits. The original package this was saved from is
-                never touched.
+                copy of this template. Save to Template, and Approve or Reject, all happen from inside the builder
+                — approving also saves your latest edits. The original package this was saved from is never touched.
               </p>
             </div>
           )}
@@ -182,35 +160,6 @@ export function ManagePackageTemplateDrawer({ template, open, onOpenChange }: Pr
             </div>
           ) : null}
         </div>
-
-        {template.canManage && (
-          <SheetFooter className="border-t">
-            {!rejecting ? (
-              <div className="flex items-center gap-2 w-full">
-                {template.status !== "REJECTED" && (
-                  <Button variant="outline" className="text-destructive hover:text-destructive gap-1.5" disabled={isPending} onClick={() => setRejecting(true)}>
-                    <Ban className="h-4 w-4" /> Reject
-                  </Button>
-                )}
-                {template.status !== "APPROVED" && (
-                  <Button className="flex-1 gap-1.5" disabled={isPending} onClick={approve}>
-                    <Check className="h-4 w-4" /> Approve
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="w-full space-y-2">
-                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being rejected?" rows={2} className="text-sm resize-none" autoFocus />
-                <div className="flex items-center gap-2">
-                  <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={isPending || !reason.trim()} onClick={reject}>
-                    {isPending ? "Rejecting…" : "Confirm Reject"}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setRejecting(false); setReason(""); }}>Cancel</Button>
-                </div>
-              </div>
-            )}
-          </SheetFooter>
-        )}
       </SheetContent>
     </Sheet>
   );

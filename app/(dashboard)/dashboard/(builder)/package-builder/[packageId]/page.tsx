@@ -69,7 +69,7 @@ import { ItineraryPdfExport } from "./ItineraryPdfExport";
 import { ClientLinkButton } from "@/app/(dashboard)/dashboard/(builder)/package-builder/ClientLinkButton";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { SaveToLibraryDialog } from "./SaveToLibraryDialog";
-import { saveTemplateWorkingCopy } from "@/app/(dashboard)/dashboard/(main)/package-templates/actions";
+import { saveTemplateWorkingCopy, approvePackageTemplate, rejectPackageTemplate } from "@/app/(dashboard)/dashboard/(main)/package-templates/actions";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { getStayOptionsForDocument, cloneStayOptionsInto } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
 import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
@@ -439,6 +439,15 @@ export default function PackageBuilderDetailPage() {
   const [isSharing, startShare] = useTransition();
   const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [isSavingToTemplate, startSaveToTemplate] = useTransition();
+  // Approve/Reject a library template — only ever shown on a template's own
+  // working copy (isTemplateWorkingCopy below), the one place this is done
+  // now instead of the outside review list, so a leader is always looking at
+  // the actual content before deciding. See approvePackageTemplate/
+  // rejectPackageTemplate, package-templates/actions.ts.
+  const [isApprovingTemplate, startApproveTemplate] = useTransition();
+  const [isRejectingTemplate, startRejectTemplate] = useTransition();
+  const [templateRejectOpen, setTemplateRejectOpen] = useState(false);
+  const [templateRejectReason, setTemplateRejectReason] = useState("");
   const [confirmReadyOpen, setConfirmReadyOpen] = useState(false);
   /** The stay standards, as the document's columns and price cards read them.
       Kept beside the form rather than in it: they are saved per standard,
@@ -1506,6 +1515,35 @@ Rules:
     });
   }
 
+  // ── Approve/Reject — same working-copy-only gate as Save to Template.
+  // Approving also syncs this working copy's latest edits into the template
+  // (see approvePackageTemplate), so there's no separate save-then-approve
+  // step needed.
+  function handleApproveTemplate() {
+    const templateId = query?.customPackage?.templateId;
+    if (!templateId) return;
+    startApproveTemplate(async () => {
+      const result = await approvePackageTemplate(templateId);
+      if (result.success) toast.success("Template approved");
+      else toast.error(result.error ?? "Failed to approve");
+    });
+  }
+
+  function handleRejectTemplate() {
+    const templateId = query?.customPackage?.templateId;
+    if (!templateId || !templateRejectReason.trim()) return;
+    startRejectTemplate(async () => {
+      const result = await rejectPackageTemplate(templateId, templateRejectReason);
+      if (result.success) {
+        toast.success("Template rejected");
+        setTemplateRejectOpen(false);
+        setTemplateRejectReason("");
+      } else {
+        toast.error(result.error ?? "Failed to reject");
+      }
+    });
+  }
+
   function handleShare() {
     setConfirmShareOpen(false);
     startShare(async () => {
@@ -2297,10 +2335,69 @@ Rules:
       </header>
 
       {isTemplateWorkingCopy && (
-        <div className="flex items-center gap-2 px-4 py-1.5 bg-dashboard-primary/10 border-b border-dashboard-primary/20 text-dashboard-primary text-xs font-medium">
-          <Pencil size={12} className="shrink-0" />
-          Editing a library template — this is a working copy. Changes here only reach the template when you click
-          Save to Template, and no real booking is ever touched.
+        <div className="border-b border-dashboard-primary/20 bg-dashboard-primary/10">
+          <div className="flex flex-wrap items-center gap-2 px-4 py-1.5 text-dashboard-primary text-xs font-medium">
+            <Pencil size={12} className="shrink-0" />
+            <span className="flex-1 min-w-0">
+              Editing a library template — this is a working copy. Changes here only reach the template when you click
+              Save to Template, and no real booking is ever touched.
+            </span>
+            {/* Review this template's own team leader is meant to approve/reject
+                lives here now, not on the outside /dashboard/package-templates
+                list — a leader always looks at the real content before deciding.
+                assertCanManage inside approvePackageTemplate/rejectPackageTemplate
+                is the actual gate; anyone else who lands on this URL just gets
+                its error toast on click, same precedent as Save to Template above. */}
+            {!templateRejectOpen ? (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 rounded-md text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                  disabled={isApprovingTemplate || isRejectingTemplate}
+                  onClick={() => setTemplateRejectOpen(true)}
+                >
+                  <XCircle size={13} /> <span className="text-xs">Reject</span>
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
+                  disabled={isApprovingTemplate || isRejectingTemplate}
+                  onClick={handleApproveTemplate}
+                >
+                  {isApprovingTemplate ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+                  <span className="text-xs">Approve</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 flex-1 min-w-64 shrink-0">
+                <Textarea
+                  value={templateRejectReason}
+                  onChange={(e) => setTemplateRejectReason(e.target.value)}
+                  placeholder="Why is this being rejected?"
+                  rows={1}
+                  className="h-7 min-h-7 py-1 text-xs resize-none flex-1"
+                  autoFocus
+                />
+                <Button
+                  size="sm"
+                  className="h-7 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md shrink-0"
+                  disabled={isRejectingTemplate || !templateRejectReason.trim()}
+                  onClick={handleRejectTemplate}
+                >
+                  {isRejectingTemplate ? <Loader2 size={13} className="animate-spin" /> : "Confirm"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 rounded-md shrink-0"
+                  onClick={() => { setTemplateRejectOpen(false); setTemplateRejectReason(""); }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
