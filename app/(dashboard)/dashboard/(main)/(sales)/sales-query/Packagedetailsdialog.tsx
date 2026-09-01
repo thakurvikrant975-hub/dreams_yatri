@@ -141,9 +141,36 @@ function rebuildMembers(
  *   2. a single `journey.pickupPoints: string[]` that conflated departure
  *      and pickup before the two were split into separate fields — treated
  *      as departure points on upgrade, since that's what it represented. */
-function normalizeRequirements(reqs: PackageRequirements): PackageRequirements {
-    const { adults, children, infants, members } = reqs.travellers;
-    const rawJourney = reqs.journey as unknown as {
+function normalizeRequirements(
+    reqs: PackageRequirements,
+    fallback: PackageRequirements,
+): PackageRequirements {
+    /*
+     * `requirements` is free-form JSON on the query, so a stored object is not
+     * guaranteed to carry any particular section — a lead created by something
+     * other than this form (the .com landing-page bridge writes its own
+     * metadata there) has none of them. The caller's `??` only covers a null
+     * column, not a non-null object of a different shape, which destructured
+     * straight to undefined and took the whole sales queue down server-side.
+     *
+     * Sections are merged onto the defaults rather than trusted wholesale, so
+     * a partially-filled one from an older format is completed rather than
+     * left with missing keys for the fields below to trip over.
+     */
+    const travellersSrc = { ...fallback.travellers, ...(reqs.travellers ?? {}) };
+    const journeySrc = { ...fallback.journey, ...(reqs.journey ?? {}) };
+    // The remaining sections get the same treatment for the same reason — the
+    // fields below reach into them (`.types.length`, `.selected.map`) and a
+    // half-filled one from an older format would throw just as readily.
+    const restSrc = {
+        stay: { ...fallback.stay, ...(reqs.stay ?? {}) },
+        transport: { ...fallback.transport, ...(reqs.transport ?? {}) },
+        activities: { ...fallback.activities, ...(reqs.activities ?? {}) },
+        budget: { ...fallback.budget, ...(reqs.budget ?? {}) },
+    };
+
+    const { adults, children, infants, members } = travellersSrc;
+    const rawJourney = journeySrc as unknown as {
         startingPoint?: string;
         pickupPoints?: string[];
         departurePoints?: string[];
@@ -155,15 +182,17 @@ function normalizeRequirements(reqs: PackageRequirements): PackageRequirements {
     const pickupPoints = isPreSplitFormat ? [] : (rawJourney.pickupPoints ?? []);
 
     return {
+        ...fallback,
         ...reqs,
+        ...restSrc,
         travellers: {
-            ...reqs.travellers,
+            ...travellersSrc,
             members: members && members.length === adults + children + infants
                 ? members
                 : rebuildMembers(members ?? [], adults, children, infants),
         },
         journey: {
-            ...reqs.journey,
+            ...journeySrc,
             departurePoints,
             pickupPoints,
         },
@@ -441,7 +470,7 @@ export function PackageDetailsDialog({
     const [activeTab, setActiveTab] = useState<TabId>("travellers");
     const [isPending, startTransition] = useTransition();
     const [reqs, setReqs] = useState<PackageRequirements>(() =>
-        normalizeRequirements(initialRequirements ?? defaultRequirements(query)),
+        normalizeRequirements(initialRequirements ?? defaultRequirements(query), defaultRequirements(query)),
     );
 
     // Vehicle catalog for the Transport tab — fetched from `/dashboard/vehicles`
@@ -575,7 +604,7 @@ export function PackageDetailsDialog({
             onOpenChange={(v) => {
                 setOpen(v);
                 if (v) {
-                    setReqs(normalizeRequirements(initialRequirements ?? defaultRequirements(query)));
+                    setReqs(normalizeRequirements(initialRequirements ?? defaultRequirements(query), defaultRequirements(query)));
                     setActiveTab("travellers");
                 }
             }}
