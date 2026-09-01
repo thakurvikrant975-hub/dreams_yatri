@@ -6,7 +6,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import {
     Package, Search, MapPin, Route, BedDouble, CalendarDays, Loader2, Sparkles, ArrowRight, IndianRupee,
-    Users, Calendar, Plus, X, Copy, FileStack,
+    Users, Calendar, Plus, X, Copy, FileStack, BookOpen, UserRound,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -18,7 +18,13 @@ import { getCardImage } from "@/app/lib/imageUrl";
 import {
     searchPackageLibraryForTemplate, getTemplatePackagePriceForCategory, type TemplatePackage,
 } from "../package-library/actions";
-import { copyPackageIntoDraft, duplicateCustomPackageIntoDraft } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import {
+    copyPackageIntoDraft, duplicateCustomPackageIntoDraft, type PackageCopyPayload,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import {
+    getApprovedPackageTemplatesForLibrary, getPackageTemplateSnapshot, type ApprovedLibraryPackage,
+} from "@/app/(dashboard)/dashboard/(main)/package-templates/actions";
+import { emptyDay } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/day-mutations";
 import { parseCalendarDay, formatCalendarDayLong } from "@/app/lib/dates/calendar-day";
 
 const PAGE_SIZE = 12;
@@ -163,6 +169,15 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
     const [applyingDuplicateId, setApplyingDuplicateId] = useState<string | null>(null);
     const [recomputingId, setRecomputingId] = useState<number | null>(null);
 
+    // The approved package library (/dashboard/package-templates) — a
+    // separate, unrelated source from the catalog `packages` grid above, so
+    // fetched once per open rather than folded into the debounced catalog
+    // search. Only offered from a "Create Package" entry point (queryId, no
+    // packageId) — swapping an in-progress draft's template in place would
+    // need a different apply path than the fresh-draft one below.
+    const [libraryPackages, setLibraryPackages] = useState<ApprovedLibraryPackage[]>([]);
+    const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null);
+
     // Debounce guard so a fast-typing search doesn't race an older request
     // into overwriting a newer one's results.
     const requestId = useRef(0);
@@ -174,6 +189,17 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
         setRouteStops(["", ""]);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
+
+    useEffect(() => {
+        if (!open || queryId == null || packageId != null) return;
+        getApprovedPackageTemplatesForLibrary().then(setLibraryPackages);
+    }, [open, queryId, packageId]);
+
+    const filteredLibraryPackages = libraryPackages.filter((p) => {
+        if (routeMode || !search) return true;
+        const s = search.toLowerCase();
+        return p.title.toLowerCase().includes(s) || (p.destination ?? "").toLowerCase().includes(s);
+    });
 
     useEffect(() => {
         if (!open) return;
@@ -252,6 +278,64 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
             window.location.href = targetUrl(targetId);
         } finally {
             setApplyingSlug(null);
+        }
+    }
+
+    // Same sessionStorage + hard-navigation flow as handleUseTemplate, just
+    // built from a PackageTemplate's flat snapshot instead of a catalog
+    // package's route/duration/stay data — there's no live pricing or
+    // hotel_room_pricing links to resolve here, so the payload is a pure,
+    // synchronous mapping rather than a server round-trip through
+    // fetchPackagePageData.
+    async function handleUseLibraryTemplate(pkg: ApprovedLibraryPackage) {
+        setApplyingLibraryId(pkg.id);
+        try {
+            const snapshot = await getPackageTemplateSnapshot(pkg.id);
+            if (!snapshot) {
+                toast.error(`Couldn't load "${pkg.title}" — try again or pick a different package.`);
+                return;
+            }
+            const payload: PackageCopyPayload = {
+                title: pkg.title,
+                description: pkg.description ?? "",
+                coverImage: pkg.coverImage ?? "",
+                destination: pkg.destination ?? "",
+                startingPoint: "",
+                totalDays: pkg.totalDays,
+                totalNights: pkg.totalNights,
+                inclusions: snapshot.inclusions,
+                exclusions: snapshot.exclusions,
+                termsNotes: snapshot.termsNotes ?? "",
+                stops: snapshot.stops.map((s) => ({ name: s.name, nights: s.nights })),
+                itineraries: snapshot.days.map((d) => ({
+                    ...emptyDay(d.day),
+                    title: d.title,
+                    description: d.description ?? "",
+                    meals: d.meals,
+                    extraMeals: d.extraMeals,
+                    accommodation: d.accommodation ?? "",
+                    accommodationLocation: d.accommodationLocation ?? "",
+                    accommodationStarRating: d.accommodationStarRating ?? "",
+                    accommodationRoomSpecs: d.accommodationRoomSpecs ?? "",
+                    transport: d.transport ?? "",
+                    transportVehicleType: d.transportVehicleType ?? "",
+                    transportSeats: d.transportSeats,
+                    extraCabs: d.extraCabs,
+                    notes: d.notes ?? "",
+                    notesTitle: d.notesTitle,
+                    notesType: d.notesType,
+                    activities: d.activities.map((a) => ({
+                        title: a.title, description: a.description ?? "",
+                        photo: a.photo ?? "", photos: a.photos, photoLabels: a.photoLabels,
+                    })),
+                })),
+            };
+            const targetId = packageId ?? newPackageId();
+            sessionStorage.setItem(`pkgCopyPayload:${targetId}`, JSON.stringify(payload));
+            setOpen(false);
+            window.location.href = targetUrl(targetId);
+        } finally {
+            setApplyingLibraryId(null);
         }
     }
 
@@ -462,6 +546,68 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
                 </div>
 
                 <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+                    {filteredLibraryPackages.length > 0 && (
+                        <div className="pb-3 mb-3 border-b border-border space-y-2">
+                            <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                                <BookOpen size={13} /> From your team&apos;s library
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {filteredLibraryPackages.map((pkg) => (
+                                    <div key={pkg.id} className="rounded-xl border border-border overflow-hidden hover:shadow-sm transition-shadow flex flex-col">
+                                        <div className="h-28 bg-muted relative shrink-0">
+                                            {pkg.coverImage ? (
+                                                <Image src={getCardImage(pkg.coverImage)} alt={pkg.title} fill className="object-cover" />
+                                            ) : (
+                                                <div className="h-full w-full flex items-center justify-center text-muted-foreground/40">
+                                                    <BookOpen size={20} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-3 space-y-1.5 flex-1 flex flex-col">
+                                            <h4 className="text-sm font-bold text-foreground line-clamp-1">{pkg.title}</h4>
+                                            {pkg.destination && (
+                                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                                    <MapPin size={10} /> {pkg.destination}
+                                                </p>
+                                            )}
+                                            {pkg.stops.length > 0 && (
+                                                <p className="text-[11px] text-muted-foreground flex items-center gap-1 line-clamp-1">
+                                                    <Route size={10} className="shrink-0" />
+                                                    {pkg.stops.map((s) => `${s.name} (${s.nights}N)`).join(" → ")}
+                                                </p>
+                                            )}
+                                            {(pkg.totalDays || pkg.totalNights) && (
+                                                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                                    <CalendarDays size={10} /> {pkg.totalDays}D / {pkg.totalNights}N
+                                                </p>
+                                            )}
+                                            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                                <UserRound size={10} className="shrink-0" />
+                                                by {pkg.submittedByName}
+                                            </p>
+                                            <div className="pt-1 mt-auto">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="w-full h-7 gap-1 text-xs rounded-md"
+                                                    disabled={applyingLibraryId !== null}
+                                                    onClick={() => handleUseLibraryTemplate(pkg)}
+                                                >
+                                                    {applyingLibraryId === pkg.id ? (
+                                                        <Loader2 size={11} className="animate-spin" />
+                                                    ) : (
+                                                        <BookOpen size={11} />
+                                                    )}
+                                                    Use Template
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {loading ? (
                         <div className="flex flex-col items-center justify-center gap-2.5 py-12 px-8 text-center">
                             <Loader2 size={18} className="animate-spin text-primary" />

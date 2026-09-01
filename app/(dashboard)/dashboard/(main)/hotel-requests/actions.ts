@@ -15,7 +15,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { resolveStayPhoto } from "@/app/lib/imageUrl";
-import { normalizeMealLabels, mealsFromPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
+import { reconcileMealsWithPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { syncRecommendedStayFromDays } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.sync";
 import { getCurrentMember } from "../lib/get-current-member";
 import { logTimeline } from "../(marketing)/queries/actions";
@@ -135,14 +135,13 @@ async function runFillPendingHotel(
         const effectiveMealPlan = target.day === day
             ? (input.mealPlan?.trim() || null)
             : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null);
-        // Falls back to reading the plan text itself when the admin filled
-        // "Meal plan" but never touched the "Meals Included" chips — the
-        // Day-wise Summary table reads this array, not the free-text plan,
-        // so an empty one here is what makes a filled hotel look meal-less
-        // there while the hotel card (which reads the plan text) is fine.
-        const effectiveMeals = input.meals?.length
-            ? normalizeMealLabels(input.meals)
-            : mealsFromPlanText(effectiveMealPlan);
+        // Reconciled, not just defaulted: "Meal plan" and "Meals Included"
+        // are two independent fields on the fill form, so the admin can type/
+        // pick a plan that says "Breakfast & Dinner" while only ticking one
+        // of the two chips — the array ends up non-empty but incomplete, and
+        // the Day-wise Summary table (which reads this array, not the plan
+        // text) shows fewer meals than the hotel card next to it does.
+        const effectiveMeals = reconcileMealsWithPlanText(input.meals, effectiveMealPlan);
         return db.custom_itineraries.update({
             where: { id: target.id },
             data: {

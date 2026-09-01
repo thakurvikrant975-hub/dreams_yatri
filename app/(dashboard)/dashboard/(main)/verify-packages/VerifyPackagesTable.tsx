@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, Clock, CheckCircle2, XCircle, Send, Eye, MessageSquare, Pencil } from "lucide-react";
+import { ShieldCheck, Clock, CheckCircle2, XCircle, Send, MessageSquare, Check } from "lucide-react";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
@@ -210,63 +210,32 @@ export function VerifyPackagesTable({
         {
             header: "Action",
             align: "right",
-            width: "w-[190px]",
-            cell: (p) => {
-                // Only a package still at READY can actually be acted on. This
-                // list is "everything that has ever reached costing", so it also
-                // carries packages the exec has since pulled back or had
-                // rejected — and those were offered an "Approve →" button that
-                // opened an editor with nothing to approve. The label now says
-                // what the row can actually do.
-                const actionable = p.status === "READY" && !p.verified;
-                const label = p.verified
-                    ? <><Eye className="size-3" /> View</>
-                    : actionable
-                        ? "Approve →"
-                        : <><Eye className="size-3" /> With exec</>;
-                return (
-                    // Two ways into the same review, on purpose. The left button
-                    // is the established screen costing uses today; the right one
-                    // opens the same package in the editor, where corrections are
-                    // made where they sit. Both stay until the new one has been
-                    // run against real packages for long enough to replace the
-                    // old one, and until then neither is hidden behind the other.
-                    //
-                    // New tab for both: opening one leaves the queue exactly as
-                    // the reviewer left it — same page, same filter, same scroll
-                    // — to come back to. `rel="noopener"` rather than
-                    // "noreferrer", because the editor's back control reads
-                    // document.referrer to return here.
-                    <div className="inline-flex items-center gap-1.5 justify-end">
-                        <Link
-                            href={`/dashboard/verify-packages/${p.id}`}
-                            target="_blank"
-                            rel="noopener"
-                            title={actionable
-                                ? "Review on the classic screen"
-                                : "Back with the sales exec — nothing to review until they resubmit it"}
-                            className={`inline-flex items-center gap-1 justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                                p.verified
-                                    ? "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                                    : actionable
-                                    ? "bg-dashboard-primary text-white hover:opacity-90"
-                                    : "border border-dashboard-base-300 bg-dashboard-base-200 text-dashboard-neutral hover:bg-dashboard-base-300"
-                            }`}
-                        >
-                            {label}
-                        </Link>
-                        <Link
-                            href={`/dashboard/package-builder/${p.id}/review`}
-                            target="_blank"
-                            rel="noopener"
-                            title="Review in the new editor — correct the itinerary where it sits, then approve or reject"
-                            className="inline-flex items-center gap-1 justify-center rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
-                        >
-                            <Pencil className="size-3" /> Editor
-                        </Link>
-                    </div>
-                );
-            },
+            width: "w-[110px]",
+            cell: (p) => (
+                // The classic /verify-packages/[id] screen's "Approve →" link
+                // used to sit next to this one — dropped in favor of this
+                // single entry point, which opens the same package in the
+                // builder's review workspace (CostingDecisionButtons there
+                // calls the identical approveCustomPackage/rejectCustomPackage
+                // actions this list used to link out to directly).
+                //
+                // New tab: opening it leaves the queue exactly as the
+                // reviewer left it — same page, same filter, same scroll —
+                // to come back to. `rel="noopener"` rather than "noreferrer",
+                // because the editor's back control reads document.referrer
+                // to return here.
+                <div className="inline-flex items-center justify-end">
+                    <Link
+                        href={`/dashboard/package-builder/${p.id}/review`}
+                        target="_blank"
+                        rel="noopener"
+                        title="Review in the editor — correct the itinerary where it sits, then approve or reject"
+                        className="inline-flex items-center gap-1 justify-center rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+                    >
+                        <Check className="size-3" /> Approve
+                    </Link>
+                </div>
+            ),
         },
     ];
 
