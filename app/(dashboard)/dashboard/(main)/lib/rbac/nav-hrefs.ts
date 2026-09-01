@@ -94,6 +94,14 @@ export const ALL_HREFS = [
 export function resolveNavHref(pathname: string): string | null {
   if (ALL_HREFS.includes(pathname)) return pathname;
 
+  // The staff-only catalog preview (CreatePackageDialog's "View" button) is
+  // reachable from sales-query, not just the builder — a Sales Executive with
+  // Sales Query access but no Package Builder access must still be able to
+  // open it. Not a sidebar destination at all, so — like every unmatched
+  // pathname — it's simply not gated, same as the old /dashboard/preview/…
+  // route this replaced.
+  if (pathname.startsWith("/dashboard/package-builder/prereview")) return null;
+
   // The review route is the exception, and it matters: it is costing's screen,
   // not an exec's. A Costing Manager is granted Verify Packages and NOT
   // Package Builder, so sending /review to the builder's key locked the

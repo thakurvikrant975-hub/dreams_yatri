@@ -109,24 +109,27 @@ function initials(name: string): string {
 }
 
 /** The staff-only preview of this catalog card's package — under
- * /dashboard/preview/packages, which works for offline (isActive false)
- * packages too (the real public page 404s those by design). Always returns
- * a URL, never null, so every catalog card gets a working "View" regardless
- * of how complete its setup is:
- *  - Full itinerary preview (/packages/<slug>/<duration>/<route>/<stay>-shaped)
- *    when a duration+route exist — a missing/unconfigured stay category no
- *    longer blocks this: that route's fetchPackagePageData call passes
+ * /dashboard/package-builder/prereview, rendered through the builder's own
+ * ItineraryDocument (the same component /package-builder/[id]/review and the
+ * client's /custom-package/[id] link use), not the public website's
+ * components — see fetch-catalog-preview.ts. Works for offline (isActive
+ * false) packages too (the real public page 404s those by design). Always
+ * returns a URL, never null, so every catalog card gets a working "View"
+ * regardless of how complete its setup is:
+ *  - Full document preview (prereview/<slug>/<duration>/<route>/<stay>) when
+ *    a duration+route exist — a missing/unconfigured stay category no longer
+ *    blocks this: that route's fetchPackagePageData call passes
  *    allowMissingStay, so a placeholder "default" segment resolves fine (a
  *    real data gap on plenty of packages — see that fetch's own comment).
  *  - The lightweight, itinerary-free preview (just the slug) for a package
  *    with no active duration/route at all — there's no itinerary to show
- *    without one, so the full page can't render either way. */
+ *    without one, so the full document can't render either way. */
 function catalogViewUrl(pkg: TemplatePackage): string {
-    if (!pkg.durationSlug || !pkg.routeSlug) return `/dashboard/preview/packages/${pkg.slug}`;
+    if (!pkg.durationSlug || !pkg.routeSlug) return `/dashboard/package-builder/prereview/${pkg.slug}`;
     const staySlug = pkg.stayCategoryOptions.find((o) => o.id === pkg.selectedStayCategoryId)?.slug
         ?? pkg.stayCategoryOptions[0]?.slug
         ?? "default";
-    return `/dashboard/preview/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${staySlug}`;
+    return `/dashboard/package-builder/prereview/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${staySlug}`;
 }
 
 export type QueryBudget = { min?: number; max?: number; type: "PER_PERSON" | "TOTAL" };
@@ -853,7 +856,7 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            className="h-7 gap-1 text-xs rounded-md px-2.5"
+                                                            className="h-7 gap-1 text-xs rounded-md px-2.5 border-sky-200 bg-sky-50 text-sky-600 hover:bg-sky-100 hover:border-sky-300 hover:text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-400 dark:hover:bg-sky-950/60"
                                                             title="View this template in a new tab"
                                                             onClick={() => window.open(`/dashboard/package-templates?view=${pkg.id}`, "_blank", "noopener,noreferrer")}
                                                         >
@@ -861,8 +864,7 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
                                                         </Button>
                                                         <Button
                                                             size="sm"
-                                                            variant="outline"
-                                                            className="flex-1 h-7 gap-1 text-xs rounded-md"
+                                                            className="flex-1 h-7 gap-1 text-xs rounded-md border-transparent bg-linear-to-r from-violet-500 to-purple-600 text-white shadow-sm hover:from-violet-400 hover:to-purple-500"
                                                             disabled={applyingLibraryId !== null}
                                                             onClick={() => handleUseLibraryTemplate(pkg)}
                                                         >
@@ -1022,7 +1024,7 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        className="h-7 gap-1 text-xs rounded-md px-2.5"
+                                                        className="h-7 gap-1 text-xs rounded-md px-2.5 border-sky-200 bg-sky-50 text-sky-600 hover:bg-sky-100 hover:border-sky-300 hover:text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-400 dark:hover:bg-sky-950/60"
                                                         title="Preview this package in a new tab"
                                                         onClick={() => window.open(catalogViewUrl(pkg), "_blank", "noopener,noreferrer")}
                                                     >
@@ -1030,7 +1032,7 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
                                                     </Button>
                                                     <Button
                                                         size="sm"
-                                                        className="flex-1 h-7 gap-1 text-xs rounded-md"
+                                                        className="flex-1 h-7 gap-1 text-xs rounded-md border-transparent bg-linear-to-r from-amber-500 to-orange-600 text-white shadow-sm hover:from-amber-400 hover:to-orange-500"
                                                         disabled={applyingSlug !== null || applyingDuplicateId !== null}
                                                         onClick={() => handleUseTemplate(pkg)}
                                                     >
