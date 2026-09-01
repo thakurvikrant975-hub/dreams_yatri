@@ -220,7 +220,18 @@ function dy_destination_from_path($path)
         'uttarakhand' => 'Uttarakhand', 'kashmir' => 'Kashmir', 'ladakh' => 'Ladakh',
         'karnataka' => 'Karnataka', 'gujarat' => 'Gujarat', 'nepal' => 'Nepal',
         'thailand' => 'Thailand', 'dubai' => 'Dubai', 'pondicherry' => 'Pondicherry',
-        'vizag' => 'Vizag', 'jaisalmer' => 'Rajasthan', 'jaipur' => 'Rajasthan',
+        'vizag' => 'Vizag',
+        // Towns, resolved to the state the report groups by. Matched here
+        // rather than in the exact-match table above so a campaign variant
+        // like manali-winter-tours still lands on Himachal instead of
+        // inventing "Manali Winter" as a destination of its own.
+        'manali' => 'Himachal', 'shimla' => 'Himachal', 'kasol' => 'Himachal',
+        'jibhi' => 'Himachal', 'kinnaur' => 'Himachal', 'dalhousie' => 'Himachal',
+        'kasauli' => 'Himachal', 'dharamshala' => 'Himachal',
+        'jaisalmer' => 'Rajasthan', 'jaipur' => 'Rajasthan', 'udaipur' => 'Rajasthan',
+        'amarnath' => 'Kashmir', 'chardham' => 'Uttarakhand',
+        'orchha' => 'Madhya Pradesh', 'rann-of-kutch' => 'Gujarat', 'gir-lion' => 'Gujarat',
+        'cherrapunji' => 'Meghalaya', 'shillong' => 'Meghalaya', 'gangtok' => 'Sikkim',
     ];
     uksort($canonical, function ($a, $b) { return strlen($b) - strlen($a); });
     foreach ($canonical as $slug => $label) {
