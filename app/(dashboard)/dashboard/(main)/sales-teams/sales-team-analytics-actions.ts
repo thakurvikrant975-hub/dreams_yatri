@@ -46,10 +46,19 @@ export type SalesTeamAnalytics = {
   };
 };
 
-export async function getSalesTeamAnalytics(): Promise<SalesTeamAnalytics> {
+/** `fromStr`/`toStr` (YYYY-MM-DD) override the default "current calendar
+ * month" window for the three date-scoped metrics below — lets a caller
+ * (e.g. the Team Leader analytics view's leaderboard) reuse this same
+ * company-wide ranking for whatever range its date picker is set to. The
+ * `...ThisMonth` field names stay as-is even when a custom range is passed,
+ * to avoid a churny rename across every existing consumer. */
+export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): Promise<SalesTeamAnalytics> {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const rangeStart = fromStr ? new Date(`${fromStr}T00:00:00`) : monthStart;
+  const rangeEnd   = toStr   ? new Date(`${toStr}T23:59:59.999`) : monthEnd;
 
   const [teams, bookingsGrouped, queriesGrouped, convertedGrouped, pendingGrouped, unassignedRaw] = await Promise.all([
     db.salesTeam.findMany({
@@ -63,7 +72,7 @@ export async function getSalesTeamAnalytics(): Promise<SalesTeamAnalytics> {
       by: ["currentAssigneeId"],
       where: {
         status: "CONFIRMED",
-        createdAt: { gte: monthStart, lte: monthEnd },
+        createdAt: { gte: rangeStart, lte: rangeEnd },
         currentAssigneeId: { not: null },
       },
       _count: { _all: true },
@@ -73,7 +82,7 @@ export async function getSalesTeamAnalytics(): Promise<SalesTeamAnalytics> {
       by: ["assignedTo"],
       where: {
         deletedAt: null,
-        createdAt: { gte: monthStart, lte: monthEnd },
+        createdAt: { gte: rangeStart, lte: rangeEnd },
         assignedTo: { not: null },
       },
       _count: { _all: true },
@@ -82,7 +91,7 @@ export async function getSalesTeamAnalytics(): Promise<SalesTeamAnalytics> {
       by: ["assignedTo"],
       where: {
         deletedAt: null,
-        createdAt: { gte: monthStart, lte: monthEnd },
+        createdAt: { gte: rangeStart, lte: rangeEnd },
         assignedTo: { not: null },
         status: { in: [...CONVERTED_STATUSES] },
       },
