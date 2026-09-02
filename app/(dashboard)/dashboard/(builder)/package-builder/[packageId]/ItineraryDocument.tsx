@@ -1357,7 +1357,6 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
   return itineraries.map((day, i) => {
     const chosen = new Set<string>();
     const prev = i > 0 ? itineraries[i - 1] : null;
-    const prevHasHotel = prev != null && (prev.roomPricingId != null || !!prev.accommodation?.trim());
     // A day's stored meals can be incomplete relative to its plan text — a
     // hotel request filled with a "Meal plan" of "Breakfast & Dinner" but
     // only one of the two "Meals Included" chips ticked, say, or a stay
@@ -1365,22 +1364,20 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
     // reconciles the two (union, never removes) rather than trusting the
     // array outright or only falling back when it's fully empty. See
     // reconcileMealsWithPlanText.
-    const prevMeals = prevHasHotel ? reconcileMealsWithPlanText(prev!.meals, prev!.hotelMealPlan) : [];
+    //
+    // Not gated on hotel presence any more: costing can deliberately set a
+    // day's meals with no hotel booked (see MealsView in ExtrasDrawers.tsx,
+    // which shows a "No hotel" warning right on that toggle), and this has
+    // to reflect that choice instead of silently dropping it. removeStay
+    // (day-mutations.ts) already clears meals/hotelMealPlan together the
+    // moment a hotel is actually removed, so a value surviving here is a
+    // real decision, not stale leftover data from a removed hotel.
+    const prevMeals = prev ? reconcileMealsWithPlanText(prev.meals, prev.hotelMealPlan) : [];
     if (prevMeals.some((m) => m.toLowerCase().includes("breakfast"))) chosen.add("Breakfast");
-    // A day's own meals field can also go stale once its hotel is removed —
-    // the save path trusts it verbatim from the client with no guard (unlike
-    // accommodation/roomPricingId, which do get cleared), so a day that once
-    // had a room can end up with no hotel but a leftover "Dinner" still
-    // marked included. Same fix as the pricing side of this bug (a manual
-    // hotel needs a name before it's charged for) — a day needs an actual
-    // hotel, catalog or hand-typed, before its own stored meals count here.
-    const hasHotel = day.roomPricingId != null || !!day.accommodation?.trim();
-    if (hasHotel) {
-      const dayMeals = reconcileMealsWithPlanText(day.meals, day.hotelMealPlan);
-      for (const m of dayMeals) {
-        if (m.toLowerCase().includes("breakfast")) continue;
-        chosen.add(m);
-      }
+    const dayMeals = reconcileMealsWithPlanText(day.meals, day.hotelMealPlan);
+    for (const m of dayMeals) {
+      if (m.toLowerCase().includes("breakfast")) continue;
+      chosen.add(m);
     }
     // Added on top of whatever the hotel provides — an arrival-day breakfast
     // being the whole reason this exists, since Day 1 has no prior night to
@@ -2679,7 +2676,10 @@ function DayCardPreview({
   const activities = day.activities
     .map((a, originalIndex) => ({ a, originalIndex }))
     .filter(({ a }) => a.title.trim() || !!builder?.canEdit);
-  const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
+  // A meal plan alone isn't a hotel — costing can now set meals for a day
+  // with no hotel booked (see ExtrasDrawers' MealsView), and that shouldn't
+  // conjure a blank Stay card into existence.
+  const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut;
   // Check-in lands on this day's own date; check-out is the following
   // morning — same "shifted" convention the meal algorithm uses, since a
   // day's hotel is the one you sleep in that night and leave the next day.

@@ -47,6 +47,13 @@ export function MealsView({ day }: { day: number }) {
 
   const hasHotel = (row: typeof itin | undefined) => row?.roomPricingId != null || !!row?.accommodation?.trim();
 
+  // Day 1 has no previous night to shift a breakfast in from — rowFor
+  // returns undefined only for that one case. computeShiftedMeals reads
+  // day.extraMeals directly (unshifted) for exactly this reason, so an
+  // arrival-day breakfast lives there instead of in a nonexistent day 0's
+  // `meals`.
+  const isExtraMeal = (meal: string) => meal === "Breakfast" && !rowFor(meal);
+
   /** Is this meal included, as the DOCUMENT shows it for this day? Normally
    * just the hotel's own plan (see applyHotelRoomSelection) — but this array
    * is directly editable here (see toggleMeal below), for the times costing
@@ -54,22 +61,21 @@ export function MealsView({ day }: { day: number }) {
    * filled the request: a wrong/incomplete meal plan blocks pricing exactly
    * as much as a wrong room rate does.
    *
-   * Still requires the row to actually have a hotel (hasHotel above, catalog
-   * or hand-typed) — same stale-field guard as computeShiftedMeals in
-   * ItineraryDocument.tsx. Older saves could leave `meals` populated on a day
-   * whose hotel was since removed (removeStay clears it now, but a package
-   * built before that fix can still carry the leftover value), which used to
-   * show a meal as "Included" here with the panel's own "no hotel" note
-   * printed right below it. */
-  const isOn = (meal: string) => {
-    const row = rowFor(meal);
-    return hasHotel(row) && !!row?.meals.includes(meal);
-  };
+   * Not gated on hasHotel any more — costing can now deliberately set a
+   * meal for a day with no hotel (the "No hotel" tag below is the warning,
+   * not a block), and computeShiftedMeals in ItineraryDocument.tsx reads
+   * the same ungated array, so the two need to agree on what "included"
+   * means. removeStay (day-mutations.ts) already clears meals/hotelMealPlan
+   * together the moment a hotel is actually removed, so a stored value here
+   * reflects a real decision rather than stale data left behind by a
+   * removed hotel. */
+  const isOn = (meal: string) =>
+    isExtraMeal(meal) ? (itin.extraMeals ?? []).includes(meal) : (rowFor(meal)?.meals.includes(meal) ?? false);
 
   // Every meal the day can carry, always — so a day with no breakfast (no
   // night before it, or a room-only rate) still shows the full picture rather
   // than silently omitting a row.
-  const visibleMeals = MEAL_LABELS.filter((meal) => rowFor(meal) != null);
+  const visibleMeals = MEAL_LABELS.filter((meal) => rowFor(meal) != null || isExtraMeal(meal));
 
   /** Writes straight into the correct day's own `meals` array — breakfast
    * onto the previous day's row, same target `rowFor` already reads from,
@@ -83,8 +89,19 @@ export function MealsView({ day }: { day: number }) {
    * of this control had. The trade-off is losing whatever plan-type prefix
    * ("MAP"/"CP"/...) the original text had; acceptable for a manual
    * correction, which is exactly what this is.
+   *
+   * Day 1's breakfast is the one exception: it has no row to shift onto, so
+   * it toggles straight into this day's own `extraMeals` instead.
    */
-  function toggleMeal(meal: string) {
+  const toggleMeal = (meal: string) => {
+    if (isExtraMeal(meal)) {
+      const current = itin.extraMeals ?? [];
+      const nextExtraMeals = current.includes(meal)
+        ? current.filter((m) => m !== meal)
+        : [...current, meal];
+      updateDay(itin.day, { extraMeals: nextExtraMeals });
+      return;
+    }
     const row = rowFor(meal);
     if (!row) return;
     const nextMeals = row.meals.includes(meal)
@@ -92,7 +109,7 @@ export function MealsView({ day }: { day: number }) {
       : [...row.meals, meal];
     const nextMealPlan = MEAL_LABELS.filter((m) => nextMeals.includes(m)).join(", ");
     updateDay(row.day, { meals: nextMeals, hotelMealPlan: nextMealPlan });
-  }
+  };
 
   return (
     <div className="p-5 space-y-4">
