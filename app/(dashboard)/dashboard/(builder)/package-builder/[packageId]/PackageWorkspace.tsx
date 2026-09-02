@@ -1129,8 +1129,16 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
   // form.totalPrice kept the exec's submitted figure, and a save wrote the two
   // out disagreeing. caps.editItinerary keeps SENT frozen for everyone and the
   // exec frozen from the moment they submit, which is what the rule was for.
+  //
+  // Also has to include caps.editAfterSend, not editItinerary alone: a Team
+  // Leader's post-send correction window (editAfterSend: status === "SENT")
+  // is exactly editItinerary: false, underReview: false at that status — so
+  // this effect sat out precisely the one case it exists for, the same gap
+  // page.tsx had for the exec's own post-send edits. hotelPricing/cabPricing
+  // only move in response to an actual edit here (no background poll), so
+  // there's no drift risk in covering that case too.
   useEffect(() => {
-    if (!caps.editItinerary) return;
+    if (!caps.editItinerary && !caps.editAfterSend) return;
     const { finalPrice, perPerson } = computeFinalPricing();
     if (finalPrice <= 0) return;
     const nextPP = String(perPerson);
@@ -1141,7 +1149,7 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelPricing, cabPricing, form.marginPercentage, form.gstPercentage,
       form.discountType, form.discountValue,
-      form.tickets, form.addOns, form.adults, form.children, caps.editItinerary]);
+      form.tickets, form.addOns, form.adults, form.children, caps.editItinerary, caps.editAfterSend]);
 
   // Re-syncs `query` AND the price fields inside `form` from a fresh fetch.
   // `form` is local state hydrated once on mount (see the initial load effect
