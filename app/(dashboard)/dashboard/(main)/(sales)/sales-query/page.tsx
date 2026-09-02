@@ -7,7 +7,7 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getSalesQueries, getCloseReasons, getRejectionReasons } from "./actions";
+import { getSalesQueries, getCloseReasons, getRejectionReasons, getCurrentActor } from "./actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
@@ -57,22 +57,45 @@ function TableSkeleton() {
     );
 }
 
-async function SalesQueriesData() {
-    const [queries, closeReasons, rejectionReasons] = await Promise.all([
-        getSalesQueries(),
+function todayStr() {
+    return new Date().toISOString().split("T")[0];
+}
+function firstOfMonthStr() {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split("T")[0];
+}
+
+async function SalesQueriesData({ from, to, isAllTime }: { from?: string; to?: string; isAllTime: boolean }) {
+    const [queries, closeReasons, rejectionReasons, { teamMemberName }] = await Promise.all([
+        getSalesQueries(from, to),
         getCloseReasons(),
         getRejectionReasons(),
+        getCurrentActor(),
     ]);
     return (
         <SalesQueriesTable
             queries={queries}
             closeReasons={closeReasons}
             rejectionReasons={rejectionReasons}
+            from={from ?? firstOfMonthStr()}
+            to={to ?? todayStr()}
+            isAllTime={isAllTime}
+            generatedByName={teamMemberName ?? undefined}
         />
     );
 }
 
-export default function SalesQueryPage() {
+export default async function SalesQueryPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ from?: string; to?: string; range?: string }>;
+}) {
+    const sp = await searchParams;
+    const isAllTime = sp.range === "all";
+    const from = isAllTime ? undefined : (sp.from ?? firstOfMonthStr());
+    const to = isAllTime ? undefined : (sp.to ?? todayStr());
+
     return (
         <div className="space-y-6">
             <Breadcrumb>
@@ -95,8 +118,9 @@ export default function SalesQueryPage() {
 
             <Suspense fallback={
                 <div className="space-y-4">
-                    <div className="grid grid-cols-5 gap-4">
-                        {Array.from({ length: 5 }).map((_, i) => (
+                    <div className="h-10 rounded-xl border bg-card" />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+                        {Array.from({ length: 7 }).map((_, i) => (
                             <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
                                 <Skeleton className="h-3 w-16" />
                                 <Skeleton className="h-7 w-10" />
@@ -107,7 +131,7 @@ export default function SalesQueryPage() {
                     <TableSkeleton />
                 </div>
             }>
-                <SalesQueriesData />
+                <SalesQueriesData from={from} to={to} isAllTime={isAllTime} />
             </Suspense>
         </div>
     );
