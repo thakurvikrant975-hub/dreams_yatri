@@ -7,7 +7,7 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getSalesQueries, getCloseReasons, getRejectionReasons } from "./actions";
+import { getSalesQueries, getCloseReasons, getRejectionReasons, isSalesTeamLeader } from "./actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
@@ -66,7 +66,7 @@ function firstOfMonthStr() {
     return d.toISOString().split("T")[0];
 }
 
-async function SalesQueriesData({ from, to, isAllTime }: { from?: string; to?: string; isAllTime: boolean }) {
+async function SalesQueriesData({ from, to, isAllTime, isTeamLead }: { from?: string; to?: string; isAllTime: boolean; isTeamLead: boolean }) {
     const [queries, closeReasons, rejectionReasons] = await Promise.all([
         getSalesQueries(from, to),
         getCloseReasons(),
@@ -80,6 +80,7 @@ async function SalesQueriesData({ from, to, isAllTime }: { from?: string; to?: s
             from={from ?? firstOfMonthStr()}
             to={to ?? todayStr()}
             isAllTime={isAllTime}
+            isTeamLead={isTeamLead}
         />
     );
 }
@@ -93,6 +94,7 @@ export default async function SalesQueryPage({
     const isAllTime = sp.range === "all";
     const from = isAllTime ? undefined : (sp.from ?? firstOfMonthStr());
     const to = isAllTime ? undefined : (sp.to ?? todayStr());
+    const isTeamLead = await isSalesTeamLeader();
 
     return (
         <div className="space-y-6">
@@ -103,14 +105,14 @@ export default async function SalesQueryPage({
                     </BreadcrumbItem>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>
-                        <BreadcrumbPage>My Queries</BreadcrumbPage>
+                        <BreadcrumbPage>{isTeamLead ? "Team Queries" : "My Queries"}</BreadcrumbPage>
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
 
             <PageHeader
-                title="My Queries"
-                description="All queries assigned to you"
+                title={isTeamLead ? "Team Queries" : "My Queries"}
+                description={isTeamLead ? "All queries assigned to your team" : "All queries assigned to you"}
                 icon={TrendingUp}
             />
 
@@ -129,7 +131,7 @@ export default async function SalesQueryPage({
                     <TableSkeleton />
                 </div>
             }>
-                <SalesQueriesData from={from} to={to} isAllTime={isAllTime} />
+                <SalesQueriesData from={from} to={to} isAllTime={isAllTime} isTeamLead={isTeamLead} />
             </Suspense>
         </div>
     );

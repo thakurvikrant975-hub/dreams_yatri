@@ -10,6 +10,7 @@ import { db } from "@/app/lib/db";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 import { tryCreateBookingFromConvertedQuery } from "@/app/lib/bookings/create-from-query";
+import { getLeaderScope } from "@/app/lib/sales-teams/leader-scope";
 
 // ── Import shared types from marketing actions ────────────────────────────────
 // Types are erased at runtime so this import is safe even across route groups.
@@ -83,6 +84,45 @@ export async function assignQuery(
     return _assignQuery(queryId, memberId, setStatus);
 }
 
+/** Whether the logged-in actor leads a SalesTeam — drives the "My Queries" vs
+ * "Team Queries" view on the sales-query page. */
+export async function isSalesTeamLeader(): Promise<boolean> {
+    const scope = await getLeaderScope();
+    return !!scope?.ledTeamId;
+}
+
+/** The Team Leader's own roster — feeds the reassign picker on "Team
+ * Queries" so a leader can only hand a query to someone on their team, not
+ * the whole sales floor. Empty for anyone who doesn't lead a team. */
+export async function getMyTeamMembers(): Promise<SalesMember[]> {
+    const scope = await getLeaderScope();
+    if (!scope?.ledTeamId) return [];
+    return _getSalesMembers(scope.ledTeamId);
+}
+
+/** Reassign a query to another member of the caller's own SalesTeam.
+ *
+ * A Team Leader oversees a specific team, not the whole sales floor — this
+ * re-derives that scope server-side rather than trusting the memberId the
+ * client sends, the same reasoning resolveWorkspaceCaps re-derives package
+ * capabilities instead of trusting what the UI last showed. */
+export async function reassignToTeamMember(queryId: string, memberId: string | null): Promise<ActionResult> {
+    const scope = await getLeaderScope();
+    if (!scope?.ledTeamId) return { success: false, message: "Only a team leader can reassign a query." };
+
+    if (memberId) {
+        const member = await db.teamMember.findUnique({
+            where:  { id: memberId },
+            select: { salesTeamId: true },
+        });
+        if (!member || member.salesTeamId !== scope.ledTeamId) {
+            return { success: false, message: "That person isn't on your team." };
+        }
+    }
+
+    return _assignQuery(queryId, memberId, false);
+}
+
 // ── Sales READ ────────────────────────────────────────────────────────────────
 
 // SentPackageInfo/mapCustomPackage live in package-status.ts, not here — this
@@ -115,18 +155,30 @@ const CUSTOM_PACKAGE_SELECT = {
     },
 } as const;
 
-/** Returns only queries assigned to the currently logged-in sales exec.
+/** Returns queries assigned to the currently logged-in sales exec — or, for a
+ * Team Leader, every query assigned to anyone on their SalesTeam (themselves
+ * included, since SalesTeam.members always includes the leader).
  *
  * `from`/`to` (YYYY-MM-DD) scope by `createdAt` — same range convention as
  * getLeadManagerAnalytics (lead-manager-analytics-actions.ts). Omit both for
  * the "All Time" view. */
 export async function getSalesQueries(from?: string, to?: string): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
+    const scope = await getLeaderScope();
+
+    const teamMemberIds = scope?.ledTeamId
+        ? (await db.teamMember.findMany({
+            where: { salesTeamId: scope.ledTeamId },
+            select: { id: true },
+        })).map((m) => m.id)
+        : null;
 
     const queries = await db.package_queries.findMany({
         where: {
             deletedAt: null,
-            ...(teamMemberId ? { assignedTo: teamMemberId } : {}),
+            ...(teamMemberIds
+                ? { assignedTo: { in: teamMemberIds } }
+                : teamMemberId ? { assignedTo: teamMemberId } : {}),
             ...(from && to
                 ? { createdAt: { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59.999`) } }
                 : {}),
@@ -163,12 +215,15 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
 
 export async function getSalesQueryById(id: string) {
     const { teamMemberId } = await getCurrentActor();
+    const scope = await getLeaderScope();
 
+    // A Team Leader can see every follow-up logged on the query (not just
+    // their own), same as they can see every team member's queries.
     return db.package_queries.findUnique({
         where: { id },
         include: {
             queryFollowUps: {
-                where:   teamMemberId ? { createdById: teamMemberId } : {},
+                where:   scope?.ledTeamId ? {} : teamMemberId ? { createdById: teamMemberId } : {},
                 orderBy: { createdAt: "asc" },
             },
             notes:            { orderBy: { createdAt: "asc" } },

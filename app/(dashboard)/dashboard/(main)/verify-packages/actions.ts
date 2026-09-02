@@ -201,7 +201,10 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
         if (pkg.status !== "READY") return { success: false, message: "This package isn't awaiting review." };
 
         const caps = await decideCapsFor(packageId);
-        if (!caps?.decide) return { success: false, message: NOT_COSTING };
+        // A Team Leader's rejectOnly gets them here too — approve stays
+        // costing-exclusive (see approveCustomPackage above), but rejecting
+        // is the one decision this workspace lets them make on their own.
+        if (!caps?.decide && !caps?.rejectOnly) return { success: false, message: NOT_COSTING };
 
         const reason = await db.rejectionReason.findUnique({ where: { id: parsed.data.rejectionReasonId } });
 

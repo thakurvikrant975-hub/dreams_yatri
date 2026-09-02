@@ -19,6 +19,7 @@
  * it can open a package and look, and that is all. */
 export type WorkspaceRole =
   | "exec"
+  | "teamLead"
   | "costing"
   | "other";
 
@@ -77,6 +78,12 @@ export type WorkspaceCaps = {
   submit: boolean;
   /** Approve, reject, or send back for revision. */
   decide: boolean;
+  /** Reject only — no approve. Granted to a Team Leader while a package
+   * their team submitted sits with costing, so they can send it back
+   * themselves instead of relaying it through the costing team. Approving is
+   * still costing's alone: it is the pricing sign-off, and a Team Leader
+   * correcting the itinerary is not the same review. */
+  rejectOnly: boolean;
   /** Hand the finished package to the client. */
   send: boolean;
   /** Pull an approved or already-sent package back for another look.
@@ -101,6 +108,7 @@ const NONE: WorkspaceCaps = {
   reviewElements: false,
   submit: false,
   decide: false,
+  rejectOnly: false,
   send: false,
   revise: false,
 };
@@ -118,9 +126,14 @@ export function workspaceRoleOf(teamRoleName: string | null | undefined): Worksp
   // to click approve, which is not cover. Checked before the generic "sales"
   // match below so "Sales Manager" lands here, not in the exec branch.
   if (name.includes("costing") || name.includes("platform manager") || name.includes("sales manager")) return "costing";
-  // Travel Expert and Sales Executive both build packages; Team Leaders build
-  // and oversee. All three are "the exec" as far as this workspace cares.
-  if (name.includes("sales") || name.includes("travel expert") || name.includes("team leader")) return "exec";
+  // Team Leaders build AND oversee — split out from the plain exec bucket so
+  // resolveWorkspaceCaps can grant them a narrow reject-and-correct window
+  // once their team's package reaches costing, which a regular exec never
+  // gets on their own submitted package.
+  if (name.includes("team leader")) return "teamLead";
+  // Travel Expert and Sales Executive both build packages — "the exec" as far
+  // as this workspace cares.
+  if (name.includes("sales") || name.includes("travel expert")) return "exec";
   return "other";
 }
 
@@ -189,9 +202,40 @@ export function resolveWorkspaceCaps(
       // Costing never submits. Their way forward is approve or reject.
       submit: false,
       decide: underReview,
+      // Costing's reject already lives inside `decide` — this narrower cap
+      // is for someone who may reject but not approve, which costing isn't.
+      rejectOnly: false,
       send: false,
       // Costing rejects; the exec revises. See `revise` above.
       revise: false,
+    };
+  }
+
+  if (role === "teamLead") {
+    // Team Leaders own every package (see ownsPackage) — no isOwner gate here,
+    // unlike the exec branch below, because that ownership is unconditional
+    // for this role rather than something to re-check per package.
+    const mine = stage.status === "DRAFT";
+    // Once their team's package reaches costing, a Team Leader gets a
+    // narrower version of costing's own underReview rights: correct the
+    // itinerary/cost and reject it back, but never approve (costing's sign-
+    // off stays costing's alone) and never see the marked-up numbers — the
+    // margin/GST wall applies to a Team Leader exactly as it does to any
+    // other exec.
+    const underReview = stage.status === "READY" && !stage.verified;
+    return {
+      editItinerary: mine || underReview,
+      editCost: mine || underReview,
+      editMargin: false,
+      seeMargin: false,
+      editLockedPolicy: false,
+      editAfterSend: stage.status === "SENT",
+      reviewElements: false,
+      submit: mine,
+      decide: false,
+      rejectOnly: underReview,
+      send: stage.status === "READY" && stage.verified,
+      revise: (stage.status === "READY" && stage.verified) || stage.status === "SENT",
     };
   }
 
@@ -224,6 +268,7 @@ export function resolveWorkspaceCaps(
       // quoted to the client, is not theirs to resubmit.
       submit: mine,
       decide: false,
+      rejectOnly: false,
       // Sending is gated on costing having approved it.
       send: stage.status === "READY" && stage.verified,
       // Only worth offering once there is something to recall: an approved

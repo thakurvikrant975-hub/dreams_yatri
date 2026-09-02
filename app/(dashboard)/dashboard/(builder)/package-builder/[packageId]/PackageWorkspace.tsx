@@ -12,7 +12,7 @@ import {
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
   Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
-  Save, Send, CheckCircle, AlertCircle, Loader2, 
+  Save, Send, CheckCircle, AlertCircle, Loader2,
   User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
@@ -2397,8 +2397,8 @@ Rules:
                 Costing is not sending this document anywhere — the exec does
                 that once it is approved — and the two buttons that matter to
                 them belong where their eye already is. */}
-            {caps.decide ? (
-              <CostingDecisionButtons packageId={packageId} />
+            {(caps.decide || caps.rejectOnly) ? (
+              <CostingDecisionButtons packageId={packageId} canApprove={caps.decide} />
             ) : (
               <>
                 <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />

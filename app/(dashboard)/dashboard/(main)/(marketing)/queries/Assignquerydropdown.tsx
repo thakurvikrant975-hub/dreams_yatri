@@ -91,11 +91,23 @@ type Props = {
     assignedAt?: Date | null;
     onDone?: () => void;
     compact?: boolean;
+    /** Override the roster — a Team Leader's reassign picker passes
+     * getMyTeamMembers so only their own team shows up, not the whole sales
+     * floor. Defaults to the unscoped getSalesMembers. */
+    fetchMembers?: () => Promise<SalesMember[]>;
+    /** Override the mutation to match — a Team Leader's picker passes
+     * reassignToTeamMember, which re-checks server-side that the target is
+     * actually on their team rather than trusting this component's list.
+     * Defaults to the plain assignQuery. */
+    assignFn?: (queryId: string, memberId: string | null) => Promise<{ success: boolean; message: string }>;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, compact = false }: Props) {
+export function AssignQueryDropdown({
+    queryId, assignedTo, assignedAt, onDone, compact = false,
+    fetchMembers = getSalesMembers, assignFn = assignQuery,
+}: Props) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [members, setMembers] = useState<SalesMember[]>([]);
@@ -106,9 +118,10 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
     useEffect(() => {
         if (!open) { setSearch(""); return; }
         setLoading(true);
-        getSalesMembers()
+        fetchMembers()
             .then(setMembers)
             .finally(() => setLoading(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     const currentMember = members.find((m) => m.id === assignedTo);
@@ -120,7 +133,7 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
 
     function handleAssign(memberId: string | null) {
         startAssign(async () => {
-            const r = await assignQuery(queryId, memberId);
+            const r = await assignFn(queryId, memberId);
             if (r.success) { toast.success(r.message); setOpen(false); onDone?.(); }
             else toast.error(r.message);
         });

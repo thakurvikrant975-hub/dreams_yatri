@@ -52,6 +52,9 @@ type Props = {
     open: boolean;
     onOpenChange: (v: boolean) => void;
     onRefresh?: () => void;
+    /** True when the viewer leads a SalesTeam — shows the actual assignee's
+     * name instead of assuming "you". */
+    isTeamLead?: boolean;
 };
 
 // Remove SalesQuery from the actions import, then add:
@@ -69,6 +72,8 @@ export type SalesQuery = {
   status: string;
   source: string;
   createdAt: Date;
+  assignedTo: string | null;
+  assignedToName: string | null;
   assignedAt: Date | null;
   nextFollowUpAt: Date | null;
   closeReasonId: string | null;
@@ -119,6 +124,7 @@ export function SalesQueryDetailSheet({
     open,
     onOpenChange,
     onRefresh,
+    isTeamLead = false,
 }: Props) {
     const [isPendingReopen, startReopen] = useTransition();
 
@@ -263,7 +269,7 @@ export function SalesQueryDetailSheet({
                     {query.assignedAt && (
                         <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
                             <p className="text-[11px] text-primary font-semibold uppercase tracking-wide mb-0.5">
-                                Assigned to You
+                                {isTeamLead && query.assignedToName ? `Assigned to ${query.assignedToName}` : "Assigned to You"}
                             </p>
                             <p className="text-xs text-muted-foreground">
                                 {format(new Date(query.assignedAt), "dd MMM yyyy")} at{" "}
