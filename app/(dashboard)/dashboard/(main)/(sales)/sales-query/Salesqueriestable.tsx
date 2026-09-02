@@ -25,6 +25,7 @@ import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
 import { reopenSalesQuery, getSalesQueryById } from "./actions";
+import { hasRequirements } from "./requirements";
 import { mapCustomPackage } from "./package-status";
 import type { SalesQueryRow } from "./actions";
 import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
@@ -290,8 +291,11 @@ export function SalesQueriesTable({
                 <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5">
                         <p className="font-medium text-sm leading-tight">{q.name}</p>
-                        {/* Green dot = requirements filled */}
-                        {q.requirements && (
+                        {/* Green dot = requirements filled. Asked properly: a
+                            bridge lead's `{ leadMeta }` is a non-null column
+                            with nothing in it an exec ever filled, and the dot
+                            told them the work was already done. */}
+                        {hasRequirements(q.requirements) && (
                             <span
                                 title="Requirements filled"
                                 className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0"

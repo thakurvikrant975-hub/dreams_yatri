@@ -27,8 +27,8 @@ import { CreatePackageDialog } from "./CreatePackageDialog";
 import { PackageVerificationBadge, PackageSentBadge, HotelRequestBadge } from "./Salesquerybadges";
 import { DeletePackageDialog } from "./Deletepackagedialog";
 import { reopenSalesQuery } from "./actions";
+import { readRequirements } from "./requirements";
 import type { SentPackageInfo } from "./actions";
-import { PackageRequirements } from "../../(marketing)/queries/actions";
 import { CloseReason, RejectionReason } from "../../(marketing)/queries/actions";
 
 type FollowUpItem = {
@@ -138,8 +138,18 @@ export function SalesQueryDetailSheet({
         });
     }
 
-    // Requirements summary for display
-    const reqs = query.requirements as PackageRequirements | null;
+    // Requirements summary for display.
+    //
+    // Read rather than cast: `requirements` is free-form JSON and a lead that
+    // came in through the .com bridge holds only its own metadata there. The
+    // cast this used to be said "PackageRequirements" about an object with no
+    // sections in it, and the summary below then read `.travellers.tripType`
+    // straight off undefined — taking the whole page down with it, for every
+    // exec who happened to be handed a landing-page lead.
+    const reqs = readRequirements(query.requirements);
+    const travellerCount = reqs
+        ? reqs.travellers.adults + reqs.travellers.children + reqs.travellers.infants
+        : 0;
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -477,12 +487,14 @@ export function SalesQueryDetailSheet({
                                                         : (TRIP_TYPE_LABELS[reqs.travellers.tripType] ?? reqs.travellers.tripType)}
                                                 </Badge>
                                             )}
-                                            <Badge variant="secondary" className="text-xs gap-1">
-                                                <Users className="h-2.5 w-2.5" />
-                                                {reqs.travellers.adults}A
-                                                {reqs.travellers.children > 0 && ` + ${reqs.travellers.children}C`}
-                                                {reqs.travellers.infants > 0 && ` + ${reqs.travellers.infants}I`}
-                                            </Badge>
+                                            {travellerCount > 0 && (
+                                                <Badge variant="secondary" className="text-xs gap-1">
+                                                    <Users className="h-2.5 w-2.5" />
+                                                    {reqs.travellers.adults}A
+                                                    {reqs.travellers.children > 0 && ` + ${reqs.travellers.children}C`}
+                                                    {reqs.travellers.infants > 0 && ` + ${reqs.travellers.infants}I`}
+                                                </Badge>
+                                            )}
                                             {reqs.journey.noOfDays > 0 && (
                                                 <Badge variant="secondary" className="text-xs">
                                                     {reqs.journey.noOfDays}D / {reqs.journey.noOfNights}N
