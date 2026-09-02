@@ -983,9 +983,24 @@ export async function getActivePackageParams() {
     },
   });
 
+  // TEMPORARY: these 2 slugs crash the page render with "Cannot read
+  // properties of undefined (reading 'includes')" — cause not yet found (a
+  // thorough trace of fetch-page-data.ts, Itnary.tsx and every sidebar
+  // component turned up nothing unguarded; DB comparison against 476 other
+  // packages found no distinguishing data gap either). Excluded here so they
+  // don't block the whole site's build/deploy or show up in the sitemap.
+  // Visiting these 2 URLs directly will still 500 until the real cause is
+  // found — remove this exclusion once it's fixed.
+  const BROKEN_PACKAGE_SLUGS = new Set([
+    "into-the-wild-jim-corbett-safari-adventure",
+    "wayanad-weekend-nature-retreat",
+  ]);
+
   const params: { slug: string; duration: string; route: string; stay: string }[] = [];
 
   for (const pkg of packages) {
+    if (BROKEN_PACKAGE_SLUGS.has(pkg.slug)) continue;
+
     const defaultDuration =
       pkg.durations.find((d) => d.is_default) ?? pkg.durations[0];
     if (!defaultDuration) continue;
