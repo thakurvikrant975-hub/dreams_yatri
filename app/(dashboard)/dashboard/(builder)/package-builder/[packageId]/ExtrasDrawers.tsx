@@ -14,7 +14,7 @@
 //            (deriveTransportFields) rather than from any day.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Plus, Trash2, Gift, Utensils } from "./builder-icons";
+import { Plus, Trash2, Gift, Utensils, AlertTriangle } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
@@ -100,7 +100,8 @@ export function MealsView({ day }: { day: number }) {
         {visibleMeals.map((meal) => {
           const on = isOn(meal);
           const row = rowFor(meal);
-          const disabled = !canEdit || !hasHotel(row);
+          const noHotel = !hasHotel(row);
+          const disabled = !canEdit;
           const Tag = disabled ? "div" : "button";
           return (
             <Tag
@@ -117,6 +118,15 @@ export function MealsView({ day }: { day: number }) {
             >
               <Utensils size={13} className={on ? "text-dashboard-primary" : "text-dashboard-base-content/40"} />
               <span className="text-sm font-medium flex-1">{meal}</span>
+              {noHotel && (
+                <span
+                  title="No hotel is picked for this day — added meals won't be tied to a room rate."
+                  className="flex items-center gap-1 text-[11px] text-amber-600"
+                >
+                  <AlertTriangle size={12} className="shrink-0" />
+                  No hotel
+                </span>
+              )}
               <span className="text-[11px] text-dashboard-base-content/50">{on ? "Included" : "Not included"}</span>
             </Tag>
           );
@@ -127,7 +137,7 @@ export function MealsView({ day }: { day: number }) {
           ? "Set by this day's hotel — pick a different room or meal plan to change what's included here."
           : itin.roomPricingId != null || itin.accommodation?.trim()
             ? "Tap a meal to include or remove it for this day."
-            : "No hotel is picked for this day, so there's nothing to serve."}
+            : "No hotel is picked for this day — you can still add meals manually, but double-check them once a hotel is set."}
       </p>
     </div>
   );
