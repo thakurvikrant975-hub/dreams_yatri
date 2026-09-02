@@ -9,6 +9,34 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 
 const POSITION_STEP = 5;
 
+/** Pasted links (as opposed to uploads, which go through our own storage
+ * and are always reliable) are the #1 source of images that show up broken
+ * in an exported PDF — often an AI-suggested "direct image URL" that's
+ * actually a page URL, hotlink-protected, or just wrong. The PDF export
+ * pipeline routes every cross-origin image through /api/pdf-image-proxy
+ * (see pdfExport.ts) to make it canvas-safe, so running that exact same
+ * check right when the link is pasted — instead of only discovering it's
+ * broken weeks later inside a client-facing PDF — catches it while the
+ * person who can fix it (by pasting a different link) is still looking at
+ * this field. Best-effort and non-blocking: the URL is saved either way, so
+ * a transient check failure never stops someone from using a link that's
+ * actually fine. */
+async function validatePastedUrl(url: string) {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return;
+  try {
+    const res = await fetch(`/api/pdf-image-proxy?url=${encodeURIComponent(url)}`);
+    if (!res.ok) {
+      const shown = url.length > 80 ? `${url.slice(0, 77)}…` : url;
+      toast.warning("This image link looks broken", {
+        description: `It may show up blank in the PDF — double-check it's a direct, publicly-accessible image URL. (${shown})`,
+        duration: 12000,
+      });
+    }
+  } catch {
+    // best-effort — network hiccups here shouldn't block saving the link
+  }
+}
+
 /** One image field, three ways to fill it in: drag a file onto the box,
  * click it to browse, or paste a link in the field below — all three end up
  * calling the same onChange(url), so the parent never has to care which one
@@ -67,7 +95,10 @@ export function ImageDropField({
 
   function commitUrlDraft() {
     const trimmed = urlDraft.trim();
-    if (trimmed !== value) setNewImage(trimmed);
+    if (trimmed !== value) {
+      setNewImage(trimmed);
+      validatePastedUrl(trimmed);
+    }
   }
 
   function nudgePosition(delta: number) {
