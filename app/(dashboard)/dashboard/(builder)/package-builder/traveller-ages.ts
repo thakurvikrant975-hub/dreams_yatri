@@ -42,9 +42,12 @@ export const AGE_UNSET = -1;
  * is what "not answered" means now, so 0 no longer has to carry that job. */
 export const CHILD_AGE_MIN = 0;
 export const CHILD_AGE_MAX = 17;
-/** Airlines and hotels both cut infancy at 2. */
+/** Not clamped to the airline/hotel definition of "infant" (age 2) — execs
+ * enter whatever age the client's booking actually has in this bucket, so the
+ * field accepts the same range as a child's age instead of silently rounding
+ * a typed 3-6 down to 2. */
 export const INFANT_AGE_MIN = 0;
-export const INFANT_AGE_MAX = 2;
+export const INFANT_AGE_MAX = CHILD_AGE_MAX;
 
 /** The oldest age anyone can be typed as. Not a band boundary — just the top
  * of the number inputs, so a fat-fingered "144" doesn't reach pricing. */

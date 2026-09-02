@@ -336,12 +336,16 @@ export async function getAllRejectionReasons(): Promise<RejectionReason[]> {
 }
 
 // ── FIX: getSalesMembers — active-only, correct counts, richer stats ──────────
-export async function getSalesMembers(): Promise<SalesMember[]> {
+/** `salesTeamId` narrows the roster to one SalesTeam — used by a Team
+ * Leader's reassign picker so they only ever see their own team, not the
+ * whole sales floor. Omitted, this is the original unscoped list. */
+export async function getSalesMembers(salesTeamId?: string): Promise<SalesMember[]> {
     // FIX 1: Only active sales team members
     const members = await db.teamMember.findMany({
         where: {
             teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } },
             isActive: true, // ← was missing; was returning inactive members too
+            ...(salesTeamId ? { salesTeamId } : {}),
         },
         select: { id: true, name: true, email: true, profilePicUrl: true },
         orderBy: { name: "asc" },
