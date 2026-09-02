@@ -47,18 +47,26 @@ export function MealsView({ day }: { day: number }) {
 
   const hasHotel = (row: typeof itin | undefined) => row?.roomPricingId != null || !!row?.accommodation?.trim();
 
+  // Day 1 has no previous night to shift a breakfast in from — rowFor
+  // returns undefined only for that one case. computeShiftedMeals reads
+  // day.extraMeals directly (unshifted) for exactly this reason, so an
+  // arrival-day breakfast lives there instead of in a nonexistent day 0's
+  // `meals`.
+  const isExtraMeal = (meal: string) => meal === "Breakfast" && !rowFor(meal);
+
   /** Is this meal included, as the DOCUMENT shows it for this day? Normally
    * just the hotel's own plan (see applyHotelRoomSelection) — but this array
    * is directly editable here (see toggleMeal below), for the times costing
    * needs to correct it without going back to whoever picked the hotel or
    * filled the request: a wrong/incomplete meal plan blocks pricing exactly
    * as much as a wrong room rate does. */
-  const isOn = (meal: string) => rowFor(meal)?.meals.includes(meal) ?? false;
+  const isOn = (meal: string) =>
+    isExtraMeal(meal) ? (itin.extraMeals ?? []).includes(meal) : (rowFor(meal)?.meals.includes(meal) ?? false);
 
   // Every meal the day can carry, always — so a day with no breakfast (no
   // night before it, or a room-only rate) still shows the full picture rather
   // than silently omitting a row.
-  const visibleMeals = MEAL_LABELS.filter((meal) => rowFor(meal) != null);
+  const visibleMeals = MEAL_LABELS.filter((meal) => rowFor(meal) != null || isExtraMeal(meal));
 
   /** Writes straight into the correct day's own `meals` array — breakfast
    * onto the previous day's row, same target `rowFor` already reads from,
@@ -72,8 +80,19 @@ export function MealsView({ day }: { day: number }) {
    * of this control had. The trade-off is losing whatever plan-type prefix
    * ("MAP"/"CP"/...) the original text had; acceptable for a manual
    * correction, which is exactly what this is.
+   *
+   * Day 1's breakfast is the one exception: it has no row to shift onto, so
+   * it toggles straight into this day's own `extraMeals` instead.
    */
-  function toggleMeal(meal: string) {
+  const toggleMeal = (meal: string) => {
+    if (isExtraMeal(meal)) {
+      const current = itin.extraMeals ?? [];
+      const nextExtraMeals = current.includes(meal)
+        ? current.filter((m) => m !== meal)
+        : [...current, meal];
+      updateDay(itin.day, { extraMeals: nextExtraMeals });
+      return;
+    }
     const row = rowFor(meal);
     if (!row) return;
     const nextMeals = row.meals.includes(meal)
@@ -81,7 +100,7 @@ export function MealsView({ day }: { day: number }) {
       : [...row.meals, meal];
     const nextMealPlan = MEAL_LABELS.filter((m) => nextMeals.includes(m)).join(", ");
     updateDay(row.day, { meals: nextMeals, hotelMealPlan: nextMealPlan });
-  }
+  };
 
   return (
     <div className="p-5 space-y-4">

@@ -2667,7 +2667,10 @@ function DayCardPreview({
   const activities = day.activities
     .map((a, originalIndex) => ({ a, originalIndex }))
     .filter(({ a }) => a.title.trim() || !!builder?.canEdit);
-  const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
+  // A meal plan alone isn't a hotel — costing can now set meals for a
+  // day with no hotel booked (see ExtrasDrawers' MealsView), and that
+  // shouldn't conjure a blank Stay card into existence.
+  const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut;
   // Check-in lands on this day's own date; check-out is the following
   // morning — same "shifted" convention the meal algorithm uses, since a
   // day's hotel is the one you sleep in that night and leave the next day.
