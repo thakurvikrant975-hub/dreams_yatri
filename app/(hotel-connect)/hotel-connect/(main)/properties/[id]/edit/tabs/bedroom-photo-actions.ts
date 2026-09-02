@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { uploadToR2 } from "@/app/lib/r2/r2upload";
-import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { describeSizeRejection, describeTypeRejection, describeUploadFailure } from "@/app/lib/upload-errors";
 import { defaultBedroom, type BedroomDetail } from "../bedroom/[n]/bedroom-types";
 
@@ -132,12 +131,12 @@ export async function deleteBedroomPhoto(
   if (!data.list[bedroomIndex]) return { error: "Bedroom not found." };
 
   try {
-    const base = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "").replace(/\/$/, "");
-    const key = url.startsWith(base + "/") ? url.slice(base.length + 1) : null;
-    if (key) {
-      await deleteFromR2(key).catch(() => {});
-    }
-
+    // Deliberately NOT deleting the R2 object here — see deleteHotelPhoto's
+    // comment in photo-actions.ts. A package built off this homestay can
+    // have frozen this exact URL into its itinerary snapshot; hard-deleting
+    // the object breaks that PDF even though this delete has nothing to do
+    // with it. Dropping it from hs_bedroom_details is enough to remove it
+    // from hotel-connect.
     const existingPhotos = data.list[bedroomIndex].photos ?? [];
     data.list[bedroomIndex] = { ...data.list[bedroomIndex], photos: existingPhotos.filter((p) => p !== url) };
 

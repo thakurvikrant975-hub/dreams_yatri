@@ -152,12 +152,11 @@ export async function deleteRoomPhoto(
     });
     if (!image) return { error: "Photo not found." };
 
-    const base = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "").replace(/\/$/, "");
-    const key = image.url.startsWith(base + "/") ? image.url.slice(base.length + 1) : null;
-    if (key) {
-      await deleteFromR2(key).catch(() => {});
-    }
-
+    // Deliberately NOT deleting the R2 object here — see deleteHotelPhoto's
+    // comment in photo-actions.ts. A package built off this room can have
+    // frozen this exact URL into its itinerary snapshot; hard-deleting the
+    // object breaks that PDF even though this delete has nothing to do with
+    // it. Unlinking the DB row is enough to remove it from hotel-connect.
     await db.hotel_room_images.delete({ where: { id: imageId } });
 
     if (image.is_primary) {

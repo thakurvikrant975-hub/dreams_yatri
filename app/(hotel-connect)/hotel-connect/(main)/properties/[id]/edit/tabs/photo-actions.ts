@@ -1,12 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { uploadToR2 } from "@/app/lib/r2/r2upload";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
-import { r2, R2_BUCKET } from "@/app/lib/r2/r2";
 import { describeSizeRejection, describeTypeRejection, describeUploadFailure } from "@/app/lib/upload-errors";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -333,18 +331,17 @@ export async function deleteHotelPhoto(
     });
     if (!image) return { error: "Photo not found." };
 
-    if (image.url) {
-      const base = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "").replace(/\/$/, "");
-      const key = image.url.startsWith(base + "/") ? image.url.slice(base.length + 1) : null;
-      if (key) {
-        try {
-          await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
-        } catch {
-          // best-effort — DB record still removed
-        }
-      }
-    }
-
+    // Deliberately NOT deleting the R2 object here. A hotel photo's URL gets
+    // copied by value into every package snapshot built while it was live
+    // (package-builder/action.ts freezes it into custom_package_stops.image /
+    // hotelPhoto / accommodationPhoto as a plain string, not a live
+    // reference) — a package built last month can still point at this exact
+    // URL. Hard-deleting the object out from under it turned a routine
+    // "owner tidies up their photo list" action into a blank image in
+    // whatever client-facing PDFs had already been exported, sometimes many
+    // of them at once for a popular hotel. Unlinking it from hotel_images is
+    // enough to remove it from hotel-connect; the orphaned object just sits
+    // in the bucket (cheap) instead of breaking history (expensive).
     await db.hotel_images.delete({ where: { id: imageId } });
 
     if (image.is_primary) {
