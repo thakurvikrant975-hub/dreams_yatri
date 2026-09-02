@@ -7,7 +7,7 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getSalesQueries, getCloseReasons, getRejectionReasons, getCurrentActor } from "./actions";
+import { getSalesQueries, getCloseReasons, getRejectionReasons } from "./actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
@@ -67,11 +67,10 @@ function firstOfMonthStr() {
 }
 
 async function SalesQueriesData({ from, to, isAllTime }: { from?: string; to?: string; isAllTime: boolean }) {
-    const [queries, closeReasons, rejectionReasons, { teamMemberName }] = await Promise.all([
+    const [queries, closeReasons, rejectionReasons] = await Promise.all([
         getSalesQueries(from, to),
         getCloseReasons(),
         getRejectionReasons(),
-        getCurrentActor(),
     ]);
     return (
         <SalesQueriesTable
@@ -81,7 +80,6 @@ async function SalesQueriesData({ from, to, isAllTime }: { from?: string; to?: s
             from={from ?? firstOfMonthStr()}
             to={to ?? todayStr()}
             isAllTime={isAllTime}
-            generatedByName={teamMemberName ?? undefined}
         />
     );
 }

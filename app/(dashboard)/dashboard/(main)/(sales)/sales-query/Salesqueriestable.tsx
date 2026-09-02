@@ -7,7 +7,7 @@ import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
-    CircleX, Package, Plus, Download, FileSpreadsheet, FileText, ChevronDown,
+    CircleX, Package, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -15,9 +15,6 @@ import { Badge } from "../../components/ui/badge";
 import {
     Tooltip, TooltipContent, TooltipTrigger, TooltipProvider,
 } from "../../components/ui/tooltip";
-import {
-    DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
-} from "../../components/ui/dropdown-menu";
 import { DateRangePicker } from "../../components/ui/date-range-picker";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
@@ -60,7 +57,6 @@ type Props = {
     from: string;
     to: string;
     isAllTime: boolean;
-    generatedByName?: string;
 };
 
 const PAGE_SIZE = 10;
@@ -178,7 +174,7 @@ function ActionCell({
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function SalesQueriesTable({
-    queries, closeReasons, rejectionReasons, from, to, isAllTime, generatedByName,
+    queries, closeReasons, rejectionReasons, from, to, isAllTime,
 }: Props) {
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
@@ -190,7 +186,6 @@ export function SalesQueriesTable({
     const router = useRouter();
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
-    const [downloading, setDownloading] = useState<"pdf" | "excel" | null>(null);
 
     const isThisMonth = !isAllTime && from === firstOfMonthStr() && to === todayStr();
 
@@ -216,37 +211,6 @@ export function SalesQueriesTable({
             : from === to
                 ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${from}T00:00:00`))
                 : `${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(`${from}T00:00:00`))} – ${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${to}T00:00:00`))}`;
-
-    async function handleDownloadPdf() {
-        setDownloading("pdf");
-        try {
-            const { buildSalesQueryReportPdf } = await import("./salesQueryReportPdf");
-            const pdf = buildSalesQueryReportPdf(filtered, {
-                totalCount, newToday, inProgress, followUpCount, closedCount, bookedCount, convRate,
-            }, { from, to, isAllTime, generatedByName });
-            pdf.save(`sales-queries-report_${isAllTime ? "all-time" : `${from}_to_${to}`}.pdf`);
-        } catch (e) {
-            console.error(e);
-            toast.error("Could not generate the report PDF. Please try again.");
-        } finally {
-            setDownloading(null);
-        }
-    }
-
-    async function handleDownloadExcel() {
-        setDownloading("excel");
-        try {
-            const XLSX = await import("xlsx");
-            const { buildSalesQueryReportExcel } = await import("./salesQueryReportExcel");
-            const workbook = buildSalesQueryReportExcel(filtered);
-            XLSX.writeFile(workbook, `sales-queries-report_${isAllTime ? "all-time" : `${from}_to_${to}`}.xlsx`);
-        } catch (e) {
-            console.error(e);
-            toast.error("Could not generate the report spreadsheet. Please try again.");
-        } finally {
-            setDownloading(null);
-        }
-    }
 
     // Detail sheet
     const [sheetOpen, setSheetOpen] = useState(false);
@@ -639,27 +603,6 @@ export function SalesQueriesTable({
                             onFromChange={(v) => setRange(v || firstOfMonthStr(), isAllTime ? todayStr() : to)}
                             onToChange={(v) => setRange(isAllTime ? firstOfMonthStr() : from, v || todayStr())}
                         />
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button
-                                    type="button"
-                                    disabled={downloading !== null}
-                                    className="inline-flex items-center gap-1.5 rounded-md bg-dashboard-primary px-3 py-2 text-xs font-semibold text-dashboard-primary-content hover:opacity-90 transition-opacity disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
-                                >
-                                    <Download className="h-3.5 w-3.5" />
-                                    {downloading ? "Generating…" : "Download Report"}
-                                    {!downloading && <ChevronDown className="h-3 w-3 opacity-70" />}
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleDownloadPdf} className="gap-2 cursor-pointer">
-                                    <FileText className="h-3.5 w-3.5" /> PDF
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleDownloadExcel} className="gap-2 cursor-pointer">
-                                    <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
                     </div>
                 </div>
 
