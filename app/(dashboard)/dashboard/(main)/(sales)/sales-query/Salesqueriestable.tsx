@@ -24,9 +24,11 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
-import { reopenSalesQuery, getSalesQueryById } from "./actions";
+import { reopenSalesQuery, getSalesQueryById, getMyTeamMembers, reassignToTeamMember } from "./actions";
 import { hasRequirements } from "./requirements";
 import { mapCustomPackage } from "./package-status";
+import { AssignQueryDropdown } from "../../(marketing)/queries/Assignquerydropdown";
+import { QueryTimelineSheet } from "../../(marketing)/queries/QueryTimelineSheet";
 import type { SalesQueryRow } from "./actions";
 import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
@@ -58,6 +60,9 @@ type Props = {
     from: string;
     to: string;
     isAllTime: boolean;
+    /** True when the viewer leads a SalesTeam — `queries` then spans the
+     * whole team, so the table shows an "Assigned To" column. */
+    isTeamLead?: boolean;
 };
 
 const PAGE_SIZE = 10;
@@ -89,9 +94,14 @@ function isConvertedStatus(status: SalesQueryStatus) {
 function ActionCell({
     query,
     onView,
+    isTeamLead,
 }: {
     query: PackageQueryType;
     onView: () => void;
+    /** Shows the Timeline sheet, with its "add note" form enabled — a Team
+     * Leader's way of updating a query's timeline directly, rather than only
+     * reading it. */
+    isTeamLead: boolean;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
     const closed = isClosedStatus(query.status as SalesQueryStatus);
@@ -109,9 +119,13 @@ function ActionCell({
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
 
-                {!closed && !converted && (
+                {/* A Team Leader oversees rather than builds — Package
+                    Requirements/Follow-Up are the exec's own tools for
+                    working a query, not theirs. Timeline is the reverse: it's
+                    how a leader records something on a query without taking
+                    it over, so it stays available even on a closed one. */}
+                {!isTeamLead && !closed && !converted && (
                     <>
-
                                 {/* Package Requirements */}
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -151,6 +165,22 @@ function ActionCell({
                             </>
                 )}
 
+                {isTeamLead && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span onClick={(e) => e.stopPropagation()}>
+                                <QueryTimelineSheet
+                                    queryId={query.id}
+                                    leadName={query.name}
+                                    fetchQuery={getSalesQueryById}
+                                    canAddNote
+                                />
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>View &amp; update timeline</TooltipContent>
+                    </Tooltip>
+                )}
+
                 {/* Reopen — closed only */}
                 {closed && (
                     <Tooltip>
@@ -175,7 +205,7 @@ function ActionCell({
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function SalesQueriesTable({
-    queries, closeReasons, rejectionReasons, from, to, isAllTime,
+    queries, closeReasons, rejectionReasons, from, to, isAllTime, isTeamLead = false,
 }: Props) {
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
@@ -315,6 +345,21 @@ export function SalesQueriesTable({
                 </div>
             ),
         },
+        ...(isTeamLead ? [{
+            header: "Assigned To",
+            width: "w-[230px]",
+            sortKey: (q) => q.assignedToName?.toLowerCase() ?? "",
+            cell: (q) => (
+                <div onClick={(e) => e.stopPropagation()}>
+                    <AssignQueryDropdown
+                        queryId={q.id}
+                        assignedTo={q.assignedTo}
+                        fetchMembers={getMyTeamMembers}
+                        assignFn={reassignToTeamMember}
+                    />
+                </div>
+            ),
+        } as ColumnDef<SalesQueryRow>] : []),
         {
             header: "Package / Destination",
             cell: (q) => (
@@ -351,6 +396,95 @@ export function SalesQueriesTable({
             align: "center" as const,
             width: "w-[140px]",
             cell: (q) => {
+                // A query can have several packages now — the "+" lets an exec
+                // start another, e.g. a second budget option for the same
+                // client. This picks which one the row represents.
+                //
+                // Newest-first alone hid the package that matters most: build a
+                // second draft and the one sitting with costing disappeared
+                // behind it, with nothing on the row to say anything of yours
+                // was in review. Anything still with costing wins, then a
+                // rejection waiting to be fixed, then the newest.
+                const inReview = q.customPackages.find((p) => p.status === "READY" && !p.verified && !p.rejectedAt) ?? null;
+                const needsRework = q.customPackages.find((p) => p.rejectedAt && p.status === "DRAFT") ?? null;
+                const latest = inReview ?? needsRework ?? q.customPackages[0] ?? null;
+
+                const statusBadges = (
+                    <>
+                        {q.customPackages.length > 1 && (
+                            <Badge
+                                variant="outline"
+                                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800"
+                            >
+                                <UserCheck className="h-3 w-3" />
+                                {q.customPackages.filter((p) => p.verified).length}/{q.customPackages.length} Approved
+                            </Badge>
+                        )}
+                        {(latest?.readyAt || latest?.hotelRequestStatus || latest?.libraryStatus) && (
+                            <div className="flex flex-col items-center gap-1">
+                                {latest.readyAt && (
+                                    <>
+                                        <PackageVerificationBadge pkg={latest} />
+                                        <PackageSentBadge pkg={latest} />
+                                    </>
+                                )}
+                                <HotelRequestBadge pkg={latest} />
+                                <LibraryStatusBadge pkg={latest} />
+                            </div>
+                        )}
+                    </>
+                );
+
+                // A Team Leader oversees rather than builds — no Create/+
+                // package actions — but they can still open one: through the
+                // costing review workspace (not the plain builder an exec
+                // uses), which is what grants a leader reject-and-correct
+                // rights on their team's package once it's with costing (see
+                // workspace-caps.ts's "teamLead" role).
+                if (isTeamLead) {
+                    return (
+                        <div onClick={(e) => e.stopPropagation()} className="flex flex-col items-center justify-center gap-1">
+                            {!latest ? (
+                                <span className="text-xs text-muted-foreground italic">No package</span>
+                            ) : (
+                                <div className="flex items-center justify-center gap-1.5">
+                                    <a
+                                        href={`/dashboard/package-builder/${latest.id}/review`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={cn(
+                                            "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
+                                            latest.status === "SENT"
+                                                ? "text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-900 dark:bg-green-950/30"
+                                                : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/20"
+                                        )}
+                                    >
+                                        <Eye className="h-3 w-3" />
+                                        View Package{q.customPackages.length > 1 ? ` (${q.customPackages.length})` : ""}
+                                    </a>
+                                    {inReview && (
+                                        <span
+                                            title="With costing for pricing review"
+                                            className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400"
+                                        >
+                                            In review
+                                        </span>
+                                    )}
+                                    {!inReview && needsRework && (
+                                        <span
+                                            title="Costing sent this back — needs fixing and resubmitting"
+                                            className="inline-flex items-center rounded-full border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400"
+                                        >
+                                            Rework
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            {statusBadges}
+                        </div>
+                    );
+                }
+
                 const dialogProps = {
                     queryId: q.id,
                     destination: q.destination,
@@ -372,18 +506,6 @@ export function SalesQueriesTable({
                     } : null,
                     queryReceivedAt: q.createdAt,
                 };
-                // A query can have several packages now — the "+" lets an exec
-                // start another, e.g. a second budget option for the same
-                // client. This picks which one the row represents.
-                //
-                // Newest-first alone hid the package that matters most: build a
-                // second draft and the one sitting with costing disappeared
-                // behind it, with nothing on the row to say anything of yours
-                // was in review. Anything still with costing wins, then a
-                // rejection waiting to be fixed, then the newest.
-                const inReview = q.customPackages.find((p) => p.status === "READY" && !p.verified && !p.rejectedAt) ?? null;
-                const needsRework = q.customPackages.find((p) => p.rejectedAt && p.status === "DRAFT") ?? null;
-                const latest = inReview ?? needsRework ?? q.customPackages[0] ?? null;
                 return (
                     <div onClick={(e) => e.stopPropagation()} className="flex flex-col items-center justify-center gap-1">
                         <div className="flex items-center justify-center gap-1.5">
@@ -443,31 +565,7 @@ export function SalesQueriesTable({
                                 </>
                             )}
                         </div>
-                        {/* With several packages built for the same lead (a couple of
-                            budget options, say), "View Package" only opens the newest
-                            one — this line is the only place an exec sees at a glance
-                            how many of ALL of them have actually cleared costing. */}
-                        {q.customPackages.length > 1 && (
-                            <Badge
-                                variant="outline"
-                                className="gap-1 text-[11px] font-medium py-0.5 rounded-md bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800"
-                            >
-                                <UserCheck className="h-3 w-3" />
-                                {q.customPackages.filter((p) => p.verified).length}/{q.customPackages.length} Approved
-                            </Badge>
-                        )}
-                        {(latest?.readyAt || latest?.hotelRequestStatus || latest?.libraryStatus) && (
-                            <div className="flex flex-col items-center gap-1">
-                                {latest.readyAt && (
-                                    <>
-                                        <PackageVerificationBadge pkg={latest} />
-                                        <PackageSentBadge pkg={latest} />
-                                    </>
-                                )}
-                                <HotelRequestBadge pkg={latest} />
-                                <LibraryStatusBadge pkg={latest} />
-                            </div>
-                        )}
+                        {statusBadges}
                     </div>
                 );
             },
@@ -506,7 +604,7 @@ export function SalesQueriesTable({
                 </div>
             ),
         },
-        {
+        ...(!isTeamLead ? [{
             header: "Follow-Ups",
             align: "center" as const,
             sortKey: (q) => q._count.queryFollowUps ?? 0,
@@ -516,8 +614,7 @@ export function SalesQueriesTable({
                     {q._count.queryFollowUps}
                 </div>
             ),
-        },
-        {
+        } as ColumnDef<SalesQueryRow>, {
             header: "Follow up",
             sortKey: (q) => q.nextFollowUpAt ? new Date(q.nextFollowUpAt).getTime() : 0,
             cell: (q) => (
@@ -534,7 +631,7 @@ export function SalesQueriesTable({
                     )}
                 </div>
             ),
-        },
+        } as ColumnDef<SalesQueryRow>] : []),
         {
             header: "Assigned",
             width: "w-[84px]",
@@ -569,6 +666,7 @@ export function SalesQueriesTable({
                 <ActionCell
                     query={q}
                     onView={() => openDetail(q)}
+                    isTeamLead={isTeamLead}
                 />
             ),
         },
@@ -745,6 +843,7 @@ export function SalesQueriesTable({
                 open={sheetOpen}
                 onOpenChange={setSheetOpen}
                 onRefresh={() => openDetail(detailQuery as PackageQueryType)}
+                isTeamLead={isTeamLead}
             />
         </>
     );

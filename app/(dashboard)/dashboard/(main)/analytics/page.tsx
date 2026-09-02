@@ -7,11 +7,14 @@ import { GeneralAnalytics } from "../components/dashboard/GeneralAnalytics";
 import { HotelDepartmentAnalytics } from "../components/dashboard/HotelDepartmentAnalytics";
 import { LeadManagerAnalytics } from "../components/dashboard/LeadManagerAnalytics";
 import { SalesManagerAnalytics } from "../components/dashboard/SalesManagerAnalytics";
+import { TeamLeaderAnalytics } from "../components/dashboard/TeamLeaderAnalytics";
 import { getPlatformManagerAnalytics } from "../actions/platform-manager-analytics-actions";
 import { getGeneralAnalytics } from "../actions/general-analytics-actions";
 import { getHotelDepartmentAnalytics } from "../actions/hotel-department-analytics-actions";
 import { getLeadManagerAnalytics } from "../actions/lead-manager-analytics-actions";
+import { getTeamLeaderAnalytics } from "../actions/team-leader-analytics-actions";
 import { getSalesTeamAnalytics } from "../sales-teams/sales-team-analytics-actions";
+import { getLeaderScope } from "@/app/lib/sales-teams/leader-scope";
 import type { CurrentMember } from "@/app/types/members";
 
 export const metadata: Metadata = {
@@ -47,6 +50,25 @@ async function SalesManagerAnalyticsSection(_: SectionProps) {
   return <SalesManagerAnalytics data={data} />;
 }
 
+async function TeamLeaderAnalyticsSection({ from, to }: SectionProps) {
+  const [teamData, leaderboard, scope] = await Promise.all([
+    getTeamLeaderAnalytics(from, to),
+    // Company-wide, same date range — every Team Leader sees every sales
+    // executive's and every team's standing, not just their own team's.
+    getSalesTeamAnalytics(from, to),
+    getLeaderScope(),
+  ]);
+  return (
+    <TeamLeaderAnalytics
+      teamData={teamData}
+      leaderboard={leaderboard}
+      from={from}
+      to={to}
+      viewerTeamId={scope?.ledTeamId ?? null}
+    />
+  );
+}
+
 // Add more entries here as per-role views are built, mirroring ROLE_DASHBOARD_MAP
 // in dashboard/page.tsx. Every other role (and members with no team role at
 // all) sees general site analytics.
@@ -55,6 +77,7 @@ const ANALYTICS_MAP: Record<string, AnalyticsSection> = {
   "hotel department": HotelDepartmentAnalyticsSection,
   "lead manager": LeadManagerAnalyticsSection,
   "sales manager": SalesManagerAnalyticsSection,
+  "team leader": TeamLeaderAnalyticsSection,
 };
 
 function todayStr() {

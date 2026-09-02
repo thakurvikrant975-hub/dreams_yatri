@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { History, Loader2 } from "lucide-react";
+import { History, Loader2, Send } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
+import { Textarea } from "../../components/ui/textarea";
 import {
     Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "../../components/ui/sheet";
-import { getQueryById } from "./actions";
+import { getQueryById, addNote } from "./actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +21,11 @@ type Props = {
     /** Override the fetcher — sales-query passes its own richer query loader,
      * which includes the same `timeline` relation this sheet actually needs. */
     fetchQuery?: (id: string) => Promise<{ timeline: TimelineEntry[] } | null>;
+    /** Shows a small "add note" form at the bottom, which posts through
+     * addNote — the note lands in the timeline immediately (addNote logs it
+     * there itself), not just its own notes list. Off by default: most
+     * viewers of this sheet are only here to read what already happened. */
+    canAddNote?: boolean;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -36,19 +43,34 @@ function timelineDot(event: string) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function QueryTimelineSheet({ queryId, leadName, fetchQuery = getQueryById }: Props) {
+export function QueryTimelineSheet({ queryId, leadName, fetchQuery = getQueryById, canAddNote = false }: Props) {
     const [open, setOpen] = useState(false);
     const [timeline, setTimeline] = useState<TimelineEntry[] | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [note, setNote] = useState("");
+    const [isPosting, startPost] = useTransition();
+
+    function refetch() {
+        startTransition(async () => {
+            const result = await fetchQuery(queryId);
+            setTimeline(result?.timeline ?? []);
+        });
+    }
 
     function handleOpen(o: boolean) {
         setOpen(o);
-        if (o) {
-            startTransition(async () => {
-                const result = await fetchQuery(queryId);
-                setTimeline(result?.timeline ?? []);
-            });
-        }
+        if (o) refetch();
+    }
+
+    function handleAddNote() {
+        if (!note.trim()) return;
+        const fd = new FormData();
+        fd.set("content", note.trim());
+        startPost(async () => {
+            const r = await addNote(queryId, fd);
+            if (r.success) { setNote(""); refetch(); }
+            else toast.error(r.message);
+        });
     }
 
     return (
@@ -98,6 +120,27 @@ export function QueryTimelineSheet({ queryId, leadName, fetchQuery = getQueryByI
                         </div>
                     )}
                 </div>
+
+                {canAddNote && (
+                    <div className="shrink-0 border-t px-6 py-4 space-y-2">
+                        <Textarea
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            placeholder="Add a note to this query's timeline…"
+                            rows={2}
+                            className="text-sm resize-none"
+                        />
+                        <Button
+                            size="sm"
+                            className="w-full gap-1.5"
+                            disabled={!note.trim() || isPosting}
+                            onClick={handleAddNote}
+                        >
+                            {isPosting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                            Add to timeline
+                        </Button>
+                    </div>
+                )}
             </SheetContent>
         </Sheet>
     );

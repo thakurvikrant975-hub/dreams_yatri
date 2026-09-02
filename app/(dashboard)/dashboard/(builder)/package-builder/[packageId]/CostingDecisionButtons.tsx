@@ -28,7 +28,13 @@ import { getRejectionReasons } from "@/app/(dashboard)/dashboard/(main)/(marketi
 import { countOpenFindings, getRevisionHistory, type RevisionEntry } from "@/app/(dashboard)/dashboard/(builder)/package-builder/review-notes.actions";
 import { RevisionHistoryDialog } from "@/app/(dashboard)/dashboard/(main)/verify-packages/[id]/RevisionHistoryDialog";
 
-export function CostingDecisionButtons({ packageId }: { packageId: string }) {
+export function CostingDecisionButtons({ packageId, canApprove }: {
+  packageId: string;
+  /** False for a Team Leader reviewing their team's package — they may
+   * reject and correct it, but approving (the pricing sign-off) stays
+   * costing's alone. */
+  canApprove: boolean;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -127,16 +133,18 @@ export function CostingDecisionButtons({ packageId }: { packageId: string }) {
         </DialogContent>
       </Dialog>
 
-      <Button
-        size="sm"
-        onClick={approve}
-        disabled={isPending}
-        title={blocking > 0 ? `${blocking} must-fix findings still open` : undefined}
-        className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60"
-      >
-        {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-        Approve
-      </Button>
+      {canApprove && (
+        <Button
+          size="sm"
+          onClick={approve}
+          disabled={isPending}
+          title={blocking > 0 ? `${blocking} must-fix findings still open` : undefined}
+          className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60"
+        >
+          {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+          Approve
+        </Button>
+      )}
     </div>
   );
 }

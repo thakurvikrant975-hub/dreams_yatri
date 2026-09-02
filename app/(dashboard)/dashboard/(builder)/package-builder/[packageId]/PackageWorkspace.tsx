@@ -12,8 +12,8 @@ import {
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
   Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
-  Save, Send, CheckCircle, AlertCircle, Loader2, 
-  User, Info, IndianRupee, ArrowLeft,
+  Save, Send, CheckCircle, AlertCircle, Loader2,
+  Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, Helicopter, Bus, LogIn, LogOut,
   Image as ImageIcon, X, Sparkles, Percent, CreditCard, Wand2, Copy, Lock,
   ExternalLink, Gift, GripVertical, Clock, XCircle, RotateCcw, ShieldCheck, BedDouble, Undo2, Redo2, Ticket,
@@ -67,6 +67,7 @@ import { CostingDecisionButtons } from "./CostingDecisionButtons";
 import { RequestRevisionDialog } from "./RequestRevisionDialog";
 import { validateItineraryRequiredFields } from "./pdfExport";
 import { getStayOptionsForDocument } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.actions";
+import { CreatePackageDialog } from "@/app/(dashboard)/dashboard/(main)/(sales)/sales-query/CreatePackageDialog";
 import { getItinerarySettings, type ItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { PackageBuilderProvider, reorderDays, type PackageForm, type DayCost } from "./builder-context";
@@ -2283,6 +2284,30 @@ Rules:
                 </button>
               </div>
             )}
+            {!isLocked && (
+              <CreatePackageDialog
+                // Stay in this builder — see builderBasePath.
+                builderBasePath="/dashboard/package-builder"
+                packageId={packageId}
+                destination={j?.destinations?.join(", ") ?? query.destination ?? null}
+                packageUrl={query.packageUrl}
+                travelDate={j?.travelDate ?? (query.travelDate ? new Date(query.travelDate).toISOString().slice(0, 10) : null)}
+                travellers={t ? { adults: t.adults, children: t.children, infants: t.infants } : null}
+                budget={b && (b.min != null || b.max != null) ? { min: b.min, max: b.max, type: b.type } : null}
+                duration={j?.noOfDays ? { days: j.noOfDays, nights: j.noOfNights } : null}
+                queryReceivedAt={query.createdAt}
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+                >
+                  <Package size={13} />
+                  <span className="text-xs">Change Template</span>
+                </Button>
+              </CreatePackageDialog>
+            )}
+
             {pkgSent ? (
               <>
                 <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold">
@@ -2439,8 +2464,8 @@ Rules:
                 Costing is not sending this document anywhere — the exec does
                 that once it is approved — and the two buttons that matter to
                 them belong where their eye already is. */}
-            {caps.decide ? (
-              <CostingDecisionButtons packageId={packageId} />
+            {(caps.decide || caps.rejectOnly) ? (
+              <CostingDecisionButtons packageId={packageId} canApprove={caps.decide} />
             ) : (
               <>
                 <ItineraryPdfExport form={previewForm} canDownload={pkgVerified} />
