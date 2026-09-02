@@ -95,6 +95,10 @@ export type TemplatePackage = LibraryPackage & {
      * reuse an older/retired package), just flagged so it's obvious it
      * isn't something a client could currently browse to themselves. */
     isActive:            boolean;
+    /** Who built this catalog package — resolved from `packages.created_by`
+     * (a team_member id) to a display name. Null for packages created before
+     * that column existed, or by someone no longer on the roster. */
+    createdByName:       string | null;
 };
 
 async function priceForPackage(
@@ -243,6 +247,7 @@ export async function searchPackageLibraryForTemplate(params: {
         thumbnail:   true,
         description: true,
         is_active:   true,
+        created_by:  true,
         destination: { select: { name: true, region: { select: { name: true } } } },
         stay_categories: {
             where:   { is_active: true as const },
@@ -274,6 +279,7 @@ export async function searchPackageLibraryForTemplate(params: {
         thumbnail:   true,
         description: true,
         is_active:   true,
+        created_by:  true,
         destination: { select: { name: true, region: { select: { name: true } } } },
         stay_categories: {
             where:   { is_active: true as const },
@@ -333,9 +339,14 @@ export async function searchPackageLibraryForTemplate(params: {
         return { duration, route: duration?.routes[0] };
     }
 
+    // Filled in just before `mapTemplateRow` is first called (see below) —
+    // declared here so the function's closure sees the populated map rather
+    // than an empty one captured at definition time.
+    let createdByNames = new Map<string, string>();
+
     async function mapTemplateRow(r: {
         id: number; title: string; slug: string; thumbnail: string | null; description: string | null;
-        is_active: boolean;
+        is_active: boolean; created_by: string | null;
         destination: { name: string; region: { name: string } | null };
         stay_categories: { id: number; label: string; is_default: boolean; slug: string }[];
         durations: { id: number; slug: string; days: number; nights: number; is_default?: boolean;
@@ -363,6 +374,7 @@ export async function searchPackageLibraryForTemplate(params: {
             destinationName: r.destination.name,
             regionName:      r.destination.region?.name ?? null,
             isActive:        r.is_active,
+            createdByName:   r.created_by ? createdByNames.get(r.created_by) ?? null : null,
             durationSlug:    duration?.slug ?? null,
             routeSlug:       route?.slug ?? null,
             totalDays:       duration?.days ?? null,
@@ -395,22 +407,38 @@ export async function searchPackageLibraryForTemplate(params: {
         }),
     ]);
 
-    const packages: TemplatePackage[] = await Promise.all(rows.map(mapTemplateRow));
-
     // The exact package this lead's query came from must always be present,
     // even if it didn't match the free-text search filter above (e.g. the
     // search box defaulted to a destination name that isn't in this specific
     // package's title) — fetch and pin it separately rather than depend on
-    // it surviving the `where` clause.
-    if (hasSlugPriority && page === 1 && !packages.some((p) => p.slug === querySlug)) {
-        const pinnedRow = await db.packages.findFirst({
+    // it surviving the `where` clause. Fetched before the name lookup below
+    // so its builder's id is covered by that single query too.
+    let pinnedRow: (typeof rows)[number] | null = null;
+    if (hasSlugPriority && page === 1 && !rows.some((r) => r.slug === querySlug)) {
+        pinnedRow = await db.packages.findFirst({
             where:  { slug: querySlug },
             select: rowSelect,
         });
-        if (pinnedRow) {
-            packages.unshift(await mapTemplateRow(pinnedRow));
-            total += 1;
-        }
+    }
+
+    const createdByIds = [...new Set(
+        [...rows, ...(pinnedRow ? [pinnedRow] : [])]
+            .map((r) => r.created_by)
+            .filter((id): id is string => !!id),
+    )];
+    if (createdByIds.length > 0) {
+        const members = await db.teamMember.findMany({
+            where:  { id: { in: createdByIds } },
+            select: { id: true, name: true },
+        });
+        createdByNames = new Map(members.map((m) => [m.id, m.name]));
+    }
+
+    const packages: TemplatePackage[] = await Promise.all(rows.map(mapTemplateRow));
+
+    if (pinnedRow && !packages.some((p) => p.slug === querySlug)) {
+        packages.unshift(await mapTemplateRow(pinnedRow));
+        total += 1;
     }
 
     if (!needsInMemorySort) {

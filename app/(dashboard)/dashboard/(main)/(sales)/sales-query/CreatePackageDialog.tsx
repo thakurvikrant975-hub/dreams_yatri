@@ -993,6 +993,14 @@ export function CreatePackageDialog({ queryId, packageId, existingPackages, dest
                                                         {isDurationMatch && <span className="text-emerald-600">— matches request</span>}
                                                     </p>
                                                 )}
+                                                {pkg.createdByName && (
+                                                    <span className="flex items-center gap-1.5">
+                                                        <span className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-[8px] font-bold">
+                                                            {initials(pkg.createdByName)}
+                                                        </span>
+                                                        <span className="text-[11px] text-muted-foreground truncate">by {pkg.createdByName}</span>
+                                                    </span>
+                                                )}
                                                 {recomputingId === pkg.id ? (
                                                     <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
                                                         <Loader2 size={11} className="animate-spin" /> Recalculating…
