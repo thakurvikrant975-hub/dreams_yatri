@@ -27,7 +27,7 @@
 // first would have meant rewriting ~40 call sites before shipping anything.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   StopInput, DayItinerary, TicketInput, AddonInput, ExtraPolicyItems,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
@@ -337,6 +337,15 @@ export function PackageBuilderProvider({
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab | null>("client");
   const [selectedDay, setSelectedDay] = useState(1);
+
+  // Below lg (see BuilderSidebar) the panel isn't a docked column beside the
+  // document — it's a full-screen sheet over it. Landing there on "client"
+  // buried the one thing an exec opens this page to see behind a section they
+  // didn't ask for. Desktop keeps the docked default; only mobile collapses it
+  // on mount, once, to the document with nothing covering it.
+  useEffect(() => {
+    if (window.innerWidth < 1024) setPanelTab(null);
+  }, []);
 
   // Days are renumbered on every insert, delete and reorder, so a stored day
   // number goes stale on its own. Clamping here rather than at each reader

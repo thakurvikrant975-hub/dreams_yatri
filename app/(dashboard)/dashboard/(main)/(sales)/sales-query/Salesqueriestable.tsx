@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
-    CircleX, Package, Plus,
+    CircleX, Package, Plus, Download, FileSpreadsheet, FileText, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -14,6 +15,10 @@ import { Badge } from "../../components/ui/badge";
 import {
     Tooltip, TooltipContent, TooltipTrigger, TooltipProvider,
 } from "../../components/ui/tooltip";
+import {
+    DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "../../components/ui/dropdown-menu";
+import { DateRangePicker } from "../../components/ui/date-range-picker";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
@@ -51,9 +56,23 @@ type Props = {
     queries: SalesQueryRow[];
     closeReasons: CloseReason[];
     rejectionReasons: RejectionReason[];
+    /** Active date range (YYYY-MM-DD), server-scoped — see page.tsx. */
+    from: string;
+    to: string;
+    isAllTime: boolean;
+    generatedByName?: string;
 };
 
 const PAGE_SIZE = 10;
+
+function todayStr() {
+    return new Date().toISOString().split("T")[0];
+}
+function firstOfMonthStr() {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split("T")[0];
+}
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -158,10 +177,76 @@ function ActionCell({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: Props) {
+export function SalesQueriesTable({
+    queries, closeReasons, rejectionReasons, from, to, isAllTime, generatedByName,
+}: Props) {
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
     const [page, setPage] = useState(1);
+
+    // ── Date range — server-driven via URL, same pattern as
+    // LeadManagerAnalytics.tsx: router.replace inside a transition so the
+    // page doesn't flash the Suspense fallback on every range change. ───────
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const [isPending, startTransition] = useTransition();
+    const [downloading, setDownloading] = useState<"pdf" | "excel" | null>(null);
+
+    const isThisMonth = !isAllTime && from === firstOfMonthStr() && to === todayStr();
+
+    function setRange(newFrom: string, newTo: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("from", newFrom);
+        params.set("to", newTo);
+        params.delete("range");
+        startTransition(() => router.replace(`?${params.toString()}`));
+    }
+    function setAllTime() {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("range", "all");
+        params.delete("from");
+        params.delete("to");
+        startTransition(() => router.replace(`?${params.toString()}`));
+    }
+
+    const rangeLabel = isAllTime
+        ? "All time"
+        : isThisMonth
+            ? "This month"
+            : from === to
+                ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${from}T00:00:00`))
+                : `${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(`${from}T00:00:00`))} – ${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${to}T00:00:00`))}`;
+
+    async function handleDownloadPdf() {
+        setDownloading("pdf");
+        try {
+            const { buildSalesQueryReportPdf } = await import("./salesQueryReportPdf");
+            const pdf = buildSalesQueryReportPdf(filtered, {
+                totalCount, newToday, inProgress, followUpCount, closedCount, bookedCount, convRate,
+            }, { from, to, isAllTime, generatedByName });
+            pdf.save(`sales-queries-report_${isAllTime ? "all-time" : `${from}_to_${to}`}.pdf`);
+        } catch (e) {
+            console.error(e);
+            toast.error("Could not generate the report PDF. Please try again.");
+        } finally {
+            setDownloading(null);
+        }
+    }
+
+    async function handleDownloadExcel() {
+        setDownloading("excel");
+        try {
+            const XLSX = await import("xlsx");
+            const { buildSalesQueryReportExcel } = await import("./salesQueryReportExcel");
+            const workbook = buildSalesQueryReportExcel(filtered);
+            XLSX.writeFile(workbook, `sales-queries-report_${isAllTime ? "all-time" : `${from}_to_${to}`}.xlsx`);
+        } catch (e) {
+            console.error(e);
+            toast.error("Could not generate the report spreadsheet. Please try again.");
+        } finally {
+            setDownloading(null);
+        }
+    }
 
     // Detail sheet
     const [sheetOpen, setSheetOpen] = useState(false);
@@ -524,11 +609,66 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
     return (
         <>
             <div className="space-y-4">
+                {/* ── Range controls + report download ─────────────────────────────── */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-2 justify-between">
+                    <div className="flex items-center gap-1.5">
+                        {[
+                            { label: "This Month", active: isThisMonth, onClick: () => setRange(firstOfMonthStr(), todayStr()) },
+                            { label: "All Time", active: isAllTime, onClick: setAllTime },
+                        ].map((b) => (
+                            <button
+                                key={b.label}
+                                type="button"
+                                onClick={b.onClick}
+                                className={cn(
+                                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                                    b.active
+                                        ? "bg-dashboard-primary text-dashboard-primary-content"
+                                        : "bg-dashboard-base-200 text-dashboard-base-content/70 hover:bg-dashboard-base-300",
+                                )}
+                            >
+                                {b.label}
+                            </button>
+                        ))}
+                        {isPending && <span className="text-xs text-muted-foreground animate-pulse px-1">Updating…</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <DateRangePicker
+                            from={isAllTime ? "" : from}
+                            to={isAllTime ? "" : to}
+                            onFromChange={(v) => setRange(v || firstOfMonthStr(), isAllTime ? todayStr() : to)}
+                            onToChange={(v) => setRange(isAllTime ? firstOfMonthStr() : from, v || todayStr())}
+                        />
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    disabled={downloading !== null}
+                                    className="inline-flex items-center gap-1.5 rounded-md bg-dashboard-primary px-3 py-2 text-xs font-semibold text-dashboard-primary-content hover:opacity-90 transition-opacity disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    {downloading ? "Generating…" : "Download Report"}
+                                    {!downloading && <ChevronDown className="h-3 w-3 opacity-70" />}
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleDownloadPdf} className="gap-2 cursor-pointer">
+                                    <FileText className="h-3.5 w-3.5" /> PDF
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleDownloadExcel} className="gap-2 cursor-pointer">
+                                    <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </div>
+
                 {/* Stats — matches requested: total, new today, in progress, closed, booked, conv% */}
                 <StatGrid cols={7}>
                     <StatCard
                         label="Total Queries"
                         value={totalCount}
+                        sub={rangeLabel}
                         icon={Inbox}
                         iconText="text-dashboard-primary"
                     />

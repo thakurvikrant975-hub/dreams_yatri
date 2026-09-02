@@ -115,14 +115,21 @@ const CUSTOM_PACKAGE_SELECT = {
     },
 } as const;
 
-/** Returns only queries assigned to the currently logged-in sales exec */
-export async function getSalesQueries(): Promise<SalesQueryRow[]> {
+/** Returns only queries assigned to the currently logged-in sales exec.
+ *
+ * `from`/`to` (YYYY-MM-DD) scope by `createdAt` — same range convention as
+ * getLeadManagerAnalytics (lead-manager-analytics-actions.ts). Omit both for
+ * the "All Time" view. */
+export async function getSalesQueries(from?: string, to?: string): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
 
     const queries = await db.package_queries.findMany({
         where: {
             deletedAt: null,
             ...(teamMemberId ? { assignedTo: teamMemberId } : {}),
+            ...(from && to
+                ? { createdAt: { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59.999`) } }
+                : {}),
         },
         include: {
             rejection_reasons: { select: { id: true, label: true } },
