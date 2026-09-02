@@ -15,14 +15,18 @@ import {
   DEFAULT_AGE_BANDS,
 } from "../app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import {
-  staySpecOf, applyStaySpec, staySpecsDiffer, inconsistentStayNights,
+  staySpecOf, staySpecForRoom, applyStaySpec, staySpecsDiffer, inconsistentStayNights,
+  addExtraRoom, applyHotelRoomSelection,
 } from "../app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/day-mutations";
 import {
   stayMattressIssues, effectiveMattressCount, effectiveMattressRate, hotelGapLabel,
   blockingStayIssuesError,
 } from "../app/(dashboard)/dashboard/(builder)/package-builder/stay-diagnostics";
+import {
+  extraRoomsPricingKey, extraCabsPricingKey,
+} from "../app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { planRoomOccupancy } from "../app/lib/room-capacity";
-import type { DayItinerary } from "../app/(dashboard)/dashboard/(builder)/package-builder/action";
+import type { DayItinerary, HotelRoomResult } from "../app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 let passed = 0;
 const failures: string[] = [];
@@ -69,16 +73,21 @@ check("a 14-year-old in the children box is priced as an adult",
   classifyTravellers(teen).adults === 3 && classifyTravellers(teen).children === 0);
 check("...and is reported rather than silently moved",
   bandMismatchLines(teen).length === 1 && bandMismatchLines(teen)[0].includes("priced as an adult"));
-check("...and is a paying head", payingPaxOf(teen) === 3);
+// ...but not an extra head to divide the total by. The per-person figure is
+// split across the ADULTS ENTERED and nothing else — see payingPaxOf, which
+// says so in its own words. The band still decides what this traveller costs
+// (an adult bed, an adult's occupancy tier); it no longer decides the divisor.
+check("...without changing how many heads the price is divided by",
+  payingPaxOf(teen) === 2);
 
-// The band moving is what changes the answer, not the counts.
+// The band moving is what changes the cost, not the divisor.
 const under5 = { adults: 2, children: 1, infants: 0, childrenAges: [4], infantAges: [] };
-check("a 4-year-old is a paying head on the default band",
-  payingPaxOf({ ...under5, ...std }) === 3);
-check("...and is not once the package says infants run to 5",
-  payingPaxOf({ ...under5, infantMaxAge: 5, childMaxAge: 12 }) === 2);
-check("...and takes no bed either",
-  pricingPartyOf({ ...under5, infantMaxAge: 5, childMaxAge: 12 }).children === 0);
+check("a child is never a head in the per-person divisor, on any band",
+  payingPaxOf({ ...under5, ...std }) === 2
+  && payingPaxOf({ ...under5, infantMaxAge: 5, childMaxAge: 12 }) === 2);
+check("...but the band still decides whether they take a bed",
+  pricingPartyOf({ ...under5, ...std }).children === 1
+  && pricingPartyOf({ ...under5, infantMaxAge: 5, childMaxAge: 12 }).children === 0);
 
 const babyInChildBox = { adults: 2, children: 1, infants: 0, childrenAges: [1], infantAges: [], ...std };
 check("a 1-year-old typed under Children is priced as an infant",
@@ -88,7 +97,8 @@ check("...and is not a paying head", payingPaxOf(babyInChildBox) === 2);
 const bigInfant = { adults: 2, children: 0, infants: 1, childrenAges: [], infantAges: [4], ...std };
 check("a 4-year-old typed under Infants is priced as a child",
   classifyTravellers(bigInfant).children === 1);
-check("...and does become a paying head", payingPaxOf(bigInfant) === 3);
+check("...and takes a child's bed", pricingPartyOf(bigInfant).children === 1);
+check("...still without adding a head to the divisor", payingPaxOf(bigInfant) === 2);
 
 const unanswered = { adults: 2, children: 1, infants: 0, childrenAges: [AGE_UNSET], infantAges: [], ...std };
 check("an unanswered age stays in the box it was entered in",
@@ -98,16 +108,18 @@ check("...and raises no mismatch, because nothing is known yet",
 check("adults-only parties classify unchanged",
   payingPaxOf({ adults: 4, children: 0, infants: 0, childrenAges: [], infantAges: [], ...std }) === 4);
 check("a package with no ages at all still prices",
-  payingPaxOf({ adults: 2, children: 1 }) === 3);
+  payingPaxOf({ adults: 2, children: 1 }) === 2);
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("Age entry:");
 
-check("a missing age is reported", travellersMissingAges(unanswered).length === 1);
+// An age is optional now: entering one feeds the traveller line and the band
+// classification, and leaving it out no longer stops a package reaching
+// costing (see travellersMissingAges, which returns nothing by design).
+check("an unanswered age is not reported as missing", travellersMissingAges(unanswered).length === 0);
 check("an out-of-band age is NOT reported as missing — it is answered",
   travellersMissingAges(teen).length === 0);
-check("the blocking message names the bands it will be read against",
-  (missingTravellerAgesError(unanswered) ?? "").includes("Infants 0–2"));
+check("an unanswered age does not block the submit", missingTravellerAgesError(unanswered) === null);
 check("nothing missing means nothing blocks", missingTravellerAgesError(teen) === null);
 check("a new age slot is unset, not zero", resizeAges([], 2)[0] === AGE_UNSET);
 check("an emptied box returns to unset", parseAgeInput("") === AGE_UNSET);
@@ -165,6 +177,127 @@ check("a different mattress count differs",
   staySpecsDiffer(spec, { ...spec, manualExtraBeds: 1 }));
 check("a different room count differs too — it is what derives the mattresses",
   staySpecsDiffer(spec, { ...spec, roomsCount: 3 }));
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("Combo nights — several room types at one hotel:");
+
+/** Only the fields these functions actually read — a catalog room carries
+ * thirty, and spelling them out here would test the fixture, not the code. */
+const catalogRoom = (over: Partial<HotelRoomResult>) => ({
+  thumbnail: null, roomSpecs: null, coveredMeals: [], roomPhotos: [], ...over,
+}) as unknown as HotelRoomResult;
+const deluxe = catalogRoom({ id: 10, hotelId: 7, hotelName: "Hotel Pinegrove", roomName: "Deluxe", roomCapacity: 3 });
+const standard = catalogRoom({ id: 11, hotelId: 7, hotelName: "Hotel Pinegrove", roomName: "Standard", roomCapacity: 2 });
+/** A room at a DIFFERENT property — what a combo must never end up holding. */
+const elsewhere = catalogRoom({ id: 20, hotelId: 9, hotelName: "Cedar Lodge", roomName: "Standard", roomCapacity: 2 });
+
+const combo = addExtraRoom(night(1, { roomsCount: 3 }), standard, 3);
+check("an extra room type records the hotel it belongs to",
+  (combo.extraRooms ?? [])[0].hotelId === 7);
+check("...at one room until asked otherwise",
+  (combo.extraRooms ?? [])[0].quantity === 1);
+
+const autoSized = addExtraRoom(night(1), standard, 4);
+check("starting a combo pins the primary's auto room count", autoSized.roomsCount === 4);
+check("...and never overwrites a count the exec set",
+  addExtraRoom(night(1, { roomsCount: 2 }), standard, 4).roomsCount === 2);
+
+check("a combo travels with the stay",
+  staySpecOf(combo).extraRooms.length === 1);
+check("two nights differing only in their combo are detected",
+  inconsistentStayNights([combo, night(2, { roomsCount: 3 })], 1).join(",") === "2");
+check("...and aligning the run copies the combo onto every night",
+  inconsistentStayNights(
+    [combo, night(2, { roomsCount: 3 })].map((d) => applyStaySpec(d, staySpecOf(combo))), 1,
+  ).length === 0);
+check("the order rooms were added in is not a difference between nights",
+  !staySpecsDiffer(
+    staySpecOf(addExtraRoom(combo, deluxe, 3)),
+    { ...staySpecOf(combo), extraRooms: [...staySpecOf(addExtraRoom(combo, deluxe, 3)).extraRooms].reverse() },
+  ));
+
+check("changing to another room at the SAME hotel keeps the combo",
+  (applyHotelRoomSelection(combo, deluxe).extraRooms ?? []).length === 1);
+check("changing hotel drops rooms the new property never had",
+  (applyHotelRoomSelection(combo, elsewhere).extraRooms ?? []).length === 0);
+check("a spec applied to a night being given another hotel carries no stale rooms",
+  staySpecForRoom(combo, elsewhere).extraRooms.length === 0);
+check("...and carries them when the hotel is the same",
+  staySpecForRoom(combo, deluxe).extraRooms.length === 1);
+
+// Packages built before a selection recorded its hotel: spreading the night's
+// own room over more nights must not quietly delete the combo on it.
+const legacy = {
+  ...night(1, { roomsCount: 3 }),
+  extraRooms: [{ roomPricingId: 11, label: "Hotel Pinegrove — Standard", quantity: 2 }],
+} as unknown as DayItinerary;
+const ownRoom = catalogRoom({ id: legacy.roomPricingId!, hotelId: 7, hotelName: "Hotel Pinegrove", roomName: "Deluxe", roomCapacity: 3 });
+check("spreading a night's own room keeps a combo saved without a hotel id",
+  staySpecForRoom(legacy, ownRoom).extraRooms.length === 1);
+check("...while changing the room does drop it, since nothing says it belongs",
+  staySpecForRoom(legacy, standard).extraRooms.length === 0);
+
+// The party fits across BOTH room types — 3 deluxe (9 beds) + 2 standard (4)
+// for a party of 12 — so nothing should be flagged.
+const noBeds = { accommodationExtraBedCapacity: 0, accommodationRoomCapacity: 3, roomsCount: 3 };
+const comboNight = {
+  ...night(1, noBeds),
+  extraRooms: [{ roomPricingId: 11, label: "Hotel Pinegrove — Standard", quantity: 2, hotelId: 7, roomCapacity: 2 }],
+} as unknown as DayItinerary;
+check("a party that fits across a combo raises nothing",
+  stayMattressIssues(comboNight, { adults: 12, children: 0 })
+    .every((i) => i.code !== "party-does-not-fit"));
+check("a party that does not fit even across the combo is still flagged",
+  stayMattressIssues(comboNight, { adults: 20, children: 0 })
+    .some((i) => i.code === "party-does-not-fit"));
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("Costing's per-day correction survives a save:");
+
+// EXACTLY what Postgres hands back for the list below — captured by round-
+// tripping it through a real `::jsonb` cast. jsonb canonicalises key order (by
+// key length, then bytewise), so the stored copy and the copy the builder
+// sends are never string-equal however identical their contents. Comparing
+// them with JSON.stringify — which is what the save used to do — reported a
+// changed hotel selection on every save of a combo day and threw away the
+// costing manager's correction for that day.
+const asStored = [{
+  label: "Hotel Pinegrove — Standard", hotelId: 7, quantity: 2, roomSpecs: null,
+  thumbnail: null, roomCapacity: 2, roomPricingId: 812,
+}];
+const asSent = [{
+  roomPricingId: 812, label: "Hotel Pinegrove — Standard", quantity: 2, hotelId: 7,
+  thumbnail: null, roomCapacity: 2, roomSpecs: null,
+}];
+check("the naive comparison this replaced really did see a difference",
+  JSON.stringify(asStored) !== JSON.stringify(asSent));
+check("the stored row and the sent row price the same",
+  extraRoomsPricingKey(asStored) === extraRoomsPricingKey(asSent));
+check("...so an untouched combo day keeps costing's correction",
+  extraRoomsPricingKey(asStored) === extraRoomsPricingKey(asSent));
+
+check("a changed quantity is a repriced night",
+  extraRoomsPricingKey(asSent) !== extraRoomsPricingKey([{ ...asSent[0], quantity: 3 }]));
+check("a different room type is a repriced night",
+  extraRoomsPricingKey(asSent) !== extraRoomsPricingKey([{ ...asSent[0], roomPricingId: 900 }]));
+check("adding a room type is a repriced night",
+  extraRoomsPricingKey(asSent) !== extraRoomsPricingKey([...asSent, { roomPricingId: 900, label: "x", quantity: 1 }]));
+check("a re-typed label alone is not",
+  extraRoomsPricingKey(asSent) === extraRoomsPricingKey([{ ...asSent[0], label: "Renamed" }]));
+check("the order two room types were added in is not",
+  extraRoomsPricingKey([{ roomPricingId: 1, label: "a", quantity: 1 }, { roomPricingId: 2, label: "b", quantity: 2 }])
+  === extraRoomsPricingKey([{ roomPricingId: 2, label: "b", quantity: 2 }, { roomPricingId: 1, label: "a", quantity: 1 }]));
+check("an unfinished row the exec never picked a room for is ignored",
+  extraRoomsPricingKey([{ roomPricingId: 0, label: "", quantity: 1 }]) === "");
+check("no extra rooms at all is a stable empty key",
+  extraRoomsPricingKey(null) === "" && extraRoomsPricingKey([]) === "");
+
+check("cabs get the same treatment",
+  extraCabsPricingKey([{ label: "Innova", quantity: 1, cabPricingId: 5 }])
+  === extraCabsPricingKey([{ cabPricingId: 5, quantity: 1, label: "Innova" }]));
+check("...and an unpriced fleet vehicle is still told apart by its name",
+  extraCabsPricingKey([{ cabPricingId: null, label: "Innova", quantity: 1 }])
+  !== extraCabsPricingKey([{ cabPricingId: null, label: "Tempo", quantity: 1 }]));
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("Mattresses — why the count didn't take:");
