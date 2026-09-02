@@ -12,7 +12,9 @@ import { computeBuilderHotelPricing, computeBuilderCabPricing, persistStayOption
 import { baseRatePricingError } from "@/app/services/package-price-utils";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { resolveHotelSeasonPricing } from "@/app/lib/hotel-season-pricing";
-import { parseRoomSelections, parseCabSelections } from "./room-cab-selections";
+import {
+  parseRoomSelections, parseCabSelections, extraRoomsPricingKey, extraCabsPricingKey,
+} from "./room-cab-selections";
 import type { RoomSelection, CabSelection } from "./room-cab-selections";
 import type { Prisma, VehicleType } from "@/app/generated/prisma";
 import { getItinerarySettings } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
@@ -523,6 +525,60 @@ export async function searchHotelRoomsForBuilder(
      * looking simply absent. */
     hiddenNoSeasonRate,
   };
+}
+
+/**
+ * The OTHER room types on offer at the hotel a night is already booked into,
+ * priced for that night.
+ *
+ * What a combo night is made of: a party of ten taking 3 Deluxe and 2 Standard
+ * rooms is one booking at one property, not two hotels on the same date. The
+ * extra-rooms picker therefore searches nothing — it lists this hotel's own
+ * rate sheet, which is the only set of rooms that can legally join the room
+ * already picked (see ExtraRoomsEditor in HotelDrawer.tsx).
+ *
+ * Applies the same "must have a rate for this night" rule the main search
+ * does, and for the same reason: a room with no season covering the date has
+ * never been priced for it, and quoting it at its flat base rate produces a
+ * confident number nobody agreed to. The count of what that dropped is
+ * returned so the picker can say so rather than appear to be missing rooms
+ * the exec knows the hotel has.
+ */
+export async function getSiblingHotelRoomsForBuilder(
+  /** The night's primary room. The hotel is read from it rather than passed
+   * in: the day row stores a rate id and no hotel id, so a caller supplying
+   * the hotel would have to look it up first and could look up the wrong
+   * one — the whole guarantee this function exists to give. */
+  roomPricingId: number,
+  /** The night these rooms would be booked for (ISO) — prices each room at
+   * that date's season/weekend rate, and restricts to rooms that have one. */
+  date?: string | null,
+  /** Extra room types already on the night, so the same rate row can't be
+   * added twice. The primary is always excluded. */
+  excludeRoomPricingIds?: number[] | null,
+): Promise<{ rows: HotelRoomResult[]; hiddenNoSeasonRate: number }> {
+  const primary = await db.hotel_room_pricing.findUnique({
+    where: { id: roomPricingId },
+    select: { hotel: { select: { id: true } } },
+  });
+  if (!primary) return { rows: [], hiddenNoSeasonRate: 0 };
+
+  const exclude = [roomPricingId, ...(excludeRoomPricingIds ?? [])].filter((id) => Number.isFinite(id));
+  const items = await db.hotel_room_pricing.findMany({
+    where: {
+      is_active: true,
+      hotel: { id: primary.hotel.id },
+      id: { notIn: exclude },
+    },
+    select: HOTEL_ROOM_SELECT,
+  });
+
+  // No refCoords: every row here is the same property, so distance is the one
+  // fact that cannot tell these rooms apart.
+  const mapped = sortHotelResults(items.map((item) => mapHotelRoomRow(item, null, date)), "price_asc");
+  const dated = !!date && !Number.isNaN(new Date(date).getTime());
+  const rows = dated ? mapped.filter((r) => r.isSeasonalRate) : mapped;
+  return { rows, hiddenNoSeasonRate: dated ? mapped.length - rows.length : 0 };
 }
 
 /** Looks up a single room by its `hotel_room_pricing` id — used by the hotel
@@ -2677,10 +2733,6 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     // nothing about a given day's hotel/cab keeps costing's correction
     // (previously this was wiped wholesale on every markPackageReady, which
     // threw away a valid correction just for resubmitting unrelated edits).
-    const filteredExtraRooms = (it: { extraRooms?: { roomPricingId: number }[] | null }) =>
-      (it.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
-    const filteredExtraCabs = (it: { extraCabs?: { label: string }[] | null }) =>
-      (it.extraCabs ?? []).filter((c) => c.label.trim());
     const hotelSelectionChanged = (existing: typeof existingHotelState[number] | undefined, it: (typeof itineraries)[number]) =>
       !existing
       || existing.roomPricingId !== (it.roomPricingId ?? null)
@@ -2689,13 +2741,13 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       || existing.manualHotelPricePerNight !== (it.manualHotelPricePerNight ?? null)
       || existing.manualExtraBedRate !== (it.manualExtraBedRate ?? null)
       || existing.accommodation !== (it.accommodation || null)
-      || JSON.stringify(existing.extraRooms ?? []) !== JSON.stringify(filteredExtraRooms(it));
+      || extraRoomsPricingKey(existing.extraRooms) !== extraRoomsPricingKey(it.extraRooms);
     const cabSelectionChanged = (existing: typeof existingHotelState[number] | undefined, it: (typeof itineraries)[number]) =>
       !existing
       || existing.cabPricingId !== (it.cabPricingId ?? null)
       || existing.transportDistanceKm !== (it.transportDistanceKm ?? null)
       || existing.cabQuantity !== (it.cabQuantity ?? null)
-      || JSON.stringify(existing.extraCabs ?? []) !== JSON.stringify(filteredExtraCabs(it));
+      || extraCabsPricingKey(existing.extraCabs) !== extraCabsPricingKey(it.extraCabs);
 
     // Stay categories hang off the day rows about to be deleted, and
     // custom_itinerary_stays cascades on itineraryId — so an ordinary save
@@ -2826,7 +2878,17 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               // Drop any "add another room" row the exec never finished
               // picking a room for (roomPricingId still 0, the picker's
               // "unselected" sentinel) rather than persisting junk entries.
-              extraRooms:         (it.extraRooms ?? []).filter((r) => r.roomPricingId > 0) as unknown as Prisma.InputJsonValue,
+              // Guarded like every other hotel field beside it, which it was
+              // not: a stale tab holding a combo from before the hotel team
+              // filled this day would write those rooms straight onto the
+              // filled day — the team's hotel, with the previous property's
+              // second room type attached to it and priced. The rest of the
+              // stay is protected exactly this way (see staleResurrection);
+              // this column was simply missed, and the day it corrupts is one
+              // nobody is looking at any more.
+              extraRooms:         (staleResurrection
+                ? (existing?.extraRooms ?? [])
+                : (it.extraRooms ?? []).filter((r) => r.roomPricingId > 0)) as unknown as Prisma.InputJsonValue,
               hotelCheckIn:       staleResurrection ? (existing?.hotelCheckIn ?? null) : (it.hotelCheckIn || null),
               hotelCheckOut:      staleResurrection ? (existing?.hotelCheckOut ?? null) : (it.hotelCheckOut || null),
               hotelMealPlan:      staleResurrection ? (existing?.hotelMealPlan ?? null) : (it.hotelMealPlan || null),

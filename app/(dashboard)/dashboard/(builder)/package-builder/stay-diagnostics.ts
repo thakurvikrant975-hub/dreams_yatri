@@ -103,6 +103,24 @@ function capsOf(day: DayItinerary) {
   };
 }
 
+/** Beds in the OTHER room types booked for this night — a combo (3 Deluxe + 2
+ * Standard at one hotel) is one booking, so its rooms count towards whether
+ * the party fits. Extra rooms take no mattresses (see
+ * computeBuilderHotelPricing), so their base capacity is all of it; a room
+ * whose capacity the catalog never recorded contributes nothing rather than a
+ * guess. */
+function extraRoomBeds(day: DayItinerary): number {
+  return (day.extraRooms ?? []).reduce(
+    (sum, r) => sum + Math.max(1, r.quantity) * Math.max(0, r.roomCapacity ?? 0), 0,
+  );
+}
+
+/** Every room the night holds — the primary at its effective count plus each
+ * extra type at the quantity asked for. */
+function roomsOnNight(day: DayItinerary, primaryRooms: number): number {
+  return primaryRooms + (day.extraRooms ?? []).reduce((sum, r) => sum + Math.max(1, r.quantity), 0);
+}
+
 /** What this night will actually be charged per mattress, by the same rule
  * computeBuilderHotelPricing uses: the exec's typed rate wins outright,
  * otherwise the room's own catalog rate, otherwise nothing. */
@@ -164,19 +182,26 @@ export function stayMattressIssues(day: DayItinerary, party: StayParty): StayIss
     } else if (perRoomCapacity <= 0 && party.adults + party.children > 0) {
       // Nothing typed, but the party may still need beds this room can't give.
       const plan = planRoomOccupancy(party.adults, party.children, capsOf(day), day.roomsCount);
-      if (plan.rooms * (day.accommodationRoomCapacity ?? 0) > 0
-        && party.adults + party.children > plan.rooms * (day.accommodationRoomCapacity ?? 0)) {
+      const primaryBeds = plan.rooms * (day.accommodationRoomCapacity ?? 0);
+      // Counted alongside the primary, because the party is split across both:
+      // "3 Deluxe + 2 Standard" fits ten people that the deluxe rooms alone do
+      // not, and flagging that as an overflow would put an error on a night
+      // that is correct — which teaches execs to scroll past errors.
+      const beds = primaryBeds + extraRoomBeds(day);
+      if (primaryBeds > 0 && party.adults + party.children > beds) {
         issues.push({
           code: "party-does-not-fit",
         blocksSubmit: false,
           severity: "error",
           message:
-            `${party.adults + party.children} guests don't fit in ${plan.rooms} `
-            + `room${plan.rooms !== 1 ? "s" : ""} of this type, and the room has no extra `
-            + "mattresses enabled to take the overflow.",
+            `${party.adults + party.children} guests don't fit in the `
+            + `${roomsOnNight(day, plan.rooms)} room${roomsOnNight(day, plan.rooms) !== 1 ? "s" : ""} `
+            + "booked for this night, and the room has no extra mattresses enabled to take "
+            + "the overflow.",
           fix:
-            "Add a room, pick a larger room type, or ask the hotel team to set the room's "
-            + "extra bed capacity if the property does in fact provide mattresses.",
+            "Add a room, add another room type from this hotel, pick a larger room type, or ask "
+            + "the hotel team to set the room's extra bed capacity if the property does in fact "
+            + "provide mattresses.",
         });
       }
     } else if (asked != null && totalCapacity > 0 && asked > totalCapacity) {

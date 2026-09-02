@@ -1227,7 +1227,14 @@ export async function computeBuilderHotelPricing(input: {
      * couple in a Deluxe Room, another in a Suite) — each priced at
      * quantity × that room's own base per-night rate. No occupancy/mattress
      * logic applies here — quantity is exactly what the exec asked for. */
-    extraRooms?: { roomPricingId: number; quantity: number }[];
+    extraRooms?: {
+      roomPricingId: number;
+      quantity: number;
+      /** "Hotel — Room" as captured when the room was picked. Only read when
+       * the rate row behind roomPricingId has since been deleted — it is the
+       * one remaining record of what the night was supposed to hold. */
+      label?: string | null;
+    }[];
     /** A hand-typed hotel (exec types the name directly in the builder) or
      * hotel-team fulfillment (see /dashboard/hotel-requests): when there's no
      * catalog room behind the day, roomPricingId stays null and pricing comes
@@ -1485,9 +1492,34 @@ export async function computeBuilderHotelPricing(input: {
     }
 
     for (const extra of d.extraRooms ?? []) {
-      const rp = byId.get(extra.roomPricingId);
-      if (!rp) continue;
       const quantity = Math.max(1, extra.quantity);
+      const rp = byId.get(extra.roomPricingId);
+
+      // The rate this room was picked at no longer exists.
+      //
+      // Same failure the primary room above was fixed for, and the same
+      // answer: roomPricingId has no foreign key behind it, so a deleted rate
+      // leaves the id sitting on the day and nothing complains. Skipping the
+      // entry made the room vanish from the breakdown AND from the subtotal —
+      // a room the itinerary still shows the client, that costing had no line
+      // to review and no way to notice was gone. It is emitted at ₹0 with a
+      // gap instead, which is visible work.
+      if (!rp) {
+        lines.push({
+          day: d.day,
+          hotelName: splitManualHotelName(extra.label).manualHotelName ?? "Hotel",
+          roomName: splitManualHotelName(extra.label).manualRoomName ?? "Room",
+          planName: null,
+          pricePerRoom: 0,
+          roomsNeeded: quantity,
+          mattresses: 0,
+          extraBedRate: 0,
+          total: 0,
+          gap: "no-room-price",
+        });
+        continue;
+      }
+
       const { basePrice, isSeasonal } = resolveHotelSeasonPricing(rp, dayDate);
       const total = quantity * basePrice;
       hotelSubtotal += total;
@@ -1503,6 +1535,10 @@ export async function computeBuilderHotelPricing(input: {
         extraBedRate: 0,
         total,
         baseRate: dayDate != null && !isSeasonal,
+        // A rate row that exists but prices the room at nothing. Rarer than a
+        // missing row and just as invisible in a total, since the day still
+        // shows its primary room's real price beside it.
+        ...(basePrice <= 0 ? { gap: "no-room-price" as const } : {}),
       });
     }
   }

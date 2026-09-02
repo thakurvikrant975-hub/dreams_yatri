@@ -100,7 +100,27 @@ export function applyHotelRoomSelection(
     // Links this night to the real hotel_room_pricing row so the package price
     // can be computed from its actual date/occupancy-aware rate.
     roomPricingId: raw.id,
+    // A combo is several room types at ONE property, so a new hotel takes the
+    // old hotel's extra rooms with it. Left behind they stayed on the night —
+    // invisible in the day's summary, still priced — and the package quietly
+    // carried two hotels on one date. The same rule applyVehicleSelection
+    // applies to extraCabs, and for the same reason.
+    //
+    // Swapping to a DIFFERENT room of the same hotel keeps them: that is the
+    // ordinary "actually, make the deluxe a suite" edit, and it changes
+    // nothing about the standard rooms booked alongside it.
+    extraRooms: extraRoomsAtHotel(day.extraRooms, raw.hotelId),
   };
+}
+
+/** The extra rooms that belong to `hotelId` — the ones a night still holds
+ * after its hotel changes. A selection saved before combos were scoped to one
+ * property carries no hotelId and is dropped rather than assumed to belong
+ * here; keeping it would be the exact bug this guards. */
+export function extraRoomsAtHotel(
+  extras: RoomSelection[] | undefined, hotelId: number,
+): RoomSelection[] {
+  return (extras ?? []).filter((r) => r.hotelId === hotelId);
 }
 
 /**
@@ -504,17 +524,34 @@ export function cancelHotelRequest(day: DayItinerary): DayItinerary {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Adds a second (different) room type for the same night — e.g. one couple in
- * a Deluxe, another in a Suite. Captured the same way the primary room is, so
- * it renders and prices with the same fidelity rather than as a bare label. */
-export function addExtraRoom(day: DayItinerary, raw: HotelRoomResult): DayItinerary {
+ * a Deluxe, another in a Suite, at the property already picked. Captured the
+ * same way the primary room is, so it renders and prices with the same
+ * fidelity rather than as a bare label.
+ *
+ * `pinnedRoomsCount` is the auto-derived room count for the primary room at
+ * the moment the combo starts. Until there is a second room type, the primary
+ * floats: it is sized from the whole party (planRoomOccupancy), and that is
+ * right, because the whole party is in it. The moment some of that party moves
+ * into a different room type it stops being right — the primary is still being
+ * sized for everyone AND the extra rooms are charged on top, so ten guests come
+ * out as four deluxe plus two standard and the client is quoted six rooms for a
+ * party that needs five. Pinning the count freezes it at what the exec can
+ * already see in the field's hint, and hands them a number to correct down;
+ * leaving it floating hides the double-count behind an empty input. Only ever
+ * fills a count the exec hasn't set. */
+export function addExtraRoom(
+  day: DayItinerary, raw: HotelRoomResult, pinnedRoomsCount?: number | null,
+): DayItinerary {
   return {
     ...day,
+    roomsCount: day.roomsCount ?? (pinnedRoomsCount && pinnedRoomsCount > 0 ? pinnedRoomsCount : null),
     extraRooms: [
       ...(day.extraRooms ?? []),
       {
         roomPricingId: raw.id,
         label: `${raw.hotelName} — ${raw.roomName}`,
         quantity: 1,
+        hotelId: raw.hotelId,
         thumbnail: raw.thumbnail ?? null,
         roomCapacity: raw.roomCapacity ?? null,
         roomSpecs: raw.roomSpecs ?? null,
@@ -633,6 +670,17 @@ export type StaySpec = {
   roomsCount: number | null;
   manualExtraBeds: number | null;
   manualExtraBedRate: number | null;
+  /** The other room types booked alongside the primary — 3 Deluxe + 2
+   * Standard is one setup, not a property of the first room.
+   *
+   * Belongs here for exactly the reason the counts do. A combo added on the
+   * night the exec happened to have open stayed on that night alone: the other
+   * nights of the same stay got the room copied and the second room type left
+   * behind, so a five-room party checked in on Monday as five rooms and on
+   * Tuesday as three, from one booking the hotel would have to honour as a
+   * whole. Nothing on screen said so, because a run is identified by its
+   * primary room and the primary room did match. */
+  extraRooms: RoomSelection[];
 };
 
 export function staySpecOf(day: DayItinerary): StaySpec {
@@ -640,11 +688,35 @@ export function staySpecOf(day: DayItinerary): StaySpec {
     roomsCount: day.roomsCount ?? null,
     manualExtraBeds: day.manualExtraBeds ?? null,
     manualExtraBedRate: day.manualExtraBedRate ?? null,
+    extraRooms: day.extraRooms ?? [],
   };
 }
 
+/**
+ * This night's setup, as it applies to a night about to be given `room`.
+ *
+ * The same spec, minus the extra rooms that belong to a property other than
+ * `room`'s — which is the difference between "apply this stay to more nights"
+ * (same hotel, combo travels with it) and "replace this stay" (new hotel, the
+ * old hotel's second room type has nowhere to go). Both call sites do the same
+ * two things in the same order, so which of them they mean has to be said here
+ * rather than left to the order of the calls.
+ *
+ * Spreading this night's OWN room over more nights isn't a hotel change at
+ * all, so the combo carries whole — including rooms saved before a selection
+ * recorded which property it came from. Filtering those out here would have
+ * made "Apply to 3 nights" delete a combo an exec could see on screen, on
+ * every package built before this, which is a worse answer to an unknown
+ * hotel id than carrying it.
+ */
+export function staySpecForRoom(day: DayItinerary, room: HotelRoomResult): StaySpec {
+  const spec = staySpecOf(day);
+  if (day.roomPricingId === room.id) return spec;
+  return { ...spec, extraRooms: extraRoomsAtHotel(day.extraRooms, room.hotelId) };
+}
+
 export function applyStaySpec(day: DayItinerary, spec: StaySpec): DayItinerary {
-  return { ...day, ...spec };
+  return { ...day, ...spec, extraRooms: [...spec.extraRooms] };
 }
 
 /** True when two nights of the same stay were set up differently — the thing
@@ -653,7 +725,18 @@ export function applyStaySpec(day: DayItinerary, spec: StaySpec): DayItinerary {
 export function staySpecsDiffer(a: StaySpec, b: StaySpec): boolean {
   return a.roomsCount !== b.roomsCount
     || a.manualExtraBeds !== b.manualExtraBeds
-    || a.manualExtraBedRate !== b.manualExtraBedRate;
+    || a.manualExtraBedRate !== b.manualExtraBedRate
+    || extraRoomsKey(a.extraRooms) !== extraRoomsKey(b.extraRooms);
+}
+
+/** Two combos are the same when they book the same rooms in the same numbers.
+ * Sorted by room, so the order they were added in — which nobody sees and
+ * nothing prices — can't read as a difference between two nights. */
+function extraRoomsKey(extras: RoomSelection[]): string {
+  return extras
+    .map((r) => `${r.roomPricingId}x${r.quantity}`)
+    .sort()
+    .join("|");
 }
 
 /**

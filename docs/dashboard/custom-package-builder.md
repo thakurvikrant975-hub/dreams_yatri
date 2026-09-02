@@ -97,7 +97,7 @@ Key fields:
 | Field | Meaning |
 |---|---|
 | `roomPricingId` + `roomsCount` | the primary catalog room; `roomsCount` overrides the auto occupancy-derived count |
-| `extraRooms` (Json) | additional *different* room types for the same night — `{roomPricingId, label, quantity}[]`, priced flat, no occupancy logic |
+| `extraRooms` (Json) | additional *different* room types for the same night, always at the **same hotel** as `roomPricingId` (3 Deluxe + 2 Standard) — `{roomPricingId, label, quantity, hotelId}[]`, priced flat, no occupancy logic. Picked from the stay's own hotel in the Rooms-this-night editor; carried across every night of a stay by `StaySpec`, and dropped when the day's hotel changes |
 | `cabPricingId` + `cabQuantity`, `extraCabs` (Json) | same pattern for cabs |
 | `manualHotelPricePerNight`, `manualExtraBeds`, `manualExtraBedRate` | used when there is no catalog room (hand-typed or team-filled day) |
 | `hotelPriceOverride`, `cabPriceOverride` | costing's per-day price corrections |

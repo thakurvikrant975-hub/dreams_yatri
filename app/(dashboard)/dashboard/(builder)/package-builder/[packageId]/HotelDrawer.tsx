@@ -25,8 +25,10 @@ import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { cn } from "@/app/lib/utils";
 import {
-  searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, type HotelRoomResult, type HotelSortOption,
+  searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, getSiblingHotelRoomsForBuilder,
+  type HotelRoomResult, type HotelSortOption,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dropdown-menu";
@@ -48,7 +50,7 @@ import {
   beginHotelRequest, submitHotelRequest, cancelHotelRequest, STAY_TYPE_LABELS,
   addExtraRoom, updateExtraRoom, removeExtraRoom, beginManualHotel,
   stayRun, validateStayAssignment,
-  staySpecOf, applyStaySpec, inconsistentStayNights, type StaySpec,
+  staySpecOf, staySpecForRoom, applyStaySpec, inconsistentStayNights, type StaySpec,
 } from "./day-mutations";
 
 const MEAL_FILTER_CHIPS: { value: string; label: string; icon: React.ElementType }[] = [
@@ -265,7 +267,12 @@ export function HotelReplaceView({ day }: { day: number }) {
     // its own roomsCount and fell back to its own auto-derived mattress
     // count, so one party in one hotel came out as 2 mattresses on Monday and
     // 1 on Tuesday. See StaySpec in day-mutations.ts.
-    const spec = staySpecOf(itin!);
+    //
+    // …ForRoom, so a combo travels only where its hotel does: applying the day
+    // to more nights carries "3 Deluxe + 2 Standard" whole, while a night
+    // being given a different property doesn't inherit a second room type that
+    // property has never heard of.
+    const spec = staySpecForRoom(itin!, source);
     const target = new Set(days);
     setForm((f) => ({
       ...f,
@@ -689,6 +696,8 @@ function staySpecSummary(spec: StaySpec): string | null {
       ? `${spec.manualExtraBeds} mattress${spec.manualExtraBeds !== 1 ? "es" : ""}` : null,
     spec.manualExtraBedRate != null
       ? `₹${spec.manualExtraBedRate.toLocaleString("en-IN")}/mattress` : null,
+    spec.extraRooms.length > 0
+      ? `${spec.extraRooms.length} other room type${spec.extraRooms.length !== 1 ? "s" : ""}` : null,
   ].filter(Boolean);
   return parts.length > 0 ? `Same on every night: ${parts.join(" · ")}` : null;
 }
@@ -829,14 +838,24 @@ export function HotelEditView({ day }: { day: number }) {
       toast.error("Couldn't load that room. Pick it again to apply it elsewhere.");
       return;
     }
+    // The setup travels with the room, same as every other "use this stay
+    // elsewhere" action (see StaySpec) — a revisit to the same property later
+    // in the trip is the same party in the same rooms, so copying the hotel
+    // and leaving its second room type behind produced a night that quietly
+    // slept fewer people than the one it was copied from.
+    const spec = staySpecForRoom(itin!, source);
     const target = new Set(days);
     setForm((f) => ({
       ...f,
       itineraries: f.itineraries.map((it) =>
-        target.has(it.day) ? invalidateStaleOverrides(it, applyHotelRoomSelection(it, source)) : it,
+        target.has(it.day)
+          ? invalidateStaleOverrides(it, applyStaySpec(applyHotelRoomSelection(it, source), spec))
+          : it,
       ),
     }));
-    toast.success(`Applied to ${days.length} day${days.length !== 1 ? "s" : ""}`);
+    toast.success(`Applied to ${days.length} day${days.length !== 1 ? "s" : ""}`, {
+      description: staySpecSummary(spec) ?? undefined,
+    });
   }
 
   function removeHotel() {
@@ -1599,127 +1618,260 @@ export function HotelRequestView({ day }: { day: number }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Extra rooms
+// The rooms this night is booked into
 //
-// A night is really "these rooms", not "this room" — the split between the
-// primary roomPricingId and an extraRooms list is an artifact of how the old
-// panel was laid out, not of how a booking works. The drawer presents them as
-// one list, with the primary first and unremovable (removing it is "remove the
-// stay", which is a different action).
+// A night is really "these rooms", not "this room". A party of ten at one
+// hotel routinely takes 3 Deluxe and 2 Standard — one booking, one property,
+// two room types — and the split between the primary roomPricingId and an
+// extraRooms list is an artifact of how the old panel was laid out, not of how
+// a booking works. So this reads as one list: what the night holds, in the
+// order it was built up, with the primary first and unremovable (removing it
+// is "remove the stay", which is a different action).
+//
+// Every room offered comes from the property already picked, and nothing else
+// is searchable here. That is not a simplification of a search box — it is the
+// rule. Two hotels on one date is not a combo, it is a mistake, and the old
+// free-text search made it the easiest thing in the drawer to do: it searched
+// the whole city, so "Standard Room" landed on whichever hotel sorted first
+// and the night quietly carried a second property that the document never
+// showed and the price silently included.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** A room's base beds — what the catalog calls max_occupancy. Extra rooms are
+ * priced without mattresses (see computeBuilderHotelPricing), so this is the
+ * whole of what one of them sleeps. */
+function bedsOf(capacity: number | null | undefined): number {
+  return capacity && capacity > 0 ? capacity : 0;
+}
 
 function ExtraRoomsEditor({ day }: { day: number }) {
   const { form, replaceDay } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
   const [adding, setAdding] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<HotelRoomResult[]>([]);
+  const [rooms, setRooms] = useState<HotelRoomResult[]>([]);
   const [loading, setLoading] = useState(false);
+  /** Rooms this hotel has but that nobody has priced for this night — said
+   * out loud, because a room type the exec knows the property has simply not
+   * being on the list is the confusing case. */
+  const [hiddenNoRate, setHiddenNoRate] = useState(0);
 
-  const city = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
   const dayDate = form.travelDate ? dayCalendarDate(form.travelDate, day) : null;
   const dayDateISO = dayDate ? toLocalISODate(dayDate) : null;
+  const primaryId = itin?.roomPricingId ?? null;
+  const extras = itin?.extraRooms ?? [];
+  // A stable dependency for the effect below — the array itself is a new
+  // object on every render, and re-fetching the hotel's rate sheet on every
+  // keystroke elsewhere in the drawer is not what "already added" means.
+  const takenKey = extras.map((r) => r.roomPricingId).join(",");
 
   useEffect(() => {
-    if (!adding) return;
+    if (!adding || primaryId == null) return;
     let cancelled = false;
     setLoading(true);
-    const timer = setTimeout(async () => {
+    (async () => {
       try {
-        const { rows } = await searchHotelRoomsForBuilder(city, query, null, 1, null, null, null, "price_asc", null, dayDateISO);
-        if (!cancelled) setResults(rows);
+        const { rows, hiddenNoSeasonRate } = await getSiblingHotelRoomsForBuilder(
+          primaryId,
+          dayDateISO,
+          takenKey ? takenKey.split(",").map(Number) : [],
+        );
+        if (!cancelled) { setRooms(rows); setHiddenNoRate(hiddenNoSeasonRate); }
+      } catch {
+        if (!cancelled) { setRooms([]); setHiddenNoRate(0); }
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [adding, city, query, dayDateISO]);
+    })();
+    return () => { cancelled = true; };
+  }, [adding, primaryId, dayDateISO, takenKey]);
 
-  if (!itin) return null;
-  const extras = itin.extraRooms ?? [];
+  if (!itin || primaryId == null) return null;
+
+  // What the night actually holds, counted the way the price counts it: the
+  // primary at its effective room count (the exec's number, else the auto
+  // split), plus each extra at exactly the quantity asked for.
+  const party = pricingPartyOf(form);
+  const plan = planRoomOccupancy(party.adults, party.children, {
+    max_occupancy: itin.accommodationRoomCapacity,
+    extra_bed_capacity: itin.accommodationExtraBedCapacity,
+    max_adults: itin.accommodationMaxAdults,
+    max_children: itin.accommodationMaxChildren,
+  }, itin.roomsCount);
+  const primaryRooms = plan.rooms;
+  const extraRoomCount = extras.reduce((sum, r) => sum + Math.max(1, r.quantity), 0);
+  const totalRooms = primaryRooms + extraRoomCount;
+  const mattresses = effectiveMattressCount(itin, party);
+
+  // Beds only when every room on the night has a capacity behind it. A partial
+  // sum would read as the truth and be short by whatever the catalog is
+  // missing — worse than saying nothing, since the number's whole job here is
+  // to answer "does the party fit".
+  const capacitiesKnown = bedsOf(itin.accommodationRoomCapacity) > 0
+    && extras.every((r) => bedsOf(r.roomCapacity) > 0);
+  const sleeps = capacitiesKnown
+    ? primaryRooms * bedsOf(itin.accommodationRoomCapacity)
+      + extras.reduce((sum, r) => sum + Math.max(1, r.quantity) * bedsOf(r.roomCapacity), 0)
+      + mattresses
+    : null;
+  const guests = party.adults + party.children;
+  const short = sleeps != null ? guests - sleeps : 0;
+
+  const primaryLabel = itin.accommodation || "the room above";
 
   return (
-    <div className="space-y-2">
-      <label className="text-[11px] font-medium text-dashboard-base-content/60">
-        Other room types this night
-      </label>
+    <Group
+      label="Rooms this night"
+      hint={
+        extras.length > 0
+          ? `${totalRooms} room${totalRooms !== 1 ? "s" : ""} at this hotel${sleeps != null ? ` · sleeps ${sleeps} · party of ${guests}` : ""}`
+          : undefined
+      }
+    >
+      {/* The primary, shown for context rather than edited here — its count is
+          the "Rooms needed" field above, and two inputs writing one number is
+          how they end up disagreeing. Listing it anyway is the point of the
+          section: "3 Deluxe + 2 Standard" is only legible as a whole. */}
+      <Card className="p-2.5">
+        <div className="flex items-center gap-2">
+          <BedDouble size={13} className="shrink-0 text-dashboard-primary" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium truncate" title={primaryLabel}>
+              {primaryRooms}× {primaryLabel}
+            </p>
+            <p className="text-[10.5px] text-dashboard-base-content/50">
+              {itin.roomsCount != null ? "Set in Rooms needed above" : "Auto-sized for the party"}
+              {mattresses > 0 ? ` · ${mattresses} mattress${mattresses !== 1 ? "es" : ""}` : ""}
+            </p>
+          </div>
+        </div>
+      </Card>
 
-      {extras.length === 0 && !adding && (
-        <p className="text-[11px] text-dashboard-base-content/45">
-          Everyone is in the room above. Add another type if the party splits across
-          different rooms.
+      {extras.map((r, i) => (
+        <Card key={`${r.roomPricingId}-${i}`} className="p-2.5">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              {/* The room, not "Hotel — Room": every row in this list is the
+                  same property, named once by the primary above. The stored
+                  label keeps both, since the document renders these rooms far
+                  away from the hotel that owns them. */}
+              <p className="text-xs font-medium truncate" title={r.label}>
+                {splitManualHotelName(r.label).manualRoomName ?? r.label}
+              </p>
+              {r.roomSpecs && (
+                <p className="text-[10.5px] text-dashboard-base-content/50 truncate">{r.roomSpecs}</p>
+              )}
+            </div>
+            <Input
+              type="number" min={1}
+              value={r.quantity}
+              onChange={(e) => replaceDay(day, (d) =>
+                updateExtraRoom(d, i, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+              className="h-8 w-16 shrink-0 text-sm"
+              aria-label={`How many ${r.label}`}
+            />
+            <Button
+              type="button" size="sm" variant="ghost"
+              className="h-8 w-8 shrink-0 p-0 text-dashboard-error hover:text-dashboard-error"
+              onClick={() => replaceDay(day, (d) => removeExtraRoom(d, i))}
+              aria-label="Remove this room type"
+            >
+              <Trash2 size={13} />
+            </Button>
+          </div>
+        </Card>
+      ))}
+
+      {/* The combo's own way of going wrong: the rooms are booked, and between
+          them they don't sleep the party. Nothing else checks this — the
+          mattress diagnostics only ever look at the primary room. */}
+      {short > 0 && (
+        <p className="flex items-start gap-1.5 text-[11px] text-dashboard-error">
+          <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+          These {totalRooms} rooms sleep {sleeps} — {short} of the {guests} guests
+          {short !== 1 ? " have" : " has"} nowhere to sleep. Add a room type, raise a quantity,
+          or add mattresses above.
         </p>
       )}
 
-      {extras.map((r, i) => (
-        <div key={i} className="flex items-center gap-2 rounded-lg border border-dashboard-base-300 p-2">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate">{r.label}</p>
-            {r.roomSpecs && (
-              <p className="text-[10px] text-dashboard-base-content/50 truncate">{r.roomSpecs}</p>
-            )}
-          </div>
-          <Input
-            type="number" min={1}
-            value={r.quantity}
-            onChange={(e) => replaceDay(day, (d) =>
-              updateExtraRoom(d, i, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
-            className="h-8 w-16 text-sm shrink-0"
-            aria-label="Rooms of this type"
-          />
-          <Button
-            type="button" size="sm" variant="ghost"
-            className="h-8 w-8 p-0 shrink-0 text-dashboard-error hover:text-dashboard-error"
-            onClick={() => replaceDay(day, (d) => removeExtraRoom(d, i))}
-            aria-label="Remove this room type"
-          >
-            <Trash2 size={13} />
-          </Button>
-        </div>
-      ))}
+      {extras.length === 0 && !adding && (
+        <p className="text-[11px] text-dashboard-base-content/45">
+          Everyone is in {primaryRooms === 1 ? "the room" : `the ${primaryRooms} rooms`} above. Add
+          another type if the party splits across different rooms at this hotel — 3 deluxe and 2
+          standard, say.
+        </p>
+      )}
 
       {adding ? (
-        <div className="space-y-2 rounded-lg border border-dashboard-base-300 p-2">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={city ? `Another room near ${city}…` : "Search a room type…"}
-            className="h-8 text-sm"
-            autoFocus
-          />
+        <Card className="space-y-1.5 p-2">
+          <p className="text-[10.5px] text-dashboard-base-content/50">
+            Other room types at {splitManualHotelName(primaryLabel).manualHotelName}
+          </p>
+
           {loading && (
-            <p className="text-[11px] text-dashboard-base-content/50 py-2 text-center">Searching…</p>
+            <p className="py-3 text-center text-[11px] text-dashboard-base-content/50">
+              Loading this hotel&apos;s rooms…
+            </p>
           )}
-          <div className="max-h-56 overflow-y-auto space-y-1">
-            {!loading && results.map((room) => (
-              <button
+
+          {!loading && rooms.length === 0 && (
+            <Empty>
+              {hiddenNoRate > 0
+                ? `This hotel's other room types have no rate for this night — the hotel team sets one on the property's rate sheet.`
+                : "This hotel has no other room type in the catalog."}
+            </Empty>
+          )}
+
+          <div className="max-h-64 space-y-1.5 overflow-y-auto">
+            {!loading && rooms.map((room) => (
+              <OptionRow
                 key={room.id}
-                type="button"
+                title={room.roomName}
+                titleTooltip={room.roomName}
+                subtitle={room.roomSpecs ?? undefined}
+                subtitleTooltip={room.roomSpecs ?? undefined}
+                meta={room.mealPlanName ? <span>{room.mealPlanName}</span> : undefined}
+                trailing={
+                  <span className="text-[11.5px] font-semibold text-dashboard-base-content">
+                    ₹{room.pricePerNight.toLocaleString("en-IN")}
+                    <span className="font-normal text-dashboard-base-content/50">/night</span>
+                  </span>
+                }
                 onClick={() => {
-                  replaceDay(day, (d) => addExtraRoom(d, room));
-                  setAdding(false); setQuery("");
+                  // plan.rooms pins the primary's count as it stands right
+                  // now — see addExtraRoom. Without it the primary keeps
+                  // sizing itself for the whole party while the rooms the
+                  // party just moved into are charged on top.
+                  replaceDay(day, (d) => addExtraRoom(d, room, plan.rooms));
+                  setAdding(false);
                 }}
-                className="w-full text-left rounded-md px-2 py-1.5 hover:bg-dashboard-base-200/60"
-              >
-                <p className="text-xs font-medium truncate">{room.hotelName} — {room.roomName}</p>
-                <p className="text-[10px] text-dashboard-base-content/50">
-                  ₹{room.pricePerNight.toLocaleString("en-IN")} / night
-                </p>
-              </button>
+              />
             ))}
           </div>
-          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs w-full"
-            onClick={() => { setAdding(false); setQuery(""); }}>
+
+          {!loading && rooms.length > 0 && hiddenNoRate > 0 && (
+            <p className="text-[10.5px] text-dashboard-base-content/50">
+              {hiddenNoRate} more room type{hiddenNoRate !== 1 ? "s" : ""} at this hotel
+              {hiddenNoRate !== 1 ? " have" : " has"} no rate for this night — the hotel team
+              sets those on the property&apos;s rate sheet.
+            </p>
+          )}
+
+          <Button
+            type="button" size="sm" variant="ghost" className="h-7 w-full text-xs"
+            onClick={() => setAdding(false)}
+          >
             Cancel
           </Button>
-        </div>
+        </Card>
       ) : (
-        <Button type="button" variant="outline" className="w-full h-8 text-xs border-dashed"
-          onClick={() => setAdding(true)}>
-          <Plus size={12} /> Add another room type
+        <Button
+          type="button" variant="outline" className="h-8 w-full border-dashed text-xs"
+          onClick={() => setAdding(true)}
+        >
+          <Plus size={12} /> Add another room type from this hotel
         </Button>
       )}
-    </div>
+    </Group>
   );
 }
 
@@ -1758,12 +1910,12 @@ function StayNights({ day }: { day: number }) {
     const source = await getHotelRoomByIdForBuilder(itin!.roomPricingId!, null);
     if (!source) { setError("Couldn't load this room. Pick it again."); return; }
 
-    // One stay, one setup. Every night of a run gets this night's rooms,
-    // mattresses and mattress rate — including this night itself, which
+    // One stay, one setup. Every night of a run gets this night's rooms, room
+    // types, mattresses and mattress rate — including this night itself, which
     // applyHotelRoomSelection would otherwise reset to the auto count on its
     // way past. A hotel cannot honour a booking whose bed count changes
     // halfway through the stay, and costing rejects the package when it does.
-    const spec = staySpecOf(itin!);
+    const spec = staySpecForRoom(itin!, source);
     const target = new Set(check.days);
     setForm((f) => ({
       ...f,

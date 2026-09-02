@@ -10,6 +10,11 @@ const HOTEL_FIELDS = [
   "accommodationMaxAdults", "accommodationMaxChildren", "accommodationExtraBedCapacity",
   "accommodationExtraBedRate",
   "manualExtraBeds", "roomPricingId", "roomsCount", "manualHotelPricePerNight", "manualExtraBedRate",
+  // A hotel request clears the night's other room types with the rest of the
+  // stay (removeStay), and a fill sets a single room — so the server's list is
+  // the truth for a filled day, and a stale tab's combo from the property that
+  // was there before must not survive the merge.
+  "extraRooms",
   "hotelCheckIn", "hotelCheckOut", "hotelMealPlan",
   "hotelPending", "hotelPendingNote", "hotelRequestType",
   "hotelFilledAt", "hotelFilledByName", "hotelFillNote",
