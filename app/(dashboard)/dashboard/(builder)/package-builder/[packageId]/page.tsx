@@ -1077,14 +1077,28 @@ export default function PackageBuilderDetailPage() {
   // value back out by headcount used to drift the header/PDF total off the
   // Pricing tab's exact total by up to `pax` rupees.
   //
-  // Never runs once the package is locked for review (READY) or already sent
-  // (SENT), so an approved/quoted price never silently drifts if catalog rates
-  // change later — checked inline off `query` rather than the `isLocked`/
-  // `pkgSent` variables declared further down, since this has to sit above the
-  // loading/not-found early returns to satisfy the rules of hooks.
+  // Never runs once the package is locked for review (READY) — costing owns
+  // the total from there through approve/updatePackagePricing, and this must
+  // not overwrite a reviewed figure. Checked inline off `query` rather than
+  // the `isLocked`/`pkgSent` variables declared further down, since this has
+  // to sit above the loading/not-found early returns to satisfy the rules of
+  // hooks.
+  //
+  // Deliberately does NOT also bail on SENT: the fieldset below only disables
+  // on `isLocked` (READY), so an exec fixing a hotel/room/cab/ticket/add-on
+  // after send is editing for real, and hotelPricing/cabPricing only change
+  // in response to those edits (see the two auto-price effects above — both
+  // keyed off `form.itineraries`, no background poll). Skipping SENT here
+  // used to freeze `form.totalPrice`/`pricePerPerson` at whatever was last
+  // loaded while the toolbar's `computeFinalPricing()` kept moving with the
+  // edit — the exact bug this effect exists to prevent, just reintroduced for
+  // the one status post-send editing is actually allowed in. A save while
+  // that gap was open persisted the stale figure straight over a correct one,
+  // with no further edit ever able to re-trigger a fix (the two values were
+  // "equal" as far as this effect's own memo could tell).
   useEffect(() => {
     const status = query?.customPackage?.status;
-    if (status === "READY" || status === "SENT") return;
+    if (status === "READY") return;
     const { finalPrice, perPerson } = computeFinalPricing();
     if (finalPrice <= 0) return;
     const nextPP = String(perPerson);
