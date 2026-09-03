@@ -84,11 +84,14 @@ export function PhoneInput({ name, defaultValue, placeholder = "98765 43210", cl
                 value={countryCode}
                 onChange={e => setCountryCode(e.target.value)}
                 disabled={disabled}
+                /* Matches the Input beside it exactly — height, radius, border
+                   and focus ring. They are one control to the eye. */
                 className="
-                    h-9 w-[90px] shrink-0 rounded-md border border-input
-                    bg-background px-2 text-xs font-medium
-                    cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring
-                    disabled:opacity-50 disabled:cursor-not-allowed
+                    h-10 w-[90px] shrink-0 rounded-lg text-xs font-medium px-2
+                    bg-dashboard-base-100 border border-dashboard-base-content/85
+                    text-dashboard-base-content cursor-pointer outline-none transition-colors
+                    focus-visible:border-dashboard-primary focus-visible:ring-1 focus-visible:ring-dashboard-primary/30
+                    disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-dashboard-base-200 disabled:opacity-50
                 "
             >
                 {COUNTRY_CODES.map(c => (
@@ -114,7 +117,7 @@ export function PhoneInput({ name, defaultValue, placeholder = "98765 43210", cl
                 type="button"
                 variant="outline"
                 size="icon"
-                className="shrink-0 h-9 w-9"
+                className="shrink-0 h-10 w-10 rounded-lg"
                 onClick={handlePaste}
                 disabled={disabled}
                 title="Paste number from clipboard"

@@ -61,14 +61,47 @@ const STATUS = {
 
 const initial: LeadRequestFormState = { success: false, message: "" };
 
+/** The Input component's own shape (components/ui/input.tsx), reused by the
+ * destination trigger so a button and an input sitting in the same column
+ * cannot end up different heights, radii or border colours. */
+const CONTROL_CLASS =
+    "h-10 w-full rounded-lg px-3 py-2 text-xs outline-none transition-colors " +
+    "bg-dashboard-base-100 border border-dashboard-base-content/85 text-dashboard-base-content " +
+    "focus-visible:border-dashboard-primary focus-visible:ring-1 focus-visible:ring-dashboard-primary/30";
+
 function initials(name: string) {
     return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
 }
 
-/** Field-level error, in the one place a field's messages appear. */
-function FieldError({ messages }: { messages?: string[] }) {
-    if (!messages?.length) return null;
-    return <p className="text-xs text-dashboard-error">{messages[0]}</p>;
+/**
+ * One row of the form: label, control, error. Every field goes through it, so
+ * label size, icon size, spacing and error placement are decided once instead
+ * of being repeated four times and drifting.
+ */
+function Field({
+    label, icon: Icon, htmlFor, optional, error, children,
+}: {
+    label: string;
+    icon: React.ElementType;
+    htmlFor?: string;
+    optional?: boolean;
+    error?: string[];
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="space-y-1.5">
+            <Label
+                htmlFor={htmlFor}
+                className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-dashboard-base-content/60"
+            >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+                {optional && <span className="normal-case tracking-normal text-dashboard-base-content/35">optional</span>}
+            </Label>
+            {children}
+            {error?.length ? <p className="text-xs text-dashboard-error">{error[0]}</p> : null}
+        </div>
+    );
 }
 
 /**
@@ -112,22 +145,22 @@ function DestinationPicker({
                     aria-haspopup="listbox"
                     aria-expanded={open}
                     className={cn(
-                        "flex h-10 w-full items-center justify-between gap-1.5 rounded-lg border bg-transparent py-2 pr-2 pl-2.5 text-xs transition-colors outline-none",
-                        "focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50 cursor-pointer",
-                        invalid ? "border-destructive" : "border-input",
+                        CONTROL_CLASS,
+                        "flex items-center justify-between gap-1.5 cursor-pointer text-left",
+                        invalid && "border-dashboard-error ring-1 ring-dashboard-error/20",
                     )}
                 >
-                    <span className={cn("truncate", !value && "text-muted-foreground")}>
+                    <span className={cn("truncate", !value && "text-dashboard-base-content/35")}>
                         {value || "Search a destination"}
                     </span>
-                    <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+                    <ChevronsUpDown className="size-4 shrink-0 text-dashboard-base-content/40" />
                 </button>
             </PopoverTrigger>
 
             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg shadow-lg" align="start" sideOffset={6}>
                 <div className="border-b border-dashboard-base-300 p-2">
                     <div className="relative">
-                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-dashboard-base-content/40" />
                         <Input
                             autoFocus
                             value={search}
@@ -233,30 +266,20 @@ export function RequestLeadForm({
                 </div>
 
                 <div className="p-5 space-y-4">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="name" className="flex items-center gap-1.5 text-xs font-medium text-dashboard-base-content/70">
-                            <User className="h-3.5 w-3.5" /> Client name
-                        </Label>
+                    <Field label="Client name" icon={User} htmlFor="name" error={state.errors?.name}>
                         <Input
                             id="name" name="name" value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Full name" required autoComplete="off"
+                            aria-invalid={!!state.errors?.name}
                         />
-                        <FieldError messages={state.errors?.name} />
-                    </div>
+                    </Field>
 
-                    <div className="space-y-1.5">
-                        <Label className="flex items-center gap-1.5 text-xs font-medium text-dashboard-base-content/70">
-                            <Phone className="h-3.5 w-3.5" /> Phone number
-                        </Label>
+                    <Field label="Phone number" icon={Phone} error={state.errors?.phone}>
                         <PhoneInput name="phone" defaultValue="" />
-                        <FieldError messages={state.errors?.phone} />
-                    </div>
+                    </Field>
 
-                    <div className="space-y-1.5">
-                        <Label className="flex items-center gap-1.5 text-xs font-medium text-dashboard-base-content/70">
-                            <MapPin className="h-3.5 w-3.5" /> Destination
-                        </Label>
+                    <Field label="Destination" icon={MapPin} error={state.errors?.destination}>
                         <input type="hidden" name="destination" value={destination} />
                         <DestinationPicker
                             value={destination}
@@ -264,28 +287,28 @@ export function RequestLeadForm({
                             destinations={destinations}
                             invalid={!!state.errors?.destination}
                         />
-                        <FieldError messages={state.errors?.destination} />
-                    </div>
+                    </Field>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="email" className="flex items-center gap-1.5 text-xs font-medium text-dashboard-base-content/70">
-                            <Mail className="h-3.5 w-3.5" /> Email
-                            <span className="font-normal text-dashboard-base-content/40">optional</span>
-                        </Label>
+                    <Field label="Email" icon={Mail} htmlFor="email" optional error={state.errors?.email}>
                         <Input
                             id="email" name="email" type="email" value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="client@example.com" autoComplete="off"
+                            aria-invalid={!!state.errors?.email}
                         />
-                        <FieldError messages={state.errors?.email} />
-                    </div>
+                    </Field>
                 </div>
 
-                <div className="px-5 pb-5">
+                <div className="border-t border-dashboard-base-300 bg-dashboard-base-200/30 px-5 py-4">
                     <Button type="submit" disabled={isPending} className="w-full gap-1.5">
                         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         {isPending ? "Sending…" : "Send request"}
                     </Button>
+                    {/* Sets the expectation the old page left unanswered: an
+                        exec does not have to sit on this page waiting. */}
+                    <p className="mt-2 text-center text-[11px] text-dashboard-base-content/45">
+                        You will be notified when the lead manager decides.
+                    </p>
                 </div>
             </form>
 
