@@ -138,6 +138,7 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 queryId={query.id}
                                 assignedTo={query.assignedTo}
                                 assignedAt={query.assignedAt}
+                                assignedToName={query.assignedToName}
                                 onDone={onRefresh}
                             />
 

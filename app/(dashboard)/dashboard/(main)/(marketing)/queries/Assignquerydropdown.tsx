@@ -35,26 +35,28 @@ function memberInitials(name: string) {
 // ── MemberAvatar ──────────────────────────────────────────────────────────────
 
 function MemberAvatar({
-    member,
+    name,
+    profilePicUrl,
     className,
     textClassName,
 }: {
-    member: SalesMember;
+    name: string;
+    profilePicUrl?: string | null;
     className?: string;
     textClassName?: string;
 }) {
-    if (member.profilePicUrl) {
+    if (profilePicUrl) {
         return (
             <img
-                src={member.profilePicUrl}
-                alt={member.name}
+                src={profilePicUrl}
+                alt={name}
                 className={cn("rounded-full object-cover", className)}
             />
         );
     }
     return (
-        <div className={cn("rounded-full font-bold flex items-center justify-center", avatarColor(member.name), className)}>
-            <span className={textClassName}>{memberInitials(member.name)}</span>
+        <div className={cn("rounded-full font-bold flex items-center justify-center", avatarColor(name), className)}>
+            <span className={textClassName}>{memberInitials(name)}</span>
         </div>
     );
 }
@@ -89,6 +91,10 @@ type Props = {
     queryId: string;
     assignedTo: string | null;
     assignedAt?: Date | null;
+    /** Denormalized name from the query row itself — lets the trigger show
+     * who a query is assigned to right away, without waiting on `members`
+     * (which only loads once the popover is opened). */
+    assignedToName?: string | null;
     onDone?: () => void;
     compact?: boolean;
     /** Override the roster — a Team Leader's reassign picker passes
@@ -105,7 +111,7 @@ type Props = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AssignQueryDropdown({
-    queryId, assignedTo, assignedAt, onDone, compact = false,
+    queryId, assignedTo, assignedAt, assignedToName, onDone, compact = false,
     fetchMembers = getSalesMembers, assignFn = assignQuery,
 }: Props) {
     const [open, setOpen] = useState(false);
@@ -155,33 +161,32 @@ export function AssignQueryDropdown({
             <UserCheck className="h-3.5 w-3.5" />
         </Button>
     ) : (
-        <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-                "gap-2 justify-between min-w-[160px] max-w-[220px]",
-                assignedTo && "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 hover:border-primary/60",
-            )}
+        <button
+            type="button"
+            className="group flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1 min-w-40 max-w-55 cursor-pointer transition-colors hover:bg-muted/60"
         >
-            <span className="flex items-center gap-2 min-w-0">
-                {assignedTo && currentMember ? (
-                    <>
-                        <MemberAvatar
-                            member={currentMember}
-                            className="h-5 w-5 shrink-0"
-                            textClassName="text-[10px]"
-                        />
-                        <span className="truncate text-xs font-medium">{currentMember.name}</span>
-                    </>
-                ) : (
-                    <>
-                        <UserCheck className="h-3.5 w-3.5 shrink-0" />
-                        <span className="text-xs">Assign to Sales</span>
-                    </>
-                )}
-            </span>
-            <ChevronsUpDown className="h-3 w-3 opacity-50 shrink-0" />
-        </Button>
+            {assignedTo && (currentMember || assignedToName) ? (
+                <>
+                    <MemberAvatar
+                        name={currentMember?.name ?? assignedToName!}
+                        profilePicUrl={currentMember?.profilePicUrl}
+                        className="h-8 w-8 shrink-0"
+                        textClassName="text-[11px]"
+                    />
+                    <span className="truncate text-sm font-medium text-foreground">
+                        {currentMember?.name ?? assignedToName}
+                    </span>
+                </>
+            ) : (
+                <>
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground/60">
+                        <UserCheck className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-sm text-muted-foreground">Unassigned</span>
+                </>
+            )}
+            <ChevronsUpDown className="h-3 w-3 ml-auto shrink-0 opacity-0 text-muted-foreground transition-opacity group-hover:opacity-60" />
+        </button>
     );
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -248,7 +253,8 @@ export function AssignQueryDropdown({
                                     >
                                         {/* Avatar */}
                                         <MemberAvatar
-                                            member={member}
+                                            name={member.name}
+                                            profilePicUrl={member.profilePicUrl}
                                             className="h-9 w-9 shrink-0 mt-0.5"
                                             textClassName="text-xs"
                                         />

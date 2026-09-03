@@ -7,7 +7,7 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getSalesQueries, getCloseReasons, getRejectionReasons, isSalesTeamLeader } from "./actions";
+import { getSalesQueries, getCloseReasons, getRejectionReasons, isSalesTeamLeader, getMyTeamMembers } from "./actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
@@ -67,16 +67,20 @@ function firstOfMonthStr() {
 }
 
 async function SalesQueriesData({ from, to, isAllTime, isTeamLead }: { from?: string; to?: string; isAllTime: boolean; isTeamLead: boolean }) {
-    const [queries, closeReasons, rejectionReasons] = await Promise.all([
+    const [queries, closeReasons, rejectionReasons, teamMembers] = await Promise.all([
         getSalesQueries(from, to),
         getCloseReasons(),
         getRejectionReasons(),
+        // Empty for anyone who isn't a Team Leader — only feeds the
+        // "Assigned To" filter, which only renders for a leader anyway.
+        getMyTeamMembers(),
     ]);
     return (
         <SalesQueriesTable
             queries={queries}
             closeReasons={closeReasons}
             rejectionReasons={rejectionReasons}
+            teamMembers={teamMembers}
             from={from ?? firstOfMonthStr()}
             to={to ?? todayStr()}
             isAllTime={isAllTime}

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
-    CircleX, Package, Plus,
+    CircleX, Package, Plus, Focus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -29,7 +29,7 @@ import { mapCustomPackage } from "./package-status";
 import { AssignQueryDropdown } from "../../(marketing)/queries/Assignquerydropdown";
 import { QueryTimelineSheet } from "../../(marketing)/queries/QueryTimelineSheet";
 import type { SalesQueryRow } from "./actions";
-import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
+import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements, SalesMember } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
 import { cn } from "@/app/lib/utils";
@@ -55,6 +55,9 @@ type Props = {
     queries: SalesQueryRow[];
     closeReasons: CloseReason[];
     rejectionReasons: RejectionReason[];
+    /** The viewer's own SalesTeam roster — empty for anyone who isn't a Team
+     * Leader. Feeds the "Assigned To" filter dropdown. */
+    teamMembers?: SalesMember[];
     /** Active date range (YYYY-MM-DD), server-scoped — see page.tsx. */
     from: string;
     to: string;
@@ -204,11 +207,32 @@ function ActionCell({
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function SalesQueriesTable({
-    queries, closeReasons, rejectionReasons, from, to, isAllTime, isTeamLead = false,
+    queries, closeReasons, rejectionReasons, teamMembers = [], from, to, isAllTime, isTeamLead = false,
 }: Props) {
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
+    const [filterAssignedTo, setFilterAssignedTo] = useState<"all" | "unassigned" | string>("all");
     const [page, setPage] = useState(1);
+
+    // ── Focus Mode — hides Converted/Closed queries so the list is only
+    // what still needs work. "Sticks" across visits via localStorage, since
+    // the whole point is not having to re-enable it every time you land
+    // here. Starts off on the server render to avoid a hydration mismatch,
+    // then syncs to the stored value right after mount.
+    const [focusMode, setFocusMode] = useState(false);
+    useEffect(() => {
+        try {
+            if (localStorage.getItem("salesQuery.focusMode") === "1") setFocusMode(true);
+        } catch { /* localStorage unavailable — focus mode just won't persist */ }
+    }, []);
+    function toggleFocusMode() {
+        setFocusMode(prev => {
+            const next = !prev;
+            try { localStorage.setItem("salesQuery.focusMode", next ? "1" : "0"); } catch { /* ignore */ }
+            return next;
+        });
+        setPage(1);
+    }
 
     // ── Date range — server-driven via URL, same pattern as
     // LeadManagerAnalytics.tsx: router.replace inside a transition so the
@@ -281,13 +305,26 @@ export function SalesQueriesTable({
 
         const matchStatus = filterStatus === "all" || q.status === filterStatus;
 
-        return matchSearch && matchStatus;
+        const matchAssignedTo = filterAssignedTo === "all"
+            || (filterAssignedTo === "unassigned" ? !q.assignedTo : q.assignedTo === filterAssignedTo);
+
+        const matchFocus = !focusMode
+            || (!isClosedStatus(q.status as SalesQueryStatus) && !isConvertedStatus(q.status as SalesQueryStatus));
+
+        return matchSearch && matchStatus && matchAssignedTo && matchFocus;
     });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-    const isFiltering = search !== "" || filterStatus !== "all";
+    const isFiltering = search !== "" || filterStatus !== "all" || filterAssignedTo !== "all" || focusMode;
+
+    // Open = not Converted, not Closed — what Focus Mode narrows down to.
+    // Computed off the full `queries` set (not `filtered`) so the count on
+    // the toggle stays stable while other filters/search are in play.
+    const openCount = queries.filter(q =>
+        !isClosedStatus(q.status as SalesQueryStatus) && !isConvertedStatus(q.status as SalesQueryStatus),
+    ).length;
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const totalCount = queries.length;
@@ -350,6 +387,7 @@ export function SalesQueriesTable({
                     <AssignQueryDropdown
                         queryId={q.id}
                         assignedTo={q.assignedTo}
+                        assignedToName={q.assignedToName}
                         fetchMembers={getMyTeamMembers}
                         assignFn={reassignToTeamMember}
                     />
@@ -693,6 +731,29 @@ export function SalesQueriesTable({
                             </button>
                         ))}
                         {isPending && <span className="text-xs text-muted-foreground animate-pulse px-1">Updating…</span>}
+
+                        <div className="w-px h-5 bg-dashboard-base-300 mx-0.5" />
+
+                        <button
+                            type="button"
+                            onClick={toggleFocusMode}
+                            title="Show only queries that aren't Converted or Closed"
+                            className={cn(
+                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer border",
+                                focusMode
+                                    ? "bg-amber-500/15 text-amber-700 border-amber-300 dark:text-amber-400 dark:border-amber-800"
+                                    : "bg-dashboard-base-200 text-dashboard-base-content/70 border-transparent hover:bg-dashboard-base-300",
+                            )}
+                        >
+                            <Focus className="h-3.5 w-3.5" />
+                            Focus Mode
+                            <span className={cn(
+                                "min-w-4.5 h-4.5 px-1 flex items-center justify-center text-[10px] font-semibold rounded-full tabular-nums",
+                                focusMode ? "bg-amber-500 text-white" : "bg-dashboard-base-300 text-dashboard-base-content/60",
+                            )}>
+                                {openCount}
+                            </span>
+                        </button>
                     </div>
                     <div className="flex items-center gap-2">
                         <DateRangePicker
@@ -783,6 +844,22 @@ export function SalesQueriesTable({
                                 { label: "Rejected", value: "REJECTED" },
                             ],
                         },
+                        // Only a Team Leader has more than one assignee across
+                        // `queries` in the first place — a solo exec's queries
+                        // are all their own, so this filter would be a no-op.
+                        ...(isTeamLead && teamMembers.length > 0 ? [{
+                            value: filterAssignedTo,
+                            onChange: (v: string) => {
+                                setFilterAssignedTo(v);
+                                setPage(1);
+                            },
+                            placeholder: "All Team Members",
+                            width: "w-52",
+                            options: [
+                                { label: "Unassigned", value: "unassigned" },
+                                ...teamMembers.map((m) => ({ label: m.name, value: m.id })),
+                            ],
+                        }] : []),
                     ]}
                 />
 
@@ -817,13 +894,15 @@ export function SalesQueriesTable({
                     emptyState={
                         <TableEmptyState
                             description={
-                                filterStatus === "CLOSED" || filterStatus === "CONVERTED" || filterStatus === "REJECTED"
-                                    ? "No closed queries yet"
-                                    : filterStatus === "IN_PROGRESS"
-                                        ? "No active queries — you're all caught up!"
-                                        : filterStatus === "SUBMITTED"
-                                            ? "No new queries awaiting action"
-                                            : "No queries found — go scroll some reels 😄"
+                                focusMode
+                                    ? "Nothing open — everything's Converted or Closed 🎉"
+                                    : filterStatus === "CLOSED" || filterStatus === "CONVERTED" || filterStatus === "REJECTED"
+                                        ? "No closed queries yet"
+                                        : filterStatus === "IN_PROGRESS"
+                                            ? "No active queries — you're all caught up!"
+                                            : filterStatus === "SUBMITTED"
+                                                ? "No new queries awaiting action"
+                                                : "No queries found — go scroll some reels 😄"
                             }
                         />
                     }
