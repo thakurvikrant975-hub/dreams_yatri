@@ -7,6 +7,7 @@ import { ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
 // with a DB lookup when a SalesTarget model exists.
 const MONTHLY_TARGET = 20;
 const CONVERTED_STATUSES = ["CONVERTED", "PAYMENT_INITIATED"] as const;
+import { istMonthBounds } from "@/app/lib/ist-window";
 
 export type MemberPerformance = {
   id: string;
@@ -54,11 +55,13 @@ export type SalesTeamAnalytics = {
  * to avoid a churny rename across every existing consumer. */
 export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): Promise<SalesTeamAnalytics> {
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  // The default window is this month in IST, not in the server's UTC month.
+  const { start: monthStart, end: monthEnd } = istMonthBounds(now);
 
-  const rangeStart = fromStr ? new Date(`${fromStr}T00:00:00`) : monthStart;
-  const rangeEnd   = toStr   ? new Date(`${toStr}T23:59:59.999`) : monthEnd;
+  // IST wall-clock dates from the picker, on a UTC server — without the
+  // offset the window slides by 5½ hours and drops the night's leads.
+  const rangeStart = fromStr ? new Date(`${fromStr}T00:00:00+05:30`) : monthStart;
+  const rangeEnd   = toStr   ? new Date(`${toStr}T23:59:59.999+05:30`) : monthEnd;
 
   const [teams, bookingsGrouped, queriesGrouped, convertedGrouped, pendingGrouped, unassignedRaw] = await Promise.all([
     db.salesTeam.findMany({
@@ -82,7 +85,10 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
       by: ["assignedTo"],
       where: {
         deletedAt: null,
-        createdAt: { gte: rangeStart, lte: rangeEnd },
+        // When the exec got it, not when it arrived — see the note in
+        // team-leader-analytics-actions. A lead that came in overnight and
+        // was handed over in the morning belongs to the morning.
+        assignedAt: { gte: rangeStart, lte: rangeEnd },
         assignedTo: { not: null },
       },
       _count: { _all: true },
@@ -91,7 +97,7 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
       by: ["assignedTo"],
       where: {
         deletedAt: null,
-        createdAt: { gte: rangeStart, lte: rangeEnd },
+        assignedAt: { gte: rangeStart, lte: rangeEnd },
         assignedTo: { not: null },
         status: { in: [...CONVERTED_STATUSES] },
       },
