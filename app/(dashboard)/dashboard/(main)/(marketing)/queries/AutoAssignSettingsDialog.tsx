@@ -14,7 +14,7 @@ import { updateAutoAssignMemberSetting, type AutoAssignMemberSetting } from "./a
 
 /** One row's local edit state — separate from the server-confirmed value so
  * a debounced number input can keep typing feel responsive without firing
- * a save on every keystroke. */
+ * a save on every keystroke. */  
 function MemberRow({ member }: { member: AutoAssignMemberSetting }) {
     const [active, setActive] = useState(member.active);
     const [min, setMin] = useState(member.min?.toString() ?? "");

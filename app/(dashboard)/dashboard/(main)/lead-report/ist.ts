@@ -53,3 +53,16 @@ export function istDayKey(d: Date | string): string {
 export function istDayOffset(days: number): string {
   return istDayKey(new Date(Date.now() + days * 24 * 3600 * 1000));
 }
+
+/** An instant as IST wall-clock, for reading rather than parsing: "3 Sep
+ * 2026, 11:42 pm". Used wherever staff need to know exactly when a lead
+ * arrived or was handed over — "2 hours ago" cannot be checked against a
+ * call log, a WhatsApp thread or another screen, and after a night shift it
+ * cannot even be read as a date. */
+export function istDateTime(d: Date | string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: IST_TZ,
+    day: "numeric", month: "short", year: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true,
+  }).format(typeof d === "string" ? new Date(d) : d);
+}
