@@ -88,5 +88,26 @@ check("received", quiet.totalReceivedToday, 0);
 check("handed out", quiet.handedOutToday, 0);
 check("no bars", quiet.rows.length, 0);
 
+// ── The after-hours backlog ───────────────────────────────────────────────
+// Leads arriving after the office closes belong to "yesterday" by the time
+// anyone opens the panel, so they must be counted somewhere.
+console.log("\nunassigned leads from earlier days:");
+const backlog = summariseTodaysAssignments([
+  // last night, 11:20pm IST — nobody has picked it up
+  lead({ createdAt: "2026-09-01T17:50:00Z" }),
+  // yesterday afternoon, unassigned
+  lead({ createdAt: "2026-09-01T09:00:00Z" }),
+  // three days ago, still unassigned
+  lead({ createdAt: "2026-08-30T09:00:00Z" }),
+  // yesterday but already assigned — not backlog
+  lead({ createdAt: "2026-09-01T09:30:00Z", assignedTo: "m1", assignedToName: "A", assignedAt: "2026-09-01T10:00:00Z" }),
+  // today, unassigned — belongs to today's tile, not the backlog
+  lead({ createdAt: "2026-09-02T04:00:00Z" }),
+], NOW);
+check("from yesterday", backlog.unassignedYesterday, 2);
+check("from before that", backlog.unassignedOlder, 1);
+check("today's own unassigned stays in today's tile", backlog.receivedUnassigned, 1);
+check("an assigned lead is not backlog", backlog.unassignedYesterday + backlog.unassignedOlder, 3);
+
 console.log(failures === 0 ? "\nall good" : `\n${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);
