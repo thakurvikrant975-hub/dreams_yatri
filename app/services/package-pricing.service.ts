@@ -874,12 +874,17 @@ export async function computePackagePrice(
     };
 
     // Breakfast: from previous night's hotel
-    if (prevDayStay && prevDayStay.active_meals.includes("breakfast")) {
+    //
+    // active_meals is String[] @default([]) in Prisma, but the column has no
+    // NOT NULL constraint in the DB — an itinerary_stays row written outside
+    // itinerary-builder.service.ts's create/update path can carry a real SQL
+    // NULL here even though the generated type claims otherwise.
+    if (prevDayStay && (prevDayStay.active_meals ?? []).includes("breakfast")) {
       addMeal(prevDayStay, "breakfast");
     }
     // All non-breakfast meals: from today's hotel
     if (currDayStay) {
-      for (const mealKey of currDayStay.active_meals) {
+      for (const mealKey of currDayStay.active_meals ?? []) {
         if (mealKey === "breakfast") continue; // breakfast handled above
         addMeal(currDayStay, mealKey);
       }
