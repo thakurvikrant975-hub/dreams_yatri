@@ -519,6 +519,66 @@ export function cancelHotelRequest(day: DayItinerary): DayItinerary {
   };
 }
 
+/**
+ * A stay written through the stay-options drawer, applied to the day in form
+ * state.
+ *
+ * The recommended option and the day rows are the same stay: saveStayForDay
+ * mirrors one onto the other server-side. The builder's `form` was never told,
+ * and that is not merely a stale card — the autosave writes the whole form
+ * back and syncRecommendedStayFromDays then copies the day rows onto the
+ * recommended option, so an edit made in the drawer was reverted a few seconds
+ * later by a save the exec never asked for. Room counts, combos and hotels
+ * picked on the recommended option all disappeared this way.
+ *
+ * Takes the same field bag that went to the server, so the two cannot describe
+ * the write differently. Only keys actually present are touched; a null on a
+ * field the form types as a string becomes "", which is what "no value" is on
+ * this side of the wire.
+ */
+const STAY_TEXT_FIELDS = new Set([
+  "accommodation", "accommodationPhoto", "accommodationLocation", "accommodationRoomSpecs",
+  "accommodationStarRating", "hotelCheckIn", "hotelCheckOut", "hotelMealPlan", "hotelPendingNote",
+]);
+
+export function applyStayFieldsToDay(
+  day: DayItinerary, fields: Record<string, unknown>,
+): DayItinerary {
+  const patch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (!(key in day)) continue;
+    patch[key] = STAY_TEXT_FIELDS.has(key) ? (value ?? "") : value;
+  }
+  return { ...day, ...patch } as DayItinerary;
+}
+
+/** The stay half of a day, in the shape applyStayFieldsToDay takes — what
+ * "use this night's hotel on those nights as well" copies. */
+export function stayFieldsOfDay(day: DayItinerary): Record<string, unknown> {
+  return {
+    accommodation: day.accommodation,
+    accommodationPhoto: day.accommodationPhoto,
+    accommodationRoomPhotos: day.accommodationRoomPhotos,
+    accommodationLocation: day.accommodationLocation,
+    accommodationRoomSpecs: day.accommodationRoomSpecs,
+    accommodationStarRating: day.accommodationStarRating,
+    accommodationRoomCapacity: day.accommodationRoomCapacity,
+    accommodationMaxAdults: day.accommodationMaxAdults,
+    accommodationMaxChildren: day.accommodationMaxChildren,
+    accommodationExtraBedCapacity: day.accommodationExtraBedCapacity,
+    accommodationExtraBedRate: day.accommodationExtraBedRate,
+    roomPricingId: day.roomPricingId,
+    roomsCount: day.roomsCount,
+    extraRooms: day.extraRooms ?? [],
+    hotelCheckIn: day.hotelCheckIn,
+    hotelCheckOut: day.hotelCheckOut,
+    hotelMealPlan: day.hotelMealPlan,
+    manualHotelPricePerNight: day.manualHotelPricePerNight,
+    manualExtraBeds: day.manualExtraBeds,
+    manualExtraBedRate: day.manualExtraBedRate,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Extra rooms and a hand-typed stay
 // ─────────────────────────────────────────────────────────────────────────────

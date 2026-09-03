@@ -34,7 +34,7 @@ import {
   SUGGESTED_STAY_LABELS, MAX_STAY_OPTIONS, buildStayRuns, type StayCell,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import { getSiblingHotelRoomsForBuilder, type HotelRoomResult } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
-import { extraRoomsAtHotel } from "./day-mutations";
+import { extraRoomsAtHotel, applyStayFieldsToDay, stayFieldsOfDay } from "./day-mutations";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
 import { pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import type { RoomSelection } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
@@ -53,7 +53,7 @@ function formatDayList(days: number[]): string {
 }
 
 export function StayOptionsView({ packageId, day }: { packageId: string; day: number }) {
-  const { form, canEdit, openDrawer, refreshStayOptions } = useBuilder();
+  const { form, setForm, canEdit, openDrawer, refreshStayOptions } = useBuilder();
   const [options, setOptions] = useState<LoadedOption[] | null>(null);
   const [busy, startBusy] = useTransition();
   const [newLabel, setNewLabel] = useState("");
@@ -149,9 +149,33 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
     const days = Array.from({ length: nightCount }, (_, i) => fromDay + i);
     const r = await saveStayForDay(packageId, optionId, days, fields);
     if (!r.success) { toast.error(r.error); return false; }
+    syncRecommendedIntoForm(optionId, days, fields);
     await load();
     await refreshStayOptions();
     return true;
+  }
+
+  /** Teaches `form` what the server was just told, for the recommended option.
+   *
+   * That option and the day rows are one stay — saveStayForDay mirrors it
+   * across — so a form that does not know is not just showing a stale card.
+   * The autosave writes the whole form back, syncRecommendedStayFromDays then
+   * copies those day rows onto the recommended option, and the edit made here
+   * is undone a few seconds later by a save nobody asked for. That is what a
+   * room count "not updating in the stay card" actually was.
+   *
+   * A non-recommended option touches no day row, so there is nothing to sync. */
+  function syncRecommendedIntoForm(
+    optionId: string, days: number[], fields: Record<string, unknown>,
+  ) {
+    if (!options?.some((o) => o.id === optionId && o.isRecommended)) return;
+    const target = new Set(days);
+    setForm((f) => ({
+      ...f,
+      itineraries: f.itineraries.map((it) =>
+        target.has(it.day) ? applyStayFieldsToDay(it, fields) : it,
+      ),
+    }));
   }
 
   if (options === null) {
@@ -295,7 +319,18 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                   sourceDay={day}
                   label={`Also use ${cell.hotel.split(" — ")[0]} on…`}
                   confirmLabel="Apply to selected nights"
-                  onApply={(days) => run(() => copyStayToDays(packageId, o.id, day, days))}
+                  onApply={(days) => run(async () => {
+                    const r = await copyStayToDays(packageId, o.id, day, days);
+                    // Same reason as writeStay's own sync: on the recommended
+                    // option this wrote day rows the form still described the
+                    // old way. The source is this day's own stay, which the
+                    // form already holds.
+                    if (r.success) {
+                      const source = form.itineraries.find((it) => it.day === day);
+                      if (source) syncRecommendedIntoForm(o.id, days, stayFieldsOfDay(source));
+                    }
+                    return r;
+                  })}
                 />
               )}
 

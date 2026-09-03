@@ -24,6 +24,8 @@ import {
 import { computeStayOptionPricing, persistStayOptionPricing } from "@/app/services/package-pricing.service";
 import { mirrorRecommendedOntoDays, pickStayFields } from "./stay-options.sync";
 import { parseRoomSelections } from "./room-cab-selections";
+import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { pricingPartyOf } from "./traveller-ages";
 
 type Result<T = undefined> = { success: true; data?: T } | { success: false; error: string };
 
@@ -346,13 +348,27 @@ export async function getStayOptionsForDocument(packageId: string) {
   // sat in the builder showing the prices frozen when it was submitted, beside
   // hotels the exec had since replaced.
   const [pkgState, options] = await Promise.all([
-    db.custom_packages.findUnique({ where: { id: packageId }, select: { status: true } }),
+    // The party comes back with the status because the cells need it: how many
+    // of a room an option books is derived from the party split when nobody
+    // has typed a count, and that number belongs on the client's document.
+    db.custom_packages.findUnique({
+      where: { id: packageId },
+      select: {
+        status: true, adults: true, children: true, childrenAges: true,
+        infants: true, infantAges: true, infantMaxAge: true, childMaxAge: true,
+      },
+    }),
     db.custom_package_stay_options.findMany({
       where: { customPackageId: packageId },
       include: { stays: { include: { itinerary: { select: { day: true } } } } },
     }),
   ]);
   const editable = pkgState?.status === "DRAFT";
+  // Beds are needed by age band, not by the box a traveller was typed into —
+  // the same split the price is computed from. See traveller-ages.ts.
+  const party = pkgState
+    ? pricingPartyOf({ ...pkgState, adults: pkgState.adults })
+    : { adults: 0, children: 0 };
 
   // Live figures, for the options not yet frozen — and ONLY for those. A
   // stored price always wins where there is one, so on a settled package with
@@ -409,6 +425,20 @@ export async function getStayOptionsForDocument(packageId: string) {
       maxAdults: isStaff ? s.accommodationMaxAdults : null,
       maxChildren: isStaff ? s.accommodationMaxChildren : null,
       extraBedCapacity: isStaff ? s.accommodationExtraBedCapacity : null,
+      // How many of THIS room the option books, resolved the one way the price
+      // resolves it: the exec's count when they set one, otherwise the party
+      // split across the room's capacity. Computed here rather than in the
+      // document because only this side has the party and the caps together —
+      // and because the client's copy must not be handed the caps to work it
+      // out for itself, which is also how the two would end up disagreeing.
+      roomsResolved: s.roomPricingId == null && s.accommodationRoomCapacity == null
+        ? s.roomsCount
+        : planRoomOccupancy(party.adults, party.children, {
+          max_occupancy: s.accommodationRoomCapacity,
+          extra_bed_capacity: s.accommodationExtraBedCapacity,
+          max_adults: s.accommodationMaxAdults,
+          max_children: s.accommodationMaxChildren,
+        }, s.roomsCount).rooms,
       // The other room types booked at this option's hotel. Same staff rule as
       // roomPricingId above, applied per entry: the client's document renders
       // these ("+ 2× Super Deluxe"), so the label and the count have to reach

@@ -514,6 +514,9 @@ export interface PreviewData {
        * without a second read. */
       roomPricingId?: number | null;
       pending?: boolean;
+      /** How many of the option's own room it books — see
+       * StayCell.roomsResolved. */
+      roomsResolved?: number | null;
       /** The picked room's occupancy caps, editor-only — what the option's room
        * count falls back to when nobody has set one. */
       roomCapacity?: number | null;
@@ -2561,21 +2564,32 @@ function StayColumns({
                   {cell.hotel && cell.starRating ? <StayStars raw={cell.starRating} /> : null}
                 </p>
                 {roomName && (
-                  <p className="text-[12px] leading-tight" style={{ color: DOC.inkSoft }}>{roomName}</p>
+                  <p className="text-[12px] leading-tight" style={{ color: DOC.inkSoft }}>
+                    {/* The count, on the same footing as the extra room types
+                        below — without it the option's own room read as a
+                        single room beside "+ 3× Deluxe", which is the one
+                        number on the card the client would have got wrong.
+                        Silent at one, exactly as the extras are. */}
+                    {(cell.roomsResolved ?? 0) > 1 ? `${cell.roomsResolved}× ` : ""}{roomName}
+                  </p>
                 )}
                 {/* The other room types this option books at the same hotel.
                     Under the room name, because that is what they are — more
                     of this column's stay, not a second property. Without them
                     a Standard quoted as 3 Deluxe + 2 Suite showed the client
                     only the Deluxe, at a price that had charged for both. */}
+                {/* The same ink as the room above them, not the muted one:
+                    these ARE rooms in the same booking, and printing them
+                    fainter read as a footnote to the stay rather than part of
+                    it — the client's eye stopped at the first line. */}
                 {(cell.extraRooms ?? []).map((r, i) => (
-                  <p key={i} className="text-[12px] leading-tight" style={{ color: DOC.inkMuted }}>
+                  <p key={i} className="text-[12px] leading-tight" style={{ color: DOC.inkSoft }}>
                     {"+ "}{r.quantity > 1 ? `${r.quantity}× ` : ""}
                     {splitManualHotelName(r.label).manualRoomName ?? r.label}
                   </p>
                 ))}
                 {cell.location && (
-                  <p className="text-[12px] leading-tight" style={{ color: DOC.inkMuted }}>{cell.location}</p>
+                  <p className="text-[12px] leading-tight" style={{ color: DOC.inkSoft }}>{cell.location}</p>
                 )}
                 {/* The board is a property of the hotel, not of the day, so it
                     belongs in the column — a Premium stay can include dinner

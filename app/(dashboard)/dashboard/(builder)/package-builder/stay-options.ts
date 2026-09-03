@@ -77,6 +77,11 @@ export type StayCell = {
   rooms?: number | null;
   checkIn?: string | null;
   checkOut?: string | null;
+  /** How many of the option's OWN room it books, resolved: the exec's count
+   * where they set one, else the party split across the room's capacity — the
+   * same figure the price uses. Shown on the comparison card, where the room
+   * used to read as a single room beside extras that carried counts. */
+  roomsResolved?: number | null;
   /** The picked room's occupancy caps, editor-only — what the option's room
    * count falls back to when nobody has set one. */
   roomCapacity?: number | null;
