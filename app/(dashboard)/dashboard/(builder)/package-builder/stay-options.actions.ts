@@ -23,6 +23,7 @@ import {
 } from "./stay-options";
 import { computeStayOptionPricing, persistStayOptionPricing } from "@/app/services/package-pricing.service";
 import { mirrorRecommendedOntoDays, pickStayFields } from "./stay-options.sync";
+import { parseRoomSelections } from "./room-cab-selections";
 
 type Result<T = undefined> = { success: true; data?: T } | { success: false; error: string };
 
@@ -400,6 +401,18 @@ export async function getStayOptionsForDocument(packageId: string) {
       roomPricingId: isStaff ? s.roomPricingId : null,
       pending: isStaff ? s.hotelPending : false,
       extraBeds: s.manualExtraBeds,
+      // The other room types booked at this option's hotel. Same staff rule as
+      // roomPricingId above, applied per entry: the client's document renders
+      // these ("+ 2× Super Deluxe"), so the label and the count have to reach
+      // it, while the catalog ids behind them must not.
+      extraRooms: parseRoomSelections(s.extraRooms).map((r) => ({
+        roomPricingId: isStaff ? r.roomPricingId : null,
+        hotelId: isStaff ? r.hotelId ?? null : null,
+        label: r.label,
+        quantity: r.quantity,
+        roomSpecs: r.roomSpecs ?? null,
+        thumbnail: r.thumbnail ?? null,
+      })),
     }])),
   }));
 }

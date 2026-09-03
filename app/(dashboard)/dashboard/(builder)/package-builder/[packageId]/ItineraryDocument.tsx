@@ -350,7 +350,8 @@ function formatTicketDate(iso: string): string {
 export function occupancyText(
   day: Pick<DayItinerary,
     "accommodationRoomCapacity" | "accommodationMaxAdults"
-    | "accommodationMaxChildren" | "accommodationExtraBedCapacity" | "roomsCount">,
+    | "accommodationMaxChildren" | "accommodationExtraBedCapacity" | "roomsCount"
+    | "extraRooms">,
   adults: number,
   children: number,
 ): string {
@@ -369,7 +370,15 @@ export function occupancyText(
       max_children: day.accommodationMaxChildren,
     }, day.roomsCount).rooms
     : (day.roomsCount ?? 1);
-  return `${rooms} Room${rooms !== 1 ? "s" : ""} | ${adults} Adult${adults !== 1 ? "s" : ""}` +
+  // Plus the other room types booked for this night. Counting the primary
+  // alone read as a contradiction on the client's own document: the card said
+  // "2 Rooms" and then listed a third and fourth room underneath it. The
+  // number has to be every room the client is being given.
+  const comboRooms = (day.extraRooms ?? [])
+    .filter((r) => r.roomPricingId > 0)
+    .reduce((sum, r) => sum + Math.max(1, r.quantity), 0);
+  const total = rooms + comboRooms;
+  return `${total} Room${total !== 1 ? "s" : ""} | ${adults} Adult${adults !== 1 ? "s" : ""}` +
     (children > 0 ? `, ${children} Child${children !== 1 ? "ren" : ""}` : "");
 }
 
@@ -506,6 +515,18 @@ export interface PreviewData {
       roomPricingId?: number | null;
       pending?: boolean;
       extraBeds?: number | null;
+      /** The other room types this option books at the same hotel — see
+       * StayCell.extraRooms, which this mirrors. Rendered under the room name
+       * in the comparison, so the client sees the whole stay they are being
+       * offered and not just its first room. */
+      extraRooms?: {
+        roomPricingId: number | null;
+        label: string;
+        quantity: number;
+        roomSpecs?: string | null;
+        thumbnail?: string | null;
+        hotelId?: number | null;
+      }[];
     }>;
   }[];
   /** Which document template this package renders with (see doc-theme's
@@ -2378,6 +2399,10 @@ function StayColumnPicker({
             manualHotelPricePerNight: null,
             manualExtraBeds: null,
             manualExtraBedRate: null,
+            // This picker only ever fills an EMPTY column (see its call site),
+            // so there is nothing of a previous hotel's to keep — and being
+            // explicit stops a stale row from surviving into a fresh pick.
+            extraRooms: [],
           };
           // Every night of the block in one call, so the column names one
           // hotel for the whole stay and the run lands atomically rather than
@@ -2395,6 +2420,9 @@ function StayColumnPicker({
             accommodationLocation: null, accommodationRoomSpecs: null, accommodationStarRating: null,
             roomPricingId: null, roomsCount: null, hotelMealPlan: null,
             manualHotelPricePerNight: null,
+            // Clearing the hotel clears the rooms booked at it — they cannot
+            // outlive the property, and left behind they would keep pricing.
+            extraRooms: [],
           });
           setSaving(false);
           await onSaved();
@@ -2529,6 +2557,17 @@ function StayColumns({
                 {roomName && (
                   <p className="text-[12px] leading-tight" style={{ color: DOC.inkSoft }}>{roomName}</p>
                 )}
+                {/* The other room types this option books at the same hotel.
+                    Under the room name, because that is what they are — more
+                    of this column's stay, not a second property. Without them
+                    a Standard quoted as 3 Deluxe + 2 Suite showed the client
+                    only the Deluxe, at a price that had charged for both. */}
+                {(cell.extraRooms ?? []).map((r, i) => (
+                  <p key={i} className="text-[12px] leading-tight" style={{ color: DOC.inkMuted }}>
+                    {"+ "}{r.quantity > 1 ? `${r.quantity}× ` : ""}
+                    {splitManualHotelName(r.label).manualRoomName ?? r.label}
+                  </p>
+                ))}
                 {cell.location && (
                   <p className="text-[12px] leading-tight" style={{ color: DOC.inkMuted }}>{cell.location}</p>
                 )}
@@ -2956,6 +2995,18 @@ function DayCardPreview({
                       <span className="font-semibold" style={{ color: DOC.ink }}>
                         {day.accommodation}
                       </span>
+                      {/* Every room type the night holds, not just the first.
+                          A combo carries across every night of its stay, so a
+                          line naming only the Deluxe read as though the
+                          Standard rooms stopped after night one — on the
+                          document the client is given, for a booking the hotel
+                          is holding for the whole run. */}
+                      {extraRooms.map((r, i) => (
+                        <span key={i} style={{ color: DOC.inkSoft }}>
+                          {"+ "}{r.quantity > 1 ? `${r.quantity}× ` : ""}
+                          {splitManualHotelName(r.label).manualRoomName ?? r.label}
+                        </span>
+                      ))}
                       <StayStars raw={day.accommodationStarRating} />
                       <span>{"— continuing from day "}{continuesFrom}</span>
                     </p>

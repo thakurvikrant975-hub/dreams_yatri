@@ -31,8 +31,11 @@ import { applyHotelRoomSelection, emptyDay, stayRun } from "./day-mutations";
 import { dayCalendarDate } from "./ItineraryDocument";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import {
-  SUGGESTED_STAY_LABELS, MAX_STAY_OPTIONS, buildStayRuns,
+  SUGGESTED_STAY_LABELS, MAX_STAY_OPTIONS, buildStayRuns, type StayCell,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
+import { getSiblingHotelRoomsForBuilder, type HotelRoomResult } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { extraRoomsAtHotel } from "./day-mutations";
+import type { RoomSelection } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import {
   addStayOption, renameStayOption, removeStayOption,
   setRecommendedStayOption, saveStayForDay, getStayOptionsForDocument, copyStayToDays,
@@ -323,6 +326,21 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                         hotelMealPlan: m.hotelMealPlan,
                         manualHotelPricePerNight: null, manualExtraBeds: null, manualExtraBedRate: null,
                         hotelPending: false, hotelPendingNote: null,
+                        // The same rule the day's own stay follows: rooms
+                        // belong to a property, so a new one takes the old
+                        // one's with it, while swapping to another room of the
+                        // SAME hotel leaves the combo alone.
+                        extraRooms: extraRoomsAtHotel(
+                          (cell?.extraRooms ?? []).map((r) => ({
+                            roomPricingId: r.roomPricingId ?? 0,
+                            label: r.label,
+                            quantity: r.quantity,
+                            hotelId: r.hotelId ?? null,
+                            roomSpecs: r.roomSpecs ?? null,
+                            thumbnail: r.thumbnail ?? null,
+                          })),
+                          room.hotelId,
+                        ),
                       });
                     }}
                     onClear={async () => {
@@ -331,9 +349,27 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                         accommodationLocation: null, accommodationRoomSpecs: null,
                         accommodationStarRating: null, roomPricingId: null, roomsCount: null,
                         hotelMealPlan: null, manualHotelPricePerNight: null,
+                        // No hotel, no rooms at it.
+                        extraRooms: [],
                       });
                     }}
                   />
+
+                  {/* Several room types at this option's own hotel. Only
+                      where the option HAS a catalog hotel: a hand-typed stay
+                      has no rate sheet to offer a second room type from, and a
+                      night still with the hotel team has no hotel at all. */}
+                  {cell?.roomPricingId != null && (
+                    <StayComboEditor
+                      optionLabel={o.label}
+                      primaryRoomPricingId={cell.roomPricingId}
+                      primaryLabel={cell.hotel ?? ""}
+                      extras={cell.extraRooms ?? []}
+                      nightISO={nightISO}
+                      nightCount={nightCount}
+                      onWrite={(extraRooms) => writeStay(o.id, { extraRooms })}
+                    />
+                  )}
 
                   <ManualStay
                     key={`${o.id}-${cell?.hotel ?? ""}`}
@@ -346,6 +382,10 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                       manualHotelPricePerNight: rate,
                       roomPricingId: null,
                       hotelPending: false, hotelPendingNote: null,
+                      // Catalog rooms cannot hang off a hotel that is no longer
+                      // a catalog one — they would price against a property the
+                      // option no longer names.
+                      extraRooms: [],
                     })}
                   />
 
@@ -467,6 +507,180 @@ function ManualStay({ hotel, rate, onSave }: {
           Cancel
         </Button>
       </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The other room types one option books
+//
+// The same rule the day's own stay follows: a combo is several room types at
+// ONE hotel — 3 Deluxe and 2 Standard is one booking of one property — so the
+// only rooms offered are that option's own hotel's. See ExtraRoomsEditor in
+// HotelDrawer.tsx, which this mirrors; the difference is only where it writes.
+// A stay option's rooms live on custom_itinerary_stays, across every night of
+// the block, which is what writeStay does.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StayComboEditor({
+  optionLabel, primaryRoomPricingId, primaryLabel, extras, nightISO, nightCount, onWrite,
+}: {
+  optionLabel: string;
+  /** This option's own room for the night. Null when the option has no catalog
+   * hotel yet — there is nothing to book a second room type alongside. */
+  primaryRoomPricingId: number | null;
+  primaryLabel: string;
+  extras: NonNullable<StayCell["extraRooms"]>;
+  nightISO: string | null;
+  nightCount: number;
+  onWrite: (extraRooms: RoomSelection[]) => Promise<boolean>;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [rooms, setRooms] = useState<HotelRoomResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hiddenNoRate, setHiddenNoRate] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const takenKey = extras.map((r) => r.roomPricingId ?? 0).join(",");
+
+  useEffect(() => {
+    if (!adding || primaryRoomPricingId == null) return;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const { rows, hiddenNoSeasonRate } = await getSiblingHotelRoomsForBuilder(
+          primaryRoomPricingId,
+          nightISO,
+          takenKey ? takenKey.split(",").map(Number).filter((n) => n > 0) : [],
+        );
+        if (!cancelled) { setRooms(rows); setHiddenNoRate(hiddenNoSeasonRate); }
+      } catch {
+        if (!cancelled) { setRooms([]); setHiddenNoRate(0); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [adding, primaryRoomPricingId, nightISO, takenKey]);
+
+  if (primaryRoomPricingId == null) return null;
+
+  /** Back to the stored shape — the cell strips nothing for staff, but it is
+   * a display type, and what gets written has to be a RoomSelection. */
+  const asSelections = (): RoomSelection[] => extras.map((r) => ({
+    roomPricingId: r.roomPricingId ?? 0,
+    label: r.label,
+    quantity: r.quantity,
+    hotelId: r.hotelId ?? null,
+    roomSpecs: r.roomSpecs ?? null,
+    thumbnail: r.thumbnail ?? null,
+  }));
+
+  async function write(next: RoomSelection[]) {
+    setSaving(true);
+    await onWrite(next);
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-lg border border-dashboard-base-300 p-2">
+      <p className="text-[10.5px] font-medium text-dashboard-base-content/55">
+        Rooms in the {optionLabel} stay
+      </p>
+
+      <p className="text-[11px] text-dashboard-base-content/70 truncate" title={primaryLabel}>
+        {primaryLabel}
+      </p>
+
+      {extras.map((r, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <p className="min-w-0 flex-1 truncate text-[11px] text-dashboard-base-content/70" title={r.label}>
+            {r.label.split(" — ")[1] ?? r.label}
+          </p>
+          <Input
+            type="number" min={1} value={r.quantity} disabled={saving}
+            onChange={(e) => {
+              const quantity = Math.max(1, parseInt(e.target.value, 10) || 1);
+              write(asSelections().map((x, xi) => (xi === i ? { ...x, quantity } : x)));
+            }}
+            className="h-7 w-14 shrink-0 text-xs"
+            aria-label={`How many ${r.label}`}
+          />
+          <button
+            type="button" disabled={saving}
+            title="Remove this room type"
+            onClick={() => write(asSelections().filter((_, xi) => xi !== i))}
+            className="text-dashboard-base-content/35 hover:text-dashboard-error"
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
+      ))}
+
+      {adding ? (
+        <div className="space-y-1">
+          {loading && (
+            <p className="py-1.5 text-center text-[10.5px] text-dashboard-base-content/50">
+              Loading this hotel&apos;s rooms…
+            </p>
+          )}
+          {!loading && rooms.length === 0 && (
+            <p className="py-1.5 text-[10.5px] text-dashboard-base-content/50">
+              {hiddenNoRate > 0
+                ? "This hotel's other room types have no rate for this night — the hotel team sets one on its rate sheet."
+                : "This hotel has no other room type in the catalog."}
+            </p>
+          )}
+          <div className="max-h-48 space-y-1 overflow-y-auto">
+            {!loading && rooms.map((room) => (
+              <button
+                key={room.id}
+                type="button"
+                disabled={saving}
+                onClick={async () => {
+                  await write([...asSelections(), {
+                    roomPricingId: room.id,
+                    label: `${room.hotelName} — ${room.roomName}`,
+                    quantity: 1,
+                    hotelId: room.hotelId,
+                    roomSpecs: room.roomSpecs ?? null,
+                    thumbnail: room.thumbnail ?? null,
+                  }]);
+                  setAdding(false);
+                }}
+                className="w-full rounded-md px-1.5 py-1 text-left hover:bg-dashboard-base-200/60"
+              >
+                <p className="truncate text-[11px] font-medium">{room.roomName}</p>
+                <p className="text-[10px] text-dashboard-base-content/50">
+                  ₹{room.pricePerNight.toLocaleString("en-IN")} / night
+                  {room.mealPlanName ? ` · ${room.mealPlanName}` : ""}
+                </p>
+              </button>
+            ))}
+          </div>
+          <Button type="button" size="sm" variant="ghost" className="h-6 w-full text-[11px]"
+            onClick={() => setAdding(false)}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => setAdding(true)}
+          className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1 text-[10.5px] text-dashboard-base-content/60 hover:border-dashboard-primary hover:text-dashboard-primary"
+        >
+          <Plus size={10} className="inline" /> Add another room type from this hotel
+        </button>
+      )}
+
+      {saving && (
+        <p className="flex items-center gap-1 text-[10px] text-dashboard-base-content/50">
+          <Loader2 size={9} className="animate-spin" /> Saving all {nightCount} night{nightCount !== 1 ? "s" : ""}…
+        </p>
+      )}
     </div>
   );
 }

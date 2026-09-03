@@ -78,6 +78,27 @@ export type StayCell = {
   checkIn?: string | null;
   checkOut?: string | null;
   pending?: boolean;
+  /** The OTHER room types this option books at the same hotel — 3 Deluxe and
+   * 2 Standard is one option, not two.
+   *
+   * A stay option is a whole stay, so it needs everything a single stay has;
+   * combos were the one thing it could not express, which meant a package that
+   * quotes two standards could not split the party across room types in either
+   * of them. The rows already had the column (custom_itinerary_stays mirrors
+   * the day row, extraRooms included) and the option pricing already summed
+   * them — only the read path and the editor were missing.
+   *
+   * `roomPricingId` is present for staff and null for the client, the same rule
+   * the cell's own roomPricingId follows: the client's page renders these and
+   * must not be handed internal catalog ids to do it. */
+  extraRooms?: {
+    roomPricingId: number | null;
+    label: string;
+    quantity: number;
+    roomSpecs?: string | null;
+    thumbnail?: string | null;
+    hotelId?: number | null;
+  }[];
 };
 
 export type StayDay = {
