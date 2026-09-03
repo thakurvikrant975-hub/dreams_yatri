@@ -10,6 +10,7 @@ import {
 } from "../(marketing)/queries/actions";
 import { createLog } from "../lib/logger";
 import { notifyMember } from "@/app/services/notifications/notify";
+import { phoneKey, PHONE_KEY_SQL } from "@/app/lib/phone";
 
 export type LeadRequestFormState = {
   success: boolean;
@@ -124,18 +125,30 @@ async function createQueryFromLeadRequest(input: {
   const normalizedPhone = cleanPhone.replace(/[\-().+]/g, "");
   const displayName = toTitleCase(input.name.trim()) || "Unknown Caller";
 
-  const recentDuplicate = await db.package_queries.findFirst({
-    where: { phone: cleanPhone, createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) } },
-  });
-  if (recentDuplicate) {
+  // Same identity rule as Add Query and the website intake — the spelling a
+  // number arrives in must not decide whether it is the same person.
+  const key = phoneKey(cleanPhone);
+  const recentDuplicate = await db.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM package_queries
+      WHERE ${PHONE_KEY_SQL} = $1 AND "createdAt" >= $2 AND "deletedAt" IS NULL
+      LIMIT 1;`,
+    key, new Date(Date.now() - 1000 * 60 * 5),
+  );
+  if (recentDuplicate.length > 0) {
     return { success: false, error: "A query from this number was submitted in the last 5 minutes." };
   }
 
-  const profile = await db.leadProfile.upsert({
-    where: { phone: normalizedPhone },
-    update: { name: displayName, email: input.email ?? undefined, lastSeenAt: new Date(), totalQueries: { increment: 1 } },
-    create: { phone: normalizedPhone, name: displayName, email: input.email },
-  });
+  const existingProfile = await db.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM lead_profiles WHERE ${PHONE_KEY_SQL} = $1 LIMIT 1;`, key,
+  );
+  const profile = existingProfile.length > 0
+    ? await db.leadProfile.update({
+        where: { id: existingProfile[0].id },
+        data: { name: displayName, email: input.email ?? undefined, lastSeenAt: new Date(), totalQueries: { increment: 1 } },
+      })
+    : await db.leadProfile.create({
+        data: { phone: normalizedPhone, name: displayName, email: input.email },
+      });
 
   const query = await db.package_queries.create({
     data: {

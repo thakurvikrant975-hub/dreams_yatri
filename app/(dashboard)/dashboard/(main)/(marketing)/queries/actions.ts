@@ -20,6 +20,8 @@ function toTitleCase(s: string): string {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+import { phoneKey, PHONE_KEY_SQL } from "@/app/lib/phone";
+
 export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
     | { success: false; data?: never; message: string; errors?: Record<string, string[]> };
@@ -919,21 +921,35 @@ export async function createManualQuery(
         const rawName = toTitleCase(parsed.data.name?.trim() ?? "") || undefined;
         const displayName = rawName || "Unknown Caller";
 
-        const recentDuplicate = await db.package_queries.findFirst({
-            where: { phone: cleanPhone, createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) } },
-        });
-        if (recentDuplicate) {
+        // Matched on the number's identity, not the string it was typed as —
+        // otherwise "+91 98765 43210" sails past a query added minutes ago as
+        // "9876543210", and both land on the board.
+        const key = phoneKey(cleanPhone);
+        const recentDuplicate = await db.$queryRawUnsafe<{ id: string }[]>(
+            `SELECT id FROM package_queries
+              WHERE ${PHONE_KEY_SQL} = $1 AND "createdAt" >= $2 AND "deletedAt" IS NULL
+              LIMIT 1;`,
+            key, new Date(Date.now() - 1000 * 60 * 5),
+        );
+        if (recentDuplicate.length > 0) {
             return { success: false, message: "A query from this number was submitted in the last 5 minutes." };
         }
 
-        const profile = await db.leadProfile.upsert({
-            where: { phone: normalizedPhone },
-            // Leaving `name` out of the update entirely when none was given
-            // this time keeps whatever real name is already on file instead
-            // of overwriting it with the placeholder.
-            update: { name: rawName || undefined, email: parsed.data.email || undefined, lastSeenAt: new Date(), totalQueries: { increment: 1 } },
-            create: { phone: normalizedPhone, name: displayName, email: parsed.data.email || null },
-        });
+        // Found by the number's key so one person keeps one profile whichever
+        // spelling arrives. Leaving `name` out of the update entirely when
+        // none was given this time keeps whatever real name is already on
+        // file instead of overwriting it with the placeholder.
+        const existingProfile = await db.$queryRawUnsafe<{ id: string }[]>(
+            `SELECT id FROM lead_profiles WHERE ${PHONE_KEY_SQL} = $1 LIMIT 1;`, key,
+        );
+        const profile = existingProfile.length > 0
+            ? await db.leadProfile.update({
+                where: { id: existingProfile[0].id },
+                data: { name: rawName || undefined, email: parsed.data.email || undefined, lastSeenAt: new Date(), totalQueries: { increment: 1 } },
+            })
+            : await db.leadProfile.create({
+                data: { phone: normalizedPhone, name: displayName, email: parsed.data.email || null },
+            });
 
         // Same last-line-of-defense stripping as cleanPhone above — PhoneInput
         // already submits a clean value, but this is what actually lands in
@@ -1071,18 +1087,27 @@ export async function checkExistingQueryByPhone(phone: string): Promise<Existing
     const normalized = phone.replace(/[\s\-().+]/g, "");
     if (normalized.length < 6) return null;
 
-    const profile = await db.leadProfile.findUnique({
-        where: { phone: normalized },
-        select: {
-            package_queries: {
-                orderBy: { createdAt: "desc" },
-                take: 1,
-                select: { name: true, status: true, assignedToName: true, createdAt: true },
-            },
-        },
-    });
+    /*
+     * Straight at the leads rather than via the profile, matched on the
+     * number's identity.
+     *
+     * Going through LeadProfile.phone meant an exact-string lookup against
+     * one spelling, so a lead saved as "+91 98765 43210" was invisible to a
+     * check on "9876543210" — and a duplicate hint that misses reads as
+     * "this one is new", which is the answer that causes the damage.
+     */
+    const rows = await db.$queryRawUnsafe<{
+        name: string; status: QueryStatus; assignedToName: string | null; createdAt: Date;
+    }[]>(
+        `SELECT name, status, "assignedToName", "createdAt"
+           FROM package_queries
+          WHERE ${PHONE_KEY_SQL} = $1 AND "deletedAt" IS NULL
+          ORDER BY "createdAt" DESC
+          LIMIT 1;`,
+        phoneKey(normalized),
+    );
 
-    const latest = profile?.package_queries[0];
+    const latest = rows[0];
     if (!latest) return null;
 
     return {
