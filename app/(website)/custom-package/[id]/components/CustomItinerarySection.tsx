@@ -11,9 +11,10 @@ import ImageLightbox, { type LightboxImage } from "@/app/components/gallery/Imag
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { SafeImage } from "./SafeImage";
 import {
-  computeShiftedMeals, mealIncludedText, occupancyText, formatTime12h,
+  computeShiftedMeals, mealIncludedText, occupancyText, primaryRoomCount, formatTime12h,
   type PreviewData,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
+import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import type { DayItinerary, ActivityInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
@@ -142,11 +143,48 @@ function TransferBlock({ day }: { day: DayItinerary }) {
   );
 }
 
+/** One room type on the night — the day's own room, or one booked alongside
+ * it. Mirrors StayRoomRow in ItineraryDocument, which draws the PDF's copy. */
+function StayRoomRow({ photo, quantity, name, specs }: {
+  photo: string | null;
+  quantity: number;
+  name: string;
+  specs?: string | null;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {photo ? (
+        <div className="relative w-14 aspect-64/39 rounded-md overflow-hidden shrink-0 bg-neutral-100">
+          <Image src={photo} alt="" fill sizes="56px" className="object-cover" />
+        </div>
+      ) : (
+        <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+          <BedIcon weight="duotone" className="size-4 text-neutral-300" />
+        </div>
+      )}
+      <div className="min-w-0">
+        <Text size="xs" intent="secondary" className="block truncate">
+          {Math.max(1, quantity)}× {name}
+        </Text>
+        {specs && <Text size="xs" intent="muted" className="block truncate opacity-70">{specs}</Text>}
+      </div>
+    </div>
+  );
+}
+
 function StayBlock({ day, adults, childCount }: { day: DayItinerary; adults: number; childCount: number }) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const photos = [day.accommodationPhoto, ...day.accommodationRoomPhotos].filter(Boolean);
   const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
   const mealText = mealIncludedText(day.hotelMealPlan);
+  // The heading is the property and the rooms are a list beneath it — the same
+  // shape the PDF uses (see StayRoomRow in ItineraryDocument), because the two
+  // are the same quote and a client who reads both must not have to reconcile
+  // them. Split only where the room has a name of its own: a hand-typed
+  // "Hotel Sunrise" has nothing to move out of the heading.
+  const stayNameParts = splitManualHotelName(day.accommodation);
+  const splitRoomOut = day.roomPricingId != null && !!stayNameParts.manualRoomName;
+  const primaryRooms = primaryRoomCount(day, adults, childCount);
 
   return (
     <SectionBlock id={`day-${day.day}-stay`} icon={BedIcon} title="Stay At" subtitle={day.accommodationLocation || undefined}>
@@ -154,7 +192,9 @@ function StayBlock({ day, adults, childCount }: { day: DayItinerary; adults: num
         <div className="w-10 shrink-0" />
         <div className="flex-1 flex flex-col">
           <div>
-            <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">{day.accommodation}</Text>
+            <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
+              {splitRoomOut ? stayNameParts.manualHotelName : day.accommodation}
+            </Text>
             {day.accommodationLocation && (
               <div className="flex items-center gap-1.5 mt-1">
                 <MapPinIcon weight="duotone" className="size-3.5 text-muted shrink-0" />
@@ -199,7 +239,7 @@ function StayBlock({ day, adults, childCount }: { day: DayItinerary; adults: num
                 </div>
               )}
 
-              {day.accommodationRoomSpecs && (
+              {!splitRoomOut && day.accommodationRoomSpecs && (
                 <div className="flex flex-col gap-1 pt-2.5 border-t border-(--border-muted)">
                   <Text size="xs" intent="muted">({day.accommodationRoomSpecs})</Text>
                 </div>
@@ -212,28 +252,24 @@ function StayBlock({ day, adults, childCount }: { day: DayItinerary; adults: num
                 </div>
               )}
 
-              {extraRooms.length > 0 && (
-                <div className="space-y-1.5">
+              {(splitRoomOut || extraRooms.length > 0) && (
+                <div className="space-y-1.5 pt-2.5 border-t border-(--border-muted)">
+                  {splitRoomOut && (
+                    <StayRoomRow
+                      photo={day.accommodationRoomPhotos?.[0] ?? null}
+                      quantity={primaryRooms}
+                      name={stayNameParts.manualRoomName ?? ""}
+                      specs={day.accommodationRoomSpecs}
+                    />
+                  )}
                   {extraRooms.map((r, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      {r.thumbnail ? (
-                        <div className="relative w-14 aspect-64/39 rounded-md overflow-hidden shrink-0 bg-neutral-100">
-                          <Image src={r.thumbnail} alt="" fill sizes="56px" className="object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
-                          <BedIcon weight="duotone" className="size-4 text-neutral-300" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <Text size="xs" intent="muted" className="block truncate">
-                          + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
-                        </Text>
-                        {r.roomSpecs && (
-                          <Text size="xs" intent="muted" className="block truncate opacity-70">{r.roomSpecs}</Text>
-                        )}
-                      </div>
-                    </div>
+                    <StayRoomRow
+                      key={i}
+                      photo={r.thumbnail ?? null}
+                      quantity={r.quantity}
+                      name={(splitRoomOut ? splitManualHotelName(r.label).manualRoomName : null) ?? r.label}
+                      specs={r.roomSpecs}
+                    />
                   ))}
                 </div>
               )}

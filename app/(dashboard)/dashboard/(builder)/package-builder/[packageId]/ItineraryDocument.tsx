@@ -347,14 +347,17 @@ function formatTicketDate(iso: string): string {
  * mattresses and max_adults/max_children, so a 9-pax party in a
  * sleeps-2 +1-mattress room read as 5 rooms while it was priced (correctly)
  * as 3. */
-export function occupancyText(
+/** How many of the day's OWN room it books — the exec's count where they set
+ * one, otherwise the party split across the room's capacity. Shared with
+ * occupancyText below and the stay card's room list, so the number under the
+ * hotel and the number beside the room can never disagree. */
+export function primaryRoomCount(
   day: Pick<DayItinerary,
     "accommodationRoomCapacity" | "accommodationMaxAdults"
-    | "accommodationMaxChildren" | "accommodationExtraBedCapacity" | "roomsCount"
-    | "extraRooms">,
+    | "accommodationMaxChildren" | "accommodationExtraBedCapacity" | "roomsCount">,
   adults: number,
   children: number,
-): string {
+): number {
   const hasCapacityData = day.accommodationRoomCapacity != null
     || day.accommodationMaxAdults != null
     || day.accommodationMaxChildren != null
@@ -370,6 +373,16 @@ export function occupancyText(
       max_children: day.accommodationMaxChildren,
     }, day.roomsCount).rooms
     : (day.roomsCount ?? 1);
+  return rooms;
+}
+
+/** The line under the hotel: every room the night holds, and who is in them. */
+export function occupancyText(
+  day: Parameters<typeof primaryRoomCount>[0] & Pick<DayItinerary, "extraRooms">,
+  adults: number,
+  children: number,
+): string {
+  const rooms = primaryRoomCount(day, adults, children);
   // Plus the other room types booked for this night. Counting the primary
   // alone read as a contradiction on the client's own document: the card said
   // "2 Rooms" and then listed a third and fourth room underneath it. The
@@ -2683,6 +2696,35 @@ function StayColumns({
   );
 }
 
+/** One room type on a night's stay — the day's own room, or one booked
+ * alongside it. Both are rooms in the same booking at the same hotel, so they
+ * are drawn by one component rather than two that drift. */
+function StayRoomRow({ photo, quantity, name, specs }: {
+  photo: string | null;
+  quantity: number;
+  name: string;
+  specs?: string | null;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {photo ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+        <img src={photo} alt="" className="w-14 aspect-64/39 rounded-md object-cover shrink-0" />
+      ) : (
+        <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
+          <Hotel size={10} className="text-neutral-300" />
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold text-neutral-700 truncate">
+          {Math.max(1, quantity)}× {name}
+        </p>
+        {specs && <p className="text-[12px] text-neutral-400 truncate">{specs}</p>}
+      </div>
+    </div>
+  );
+}
+
 function DayCardPreview({
   day, allDays, adults, childCount, travelDate, onImageChange, onActivityCaptionChange, shiftedMeals, addOns,
   stayOptions, stayRun: stayBlock, stayContinues, stayContinuesFrom, stayContinuesNights, stayEditing,
@@ -2847,6 +2889,23 @@ function DayCardPreview({
   const fromCatalog = day.roomPricingId != null;
   const catalogLock = "From the hotel catalog — use Replace to pick a different room.";
   const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
+  // The stay is a hotel and the rooms booked in it — two facts, and the card
+  // used to fuse the first two into one heading ("Hotel Bharat Palace — Super
+  // deluxe room") while listing every OTHER room type separately below. So the
+  // room the night is actually built on sat in the title with no count, beside
+  // rooms that had one, and a reader had to work out that the "7 Rooms" line
+  // included a room the list never showed.
+  //
+  // The heading is now the property, and every room type — the day's own first
+  // — is a row in one list underneath.
+  //
+  // Only where the room has a name of its own to move. A catalog pick always
+  // does; a hand-typed "Hotel Sunrise" does not, and its heading stays the one
+  // editable field it has always been.
+  const stayNameParts = splitManualHotelName(day.accommodation);
+  const splitRoomOut = fromCatalog && !!stayNameParts.manualRoomName;
+  const primaryRooms = primaryRoomCount(day, adults, childCount);
+  const primaryRoomPhoto = day.accommodationRoomPhotos?.[0] ?? null;
   const extraCabs = (day.extraCabs ?? []).filter((c) => c.label.trim());
 
   return (
@@ -3050,14 +3109,23 @@ function DayCardPreview({
                         className={cn(DISPLAY, "text-[14.5px] font-heading text-neutral-900 font-semibold flex items-baseline flex-wrap gap-x-1.5 gap-y-0.5")}
                         style={{ color: DOC.ink }}
                       >
-                        <EditableText
-                          value={day.accommodation}
-                          field={{ scope: "day", day: day.day, key: "accommodation" }}
-                          placeholder="Name this hotel…"
-                          fallback="Hotel (TBD)"
-                          readOnly={fromCatalog}
-                          readOnlyReason={catalogLock}
-                        />
+                        {splitRoomOut ? (
+                          // Read-only by definition: splitRoomOut requires a
+                          // catalog pick, and a catalog stay's name is not
+                          // editable here (see catalogLock). Nothing is lost by
+                          // showing half of it — the room half is the first row
+                          // of the list below.
+                          <span title={day.accommodation}>{stayNameParts.manualHotelName}</span>
+                        ) : (
+                          <EditableText
+                            value={day.accommodation}
+                            field={{ scope: "day", day: day.day, key: "accommodation" }}
+                            placeholder="Name this hotel…"
+                            fallback="Hotel (TBD)"
+                            readOnly={fromCatalog}
+                            readOnlyReason={catalogLock}
+                          />
+                        )}
                         <StayStars raw={day.accommodationStarRating} />
                         <GapBadge gaps={stayGaps(day)} />
                       </p>
@@ -3088,7 +3156,9 @@ function DayCardPreview({
                         <StayTimeline day={day} checkInDate={checkInDate} checkOutDate={checkOutDate} />
                       )}
 
-                      {(day.accommodationRoomSpecs || (builder?.canEdit && !fromCatalog)) && (
+                      {/* Room details stay here for a hand-typed stay, which has
+                          no room row to carry them and needs them editable. */}
+                      {!splitRoomOut && (day.accommodationRoomSpecs || (builder?.canEdit && !fromCatalog)) && (
                         <p className="text-[13px] text-neutral-500/90">
                           <EditableText
                             value={day.accommodationRoomSpecs}
@@ -3130,27 +3200,31 @@ function DayCardPreview({
                         </p>
                       )}
 
-                      {extraRooms.length > 0 && (
+                      {/* Every room type this night is booked into, the day's
+                          own first and each with its count — one list, read the
+                          same way down. The counts are the ones the price is
+                          computed from (primaryRoomCount / the entry's own
+                          quantity), and they add up to the "N Rooms" line above.
+                          Room names only: the hotel is the heading, and
+                          repeating it on every row said nothing five times. */}
+                      {(splitRoomOut || extraRooms.length > 0) && (
                         <div className="pt-1.5 space-y-1.5" style={{ borderTop: `1px solid ${DOC.rule}` }}>
+                          {splitRoomOut && (
+                            <StayRoomRow
+                              photo={primaryRoomPhoto}
+                              quantity={primaryRooms}
+                              name={stayNameParts.manualRoomName ?? ""}
+                              specs={day.accommodationRoomSpecs}
+                            />
+                          )}
                           {extraRooms.map((r, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              {r.thumbnail ? (
-                                /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                                <img src={r.thumbnail} alt="" className="w-14 aspect-64/39 rounded-md object-cover shrink-0" />
-                              ) : (
-                                <div className="w-14 aspect-64/39 rounded-md bg-neutral-100 flex items-center justify-center shrink-0">
-                                  <Hotel size={10} className="text-neutral-300" />
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <p className="text-[13px] font-semibold text-neutral-700 truncate">
-                                  + {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.label}
-                                </p>
-                                {r.roomSpecs && (
-                                  <p className="text-[12px] text-neutral-400 truncate">{r.roomSpecs}</p>
-                                )}
-                              </div>
-                            </div>
+                            <StayRoomRow
+                              key={i}
+                              photo={r.thumbnail ?? null}
+                              quantity={r.quantity}
+                              name={(splitRoomOut ? splitManualHotelName(r.label).manualRoomName : null) ?? r.label}
+                              specs={r.roomSpecs}
+                            />
                           ))}
                         </div>
                       )}
