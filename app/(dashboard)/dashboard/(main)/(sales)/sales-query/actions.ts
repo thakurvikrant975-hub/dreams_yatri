@@ -159,9 +159,14 @@ const CUSTOM_PACKAGE_SELECT = {
  * Team Leader, every query assigned to anyone on their SalesTeam (themselves
  * included, since SalesTeam.members always includes the leader).
  *
- * `from`/`to` (YYYY-MM-DD) scope by `createdAt` — same range convention as
- * getLeadManagerAnalytics (lead-manager-analytics-actions.ts). Omit both for
- * the "All Time" view. */
+ * `from`/`to` (YYYY-MM-DD) scope by `assignedAt`, not `createdAt` — this page
+ * is a rep's/leader's worklist of queries assigned to them (see the "Assigned"
+ * column and the default `orderBy: assignedAt` below), not a report on when a
+ * lead was first captured. A lead can sit in the marketing queue for days
+ * before being handed to sales; filtering by `createdAt` made it vanish from
+ * "today" even though it was genuinely assigned today. (getLeadManagerAnalytics
+ * is a different, creation-dated report and deliberately keeps `createdAt`.)
+ * Omit both for the "All Time" view. */
 export async function getSalesQueries(from?: string, to?: string): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
     const scope = await getLeaderScope();
@@ -180,7 +185,7 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
                 ? { assignedTo: { in: teamMemberIds } }
                 : teamMemberId ? { assignedTo: teamMemberId } : {}),
             ...(from && to
-                ? { createdAt: { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59.999`) } }
+                ? { assignedAt: { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59.999`) } }
                 : {}),
         },
         include: {
