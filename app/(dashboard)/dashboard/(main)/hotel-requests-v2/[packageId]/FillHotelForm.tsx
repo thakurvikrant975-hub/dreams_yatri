@@ -74,7 +74,7 @@ const seasonExtraFieldClass =
 export function FillHotelForm({
     packageId, day, location, dateLabel, paxLabel, note,
     requestedType, requestedRooms, requestedMattresses, requestedMealPlan, mealTypes,
-    rejectedAt, rejectedByName, rejectionNote, dayDateISO, siblingDays = [],
+    rejectedAt, rejectedByName, rejectionNote, dayDateISO, siblingDays = [], groupDays = [],
 }: {
     packageId: string;
     day: number;
@@ -106,6 +106,12 @@ export function FillHotelForm({
     /** The package's other still-pending days, so one stay covering several
      * nights can be filled from a single submit instead of once per day. */
     siblingDays?: { day: number; location: string | null }[];
+    /** The further days this card already covers — consecutive pending days
+     * asking for the same thing in the same town, which the queue groups into
+     * one form rather than rendering the same request several times over (see
+     * the grouping in page.tsx). Ticked on arrival; still untickable, in which
+     * case the day comes back as its own card on the next load. */
+    groupDays?: number[];
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -152,15 +158,12 @@ export function FillHotelForm({
     // Set when the admin recognises one of the near-matches as the property on
     // the phone: the rate is added to that hotel instead of creating a second one.
     const [attachTo, setAttachTo] = useState<SimilarHotel | null>(null);
-    // Same town as this day is the strong signal for one stay across several
-    // nights, so those start ticked and anything else starts clear. The admin
-    // sees each day's town next to the box either way.
-    const thisTown = (location ?? "").split(",")[0]?.trim().toLowerCase();
-    const [alsoDays, setAlsoDays] = useState<number[]>(() =>
-        siblingDays
-            .filter((d) => !!thisTown && (d.location ?? "").split(",")[0]?.trim().toLowerCase() === thisTown)
-            .map((d) => d.day),
-    );
+    // The queue has already worked out which nights are one stay — consecutive
+    // pending days asking for the same thing in the same town — and hands them
+    // over as groupDays, so this starts from that rather than re-deriving it
+    // from a town-name string match. Anything outside the group starts clear
+    // and is one tick away; the admin sees each day's town next to the box.
+    const [alsoDays, setAlsoDays] = useState<number[]>(groupDays);
     // Derived rather than stored, so it follows the day selection without an
     // effect writing state on every change — until the admin types their own,
     // which wins from then on.
@@ -171,6 +174,37 @@ export function FillHotelForm({
         return end.toISOString().slice(0, 10);
     }, [dayDateISO, day, alsoDays]);
     const effectiveValidTo = validToTouched ? validTo : defaultValidTo;
+    // "Day 3" or "Days 1–3" / "Days 1, 3" — the header has to say what this one
+    // submit is about to write, or a card covering three nights reads as a card
+    // covering one and the count of what is left is wrong in the admin's head.
+    const coveredDays = [day, ...alsoDays].sort((a, b) => a - b);
+    const isRun = coveredDays.every((d, i) => i === 0 || d === coveredDays[i - 1] + 1);
+    const coveredLabel = coveredDays.length === 1
+        ? `Day ${day}`
+        : `Days ${isRun
+            ? `${coveredDays[0]}–${coveredDays[coveredDays.length - 1]}`
+            : coveredDays.join(", ")}`;
+
+    /**
+     * Why Save Hotel is greyed out, in words.
+     *
+     * These conditions were only ever expressed as a disabled attribute, so the
+     * admin clicked a dead button and got nothing back — most painfully on the
+     * last one, where the blocker is a map pin most of the way up a long form,
+     * for a catalog save they never explicitly asked for (it is on by default).
+     * "The fill isn't working" is exactly what that looks like from the outside.
+     */
+    const blockedReason =
+        !hotelName.trim() ? "Enter the hotel's name to save this day."
+            : !(parseFloat(pricePerNight) > 0) ? "Enter the B2B price per night to save this day."
+                // Creating a property without coordinates makes one nobody can
+                // find by distance; adding a rate to an existing hotel or
+                // linking one needs no pin.
+                : (saveToCatalog && !linked && !attachTo && !city.trim())
+                    ? "Add the town above — it's how the builder finds this hotel later. Or untick \"Save this hotel and rate to the catalog\" to just fill the day."
+                    : (saveToCatalog && !linked && !attachTo && !pin)
+                        ? "Pick the hotel's location on the map above so execs can find it by distance. Or untick \"Save this hotel and rate to the catalog\" to just fill the day."
+                        : null;
     // Weekend rates live on seasons here, and deliberately not on the rate row
     // itself. Both resolvers — resolveHotelSeasonPricing and rates.ts's
     // resolvePlanNight — only ever consult a weekend price inside a matched
@@ -248,11 +282,18 @@ export function FillHotelForm({
         if (r.roomSpecs) setRoomSpecs(r.roomSpecs);
         if (r.checkInTime) setCheckIn(r.checkInTime);
         if (r.checkOutTime) setCheckOut(r.checkOutTime);
-        // Keys, not the display URLs on the same object — the day prefixes
-        // these with the bucket base itself.
-        if (r.hotelPhotoKey) setHotelPhoto(r.hotelPhotoKey);
-        if (r.roomPhotoKeys.length) {
-            setRoomPhotos([r.roomPhotoKeys[0] ?? "", r.roomPhotoKeys[1] ?? "", r.roomPhotoKeys[2] ?? ""]);
+        // The resolved display URLs, NOT the storage keys alongside them.
+        //
+        // This was the other way round, on the belief that a day row holds keys
+        // and something prefixes them at render time. Nothing does: the builder
+        // document, the PDF and the client-facing package page all render
+        // accommodationPhoto raw, and every other writer (the builder's own
+        // hotel picker, ImageDropField) stores a full URL. A key written here
+        // resolved against the page's own origin, so a filled hotel arrived at
+        // the exec with no photo at all.
+        if (r.hotelPhoto) setHotelPhoto(r.hotelPhoto);
+        if (r.roomPhotos.length) {
+            setRoomPhotos([r.roomPhotos[0] ?? "", r.roomPhotos[1] ?? "", r.roomPhotos[2] ?? ""]);
         }
         if (r.mealPlanName) {
             const plan = mealTypes.find((m) => m.name === r.mealPlanName);
@@ -285,122 +326,152 @@ export function FillHotelForm({
 
     function handleSubmit() {
         startTransition(async () => {
-            // The catalog write happens first: if it fails, the day stays pending
-            // and the admin can retry or turn the switch off, rather than ending
-            // up with a filled day and a silently lost hotel.
-            // One name for both sides. The catalog needs a room to hang the rate
-            // on, so a blank falls back to "Standard Room" — and the day has to
-            // say the same thing, or the itinerary and the catalog disagree
-            // about what was booked.
-            const willCreate = linked == null && createdRateId == null && saveToCatalog && !!hotelName.trim();
-            const effectiveRoomName = willCreate ? (roomName.trim() || "Standard Room") : roomName.trim();
+          try {
+              // The catalog write happens first: if it fails, the day stays pending
+              // and the admin can retry or turn the switch off, rather than ending
+              // up with a filled day and a silently lost hotel.
+              // One name for both sides. The catalog needs a room to hang the rate
+              // on, so a blank falls back to "Standard Room" — and the day has to
+              // say the same thing, or the itinerary and the catalog disagree
+              // about what was booked.
+              const willCreate = linked == null && createdRateId == null && saveToCatalog && !!hotelName.trim();
+              const effectiveRoomName = willCreate ? (roomName.trim() || "Standard Room") : roomName.trim();
 
-            let linkId: number | null = linked?.id ?? createdRateId;
-            if (linkId == null && saveToCatalog && hotelName.trim()) {
-                const shared = {
-                    roomName: effectiveRoomName,
-                    pricePerNight: parseFloat(pricePerNight) || 0,
-                    packageId,
-                    day,
-                    mealTypeId: mealTypes.find((m) => m.name === mealPlan)?.id ?? null,
-                    extraBedRate: parseFloat(extraBedRate) || null,
-                    validFrom: validFrom || null,
-                    validTo: effectiveValidTo || null,
-                    seasons: seasons.map<HotelSeasonInput>((s) => ({
-                        season_name: s.label || defaultRangeLabel(s.startDate, s.endDate),
-                        valid_from: s.startDate,
-                        valid_to: s.endDate,
-                        price_per_night: s.rate,
-                        weekend_price_per_night: s.weekendPrice ?? null,
-                        extra_bed_rate: s.extraBedRate ?? null,
-                        weekend_extra_bed_rate: s.weekendExtraBedRate ?? null,
-                        color: s.color,
-                        is_active: true,
-                    })),
-                };
-                const saved = attachTo
-                    ? await addRateToHotel({ ...shared, hotelId: attachTo.id })
-                    : await quickCreateHotelRate({
-                        ...shared,
-                        name: hotelName.trim(),
-                        city: city.trim(),
-                        state: pin?.state_name ?? null,
-                        stayType: stayType || null,
-                        category: requestedType ? (REQUEST_CATEGORY[requestedType] ?? null) : null,
-                        latitude: pin?.latitude ?? NaN,
-                        longitude: pin?.longitude ?? NaN,
-                    });
-                if (!saved.success) {
-                    toast.error(saved.error ?? "Couldn't save this hotel to the catalog.");
-                    return;
-                }
-                linkId = saved.roomPricingId ?? null;
-                setCreatedRateId(linkId);
-            }
+              let linkId: number | null = linked?.id ?? createdRateId;
+              if (linkId == null && saveToCatalog && hotelName.trim()) {
+                  const shared = {
+                      roomName: effectiveRoomName,
+                      pricePerNight: parseFloat(pricePerNight) || 0,
+                      packageId,
+                      day,
+                      mealTypeId: mealTypes.find((m) => m.name === mealPlan)?.id ?? null,
+                      extraBedRate: parseFloat(extraBedRate) || null,
+                      validFrom: validFrom || null,
+                      validTo: effectiveValidTo || null,
+                      seasons: seasons.map<HotelSeasonInput>((s) => ({
+                          season_name: s.label || defaultRangeLabel(s.startDate, s.endDate),
+                          valid_from: s.startDate,
+                          valid_to: s.endDate,
+                          price_per_night: s.rate,
+                          weekend_price_per_night: s.weekendPrice ?? null,
+                          extra_bed_rate: s.extraBedRate ?? null,
+                          weekend_extra_bed_rate: s.weekendExtraBedRate ?? null,
+                          color: s.color,
+                          is_active: true,
+                      })),
+                  };
+                  const saved = attachTo
+                      ? await addRateToHotel({ ...shared, hotelId: attachTo.id })
+                      : await quickCreateHotelRate({
+                          ...shared,
+                          name: hotelName.trim(),
+                          city: city.trim(),
+                          state: pin?.state_name ?? null,
+                          stayType: stayType || null,
+                          category: requestedType ? (REQUEST_CATEGORY[requestedType] ?? null) : null,
+                          latitude: pin?.latitude ?? NaN,
+                          longitude: pin?.longitude ?? NaN,
+                      });
+                  if (!saved.success) {
+                      toast.error(saved.error ?? "Couldn't save this hotel to the catalog.");
+                      return;
+                  }
+                  linkId = saved.roomPricingId ?? null;
+                  setCreatedRateId(linkId);
+              }
 
-            const result = await fillPendingHotel(packageId, day, {
-                hotelName,
-                roomName: effectiveRoomName,
-                roomsCount: parseInt(roomsCount, 10) || 1,
-                extraBeds: parseInt(extraBeds, 10) || 0,
-                extraBedRate: parseFloat(extraBedRate) || 0,
-                pricePerNight: parseFloat(pricePerNight) || 0,
-                roomSpecs,
-                checkIn,
-                checkOut,
-                hotelPhoto,
-                roomPhotos: roomPhotos.filter(Boolean),
-                mealPlan,
-                meals,
-                note: notes,
-                roomPricingId: linkId,
-                alsoDays,
-            });
-            if (result.success) {
-                setDone(true);
-                const filled = result.filledDays ?? [day];
-                const unpriced = result.unpricedDays ?? [];
-                if (unpriced.length > 0) {
-                    // Saved, but costing would show this night at ₹0 — and the
-                    // person who just spoke to the hotel is the only one who can
-                    // put a price on it. Sticky, because it must not scroll past.
-                    toast.error(
-                        `Saved, but day${unpriced.length === 1 ? "" : "s"} ${unpriced.join(", ")} `
-                        + "still has no price for costing — reopen the day and set the B2B rate, "
-                        + "or costing will show it as ₹0.",
-                        { duration: Infinity },
-                    );
-                } else {
-                    toast.success(
-                        result.allDaysFilled
-                            ? `Hotel filled for ${filled.length} day${filled.length === 1 ? "" : "s"} — every day is done. Back to the sales exec to submit.`
-                            : filled.length > 1
-                                ? `Hotel filled for days ${filled.join(", ")}`
-                                : "Hotel filled for this day",
-                    );
-                }
-                router.refresh();
-            } else if (linkId != null && !linked) {
-                toast.error(
-                    `${result.error ?? "Failed to save"} — the hotel and rate were saved to the catalog, `
-                    + "so trying again won't create a second copy.",
-                );
-            } else {
-                toast.error(result.error ?? "Failed to save");
-            }
+              const result = await fillPendingHotel(packageId, day, {
+                  hotelName,
+                  roomName: effectiveRoomName,
+                  roomsCount: parseInt(roomsCount, 10) || 1,
+                  extraBeds: parseInt(extraBeds, 10) || 0,
+                  extraBedRate: parseFloat(extraBedRate) || 0,
+                  pricePerNight: parseFloat(pricePerNight) || 0,
+                  roomSpecs,
+                  checkIn,
+                  checkOut,
+                  hotelPhoto,
+                  roomPhotos: roomPhotos.filter(Boolean),
+                  mealPlan,
+                  meals,
+                  note: notes,
+                  roomPricingId: linkId,
+                  alsoDays,
+              });
+              if (result.success) {
+                  setDone(true);
+                  const filled = result.filledDays ?? [day];
+                  const unpriced = result.unpricedDays ?? [];
+                  if (unpriced.length > 0) {
+                      // Saved, but costing would show this night at ₹0 — and the
+                      // person who just spoke to the hotel is the only one who can
+                      // put a price on it. Sticky, because it must not scroll past.
+                      toast.error(
+                          `Saved, but day${unpriced.length === 1 ? "" : "s"} ${unpriced.join(", ")} `
+                          + "still has no price for costing — reopen the day and set the B2B rate, "
+                          + "or costing will show it as ₹0.",
+                          { duration: Infinity },
+                      );
+                  } else {
+                      toast.success(
+                          result.allDaysFilled
+                              ? `Hotel filled for ${filled.length} day${filled.length === 1 ? "" : "s"} — every day is done. Back to the sales exec to submit.`
+                              : filled.length > 1
+                                  ? `Hotel filled for days ${filled.join(", ")}`
+                                  : "Hotel filled for this day",
+                      );
+                  }
+                  // Nothing left to do on this package, so don't leave the admin
+                  // parked on a page whose entire purpose is finished — the queue
+                  // is where the next request is, and getting back to it used to
+                  // mean a manual reload followed by re-navigating from the
+                  // sidebar. Days still outstanding stay put and just refresh, so
+                  // the next form on this package is already in front of them.
+                  if (result.allDaysFilled) {
+                      router.push("/dashboard/hotel-requests-v2");
+                  } else {
+                      router.refresh();
+                  }
+              } else if (linkId != null && !linked) {
+                  toast.error(
+                      `${result.error ?? "Failed to save"} — the hotel and rate were saved to the catalog, `
+                      + "so trying again won't create a second copy.",
+                  );
+              } else {
+                  toast.error(result.error ?? "Failed to save");
+              }
+          } catch (e) {
+            // The catalog writes above are ordinary server actions and can throw
+            // for reasons this form can do nothing about (a dropped connection
+            // mid-submit being the common one). Unhandled, that error unwinds
+            // out to the global error page and the admin loses the form they
+            // just filled in. Caught, the form is still sitting there with
+            // every field intact, ready to be submitted again.
+            console.error("[FillHotelForm] submit failed", e);
+            toast.error("Couldn't save this hotel — nothing has been lost, try submitting again.");
+          }
         });
     }
 
     function handleReject() {
         if (!rejectReason.trim()) { toast.error("A reason is required to reject a hotel request."); return; }
         startTransition(async () => {
-            const result = await rejectPendingHotel(packageId, day, rejectReason);
-            if (result.success) {
-                setRejectDone(true);
-                toast.success(`Day ${day} marked rejected — the sales exec has been notified.`);
-                router.refresh();
-            } else {
-                toast.error(result.error ?? "Failed to reject");
+            try {
+                const result = await rejectPendingHotel(packageId, day, rejectReason, alsoDays);
+                if (result.success) {
+                    setRejectDone(true);
+                    toast.success(result.count && result.count > 1
+                        ? `${result.count} days marked rejected — the sales exec has been notified.`
+                        : `Day ${day} marked rejected — the sales exec has been notified.`);
+                    router.refresh();
+                } else {
+                    toast.error(result.error ?? "Failed to reject");
+                }
+            } catch (e) {
+                // See handleSubmit's catch — an uncaught error here takes the
+                // whole page out rather than just failing the click.
+                console.error("[FillHotelForm] reject failed", e);
+                toast.error("Couldn't reject this day — try again.");
             }
         });
     }
@@ -408,7 +479,7 @@ export function FillHotelForm({
     if (done) {
         return (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 flex items-center gap-2 text-emerald-800 text-sm font-medium">
-                <CheckCircle2 className="size-4 shrink-0" /> Day {day} filled — {hotelName}{roomName ? ` — ${roomName}` : ""}
+                <CheckCircle2 className="size-4 shrink-0" /> {coveredLabel} filled — {hotelName}{roomName ? ` — ${roomName}` : ""}
             </div>
         );
     }
@@ -427,7 +498,7 @@ export function FillHotelForm({
                 <div className="flex items-center gap-2">
                     <Hotel className="size-4 text-amber-600 shrink-0" />
                     <div>
-                        <p className="text-sm font-semibold text-dashboard-base-content">Day {day}{location ? ` · ${location}` : ""}</p>
+                        <p className="text-sm font-semibold text-dashboard-base-content">{coveredLabel}{location ? ` · ${location}` : ""}</p>
                         <p className="text-xs text-dashboard-neutral">{[dateLabel, paxLabel].filter(Boolean).join(" · ")}</p>
                     </div>
                 </div>
@@ -524,7 +595,9 @@ export function FillHotelForm({
             {rejecting && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 space-y-2">
                     <label className="text-[11px] font-semibold text-red-800 flex items-center gap-1">
-                        <Ban className="size-3" /> Reason for rejecting Day {day}
+                        <Ban className="size-3" /> Reason for rejecting {alsoDays.length > 0
+                            ? `Days ${[day, ...alsoDays].sort((a, b) => a - b).join(", ")}`
+                            : `Day ${day}`}
                     </label>
                     <Textarea
                         value={rejectReason}
@@ -1085,16 +1158,16 @@ export function FillHotelForm({
                 </div>
             </div>
 
+            {blockedReason && (
+                <p className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-800">
+                    <AlertTriangle className="size-3 shrink-0 mt-px" /> {blockedReason}
+                </p>
+            )}
+
             <Button
                 size="sm"
                 className="h-9 text-sm"
-                disabled={
-                    isPending || !hotelName.trim() || !(parseFloat(pricePerNight) > 0)
-                    // Creating a property without coordinates makes one nobody
-                    // can find by distance; adding a rate to an existing hotel
-                    // or linking one needs no pin.
-                    || (saveToCatalog && !linked && !attachTo && (!city.trim() || !pin))
-                }
+                disabled={isPending || !!blockedReason}
                 onClick={handleSubmit}
             >
                 {isPending ? "Saving…" : "Save Hotel"}

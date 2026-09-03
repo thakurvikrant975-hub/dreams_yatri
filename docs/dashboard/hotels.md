@@ -387,14 +387,33 @@ manually.
   `meals` array, `roomsCount`, `manualExtraBeds` + `manualExtraBedRate`,
   `manualHotelPricePerNight`, then clears `hotelPending` and stamps
   `hotelFilledAt` / `hotelFilledById` / `hotelFilledByName` / `hotelFillNote`.
-- **Auto-advances the package**: if no pending days remain, it calls `markPackageReady()` —
-  the same transition the exec's own "Mark Ready" click performs — and notes that in the
-  query timeline.
+- **Does NOT advance the package.** It used to call `markPackageReady()`, which requires
+  the exec who *owns* the package and so never once succeeded from a hotel-team fill.
+  Submitting is the exec's own call and a one-way door — once a package is with costing
+  they cannot edit it until it comes back — so a filled hotel goes back to them to check.
+- Mirrors the day rows onto the recommended stay option (`syncRecommendedStayFromDays`).
+  Costing prices from `custom_itinerary_stays`, not from the day rows, so skipping this
+  showed the night at ₹0.
+- Resolves photo values through `resolveStayPhoto` before writing. Day rows are rendered
+  raw everywhere (builder, PDF, client-facing page), so they must hold resolved URLs — a
+  bare R2 key silently fails to load. The read paths resolve too, so older rows heal.
 - Broadcasts verification counts and revalidates the builder, sales-query, verify-packages
   and hotel-requests routes.
+- Never throws: failures come back as `{ success: false, error }`. A thrown server action
+  is re-thrown client-side and escapes to the unstyled global error page.
+
+`alsoDays` fills several days from one submit. The v2 queue groups **consecutive** pending
+days with the same town and the same request into one card and pre-ticks them; the exec's
+request drawer can likewise send one request across several days. Rooms and mattresses are
+deliberately *not* shared — those come from each day's own request and can differ per night.
 
 Note `hotelMealPlan` (free text) and `meals` (string array) are different fields: only
 `meals` is rendered in the day-wise summary and the itinerary PDF.
+
+A rejected day keeps `hotelPending = true` (it stays in the exec's queue until they
+resubmit), so `hotelPending` alone never means "still with the hotel team" — every such
+query must also check `hotelRejectedAt: null`. Getting this wrong is what stopped
+`getMyUnseenPackageEvents` from ever telling an exec their hotels had been filled.
 
 ---
 

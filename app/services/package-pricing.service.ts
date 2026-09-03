@@ -11,7 +11,7 @@ import { resolveHotelSeasonPricing } from "../lib/hotel-season-pricing";
 import { resolvePackageMargin } from "../lib/package-margin-season";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { composePackagePrice, baseRateDays } from "./package-price-utils";
-import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { payingPaxOf, pricingPartyOf, travellersOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 // ── Input / Output types ───────────────────────────────────────────────────
 
@@ -1144,7 +1144,7 @@ export type BuilderHotelDayLine = {
    * subtotal was silently short and costing had no way to see the day existed,
    * which is the worst possible failure for a review screen. Such a day now
    * emits a ₹0 line carrying the reason instead of vanishing. */
-  gap?: "no-room-price" | "no-mattress-rate";
+  gap?: "no-room-price" | "no-mattress-rate" | "mattresses-not-enabled" | "mattresses-over-capacity";
   /** True when this line priced off the room's BASE rate because no season
    * covers its date.
    *
@@ -1182,8 +1182,26 @@ function hasStayIntent(d: {
 
 export async function computeBuilderHotelPricing(input: {
   travelDate: string | null;
+  /** The party AS ENTERED, not as classified.
+   *
+   * Ages and the package's own age bands come in alongside the counts, and the
+   * split into adult/child beds happens here (pricingPartyOf) rather than at
+   * each call site. Five surfaces call this — both builders, both costing
+   * screens and the send path — and a caller that classified for itself, or
+   * forgot to, would price a party into different rooms than the one beside
+   * it. The counts alone are not enough to know how many adult beds a party
+   * needs once the bands are per-package: a 14-year-old is a child on one
+   * quote and an adult on the next. See traveller-ages.ts.
+   *
+   * childrenAges/infantAges/bands are optional so an older caller that only
+   * has counts still prices exactly as it did before. */
   adults: number;
   children: number;
+  infants?: number | null;
+  childrenAges?: number[] | null;
+  infantAges?: number[] | null;
+  infantMaxAge?: number | null;
+  childMaxAge?: number | null;
   days: {
     day: number;
     roomPricingId: number | null;
@@ -1225,7 +1243,18 @@ export async function computeBuilderHotelPricing(input: {
     hotelPriceOverride?: number | null;
   }[];
 }): Promise<BuilderHotelPricingResult> {
-  const { travelDate, adults, children, days } = input;
+  const { travelDate, days } = input;
+  // Beds are needed by band, not by which box someone was typed into — see
+  // the input doc above.
+  const { adults, children } = pricingPartyOf({
+    adults: input.adults,
+    children: input.children,
+    infants: input.infants ?? 0,
+    childrenAges: input.childrenAges ?? [],
+    infantAges: input.infantAges ?? [],
+    infantMaxAge: input.infantMaxAge,
+    childMaxAge: input.childMaxAge,
+  });
   const travelDateObj = travelDate ? new Date(travelDate) : null;
 
   const roomPricingIds = [
@@ -1358,6 +1387,31 @@ export async function computeBuilderHotelPricing(input: {
       const total = roomsCost + mattresses * extraBedRate;
       hotelSubtotal += total;
 
+      // Mattress gaps on a CATALOG room, which used to be unreportable.
+      //
+      // stayGaps returned nothing for a catalog day on the reasoning that a
+      // real hotel_room_pricing row is by definition priced. It is — for the
+      // room. Its extra_bed_rate is a separate column and is very often null,
+      // and its room's extra_bed_capacity is very often 0, so an exec's typed
+      // mattress count reached costing either charged at nothing or recorded
+      // against a room that cannot physically take it. Both are hotel-team
+      // data neither the exec nor the reviewer can see from here, so both have
+      // to be named on the line rather than left to be discovered.
+      //
+      // Deliberately not corrected — a genuinely complimentary mattress is a
+      // real thing, and guessing a rate would be worse than reporting none.
+      // Same rules as stayMattressIssues in stay-diagnostics.ts, restated here
+      // because this is the copy costing reads.
+      const extraBedCapacity = rp.room?.extra_bed_capacity ?? 0;
+      const mattressGap =
+        mattresses > 0 && extraBedCapacity <= 0
+          ? "mattresses-not-enabled" as const
+          : mattresses > extraBedCapacity * roomsNeeded
+            ? "mattresses-over-capacity" as const
+            : mattresses > 0 && extraBedRate === 0
+              ? "no-mattress-rate" as const
+              : undefined;
+
       lines.push({
         day: d.day,
         hotelName: rp.hotel.name,
@@ -1369,13 +1423,24 @@ export async function computeBuilderHotelPricing(input: {
         extraBedRate,
         total,
         baseRate: dayDate != null && !isSeasonal,
+        ...(mattressGap ? { gap: mattressGap } : {}),
       });
-    } else if (d.manualHotelPricePerNight != null) {
+    } else if (d.manualHotelPricePerNight != null && d.manualHotelName?.trim()) {
       // Hand-typed (exec) or hotel-team-filled — no catalog room, so no
       // occupancy math, just the flat per-room price and room count entered
       // directly. Mattresses/extra beds still get their own line — the exec
       // or hotel team enters manualExtraBeds + manualExtraBedRate the same
       // way a catalog room's own extra_bed_rate charges for them.
+      //
+      // Also requires a hotel name, not just a price: clearing the "Hotel &
+      // room" field in the builder used to leave manualHotelPricePerNight/
+      // roomsCount behind (only the name field itself was wired to the input
+      // it lived on), so a day the exec had emptied out still silently
+      // charged for a hotel that no longer appeared anywhere in the
+      // itinerary — production's exact failure mode, priced with no name to
+      // show for it. HotelDrawer's name field now clears these together on
+      // blur (see its onBlur), but this check is the backstop: no name, no
+      // charge, regardless of what stale numbers are still sitting in the row.
       const roomsNeeded = d.roomsCount && d.roomsCount > 0 ? d.roomsCount : 1;
       const mattresses = Math.max(0, d.manualExtraBeds ?? 0);
       const extraBedRate = d.manualExtraBedRate ?? 0;
@@ -1663,6 +1728,7 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{
     where: { id: packageId },
     select: {
       travelDate: true, adults: true, children: true, childrenAges: true,
+      infants: true, infantAges: true, infantMaxAge: true, childMaxAge: true,
       marginPercentage: true, gstPercentage: true,
       discountType: true, discountValue: true,
       hotelSubtotalOverride: true, cabSubtotalOverride: true,
@@ -1684,7 +1750,7 @@ export async function computeFinalPackagePricing(packageId: string): Promise<{
   const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
   const [hotelPricing, cabPricing] = await Promise.all([
     computeBuilderHotelPricing({
-      travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
+      travelDate: travelDateIso, ...travellersOf(pkg),
       days: pkg.itineraries.map((it) => ({
         day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount,
         manualExtraBeds: it.manualExtraBeds, manualExtraBedRate: it.manualExtraBedRate,
@@ -1768,6 +1834,7 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
     where: { id: packageId },
     select: {
       travelDate: true, adults: true, children: true, childrenAges: true,
+      infants: true, infantAges: true, infantMaxAge: true, childMaxAge: true,
       marginPercentage: true, gstPercentage: true,
       discountType: true, discountValue: true,
       cabSubtotalOverride: true,
@@ -1818,7 +1885,7 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
 
   const priced = await Promise.all(pkg.stayOptions.map(async (option) => {
     const hotelPricing = await computeBuilderHotelPricing({
-      travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
+      travelDate: travelDateIso, ...travellersOf(pkg),
       days: option.stays.map((s) => ({
         day: dayNumberOf.get(s.itineraryId) ?? 0,
         roomPricingId: s.roomPricingId, roomsCount: s.roomsCount,

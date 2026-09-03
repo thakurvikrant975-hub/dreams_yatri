@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { normalizeMealLabels } from "./meals";
 import { getCurrentActor, logTimeline } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
-import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
+import { getHeroImage, getThumbnailImage, resolveStayPhoto } from "@/app/lib/imageUrl";
 import { formatStoredCalendarDayLong } from "@/app/lib/dates/calendar-day";
 import { db } from "@/app/lib/db";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
@@ -22,7 +22,7 @@ import { classifyActionError } from "@/app/lib/action-error";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveWorkspaceCaps, workspaceRoleOf, ownsPackage } from "./workspace-caps";
 import { applyDiscount, discountLabel } from "./discount";
-import { missingTravellerAgesError, payingPaxOf } from "./traveller-ages";
+import { missingTravellerAgesError, payingPaxOf, normalizeAgeBands, travellersOf } from "./traveller-ages";
 import { syncRecommendedStayFromDays } from "./stay-options.sync";
 
 // meal_types.covered_meals / itinerary_stays.active_meals store lowercase
@@ -121,18 +121,17 @@ export interface HotelRoomResult {
   hotelPhoto:    string | null;
   /** Up to 3 photos of the specific room booked. */
   roomPhotos:    string[];
-  /**
-   * The same two photos as the storage keys they were built from, rather than
-   * as display URLs.
-   *
-   * custom_itineraries.accommodationPhoto/accommodationRoomPhotos hold keys and
-   * are prefixed with the bucket base at render time, so anything copying a
-   * picked rate's photos onto a day (the hotel-requests fill form) has to write
-   * the key — handing it the already-resolved URL above prefixes it twice and
-   * the image silently fails to load.
-   */
-  hotelPhotoKey: string | null;
-  roomPhotoKeys: string[];
+  // NOTE: there is deliberately no "…Key" variant of the two photos above.
+  //
+  // There used to be, on the premise that
+  // custom_itineraries.accommodationPhoto/accommodationRoomPhotos hold storage
+  // keys which get prefixed with the bucket base at render time. They do not:
+  // every renderer (ItineraryDocument, the PDF export, the client-facing
+  // package page) does `<img src={day.accommodationPhoto}>` raw, and every
+  // writer stores a resolved URL. The hotel-requests fill form believed the
+  // comment, wrote keys, and filled hotels reached the sales exec with no
+  // photos. Copy hotelPhoto/roomPhotos onto a day, as the builder's own picker
+  // does — resolveStayPhoto in app/lib/imageUrl.ts is the guard for the rest.
   category:      string | null;
   /** Star rating as stored, e.g. "3 Star" — null when the hotel has none set. */
   starRating:    string | null;
@@ -301,8 +300,6 @@ function mapHotelRoomRow(
     thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
     hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
     roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
-    hotelPhotoKey: rawHotelPhoto,
-    roomPhotoKeys: rawRoomPhotos,
     category:      item.hotel.category,
     starRating:    item.hotel.stay_type,
     location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
@@ -944,6 +941,9 @@ export interface QueryDetail {
     infants:         number;
     childrenAges:    number[];
     infantAges:      number[];
+    /** Age bands this package is priced by — see traveller-ages.ts. */
+    infantMaxAge:    number;
+    childMaxAge:     number;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     marginPercentage: number;
@@ -1024,6 +1024,11 @@ export interface DayItinerary {
   accommodationMaxAdults?: number | null;
   accommodationMaxChildren?: number | null;
   accommodationExtraBedCapacity?: number | null;
+  /** The room's catalog rate per extra mattress at pick time. Diagnostic only —
+   * pricing resolves the live rate (or manualExtraBedRate) — but it is the only
+   * thing that lets the builder say "these mattresses will cost the client ₹0"
+   * before costing finds it. See stay-diagnostics.ts. */
+  accommodationExtraBedRate?: number | null;
   /** Mattress/rollaway-bed count for a day with NO roomPricingId — set by
    * the hotel team filling an "Add Hotels by Team" request, or typed
    * directly here for a hand-entered hotel. A catalog-picked room's
@@ -1193,6 +1198,8 @@ export interface PackageInput {
   infants:         number;
   childrenAges:    number[];
   infantAges:      number[];
+  infantMaxAge:    number;
+  childMaxAge:     number;
   pricePerPerson:  number | null;
   totalPrice:      number | null;
   marginPercentage: number;
@@ -1434,14 +1441,16 @@ export async function copyPackageIntoDraft(
 
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
-    // itinerary_transfers is optional per-day catalog content, decoupled from
-    // the package's cab rate segments above — a day can carry a priced
-    // cabPricingId with no matching transfer row at all (transfers are
-    // frequently never filled in). Without this fallback that day copied a
-    // real cabPricingId (so pricing charged for it) but every transport/*
-    // display field stayed blank, so the Day Summary table's Cab column
-    // showed "—" for a day the total was already charging for.
-    const cabForDay = cabPricingByDay.get(day.day) != null ? defaultCabType : undefined;
+    // A day can carry an itinerary_transfers row for pickup/drop logistics
+    // (route_id) with no vehicle actually attached to it (vehicle_id null),
+    // or no transfer row at all — transfers are frequently never filled in.
+    // Either way the day still has a priced cabPricingId from the segment
+    // fan-out above, so without this fallback it charged for a cab while
+    // every transport/* display field (and the Day Summary table's Cab
+    // column) stayed blank. Per-field ?? below already falls through past a
+    // present-but-vehicle-less transfer; this only needs to stop requiring
+    // the row's absence outright.
+    const cabForDay = cabPricingByDay.has(day.day) ? defaultCabType : undefined;
 
     const rawHotelPhoto = day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
     const rawRoomPhotos = (day.hotel?.room_images ?? [])
@@ -1595,6 +1604,7 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
           accommodationLocation: true, accommodationRoomSpecs: true, accommodationStarRating: true,
           accommodationRoomCapacity: true,
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
+          accommodationExtraBedRate: true,
           manualExtraBeds: true,
           roomPricingId: true, roomsCount: true, extraRooms: true,
           hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
@@ -1632,7 +1642,8 @@ export async function duplicateCustomPackageIntoDraft(sourcePackageId: string): 
       accommodationRoomSpecs: n.accommodationRoomSpecs, accommodationStarRating: n.accommodationStarRating,
       accommodationRoomCapacity: n.accommodationRoomCapacity,
       accommodationMaxAdults: n.accommodationMaxAdults, accommodationMaxChildren: n.accommodationMaxChildren,
-      accommodationExtraBedCapacity: n.accommodationExtraBedCapacity, manualExtraBeds: n.manualExtraBeds,
+      accommodationExtraBedCapacity: n.accommodationExtraBedCapacity,
+      accommodationExtraBedRate: n.accommodationExtraBedRate, manualExtraBeds: n.manualExtraBeds,
       roomPricingId: n.roomPricingId, roomsCount: n.roomsCount, extraRooms: n.extraRooms,
       hotelCheckIn: n.hotelCheckIn, hotelCheckOut: n.hotelCheckOut, hotelMealPlan: n.hotelMealPlan,
       hotelPending: n.hotelPending, hotelPendingNote: n.hotelPendingNote,
@@ -1810,6 +1821,7 @@ function normalizeItinerary(it: {
   accommodationLocation: string | null; accommodationRoomSpecs: string | null;
   accommodationStarRating: string | null; accommodationRoomCapacity: number | null;
   accommodationMaxAdults: number | null; accommodationMaxChildren: number | null; accommodationExtraBedCapacity: number | null;
+  accommodationExtraBedRate: number | null;
   manualExtraBeds: number | null;
   roomPricingId: number | null;
   roomsCount: number | null;
@@ -1841,8 +1853,11 @@ function normalizeItinerary(it: {
     meals:                     normalizeMealLabels(it.meals),
     extraMeals:                it.extraMeals ?? [],
     accommodation:             it.accommodation ?? "",
-    accommodationPhoto:        it.accommodationPhoto ?? "",
-    accommodationRoomPhotos:   it.accommodationRoomPhotos ?? [],
+    // Resolved on the way out so a day written before the fill queue stopped
+    // storing bare storage keys still shows its photos, and heals for good the
+    // next time this package is saved.
+    accommodationPhoto:        resolveStayPhoto(it.accommodationPhoto),
+    accommodationRoomPhotos:   (it.accommodationRoomPhotos ?? []).map(resolveStayPhoto).filter(Boolean),
     accommodationLocation:     it.accommodationLocation ?? "",
     accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
     accommodationStarRating:   it.accommodationStarRating ?? "",
@@ -1850,6 +1865,7 @@ function normalizeItinerary(it: {
     accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
     accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
     accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
+    accommodationExtraBedRate: it.accommodationExtraBedRate ?? null,
     manualExtraBeds:           it.manualExtraBeds ?? null,
     roomPricingId:             it.roomPricingId ?? null,
     roomsCount:                it.roomsCount ?? null,
@@ -2018,6 +2034,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       infants:         true,
       childrenAges:    true,
       infantAges:      true,
+      infantMaxAge:    true,
+      childMaxAge:     true,
       pricePerPerson:  true,
       totalPrice:      true,
       marginPercentage: true,
@@ -2078,6 +2096,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
           accommodationMaxAdults: true,
           accommodationMaxChildren: true,
           accommodationExtraBedCapacity: true,
+          accommodationExtraBedRate: true,
           manualExtraBeds:    true,
           roomPricingId:      true,
           roomsCount:         true,
@@ -2279,6 +2298,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
     const {
       id, queryId, title, description, coverImage, coverImagePosition, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants, childrenAges, infantAges,
+      infantMaxAge, childMaxAge,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
       discountType, discountValue, discountNote,
       termsNotes, extraPolicyItems,
@@ -2490,6 +2510,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             infants,
             childrenAges:    childrenAges ?? [],
             infantAges:      infantAges ?? [],
+            // Normalised on the way in, not trusted from the form: these
+            // decide who needs a bed and who is a paying head, and a payload
+            // with the two boundaries crossed would leave the package with an
+            // empty child band. See normalizeAgeBands.
+            ...normalizeAgeBands({ infantMaxAge, childMaxAge }),
             // Margin, GST and the discount are absent from this update on
             // purpose, at every status.
             //
@@ -2561,6 +2586,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             infants,
             childrenAges:    childrenAges ?? [],
             infantAges:      infantAges ?? [],
+            // Normalised on the way in, not trusted from the form: these
+            // decide who needs a bed and who is a paying head, and a payload
+            // with the two boundaries crossed would leave the package with an
+            // empty child band. See normalizeAgeBands.
+            ...normalizeAgeBands({ infantMaxAge, childMaxAge }),
             pricePerPerson:  pricePerPerson ?? null,
             totalPrice:      totalPrice ?? null,
             marginPercentage,
@@ -2632,7 +2662,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
         roomPricingId: true, roomsCount: true, manualExtraBeds: true, extraRooms: true, manualHotelPricePerNight: true, manualExtraBedRate: true, accommodation: true,
         accommodationPhoto: true, accommodationRoomPhotos: true, accommodationLocation: true, accommodationRoomSpecs: true,
         accommodationStarRating: true, accommodationRoomCapacity: true, accommodationMaxAdults: true, accommodationMaxChildren: true,
-        accommodationExtraBedCapacity: true, hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
+        accommodationExtraBedCapacity: true, accommodationExtraBedRate: true,
+        hotelCheckIn: true, hotelCheckOut: true, hotelMealPlan: true,
         cabPricingId: true, transportDistanceKm: true, cabQuantity: true, extraCabs: true,
       },
     });
@@ -2752,6 +2783,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
               accommodationMaxAdults: staleResurrection ? (existing?.accommodationMaxAdults ?? null) : (it.accommodationMaxAdults ?? null),
               accommodationMaxChildren: staleResurrection ? (existing?.accommodationMaxChildren ?? null) : (it.accommodationMaxChildren ?? null),
               accommodationExtraBedCapacity: staleResurrection ? (existing?.accommodationExtraBedCapacity ?? null) : (it.accommodationExtraBedCapacity ?? null),
+              accommodationExtraBedRate: staleResurrection ? (existing?.accommodationExtraBedRate ?? null) : (it.accommodationExtraBedRate ?? null),
               manualExtraBeds:    staleResurrection ? (existing?.manualExtraBeds ?? null) : (it.manualExtraBeds ?? null),
               roomPricingId:      staleResurrection ? (existing?.roomPricingId ?? null) : (it.roomPricingId ?? null),
               roomsCount:         staleResurrection ? (existing?.roomsCount ?? null) : (it.roomsCount ?? null),
@@ -3082,8 +3114,7 @@ async function sendPackageToClient(packageId: string): Promise<{
     const [hotelPricing, cabPricing] = await Promise.all([
       computeBuilderHotelPricing({
         travelDate: travelDateIso,
-        adults:     pkg.adults,
-        children:   pkg.children,
+        ...travellersOf(pkg),
         days: pkg.itineraries.map((it) => ({
           day:           it.day,
           roomPricingId: it.roomPricingId,
@@ -3313,6 +3344,7 @@ export async function markPackageReady(
           verified: true, rejectedAt: true, revisionRequestedAt: true,
           builtBy: true, query: { select: { assignedTo: true } },
           children: true, infants: true, childrenAges: true, infantAges: true,
+          infantMaxAge: true, childMaxAge: true,
         },
       }),
       getEffectiveMember(),
@@ -3734,6 +3766,10 @@ export type PackageStatusEvent = {
   kind: "hotel_filled";
   days: { day: number; hotelName: string | null }[];
   filledByName: string | null;
+  /** Days on this package still waiting on the hotel team. Zero means the
+   * exec can go ahead and submit; anything else means this is progress, not
+   * completion, and the toast says so rather than implying it's all done. */
+  stillPending: number;
 } | {
   id: string;
   title: string;
@@ -3754,10 +3790,19 @@ export type PackageStatusEvent = {
  * notification bus exists in this dashboard yet — this is deliberately
  * narrow (just these package/day events) rather than building one.
  *
- * The hotel_filled event only fires once EVERY pending day on a package has
- * been filled (not per day) — a package can have several days flagged
- * pending at once, and the exec only wants the one "you're good to go"
- * toast, not one per day as the hotel team works through them.
+ * The hotel_filled event fires per batch of newly-filled days, and carries
+ * how many days are still outstanding so the toast can distinguish "one of
+ * three done" from "you're good to go".
+ *
+ * It used to fire only once EVERY pending day on a package had been filled,
+ * which sounded tidier and in practice meant the exec was often never told at
+ * all. hotelPending deliberately STAYS true on a day the hotel team rejected
+ * (see the field's doc comment in schema.prisma), so a single rejected day
+ * held the gate shut permanently — every other day on that package could be
+ * filled and the exec would hear nothing, because a "not yet" condition was
+ * being used to express "all done". Fills are also worth knowing about one at
+ * a time: the exec checks each one, and waiting for the set to complete just
+ * batches up work they could already have started.
  *
  * Marks every returned row execNotifiedAt/hotelFillNotifiedAt=now in the
  * same call, so an event surfaces exactly once — re-marking ready (which
@@ -3785,7 +3830,6 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
       where: {
         builtBy: teamMemberId,
         itineraries: {
-          none: { hotelPending: true },
           some: { hotelFilledAt: { not: null }, hotelFillNotifiedAt: null },
         },
       },
@@ -3795,6 +3839,11 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
           where: { hotelFilledAt: { not: null }, hotelFillNotifiedAt: null },
           orderBy: { day: "asc" },
           select: { id: true, day: true, accommodation: true, hotelFilledByName: true },
+        },
+        // Genuinely still with the hotel team — a rejected day keeps
+        // hotelPending true but is back with the exec, not outstanding.
+        _count: {
+          select: { itineraries: { where: { hotelPending: true, hotelRejectedAt: null } } },
         },
       },
       take: 20,
@@ -3856,6 +3905,7 @@ export async function getMyUnseenPackageEvents(): Promise<PackageStatusEvent[]> 
       kind: "hotel_filled" as const,
       days: p.itineraries.map((it) => ({ day: it.day, hotelName: it.accommodation })),
       filledByName: p.itineraries[0]?.hotelFilledByName ?? null,
+      stillPending: p._count.itineraries,
     })),
     ...hotelRejectPackages.map((p) => ({
       id: p.id,

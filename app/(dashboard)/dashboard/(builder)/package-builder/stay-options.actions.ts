@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { db } from "@/app/lib/db";
+import { resolveStayPhoto } from "@/app/lib/imageUrl";
 import { revalidatePath } from "next/cache";
 import type { TransactionClient } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma";
@@ -381,7 +382,9 @@ export async function getStayOptionsForDocument(packageId: string) {
       : o.pricePerPerson ?? livePrice.get(o.id)?.pricePerPerson ?? null,
     byDay: Object.fromEntries(o.stays.map((s) => [s.itinerary.day, {
       hotel: s.accommodation,
-      photo: s.accommodationPhoto,
+      // Stay rows are copies of day rows, so they inherit the day row's
+      // photo problem too — see resolveStayPhoto.
+      photo: resolveStayPhoto(s.accommodationPhoto) || null,
       location: s.accommodationLocation,
       starRating: s.accommodationStarRating,
       mealPlan: s.hotelMealPlan,

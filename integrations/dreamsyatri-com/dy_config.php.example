@@ -1,0 +1,12 @@
+<?php
+/**
+ * Lives OUTSIDE public_html so it is never servable, even if PHP handling
+ * breaks. Copy to dy_config.php on the server and fill in the secret; the
+ * .example file is the one that belongs in git.
+ */
+
+// Must match EXTERNAL_LEADS_SECRET in the Next.js app's environment.
+define('DY_LEAD_SECRET', 'PUT-THE-SHARED-SECRET-HERE');
+
+// Override only for testing against a preview deployment.
+define('DY_LEAD_ENDPOINT', 'https://dreamsyatri.in/api/leads/external');

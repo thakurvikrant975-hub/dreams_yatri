@@ -10,7 +10,7 @@ import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { isPaidStatus } from '@/app/lib/messaging';
 import InvoiceDocument from '@/app/components/invoice/InvoiceDocument';
-import { INVOICE_BOOKING_SELECT } from '@/app/lib/invoice';
+import { INVOICE_BOOKING_SELECT, resolveCustomPackageTitle } from '@/app/lib/invoice';
 import StatusPoller from './StatusPoller';
 import DownloadReceiptButton from './DownloadReceiptButton';
 import GuestChatThread from './GuestChatThread';
@@ -47,13 +47,21 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
         // is optional on InvoiceBookingData it failed silently — every direct
         // hotel booking's confirmation showed a "Holiday Tour Package" invoice
         // priced at the package GST rate.
-        const booking = await db.booking.findUnique({
+        const found = await db.booking.findUnique({
             where: { id },
             select: {
                 id: true, userId: true, status: true, paymentStatus: true,
                 ...INVOICE_BOOKING_SELECT,
             },
         });
+        // A share-link booking's trip name lives in custom_packages, which
+        // Booking reaches only through packageUrl — resolved here so the
+        // invoice line item reads as the trip the client actually bought
+        // rather than falling back to its destination.
+        const booking = found && {
+            ...found,
+            customPackageTitle: await resolveCustomPackageTitle(db, found.packageUrl),
+        };
 
         if (!booking || booking.userId !== user.id) {
             content = <StatusScreen heading="Booking not found" body="This booking doesn't exist or isn't associated with your account." />;

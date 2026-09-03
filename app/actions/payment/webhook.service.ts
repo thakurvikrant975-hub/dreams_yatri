@@ -3,9 +3,8 @@ import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
 import { finalizeCapturedPayment } from "./finalize.service";
-import { confirmHotelReservationForBooking } from "./hotel-confirmation";
-import { notifyBookingConfirmed, notifyRefund, notifyPaymentReceived } from "@/app/services/notifications/booking-notify";
-import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
+import { runPaymentConfirmedEffects } from "./confirmation-effects";
+import { notifyRefund } from "@/app/services/notifications/booking-notify";
 
 /**
  * Gateway-agnostic webhook processing (the source of payment truth).
@@ -120,15 +119,14 @@ export async function processGatewayWebhook(
                 return { status: "fail" as const };
             });
             if (outcome.status === "fail") return { httpStatus: 500, result: "error", detail: "finalize failed" };
-            if (outcome.confirmInitial && outcome.bookingId) {
-                try { await notifyBookingConfirmed(outcome.bookingId); } catch (e) { console.error("[webhook] confirm-email failed", e); }
-                try { await confirmHotelReservationForBooking(outcome.bookingId); } catch (e) { console.error("[webhook] hotel confirm failed", e); }
-                // Newly ADVANCE_PAID/FULLY_PAID — booking just entered the Verify Hotels queue.
-                await broadcastVerificationCounts();
-            }
-            if (outcome.isNewCapture) {
-                try { await notifyPaymentReceived(payment.id); } catch (e) { console.error("[webhook] invoice-email failed", e); }
-            }
+            // Shared with reconcile — see runPaymentConfirmedEffects for why
+            // these no longer live inline here.
+            await runPaymentConfirmedEffects({
+                confirmInitial: outcome.confirmInitial,
+                isNewCapture: outcome.isNewCapture,
+                bookingId: outcome.bookingId,
+                paymentId: payment.id,
+            });
             return { httpStatus: 200, result: "processed" };
         }
 

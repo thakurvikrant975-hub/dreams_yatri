@@ -1,6 +1,8 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { getAblyRest, verificationCountsChannelName, memberNotificationsChannelName } from "@/app/lib/ably";
+import {
+  getAblyRest, verificationCountsChannelName, salesAgentChannelName, memberNotificationsChannelName,
+} from "@/app/lib/ably";
 import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 
 /**
@@ -30,7 +32,12 @@ export async function POST() {
     const tokenRequest = await rest.auth.createTokenRequest({
         clientId: `member:${member.id}`,
         capability: {
+            // Shared: the Verify Hotels / Verify Cabs pending badge.
             [verificationCountsChannelName()]: ["subscribe"],
+            // Private, keyed by this member's own id, so the capability itself
+            // is what stops one exec subscribing to another's landings or
+            // notifications rather than a check in the client.
+            [salesAgentChannelName(member.id)]: ["subscribe"],
             [memberNotificationsChannelName(member.id)]: ["subscribe"],
         },
         ttl: 60 * 60 * 1000, // 1 hour — the client SDK re-requests on expiry

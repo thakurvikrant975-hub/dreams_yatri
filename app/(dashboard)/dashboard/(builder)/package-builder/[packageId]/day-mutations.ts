@@ -19,7 +19,7 @@ import type {
   DayItinerary, HotelRoomResult, VehicleResult, CabPricingResult, ActivityInput,
   TicketInput, AddonInput,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
-import { formatTime12h } from "./ItineraryDocument";
+import { formatTime12h } from "./time-format";
 
 /** Vehicle enum → display label. Mirrors CAB_LABELS in page.tsx, which stays
  * there because the right panel uses it for its own cab chips too. */
@@ -77,6 +77,13 @@ export function applyHotelRoomSelection(
     accommodationMaxAdults: raw.maxAdults,
     accommodationMaxChildren: raw.maxChildren,
     accommodationExtraBedCapacity: raw.extraBedCapacity,
+    // Snapshotted for the same reason the caps are, plus one of its own: the
+    // rate sheet very often prices no extra bed at all, and without this on
+    // the day the builder had the mattress COUNT but never the rate — so
+    // mattresses were added to the itinerary, charged at nothing, and nothing
+    // on screen could say so. stayMattressIssues reads it. Diagnostic only;
+    // pricing still resolves the live rate (or manualExtraBedRate).
+    accommodationExtraBedRate: raw.extraBedRate,
     manualExtraBeds: null,
     // A day that was hand-typed before now has a real catalog rate behind it —
     // leaving the manual price/rate set would double-count it against the
@@ -141,6 +148,7 @@ export function removeStay(day: DayItinerary): DayItinerary {
     accommodationMaxAdults: null,
     accommodationMaxChildren: null,
     accommodationExtraBedCapacity: null,
+    accommodationExtraBedRate: null,
     hotelMealPlan: "",
     // The two the old version missed — the reason a removed stay stayed on
     // screen as an empty section.
@@ -599,6 +607,77 @@ export function removeExtraCab(day: DayItinerary, index: number): DayItinerary {
 // stays compatible with every package already saved and with the pricing
 // engine, which still prices each night independently.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * How a stay is set up on ONE night — the numbers that are the exec's answer
+ * rather than the room's.
+ *
+ * This exists because applying a hotel to several nights used to copy the room
+ * and nothing else. applyHotelRoomSelection deliberately clears manualExtraBeds
+ * (a fresh pick has no reason to inherit a count typed against a different
+ * room), and never touched roomsCount at all — so every night in a run fell
+ * back to its OWN auto-derived mattress count, computed from whatever roomsCount
+ * that particular day happened to be carrying.
+ *
+ * The result is the bug costing kept rejecting: the same hotel, the same party,
+ * three consecutive nights, and 2 mattresses on the first night against 1 on
+ * the second, for no reason visible anywhere in the builder. A hotel cannot
+ * take a booking that changes its bed count halfway through, so the package
+ * came back.
+ *
+ * So a stay applied across nights now carries its spec with it. Every night in
+ * the run gets the source night's rooms, mattresses and mattress rate, and they
+ * stay identical unless someone deliberately edits one.
+ */
+export type StaySpec = {
+  roomsCount: number | null;
+  manualExtraBeds: number | null;
+  manualExtraBedRate: number | null;
+};
+
+export function staySpecOf(day: DayItinerary): StaySpec {
+  return {
+    roomsCount: day.roomsCount ?? null,
+    manualExtraBeds: day.manualExtraBeds ?? null,
+    manualExtraBedRate: day.manualExtraBedRate ?? null,
+  };
+}
+
+export function applyStaySpec(day: DayItinerary, spec: StaySpec): DayItinerary {
+  return { ...day, ...spec };
+}
+
+/** True when two nights of the same stay were set up differently — the thing
+ * costing rejects. Compares only what an exec chose; the room, its rate and
+ * its caps are identical by construction across a run. */
+export function staySpecsDiffer(a: StaySpec, b: StaySpec): boolean {
+  return a.roomsCount !== b.roomsCount
+    || a.manualExtraBeds !== b.manualExtraBeds
+    || a.manualExtraBedRate !== b.manualExtraBedRate;
+}
+
+/**
+ * The nights of a stay whose setup disagrees with the night the stay starts on.
+ *
+ * Derived, never stored: a run is already derived (see stayRun), and a stored
+ * "this run is consistent" flag would be one more thing to keep true. Returns
+ * day numbers so the caller can name them and offer to align them.
+ *
+ * Only runs of a CATALOG room are checked. A hand-typed night is its own run of
+ * one and has nothing to disagree with.
+ */
+export function inconsistentStayNights(days: DayItinerary[], day: number): number[] {
+  const run = stayRun(days, day);
+  if (run.length < 2) return [];
+  const byDay = new Map(days.map((d) => [d.day, d]));
+  const first = byDay.get(run[0]);
+  if (!first || first.roomPricingId == null) return [];
+  const spec = staySpecOf(first);
+  return run.slice(1).filter((d) => {
+    const other = byDay.get(d);
+    return other != null && staySpecsDiffer(spec, staySpecOf(other));
+  });
+}
 
 /** The consecutive days sharing this day's room, as day numbers. A day with no
  * catalog room is a run of itself alone. */

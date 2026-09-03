@@ -7,6 +7,7 @@
 // a draft/in-progress itinerary is never visible via this path, even to
 // someone who knows the id.
 
+import { resolveStayPhoto } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 import { getDestinationCoverImage } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
@@ -127,6 +128,9 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       title: true, description: true, coverImage: true, coverImagePosition: true, destination: true, startingPoint: true,
       totalDays: true, totalNights: true, travelDate: true, adults: true, children: true, infants: true,
       childrenAges: true,
+      infantAges: true,
+      infantMaxAge: true,
+      childMaxAge: true,
       pricePerPerson: true, totalPrice: true, currency: true,
       discountType: true, discountValue: true, pricingSnapshot: true,
       inclusions: true, exclusions: true, removedInclusions: true, removedExclusions: true, termsNotes: true,
@@ -157,6 +161,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
           // Needed by occupancyText — without the real caps it falls back to
           // base beds alone and over-reports the room count to the client.
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
+          accommodationExtraBedRate: true,
           roomsCount: true, extraRooms: true,
           notesType: true,
           notesTitle: true,
@@ -246,6 +251,9 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     // Without these the client's own page divided the total by every head
     // including a toddler, and quoted a per-person figure nobody would pay.
     childrenAges:    pkg.childrenAges ?? [],
+    infantAges:      pkg.infantAges ?? [],
+    infantMaxAge:    pkg.infantMaxAge,
+    childMaxAge:     pkg.childMaxAge,
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     // What it takes to hold the booking, computed by the same engine that
@@ -312,8 +320,11 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       })),
       meals:                     it.meals,
       accommodation:             it.accommodation ?? "",
-      accommodationPhoto:        it.accommodationPhoto ?? "",
-      accommodationRoomPhotos:   it.accommodationRoomPhotos,
+      // Same heal as the builder's own loader: a day filled by the hotel
+      // team before the queue stopped storing bare storage keys would
+      // otherwise show the client a broken image on the shared page.
+      accommodationPhoto:        resolveStayPhoto(it.accommodationPhoto),
+      accommodationRoomPhotos:   (it.accommodationRoomPhotos ?? []).map(resolveStayPhoto).filter(Boolean),
       accommodationLocation:     it.accommodationLocation ?? "",
       accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
       accommodationStarRating:   it.accommodationStarRating ?? "",
@@ -323,6 +334,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       accommodationMaxAdults:    it.accommodationMaxAdults ?? null,
       accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
       accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
+      accommodationExtraBedRate: it.accommodationExtraBedRate ?? null,
       roomPricingId:             null,
       roomsCount:                it.roomsCount ?? null,
       extraRooms:                parseRoomSelections(it.extraRooms),
@@ -367,4 +379,42 @@ export async function markPackageViewed(packageId: string): Promise<void> {
     where: { id: packageId },
     data: { viewCount: { increment: 1 }, viewedAt: new Date() },
   }).catch(() => {});
+}
+
+export type SharedPackageBooking = {
+    id: string;
+    bookingNumber: string;
+    paidLabel: string;
+};
+
+/**
+ * The confirmed booking made from this share link, if there is one.
+ *
+ * The client's copy of the itinerary is a long-lived URL — they keep it, they
+ * forward it, they open it again after paying. Without this it offered "Book
+ * Now" forever, so the page that just took their money still read as though it
+ * had not, and there was nowhere to go to see what they had bought.
+ *
+ * Matched on `packageUrl` rather than a relation: a custom package has no
+ * catalogue `packages` row, so the booking records the share link it came
+ * through and that string is the only join there is. Only a paid booking
+ * counts — a draft abandoned at the payment sheet must leave the Book button
+ * exactly where it was.
+ */
+export async function getSharedPackageBooking(packageId: string): Promise<SharedPackageBooking | null> {
+    const booking = await db.booking.findFirst({
+        where: {
+            packageUrl: `/custom-package/${packageId}`,
+            paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
+            status: { notIn: ["CANCELLED", "REJECTED"] },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, bookingNumber: true, paymentStatus: true },
+    });
+    if (!booking) return null;
+    return {
+        id: booking.id,
+        bookingNumber: booking.bookingNumber,
+        paidLabel: booking.paymentStatus === "FULLY_PAID" ? "Paid in full" : "Deposit paid",
+    };
 }

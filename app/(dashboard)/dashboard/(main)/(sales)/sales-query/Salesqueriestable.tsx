@@ -25,6 +25,7 @@ import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
 import { reopenSalesQuery, getSalesQueryById, getMyTeamMembers, reassignToTeamMember } from "./actions";
+import { hasRequirements } from "./requirements";
 import { mapCustomPackage } from "./package-status";
 import { AssignQueryDropdown } from "../../(marketing)/queries/Assignquerydropdown";
 import { QueryTimelineSheet } from "../../(marketing)/queries/QueryTimelineSheet";
@@ -357,8 +358,11 @@ export function SalesQueriesTable({
                 <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5">
                         <p className="font-medium text-sm leading-tight">{q.name}</p>
-                        {/* Green dot = requirements filled */}
-                        {q.requirements && (
+                        {/* Green dot = requirements filled. Asked properly: a
+                            bridge lead's `{ leadMeta }` is a non-null column
+                            with nothing in it an exec ever filled, and the dot
+                            told them the work was already done. */}
+                        {hasRequirements(q.requirements) && (
                             <span
                                 title="Requirements filled"
                                 className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0"
@@ -523,7 +527,7 @@ export function SalesQueriesTable({
                     queryId: q.id,
                     destination: q.destination,
                     packageUrl: q.packageUrl,
-                    travelDate: q.travelDate ? q.travelDate.toISOString().slice(0, 10) : q.requirements?.journey.travelDate ?? null,
+                    travelDate: q.travelDate ? q.travelDate.toISOString().slice(0, 10) : q.requirements?.journey?.travelDate ?? null,
                     travellers: q.requirements?.travellers ? {
                         adults: q.requirements.travellers.adults,
                         children: q.requirements.travellers.children,

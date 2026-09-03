@@ -1,47 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { isToday } from "date-fns";
 import { CalendarCheck2, UserCheck, Inbox, UserX } from "lucide-react";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
+import { summariseTodaysAssignments } from "./todaysAssignments";
 import type { PackageQuery } from "./actions";
-
-// Computed entirely from the `queries` prop this dialog is handed — that
-// list is already the full, unfiltered/unpaginated fetch QueriesTable itself
-// works from (see getQueries), so no extra server round-trip is needed for a
-// same-day snapshot like this.
-function useTodaysAssignments(queries: PackageQuery[]) {
-    return useMemo(() => {
-        const assignedToday = queries.filter((q) => q.assignedAt && isToday(new Date(q.assignedAt)));
-        const receivedToday = queries.filter((q) => isToday(new Date(q.createdAt)));
-        const unassignedToday = receivedToday.filter((q) => !q.assignedTo);
-
-        const byExec = new Map<string, { name: string; count: number }>();
-        for (const q of assignedToday) {
-            const key = q.assignedTo ?? "unknown";
-            const name = q.assignedToName ?? "Unassigned";
-            const entry = byExec.get(key);
-            if (entry) entry.count += 1;
-            else byExec.set(key, { name, count: 1 });
-        }
-        const rows = [...byExec.values()].sort((a, b) => b.count - a.count);
-
-        return {
-            rows,
-            totalAssignedToday: assignedToday.length,
-            totalReceivedToday: receivedToday.length,
-            totalUnassignedToday: unassignedToday.length,
-        };
-    }, [queries]);
-}
 
 export function TodaysAssignmentDialog({ queries }: { queries: PackageQuery[] }) {
     const [open, setOpen] = useState(false);
-    const { rows, totalAssignedToday, totalReceivedToday, totalUnassignedToday } = useTodaysAssignments(queries);
+    // Counted from the `queries` prop this dialog is handed — that list is
+    // already the full, unfiltered/unpaginated fetch QueriesTable itself works
+    // from (see getQueries), so no extra server round-trip is needed for a
+    // same-day snapshot like this.
+    const {
+        rows, totalReceivedToday, receivedAssigned, receivedUnassigned,
+        handedOutToday, carriedOver,
+    } = useMemo(() => summariseTodaysAssignments(queries), [queries]);
     const maxCount = Math.max(1, ...rows.map((r) => r.count));
+
+    const tiles = [
+        { label: "Received", value: totalReceivedToday, icon: Inbox, tone: "text-dashboard-primary", warn: false },
+        { label: "Assigned", value: receivedAssigned, icon: UserCheck, tone: "text-dashboard-info", warn: false },
+        { label: "Unassigned", value: receivedUnassigned, icon: UserX, tone: "text-dashboard-warning", warn: receivedUnassigned > 0 },
+    ];
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -57,43 +41,55 @@ export function TodaysAssignmentDialog({ queries }: { queries: PackageQuery[] })
                         Today&apos;s Query Assignments
                     </DialogTitle>
                     <DialogDescription>
-                        How many leads each sales executive was handed today, and how today&apos;s intake broke down.
+                        Today&apos;s intake and where it went, then everything handed out today —
+                        including leads that came in earlier.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="px-6 py-4 space-y-5">
-                    {/* Today's headline numbers */}
-                    <div className="grid grid-cols-3 gap-2.5">
-                        <div className="rounded-lg border border-dashboard-base-300 px-3 py-2.5 text-center">
-                            <Inbox className="size-3.5 text-dashboard-primary mx-auto mb-1" />
-                            <p className="text-lg font-bold text-dashboard-base-content leading-none">{totalReceivedToday}</p>
-                            <p className="text-[10px] text-dashboard-base-content/50 mt-1">Received</p>
-                        </div>
-                        <div className="rounded-lg border border-dashboard-base-300 px-3 py-2.5 text-center">
-                            <UserCheck className="size-3.5 text-dashboard-info mx-auto mb-1" />
-                            <p className="text-lg font-bold text-dashboard-base-content leading-none">{totalAssignedToday}</p>
-                            <p className="text-[10px] text-dashboard-base-content/50 mt-1">Assigned</p>
-                        </div>
-                        <div className={`rounded-lg border px-3 py-2.5 text-center ${totalUnassignedToday > 0 ? "border-dashboard-warning/50 bg-dashboard-warning/5" : "border-dashboard-base-300"}`}>
-                            <UserX className="size-3.5 text-dashboard-warning mx-auto mb-1" />
-                            <p className="text-lg font-bold text-dashboard-base-content leading-none">{totalUnassignedToday}</p>
-                            <p className="text-[10px] text-dashboard-base-content/50 mt-1">Unassigned</p>
+                    {/* Today's intake. Assigned + Unassigned add up to Received,
+                        which is the reconciliation the old three tiles broke. */}
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-content/50 mb-2">
+                            Leads received today
+                        </p>
+                        <div className="grid grid-cols-3 gap-2.5">
+                            {tiles.map(({ label, value, icon: Icon, tone, warn }) => (
+                                <div
+                                    key={label}
+                                    className={`rounded-lg border px-3 py-2.5 text-center ${warn ? "border-dashboard-warning/50 bg-dashboard-warning/5" : "border-dashboard-base-300"}`}
+                                >
+                                    <Icon className={`size-3.5 ${tone} mx-auto mb-1`} />
+                                    <p className="text-lg font-bold text-dashboard-base-content leading-none">{value}</p>
+                                    <p className="text-[10px] text-dashboard-base-content/50 mt-1">{label}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Per-exec breakdown */}
+                    {/* Per-exec breakdown of what was handed out today */}
                     <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-content/50 mb-2">
-                            Given to which sales executive
+                        <p className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-content/50">
+                            Handed out today
                         </p>
+                        {/* Says in words why this total can run ahead of the
+                            leads received above — the reading that made the
+                            old tiles look like a miscount. */}
+                        {handedOutToday > 0 && (
+                            <p className="text-[11px] text-dashboard-base-content/40 mt-0.5 mb-2">
+                                {carriedOver > 0
+                                    ? `${handedOutToday} in total — ${handedOutToday - carriedOver} of today's leads, ${carriedOver} that came in earlier.`
+                                    : `${handedOutToday} in total, all from today's leads.`}
+                            </p>
+                        )}
                         {rows.length === 0 ? (
                             <p className="text-sm text-dashboard-base-content/40 italic py-6 text-center">
-                                No queries assigned to anyone yet today.
+                                Nothing handed out to anyone yet today.
                             </p>
                         ) : (
-                            <ul className="space-y-2">
+                            <ul className="space-y-2 mt-2">
                                 {rows.map((r) => (
-                                    <li key={r.name} className="flex items-center gap-3">
+                                    <li key={r.key} className="flex items-center gap-3">
                                         <span className="w-24 shrink-0 truncate text-sm text-dashboard-base-content">{r.name}</span>
                                         <div className="flex-1 h-2 rounded-full bg-dashboard-base-200 overflow-hidden">
                                             <div

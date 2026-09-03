@@ -15,6 +15,7 @@ import {
   type PreviewData,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 import type { DayItinerary, ActivityInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 const STANDARD_MEAL_CHIPS = [
   { key: "breakfast", label: "Breakfast", icon: CoffeeIcon },
@@ -416,6 +417,11 @@ function GeneralAddonsSection({ addOns }: { addOns: AddonInput[] }) {
  * shape: one hotel + one cab per day (plus "extra room/cab" lines, unique to
  * custom packages), no pricing tiers, no optional-activity flag. */
 export function CustomItinerarySection({ form }: { form: PreviewData }) {
+  // The rooms line has to describe the party the rooms were BOOKED for, which
+  // is the party sorted by age band rather than by which box each traveller
+  // was typed into — the same split the price was computed from. See
+  // traveller-ages.ts / pricingPartyOf.
+  const pricedParty = pricingPartyOf(form);
   const shiftedMeals = computeShiftedMeals(form.itineraries);
   const addOns = form.addOns ?? [];
 
@@ -450,7 +456,7 @@ export function CustomItinerarySection({ form }: { form: PreviewData }) {
                     <div className="py-4"><TransferBlock day={day} /></div>
                   )}
                   {day.accommodation && (
-                    <div className="py-4"><StayBlock day={day} adults={form.adults} childCount={form.children} /></div>
+                    <div className="py-4"><StayBlock day={day} adults={pricedParty.adults} childCount={pricedParty.children} /></div>
                   )}
                   {addOns.some((a) => a.name.trim() && a.day === day.day) && (
                     <div className="py-4"><DayAddonsBlock addOns={addOns} day={day.day} /></div>

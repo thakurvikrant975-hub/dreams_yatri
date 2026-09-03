@@ -7,7 +7,7 @@ import { computeBuilderHotelPricing, computeBuilderCabPricing } from "@/app/serv
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { parseRoomSelections, parseCabSelections } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { VerifyPackageDetailClient, type PricingSnapshot } from "./VerifyPackageDetailClient";
-import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { payingPaxOf, travellersOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 
 export const metadata: Metadata = {
     title: "Package Verification - Dashboard",
@@ -27,6 +27,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 totalDays: true, totalNights: true, travelDate: true,
                 adults: true, children: true, infants: true,
                 childrenAges: true, infantAges: true,
+                infantMaxAge: true, childMaxAge: true,
                 pricePerPerson: true, totalPrice: true, currency: true,
                 marginPercentage: true, gstPercentage: true,
                 discountType: true, discountValue: true, discountNote: true,
@@ -96,7 +97,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
         const travelDateIso = pkg.travelDate ? pkg.travelDate.toISOString().slice(0, 10) : null;
         const [hotelPricing, cabPricing] = await Promise.all([
             computeBuilderHotelPricing({
-                travelDate: travelDateIso, adults: pkg.adults, children: pkg.children,
+                travelDate: travelDateIso, ...travellersOf(pkg),
                 days: pkg.itineraries.map((it) => ({
                     day: it.day, roomPricingId: it.roomPricingId, roomsCount: it.roomsCount,
                     manualExtraBeds: it.manualExtraBeds,
@@ -195,6 +196,7 @@ export default async function VerifyPackageDetailPage({ params }: { params: Prom
                 totalDays: pkg.totalDays, totalNights: pkg.totalNights, travelDate: pkg.travelDate,
                 adults: pkg.adults, children: pkg.children, infants: pkg.infants,
                 childrenAges: pkg.childrenAges, infantAges: pkg.infantAges,
+                infantMaxAge: pkg.infantMaxAge, childMaxAge: pkg.childMaxAge,
                 pricePerPerson: pkg.pricePerPerson, totalPrice: pkg.totalPrice, currency: pkg.currency,
                 marginPercentage: pkg.marginPercentage, gstPercentage: pkg.gstPercentage,
                 discountType: pkg.discountType, discountValue: pkg.discountValue, discountNote: pkg.discountNote,

@@ -14,6 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
+import { resolveStayPhoto } from "@/app/lib/imageUrl";
 import { reconcileMealsWithPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import { syncRecommendedStayFromDays } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options.sync";
 import { getCurrentMember } from "../lib/get-current-member";
@@ -60,9 +61,41 @@ export type FillHotelInput = {
      * check-in") — shown in the builder's Hotel Info card, never in the
      * itinerary PDF. See custom_itineraries.hotelFillNote. */
     note?: string;
+    /** Further pending days this same stay covers — one property held for
+     * three nights is one booking, and was three identical trips through this
+     * form. Filled in the same transaction as `day` itself. */
+    alsoDays?: number[];
 };
 
+/**
+ * A server action that THROWS is a very different thing from one that returns
+ * an error: Next re-throws it on the client and it travels past this route's
+ * error boundary out to the unstyled global-error page — a blank white screen
+ * mid-fill, recoverable only by reloading and re-navigating to the queue.
+ *
+ * The new queue was hardened against that; this one was not, and it is still
+ * where a lot of fills happen — now multi-night ones, writing several rows in
+ * a transaction. Nothing in here is unrecoverable from the caller's point of
+ * view, so it is reported rather than thrown.
+ */
 export async function fillPendingHotel(
+    packageId: string,
+    day: number,
+    input: FillHotelInput,
+): Promise<{ success: boolean; error?: string; allDaysFilled?: boolean }> {
+    try {
+        return await runFillPendingHotel(packageId, day, input);
+    } catch (e) {
+        console.error("[fillPendingHotel]", { packageId, day }, e);
+        return {
+            success: false,
+            error: "Something went wrong saving this hotel. Reload the page to see what did save, "
+                + "then try again — and tell the dev team if it keeps happening.",
+        };
+    }
+}
+
+async function runFillPendingHotel(
     packageId: string,
     day: number,
     input: FillHotelInput,
@@ -75,41 +108,72 @@ export async function fillPendingHotel(
     if (!hotelName) return { success: false, error: "Hotel name is required." };
     if (!(input.pricePerNight > 0)) return { success: false, error: "Enter a valid B2B price." };
 
-    const row = await db.custom_itineraries.findFirst({
-        where: { customPackageId: packageId, day },
-        select: { id: true, hotelPending: true },
-    });
-    if (!row) return { success: false, error: "This day couldn't be found." };
-    if (!row.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
-
-    await db.custom_itineraries.update({
-        where: { id: row.id },
-        data: {
-            accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
-            accommodationRoomSpecs: input.roomSpecs?.trim() || null,
-            accommodationPhoto: input.hotelPhoto?.trim() || null,
-            accommodationRoomPhotos: (input.roomPhotos ?? []).map((p) => p.trim()).filter(Boolean).slice(0, 3),
-            hotelCheckIn: input.checkIn?.trim() || null,
-            hotelCheckOut: input.checkOut?.trim() || null,
-            hotelMealPlan: input.mealPlan?.trim() || null,
-            // Reconciled, not just defaulted: "Meal plan" and "Meals Included"
-            // are two independent fields on the fill form, so the admin can type/
-            // pick a plan that says "Breakfast & Dinner" while only ticking one
-            // of the two chips — the array ends up non-empty but incomplete, and
-            // the Day-wise Summary table (which reads this array, not the plan
-            // text) shows fewer meals than the hotel card next to it does.
-            meals: reconcileMealsWithPlanText(input.meals, input.mealPlan),
-            roomsCount: Math.max(1, Math.round(input.roomsCount) || 1),
-            manualExtraBeds: Math.max(0, Math.round(input.extraBeds ?? 0)),
-            manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
-            manualHotelPricePerNight: input.pricePerNight,
-            hotelPending: false,
-            hotelFilledAt: new Date(),
-            hotelFilledById: auth.member.id,
-            hotelFilledByName: auth.member.name,
-            hotelFillNote: input.note?.trim() || null,
+    const days = Array.from(new Set([day, ...(input.alsoDays ?? [])]));
+    const rows = await db.custom_itineraries.findMany({
+        where: { customPackageId: packageId, day: { in: days } },
+        select: {
+            id: true, day: true, hotelPending: true,
+            roomsCount: true, manualExtraBeds: true, hotelMealPlan: true,
         },
     });
+    const primary = rows.find((r) => r.day === day);
+    if (!primary) return { success: false, error: "This day couldn't be found." };
+    if (!primary.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
+
+    // A day that stopped being pending between render and submit — someone else
+    // in the queue got to it — is dropped rather than overwritten.
+    const targets = rows.filter((r) => r.hotelPending);
+
+    const typedRooms = Math.max(1, Math.round(input.roomsCount) || 1);
+    const typedBeds = Math.max(0, Math.round(input.extraBeds ?? 0));
+
+    await db.$transaction(targets.map((target) => {
+        // Same rule as the counts below: the meal plan is part of what the
+        // exec asked for on each night and can differ between them, so a
+        // day carried along keeps its own rather than inheriting this
+        // form's.
+        const effectiveMealPlan = target.day === day
+            ? (input.mealPlan?.trim() || null)
+            : (target.hotelMealPlan ?? input.mealPlan?.trim() ?? null);
+        // Reconciled, not just defaulted: "Meal plan" and "Meals Included"
+        // are two independent fields on the fill form, so the admin can type/
+        // pick a plan that says "Breakfast & Dinner" while only ticking one
+        // of the two chips — the array ends up non-empty but incomplete, and
+        // the Day-wise Summary table (which reads this array, not the plan
+        // text) shows fewer meals than the hotel card next to it does.
+        const effectiveMeals = reconcileMealsWithPlanText(input.meals, effectiveMealPlan);
+        return db.custom_itineraries.update({
+            where: { id: target.id },
+            data: {
+                accommodation: roomName ? `${hotelName} — ${roomName}` : hotelName,
+                accommodationRoomSpecs: input.roomSpecs?.trim() || null,
+                // Same guard as the v2 queue: a day row is rendered raw, so a
+                // bare storage key here is a photo that never loads. An
+                // already-resolved URL passes through untouched.
+                accommodationPhoto: resolveStayPhoto(input.hotelPhoto?.trim()) || null,
+                accommodationRoomPhotos: (input.roomPhotos ?? [])
+                    .map((p) => resolveStayPhoto(p.trim()))
+                    .filter(Boolean)
+                    .slice(0, 3),
+                hotelCheckIn: input.checkIn?.trim() || null,
+                hotelCheckOut: input.checkOut?.trim() || null,
+                hotelMealPlan: effectiveMealPlan,
+                meals: effectiveMeals,
+                // The form's own day takes what was typed; a day carried along
+                // keeps the count its own request asked for, falling back to the
+                // typed one.
+                roomsCount: target.day === day ? typedRooms : (target.roomsCount ?? typedRooms),
+                manualExtraBeds: target.day === day ? typedBeds : (target.manualExtraBeds ?? typedBeds),
+                manualExtraBedRate: input.extraBedRate ? Math.max(0, input.extraBedRate) : null,
+                manualHotelPricePerNight: input.pricePerNight,
+                hotelPending: false,
+                hotelFilledAt: new Date(),
+                hotelFilledById: auth.member.id,
+                hotelFilledByName: auth.member.name,
+                hotelFillNote: input.note?.trim() || null,
+            },
+        });
+    }));
 
     // Costing prices a package from its stay options (custom_itinerary_stays),
     // not from the day row this fill writes. stay-options.sync.ts calls the day
@@ -147,16 +211,20 @@ export async function fillPendingHotel(
     if (pkg?.queryId) {
         await logTimeline(
             pkg.queryId,
-            `Hotel filled for day ${day} by ${auth.member.name}${allDaysFilled ? " — every day is now filled, back to the exec to submit" : ""}`,
+            `Hotel filled for ${targets.length > 1 ? `days ${targets.map((t) => t.day).sort((a, b) => a - b).join(", ")}` : `day ${day}`}`
+            + ` by ${auth.member.name}${allDaysFilled ? " — every day is now filled, back to the exec to submit" : ""}`,
             auth.member.id, auth.member.name,
         );
     }
 
     if (pkg?.builtBy) {
+        const dayLabel = targets.length > 1
+            ? `Days ${targets.map((t) => t.day).sort((a, b) => a - b).join(", ")}`
+            : `Day ${day}`;
         await notifyMember({
             recipientId: pkg.builtBy,
             type: "HOTEL_FILLED",
-            title: `${pkg.title ?? "Your package"} — hotel filled for Day ${day}`,
+            title: `${pkg.title ?? "Your package"} — hotel filled for ${dayLabel}`,
             body: allDaysFilled
                 ? "Every day is now filled — ready for you to submit."
                 : `${hotelName} added by ${auth.member.name}.`,
@@ -194,6 +262,22 @@ export async function rejectPendingHotel(
     packageId: string,
     day: number,
     reason: string,
+    alsoDays: number[] = [],
+): Promise<RejectResult> {
+    try {
+        return await runRejectPendingHotel(packageId, day, reason, alsoDays);
+    } catch (e) {
+        // Same reasoning as fillPendingHotel's wrapper — see the comment there.
+        console.error("[rejectPendingHotel]", { packageId, day }, e);
+        return { success: false, error: "Something went wrong rejecting this day. Reload the page and try again." };
+    }
+}
+
+async function runRejectPendingHotel(
+    packageId: string,
+    day: number,
+    reason: string,
+    alsoDays: number[] = [],
 ): Promise<RejectResult> {
     const auth = await requireMember();
     if (!auth.ok) return { success: false, error: auth.error };
@@ -201,15 +285,23 @@ export async function rejectPendingHotel(
     const note = reason.trim();
     if (!note) return { success: false, error: "A reason is required to reject a hotel request." };
 
-    const row = await db.custom_itineraries.findFirst({
-        where: { customPackageId: packageId, day },
-        select: { id: true, hotelPending: true },
+    // Rejecting covers the same nights the card covers — see the equivalent
+    // comment in the v2 queue. A grouped card that declined only its first day
+    // left the rest pending, to reappear seconds later as a fresh card.
+    const days = Array.from(new Set([day, ...alsoDays]));
+    const rows = await db.custom_itineraries.findMany({
+        where: { customPackageId: packageId, day: { in: days } },
+        select: { id: true, day: true, hotelPending: true },
     });
-    if (!row) return { success: false, error: "This day couldn't be found." };
-    if (!row.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
+    const primary = rows.find((r) => r.day === day);
+    if (!primary) return { success: false, error: "This day couldn't be found." };
+    if (!primary.hotelPending) return { success: false, error: "This day isn't awaiting a hotel fill." };
 
-    await db.custom_itineraries.update({
-        where: { id: row.id },
+    const targets = rows.filter((r) => r.hotelPending);
+    const rejectedDays = targets.map((t) => t.day).sort((a, b) => a - b);
+
+    await db.custom_itineraries.updateMany({
+        where: { id: { in: targets.map((t) => t.id) } },
         data: {
             hotelRejectedAt: new Date(),
             hotelRejectedById: auth.member.id,
@@ -224,7 +316,8 @@ export async function rejectPendingHotel(
         await notifyMember({
             recipientId: pkg.builtBy,
             type: "HOTEL_REQUEST_REJECTED",
-            title: `${pkg.title ?? "Your package"} — hotel request rejected for Day ${day}`,
+            title: `${pkg.title ?? "Your package"} — hotel request rejected for `
+                + `${rejectedDays.length > 1 ? `Days ${rejectedDays.join(", ")}` : `Day ${day}`}`,
             body: note,
             link: `/dashboard/package-builder/${packageId}`,
         });
@@ -232,19 +325,34 @@ export async function rejectPendingHotel(
     if (pkg?.queryId) {
         await logTimeline(
             pkg.queryId,
-            `Hotel request rejected for day ${day} by ${auth.member.name}: ${note}`,
+            `Hotel request rejected for `
+            + `${rejectedDays.length > 1 ? `days ${rejectedDays.join(", ")}` : `day ${day}`}`
+            + ` by ${auth.member.name}: ${note}`,
             auth.member.id, auth.member.name,
         );
     }
 
     await afterReject(packageId);
-    return { success: true };
+    return { success: true, count: rejectedDays.length };
 }
 
 /** Declines every currently-pending day on the package at once, with one
  * shared reason — for when nothing in the whole request is fulfillable
  * (wrong budget, wrong destination entirely) rather than a single day. */
 export async function rejectAllPendingHotels(
+    packageId: string,
+    reason: string,
+): Promise<RejectResult> {
+    try {
+        return await runRejectAllPendingHotels(packageId, reason);
+    } catch (e) {
+        // Same reasoning as fillPendingHotel's wrapper — see the comment there.
+        console.error("[rejectAllPendingHotels]", { packageId }, e);
+        return { success: false, error: "Something went wrong rejecting these days. Reload the page and try again." };
+    }
+}
+
+async function runRejectAllPendingHotels(
     packageId: string,
     reason: string,
 ): Promise<RejectResult> {

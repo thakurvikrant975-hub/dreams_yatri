@@ -5,7 +5,7 @@ import {
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
   ShieldCheck, NotebookPen, Eye, Users, CalendarClock, UserPlus,
-  PlaneLanding, PlaneTakeoff, UsersRound, Library, Sparkles,
+  PlaneLanding, PlaneTakeoff, FileSpreadsheet, UsersRound, Library, Sparkles,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -80,6 +80,7 @@ export const NAV_GROUPS = [
     id: "marketing", label: "Marketing",
     items: [
       { title: "Queries", href: "/dashboard/queries", icon: MessageCircleQuestion },
+      { title: "Lead Report", href: "/dashboard/lead-report", icon: FileSpreadsheet },
       { title: "Landing pages", href: "/dashboard/landing-pages", icon: PlaneLanding },
       { title: "Email Marketing", href: "/dashboard/email-marketing", icon: Mails },
       { title: "References", href: "/dashboard/references", icon: Forward },

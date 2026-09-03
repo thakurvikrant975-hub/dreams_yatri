@@ -1,7 +1,6 @@
 'use server'
 
-import { db } from '@/app/lib/db'
-import { autoAssignLead } from '@/app/lib/queries/auto-assign'
+import { createLead } from './intake.service'
 import { enquirySchema, type EnquiryInput, type EnquiryErrors } from './schema'
 
 type SubmitResult =
@@ -9,9 +8,11 @@ type SubmitResult =
     | { ok: false; fieldErrors: EnquiryErrors; formError?: never }
     | { ok: false; fieldErrors?: never; formError: string }
 
-const RATE_LIMIT_WINDOW_MS   = 15 * 60 * 1000      // 15 min — same phone, any package
-const DUPLICATE_WINDOW_MS    = 24 * 60 * 60 * 1000  // 24 h  — same phone + same package
-
+/**
+ * The website's own enquiry forms. Validation and the shape of what comes
+ * back are unchanged; the writing itself now lives in intake.service so the
+ * external REST endpoint lands leads by exactly the same route.
+ */
 export async function submitPackageEnquiry(raw: EnquiryInput): Promise<SubmitResult> {
     const result = enquirySchema.safeParse(raw)
 
@@ -24,83 +25,13 @@ export async function submitPackageEnquiry(raw: EnquiryInput): Promise<SubmitRes
         return { ok: false, fieldErrors }
     }
 
-    const {
-        name, email, phone, countryCode,
-        travelDate, travellers, message,
-        packageName, destination, packageUrl, pageUrl, source,
-    } = result.data
+    const outcome = await createLead(result.data)
 
-    // ── Rate limiting: same phone within 15 minutes ──────────────────────────
-    const recentByPhone = await db.package_queries.findFirst({
-        where: { phone, createdAt: { gte: new Date(Date.now() - RATE_LIMIT_WINDOW_MS) } },
-        select: { id: true },
-    })
-    if (recentByPhone) {
-        return {
-            ok: false,
-            formError: 'You already submitted a query. Our team will contact you shortly.',
-        }
-    }
+    // A rate-limited or duplicate submission is a message to the visitor here,
+    // not a silent success — the external endpoint treats the same outcomes
+    // differently, which is why the mapping lives at each edge rather than in
+    // the service.
+    if (!outcome.ok) return { ok: false, formError: outcome.message }
 
-    // ── Duplicate guard: same phone + same package within 24 hours ───────────
-    if (packageName) {
-        const duplicate = await db.package_queries.findFirst({
-            where: {
-                phone,
-                packageName,
-                createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
-            },
-            select: { id: true },
-        })
-        if (duplicate) {
-            return {
-                ok: false,
-                formError: 'You have already enquired about this package. Our team will be in touch soon.',
-            }
-        }
-    }
-
-    try {
-        // Upsert lead profile so the query shows up under a known lead
-        const normalizedPhone = phone.replace(/[\s\-().+]/g, '')
-        const profile = await db.leadProfile.upsert({
-            where: { phone: normalizedPhone },
-            update: {
-                name,
-                ...(email ? { email } : {}),
-                lastSeenAt:   new Date(),
-                totalQueries: { increment: 1 },
-            },
-            create: {
-                phone: normalizedPhone,
-                name,
-                email: email || null,
-            },
-        })
-
-        const created = await db.package_queries.create({
-            data: {
-                name,
-                phone,
-                countryCode:   countryCode  || 'IN',
-                email:         email        || null,
-                packageName:   packageName  || null,
-                destination:   destination  || null,
-                packageUrl:    packageUrl   || null,
-                pageUrl:       pageUrl      || null,
-                travelDate:    travelDate   ? new Date(travelDate) : null,
-                groupSize:     travellers   ?? null,
-                message:       message      || null,
-                source:        source ?? 'PACKAGE_FORM',
-                status:        'SUBMITTED',
-                leadProfileId: profile.id,
-            },
-        })
-
-        await autoAssignLead(created.id)
-
-        return { ok: true }
-    } catch {
-        return { ok: false, formError: 'Failed to submit enquiry. Please try again.' }
-    }
+    return { ok: true }
 }

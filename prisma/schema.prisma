@@ -2790,6 +2790,25 @@ model custom_packages {
    */
   childrenAges            Int[]                         @default([])
   infantAges              Int[]                         @default([])
+  /**
+   * The age boundaries this package is priced by, editable per package.
+   *
+   * The industry defaults are infant 0–2, child 3–12, adult 13+, and that is
+   * what a new package starts with. They are NOT universal: plenty of
+   * properties treat under-5s as infants (no bed, no charge) and start
+   * charging a child rate above that, and a few cut the child band at 10 or
+   * 11. Costing was resolving that difference by hand, off a note in the
+   * itinerary, on a package whose per-person figure had already been
+   * computed against the hard-coded line.
+   *
+   * Both are INCLUSIVE upper bounds: a traveller is an infant at or below
+   * infantMaxAge, a child from there to childMaxAge, an adult above it. The
+   * band a traveller lands in — not the box the exec typed them into —
+   * decides whether they need a bed, count toward room occupancy, and are a
+   * head the trip price divides by. See package-builder/traveller-ages.ts.
+   */
+  infantMaxAge            Int                           @default(2)
+  childMaxAge             Int                           @default(12)
   pricePerPerson          Float?
   totalPrice              Float?
   currency                String                        @default("INR")
@@ -3325,6 +3344,22 @@ model custom_itineraries {
   accommodationMaxAdults        Int?
   accommodationMaxChildren      Int?
   accommodationExtraBedCapacity Int?
+  /**
+   * The catalog rate per extra mattress at the moment the room was picked
+   * (hotel_room_pricing.extra_bed_rate), snapshotted for the same reason the
+   * capacities above are — but with a second job the others don't have.
+   *
+   * Mattresses are priced live from the rate row, and that row very often
+   * has no extra-bed rate on it at all. The mattresses were then added to the
+   * itinerary and charged at nothing, with no way for the exec to see it: the
+   * builder had the count but never the rate. Carrying the rate onto the day
+   * is what lets the builder say "this room prices no mattress — these two
+   * will cost the client zero" while the exec can still fix it, instead of
+   * costing finding it a day later. Null means the room genuinely had no
+   * rate; it is diagnostic only and never overrides the live rate at pricing
+   * time (manualExtraBedRate is what does that).
+   */
+  accommodationExtraBedRate     Float?
   /**
    * Mattress/rollaway-bed count for a day with NO catalog roomPricingId —
    * either the hotel team fulfilling an "Add Hotels by Team" request
@@ -4416,6 +4451,10 @@ model custom_itinerary_stays {
   accommodationMaxAdults        Int?
   accommodationMaxChildren      Int?
   accommodationExtraBedCapacity Int?
+  /// Mirrors custom_itineraries.accommodationExtraBedRate — see the note
+  /// there. In STAY_FIELDS, so applying an option to a day carries the rate
+  /// with the room instead of leaving the day's previous one behind.
+  accommodationExtraBedRate     Float?
 
   roomPricingId            Int?
   roomsCount               Int?

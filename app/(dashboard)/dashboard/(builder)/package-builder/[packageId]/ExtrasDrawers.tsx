@@ -59,7 +59,16 @@ export function MealsView({ day }: { day: number }) {
    * is directly editable here (see toggleMeal below), for the times costing
    * needs to correct it without going back to whoever picked the hotel or
    * filled the request: a wrong/incomplete meal plan blocks pricing exactly
-   * as much as a wrong room rate does. */
+   * as much as a wrong room rate does.
+   *
+   * Not gated on hasHotel any more — costing can now deliberately set a
+   * meal for a day with no hotel (the "No hotel" tag below is the warning,
+   * not a block), and computeShiftedMeals in ItineraryDocument.tsx reads
+   * the same ungated array, so the two need to agree on what "included"
+   * means. removeStay (day-mutations.ts) already clears meals/hotelMealPlan
+   * together the moment a hotel is actually removed, so a stored value here
+   * reflects a real decision rather than stale data left behind by a
+   * removed hotel. */
   const isOn = (meal: string) =>
     isExtraMeal(meal) ? (itin.extraMeals ?? []).includes(meal) : (rowFor(meal)?.meals.includes(meal) ?? false);
 

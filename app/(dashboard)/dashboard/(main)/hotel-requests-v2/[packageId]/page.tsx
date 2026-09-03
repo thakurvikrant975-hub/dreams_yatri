@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Users } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
+import { groupPendingStayDays, stayDayLocation } from "@/app/lib/hotel-request-stay-groups";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { FillHotelForm } from "./FillHotelForm";
 import { RejectAllButton } from "./RejectAllButton";
@@ -48,6 +49,11 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
     const pendingDays = pkg.itineraries.filter((it) => it.hotelPending && !it.hotelRejectedAt);
     const paxLabel = `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}${pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : ""}`;
 
+    const locationOf = (it: (typeof pendingDays)[number]) => stayDayLocation(it, dayLocations);
+    // One stay, one form — see groupPendingStayDays for why a gap in the days
+    // always splits a group even when the request is word-for-word identical.
+    const stayGroups = groupPendingStayDays(pendingDays, dayLocations);
+
     return (
         <div className="space-y-5 max-w-3xl">
             <Link href="/dashboard/hotel-requests-v2" className="inline-flex items-center gap-1 text-sm text-dashboard-neutral hover:text-dashboard-primary transition-colors">
@@ -77,8 +83,9 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                             <RejectAllButton packageId={pkg.id} pendingCount={pendingDays.length} />
                         </div>
                     )}
-                    {pendingDays.map((it) => {
-                        const location = it.accommodationLocation || dayLocations[it.day - 1] || null;
+                    {stayGroups.map((group) => {
+                        const it = group[0];
+                        const location = locationOf(it);
                         const dayDate = pkg.travelDate
                             ? new Date(new Date(pkg.travelDate).getTime() + (it.day - 1) * 24 * 60 * 60 * 1000)
                             : null;
@@ -95,10 +102,12 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                                 dayDateISO={dayDate ? dayDate.toISOString().slice(0, 10) : null}
                                 siblingDays={pendingDays
                                     .filter((o) => o.day !== it.day)
-                                    .map((o) => ({
-                                        day: o.day,
-                                        location: o.accommodationLocation || dayLocations[o.day - 1] || null,
-                                    }))}
+                                    .map((o) => ({ day: o.day, location: locationOf(o) }))}
+                                // Ticked on arrival rather than guessed at in
+                                // the browser: the grouping above already
+                                // decided these nights are one stay, and it can
+                                // see the whole request to do it.
+                                groupDays={group.slice(1).map((o) => o.day)}
                                 paxLabel={paxLabel}
                                 note={it.hotelPendingNote}
                                 requestedType={it.hotelRequestType}

@@ -317,6 +317,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                         accommodationMaxAdults: m.accommodationMaxAdults,
                         accommodationMaxChildren: m.accommodationMaxChildren,
                         accommodationExtraBedCapacity: m.accommodationExtraBedCapacity,
+                        accommodationExtraBedRate: m.accommodationExtraBedRate,
                         roomPricingId: m.roomPricingId, roomsCount: m.roomsCount,
                         hotelCheckIn: m.hotelCheckIn, hotelCheckOut: m.hotelCheckOut,
                         hotelMealPlan: m.hotelMealPlan,

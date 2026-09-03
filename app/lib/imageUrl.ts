@@ -55,3 +55,23 @@ export const getHeroImage      = (key: string) => getImageUrl(key, IMAGE_SIZES.h
 export const getThumbnailImage = (key: string) => getImageUrl(key, IMAGE_SIZES.thumbnail);
 export const getOGImage        = (key: string) => getImageUrl(key, IMAGE_SIZES.og);
 export const getGalleryImage   = (key: string) => getImageUrl(key, IMAGE_SIZES.gallery);
+
+/**
+ * A stay photo as stored on a day row, resolved to something an `<img src>`
+ * can actually load.
+ *
+ * `custom_itineraries.accommodationPhoto` / `accommodationRoomPhotos` are
+ * rendered raw — the builder document, the exported PDF and the client-facing
+ * package page all do `<img src={day.accommodationPhoto}>` with no prefixing —
+ * so what is stored there has to be a resolved URL, which is what every writer
+ * except the hotel-request fill form was already doing. A bare R2 key that
+ * slipped in resolves against the page's own origin instead and the photo
+ * silently disappears, which is exactly what happened to hotel-team fills.
+ *
+ * Passing an already-resolved URL back through is a no-op (getImageUrl returns
+ * anything starting with "http" unchanged), so this is safe to apply on read as
+ * well as on write — which is how rows already written with a bare key heal
+ * themselves the next time the package is opened and saved.
+ */
+export const resolveStayPhoto = (value: string | null | undefined): string =>
+  value ? getThumbnailImage(value) : "";

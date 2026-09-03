@@ -25,7 +25,11 @@ import { useCallback, useEffect, useState } from "react";
 
 /** Bumped if the shape ever changes incompatibly, so an old draft is ignored
  * rather than restored into a form that no longer matches it. */
-const DRAFT_VERSION = 1;
+// 2: PackageForm gained infantMaxAge/childMaxAge. A v1 draft restored into
+// v2 would carry no bands, and normalizeAgeBands would silently rebuild them
+// as the industry defaults — quietly discarding an exec's own boundaries
+// mid-restore. Invalidate instead.
+const DRAFT_VERSION = 2;
 
 /** Long enough that typing doesn't write on every keystroke, short enough that
  * almost nothing is lost to a crash. */

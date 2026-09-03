@@ -38,6 +38,7 @@ const STAY_FIELDS = [
   "accommodation", "accommodationPhoto", "accommodationRoomPhotos", "accommodationLocation",
   "accommodationRoomSpecs", "accommodationStarRating", "accommodationRoomCapacity",
   "accommodationMaxAdults", "accommodationMaxChildren", "accommodationExtraBedCapacity",
+  "accommodationExtraBedRate",
   "roomPricingId", "roomsCount", "extraRooms", "hotelCheckIn", "hotelCheckOut", "hotelMealPlan",
   "manualHotelPricePerNight", "manualExtraBeds", "manualExtraBedRate", "hotelPriceOverride",
   "hotelPending", "hotelPendingNote",

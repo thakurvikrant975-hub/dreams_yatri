@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Users } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
+import { groupPendingStayDays, stayDayLocation } from "@/app/lib/hotel-request-stay-groups";
 import { getMealTypes } from "@/app/(dashboard)/dashboard/(main)/hotels/actions";
 import { FillHotelForm } from "./FillHotelForm";
 import { RejectAllButton } from "./RejectAllButton";
@@ -48,6 +49,13 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
     const pendingDays = pkg.itineraries.filter((it) => it.hotelPending && !it.hotelRejectedAt);
     const paxLabel = `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}${pkg.children ? `, ${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}` : ""}`;
 
+    const locationOf = (it: (typeof pendingDays)[number]) => stayDayLocation(it, dayLocations);
+    // One stay, one form — the same grouping the new queue uses, from the same
+    // module. This version is still what a lot of fills actually go through, so
+    // "three nights at one hotel is three identical forms" was still costing
+    // the hotel team the same three-times-over typing here.
+    const stayGroups = groupPendingStayDays(pendingDays, dayLocations);
+
     return (
         <div className="space-y-5 max-w-3xl">
             <Link href="/dashboard/hotel-requests" className="inline-flex items-center gap-1 text-sm text-dashboard-neutral hover:text-dashboard-primary transition-colors">
@@ -77,8 +85,9 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                             <RejectAllButton packageId={pkg.id} pendingCount={pendingDays.length} />
                         </div>
                     )}
-                    {pendingDays.map((it) => {
-                        const location = it.accommodationLocation || dayLocations[it.day - 1] || null;
+                    {stayGroups.map((group) => {
+                        const it = group[0];
+                        const location = locationOf(it);
                         const dayDate = pkg.travelDate
                             ? new Date(new Date(pkg.travelDate).getTime() + (it.day - 1) * 24 * 60 * 60 * 1000)
                             : null;
@@ -92,6 +101,10 @@ export default async function HotelRequestDetailPage({ params }: { params: Promi
                                 day={it.day}
                                 location={location}
                                 dateLabel={dateLabel}
+                                siblingDays={pendingDays
+                                    .filter((o) => o.day !== it.day)
+                                    .map((o) => ({ day: o.day, location: locationOf(o) }))}
+                                groupDays={group.slice(1).map((o) => o.day)}
                                 paxLabel={paxLabel}
                                 note={it.hotelPendingNote}
                                 requestedType={it.hotelRequestType}

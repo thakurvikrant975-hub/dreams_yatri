@@ -18,7 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/dialog";
 import { cn } from "@/app/lib/utils";
-import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { payingPaxOf, pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { ItineraryMap } from "./ItineraryMap";
 import { ImageDropField } from "./ImageDropField";
 import { uploadImageFile } from "@/app/lib/uploadImageFile";
@@ -28,6 +28,7 @@ import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { StarAndCrescentIcon, MapPinIcon, RoadHorizonIcon } from "@phosphor-icons/react";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { formatTime12h } from "./time-format";
 import { mealsFromPlanText, reconcileMealsWithPlanText } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
 import {
   continuesStayFrom, stayRun, removeStay, removeTransport, moveActivityTo, removeActivity,
@@ -320,15 +321,10 @@ export function titleCase(text: string): string {
   return text.replace(/\w\S*/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
 }
 
-/** "14:30" (24h, as stored from <input type="time">) → "2:30 PM". */
-export function formatTime12h(hhmm: string): string {
-  if (!hhmm) return "";
-  const [h, m] = hhmm.split(":").map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
-}
+// Defined in ./time-format so the pure day-mutations module can use it
+// without importing this file (and, behind it, the database). Re-exported
+// because every existing import of formatTime12h points here.
+export { formatTime12h };
 
 /** "2026-07-14" → "Tue, 14 Jul 2026". */
 function formatTicketDate(iso: string): string {
@@ -412,11 +408,15 @@ export interface PreviewData {
   adults: number;
   children: number;
   infants: number;
-  /** Needed to divide the total into a per-person figure: a child under five
-   * is not a head that pays a share. Optional because packages built before
-   * ages were collected have none — those divide by everyone, as they always
-   * did. See payingPaxOf. */
+  /** Needed twice over: to sort travellers into the beds they actually need,
+   * and to divide the total into a per-person figure — an infant is not a head
+   * that pays a share. Optional because packages built before ages were
+   * collected have none; those divide by everyone, as they always did. The two
+   * band bounds default to the industry 2/12 when absent. See traveller-ages. */
   childrenAges?: number[];
+  infantAges?: number[];
+  infantMaxAge?: number | null;
+  childMaxAge?: number | null;
   /** What it takes to hold the booking, from the payment policy engine — see
    * getSharedPackage. Only the client's page supplies it; the builder and the
    * PDF leave it undefined and say nothing about payment terms. */
@@ -1364,6 +1364,14 @@ export function computeShiftedMeals(itineraries: DayItinerary[]): string[][] {
     // reconciles the two (union, never removes) rather than trusting the
     // array outright or only falling back when it's fully empty. See
     // reconcileMealsWithPlanText.
+    //
+    // Not gated on hotel presence any more: costing can deliberately set a
+    // day's meals with no hotel booked (see MealsView in ExtrasDrawers.tsx,
+    // which shows a "No hotel" warning right on that toggle), and this has
+    // to reflect that choice instead of silently dropping it. removeStay
+    // (day-mutations.ts) already clears meals/hotelMealPlan together the
+    // moment a hotel is actually removed, so a value surviving here is a
+    // real decision, not stale leftover data from a removed hotel.
     const prevMeals = prev ? reconcileMealsWithPlanText(prev.meals, prev.hotelMealPlan) : [];
     if (prevMeals.some((m) => m.toLowerCase().includes("breakfast"))) chosen.add("Breakfast");
     const dayMeals = reconcileMealsWithPlanText(day.meals, day.hotelMealPlan);
@@ -2361,6 +2369,7 @@ function StayColumnPicker({
             accommodationMaxAdults: mapped.accommodationMaxAdults,
             accommodationMaxChildren: mapped.accommodationMaxChildren,
             accommodationExtraBedCapacity: mapped.accommodationExtraBedCapacity,
+            accommodationExtraBedRate: mapped.accommodationExtraBedRate,
             roomPricingId: mapped.roomPricingId,
             roomsCount: mapped.roomsCount,
             hotelCheckIn: mapped.hotelCheckIn,
@@ -2667,9 +2676,9 @@ function DayCardPreview({
   const activities = day.activities
     .map((a, originalIndex) => ({ a, originalIndex }))
     .filter(({ a }) => a.title.trim() || !!builder?.canEdit);
-  // A meal plan alone isn't a hotel — costing can now set meals for a
-  // day with no hotel booked (see ExtrasDrawers' MealsView), and that
-  // shouldn't conjure a blank Stay card into existence.
+  // A meal plan alone isn't a hotel — costing can now set meals for a day
+  // with no hotel booked (see ExtrasDrawers' MealsView), and that shouldn't
+  // conjure a blank Stay card into existence.
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut;
   // Check-in lands on this day's own date; check-out is the following
   // morning — same "shifted" convention the meal algorithm uses, since a
@@ -3873,6 +3882,12 @@ export function ItineraryDocument({
   // The heads the headline is divided by, which is not everyone travelling:
   // a four-year-old is not paying a fifth of the trip. See payingPaxOf.
   const payingPax = payingPaxOf(form);
+  // The party the ROOMS were built for. A 14-year-old on a package whose child
+  // band ends at 12 needs an adult bed, and the day cards' "2 Rooms | 3 Adults"
+  // line has to say the same thing the price was computed from — it reads as a
+  // bug when the document counts the party one way and the total another.
+  // See traveller-ages.ts / pricingPartyOf.
+  const pricedParty = pricingPartyOf(form);
   // Both figures describe the SAME standard. Left as the package's own while
   // the headline followed the recommended one, the card read "INR 15,750" next
   // to "~INR 5,513 per person" — two different standards, side by side, with
@@ -4135,8 +4150,8 @@ export function ItineraryDocument({
                     key={d.day}
                     day={d}
                     allDays={form.itineraries}
-                    adults={form.adults}
-                    childCount={form.children}
+                    adults={pricedParty.adults}
+                    childCount={pricedParty.children}
                     travelDate={form.travelDate}
                     onImageChange={onImageChange}
                     onActivityCaptionChange={onActivityCaptionChange}
@@ -4217,8 +4232,8 @@ export function ItineraryDocument({
                 itineraries={form.itineraries}
                 travelDate={form.travelDate}
                 stops={form.stops}
-                adults={form.adults}
-                childCount={form.children}
+                adults={pricedParty.adults}
+                childCount={pricedParty.children}
               />
             </div>
 

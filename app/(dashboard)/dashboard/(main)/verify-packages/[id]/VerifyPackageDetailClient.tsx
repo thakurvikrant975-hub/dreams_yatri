@@ -23,7 +23,10 @@ import type { RejectionReason } from "../../(marketing)/queries/actions";
 import { applyDiscount } from "@/app/(dashboard)/dashboard/(builder)/package-builder/discount";
 import { StayOptionsComparison } from "@/app/(dashboard)/dashboard/(builder)/package-builder/StayOptionsComparison";
 import { useOptionalBuilder } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/builder-context";
-import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import {
+    payingPaxOf, travellersLine as travellersLineOf, ageBandsLine, bandsOf, bandMismatchLines,
+} from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
+import { hotelGapLabel } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-diagnostics";
 
 // Explicit lookup (falling back to TrainFront for anything unrecognized)
 // rather than an if/else chain — a ticket type that isn't FLIGHT/HELICOPTER
@@ -39,7 +42,7 @@ const TICKET_TYPE_ICONS: Record<string, typeof PlaneTakeoff> = {
 export type PricingSnapshot = {
     lockedAt: string;
     currency: string;
-    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: "no-room-price" | "no-mattress-rate" }[]; overridden?: boolean };
+    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: string }[]; overridden?: boolean };
     cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number; overridden?: boolean; gap?: "no-cab-rate" }[]; overridden?: boolean };
     tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
     addOns?: { subtotal: number; lines: { name: string; price: number; quantity: number; day: number | null }[] };
@@ -71,6 +74,8 @@ type PkgInfo = {
     totalDays: number; totalNights: number; travelDate: Date | null;
     adults: number; children: number; infants: number;
     childrenAges: number[]; infantAges: number[];
+    /** The age bands this package is priced by — see traveller-ages.ts. */
+    infantMaxAge: number; childMaxAge: number;
     pricePerPerson: number | null; totalPrice: number | null; currency: string;
     marginPercentage: number; gstPercentage: number;
     discountType: "FLAT" | "PERCENT" | null; discountValue: number | null; discountNote: string | null;
@@ -379,11 +384,15 @@ export function VerifyPackageDetailClient({
         });
     }
 
-    const travellersLine = [
-        `${pkg.adults} Adult${pkg.adults !== 1 ? "s" : ""}`,
-        pkg.children > 0 ? `${pkg.children} Child${pkg.children !== 1 ? "ren" : ""}${pkg.childrenAges.length > 0 ? ` (age ${pkg.childrenAges.join(", ")})` : ""}` : null,
-        pkg.infants > 0 ? `${pkg.infants} Infant${pkg.infants !== 1 ? "s" : ""}${pkg.infantAges.length > 0 ? ` (age ${pkg.infantAges.join(", ")})` : ""}` : null,
-    ].filter(Boolean).join(", ");
+    // The shared line, not a fourth hand-rolled copy of it — this one printed
+    // ages as a bare list against the count, so an unanswered age showed as
+    // "-1". See traveller-ages.ts.
+    const travellersLine = travellersLineOf(pkg);
+    // Ages are read against the package's OWN bands, which the exec may have
+    // moved off the industry 2/12 for the properties on this trip. Shown here
+    // because it is what decides who needed a bed in the rooms below.
+    const bandsLine = ageBandsLine(bandsOf(pkg));
+    const bandMismatches = bandMismatchLines(pkg);
     const nHotels = s ? new Set(s.hotel.lines.map((l) => l.hotelName)).size : 0;
     const nCabVehicles = s ? new Set(s.cab.lines.map((l) => l.vehicleName)).size : 0;
     const addonLines = addOns; // live rows — always the current source of truth
@@ -619,12 +628,11 @@ export function VerifyPackageDetailClient({
                                                         {/* These days used to be omitted from the breakdown entirely, so
                                                             the subtotal was quietly short and there was nothing on screen
                                                             to review. They now show, at ₹0, saying what is missing. */}
-                                                        {l.gap && (
+                                                        {hotelGapLabel(l.gap) && (
                                                             <p className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
                                                                 <AlertCircle className="size-3 shrink-0" />
-                                                                {l.gap === "no-room-price"
-                                                                    ? "No room rate set — this day is priced at ₹0"
-                                                                    : `${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} with no rate — charging ₹0 for them`}
+                                                                {hotelGapLabel(l.gap)}
+                                                                {l.gap === "no-room-price" && " — this day is priced at ₹0"}
                                                             </p>
                                                         )}
                                                     </div>
@@ -853,7 +861,18 @@ export function VerifyPackageDetailClient({
                                 )}
                                 <InfoItem icon={MapPin} label="Destination" value={`${pkg.destination}${pkg.startingPoint ? ` (from ${pkg.startingPoint})` : ""}`} />
                                 <InfoItem icon={CalendarDays} label="Travel Date" value={fmtDate(pkg.travelDate)} />
-                                <InfoItem icon={Users} label="Travellers" value={`${travellersLine} · ${pkg.totalDays}D/${pkg.totalNights}N`} />
+                                <InfoItem
+                                    icon={Users} label="Travellers"
+                                    value={
+                                        <span className="block">
+                                            {travellersLine} · {pkg.totalDays}D/{pkg.totalNights}N
+                                            <span className="block text-[11px] text-dashboard-base-content/55">{bandsLine}</span>
+                                            {bandMismatches.map((line) => (
+                                                <span key={line} className="block text-[11px] text-amber-700">{line}</span>
+                                            ))}
+                                        </span>
+                                    }
+                                />
                                 {query.message && (
                                     <div className="mt-1 rounded-lg bg-dashboard-base-200 border border-dashboard-base-300 px-3 py-2">
                                         <p className="text-xs text-dashboard-base-content/60 italic">&quot;{query.message}&quot;</p>

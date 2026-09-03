@@ -216,7 +216,7 @@ margin     = round((hotel + cab + addons) × marginPercentage / 100)
 taxable    = baseCost + margin
 gst        = round(taxable × gstPercentage / 100)
 finalPrice = taxable + gst
-pricePerPerson = round(finalPrice / (adults + children))    // infants excluded
+pricePerPerson = round(finalPrice / payingPax)              // infant band excluded
 ```
 
 `computeBuilderHotelPricing` resolves each day from the catalog rate (season → weekend →
@@ -224,6 +224,56 @@ occupancy tier), or from `manualHotelPricePerNight` when the day has no `roomPri
 applies `hotelPriceOverride` when costing set one. Room counts come from `roomsCount` when
 given, otherwise from occupancy maths in `app/lib/room-capacity.ts`; `extraRooms` are priced
 flat by quantity.
+
+### Traveller age bands
+
+Who is an infant, a child or an adult is **per package**
+(`custom_packages.infantMaxAge` / `childMaxAge`, default 2 and 12, both inclusive), because
+hotels don't agree: plenty treat under-5s as infants and start the child rate above that.
+The exec sets them in Trip Setup. Everything downstream reads the band a traveller's **age**
+falls in, never the box they were typed into:
+
+| Question | Answered by |
+|---|---|
+| how many adult beds does this party need? | `pricingPartyOf` → room/mattress maths |
+| how many heads is the total divided by? | `payingPaxOf` — the infant band pays no share |
+| what does the document's "2 Rooms \| 3 Adults" line say? | `pricingPartyOf`, so it matches the price |
+
+[`traveller-ages.ts`](<../../app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages.ts>)
+is the single authority; `computeBuilderHotelPricing` classifies internally rather than
+trusting its five callers to, so the builder preview, both costing screens and the send path
+cannot price the same party into different rooms. A traveller whose age lands outside their
+box's band (a 14-year-old under Children on a 12-cap package) is **priced by the band and
+reported**, never silently moved — the itinerary still reads "2 Children", so the difference
+is named in Trip Setup and on both costing screens.
+
+### Mattresses
+
+A day's mattress count is `manualExtraBeds` when the exec gave one, otherwise derived from
+the room split (`planRoomOccupancy`). Three things make a count meaningless, all of them
+hotel-team data the exec can neither see nor edit, and all previously indistinguishable from
+success:
+
+| Gap | Cause |
+|---|---|
+| `mattresses-not-enabled` | the room's `extra_bed_capacity` is 0 — nothing to book |
+| `mattresses-over-capacity` | more mattresses than `extra_bed_capacity × rooms` |
+| `no-mattress-rate` | the rate row has no `extra_bed_rate`, so they're added at ₹0 |
+
+[`stay-diagnostics.ts`](<../../app/(dashboard)/dashboard/(builder)/package-builder/stay-diagnostics.ts>)
+names each one at the mattress field (and badges affected rooms in the search results, before
+the choice is made); `computeBuilderHotelPricing` emits the same codes as line gaps so
+costing's breakdown says the same thing. `accommodationExtraBedRate` is snapshotted onto the
+day purely so the builder can see the third case — pricing still resolves the live rate, or
+the exec's `manualExtraBedRate` override, which the catalog tab can now set.
+
+**One stay, one setup.** A hotel applied across nights carries its `roomsCount`,
+`manualExtraBeds` and `manualExtraBedRate` to every night of the run (`StaySpec` in
+`day-mutations.ts`). Without that each night derived its own count off its own `roomsCount`,
+so one party in one hotel came out as 2 mattresses on Monday and 1 on Tuesday — a booking no
+hotel can honour, and the most common reason costing rejected a package.
+`inconsistentStayNights` detects a run that has already drifted and the drawer offers to
+align it in one click.
 
 ### Pricing gaps
 
