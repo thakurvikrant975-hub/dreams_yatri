@@ -26,6 +26,12 @@ export type TodaysAssignments = {
     handedOutToday: number;
     /** How many of those were leads that came in before today. */
     carriedOver: number;
+    /** Still with nobody, from yesterday's intake. Leads keep arriving after
+     * the office closes, and the day rolls over at IST midnight — so at 9am
+     * the real backlog is last night's, not this morning's. */
+    unassignedYesterday: number;
+    /** Still with nobody, from any day before yesterday. */
+    unassignedOlder: number;
 };
 
 export function summariseTodaysAssignments(
@@ -37,6 +43,7 @@ export function summariseTodaysAssignments(
     // not quietly shift which leads are counted, and the lead report already
     // draws the day's boundary at IST midnight.
     const today = istDayKey(now);
+    const yesterday = istDayKey(new Date(now.getTime() - 24 * 60 * 60 * 1000));
     const onToday = (d: Date | string | null) => !!d && istDayKey(d) === today;
 
     /*
@@ -67,8 +74,26 @@ export function summariseTodaysAssignments(
         else byOwner.set(key, { key, name: q.assignedToName?.trim() || "Unnamed", count: 1 });
     }
 
+    /*
+     * The backlog, which today's tiles cannot show.
+     *
+     * Leads arrive all evening and the day turns over at IST midnight, so a
+     * lead that came in at 11pm is "yesterday" by the time anyone opens this
+     * panel — and until now it appeared nowhere: not in today's unassigned
+     * count, not in today's handovers. Whoever was checking that nothing had
+     * been missed was reading a number that could not contain it.
+     */
+    const stillUnassigned = queries.filter((q) => !q.assignedTo);
+    const unassignedYesterday = stillUnassigned.filter((q) => istDayKey(q.createdAt) === yesterday).length;
+    const unassignedOlder = stillUnassigned.filter((q) => {
+        const day = istDayKey(q.createdAt);
+        return day !== yesterday && day !== today;
+    }).length;
+
     return {
         rows: [...byOwner.values()].sort((a, b) => b.count - a.count),
+        unassignedYesterday,
+        unassignedOlder,
         totalReceivedToday: receivedToday.length,
         receivedAssigned,
         receivedUnassigned,

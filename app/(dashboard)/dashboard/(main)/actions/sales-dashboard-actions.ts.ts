@@ -4,6 +4,7 @@
 
 import { db } from "@/app/lib/db";
 import { $Enums } from "@/app/generated/prisma";
+import { istDayBounds, istMonthBounds, istWeekStart } from "@/app/lib/ist-window";
 
 export interface SalesDashboardData {
   assignedTotal: number;
@@ -34,20 +35,16 @@ export interface SalesDashboardData {
 export async function getSalesDashboardData(
   memberId: string
 ): Promise<SalesDashboardData> { 
+  /*
+   * IST, not the server's clock. setHours() on Vercel means UTC midnight —
+   * half past five in the morning here — so every lead that arrived between
+   * midnight and 5:30am counted as yesterday's, and an exec who came in to a
+   * night's worth of landing-page leads saw a "today" that excluded them.
+   */
   const now = new Date();
-
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-
-  const todayEnd = new Date(now);
-  todayEnd.setHours(23, 59, 59, 999);
-
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - now.getDay() + 1);
-  weekStart.setHours(0, 0, 0, 0);
-
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const { start: todayStart, end: todayEnd } = istDayBounds(now);
+  const weekStart = istWeekStart(now);
+  const { start: monthStart, end: monthEnd } = istMonthBounds(now);
 
   const openStatuses: $Enums.QueryStatus[] = [
     $Enums.QueryStatus.SUBMITTED,
@@ -64,12 +61,16 @@ export async function getSalesDashboardData(
     todayFollowUps,
   ] = await Promise.all([
     db.package_queries.count({
-      where: { assignedTo: memberId },
+      where: { assignedTo: memberId, deletedAt: null },
     }),
 
     db.package_queries.count({
       where: {
         assignedTo: memberId,
+        deletedAt: null,
+        // Keyed on when the exec was handed it, not when it came in — a lead
+        // that arrived last week and reached them on Monday is this week's
+        // work.
         assignedAt: { gte: weekStart },
       },
     }),
@@ -77,6 +78,7 @@ export async function getSalesDashboardData(
     db.package_queries.count({
       where: {
         assignedTo: memberId,
+        deletedAt: null,
         nextFollowUpAt: { gte: todayStart, lte: todayEnd },
       },
     }),
@@ -84,6 +86,7 @@ export async function getSalesDashboardData(
     db.package_queries.count({
       where: {
         assignedTo: memberId,
+        deletedAt: null,
         nextFollowUpAt: { lt: todayStart },
         status: { in: openStatuses },
       },
@@ -92,6 +95,7 @@ export async function getSalesDashboardData(
 db.package_queries.count({
   where: {
     assignedTo: memberId,
+    deletedAt: null,
     status: {
       in: ["PAYMENT_INITIATED", "CONVERTED"],
     },
@@ -103,7 +107,7 @@ db.package_queries.count({
 }),
 
     db.package_queries.findMany({
-      where: { assignedTo: memberId },
+      where: { assignedTo: memberId, deletedAt: null },
       orderBy: { assignedAt: "desc" },
       take: 5,
       select: {
@@ -120,6 +124,7 @@ db.package_queries.count({
     db.package_queries.findMany({
       where: {
         assignedTo: memberId,
+        deletedAt: null,
         nextFollowUpAt: { gte: todayStart, lte: todayEnd },
       },
       orderBy: { nextFollowUpAt: "asc" },

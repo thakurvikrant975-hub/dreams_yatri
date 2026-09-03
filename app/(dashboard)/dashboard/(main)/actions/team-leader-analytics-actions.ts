@@ -45,8 +45,10 @@ const DEST_PALETTE = FALLBACK_PALETTE;
 function fmtDay(d: Date): string {
   return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(d);
 }
+/** The IST day an instant falls on. toISOString() gave the UTC day, so every
+ * lead between IST midnight and 5:30am landed in the previous bucket. */
 function dayKey(d: Date): string {
-  return d.toISOString().split("T")[0];
+  return istDayKey(d);
 }
 function titleCase(s: string): string {
   return s.trim().toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -64,6 +66,8 @@ function resolveChannel(source: string, utmSource: string | null): string {
   }
   return SOURCE_LABELS[source] ?? titleCase(source.replace(/_/g, " "));
 }
+import { istDayBounds } from "@/app/lib/ist-window";
+import { istDayKey } from "../lead-report/ist";
 
 export type TeamLeadRow = {
   id: string;
@@ -107,7 +111,7 @@ export type TeamLeaderAnalyticsData = {
 function toTeamLeadRow(q: {
   id: string; name: string; phone: string; destination: string | null;
   source: string; utmSource: string | null; status: string;
-  assignedTo: string | null; assignedToName: string | null; createdAt: Date;
+  assignedTo: string | null; assignedToName: string | null; createdAt: Date; assignedAt: Date | null;
 }): TeamLeadRow {
   return {
     id: q.id,
@@ -138,27 +142,33 @@ export async function getTeamLeaderAnalytics(fromStr: string, toStr: string): Pr
 
   const teamMemberIds = team.members.map((m) => m.id);
 
-  const from = new Date(`${fromStr}T00:00:00`);
-  const to = new Date(`${toStr}T23:59:59.999`);
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  // The picker's dates are IST wall-clock dates and the server runs in UTC,
+  // so both ends need the offset or the window silently slides by 5½ hours.
+  const from = new Date(`${fromStr}T00:00:00+05:30`);
+  const to = new Date(`${toStr}T23:59:59.999+05:30`);
+  const { start: todayStart, end: todayEnd } = istDayBounds();
 
   const selectFields = {
     id: true, name: true, phone: true, destination: true,
     source: true, utmSource: true, status: true,
-    assignedTo: true, assignedToName: true, createdAt: true,
+    assignedTo: true, assignedToName: true, createdAt: true, assignedAt: true,
   } as const;
 
   const [rangeLeads, todaysLeadsRaw] = await Promise.all([
+    /*
+     * A team's leads are the ones handed to it, so the window is assignedAt
+     * — the same call sales-query's own date filter already makes. Keyed on
+     * createdAt, a landing-page lead that arrived at 11pm and reached an exec
+     * the next morning fell outside both windows, and execs were reporting
+     * leads they had been given that their numbers did not show.
+     */
     db.package_queries.findMany({
-      where: { deletedAt: null, assignedTo: { in: teamMemberIds }, createdAt: { gte: from, lte: to } },
+      where: { deletedAt: null, assignedTo: { in: teamMemberIds }, assignedAt: { gte: from, lte: to } },
       select: selectFields,
-      orderBy: { createdAt: "desc" },
+      orderBy: { assignedAt: "desc" },
     }),
     db.package_queries.findMany({
-      where: { deletedAt: null, assignedTo: { in: teamMemberIds }, createdAt: { gte: todayStart, lte: todayEnd } },
+      where: { deletedAt: null, assignedTo: { in: teamMemberIds }, assignedAt: { gte: todayStart, lte: todayEnd } },
       select: selectFields,
     }),
   ]);
@@ -209,21 +219,25 @@ export async function getTeamLeaderAnalytics(fromStr: string, toStr: string): Pr
     })
     .sort((a, b) => b.totalLeads - a.totalLeads);
 
+  /*
+   * Bucketed by the day the lead was handed over, matching the window above.
+   * Grouped by createdAt while the window selected on assignedAt, a lead
+   * could land in no bucket the axis draws — it was counted in the totals and
+   * missing from the chart.
+   */
   const dayBuckets = new Map<string, number>();
   for (const q of rangeLeads) {
-    const key = dayKey(q.createdAt);
-    dayBuckets.set(key, (dayBuckets.get(key) ?? 0) + 1);
+    const at = q.assignedAt ?? q.createdAt;
+    dayBuckets.set(dayKey(at), (dayBuckets.get(dayKey(at)) ?? 0) + 1);
   }
   const dailyTrend: TeamLeaderAnalyticsData["dailyTrend"] = [];
-  const cursor = new Date(from);
-  cursor.setHours(0, 0, 0, 0);
-  const end = new Date(to);
-  end.setHours(0, 0, 0, 0);
+  // `from` is already IST midnight; IST has no DST, so a flat 24 hours walks
+  // the calendar correctly.
+  let cursor = new Date(from);
   let guard = 0;
-  while (cursor <= end && guard < MAX_DAYS) {
-    const key = dayKey(cursor);
-    dailyTrend.push({ date: fmtDay(cursor), leads: dayBuckets.get(key) ?? 0 });
-    cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= to && guard < MAX_DAYS) {
+    dailyTrend.push({ date: fmtDay(cursor), leads: dayBuckets.get(dayKey(cursor)) ?? 0 });
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
     guard += 1;
   }
 

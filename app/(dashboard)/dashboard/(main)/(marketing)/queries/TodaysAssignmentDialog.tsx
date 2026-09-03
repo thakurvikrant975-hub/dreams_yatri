@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarCheck2, UserCheck, Inbox, UserX } from "lucide-react";
+import { CalendarCheck2, UserCheck, Inbox, UserX, AlertTriangle } from "lucide-react";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
 } from "../../components/ui/dialog";
@@ -17,8 +17,9 @@ export function TodaysAssignmentDialog({ queries }: { queries: PackageQuery[] })
     // same-day snapshot like this.
     const {
         rows, totalReceivedToday, receivedAssigned, receivedUnassigned,
-        handedOutToday, carriedOver,
+        handedOutToday, carriedOver, unassignedYesterday, unassignedOlder,
     } = useMemo(() => summariseTodaysAssignments(queries), [queries]);
+    const backlog = unassignedYesterday + unassignedOlder;
     const maxCount = Math.max(1, ...rows.map((r) => r.count));
 
     const tiles = [
@@ -66,6 +67,28 @@ export function TodaysAssignmentDialog({ queries }: { queries: PackageQuery[] })
                             ))}
                         </div>
                     </div>
+
+                    {/* The backlog today's tiles cannot show. Leads arrive all
+                        evening and the day turns at IST midnight, so last
+                        night's unassigned leads belong to "yesterday" by the
+                        time anyone opens this — and appeared in no figure at
+                        all, which is exactly where leads went missing. */}
+                    {backlog > 0 && (
+                        <div className="flex items-start gap-2.5 rounded-lg border border-dashboard-warning/40 bg-dashboard-warning/5 px-3 py-2.5">
+                            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-dashboard-warning" />
+                            <div className="min-w-0">
+                                <p className="text-xs font-medium text-dashboard-base-content">
+                                    {backlog} earlier lead{backlog === 1 ? "" : "s"} still unassigned
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-dashboard-base-content/50">
+                                    {unassignedYesterday > 0 && `${unassignedYesterday} from yesterday`}
+                                    {unassignedYesterday > 0 && unassignedOlder > 0 && ", "}
+                                    {unassignedOlder > 0 && `${unassignedOlder} from before that`}
+                                    {" — not counted in today's figures above."}
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Per-exec breakdown of what was handed out today */}
                     <div>

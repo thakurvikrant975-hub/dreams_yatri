@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/app/lib/db";
 import { autoAssignLead } from "@/app/lib/queries/auto-assign";
+import { phoneKey, normalizePhone, PHONE_KEY_SQL } from "@/app/lib/phone";
 import type { QuerySource } from "@/app/generated/prisma";
 
 /**
@@ -53,11 +54,10 @@ export type IntakeResult =
   | { ok: false; reason: "RATE_LIMITED" | "DUPLICATE"; message: string }
   | { ok: false; reason: "FAILED"; message: string };
 
-/** `LeadProfile.phone` is unique, so the same human must normalise to the same
- * key however they typed it. Matches the rule the website already used. */
-export function normalizePhone(phone: string): string {
-  return phone.replace(/[\s\-().+]/g, "");
-}
+/** Re-exported so the callers that already import it from here keep working;
+ * the rule itself now lives in app/lib/phone.ts alongside the comparison key
+ * that duplicate checks need. */
+export { normalizePhone };
 
 export async function createLead(input: IntakeInput): Promise<IntakeResult> {
   const {
@@ -84,12 +84,22 @@ export async function createLead(input: IntakeInput): Promise<IntakeResult> {
     if (seen) return { ok: true, id: seen.id, duplicate: true };
   }
 
-  // ── Rate limiting: same phone within 15 minutes ────────────────────────
-  const recentByPhone = await db.package_queries.findFirst({
-    where: { phone, createdAt: { gte: new Date(Date.now() - RATE_LIMIT_WINDOW_MS) } },
-    select: { id: true },
-  });
-  if (recentByPhone) {
+  /*
+   * Rate limiting: same phone within 15 minutes.
+   *
+   * Matched on the number's identity rather than the string. "+919876543210"
+   * and "9876543210" are one person, and comparing the raw column let the
+   * same customer through twice — landing pages send the country code, the
+   * older web forms do not, so the two paths never recognised each other.
+   */
+  const key = phoneKey(phone);
+  const recentByPhone = await db.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM package_queries
+      WHERE ${PHONE_KEY_SQL} = $1 AND "createdAt" >= $2 AND "deletedAt" IS NULL
+      LIMIT 1;`,
+    key, new Date(Date.now() - RATE_LIMIT_WINDOW_MS),
+  );
+  if (recentByPhone.length > 0) {
     return {
       ok: false,
       reason: "RATE_LIMITED",
@@ -99,15 +109,14 @@ export async function createLead(input: IntakeInput): Promise<IntakeResult> {
 
   // ── Duplicate guard: same phone + same package within 24 hours ─────────
   if (packageName) {
-    const duplicate = await db.package_queries.findFirst({
-      where: {
-        phone,
-        packageName,
-        createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
-      },
-      select: { id: true },
-    });
-    if (duplicate) {
+    const duplicate = await db.$queryRawUnsafe<{ id: string }[]>(
+      `SELECT id FROM package_queries
+        WHERE ${PHONE_KEY_SQL} = $1 AND "packageName" = $2
+          AND "createdAt" >= $3 AND "deletedAt" IS NULL
+        LIMIT 1;`,
+      key, packageName, new Date(Date.now() - DUPLICATE_WINDOW_MS),
+    );
+    if (duplicate.length > 0) {
       return {
         ok: false,
         reason: "DUPLICATE",
@@ -117,16 +126,28 @@ export async function createLead(input: IntakeInput): Promise<IntakeResult> {
   }
 
   try {
-    const profile = await db.leadProfile.upsert({
-      where: { phone: normalizePhone(phone) },
-      update: {
-        name,
-        ...(email ? { email } : {}),
-        lastSeenAt: new Date(),
-        totalQueries: { increment: 1 },
-      },
-      create: { phone: normalizePhone(phone), name, email: email || null },
-    });
+    /*
+     * One human, one profile. Looked up by the number's key rather than the
+     * exact stored string: LeadProfile.phone is unique, so the two spellings
+     * of one number used to create two profiles, and every "how many times
+     * has this person enquired" count was split between them.
+     */
+    const existing = await db.$queryRawUnsafe<{ id: string }[]>(
+      `SELECT id FROM lead_profiles WHERE ${PHONE_KEY_SQL} = $1 LIMIT 1;`, key,
+    );
+    const profile = existing.length > 0
+      ? await db.leadProfile.update({
+          where: { id: existing[0].id },
+          data: {
+            name,
+            ...(email ? { email } : {}),
+            lastSeenAt: new Date(),
+            totalQueries: { increment: 1 },
+          },
+        })
+      : await db.leadProfile.create({
+          data: { phone: normalizePhone(phone), name, email: email || null },
+        });
 
     /*
      * Nested under `leadMeta`, never spread across the top level.

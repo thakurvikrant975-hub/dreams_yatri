@@ -2,6 +2,7 @@
 
 import { useRef, useTransition } from "react";
 import { formatDistanceToNow, format } from "date-fns";
+import { istDateTime } from "../../lead-report/ist";
 import {
     Phone, Mail, MapPin, Users, Calendar,
     CalendarClock, XCircle,
@@ -168,7 +169,13 @@ export function SalesQueryDetailSheet({
                                 <QuerySourceBadge source={query.source as any} />
                                 <span className="text-muted-foreground">·</span>
                                 <span className="text-xs text-muted-foreground">
-                                    {formatDistanceToNow(new Date(query.createdAt), { addSuffix: true })}
+                                    {/* When the lead actually reached us, to the
+                                        minute — an exec picking up a landing-page
+                                        lead needs to know if it came in ten
+                                        minutes ago or at 11pm last night. */}
+                                    <span title={formatDistanceToNow(new Date(query.createdAt), { addSuffix: true })}>
+                                        {istDateTime(query.createdAt)}
+                                    </span>
                                 </span>
                             </SheetDescription>
                         </div>

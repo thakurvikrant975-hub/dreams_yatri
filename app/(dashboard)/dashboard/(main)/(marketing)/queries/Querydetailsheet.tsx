@@ -2,6 +2,7 @@
 
 import { useTransition, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
+import { istDateTime } from "../../lead-report/ist";
 import {
     Phone, Mail, MapPin, Users, Calendar,
     CheckCircle2, XCircle, StickyNote,
@@ -122,7 +123,12 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 <QuerySourceBadge source={query.source} />
                                 <span className="text-muted-foreground">·</span>
                                 <span className="text-xs text-muted-foreground">
-                                    {formatDistanceToNow(new Date(query.createdAt), { addSuffix: true })}
+                                    {/* Exact, not "2 hours ago": staff match this
+                                        against a call log or a WhatsApp thread,
+                                        and a relative label cannot be checked. */}
+                                    <span title={formatDistanceToNow(new Date(query.createdAt), { addSuffix: true })}>
+                                        {istDateTime(query.createdAt)}
+                                    </span>
                                 </span>
                             </SheetDescription>
                         </div>
@@ -232,7 +238,9 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                     </p>
                                     {query.assignedAt && (
                                         <p className="text-[10px] text-muted-foreground mt-0.5">
-                                            {formatDistanceToNow(new Date(query.assignedAt), { addSuffix: true })}
+                                            <span title={formatDistanceToNow(new Date(query.assignedAt), { addSuffix: true })}>
+                                                {istDateTime(query.assignedAt)}
+                                            </span>
                                         </p>
                                     )}
                                 </div>
@@ -302,7 +310,9 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                     <p className="text-sm font-medium">{query.callAttempts} Attempt(s)</p>
                                     {query.lastAttemptAt && (
                                         <p className="text-xs text-muted-foreground mt-0.5">
-                                            Last: {formatDistanceToNow(new Date(query.lastAttemptAt), { addSuffix: true })}
+                                            Last: <span title={formatDistanceToNow(new Date(query.lastAttemptAt), { addSuffix: true })}>
+                                                {istDateTime(query.lastAttemptAt)}
+                                            </span>
                                         </p>
                                     )}
                                 </div>
