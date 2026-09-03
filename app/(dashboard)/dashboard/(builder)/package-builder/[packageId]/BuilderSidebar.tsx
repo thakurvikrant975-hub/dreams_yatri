@@ -183,13 +183,13 @@ function RailButton({ entry, fullWidth }: {
           "transition-colors duration-[120ms]",
           active
             ? "text-dashboard-primary"
-            : "text-dashboard-base-content/35 group-hover/rail:text-dashboard-base-content/55",
+            : "text-dashboard-base-content/60 group-hover/rail:text-dashboard-base-content/75",
         )}
       />
       <span
         className={cn(
           "text-[9.5px] font-medium leading-none transition-colors duration-[120ms]",
-          active ? "text-dashboard-primary" : "text-dashboard-base-content/70",
+          active ? "text-dashboard-primary" : "text-dashboard-base-content/85",
         )}
       >
         {label}
@@ -255,7 +255,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
               type="button"
               onClick={closeDrawer}
               aria-label="Back"
-              className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
+              className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/65 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/85"
             >
               <ArrowLeft size={14} />
             </button>
@@ -264,7 +264,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
             <h2 className="text-[15px] font-semibold tracking-[-0.01em] truncate">
               {heading?.title}
             </h2>
-            <p className="text-[11.5px] leading-relaxed text-dashboard-base-content/55 mt-0.5">
+            <p className="text-[11.5px] leading-relaxed text-dashboard-base-content/75 mt-0.5">
               {heading?.description}
             </p>
           </div>
@@ -273,7 +273,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
             onClick={() => { closeDrawer(); setPanelTab(null); }}
             aria-label="Collapse panel"
             title="Collapse panel"
-            className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/35 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
+            className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/60 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/85"
           >
             <PanelRightClose size={14} />
           </button>
@@ -339,7 +339,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
             onClick={() => setPanelTab("client")}
             aria-label="Expand panel"
             title="Expand panel"
-            className="mt-auto flex items-center justify-center size-8 rounded-lg text-dashboard-base-content/35 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
+            className="mt-auto flex items-center justify-center size-8 rounded-lg text-dashboard-base-content/60 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/85"
           >
             <PanelRightOpen size={15} />
           </button>
@@ -366,7 +366,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
           <header className="px-4 pt-4 pb-3 border-b border-dashboard-base-300 shrink-0 flex items-start justify-between gap-2">
             <div>
               <h2 className="text-[15px] font-semibold tracking-[-0.01em]">More</h2>
-              <p className="text-[11.5px] leading-relaxed text-dashboard-base-content/55 mt-0.5">
+              <p className="text-[11.5px] leading-relaxed text-dashboard-base-content/75 mt-0.5">
                 Every section of this package, in one list.
               </p>
             </div>
@@ -375,7 +375,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
               onClick={() => setMobileMoreOpen(false)}
               aria-label="Close menu"
               title="Close menu"
-              className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/35 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/70"
+              className="shrink-0 mt-0.5 flex items-center justify-center size-6 rounded-md text-dashboard-base-content/60 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/85"
             >
               <X size={14} />
             </button>
@@ -388,7 +388,7 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
                 onClick={() => { setPanelTab(entry.tab); setMobileMoreOpen(false); }}
                 className="flex flex-col items-center gap-1.5 rounded-xl border border-dashboard-base-300 py-3.5 hover:bg-dashboard-base-200 transition-colors cursor-pointer"
               >
-                <entry.icon size={19} className="text-dashboard-base-content/60" />
+                <entry.icon size={19} className="text-dashboard-base-content/75" />
                 <span className="text-[11px] font-medium text-dashboard-base-content/80 text-center px-1">{entry.label}</span>
               </button>
             ))}
@@ -427,13 +427,13 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
               "transition-colors duration-[120ms]",
               !open && !mobileMoreOpen
                 ? "text-dashboard-primary"
-                : "text-dashboard-base-content/35 group-hover/rail:text-dashboard-base-content/55",
+                : "text-dashboard-base-content/60 group-hover/rail:text-dashboard-base-content/75",
             )}
           />
           <span
             className={cn(
               "text-[9.5px] font-medium leading-none transition-colors duration-[120ms]",
-              !open && !mobileMoreOpen ? "text-dashboard-primary" : "text-dashboard-base-content/70",
+              !open && !mobileMoreOpen ? "text-dashboard-primary" : "text-dashboard-base-content/85",
             )}
           >
             Package
@@ -464,13 +464,13 @@ export function BuilderSidebar({ clientPanel, tripPanel, costingPanel, pricingPa
               "transition-colors duration-[120ms]",
               mobileMoreOpen
                 ? "text-dashboard-primary"
-                : "text-dashboard-base-content/35 group-hover/rail:text-dashboard-base-content/55",
+                : "text-dashboard-base-content/60 group-hover/rail:text-dashboard-base-content/75",
             )}
           />
           <span
             className={cn(
               "text-[9.5px] font-medium leading-none transition-colors duration-[120ms]",
-              mobileMoreOpen ? "text-dashboard-primary" : "text-dashboard-base-content/70",
+              mobileMoreOpen ? "text-dashboard-primary" : "text-dashboard-base-content/85",
             )}
           >
             More

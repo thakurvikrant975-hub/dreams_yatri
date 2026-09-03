@@ -128,7 +128,7 @@ export function CostingPricingPanel({
           <Users className="size-3.5 shrink-0 mt-0.5 text-dashboard-neutral" />
           <p className="text-[11px] text-dashboard-base-content">{travellersLine(form)}</p>
         </div>
-        <p className="text-[10px] text-dashboard-base-content/55 pl-5.5">
+        <p className="text-[10px] text-dashboard-base-content/75 pl-5.5">
           {ageBandsLine(bandsOf(form))}
         </p>
         {mismatches.length > 0 && (
@@ -136,7 +136,7 @@ export function CostingPricingPanel({
             {mismatches.map((line) => (
               <p key={line} className="text-[10px] text-amber-700">{line}</p>
             ))}
-            <p className="text-[10px] text-dashboard-base-content/50">
+            <p className="text-[10px] text-dashboard-base-content/70">
               Rooms and the per-person figure below already follow the band, not the box.
             </p>
           </div>

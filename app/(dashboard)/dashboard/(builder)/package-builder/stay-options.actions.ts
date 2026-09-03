@@ -401,6 +401,14 @@ export async function getStayOptionsForDocument(packageId: string) {
       roomPricingId: isStaff ? s.roomPricingId : null,
       pending: isStaff ? s.hotelPending : false,
       extraBeds: s.manualExtraBeds,
+      // The room's occupancy caps, so the drawer can show what this option's
+      // room count falls back to when the exec has not set one — the same
+      // planRoomOccupancy answer the price is computed from. Editor-only: the
+      // client's document has no room count to explain.
+      roomCapacity: isStaff ? s.accommodationRoomCapacity : null,
+      maxAdults: isStaff ? s.accommodationMaxAdults : null,
+      maxChildren: isStaff ? s.accommodationMaxChildren : null,
+      extraBedCapacity: isStaff ? s.accommodationExtraBedCapacity : null,
       // The other room types booked at this option's hotel. Same staff rule as
       // roomPricingId above, applied per entry: the client's document renders
       // these ("+ 2× Super Deluxe"), so the label and the count have to reach

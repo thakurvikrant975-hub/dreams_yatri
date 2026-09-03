@@ -131,7 +131,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
       <Block icon={CalendarDays} title="Trip">
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Travel date</span>
+            <span className="text-[11px] text-dashboard-base-content/75">Travel date</span>
             <Input
               type="date"
               value={form.travelDate}
@@ -146,7 +146,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Pickup point</span>
+            <span className="text-[11px] text-dashboard-base-content/75">Pickup point</span>
             <Input
               value={form.startingPoint}
               onChange={field("startingPoint")}
@@ -156,18 +156,18 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
           </label>
         </div>
         <label className="space-y-1 block">
-          <span className="text-[11px] text-dashboard-base-content/60">Destination(s)</span>
+          <span className="text-[11px] text-dashboard-base-content/75">Destination(s)</span>
           <Input
             value={form.destination}
             onChange={field("destination")}
             placeholder="e.g. Manali, Kullu"
             className="h-9 text-sm"
           />
-          <span className="text-[10px] text-dashboard-base-content/45">
+          <span className="text-[10px] text-dashboard-base-content/70">
             Filled in from the route stops below as you add them.
           </span>
         </label>
-        <p className="text-[11px] text-dashboard-base-content/55">
+        <p className="text-[11px] text-dashboard-base-content/75">
           {form.totalDays} day{form.totalDays !== 1 ? "s" : ""} · {form.totalNights} night
           {form.totalNights !== 1 ? "s" : ""}
         </p>
@@ -180,7 +180,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
           dayCount={form.itineraries.length}
           onSync={syncDaysWithStops}
         />
-        <p className="text-[11px] text-dashboard-base-content/45">
+        <p className="text-[11px] text-dashboard-base-content/70">
           Each day&apos;s hotel and cab search defaults to the stop it falls under, so
           getting these right saves typing a city on every day.
         </p>
@@ -195,7 +195,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             reads it. */}
         <div className="rounded-[10px] border border-dashboard-base-300 p-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium text-dashboard-base-content/70 flex items-center gap-1">
+            <span className="text-[11px] font-medium text-dashboard-base-content/85 flex items-center gap-1">
               <Baby size={11} /> Age bands for this package
             </span>
             {(bands.infantMaxAge !== 2 || bands.childMaxAge !== 12) && (
@@ -210,7 +210,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Infant up to (yrs)</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Infant up to (yrs)</span>
               <Input
                 type="number"
                 min={BAND_LIMITS.infantMaxAge.min} max={BAND_LIMITS.infantMaxAge.max}
@@ -220,7 +220,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Child up to (yrs)</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Child up to (yrs)</span>
               <Input
                 type="number"
                 min={BAND_LIMITS.childMaxAge.min} max={BAND_LIMITS.childMaxAge.max}
@@ -230,8 +230,8 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
               />
             </label>
           </div>
-          <p className="text-[11px] text-dashboard-base-content/55">{ageBandsLine(bands)}</p>
-          <p className="text-[10px] text-dashboard-base-content/45">
+          <p className="text-[11px] text-dashboard-base-content/75">{ageBandsLine(bands)}</p>
+          <p className="text-[10px] text-dashboard-base-content/70">
             Defaults are the industry ones. Hotels don&apos;t all agree — many treat
             under-5s as infants and charge a child rate above that — so set these to
             what the stays on this trip actually use. Beds, mattresses and the
@@ -242,7 +242,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
         <div className="grid grid-cols-3 gap-3">
           {(["adults", "children", "infants"] as const).map((key) => (
             <label key={key} className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60 capitalize">{key}</span>
+              <span className="text-[11px] text-dashboard-base-content/75 capitalize">{key}</span>
               <Input
                 type="number" min={0}
                 value={form[key]}
@@ -259,7 +259,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                 }}
                 className="h-9 text-sm"
               />
-              <span className="block text-[10px] text-dashboard-base-content/40">
+              <span className="block text-[10px] text-dashboard-base-content/65">
                 {key === "adults" ? `${bands.childMaxAge + 1}+ yrs`
                   : key === "children" ? `${bands.infantMaxAge + 1}–${bands.childMaxAge} yrs`
                     : `0–${bands.infantMaxAge} yrs`}
@@ -272,7 +272,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
           <div className="space-y-2 pt-1">
             {form.children > 0 && (
               <div className="space-y-1">
-                <span className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1">
+                <span className="text-[11px] text-dashboard-base-content/75 flex items-center gap-1">
                   <Baby size={11} /> Children&apos;s ages <span className="text-red-500">*</span>
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -294,7 +294,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             )}
             {form.infants > 0 && (
               <div className="space-y-1">
-                <span className="text-[11px] text-dashboard-base-content/60">
+                <span className="text-[11px] text-dashboard-base-content/75">
                   Infants&apos; ages <span className="text-red-500">*</span>
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -334,7 +334,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
                 {mismatches.map((line) => (
                   <p key={line} className="text-[11px] text-dashboard-base-content/75">{line}</p>
                 ))}
-                <p className="text-[10px] text-dashboard-base-content/50">
+                <p className="text-[10px] text-dashboard-base-content/70">
                   Priced correctly either way — move them to the right box if the
                   itinerary should read that way too.
                 </p>
@@ -342,8 +342,8 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             )}
           </div>
         )}
-        <p className="text-[11px] text-dashboard-base-content/45">
-          Priced as <span className="font-medium text-dashboard-base-content/70">{pricedPartyLine(form)}</span> —
+        <p className="text-[11px] text-dashboard-base-content/70">
+          Priced as <span className="font-medium text-dashboard-base-content/85">{pricedPartyLine(form)}</span> —
           rooms, mattresses and every price are worked out from this.
         </p>
       </Block>
@@ -351,17 +351,17 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
       <Block icon={IndianRupee} title="Package price">
         <div className="rounded-[10px] border border-dashboard-base-300 p-3 space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[11px] text-dashboard-base-content/60">Works out to</span>
+            <span className="text-[11px] text-dashboard-base-content/75">Works out to</span>
             <span className="text-sm font-bold tabular-nums">
               ₹{computed.perPerson.toLocaleString("en-IN")}
-              <span className="text-[11px] font-normal text-dashboard-base-content/50"> / person</span>
+              <span className="text-[11px] font-normal text-dashboard-base-content/70"> / person</span>
             </span>
           </div>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[11px] text-dashboard-base-content/60">Quoting</span>
+            <span className="text-[11px] text-dashboard-base-content/75">Quoting</span>
             <span className={cn(
               "text-sm font-bold tabular-nums",
-              !form.pricePerPerson && "text-dashboard-base-content/35",
+              !form.pricePerPerson && "text-dashboard-base-content/60",
             )}>
               {form.pricePerPerson
                 ? `₹${Number(form.pricePerPerson).toLocaleString("en-IN")}`
@@ -374,7 +374,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
             </Button>
           )}
         </div>
-        <p className="text-[11px] text-dashboard-base-content/45">
+        <p className="text-[11px] text-dashboard-base-content/70">
           This is the figure the client sees and the one saved with the package —
           set it before sending, or costing review has nothing to check.
         </p>

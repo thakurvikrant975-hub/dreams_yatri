@@ -514,6 +514,12 @@ export interface PreviewData {
        * without a second read. */
       roomPricingId?: number | null;
       pending?: boolean;
+      /** The picked room's occupancy caps, editor-only — what the option's room
+       * count falls back to when nobody has set one. */
+      roomCapacity?: number | null;
+      maxAdults?: number | null;
+      maxChildren?: number | null;
+      extraBedCapacity?: number | null;
       extraBeds?: number | null;
       /** The other room types this option books at the same hotel — see
        * StayCell.extraRooms, which this mirrors. Rendered under the room name

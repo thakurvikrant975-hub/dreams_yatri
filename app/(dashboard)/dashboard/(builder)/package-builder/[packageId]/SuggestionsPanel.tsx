@@ -99,7 +99,7 @@ function SearchField({ value, onChange, placeholder, loading }: {
 }) {
   return (
     <div className="relative">
-      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/40" />
+      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/65" />
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -107,7 +107,7 @@ function SearchField({ value, onChange, placeholder, loading }: {
         className="h-9 text-sm pl-7 pr-8"
       />
       {loading && (
-        <Loader2 size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-dashboard-base-content/40" />
+        <Loader2 size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-dashboard-base-content/65" />
       )}
     </div>
   );
@@ -186,7 +186,7 @@ function SuggestionCard({ drag, onApply, applyTitle, thumbnail, fallbackIcon, ti
     >
       <GripVertical
         size={13}
-        className="shrink-0 mt-0.5 text-dashboard-base-content/20 group-hover:text-dashboard-base-content/45"
+        className="shrink-0 mt-0.5 text-dashboard-base-content/20 group-hover:text-dashboard-base-content/70"
       />
       {thumbnail ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -204,7 +204,7 @@ function SuggestionCard({ drag, onApply, applyTitle, thumbnail, fallbackIcon, ti
       <div className="flex-1 min-w-0">
         <p className="text-[12px] font-semibold text-dashboard-base-content truncate">{title}</p>
         {meta && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[10.5px] text-dashboard-base-content/50">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[10.5px] text-dashboard-base-content/70">
             {meta}
           </div>
         )}
@@ -231,8 +231,8 @@ function SuggestionsFrame({ children, scope, search, count, emptyHint }: {
     <div className="p-4 space-y-3">
       {scope}
       {search}
-      <p className="text-[10.5px] text-dashboard-base-content/45">
-        Drag onto a day, or click to apply to <span className="font-semibold text-dashboard-base-content/65">day {selectedDay}</span>.
+      <p className="text-[10.5px] text-dashboard-base-content/70">
+        Drag onto a day, or click to apply to <span className="font-semibold text-dashboard-base-content/80">day {selectedDay}</span>.
       </p>
       {count === 0 ? <Empty>{emptyHint}</Empty> : <div className="space-y-1.5">{children}</div>}
     </div>
@@ -296,7 +296,7 @@ export function HotelSuggestionsView() {
           trailing={
             <span className="text-[11px] font-semibold tabular-nums text-dashboard-base-content/75">
               {inr(r.pricePerNight)}
-              <span className="block text-[9px] font-normal text-dashboard-base-content/40">/night</span>
+              <span className="block text-[9px] font-normal text-dashboard-base-content/65">/night</span>
             </span>
           }
         />
@@ -399,7 +399,7 @@ export function CabSuggestionsView() {
           onApply={() => apply(c)}
           applyTitle={`Drag onto a day, or click to set day ${selectedDay}'s transport`}
           thumbnail={c.thumbnail}
-          fallbackIcon={<Car size={16} className="text-dashboard-base-content/30" />}
+          fallbackIcon={<Car size={16} className="text-dashboard-base-content/55" />}
           title={c.vehicleName}
           meta={
             <>
@@ -417,7 +417,7 @@ export function CabSuggestionsView() {
           trailing={
             <span className="text-[11px] font-semibold tabular-nums text-dashboard-base-content/75">
               {inr(c.price)}
-              <span className="block text-[9px] font-normal text-dashboard-base-content/40">{c.pricingType}</span>
+              <span className="block text-[9px] font-normal text-dashboard-base-content/65">{c.pricingType}</span>
             </span>
           }
         />

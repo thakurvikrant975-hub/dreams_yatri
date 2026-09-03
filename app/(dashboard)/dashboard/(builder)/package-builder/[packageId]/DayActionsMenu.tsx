@@ -59,7 +59,7 @@ const CONFIRM_WORD = "delete";
  * control in the document reads as one family. */
 const TOOLBAR_BUTTON =
   "flex items-center justify-center size-6 rounded-md transition-colors duration-[120ms] " +
-  "text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/75";
+  "text-dashboard-base-content/65 hover:bg-dashboard-base-200 hover:text-dashboard-base-content/75";
 
 /** Everything a day can gain, in the order the document renders it.
  *
@@ -289,7 +289,7 @@ export function DayActionsMenu({
           </DialogHeader>
 
           <div className="space-y-2">
-            <label htmlFor={`confirm-delete-day-${day}`} className="text-xs text-dashboard-base-content/70">
+            <label htmlFor={`confirm-delete-day-${day}`} className="text-xs text-dashboard-base-content/85">
               Type <span className="font-semibold text-dashboard-base-content">{CONFIRM_WORD}</span> to confirm.
             </label>
             <Input

@@ -76,7 +76,7 @@ function DayRow({ id, index }: { id: string; index: number }) {
         {...attributes}
         {...listeners}
         aria-label={`Reorder day ${d.day}`}
-        className="shrink-0 cursor-grab active:cursor-grabbing text-dashboard-base-content/25 hover:text-dashboard-base-content/60"
+        className="shrink-0 cursor-grab active:cursor-grabbing text-dashboard-base-content/55 hover:text-dashboard-base-content/75"
       >
         <GripVertical size={13} />
       </button>
@@ -103,7 +103,7 @@ function DayRow({ id, index }: { id: string; index: number }) {
           <ReadyDot on={ready.transport} icon={Car} title={ready.transport ? "Transport set" : "No transport yet"} />
           <ReadyDot on={ready.experiences} icon={Sparkles} title={ready.experiences ? "Experiences added" : "No experiences yet"} />
           {cost && cost.total > 0 && (
-            <span className="ml-auto text-[9.5px] tabular-nums text-dashboard-base-content/45">
+            <span className="ml-auto text-[9.5px] tabular-nums text-dashboard-base-content/70">
               ₹{cost.total.toLocaleString("en-IN")}
             </span>
           )}
@@ -156,7 +156,7 @@ export function DayLayersRail() {
           onClick={() => setOpen(true)}
           title="Show days"
           aria-label="Show days"
-          className="flex items-center justify-center size-7 rounded-md text-dashboard-base-content/50 hover:bg-dashboard-base-200"
+          className="flex items-center justify-center size-7 rounded-md text-dashboard-base-content/70 hover:bg-dashboard-base-200"
         >
           <PanelLeftOpen size={14} />
         </button>
@@ -167,7 +167,7 @@ export function DayLayersRail() {
   return (
     <aside className="no-print shrink-0 w-52 border-r border-dashboard-base-300 bg-dashboard-base-100 flex flex-col">
       <div className="flex items-center justify-between gap-1 px-2.5 py-2 border-b border-dashboard-base-300">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/70">
           Days
         </span>
         <button
@@ -175,7 +175,7 @@ export function DayLayersRail() {
           onClick={() => setOpen(false)}
           title="Hide days"
           aria-label="Hide days"
-          className="flex items-center justify-center size-6 rounded-md text-dashboard-base-content/40 hover:bg-dashboard-base-200"
+          className="flex items-center justify-center size-6 rounded-md text-dashboard-base-content/65 hover:bg-dashboard-base-200"
         >
           <PanelLeftClose size={13} />
         </button>
@@ -196,7 +196,7 @@ export function DayLayersRail() {
             addDayAfter(form.itineraries.length);
             setSelectedDay(form.itineraries.length + 1);
           }}
-          className="w-full flex items-center justify-center gap-1 rounded-md border border-dashed border-dashboard-base-300 py-1.5 text-[11px] font-medium text-dashboard-base-content/60 hover:bg-dashboard-base-200/60"
+          className="w-full flex items-center justify-center gap-1 rounded-md border border-dashed border-dashboard-base-300 py-1.5 text-[11px] font-medium text-dashboard-base-content/75 hover:bg-dashboard-base-200/60"
         >
           <Plus size={11} /> Add day {form.itineraries.length + 1}
         </button>

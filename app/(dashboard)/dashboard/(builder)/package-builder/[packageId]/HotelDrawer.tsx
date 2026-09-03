@@ -114,7 +114,7 @@ const MEAL_CHIP_ACTIVE_STYLES: Record<string, string> = {
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2">
-      <span className="w-12 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/45">
+      <span className="w-12 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/70">
         {label}
       </span>
       <div className="flex flex-1 flex-wrap items-center gap-1.5">{children}</div>
@@ -303,7 +303,7 @@ export function HotelReplaceView({ day }: { day: number }) {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1 px-2.5 text-[11px] font-medium text-dashboard-base-content/70 bg-dashboard-base-200/60 border-r border-dashboard-base-300 hover:bg-dashboard-base-200 shrink-0"
+              className="flex items-center gap-1 px-2.5 text-[11px] font-medium text-dashboard-base-content/85 bg-dashboard-base-200/60 border-r border-dashboard-base-300 hover:bg-dashboard-base-200 shrink-0"
             >
               {mode === "location" ? <MapPin size={12} /> : <Hotel size={12} />}
               {mode === "location" ? "Location" : "Hotel name"}
@@ -321,7 +321,7 @@ export function HotelReplaceView({ day }: { day: number }) {
         </DropdownMenu>
 
         <div className="relative flex-1 min-w-0">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/40" />
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/65" />
           <input
             value={mode === "location" ? city : query}
             onChange={(e) => (mode === "location" ? setCity(e.target.value) : setQuery(e.target.value))}
@@ -331,7 +331,7 @@ export function HotelReplaceView({ day }: { day: number }) {
         </div>
       </div>
       {mode === "name" && city && (
-        <p className="text-[11px] text-dashboard-base-content/45 -mt-2">
+        <p className="text-[11px] text-dashboard-base-content/70 -mt-2">
           Searching everywhere by name. Results still show distance from {city}.
         </p>
       )}
@@ -342,7 +342,7 @@ export function HotelReplaceView({ day }: { day: number }) {
           instead of always taking up space; the badge shows how many are
           active even while collapsed. */}
       <div className="flex items-center gap-2">
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50 shrink-0">Sort</label>
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/70 shrink-0">Sort</label>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as HotelSortOption)}
@@ -358,7 +358,7 @@ export function HotelReplaceView({ day }: { day: number }) {
             "flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] cursor-pointer font-medium transition-colors",
             filtersOpen || activeFilterCount > 0
               ? "border-dashboard-primary/40 bg-dashboard-primary/10 text-dashboard-primary"
-              : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+              : "border-dashboard-base-300 text-dashboard-base-content/75 hover:bg-dashboard-base-200/60",
           )}
         >
           <Sliders size={11} />
@@ -455,7 +455,7 @@ export function HotelReplaceView({ day }: { day: number }) {
                 "flex items-center gap-1 rounded-[7px] border px-2 py-1 text-[11px] font-medium cursor-pointer transition-colors duration-[120ms]",
                 noMealsOnly
                   ? "border-slate-500 bg-slate-500 text-white"
-                  : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+                  : "border-dashboard-base-300 text-dashboard-base-content/75 hover:bg-dashboard-base-200/60",
               )}
             >
               No meals
@@ -487,7 +487,7 @@ export function HotelReplaceView({ day }: { day: number }) {
       )}
 
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-10 text-sm text-dashboard-base-content/50">
+        <div className="flex items-center justify-center gap-2 py-10 text-sm text-dashboard-base-content/70">
           <Loader2 size={15} className="animate-spin" /> Finding stays…
         </div>
       )}
@@ -539,7 +539,7 @@ export function HotelReplaceView({ day }: { day: number }) {
                 />
               ) : (
                 <div className="h-10.5 w-14 rounded-lg bg-dashboard-base-200 border border-dashboard-base-300 flex items-center justify-center">
-                  <Hotel size={16} className="text-dashboard-base-content/30" />
+                  <Hotel size={16} className="text-dashboard-base-content/55" />
                 </div>
               )}
               title={
@@ -608,7 +608,7 @@ export function HotelReplaceView({ day }: { day: number }) {
                           key={meal}
                           className={cn(
                             "flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 font-medium",
-                            MEAL_BADGE_STYLES[meal] ?? "border-dashboard-base-300 bg-dashboard-base-200/60 text-dashboard-base-content/60",
+                            MEAL_BADGE_STYLES[meal] ?? "border-dashboard-base-300 bg-dashboard-base-200/60 text-dashboard-base-content/75",
                           )}
                         >
                           <Icon size={9} /> {meal}
@@ -623,17 +623,17 @@ export function HotelReplaceView({ day }: { day: number }) {
               trailing={
                 <>
                   <p className="text-[13px] font-bold tabular-nums">₹{nightly.toLocaleString("en-IN")}</p>
-                  <p className="text-[10px] text-dashboard-base-content/50">
+                  <p className="text-[10px] text-dashboard-base-content/70">
                     per night{room.isSeasonalRate && " · seasonal"}
                   </p>
                   {/* Breakdown behind the total above — the single room's own
                       rate for this date, and the mattress charge if this
                       party needs any (both already folded into nightly). */}
-                  <p className="text-[9.5px] text-dashboard-base-content/45 tabular-nums">
+                  <p className="text-[9.5px] text-dashboard-base-content/70 tabular-nums">
                     ₹{room.pricePerNight.toLocaleString("en-IN")}/room{plan.rooms > 1 ? ` × ${plan.rooms}` : ""}
                   </p>
                   {plan.mattresses > 0 && (room.extraBedRate ?? 0) > 0 && (
-                    <p className="text-[9.5px] text-dashboard-base-content/45 tabular-nums">
+                    <p className="text-[9.5px] text-dashboard-base-content/70 tabular-nums">
                       + ₹{room.extraBedRate!.toLocaleString("en-IN")}/mattress × {plan.mattresses}
                     </p>
                   )}
@@ -673,7 +673,7 @@ function StarRating({ raw }: { raw: string }) {
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n < 1 || n > 7) {
     return (
-      <span className="text-[10.5px] font-medium text-dashboard-base-content/55">{value}</span>
+      <span className="text-[10.5px] font-medium text-dashboard-base-content/75">{value}</span>
     );
   }
   return (
@@ -735,7 +735,7 @@ function StayIssues({ issues }: { issues: StayIssue[] }) {
             <AlertTriangle size={11} className="shrink-0 mt-0.5" />
             {issue.message}
           </p>
-          <p className="pl-[18px] text-[10.5px] text-dashboard-base-content/60">{issue.fix}</p>
+          <p className="pl-[18px] text-[10.5px] text-dashboard-base-content/75">{issue.fix}</p>
         </div>
       ))}
     </div>
@@ -907,18 +907,18 @@ export function HotelEditView({ day }: { day: number }) {
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                   <StarRating raw={itin.accommodationStarRating} />
                   {itin.accommodationLocation && (
-                    <span className="text-xs text-dashboard-base-content/60">
+                    <span className="text-xs text-dashboard-base-content/75">
                       {itin.accommodationLocation}
                     </span>
                   )}
                 </div>
                 {itin.accommodationRoomSpecs && (
-                  <p className="text-[11px] text-dashboard-base-content/50 mt-0.5">
+                  <p className="text-[11px] text-dashboard-base-content/70 mt-0.5">
                     {itin.accommodationRoomSpecs}
                   </p>
                 )}
                 {capacitySummary(itin.accommodationRoomCapacity, itin.accommodationExtraBedCapacity) && (
-                  <p className="flex items-center gap-1 text-[11px] text-dashboard-base-content/50 mt-0.5">
+                  <p className="flex items-center gap-1 text-[11px] text-dashboard-base-content/70 mt-0.5">
                     <Users size={10} /> {capacitySummary(itin.accommodationRoomCapacity, itin.accommodationExtraBedCapacity)}
                   </p>
                 )}
@@ -950,7 +950,7 @@ export function HotelEditView({ day }: { day: number }) {
                 {driftingNights.length === 1 ? "Night" : "Nights"} {driftingNights.join(", ")} of this
                 stay {driftingNights.length === 1 ? "is" : "are"} set up differently from night {stayRun(form.itineraries, day)[0]}.
               </p>
-              <p className="text-[10.5px] text-dashboard-base-content/60">
+              <p className="text-[10.5px] text-dashboard-base-content/75">
                 One booking can&apos;t change its room or mattress count halfway through — costing
                 rejects the package when it does.
               </p>
@@ -1480,7 +1480,7 @@ export function HotelRequestView({ day }: { day: number }) {
     <div className="p-5 space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <label className="space-y-1">
-          <span className="text-[11px] text-dashboard-base-content/60">Hotel type</span>
+          <span className="text-[11px] text-dashboard-base-content/75">Hotel type</span>
           <select
             value={itin.hotelRequestType ?? ""}
             onChange={(e) => replaceDay(day, (d) => ({ ...d, hotelRequestType: e.target.value || null }))}
@@ -1493,7 +1493,7 @@ export function HotelRequestView({ day }: { day: number }) {
           </select>
         </label>
         <label className="space-y-1">
-          <span className="text-[11px] text-dashboard-base-content/60">Meal plan</span>
+          <span className="text-[11px] text-dashboard-base-content/75">Meal plan</span>
           <select
             value={itin.hotelMealPlan}
             onChange={(e) => replaceDay(day, (d) => ({ ...d, hotelMealPlan: e.target.value }))}
@@ -1504,7 +1504,7 @@ export function HotelRequestView({ day }: { day: number }) {
           </select>
         </label>
         <label className="space-y-1">
-          <span className="text-[11px] text-dashboard-base-content/60">Rooms needed</span>
+          <span className="text-[11px] text-dashboard-base-content/75">Rooms needed</span>
           <Input
             type="number" min={1}
             value={itin.roomsCount ?? ""}
@@ -1515,7 +1515,7 @@ export function HotelRequestView({ day }: { day: number }) {
           />
         </label>
         <label className="space-y-1">
-          <span className="text-[11px] text-dashboard-base-content/60 flex items-center gap-1">
+          <span className="text-[11px] text-dashboard-base-content/75 flex items-center gap-1">
             <BedDouble size={11} /> Mattresses needed
           </span>
           <Input
@@ -1530,7 +1530,7 @@ export function HotelRequestView({ day }: { day: number }) {
       </div>
 
       <label className="space-y-1 block">
-        <span className="text-[11px] text-dashboard-base-content/60">Request message</span>
+        <span className="text-[11px] text-dashboard-base-content/75">Request message</span>
         <textarea
           value={itin.hotelPendingNote}
           onChange={(e) => replaceDay(day, (d) => ({ ...d, hotelPendingNote: e.target.value }))}
@@ -1549,14 +1549,14 @@ export function HotelRequestView({ day }: { day: number }) {
       {otherDays.length > 0 && (
         <div className="rounded-lg border border-dashboard-base-300 p-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium text-dashboard-base-content/70 flex items-center gap-1">
+            <span className="text-[11px] font-medium text-dashboard-base-content/85 flex items-center gap-1">
               <Clock size={11} /> Same hotel on other nights?
             </span>
             {alsoDays.length > 0 && (
               <button
                 type="button"
                 onClick={() => setAlsoDays([])}
-                className="text-[10px] font-medium text-dashboard-base-content/50 hover:underline cursor-pointer"
+                className="text-[10px] font-medium text-dashboard-base-content/70 hover:underline cursor-pointer"
               >
                 Clear
               </button>
@@ -1578,7 +1578,7 @@ export function HotelRequestView({ day }: { day: number }) {
                     "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors cursor-pointer",
                     on
                       ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
-                      : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+                      : "border-dashboard-base-300 text-dashboard-base-content/75 hover:bg-dashboard-base-200/60",
                   )}
                 >
                   Day {d.day}
@@ -1590,7 +1590,7 @@ export function HotelRequestView({ day }: { day: number }) {
             })}
           </div>
 
-          <p className="text-[10px] text-dashboard-base-content/50">
+          <p className="text-[10px] text-dashboard-base-content/70">
             {alsoDays.length === 0
               ? "Only this day is being requested."
               : `One request covering ${alsoDays.length + 1} nights. Any hotel already picked on those days is replaced.`}
@@ -1738,7 +1738,7 @@ function ExtraRoomsEditor({ day }: { day: number }) {
             <p className="text-xs font-medium truncate" title={primaryLabel}>
               {primaryRooms}× {primaryLabel}
             </p>
-            <p className="text-[10.5px] text-dashboard-base-content/50">
+            <p className="text-[10.5px] text-dashboard-base-content/70">
               {itin.roomsCount != null ? "Set in Rooms needed above" : "Auto-sized for the party"}
               {mattresses > 0 ? ` · ${mattresses} mattress${mattresses !== 1 ? "es" : ""}` : ""}
             </p>
@@ -1758,7 +1758,7 @@ function ExtraRoomsEditor({ day }: { day: number }) {
                 {splitManualHotelName(r.label).manualRoomName ?? r.label}
               </p>
               {r.roomSpecs && (
-                <p className="text-[10.5px] text-dashboard-base-content/50 truncate">{r.roomSpecs}</p>
+                <p className="text-[10.5px] text-dashboard-base-content/70 truncate">{r.roomSpecs}</p>
               )}
             </div>
             <Input
@@ -1794,7 +1794,7 @@ function ExtraRoomsEditor({ day }: { day: number }) {
       )}
 
       {extras.length === 0 && !adding && (
-        <p className="text-[11px] text-dashboard-base-content/45">
+        <p className="text-[11px] text-dashboard-base-content/70">
           Everyone is in {primaryRooms === 1 ? "the room" : `the ${primaryRooms} rooms`} above. Add
           another type if the party splits across different rooms at this hotel — 3 deluxe and 2
           standard, say.
@@ -1803,12 +1803,12 @@ function ExtraRoomsEditor({ day }: { day: number }) {
 
       {adding ? (
         <Card className="space-y-1.5 p-2">
-          <p className="text-[10.5px] text-dashboard-base-content/50">
+          <p className="text-[10.5px] text-dashboard-base-content/70">
             Other room types at {splitManualHotelName(primaryLabel).manualHotelName}
           </p>
 
           {loading && (
-            <p className="py-3 text-center text-[11px] text-dashboard-base-content/50">
+            <p className="py-3 text-center text-[11px] text-dashboard-base-content/70">
               Loading this hotel&apos;s rooms…
             </p>
           )}
@@ -1833,7 +1833,7 @@ function ExtraRoomsEditor({ day }: { day: number }) {
                 trailing={
                   <span className="text-[11.5px] font-semibold text-dashboard-base-content">
                     ₹{room.pricePerNight.toLocaleString("en-IN")}
-                    <span className="font-normal text-dashboard-base-content/50">/night</span>
+                    <span className="font-normal text-dashboard-base-content/70">/night</span>
                   </span>
                 }
                 onClick={() => {
@@ -1849,7 +1849,7 @@ function ExtraRoomsEditor({ day }: { day: number }) {
           </div>
 
           {!loading && rooms.length > 0 && hiddenNoRate > 0 && (
-            <p className="text-[10.5px] text-dashboard-base-content/50">
+            <p className="text-[10.5px] text-dashboard-base-content/70">
               {hiddenNoRate} more room type{hiddenNoRate !== 1 ? "s" : ""} at this hotel
               {hiddenNoRate !== 1 ? " have" : " has"} no rate for this night — the hotel team
               sets those on the property&apos;s rate sheet.
@@ -1950,10 +1950,10 @@ function StayNights({ day }: { day: number }) {
   return (
     <div className="space-y-2 rounded-xl border border-dashboard-base-300 p-3">
       <div className="flex items-center justify-between gap-2">
-        <label className="text-[11px] font-medium text-dashboard-base-content/60">
+        <label className="text-[11px] font-medium text-dashboard-base-content/75">
           Nights at this hotel
         </label>
-        <span className="text-[10px] text-dashboard-base-content/45">
+        <span className="text-[10px] text-dashboard-base-content/70">
           {run.length} night{run.length !== 1 ? "s" : ""}
         </span>
       </div>

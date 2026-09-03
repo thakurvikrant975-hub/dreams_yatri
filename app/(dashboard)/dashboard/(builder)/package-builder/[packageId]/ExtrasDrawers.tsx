@@ -133,7 +133,7 @@ export function MealsView({ day }: { day: number }) {
                   : "border-dashboard-base-300 opacity-60",
               )}
             >
-              <Utensils size={13} className={on ? "text-dashboard-primary" : "text-dashboard-base-content/40"} />
+              <Utensils size={13} className={on ? "text-dashboard-primary" : "text-dashboard-base-content/65"} />
               <span className="text-sm font-medium flex-1">{meal}</span>
               {noHotel && (
                 <span
@@ -144,12 +144,12 @@ export function MealsView({ day }: { day: number }) {
                   No hotel
                 </span>
               )}
-              <span className="text-[11px] text-dashboard-base-content/50">{on ? "Included" : "Not included"}</span>
+              <span className="text-[11px] text-dashboard-base-content/70">{on ? "Included" : "Not included"}</span>
             </Tag>
           );
         })}
       </div>
-      <p className="text-[11px] text-dashboard-base-content/45">
+      <p className="text-[11px] text-dashboard-base-content/70">
         {!canEdit
           ? "Set by this day's hotel — pick a different room or meal plan to change what's included here."
           : itin.roomPricingId != null || itin.accommodation?.trim()
@@ -188,7 +188,7 @@ export function AddonsView({ day }: { day: number | null }) {
   return (
     <div className="p-5 space-y-3">
       {rows.length === 0 && (
-        <p className="py-6 text-center text-sm text-dashboard-base-content/50">
+        <p className="py-6 text-center text-sm text-dashboard-base-content/70">
           {day == null ? "No add-ons on this package yet." : `Nothing extra on day ${day} yet.`}
         </p>
       )}
@@ -214,7 +214,7 @@ export function AddonsView({ day }: { day: number | null }) {
           </div>
           <div className="grid grid-cols-2 gap-2 pl-6">
             <label className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Price (per unit)</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Price (per unit)</span>
               <Input
                 type="number" min={0}
                 value={a.price ?? ""}
@@ -223,7 +223,7 @@ export function AddonsView({ day }: { day: number | null }) {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Quantity</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Quantity</span>
               <Input
                 type="number" min={1}
                 value={a.quantity}
@@ -250,7 +250,7 @@ export function AddonsView({ day }: { day: number | null }) {
         <Plus size={13} /> Add an add-on
       </Button>
 
-      <p className="text-[11px] text-dashboard-base-content/45 pt-1">
+      <p className="text-[11px] text-dashboard-base-content/70 pt-1">
         The client sees the name and what&apos;s included — never the per-unit price.
         Price × quantity feeds the package total at the standard margin.
       </p>
@@ -295,7 +295,7 @@ export function TicketsView({ type }: { type: TicketInput["type"] }) {
   return (
     <div className="p-5 space-y-3">
       {rows.length === 0 && (
-        <p className="py-6 text-center text-sm text-dashboard-base-content/50">
+        <p className="py-6 text-center text-sm text-dashboard-base-content/70">
           No {label.toLowerCase()} legs yet.
         </p>
       )}
@@ -303,7 +303,7 @@ export function TicketsView({ type }: { type: TicketInput["type"] }) {
       {rows.map(({ t, index: i }) => (
         <div key={i} className="rounded-xl border border-dashboard-base-300 p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold flex-1 text-dashboard-base-content/60">
+            <span className="text-xs font-semibold flex-1 text-dashboard-base-content/75">
               {t.provider || t.fromPlace || `${label} leg`}
             </span>
             <Button
@@ -326,23 +326,23 @@ export function TicketsView({ type }: { type: TicketInput["type"] }) {
             <Input value={t.toPlace} onChange={(e) => patch(i, { toPlace: e.target.value })}
               placeholder="To" className="h-9 text-sm" />
             <label className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Travel date</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Travel date</span>
               <Input type="date" value={t.travelDate} onChange={(e) => patch(i, { travelDate: e.target.value })}
                 className="h-9 text-sm" />
             </label>
             <label className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Tickets</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Tickets</span>
               <Input type="number" min={1} value={t.ticketCount}
                 onChange={(e) => patch(i, { ticketCount: Math.max(1, parseInt(e.target.value, 10) || 1) })}
                 className="h-9 text-sm" />
             </label>
             <label className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Departs</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Departs</span>
               <Input type="time" value={t.departureTime}
                 onChange={(e) => patch(i, { departureTime: e.target.value })} className="h-9 text-sm" />
             </label>
             <label className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Arrives</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Arrives</span>
               <Input type="time" value={t.arrivalTime}
                 onChange={(e) => patch(i, { arrivalTime: e.target.value })} className="h-9 text-sm" />
             </label>
@@ -366,11 +366,11 @@ export function TicketsView({ type }: { type: TicketInput["type"] }) {
           />
 
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-dashboard-base-content/50">
+            <span className="text-[11px] text-dashboard-base-content/70">
               {t.durationText ? `Journey ${t.durationText}` : "Journey length fills in from the times"}
             </span>
             <label className="flex items-center gap-1.5">
-              <span className="text-[11px] text-dashboard-base-content/60">Fare</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Fare</span>
               <Input
                 type="number" min={0}
                 value={t.fare ?? ""}
@@ -389,7 +389,7 @@ export function TicketsView({ type }: { type: TicketInput["type"] }) {
         <Plus size={12} /> Add another {label.toLowerCase()} leg
       </Button>
 
-      <p className="text-[11px] text-dashboard-base-content/45 pt-1">
+      <p className="text-[11px] text-dashboard-base-content/70 pt-1">
         The client sees the leg and its times; the fare stays internal and is priced
         into the package total.
       </p>
@@ -425,20 +425,20 @@ export function NoteView({ day }: { day: number }) {
   return (
     <div className="p-5 space-y-4">
       <div className="space-y-1.5">
-        <label className="text-[11px] font-medium text-dashboard-base-content/60">Title</label>
+        <label className="text-[11px] font-medium text-dashboard-base-content/75">Title</label>
         <Input
           value={itin.notesTitle ?? ""}
           onChange={(e) => updateDay(day, { notesTitle: e.target.value || null })}
           placeholder={NOTE_TONES[tone].label}
           className="h-9 text-sm"
         />
-        <p className="text-[11px] text-dashboard-base-content/45">
+        <p className="text-[11px] text-dashboard-base-content/70">
           Left blank, the note is headed &quot;{NOTE_TONES[tone].label}&quot; after its tone.
         </p>
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-[11px] font-medium text-dashboard-base-content/60">Note</label>
+        <label className="text-[11px] font-medium text-dashboard-base-content/75">Note</label>
         <textarea
           value={itin.notes}
           onChange={(e) => updateDay(day, { notes: e.target.value })}
@@ -449,7 +449,7 @@ export function NoteView({ day }: { day: number }) {
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-[11px] font-medium text-dashboard-base-content/60">Tone</label>
+        <label className="text-[11px] font-medium text-dashboard-base-content/75">Tone</label>
         <div className="grid grid-cols-5 gap-1.5">
           {(Object.keys(NOTE_TONES) as NoteTone[]).map((key) => {
             const opt = NOTE_TONES[key];
@@ -513,7 +513,7 @@ function TicketPax({ ticket, packagePax, onChange }: {
   if (!custom) {
     return (
       <div className="flex items-center justify-between gap-2 rounded-md bg-dashboard-base-200/50 px-2.5 py-1.5">
-        <span className="text-[11px] text-dashboard-base-content/70">
+        <span className="text-[11px] text-dashboard-base-content/85">
           All travellers{packageLine ? ` · ${packageLine}` : ""}
         </span>
         <button
@@ -532,7 +532,7 @@ function TicketPax({ ticket, packagePax, onChange }: {
   return (
     <div className="space-y-1.5 rounded-md bg-dashboard-base-200/50 px-2.5 py-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] text-dashboard-base-content/70">Travellers on this leg</span>
+        <span className="text-[11px] text-dashboard-base-content/85">Travellers on this leg</span>
         <button
           type="button"
           onClick={() => onChange({ adults: 0, children: 0, infants: 0 })}
@@ -544,7 +544,7 @@ function TicketPax({ ticket, packagePax, onChange }: {
       <div className="grid grid-cols-3 gap-2">
         {(["adults", "children", "infants"] as const).map((k) => (
           <label key={k} className="space-y-0.5">
-            <span className="text-[10px] text-dashboard-base-content/55 capitalize">{k}</span>
+            <span className="text-[10px] text-dashboard-base-content/75 capitalize">{k}</span>
             <Input
               type="number" min={0}
               value={ticket[k]}
@@ -580,11 +580,11 @@ export function StopsView() {
         onSync={syncDaysWithStops}
       />
       <div className="rounded-lg bg-dashboard-base-200/50 px-3 py-2.5 space-y-1">
-        <p className="text-[11px] text-dashboard-base-content/70">
+        <p className="text-[11px] text-dashboard-base-content/85">
           {form.totalDays} day{form.totalDays !== 1 ? "s" : ""} · {form.totalNights} night
           {form.totalNights !== 1 ? "s" : ""}
         </p>
-        <p className="text-[11px] text-dashboard-base-content/45">
+        <p className="text-[11px] text-dashboard-base-content/70">
           Nights here set the trip length, and each day&apos;s hotel and cab search
           defaults to the stop it falls under — so getting these right saves typing a
           city on every day.

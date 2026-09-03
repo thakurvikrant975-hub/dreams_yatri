@@ -35,6 +35,8 @@ import {
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/stay-options";
 import { getSiblingHotelRoomsForBuilder, type HotelRoomResult } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { extraRoomsAtHotel } from "./day-mutations";
+import { planRoomOccupancy } from "@/app/lib/room-capacity";
+import { pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import type { RoomSelection } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import {
   addStayOption, renameStayOption, removeStayOption,
@@ -112,6 +114,9 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
    * missing a hotel — same rule the submit check uses. */
   const departureDay = Math.max(...form.itineraries.map((d) => d.day), Number.NEGATIVE_INFINITY);
 
+  // Beds are needed by age band, not by the box a traveller was typed into —
+  // the same split the price is computed from. See traveller-ages.ts.
+  const party = pricingPartyOf(form);
   const dayRowRun = stayRun(form.itineraries, day);
   const nightCount = optionRun?.nights ?? (dayRowRun.length || 1);
   const fromDay = optionRun?.fromDay ?? dayRowRun[0] ?? day;
@@ -150,7 +155,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
   }
 
   if (options === null) {
-    return <p className="p-4 text-xs text-dashboard-base-content/50">Loading stay options…</p>;
+    return <p className="p-4 text-xs text-dashboard-base-content/70">Loading stay options…</p>;
   }
 
   const canAddMore = options.length < MAX_STAY_OPTIONS;
@@ -160,7 +165,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
 
   return (
     <div className="p-3 space-y-3">
-      <p className="text-[11px] text-dashboard-base-content/55">
+      <p className="text-[11px] text-dashboard-base-content/75">
         {nightCount > 1
           ? `These ${nightCount} nights are one stay — a hotel picked here covers all of them.`
           : "One night."}{" "}
@@ -197,7 +202,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                   <span className="text-xs font-semibold text-dashboard-base-content">{o.label}</span>
                   {canEdit && (
                     <button type="button" title="Rename" onClick={() => setRenaming(o.id)}
-                      className="text-dashboard-base-content/35 hover:text-dashboard-primary">
+                      className="text-dashboard-base-content/60 hover:text-dashboard-primary">
                       <Pencil size={10} />
                     </button>
                   )}
@@ -216,7 +221,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                   disabled={busy}
                   title="Make this the recommended stay — the client sees it badged, and its price leads"
                   onClick={() => run(() => setRecommendedStayOption(packageId, o.id))}
-                  className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[9px] font-medium text-dashboard-base-content/60 hover:border-dashboard-primary hover:text-dashboard-primary"
+                  className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[9px] font-medium text-dashboard-base-content/75 hover:border-dashboard-primary hover:text-dashboard-primary"
                 >
                   Recommend
                 </button>
@@ -226,7 +231,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                 <button
                   type="button" disabled={busy} title="Remove this option"
                   onClick={() => run(() => removeStayOption(packageId, o.id))}
-                  className="text-dashboard-base-content/35 hover:text-dashboard-error"
+                  className="text-dashboard-base-content/60 hover:text-dashboard-error"
                 >
                   <Trash2 size={11} />
                 </button>
@@ -240,23 +245,23 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                   <img src={cell.photo} alt="" className="w-16 aspect-video rounded-md object-cover shrink-0" />
                 ) : (
                   <div className="w-16 aspect-video rounded-md bg-dashboard-base-200 flex items-center justify-center shrink-0">
-                    <Hotel size={12} className="text-dashboard-base-content/25" />
+                    <Hotel size={12} className="text-dashboard-base-content/55" />
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <p className={cn("text-[11.5px] font-medium truncate",
-                    cell?.hotel ? "text-dashboard-base-content" : "text-dashboard-base-content/45")}>
+                    cell?.hotel ? "text-dashboard-base-content" : "text-dashboard-base-content/70")}>
                     {cell?.hotel || (cell?.pending ? "Waiting on the hotel team" : "No hotel yet")}
                   </p>
                   {cell?.mealPlan && (
-                    <p className="text-[10px] text-dashboard-base-content/50">{cell.mealPlan}</p>
+                    <p className="text-[10px] text-dashboard-base-content/70">{cell.mealPlan}</p>
                   )}
                   {/* Which nights this option's hotel is actually on. Adding a
                       second standard used to say nothing about coverage, so an
                       exec who filled one night believed the column was done —
                       and the nights left empty priced at zero, quietly making
                       that option look like the cheapest. */}
-                  <p className="mt-0.5 text-[10px] text-dashboard-base-content/55">
+                  <p className="mt-0.5 text-[10px] text-dashboard-base-content/75">
                     {(() => {
                       const on = form.itineraries
                         .map((d) => d.day)
@@ -267,7 +272,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                       if (on.length === 0) return "No nights assigned yet";
                       return (
                         <>
-                          <span className="text-dashboard-base-content/70">
+                          <span className="text-dashboard-base-content/85">
                             {on.length === 1 ? "Night" : "Nights"} {formatDayList(on)}
                           </span>
                           {missing.length > 0 && (
@@ -364,10 +369,18 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                       optionLabel={o.label}
                       primaryRoomPricingId={cell.roomPricingId}
                       primaryLabel={cell.hotel ?? ""}
+                      primaryRooms={cell.rooms ?? null}
+                      autoRooms={planRoomOccupancy(party.adults, party.children, {
+                        max_occupancy: cell.roomCapacity,
+                        extra_bed_capacity: cell.extraBedCapacity,
+                        max_adults: cell.maxAdults,
+                        max_children: cell.maxChildren,
+                      }, cell.rooms ?? null).rooms}
                       extras={cell.extraRooms ?? []}
                       nightISO={nightISO}
                       nightCount={nightCount}
                       onWrite={(extraRooms) => writeStay(o.id, { extraRooms })}
+                      onWriteRooms={(roomsCount) => writeStay(o.id, { roomsCount })}
                     />
                   )}
 
@@ -402,12 +415,12 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
                     <button
                       type="button"
                       onClick={() => openDrawer({ kind: "hotel-request", day })}
-                      className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1.5 text-[11px] text-dashboard-base-content/60 hover:border-dashboard-primary hover:text-dashboard-primary"
+                      className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1.5 text-[11px] text-dashboard-base-content/75 hover:border-dashboard-primary hover:text-dashboard-primary"
                     >
                       Ask the hotel team to source this one
                     </button>
                   ) : (
-                    <p className="rounded-lg bg-dashboard-base-200/60 px-2 py-1.5 text-[10.5px] text-dashboard-base-content/50">
+                    <p className="rounded-lg bg-dashboard-base-200/60 px-2 py-1.5 text-[10.5px] text-dashboard-base-content/70">
                       The hotel team&apos;s queue only picks up the recommended stay. To have them
                       source this one, recommend it first — or pick its hotel here.
                     </p>
@@ -421,7 +434,7 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
 
       {canEdit && canAddMore && (
         <div className="rounded-xl border border-dashed border-dashboard-base-300 p-3 space-y-2">
-          <p className="flex items-center gap-1 text-[11px] font-medium text-dashboard-base-content/60">
+          <p className="flex items-center gap-1 text-[11px] font-medium text-dashboard-base-content/75">
             <Star size={11} /> Offer another option
           </p>
           <div className="flex gap-1.5">
@@ -446,12 +459,12 @@ export function StayOptionsView({ packageId, day }: { packageId: string; day: nu
           </div>
           {unusedSuggestions.length > 0 && (
             <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[10px] text-dashboard-base-content/40">or:</span>
+              <span className="text-[10px] text-dashboard-base-content/65">or:</span>
               {unusedSuggestions.map((sug) => (
                 <button
                   key={sug} type="button" disabled={busy}
                   onClick={() => run(() => addStayOption(packageId, sug))}
-                  className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-base-content/60 hover:border-dashboard-primary hover:text-dashboard-primary"
+                  className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-base-content/75 hover:border-dashboard-primary hover:text-dashboard-primary"
                 >
                   {sug}
                 </button>
@@ -481,7 +494,7 @@ function ManualStay({ hotel, rate, onSave }: {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1.5 text-[11px] text-dashboard-base-content/60 hover:border-dashboard-primary hover:text-dashboard-primary"
+        className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1.5 text-[11px] text-dashboard-base-content/75 hover:border-dashboard-primary hover:text-dashboard-primary"
       >
         {hotel ? "Edit the hand-typed stay" : "Type a stay by hand instead"}
       </button>
@@ -523,18 +536,78 @@ function ManualStay({ hotel, rate, onSave }: {
 // the block, which is what writeStay does.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** A room count that commits when you leave it, not as you type.
+ *
+ * Every write from this drawer fans out across all N nights of the stay and
+ * reloads the option list afterwards. Bound straight to onChange, typing "12"
+ * fired that twice — once for the 1 — so the count briefly WAS 1 on every
+ * night of the booking, and each keystroke cost a round trip. Saved on blur or
+ * Enter, abandoned by Escape.
+ *
+ * The draft is null whenever the box is not being edited, which is what makes
+ * the stored value show through without an effect to copy it across: a save
+ * elsewhere, or a reload, is simply rendered. */
+function RoomCountField({ value, placeholder, disabled, ariaLabel, onCommit }: {
+  value: number | null;
+  placeholder: string;
+  disabled?: boolean;
+  ariaLabel: string;
+  onCommit: (next: number | null) => void | Promise<unknown>;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const stored = value == null ? "" : String(value);
+
+  function commit(raw: string) {
+    setDraft(null);
+    const next = raw.trim() ? Math.max(1, parseInt(raw, 10) || 1) : null;
+    if (next !== value) void onCommit(next);
+  }
+
+  return (
+    <Input
+      type="number" min={1} disabled={disabled}
+      value={draft ?? stored}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={(e) => commit(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          // The DOM value first, not just the draft: blurring fires commit()
+          // synchronously off e.target.value, so clearing only the React state
+          // would have saved the very number Escape is meant to abandon.
+          const el = e.target as HTMLInputElement;
+          el.value = stored;
+          setDraft(null);
+          el.blur();
+        }
+      }}
+      className="h-7 w-14 shrink-0 text-xs"
+    />
+  );
+}
+
 function StayComboEditor({
-  optionLabel, primaryRoomPricingId, primaryLabel, extras, nightISO, nightCount, onWrite,
+  optionLabel, primaryRoomPricingId, primaryLabel, primaryRooms, autoRooms, extras,
+  nightISO, nightCount, onWrite, onWriteRooms,
 }: {
   optionLabel: string;
   /** This option's own room for the night. Null when the option has no catalog
    * hotel yet — there is nothing to book a second room type alongside. */
   primaryRoomPricingId: number | null;
   primaryLabel: string;
+  /** How many of the primary room this option books — the stay row's own
+   * roomsCount. Null means nobody has set one and `autoRooms` applies. */
+  primaryRooms: number | null;
+  /** What the count falls back to: the party split across this room's
+   * capacity, the same figure the price is computed from. */
+  autoRooms: number;
   extras: NonNullable<StayCell["extraRooms"]>;
   nightISO: string | null;
   nightCount: number;
   onWrite: (extraRooms: RoomSelection[]) => Promise<boolean>;
+  onWriteRooms: (roomsCount: number | null) => Promise<boolean>;
 }) {
   const [adding, setAdding] = useState(false);
   const [rooms, setRooms] = useState<HotelRoomResult[]>([]);
@@ -586,33 +659,51 @@ function StayComboEditor({
 
   return (
     <div className="space-y-1.5 rounded-lg border border-dashboard-base-300 p-2">
-      <p className="text-[10.5px] font-medium text-dashboard-base-content/55">
+      <p className="text-[10.5px] font-medium text-dashboard-base-content/75">
         Rooms in the {optionLabel} stay
       </p>
 
-      <p className="text-[11px] text-dashboard-base-content/70 truncate" title={primaryLabel}>
-        {primaryLabel}
-      </p>
+      {/* The option's own room, with a count — which it had nowhere else.
+          A day's stay sets this in "Rooms needed"; a stay option has no such
+          field anywhere, so an exec quoting 2 Super Deluxe against 3 Deluxe
+          could add the second room type and not say how many of the first.
+          Empty means the party split decides, which is what the placeholder
+          shows rather than leaving an empty box to guess at. */}
+      <div className="flex items-center gap-1.5">
+        <p className="min-w-0 flex-1 truncate text-[11px] text-dashboard-base-content/85" title={primaryLabel}>
+          {primaryLabel.split(" — ")[1] ?? primaryLabel}
+        </p>
+        <RoomCountField
+          value={primaryRooms}
+          placeholder={String(autoRooms)}
+          disabled={saving}
+          ariaLabel={`How many ${primaryLabel}`}
+          onCommit={async (next) => { setSaving(true); await onWriteRooms(next); setSaving(false); }}
+        />
+        {/* Aligns the row with the removable ones below, which carry a bin.
+            The primary has none: removing it is "change the hotel". */}
+        <span className="w-[11px] shrink-0" />
+      </div>
 
       {extras.map((r, i) => (
         <div key={i} className="flex items-center gap-1.5">
-          <p className="min-w-0 flex-1 truncate text-[11px] text-dashboard-base-content/70" title={r.label}>
+          <p className="min-w-0 flex-1 truncate text-[11px] text-dashboard-base-content/85" title={r.label}>
             {r.label.split(" — ")[1] ?? r.label}
           </p>
-          <Input
-            type="number" min={1} value={r.quantity} disabled={saving}
-            onChange={(e) => {
-              const quantity = Math.max(1, parseInt(e.target.value, 10) || 1);
-              write(asSelections().map((x, xi) => (xi === i ? { ...x, quantity } : x)));
-            }}
-            className="h-7 w-14 shrink-0 text-xs"
-            aria-label={`How many ${r.label}`}
+          <RoomCountField
+            value={r.quantity}
+            placeholder="1"
+            disabled={saving}
+            ariaLabel={`How many ${r.label}`}
+            onCommit={(next) => write(asSelections().map((x, xi) => (
+              xi === i ? { ...x, quantity: Math.max(1, next ?? 1) } : x
+            )))}
           />
           <button
             type="button" disabled={saving}
             title="Remove this room type"
             onClick={() => write(asSelections().filter((_, xi) => xi !== i))}
-            className="text-dashboard-base-content/35 hover:text-dashboard-error"
+            className="text-dashboard-base-content/60 hover:text-dashboard-error"
           >
             <Trash2 size={11} />
           </button>
@@ -622,12 +713,12 @@ function StayComboEditor({
       {adding ? (
         <div className="space-y-1">
           {loading && (
-            <p className="py-1.5 text-center text-[10.5px] text-dashboard-base-content/50">
+            <p className="py-1.5 text-center text-[10.5px] text-dashboard-base-content/70">
               Loading this hotel&apos;s rooms…
             </p>
           )}
           {!loading && rooms.length === 0 && (
-            <p className="py-1.5 text-[10.5px] text-dashboard-base-content/50">
+            <p className="py-1.5 text-[10.5px] text-dashboard-base-content/70">
               {hiddenNoRate > 0
                 ? "This hotel's other room types have no rate for this night — the hotel team sets one on its rate sheet."
                 : "This hotel has no other room type in the catalog."}
@@ -653,7 +744,7 @@ function StayComboEditor({
                 className="w-full rounded-md px-1.5 py-1 text-left hover:bg-dashboard-base-200/60"
               >
                 <p className="truncate text-[11px] font-medium">{room.roomName}</p>
-                <p className="text-[10px] text-dashboard-base-content/50">
+                <p className="text-[10px] text-dashboard-base-content/70">
                   ₹{room.pricePerNight.toLocaleString("en-IN")} / night
                   {room.mealPlanName ? ` · ${room.mealPlanName}` : ""}
                 </p>
@@ -670,14 +761,14 @@ function StayComboEditor({
           type="button"
           disabled={saving}
           onClick={() => setAdding(true)}
-          className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1 text-[10.5px] text-dashboard-base-content/60 hover:border-dashboard-primary hover:text-dashboard-primary"
+          className="w-full rounded-lg border border-dashed border-dashboard-base-300 px-2 py-1 text-[10.5px] text-dashboard-base-content/75 hover:border-dashboard-primary hover:text-dashboard-primary"
         >
           <Plus size={10} className="inline" /> Add another room type from this hotel
         </button>
       )}
 
       {saving && (
-        <p className="flex items-center gap-1 text-[10px] text-dashboard-base-content/50">
+        <p className="flex items-center gap-1 text-[10px] text-dashboard-base-content/70">
           <Loader2 size={9} className="animate-spin" /> Saving all {nightCount} night{nightCount !== 1 ? "s" : ""}…
         </p>
       )}

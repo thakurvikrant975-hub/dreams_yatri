@@ -54,7 +54,7 @@ export function ApplyToDays({
           "w-full flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed py-2 text-xs font-medium transition-colors",
           tone === "danger"
             ? "border-dashboard-error/40 text-dashboard-error/80 hover:bg-dashboard-error/5"
-            : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200/50",
+            : "border-dashboard-base-300 text-dashboard-base-content/85 hover:bg-dashboard-base-200/50",
         )}
       >
         {label}
@@ -65,7 +65,7 @@ export function ApplyToDays({
   return (
     <div className="rounded-lg border border-dashboard-base-300 p-3 space-y-2.5">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-medium text-dashboard-base-content/70">{label}</p>
+        <p className="text-[11px] font-medium text-dashboard-base-content/85">{label}</p>
         <div className="flex gap-1.5">
           <button
             type="button"
@@ -77,7 +77,7 @@ export function ApplyToDays({
           <button
             type="button"
             onClick={() => setPicked([])}
-            className="text-[10px] font-medium text-dashboard-base-content/50 hover:underline"
+            className="text-[10px] font-medium text-dashboard-base-content/70 hover:underline"
           >
             None
           </button>
@@ -97,7 +97,7 @@ export function ApplyToDays({
                 "rounded-md px-2 py-1 text-[11px] font-medium border transition-colors",
                 on
                   ? "border-dashboard-primary cursor-pointer bg-dashboard-primary/10 text-dashboard-primary"
-                  : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+                  : "border-dashboard-base-300 text-dashboard-base-content/75 hover:bg-dashboard-base-200/60",
               )}
             >
               Day {d}

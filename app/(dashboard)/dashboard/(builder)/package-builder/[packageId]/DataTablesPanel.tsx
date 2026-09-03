@@ -28,11 +28,11 @@ import type {
 
 type LoadedOptions = Awaited<ReturnType<typeof getStayOptionsForDocument>>;
 
-const TH = "px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50";
+const TH = "px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/70";
 const TD = "px-2.5 py-1.5 text-[11px] text-dashboard-base-content align-top";
 
 function Empty({ what }: { what: string }) {
-  return <p className="px-2.5 py-3 text-[11px] text-dashboard-base-content/45">No {what} on this package yet.</p>;
+  return <p className="px-2.5 py-3 text-[11px] text-dashboard-base-content/70">No {what} on this package yet.</p>;
 }
 
 export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
@@ -72,7 +72,7 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
 
   return (
     <div className="p-3 space-y-4">
-      <p className="text-[11px] text-dashboard-base-content/55">
+      <p className="text-[11px] text-dashboard-base-content/75">
         What this package actually carries, day by day — for checking before it goes to costing.
         Rooms and extra beds are the priced figures, so they match what the reviewer sees. No prices here;
         those live in the Pricing tab.
@@ -83,7 +83,7 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
         <header className="flex items-center gap-1.5 px-2.5 py-2 border-b border-dashboard-base-300 bg-dashboard-base-200/50">
           <Hotel size={12} className="text-dashboard-primary" />
           <span className="text-xs font-semibold text-dashboard-base-content">Hotels</span>
-          <span className="text-[10px] text-dashboard-base-content/45">
+          <span className="text-[10px] text-dashboard-base-content/70">
             {hotelPricing?.nightsCounted ?? 0} night{(hotelPricing?.nightsCounted ?? 0) !== 1 ? "s" : ""}
           </span>
         </header>
@@ -105,7 +105,7 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
                     <td className={`${TD} whitespace-nowrap font-medium`}>Day {l.day}</td>
                     <td className={TD}>
                       {l.hotelName}
-                      {l.roomName ? <span className="text-dashboard-base-content/55"> — {l.roomName}</span> : null}
+                      {l.roomName ? <span className="text-dashboard-base-content/75"> — {l.roomName}</span> : null}
                       {/* Said on the row, not only in the toast that turns the
                           exec away at Mark Ready — this is the table they came
                           here to check the data on. */}
@@ -140,7 +140,7 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
             recommended one. */}
         {multi && (
           <div className="border-t border-dashboard-base-300 px-2.5 py-2 space-y-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/45">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/70">
               Other stay options
             </p>
             {options.filter((o) => o.id !== recommended?.id).map((o) => (
@@ -151,7 +151,7 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
                     const cell = o.byDay?.[d.day];
                     if (!cell?.hotel && !cell?.pending) return null;
                     return (
-                      <li key={d.day} className="text-dashboard-base-content/65">
+                      <li key={d.day} className="text-dashboard-base-content/80">
                         Day {d.day}: {cell.hotel ?? "awaiting the hotel team"}
                         {cell.rooms ? ` · ${cell.rooms} room${cell.rooms !== 1 ? "s" : ""}` : ""}
                         {cell.extraBeds ? ` · ${cell.extraBeds} extra bed${cell.extraBeds !== 1 ? "s" : ""}` : ""}
@@ -170,7 +170,7 @@ export function DataTablesPanel({ packageId, hotelPricing, cabPricing }: {
         <header className="flex items-center gap-1.5 px-2.5 py-2 border-b border-dashboard-base-300 bg-dashboard-base-200/50">
           <Car size={12} className="text-dashboard-primary" />
           <span className="text-xs font-semibold text-dashboard-base-content">Cabs</span>
-          <span className="text-[10px] text-dashboard-base-content/45">
+          <span className="text-[10px] text-dashboard-base-content/70">
             {cabPricing?.daysCounted ?? 0} day{(cabPricing?.daysCounted ?? 0) !== 1 ? "s" : ""}
           </span>
         </header>

@@ -77,6 +77,12 @@ export type StayCell = {
   rooms?: number | null;
   checkIn?: string | null;
   checkOut?: string | null;
+  /** The picked room's occupancy caps, editor-only — what the option's room
+   * count falls back to when nobody has set one. */
+  roomCapacity?: number | null;
+  maxAdults?: number | null;
+  maxChildren?: number | null;
+  extraBedCapacity?: number | null;
   pending?: boolean;
   /** The OTHER room types this option books at the same hotel — 3 Deluxe and
    * 2 Standard is one option, not two.

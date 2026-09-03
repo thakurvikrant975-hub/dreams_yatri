@@ -271,7 +271,7 @@ export function TransferView({ day }: { day: number }) {
             <Car size={15} className="text-dashboard-primary shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold">{itin.transport}</p>
-              <p className="text-xs text-dashboard-base-content/60">
+              <p className="text-xs text-dashboard-base-content/75">
                 {itin.transportVehicleType}
                 {itin.transportSeats != null && ` · ${itin.transportSeats} seats`}
               </p>
@@ -315,7 +315,7 @@ export function TransferView({ day }: { day: number }) {
 
       {itin.transport && (
         <label className="space-y-1 block">
-          <span className="text-[11px] text-dashboard-base-content/60">Vehicles of this type</span>
+          <span className="text-[11px] text-dashboard-base-content/75">Vehicles of this type</span>
           <Input
             type="number" min={1}
             value={itin.cabQuantity ?? ""}
@@ -329,7 +329,7 @@ export function TransferView({ day }: { day: number }) {
 
       {(itin.extraCabs ?? []).length > 0 && (
         <div className="space-y-2">
-          <label className="text-[11px] font-medium text-dashboard-base-content/60">
+          <label className="text-[11px] font-medium text-dashboard-base-content/75">
             Other vehicles this day
           </label>
           {(itin.extraCabs ?? []).map((c, i) => (
@@ -337,7 +337,7 @@ export function TransferView({ day }: { day: number }) {
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium truncate">{c.label}</p>
-                  <p className="text-[10px] text-dashboard-base-content/50">
+                  <p className="text-[10px] text-dashboard-base-content/70">
                     {c.vehicleType}{c.seats != null && ` · ${c.seats} seats`}
                     {c.cabPricingId == null && " · no rate"}
                   </p>
@@ -384,7 +384,7 @@ export function TransferView({ day }: { day: number }) {
       ) : (
       <div className="space-y-2">
         <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/40" />
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/65" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -394,7 +394,7 @@ export function TransferView({ day }: { day: number }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/50 shrink-0">Sort</label>
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/70 shrink-0">Sort</label>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as CabSortOption)}
@@ -410,7 +410,7 @@ export function TransferView({ day }: { day: number }) {
               "flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] cursor-pointer font-medium transition-colors",
               filtersOpen || activeFilterCount > 0
                 ? "border-dashboard-primary/40 bg-dashboard-primary/10 text-dashboard-primary"
-                : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+                : "border-dashboard-base-300 text-dashboard-base-content/75 hover:bg-dashboard-base-200/60",
             )}
           >
             <Sliders size={11} />
@@ -439,7 +439,7 @@ export function TransferView({ day }: { day: number }) {
             )}
 
             <div className="flex items-start gap-2">
-              <span className="w-12 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/45">
+              <span className="w-12 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/70">
                 Type
               </span>
               <div className="flex flex-1 flex-wrap items-center gap-1.5">
@@ -456,7 +456,7 @@ export function TransferView({ day }: { day: number }) {
             </div>
 
             <div className="flex items-start gap-2">
-              <span className="w-12 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/45">
+              <span className="w-12 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-wider text-dashboard-base-content/70">
                 Seats
               </span>
               <div className="flex flex-1 flex-wrap items-center gap-1.5">
@@ -475,7 +475,7 @@ export function TransferView({ day }: { day: number }) {
         )}
 
         {loading && (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-dashboard-base-content/50">
+          <div className="flex items-center justify-center gap-2 py-8 text-sm text-dashboard-base-content/70">
             <Loader2 size={15} className="animate-spin" /> Finding vehicles…
           </div>
         )}
@@ -507,7 +507,7 @@ export function TransferView({ day }: { day: number }) {
                 />
               ) : (
                 <div className="h-10.5 w-14 rounded-lg bg-dashboard-base-200 border border-dashboard-base-300 flex items-center justify-center">
-                  <Car size={16} className="text-dashboard-base-content/30" />
+                  <Car size={16} className="text-dashboard-base-content/55" />
                 </div>
               )}
               title={name}
@@ -527,7 +527,7 @@ export function TransferView({ day }: { day: number }) {
               trailing={priced ? (
                 <>
                   <p className="text-[13px] font-bold tabular-nums">₹{hit.price.toLocaleString("en-IN")}</p>
-                  <p className="text-[10px] text-dashboard-base-content/50">{hit.pricingType.toLowerCase().replace("_", " ")}</p>
+                  <p className="text-[10px] text-dashboard-base-content/70">{hit.pricingType.toLowerCase().replace("_", " ")}</p>
                 </>
               ) : undefined}
             />
@@ -537,7 +537,7 @@ export function TransferView({ day }: { day: number }) {
                 type="button"
                 onClick={() => replaceDay(day, (d) => addExtraCab(d, hit))}
                 title="Add this as another, different cab for the day"
-                className="shrink-0 self-center rounded-[7px] border border-dashed border-dashboard-base-300 px-2 py-1 text-[10px] font-medium text-dashboard-base-content/60 hover:bg-dashboard-base-200 transition-colors duration-[120ms]"
+                className="shrink-0 self-center rounded-[7px] border border-dashed border-dashboard-base-300 px-2 py-1 text-[10px] font-medium text-dashboard-base-content/75 hover:bg-dashboard-base-200 transition-colors duration-[120ms]"
               >
                 + Add another cab
               </button>
@@ -596,7 +596,7 @@ export function ActivitiesView({ day }: { day: number }) {
       {tab === "search" && <ActivitySearch day={day} />}
 
       {itin.activities.length === 0 && tab === "manual" && (
-        <p className="py-6 text-center text-sm text-dashboard-base-content/50">
+        <p className="py-6 text-center text-sm text-dashboard-base-content/70">
           Nothing planned for this day yet.
         </p>
       )}
@@ -622,7 +622,7 @@ export function ActivitiesView({ day }: { day: number }) {
                 disabled={i === 0}
                 onClick={() => mutate((d) => moveActivity(d, i, -1))}
                 title="Move up"
-                className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/70 hover:text-dashboard-base-content disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
                 <ArrowUp size={13} />
               </button>
@@ -631,7 +631,7 @@ export function ActivitiesView({ day }: { day: number }) {
                 disabled={i === itin.activities.length - 1}
                 onClick={() => mutate((d) => moveActivity(d, i, 1))}
                 title="Move down"
-                className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/70 hover:text-dashboard-base-content disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
                 <ArrowDown size={13} />
               </button>
@@ -668,7 +668,7 @@ export function ActivitiesView({ day }: { day: number }) {
         </Button>
       )}
 
-      <p className="text-[11px] text-dashboard-base-content/45 pt-1">
+      <p className="text-[11px] text-dashboard-base-content/70 pt-1">
         Photos are added by clicking the activity&apos;s image tiles in the preview.
       </p>
     </div>
@@ -723,7 +723,7 @@ function ActivitySearch({ day }: { day: number }) {
   return (
     <div className="space-y-2">
       <div className="relative">
-        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/40" />
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/65" />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -733,11 +733,11 @@ function ActivitySearch({ day }: { day: number }) {
       </div>
 
       {loading && (
-        <p className="py-6 text-center text-sm text-dashboard-base-content/50">Searching…</p>
+        <p className="py-6 text-center text-sm text-dashboard-base-content/70">Searching…</p>
       )}
 
       {!loading && results.length === 0 && (
-        <p className="py-6 text-center text-sm text-dashboard-base-content/50">
+        <p className="py-6 text-center text-sm text-dashboard-base-content/70">
           {city || query ? "Nothing in the catalog matches — write your own instead." : "Enter a city to see activities."}
         </p>
       )}
@@ -815,7 +815,7 @@ function RouteBlock({ day }: { day: number }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/50">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/70">
           Journey
         </p>
         <Segmented
@@ -833,7 +833,7 @@ function RouteBlock({ day }: { day: number }) {
         <>
           <div className="space-y-2">
             <div className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Pickup</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Pickup</span>
               <LocationSearchSelect
                 value={itin.transportPickup
                   ? { id: "pickup", name: itin.transportPickup, type: "AREA", breadcrumb: itin.transportPickup, slug: "", latitude: itin.transportPickupLat, longitude: itin.transportPickupLng }
@@ -848,7 +848,7 @@ function RouteBlock({ day }: { day: number }) {
               />
             </div>
             <div className="space-y-1">
-              <span className="text-[11px] text-dashboard-base-content/60">Drop</span>
+              <span className="text-[11px] text-dashboard-base-content/75">Drop</span>
               <LocationSearchSelect
                 value={itin.transportDrop
                   ? { id: "drop", name: itin.transportDrop, type: "AREA", breadcrumb: itin.transportDrop, slug: "", latitude: itin.transportDropLat, longitude: itin.transportDropLng }
@@ -867,14 +867,14 @@ function RouteBlock({ day }: { day: number }) {
           <RouteMiniMap from={from} to={to} line={estimate?.geometry} />
 
           {routing && (
-            <p className="text-[11px] text-dashboard-base-content/50 flex items-center gap-1.5">
+            <p className="text-[11px] text-dashboard-base-content/70 flex items-center gap-1.5">
               <Loader2 size={11} className="animate-spin" /> Working out the drive…
             </p>
           )}
 
           {estimate && (
             <div className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-2">
-              <p className="text-[11px] text-dashboard-base-content/70">
+              <p className="text-[11px] text-dashboard-base-content/85">
                 By road: <span className="font-semibold text-dashboard-base-content">
                   {estimate.distanceKm} km · {estimate.travelTime}
                 </span>
@@ -890,14 +890,14 @@ function RouteBlock({ day }: { day: number }) {
                   >
                     Use these
                   </Button>
-                  <span className="text-[10.5px] text-dashboard-base-content/45">
+                  <span className="text-[10.5px] text-dashboard-base-content/70">
                     {itin.transportDistanceKm != null || itin.transportTravelTime
                       ? "Your own figures are kept until you apply this."
                       : "Nothing set yet for this day."}
                   </span>
                 </div>
               ) : (
-                <p className="text-[10.5px] text-dashboard-base-content/45">
+                <p className="text-[10.5px] text-dashboard-base-content/70">
                   Matches what&apos;s set for this day.
                 </p>
               )}
@@ -905,7 +905,7 @@ function RouteBlock({ day }: { day: number }) {
           )}
 
           {!from || !to ? (
-            <p className="text-[11px] text-dashboard-base-content/45">
+            <p className="text-[11px] text-dashboard-base-content/70">
               Pick both ends to see the route and its drive time.
             </p>
           ) : null}
@@ -913,7 +913,7 @@ function RouteBlock({ day }: { day: number }) {
       ) : (
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Pickup</span>
+            <span className="text-[11px] text-dashboard-base-content/75">Pickup</span>
             <Input
               value={itin.transportPickup}
               onChange={(e) => updateDay(day, { transportPickup: e.target.value })}
@@ -921,7 +921,7 @@ function RouteBlock({ day }: { day: number }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Drop</span>
+            <span className="text-[11px] text-dashboard-base-content/75">Drop</span>
             <Input
               value={itin.transportDrop}
               onChange={(e) => updateDay(day, { transportDrop: e.target.value })}
@@ -929,7 +929,7 @@ function RouteBlock({ day }: { day: number }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Distance (km)</span>
+            <span className="text-[11px] text-dashboard-base-content/75">Distance (km)</span>
             <Input
               type="number" min={0}
               value={itin.transportDistanceKm ?? ""}
@@ -938,10 +938,10 @@ function RouteBlock({ day }: { day: number }) {
               })}
               placeholder="0" className="h-9 text-sm"
             />
-            <span className="text-[10px] text-dashboard-base-content/45">Per-km rates price off this.</span>
+            <span className="text-[10px] text-dashboard-base-content/70">Per-km rates price off this.</span>
           </label>
           <label className="space-y-1">
-            <span className="text-[11px] text-dashboard-base-content/60">Drive time</span>
+            <span className="text-[11px] text-dashboard-base-content/75">Drive time</span>
             <Input
               value={itin.transportTravelTime}
               onChange={(e) => updateDay(day, { transportTravelTime: e.target.value })}

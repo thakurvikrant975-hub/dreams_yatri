@@ -54,7 +54,7 @@ export function Group({ label, hint, action, children }: {
       {(label || action) && (
         <div className="flex items-center justify-between gap-2">
           {label && (
-            <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-dashboard-base-content/45">
+            <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-dashboard-base-content/70">
               {label}
             </h3>
           )}
@@ -62,7 +62,7 @@ export function Group({ label, hint, action, children }: {
         </div>
       )}
       {children}
-      {hint && <p className="text-[11px] leading-relaxed text-dashboard-base-content/45">{hint}</p>}
+      {hint && <p className="text-[11px] leading-relaxed text-dashboard-base-content/70">{hint}</p>}
     </section>
   );
 }
@@ -74,10 +74,10 @@ export function Field({ label, hint, children, className }: {
   return (
     <label className={cn("block space-y-1", className)}>
       {label && (
-        <span className="block text-[11px] font-medium text-dashboard-base-content/60">{label}</span>
+        <span className="block text-[11px] font-medium text-dashboard-base-content/75">{label}</span>
       )}
       {children}
-      {hint && <span className="block text-[10.5px] text-dashboard-base-content/45">{hint}</span>}
+      {hint && <span className="block text-[10.5px] text-dashboard-base-content/70">{hint}</span>}
     </label>
   );
 }
@@ -157,17 +157,17 @@ export function OptionRow({
             {title}
           </p>
           {subtitle && (
-            <p className="text-[11px] text-dashboard-base-content/70 truncate" title={subtitleTooltip}>
+            <p className="text-[11px] text-dashboard-base-content/85 truncate" title={subtitleTooltip}>
               {subtitle}
             </p>
           )}
           {meta && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[10.5px] text-dashboard-base-content/50">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[10.5px] text-dashboard-base-content/70">
               {meta}
             </div>
           )}
           {description && (
-            <p className="text-[10.5px] text-dashboard-base-content/55 mt-1 line-clamp-2">{description}</p>
+            <p className="text-[10.5px] text-dashboard-base-content/75 mt-1 line-clamp-2">{description}</p>
           )}
         </div>
         {trailing && <div className="shrink-0 text-right">{trailing}</div>}
@@ -198,7 +198,7 @@ export function Segmented<T extends string>({ value, onChange, options, classNam
             "flex-1 rounded-[7px] px-2.5 py-1.5 text-[11px] font-medium transition-colors duration-[120ms]",
             value === o.value
               ? "bg-dashboard-base-100 text-dashboard-base-content shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-              : "text-dashboard-base-content/55 hover:text-dashboard-base-content/85",
+              : "text-dashboard-base-content/75 hover:text-dashboard-base-content/85",
           )}
         >
           {o.label}
@@ -229,7 +229,7 @@ export function Chip({ selected, onClick, children, tone = "primary", title, cla
           ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
           : tone === "warning"
             ? "border-dashed border-amber-400/60 text-amber-700/80 hover:bg-amber-50"
-            : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60",
+            : "border-dashboard-base-300 text-dashboard-base-content/75 hover:bg-dashboard-base-200/60",
         className,
       )}
     >
@@ -248,7 +248,7 @@ export function Empty({ children, action }: {
 }) {
   return (
     <div className="flex flex-col items-center gap-2 py-8 text-center">
-      <p className="text-[12.5px] text-dashboard-base-content/50 max-w-[34ch]">{children}</p>
+      <p className="text-[12.5px] text-dashboard-base-content/70 max-w-[34ch]">{children}</p>
       {action}
     </div>
   );
@@ -256,7 +256,7 @@ export function Empty({ children, action }: {
 
 export function Hint({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] leading-relaxed text-dashboard-base-content/45">{children}</p>
+    <p className="text-[11px] leading-relaxed text-dashboard-base-content/70">{children}</p>
   );
 }
 

@@ -72,7 +72,7 @@ const chipClass = (selected: boolean) => cn(
   "transition-colors duration-[120ms]",
   selected
     ? "border-dashboard-primary bg-dashboard-primary/10 text-dashboard-primary"
-    : "border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200/60",
+    : "border-dashboard-base-300 text-dashboard-base-content/85 hover:bg-dashboard-base-200/60",
 );
 
 function ChipFace({ d }: { d: DayItinerary }) {
@@ -153,7 +153,7 @@ function ElementRow({ el, canEdit }: { el: Element; canEdit: boolean }) {
       >
         <el.icon
           size={14}
-          className={cn("shrink-0", filled ? "text-dashboard-primary" : "text-dashboard-base-content/30")}
+          className={cn("shrink-0", filled ? "text-dashboard-primary" : "text-dashboard-base-content/55")}
         />
         <span className="flex-1 min-w-0">
           <span className="block text-[11.5px] font-medium text-dashboard-base-content/85">
@@ -162,15 +162,15 @@ function ElementRow({ el, canEdit }: { el: Element; canEdit: boolean }) {
           <span
             className={cn(
               "block text-[10.5px] truncate",
-              filled ? "text-dashboard-base-content/55" : "text-dashboard-base-content/35 italic",
+              filled ? "text-dashboard-base-content/75" : "text-dashboard-base-content/60 italic",
             )}
           >
             {el.value ?? "Not added"}
           </span>
         </span>
         {canEdit && (!filled || el.multiple)
-          ? <Plus size={12} className="shrink-0 text-dashboard-base-content/30" />
-          : filled && <ChevronRight size={12} className="shrink-0 text-dashboard-base-content/25" />}
+          ? <Plus size={12} className="shrink-0 text-dashboard-base-content/55" />
+          : filled && <ChevronRight size={12} className="shrink-0 text-dashboard-base-content/55" />}
       </button>
 
       {/* Only ever shown for something that IS on the day — a clear button next
@@ -185,7 +185,7 @@ function ElementRow({ el, canEdit }: { el: Element; canEdit: boolean }) {
           className={cn(
             "shrink-0 flex items-center justify-center w-8 rounded-r-[10px] transition-opacity",
             el.clear
-              ? "text-dashboard-base-content/25 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-red-50 hover:text-red-600"
+              ? "text-dashboard-base-content/55 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-red-50 hover:text-red-600"
               : "text-dashboard-base-content/15 cursor-not-allowed opacity-0 group-hover:opacity-100",
           )}
         >
@@ -324,7 +324,7 @@ export function DayListPanel() {
       onClick={() => { addDayAfter(days.length); setSelectedDay(days.length + 1); }}
       title={`Add day ${days.length + 1}`}
       aria-label={`Add day ${days.length + 1}`}
-      className="flex items-center justify-center size-11 shrink-0 rounded-[10px] border border-dashed border-dashboard-base-300 text-dashboard-base-content/45 hover:bg-dashboard-base-200/60 hover:text-dashboard-base-content"
+      className="flex items-center justify-center size-11 shrink-0 rounded-[10px] border border-dashed border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200/60 hover:text-dashboard-base-content"
     >
       <Plus size={15} />
     </button>
@@ -391,14 +391,14 @@ export function DayListPanel() {
                 type="button"
                 onClick={() => removeDay(current.day)}
                 title={`Delete day ${current.day}`}
-                className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] font-medium text-dashboard-base-content/40 hover:bg-red-50 hover:text-red-600"
+                className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[10.5px] font-medium text-dashboard-base-content/65 hover:bg-red-50 hover:text-red-600"
               >
                 <Trash2 size={11} /> Delete day
               </button>
             ) : undefined
           }
         >
-          <p className="text-[11.5px] text-dashboard-base-content/55 -mt-0.5 mb-1 truncate">
+          <p className="text-[11.5px] text-dashboard-base-content/75 -mt-0.5 mb-1 truncate">
             {current.title || "Untitled day"}
           </p>
           <div className="space-y-1.5">
