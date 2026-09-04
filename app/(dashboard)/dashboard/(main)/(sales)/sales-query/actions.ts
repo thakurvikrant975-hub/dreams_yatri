@@ -134,7 +134,7 @@ import type { SentPackageInfo } from "./package-status";
 
 // A query can now have more than one package built for it (e.g. two
 // different budget options sent to the same client) — most recent first.
-export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[]; callLogCount: number };
+export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[]; callLogStatuses: CallLogStatus[] };
 
 const CUSTOM_PACKAGE_SELECT = {
     id: true, title: true, status: true, createdAt: true, sentAt: true, readyAt: true,
@@ -212,24 +212,32 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
     // Call logs live as QueryTimeline rows (meta.kind === "CALL_LOG", see
     // logCall below) rather than their own table — no dedicated relation to
     // put in the `include` above, so this is a second batched lookup, same
-    // reasoning as the library-status one just above.
+    // reasoning as the library-status one just above. Each call's own
+    // status (not just a count) — the Lead column renders one colored dot
+    // per call, oldest first, so `asc` here is what puts them in call order.
     const queryIds = queries.map((q) => q.id);
-    const callCounts = queryIds.length > 0
-        ? await db.queryTimeline.groupBy({
-            by:    ["queryId"],
-            where: { queryId: { in: queryIds }, meta: { path: ["kind"], equals: "CALL_LOG" } },
-            _count: { _all: true },
+    const callLogRows = queryIds.length > 0
+        ? await db.queryTimeline.findMany({
+            where:   { queryId: { in: queryIds }, meta: { path: ["kind"], equals: "CALL_LOG" } },
+            orderBy: { createdAt: "asc" },
+            select:  { queryId: true, meta: true },
         })
         : [];
-    const callCountByQueryId = new Map(callCounts.map((c) => [c.queryId, c._count._all]));
+    const callLogStatusesByQueryId = new Map<string, CallLogStatus[]>();
+    for (const row of callLogRows) {
+        const status = (row.meta as { status?: CallLogStatus } | null)?.status ?? "CONNECTED";
+        const arr = callLogStatusesByQueryId.get(row.queryId) ?? [];
+        arr.push(status);
+        callLogStatusesByQueryId.set(row.queryId, arr);
+    }
 
     return queries.map((q) => ({
         ...q,
-        rejectionReason:  q.rejection_reasons ?? null,
-        totalLeadQueries: 1,
-        customPackages:   (q.custom_packages ?? []).map((cp: { id: string }) =>
+        rejectionReason:   q.rejection_reasons ?? null,
+        totalLeadQueries:  1,
+        customPackages:    (q.custom_packages ?? []).map((cp: { id: string }) =>
             mapCustomPackage(cp, libraryStatusByPackageId.get(cp.id) ?? null)),
-        callLogCount:     callCountByQueryId.get(q.id) ?? 0,
+        callLogStatuses:   callLogStatusesByQueryId.get(q.id) ?? [],
     })) as SalesQueryRow[];
 }
 
@@ -658,4 +666,34 @@ export async function logCall(packageQueryId: string, formData: FormData): Promi
         console.error("logCall error:", err);
         return { success: false, message: "Failed to log call" };
     }
+}
+
+export type CallLogEntry = {
+    id:        string;
+    status:    CallLogStatus;
+    note:      string | null;
+    actorName: string | null;
+    createdAt: Date;
+};
+
+/** This query's own call history — newest first. Feeds CallLogDialog, which
+ * shows it above the "log a new call" form so opening the dialog doubles as
+ * reviewing what's already been tried before dialing again. */
+export async function getCallLogsForQuery(packageQueryId: string): Promise<CallLogEntry[]> {
+    const rows = await db.queryTimeline.findMany({
+        where:   { queryId: packageQueryId, meta: { path: ["kind"], equals: "CALL_LOG" } },
+        orderBy: { createdAt: "desc" },
+        select:  { id: true, meta: true, actorName: true, createdAt: true },
+    });
+
+    return rows.map((r) => {
+        const meta = r.meta as { status?: CallLogStatus; note?: string | null } | null;
+        return {
+            id:        r.id,
+            status:    meta?.status ?? "CONNECTED",
+            note:      meta?.note ?? null,
+            actorName: r.actorName,
+            createdAt: r.createdAt,
+        };
+    });
 }

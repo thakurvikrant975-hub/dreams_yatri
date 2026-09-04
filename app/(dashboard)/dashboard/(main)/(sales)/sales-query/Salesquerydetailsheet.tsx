@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
     Phone, Mail, MapPin, Users, Calendar,
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
-    Package, CheckCircle2, FileText, Heart, Plus,
+    Package, CheckCircle2, FileText, Heart, Plus, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -26,10 +26,36 @@ import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { PackageVerificationBadge, PackageSentBadge, HotelRequestBadge } from "./Salesquerybadges";
 import { DeletePackageDialog } from "./Deletepackagedialog";
-import { reopenSalesQuery } from "./actions";
+import { reopenSalesQuery, getCallLogsForQuery } from "./actions";
 import { readRequirements } from "./requirements";
-import type { SentPackageInfo } from "./actions";
+import type { SentPackageInfo, CallLogEntry, CallLogStatus } from "./actions";
 import { CloseReason, RejectionReason } from "../../(marketing)/queries/actions";
+import { cn } from "@/app/lib/utils";
+
+// Same color language as CallLogDialog's status picker and the Lead
+// column's call-dot row (Salesqueriestable.tsx) — kept as small local
+// copies rather than a shared import since each of the three is a
+// different kind of module (client dialog / table cell / this sheet).
+const CALL_STATUS_LABELS: Record<CallLogStatus, string> = {
+    CONNECTED:  "Connected",
+    NOT_PICKED: "Not Picked",
+    DECLINED:   "Declined",
+};
+const CALL_STATUS_DOT: Record<CallLogStatus, string> = {
+    CONNECTED:  "bg-green-500",
+    NOT_PICKED: "bg-yellow-500",
+    DECLINED:   "bg-red-500",
+};
+
+/** Explicitly Asia/Kolkata regardless of the viewer's own browser timezone —
+ * matches CallLogDialog's formatIST. */
+function formatIST(d: Date): string {
+    return new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata",
+        hour: "numeric", minute: "2-digit", hour12: true,
+        day: "numeric", month: "short",
+    }).format(d);
+}
 
 type FollowUpItem = {
     id: string;
@@ -127,6 +153,18 @@ export function SalesQueryDetailSheet({
     isTeamLead = false,
 }: Props) {
     const [isPendingReopen, startReopen] = useTransition();
+    const [callLogs, setCallLogs] = useState<CallLogEntry[]>([]);
+    const [loadingCallLogs, setLoadingCallLogs] = useState(false);
+
+    // Hooks run unconditionally (before the `!query` early return below),
+    // same reason the effect keys off `query?.id` rather than assuming it.
+    useEffect(() => {
+        if (!open || !query?.id) { setCallLogs([]); return; }
+        setLoadingCallLogs(true);
+        getCallLogsForQuery(query.id)
+            .then(setCallLogs)
+            .finally(() => setLoadingCallLogs(false));
+    }, [open, query?.id]);
 
     if (!query) return null;
 
@@ -604,6 +642,45 @@ export function SalesQueryDetailSheet({
                                         Add Follow-Up
                                     </Button>
                                 </AddFollowUpDialog>
+                            )}
+                        </section>
+
+                        <Separator />
+
+                        {/* Call Logs — status + note per call, newest first. */}
+                        <section>
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+                                My Call Logs ({callLogs.length})
+                            </h3>
+                            {loadingCallLogs ? (
+                                <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    Loading call logs…
+                                </div>
+                            ) : callLogs.length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic">
+                                    No calls logged yet.
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {callLogs.map((c) => (
+                                        <div key={c.id} className="rounded-lg border bg-card p-3 space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className={cn("h-2 w-2 rounded-full shrink-0", CALL_STATUS_DOT[c.status])} />
+                                                <span className="text-sm font-medium">{CALL_STATUS_LABELS[c.status]}</span>
+                                                <span className="text-[10px] text-muted-foreground ml-auto">
+                                                    {formatIST(new Date(c.createdAt))} IST
+                                                </span>
+                                            </div>
+                                            {c.note && (
+                                                <p className="text-xs text-muted-foreground pl-4">{c.note}</p>
+                                            )}
+                                            {c.actorName && (
+                                                <p className="text-[10px] text-muted-foreground pl-4">by {c.actorName}</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </section>
 

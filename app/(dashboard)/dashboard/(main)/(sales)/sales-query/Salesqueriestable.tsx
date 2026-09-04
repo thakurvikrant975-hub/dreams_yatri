@@ -30,7 +30,7 @@ import { hasRequirements } from "./requirements";
 import { mapCustomPackage } from "./package-status";
 import { AssignQueryDropdown } from "../../(marketing)/queries/Assignquerydropdown";
 import { QueryTimelineSheet } from "../../(marketing)/queries/QueryTimelineSheet";
-import type { SalesQueryRow } from "./actions";
+import type { SalesQueryRow, CallLogStatus } from "./actions";
 import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements, SalesMember } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
@@ -39,6 +39,13 @@ import Image from "next/image";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+// Matches the color language CallLogDialog's status picker uses.
+const CALL_STATUS_DOT: Record<CallLogStatus, string> = {
+    CONNECTED:  "bg-green-500",
+    NOT_PICKED: "bg-yellow-500",
+    DECLINED:   "bg-red-500",
+};
 
 type SalesQueryWithDetails = SalesQueryRow & {
     // queryFollowUps from DB mapped to followUps for the sheet
@@ -397,16 +404,22 @@ export function SalesQueriesTable({
                             <span className="truncate max-w-[160px]">{q.email}</span>
                         </div>
                     )}
-                    {/* Call count — how many times this lead has been called,
-                        logged via the "Log Call" action. Hidden at 0 so a
-                        never-called lead doesn't carry a stray badge. */}
-                    {q.callLogCount > 0 && (
+                    {/* Call history, one dot per call — oldest to newest,
+                        colored by that call's own status. Reading the row
+                        says more at a glance than a bare count would (e.g.
+                        "connected then two no-picks" vs. just "3 calls"),
+                        and matches the color language CallLogDialog uses. */}
+                    {q.callLogStatuses.length > 0 && (
                         <div
-                            title={`${q.callLogCount} call${q.callLogCount !== 1 ? "s" : ""} logged`}
-                            className="flex items-center gap-1 text-[11px] text-green-600"
+                            title={`${q.callLogStatuses.length} call${q.callLogStatuses.length !== 1 ? "s" : ""} logged`}
+                            className="flex items-center gap-1"
                         >
-                            <PhoneCall className="h-3 w-3" />
-                            <span>{q.callLogCount} call{q.callLogCount !== 1 ? "s" : ""}</span>
+                            {q.callLogStatuses.map((status, i) => (
+                                <span
+                                    key={i}
+                                    className={cn("h-1.5 w-1.5 rounded-full shrink-0", CALL_STATUS_DOT[status])}
+                                />
+                            ))}
                         </div>
                     )}
                 </div>
