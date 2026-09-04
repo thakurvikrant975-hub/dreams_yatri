@@ -142,22 +142,6 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
         </div>
       </div>
 
-      {/* The way back to the thing being bought. This was a card of its own —
-          a heading, a sentence and a link, for one destination — which is more
-          furniture than a back-link deserves. A breadcrumb says the same thing
-          in one line and says it where people look for it. */}
-      <nav aria-label="Breadcrumb" className="screen-space pt-4">
-        <ol className="mx-auto flex w-full max-w-[500px] items-center gap-1.5 text-xs">
-          <li>
-            <Link href={`/custom-package/${summary.packageId}`} className="font-medium text-neutral-500 transition-colors hover:text-primary-600">
-              Your itinerary
-            </Link>
-          </li>
-          <li aria-hidden="true" className="text-neutral-300"><ChevronRight size={13} /></li>
-          <li aria-current="page" className="font-semibold text-neutral-800">Review booking</li>
-        </ol>
-      </nav>
-
       {/* ── The cover, as the itinerary itself opens ──────────────────────────
           The same lockup the client just came from: their name in script over
           the title, the duration beside it, and the trip's three facts on a
@@ -176,7 +160,7 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
             that is bright exactly there is the one that eats them. */}
         <div className="absolute inset-0 bg-linear-to-t from-neutral-950/85 via-neutral-950/45 to-neutral-950/10" />
         <div className="screen-space absolute inset-x-0 bottom-0 pb-8 sm:pb-10">
-          <div className="mx-auto w-full max-w-[500px]">
+          <div className="mx-auto w-full max-w-4xl">
             {summary.clientName && (
               // Overlapping the title's cap height by a few px is what makes
               // the two a lockup rather than two stacked lines; leading-[1.3]
@@ -217,7 +201,7 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
             above is a positioned element, so without it the overlapping third
             of this card paints underneath the photo and the three labels
             simply vanish. */}
-        <div className="relative z-10 mx-auto -mt-7 w-full max-w-[500px]">
+        <div className="relative z-10 mx-auto -mt-7 w-full max-w-4xl">
           <div className="grid grid-cols-3 overflow-hidden rounded-xl bg-white shadow-lg shadow-neutral-300/60 ring-1 ring-inset ring-(--border-default)">
             <Stat icon={Calendar} label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
             <Stat icon={Moon} label="Duration" value={`${summary.days}D / ${summary.nights}N`} />
@@ -226,20 +210,45 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
           {/* Named only when the package quoted more than one, so a client who
               never had a choice is not shown one they did not make. */}
           {summary.optionLabel && (
-            <Text size="xs" intent="secondary" className="mt-2.5 block text-center">
+            <Text size="xs" intent="secondary" className="mt-2.5 block">
               Stay standard: <span className="font-medium text-neutral-700">{summary.optionLabel}</span>
             </Text>
           )}
         </div>
       </div>
 
+      {/* The way back to the thing being bought. This was a card of its own —
+          a heading, a sentence and a link, for one destination — which is more
+          furniture than a back-link deserves.
+
+          Under the cover rather than over it: the cover IS the page's opening,
+          and a crumb trail above it would push the one image on the page below
+          the fold to say something the reader does not need until they have
+          finished looking. */}
+      <nav aria-label="Breadcrumb" className="screen-space pt-4">
+        <ol className="mx-auto flex w-full max-w-4xl items-center gap-1.5 text-xs">
+          <li>
+            <Link href={`/custom-package/${summary.packageId}`} className="font-medium text-neutral-500 transition-colors hover:text-primary-600">
+              Your itinerary
+            </Link>
+          </li>
+          <li aria-hidden="true" className="text-neutral-300"><ChevronRight size={13} /></li>
+          <li aria-current="page" className="font-semibold text-neutral-800">Review booking</li>
+        </ol>
+      </nav>
+
       <div className="screen-space pt-5">
-        {/* min-w-0 so the column can be narrower than its contents want to
+        {/* max-w-4xl — 56rem, the same measure --doc-content-width gives the
+            itinerary this page came from (see published-theme.ts) and the
+            same one that page's own booking bar stops at. A different width
+            here made the two read as two products.
+
+            min-w-0 so the column can be narrower than its contents want to
             be. Without it a flex column sizes to its items' max-content and
             body's `overflow-x: clip` cuts the excess instead of scrolling it
             — which is how the amount and the confirm button ended up off the
             right edge of a 390px screen with no way to reach them. */}
-        <div className="mx-auto flex w-full min-w-0 max-w-[500px] flex-col gap-4">
+        <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4">
 
           {/* ── The decision ─────────────────────────────────────────── */}
           <SectionCard icon={Wallet} title="Payment">
