@@ -356,21 +356,50 @@ export async function getSalesMembers(salesTeamId?: string): Promise<SalesMember
      * goes should see every destination in one list. Scoping to a team is a
      * Team Leader's own roster, which never includes an agency.
      */
-    const members = await db.teamMember.findMany({
-        where: {
-            OR: [
-                { teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } } },
-                ...(salesTeamId ? [] : [{ teamRole: { isPartnerAgency: true } }]),
-            ],
-            isActive: true, // ← was missing; was returning inactive members too
-            ...(salesTeamId ? { salesTeamId } : {}),
-        },
-        select: {
-            id: true, name: true, email: true, profilePicUrl: true,
-            teamRole: { select: { isPartnerAgency: true } },
-        },
-        orderBy: { name: "asc" },
-    });
+    const execsOnly = {
+        teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } },
+        isActive: true, // ← was missing; was returning inactive members too
+        ...(salesTeamId ? { salesTeamId } : {}),
+    } as const;
+
+    /*
+     * Our own executives, plus any partner agency.
+     *
+     * An agency is handed leads through the same column and the same action,
+     * so it belongs in the same picker — a lead manager choosing where a lead
+     * goes should see every destination in one list. Scoping to a team is a
+     * Team Leader's own roster, which never includes an agency.
+     *
+     * Falls back to executives alone if the agency column is not there: this
+     * page must not go dark in the window between the code shipping and the
+     * migration landing. A picker missing the agency is a nuisance; a picker
+     * that throws is a lead manager who cannot assign anything.
+     */
+    let members;
+    try {
+        members = await db.teamMember.findMany({
+            where: {
+                OR: [
+                    { teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } } },
+                    ...(salesTeamId ? [] : [{ teamRole: { isPartnerAgency: true } }]),
+                ],
+                isActive: true,
+                ...(salesTeamId ? { salesTeamId } : {}),
+            },
+            select: {
+                id: true, name: true, email: true, profilePicUrl: true,
+                teamRole: { select: { isPartnerAgency: true } },
+            },
+            orderBy: { name: "asc" },
+        });
+    } catch (e) {
+        console.error("[getSalesMembers] agency roster unavailable, listing executives only:", e);
+        members = (await db.teamMember.findMany({
+            where: execsOnly,
+            select: { id: true, name: true, email: true, profilePicUrl: true },
+            orderBy: { name: "asc" },
+        })).map((m) => ({ ...m, teamRole: null }));
+    }
 
     if (members.length === 0) return [];
 
@@ -596,6 +625,7 @@ export type PartnerAgencySetting = {
 };
 
 export async function getPartnerAgencySettings(): Promise<PartnerAgencySetting[]> {
+  try {
     const members = await db.teamMember.findMany({
         where: { teamRole: { isPartnerAgency: true }, isActive: true },
         select: {
@@ -633,6 +663,14 @@ export async function getPartnerAgencySettings(): Promise<PartnerAgencySetting[]
         blockedSources: m.partnerLeadRule?.blockedSources ?? [],
         givenToday: givenMap.get(m.id) ?? 0,
     }));
+  } catch (e) {
+    // The queries page loads this alongside everything else it needs. Before
+    // the migration lands there is no agency table to read, and "no agencies"
+    // is both true and harmless — where throwing would take the whole page
+    // down for every lead manager.
+    console.error("[getPartnerAgencySettings] unavailable, treating as no agencies:", e);
+    return [];
+  }
 }
 
 export async function updatePartnerAgencySetting(
