@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useModal } from "@/app/hooks/useModals";
 import Button from "@/app/components/ui/Button";
 import Card from "@/app/components/ui/Card";
+import { ArrowRight, CalendarCheck, Route, Wallet } from "lucide-react";
 import { Heading, Text } from "@/app/components/ui/Typography";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { createCustomPackageBookingDraft } from "@/app/actions/payment/booking.actions";
@@ -143,78 +144,76 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
 
           {/* ── What is being bought ─────────────────────────────────── */}
           <>
-            <div className="rounded-xl bg-white shadow-sm overflow-hidden">
-              <div className="flex gap-4 p-5">
-                {summary.coverImage && (
-                  /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
-                  <img
-                    src={summary.coverImage} alt=""
-                    // Smaller on a phone. Beside a 144px cover, a 358px card
-                    // leaves ~158px for the title, the badge, the destination
-                    // and three rows of facts — and the title clamped to
-                    // "Bikaner testing…" even across two lines. 112px gives it
-                    // back the ~190px it needs to read.
-                    className="h-20 w-28 sm:h-24 sm:w-36 shrink-0 rounded-lg object-cover bg-neutral-100"
-                  />
-                )}
-                <div className="min-w-0 flex-1">
-                  {/* The title gets the width to itself, and clamps at two
-                      lines rather than one. In a 500px column beside a cover
-                      there is no line on which a package name and a badge both
-                      fit: sharing one, "Bikaner testing desert safari package"
-                      arrived as "Bikaner testing…" on the page where someone
-                      confirms what they are buying. The badge is a label, not
-                      a heading — it reads just as well on the line below. */}
-                  <Heading level={3} weight="semibold" className="line-clamp-2">{summary.title}</Heading>
-                  <div className="flex items-center justify-between gap-3">
-                    {summary.destination && (
-                      <Text size="sm" intent="secondary" weight="medium" className="min-w-0 truncate">{summary.destination}</Text>
-                    )}
-                    <span className="shrink-0 rounded-md border border-primary-200 px-2 py-0.5 text-[11px] font-semibold text-primary-600">
-                      Tailored
-                    </span>
-                  </div>
-                  {/* Rows, not three columns. Beside a 144px cover on a 390px
-                      screen this row had ~158px to divide three ways, so the
-                      labels wrapped and the one fact a client checks before
-                      paying rendered as "15 De…". A row per fact reads at any
-                      width; max-w-sm keeps the label and its value together on
-                      a wide card instead of pushing them to opposite ends. */}
-                  <dl className="mt-2 max-w-sm divide-y divide-(--border-muted) border-t border-(--border-muted)">
-                    <Detail label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
-                    <Detail label="Nights" value={String(summary.nights)} />
-                    <Detail label="Travellers" value={String(summary.travellers)} />
-                  </dl>
+            <SectionCard icon={CalendarCheck} title="Your trip">
+              {/* The cover across the top, not a thumbnail beside the text.
+                  Sitting in the row it forced everything else into what was
+                  left — ~158px on a 390px screen, three facts and a title
+                  fighting over it — and still left a block of empty card
+                  under itself, because a 96px image cannot fill a row as tall
+                  as its neighbour. Full width it costs nothing, shows the
+                  trip properly, and hands the whole measure back. */}
+              {summary.coverImage && (
+                /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
+                <img
+                  src={summary.coverImage} alt=""
+                  className="h-36 w-full object-cover bg-neutral-100 sm:h-44"
+                />
+              )}
+              <div className="px-5 py-4">
+                {/* Clamped at two lines: a package name can be any length and
+                    a card header is not the place to print all of it. */}
+                <Heading level={3} weight="semibold" className="line-clamp-2">{summary.title}</Heading>
+                <div className="mt-0.5 flex items-center justify-between gap-3">
+                  {summary.destination && (
+                    <Text size="sm" intent="secondary" weight="medium" className="min-w-0 truncate">{summary.destination}</Text>
+                  )}
+                  <span className="shrink-0 rounded-md border border-primary-200 px-2 py-0.5 text-[11px] font-semibold text-primary-600">
+                    Tailored
+                  </span>
                 </div>
+                {/* A row per fact rather than three columns. Columns gave the
+                    travel date ~42px on a phone and printed it as "15 De…" —
+                    the one fact a client checks before paying. */}
+                <dl className="mt-3 divide-y divide-(--border-muted) border-t border-(--border-muted)">
+                  <Detail label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
+                  <Detail label="Nights" value={String(summary.nights)} />
+                  <Detail label="Travellers" value={String(summary.travellers)} />
+                </dl>
               </div>
 
               {/* Named only when the package quoted more than one, so a client
                   who never had a choice is not shown one they did not make. */}
               {summary.optionLabel && (
-                <div className="border-t border-(--border-muted) px-5 py-3">
+                <div className="border-t border-(--border-muted) bg-neutral-50/60 px-5 py-3">
                   <Text size="xs" intent="secondary">
                     Stay standard: <span className="font-medium text-neutral-700">{summary.optionLabel}</span>
                   </Text>
                 </div>
               )}
-            </div>
+            </SectionCard>
 
-            <div className="rounded-xl bg-white shadow-sm px-5 py-4">
-              <Text size="sm" weight="semibold" intent="primary" className="block mb-1">Your itinerary</Text>
-              <Text size="xs" intent="secondary" className="block">
-                Everything your travel manager put together is on the quote you came from.
-              </Text>
-              <Link
-                href={`/custom-package/${summary.packageId}`}
-                className="mt-2 inline-block text-sm font-medium text-primary-500 hover:underline"
-              >
-                Read the full itinerary again
-              </Link>
-            </div>
+            <SectionCard icon={Route} title="Your itinerary">
+              <div className="px-5 py-4">
+                <Text size="xs" intent="secondary" className="block">
+                  Everything your travel manager put together is on the quote you came from.
+                </Text>
+                {/* A row, not a text link. This is the one way back to the
+                    thing being bought, and a 14px link under a paragraph is
+                    the easiest control on the page to miss — and the hardest
+                    to hit with a thumb. */}
+                <Link
+                  href={`/custom-package/${summary.packageId}`}
+                  className="group mt-3 flex items-center justify-between gap-3 rounded-lg border border-(--border-muted) px-4 py-3 transition-colors hover:border-primary-300 hover:bg-primary-50/50"
+                >
+                  <Text size="sm" weight="semibold" intent="primary">Read the full itinerary</Text>
+                  <ArrowRight size={16} className="shrink-0 text-primary-500 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </div>
+            </SectionCard>
           </>
 
           {/* ── The decision ─────────────────────────────────────────── */}
-          <Card className="overflow-hidden">
+          <SectionCard icon={Wallet} title="Payment">
               {/* The label on its own line, then every figure on the next.
                   Side by side, the was-price, the payable one and the badge
                   had to share a rail with the words "Package total", which is
@@ -229,7 +228,9 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
                       {money(summary.currency, summary.discount.originalPrice)}
                     </span>
                   )}
-                  <Text size="base" weight="bold" intent="primary">{money(summary.currency, summary.total)}</Text>
+                  <Text size="xl" weight="bold" intent="primary" className="font-heading tracking-tight">
+                    {money(summary.currency, summary.total)}
+                  </Text>
                   {summary.discount && (
                     <SavingsBadge amount={summary.discount.label} prefix="" className="shrink-0 mx-1.5" />
                   )}
@@ -261,7 +262,10 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
               )}
 
               <div className="px-5 py-4">
-                <Text size="sm" weight="semibold" intent="primary" className="block mb-2">Confirm &amp; Book</Text>
+                {/* An eyebrow, not a second heading: the card is already
+                    titled "Payment", and two same-weight headings inside one
+                    card read as two cards that failed to separate. */}
+                <Text size="xs" weight="semibold" intent="muted" className="mb-2 block uppercase tracking-wide">Confirm &amp; book</Text>
                 <label className="flex items-start gap-2.5 cursor-pointer select-none">
                   <input
                     type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)}
@@ -284,10 +288,41 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
 
                 {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
             </div>
-          </Card>
+          </SectionCard>
         </div>
       </div>
     </div>
+  );
+}
+
+/** The page's one card.
+ *
+ * Three cards were being drawn three ways — two hand-rolled
+ * `rounded-xl bg-white shadow-sm` divs and one <Card>, whose elevated
+ * variant carries a heavier shadow and an inset ring. Side by side in a
+ * single column that reads as a mistake rather than a hierarchy.
+ *
+ * The header is the catalogue review's own Section idiom (an icon tile and a
+ * title over a hairline, then a padded body), because this page is
+ * deliberately a mirror of that one — see the note at the top of this file.
+ * An icon rather than that page's step number: these are three things to
+ * read, not three steps to complete, and only the last one asks for
+ * anything. */
+function SectionCard({ icon: Icon, title, children }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center gap-2.5 border-b border-(--border-muted) px-5 py-3.5">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 ring-1 ring-inset ring-primary-100">
+          <Icon size={15} />
+        </span>
+        <Heading level={4} weight="semibold">{title}</Heading>
+      </div>
+      {children}
+    </Card>
   );
 }
 
