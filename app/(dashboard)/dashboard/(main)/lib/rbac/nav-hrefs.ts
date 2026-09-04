@@ -92,7 +92,12 @@ export const ALL_HREFS = [
 // otherwise the longest href the pathname is nested under wins (e.g.
 // "/dashboard/hotels/123" -> "/dashboard/hotels"). Returns null for
 // pathnames not covered by any sidebar entry — those are always allowed.
-export function resolveNavHref(pathname: string): string | null {
+//
+// `pageAccess` is optional and only consulted for the /review special case
+// below, where two different hrefs can each legitimately govern the same
+// path depending on who's asking — pass the caller's resolved pageAccess
+// (from the layout doing the enforcement) whenever it's available.
+export function resolveNavHref(pathname: string, pageAccess?: string[] | null): string | null {
   if (ALL_HREFS.includes(pathname)) return pathname;
 
   // The staff-only catalog preview (CreatePackageDialog's "View" button) is
@@ -108,10 +113,24 @@ export function resolveNavHref(pathname: string): string | null {
   // Package Builder, so sending /review to the builder's key locked the
   // reviewers out of their own review — which is exactly what happened the
   // first time this alias shipped.
+  //
+  // A Team Leader opens the same /review route (Salesqueriestable.tsx's "View
+  // Package" link, backed by workspace-caps.ts's "teamLead" reject-only
+  // capability) but is granted Package Builder, not Verify Packages — they
+  // don't get the general costing queue, just their own team's package. So
+  // when the caller's pageAccess is known, defer to whichever of the two this
+  // role actually has; Verify Packages remains the default when both/neither
+  // are known, since that's the review queue itself.
   if (pathname.startsWith("/dashboard/package-builder")) {
-    return pathname.endsWith("/review")
-      ? "/dashboard/verify-packages"
-      : "/dashboard/package-builder";
+    if (!pathname.endsWith("/review")) return "/dashboard/package-builder";
+    if (
+      pageAccess
+      && pageAccess.includes("/dashboard/package-builder")
+      && !pageAccess.includes("/dashboard/verify-packages")
+    ) {
+      return "/dashboard/package-builder";
+    }
+    return "/dashboard/verify-packages";
   }
 
   let best: string | null = null;

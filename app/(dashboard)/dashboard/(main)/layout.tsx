@@ -84,7 +84,7 @@ export default async function DashboardLayout({
   // Skip enforcement for FSD (they have full access regardless of viewAs).
   if (pageAccess.length > 0 && !isFullStackDev) {
     const pathname = (await headers()).get("x-pathname") ?? "/dashboard";
-    const matched = resolveNavHref(pathname);
+    const matched = resolveNavHref(pathname, pageAccess);
     if (matched && !pageAccess.includes(matched)) {
       const fallback = pageAccess[0] ?? "/dashboard";
       if (pathname !== fallback) redirect(fallback);
