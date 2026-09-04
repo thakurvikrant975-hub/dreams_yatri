@@ -66,3 +66,12 @@ export function istDateTime(d: Date | string): string {
     hour: "numeric", minute: "2-digit", hour12: true,
   }).format(typeof d === "string" ? new Date(d) : d);
 }
+
+/** An IST calendar day as a short, readable label: "3 Sep". For naming a day
+ * out loud rather than saying "before that" — a manager reconciling this
+ * against an inbox needs to know which day is meant. */
+export function istShortDay(d: Date | string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: IST_TZ, day: "numeric", month: "short",
+  }).format(typeof d === "string" ? new Date(d) : d);
+}
