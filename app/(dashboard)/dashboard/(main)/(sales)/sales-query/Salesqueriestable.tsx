@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
-    CalendarClock, Eye, Phone, Mail,
+    CalendarClock, Eye, Phone, Mail, PhoneCall,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
     CircleX, Package, Plus, Focus,
@@ -21,6 +21,7 @@ import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge, PackageVerificationBadge, PackageSentBadge, HotelRequestBadge, LibraryStatusBadge } from "./Salesquerybadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
+import { CallLogDialog } from "./CallLogDialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
@@ -29,7 +30,7 @@ import { hasRequirements } from "./requirements";
 import { mapCustomPackage } from "./package-status";
 import { AssignQueryDropdown } from "../../(marketing)/queries/Assignquerydropdown";
 import { QueryTimelineSheet } from "../../(marketing)/queries/QueryTimelineSheet";
-import type { SalesQueryRow } from "./actions";
+import type { SalesQueryRow, CallLogStatus } from "./actions";
 import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements, SalesMember } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
@@ -38,6 +39,13 @@ import Image from "next/image";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+// Matches the color language CallLogDialog's status picker uses.
+const CALL_STATUS_DOT: Record<CallLogStatus, string> = {
+    CONNECTED:  "bg-green-500",
+    NOT_PICKED: "bg-yellow-500",
+    DECLINED:   "bg-red-500",
+};
 
 type SalesQueryWithDetails = SalesQueryRow & {
     // queryFollowUps from DB mapped to followUps for the sheet
@@ -129,6 +137,23 @@ function ActionCell({
                     it over, so it stays available even on a closed one. */}
                 {!isTeamLead && !closed && !converted && (
                     <>
+                                {/* Log Call */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span onClick={(e) => e.stopPropagation()}>
+                                            <CallLogDialog queryId={query.id} leadName={query.name}>
+                                                <Button
+                                                    variant="ghost" size="icon"
+                                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-950/30"
+                                                >
+                                                    <PhoneCall className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </CallLogDialog>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Log Call</TooltipContent>
+                                </Tooltip>
+
                                 {/* Package Requirements */}
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -377,6 +402,24 @@ export function SalesQueriesTable({
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                             <Mail className="h-3 w-3" />
                             <span className="truncate max-w-[160px]">{q.email}</span>
+                        </div>
+                    )}
+                    {/* Call history, one dot per call — oldest to newest,
+                        colored by that call's own status. Reading the row
+                        says more at a glance than a bare count would (e.g.
+                        "connected then two no-picks" vs. just "3 calls"),
+                        and matches the color language CallLogDialog uses. */}
+                    {q.callLogStatuses.length > 0 && (
+                        <div
+                            title={`${q.callLogStatuses.length} call${q.callLogStatuses.length !== 1 ? "s" : ""} logged`}
+                            className="flex items-center gap-1"
+                        >
+                            {q.callLogStatuses.map((status, i) => (
+                                <span
+                                    key={i}
+                                    className={cn("h-1.5 w-1.5 rounded-full shrink-0", CALL_STATUS_DOT[status])}
+                                />
+                            ))}
                         </div>
                     )}
                 </div>

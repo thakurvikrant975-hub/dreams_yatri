@@ -134,7 +134,7 @@ import type { SentPackageInfo } from "./package-status";
 
 // A query can now have more than one package built for it (e.g. two
 // different budget options sent to the same client) — most recent first.
-export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[] };
+export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[]; callLogStatuses: CallLogStatus[] };
 
 const CUSTOM_PACKAGE_SELECT = {
     id: true, title: true, status: true, createdAt: true, sentAt: true, readyAt: true,
@@ -209,12 +209,35 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
         : [];
     const libraryStatusByPackageId = new Map(templates.map((t) => [t.sourcePackageId, t.status]));
 
+    // Call logs live as QueryTimeline rows (meta.kind === "CALL_LOG", see
+    // logCall below) rather than their own table — no dedicated relation to
+    // put in the `include` above, so this is a second batched lookup, same
+    // reasoning as the library-status one just above. Each call's own
+    // status (not just a count) — the Lead column renders one colored dot
+    // per call, oldest first, so `asc` here is what puts them in call order.
+    const queryIds = queries.map((q) => q.id);
+    const callLogRows = queryIds.length > 0
+        ? await db.queryTimeline.findMany({
+            where:   { queryId: { in: queryIds }, meta: { path: ["kind"], equals: "CALL_LOG" } },
+            orderBy: { createdAt: "asc" },
+            select:  { queryId: true, meta: true },
+        })
+        : [];
+    const callLogStatusesByQueryId = new Map<string, CallLogStatus[]>();
+    for (const row of callLogRows) {
+        const status = (row.meta as { status?: CallLogStatus } | null)?.status ?? "CONNECTED";
+        const arr = callLogStatusesByQueryId.get(row.queryId) ?? [];
+        arr.push(status);
+        callLogStatusesByQueryId.set(row.queryId, arr);
+    }
+
     return queries.map((q) => ({
         ...q,
-        rejectionReason:  q.rejection_reasons ?? null,
-        totalLeadQueries: 1,
-        customPackages:   (q.custom_packages ?? []).map((cp: { id: string }) =>
+        rejectionReason:   q.rejection_reasons ?? null,
+        totalLeadQueries:  1,
+        customPackages:    (q.custom_packages ?? []).map((cp: { id: string }) =>
             mapCustomPackage(cp, libraryStatusByPackageId.get(cp.id) ?? null)),
+        callLogStatuses:   callLogStatusesByQueryId.get(q.id) ?? [],
     })) as SalesQueryRow[];
 }
 
@@ -590,4 +613,87 @@ export async function savePackageRequirements(
         if (err instanceof Error) return { success: false, message: err.message || "Something went wrong" };
         return { success: false, message: "Unexpected error occurred" };
     }
+}
+
+// ── Call log ──────────────────────────────────────────────────────────────────
+
+export type CallLogStatus = "CONNECTED" | "NOT_PICKED" | "DECLINED";
+
+// Not exported — a "use server" module can only export async functions, and
+// this is a plain object. CallLogDialog.tsx keeps its own copy for display.
+const CALL_LOG_STATUS_LABELS: Record<CallLogStatus, string> = {
+    CONNECTED:  "Connected",
+    NOT_PICKED: "Not Picked",
+    DECLINED:   "Declined",
+};
+
+const callLogSchema = z.object({
+    status: z.enum(["CONNECTED", "NOT_PICKED", "DECLINED"]),
+    note:   z.string().max(1000, "Note too long").optional(),
+});
+
+/** Logs a call attempt against an already-assigned query — status + an
+ * optional note, on the timeline both the exec and their team leader already
+ * read (QueryTimelineSheet). Deliberately separate from the marketing
+ * queue's logCallAttempt, which also bumps callAttempts/status/
+ * nextFollowUpAt: those describe a lead still being worked into the
+ * pipeline, not "I called about a query already assigned to me", and
+ * reusing that action here would silently reset them on every call logged. */
+export async function logCall(packageQueryId: string, formData: FormData): Promise<ActionResult> {
+    const parsed = callLogSchema.safeParse({
+        status: formData.get("status"),
+        note:   formData.get("note") || undefined,
+    });
+
+    if (!parsed.success) {
+        return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
+    }
+
+    try {
+        const { teamMemberId, teamMemberName } = await getCurrentActor();
+        const label = CALL_LOG_STATUS_LABELS[parsed.data.status];
+        const event = `📞 Call Logged — ${label}` + (parsed.data.note ? ` · Note: ${parsed.data.note}` : "");
+
+        await logTimeline(packageQueryId, event, teamMemberId ?? undefined, teamMemberName ?? undefined, {
+            kind:   "CALL_LOG",
+            status: parsed.data.status,
+            note:   parsed.data.note ?? null,
+        });
+
+        revalidatePath("/dashboard/sales-query");
+        return { success: true, data: undefined, message: "Call logged" };
+    } catch (err) {
+        console.error("logCall error:", err);
+        return { success: false, message: "Failed to log call" };
+    }
+}
+
+export type CallLogEntry = {
+    id:        string;
+    status:    CallLogStatus;
+    note:      string | null;
+    actorName: string | null;
+    createdAt: Date;
+};
+
+/** This query's own call history — newest first. Feeds CallLogDialog, which
+ * shows it above the "log a new call" form so opening the dialog doubles as
+ * reviewing what's already been tried before dialing again. */
+export async function getCallLogsForQuery(packageQueryId: string): Promise<CallLogEntry[]> {
+    const rows = await db.queryTimeline.findMany({
+        where:   { queryId: packageQueryId, meta: { path: ["kind"], equals: "CALL_LOG" } },
+        orderBy: { createdAt: "desc" },
+        select:  { id: true, meta: true, actorName: true, createdAt: true },
+    });
+
+    return rows.map((r) => {
+        const meta = r.meta as { status?: CallLogStatus; note?: string | null } | null;
+        return {
+            id:        r.id,
+            status:    meta?.status ?? "CONNECTED",
+            note:      meta?.note ?? null,
+            actorName: r.actorName,
+            createdAt: r.createdAt,
+        };
+    });
 }
