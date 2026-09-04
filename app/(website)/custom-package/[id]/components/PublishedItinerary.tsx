@@ -148,9 +148,17 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
     : "To be confirmed";
 
   return (
-    <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
+    // py-2 on a phone. This bar is stuck over the document, so every pixel of
+    // it is a pixel of the itinerary the client cannot see; at three standards
+    // it was taking a sixth of a 390px screen (a fifth at 320px).
+    <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-neutral-200 bg-white/95 backdrop-blur px-4 py-2 sm:py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
       {multi && (
-        <div className="mx-auto w-full max-w-4xl pb-2 flex flex-wrap items-center gap-1.5">
+        // One line that scrolls, rather than two that wrap. Three standards
+        // wrapped onto a second row on every phone, and a second row here
+        // costs the same 30px whether or not the client ever reads it.
+        // Bleeds to the screen edges so a half-visible chip reads as "there is
+        // more", which is what tells anyone to swipe at all.
+        <div className="-mx-4 px-4 sm:mx-auto sm:px-0 mb-1.5 sm:mb-2 flex w-auto sm:w-full max-w-4xl flex-nowrap sm:flex-wrap items-center gap-1.5 overflow-x-auto sm:overflow-visible scrollbar-none">
           {options.map((o) => {
             const on = o.id === chosenId;
             return (
@@ -159,7 +167,7 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
                 type="button"
                 onClick={() => setChosenId(o.id)}
                 aria-pressed={on}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${on
+                className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors ${on
                     ? "border-primary-500 bg-primary-50 font-semibold text-primary-600"
                     : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
                   }`}
@@ -182,9 +190,14 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
           it. Written plainly rather than through the document's custom
           property: this bar is outside the document, so none of the zoom
           compensation that property is divided by applies to it. */}
-      <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4">
-        <div className="min-w-0 flex-1 flex items-center justify-between">
-          <div>
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 sm:gap-4">
+        {/* min-w-0 all the way down. flex-1 alone does not let a flex item
+            shrink below its content, so the price row simply ran under the
+            Book button — 29px of overlap at 390px, 99px at 320px, and only
+            once a discount existed to widen it with a struck figure and a
+            badge. */}
+        <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-4">
+          <div className="min-w-0">
             {/* What it was, then what it is. The struck figure alone reads as a
               correction — the green saving beside it is what says a concession
               was made, which is the part a client repeats to whoever else is
@@ -194,13 +207,23 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               the paragraph early and React's hydration then disagrees with
               the DOM it finds. Nothing here is a paragraph anyway; it is a
               row of figures. */}
-          <div className="flex items-baseline gap-2 truncate">
+          {/* flex-wrap rather than a hand-picked narrow breakpoint: at 320px
+              the price, the badge and a "Book Standard" button do not fit on
+              one line whatever we do, so the badge drops below the price — and
+              only there. Nothing moves at 360 and up. */}
+          <div className="flex min-w-0 flex-wrap items-baseline gap-2">
             {discount && (
-              <span className="text-sm text-neutral-400 line-through tabular-nums shrink-0">
+              // Desktop only. On a phone there is not room for was-price,
+              // is-price, badge and button on one line at any size worth
+              // supporting, and of the four the struck figure is the one that
+              // reads fine a line down — the badge still says a concession was
+              // made, which is the part that has to be seen first.
+              <span className="hidden sm:inline text-sm text-neutral-400 line-through tabular-nums shrink-0">
                 {form.currency} {Math.round(discount.originalPrice).toLocaleString("en-IN")}
               </span>
             )}
-            <span className="font-heading text-lg font-bold tracking-tight text-primary-500">{priceStr}</span>
+            {/* shrink-0: a truncated price is worse than a wrapped bar. */}
+            <span className="shrink-0 font-heading text-lg font-bold tracking-tight text-primary-500">{priceStr}</span>
             {discount && (
               // The same badge the document's price panel uses, so the saving
               // looks like one thing in both places. Its serrated edges are
@@ -209,9 +232,30 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               <SavingsBadge amount={discount.label} prefix="" className="shrink-0 mx-1.5" />
             )}
           </div>
-            <p className="text-xs text-neutral-500">
-              Total for {totalPax} traveller{totalPax !== 1 ? "s" : ""}
-              {chosen && multi && <> · <span className="font-medium text-neutral-700">{chosen.label}</span></>}
+            <p className="truncate text-xs text-neutral-500">
+              {/* Where the struck figure goes on a phone — see the note on the
+                  desktop one above. Its separator lives inside the same span
+                  so the two disappear together at sm. */}
+              {discount && (
+                <span className="sm:hidden">
+                  <span className="line-through tabular-nums">
+                    {form.currency} {Math.round(discount.originalPrice).toLocaleString("en-IN")}
+                  </span>
+                  {" · "}
+                </span>
+              )}
+              {/* Trimmed to what the line still has room for once the struck
+                  figure joins it. "Total for" is scaffolding, and the chosen
+                  standard is already the Book button's own label — without
+                  this the line truncated mid-word at "2 traveller…" and cut
+                  the standard off anyway. */}
+              <span className="hidden sm:inline">Total for </span>
+              {totalPax} traveller{totalPax !== 1 ? "s" : ""}
+              {chosen && multi && (
+                <span className="hidden sm:inline">
+                  {" · "}<span className="font-medium text-neutral-700">{chosen.label}</span>
+                </span>
+              )}
             </p>
           </div>
           {/* What it actually takes to hold this, on the line under the total.
@@ -226,7 +270,7 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
               covering the price — it says so instead, because offering a
               deposit that checkout will refuse is worse than offering none. */}
           {deposit && (
-            <p className="mt-0.5 text-xs font-medium">
+            <p className="min-w-0 truncate text-xs font-medium sm:mt-0.5">
               {deposit.isFull ? (
                 <span className="text-warning-700">Full payment due at booking</span>
               ) : (

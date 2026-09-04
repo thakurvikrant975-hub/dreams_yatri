@@ -4433,7 +4433,13 @@ export function ItineraryDocument({
                     </h2>
                   </div>
 
-                  <div className="flex flex-wrap items-end justify-between gap-2">
+                  {/* flex-wrap alone put the total block on its own line but
+                      left `text-right` on it, so on a phone the label, the
+                      struck figure and the payable one each sat ragged in the
+                      middle of the card, aligned to nothing. Stacked and
+                      left-aligned below lg; the side-by-side reading is only
+                      possible where both halves actually fit. */}
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-end justify-between gap-2">
                     <div className="space-y-1">
                       <p className="text-[15px] text-white font-medium">{paxLine}</p>
                       {perPersonStr && <p className="text-[13.5px] text-white/80">{perPersonStr}</p>}
@@ -4441,13 +4447,18 @@ export function ItineraryDocument({
                         <p className="text-[12px] text-white/70">Infant charges as applicable / on request</p>
                       )}
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <p className="text-[12px] text-white/85 mb-1">Total package price</p>
                       {/* The saving stated plainly above the payable figure. A
                           struck-through number alone reads as a correction; the
                           badge says it is a concession. */}
                       {form.discount && (
-                        <div className="flex items-center justify-end gap-2.5 mb-1.5 pr-1">
+                        // pr-2.5, not pr-1: SavingsBadge paints its right
+                        // serration 9px OUTSIDE its own box, so 4px of padding
+                        // left it hanging over the card's edge once the row is
+                        // right-aligned. justify-start below lg, where the
+                        // block is left-aligned with the rest.
+                        <div className="flex items-center justify-start sm:justify-end gap-2.5 mb-1.5 pr-2.5">
                           <span className="text-[15px] text-white/70 line-through">
                             {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
                           </span>
@@ -4471,9 +4482,24 @@ export function ItineraryDocument({
                       Absent entirely on a package quoted at one standard. */}
                   {(form.stayOptions?.length ?? 0) > 1 && (
                     <div className="mt-3 pt-3 grid gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.14)" }}>
+                      {/* Side by side is the whole point — three prices are
+                          being compared — but only where a column is wide
+                          enough to hold one. At 390px a third of this card is
+                          ~100px: "INR 1,56,280" broke across two lines and the
+                          Recommended pill overflowed its own cell into the
+                          neighbour's price. Stacked below sm, where each
+                          standard gets the full width and reads on one line.
+
+                          sm, not lg, on purpose: pdfExport captures with
+                          `windowWidth: root.offsetWidth` — the 210mm sheet,
+                          ~794px — and that is the width the CLONE's media
+                          queries are evaluated against. A `lg:` rule is off at
+                          794px, so it would have stacked these in the printed
+                          PDF too. Anything in this document that must survive
+                          the export has to key off sm or below. */}
                       <div className={cn(
-                        "grid gap-2",
-                        (form.stayOptions?.length ?? 0) === 2 ? "grid-cols-2" : "grid-cols-3",
+                        "grid gap-2 grid-cols-1",
+                        (form.stayOptions?.length ?? 0) === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3",
                       )}>
                         {(form.stayOptions ?? []).map((c) => (
                           <div
@@ -4484,10 +4510,15 @@ export function ItineraryDocument({
                               border: `1px solid ${c.isRecommended ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)"}`,
                             }}
                           >
-                            <p className="flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-widest text-white/80">
-                              {c.label}
+                            {/* flex-wrap and min-w-0: the label is free text
+                                the exec typed ("Beachfront Wing"), so even a
+                                full-width cell can run out of room beside the
+                                pill. Wrapping keeps both inside the cell
+                                instead of printing one across its neighbour. */}
+                            <p className="flex flex-wrap items-center gap-1 text-[10.5px] font-bold uppercase tracking-widest text-white/80">
+                              <span className="min-w-0 break-words">{c.label}</span>
                               {c.isRecommended && (
-                                <span className="rounded-full bg-white/85 px-1.5 py-px text-[9.5px] font-bold text-neutral-900">
+                                <span className="shrink-0 rounded-full bg-white/85 px-1.5 py-px text-[9.5px] font-bold text-neutral-900">
                                   Recommended
                                 </span>
                               )}
