@@ -358,6 +358,16 @@ function sortHotelResults(rows: HotelRoomResult[], sortBy: HotelSortOption): Hot
  * whenever a caller doesn't pass its own `radiusKm`. */
 const HOTEL_NEARBY_RADIUS_KM = 25;
 
+/** Room-capacity filter chip values, keyed to hotel_rooms.max_adults —
+ * "how many adults this room is meant for", not the party actually booking
+ * it (that's planRoomOccupancy, applied after a room is picked). */
+export type SharingFilter = "double" | "triple" | "quad" | "quad_plus";
+const SHARING_MAX_ADULTS: Record<Exclude<SharingFilter, "quad_plus">, number> = {
+  double: 2,
+  triple: 3,
+  quad:   4,
+};
+
 export async function searchHotelRoomsForBuilder(
   /** The day's auto-derived stop (from Route: Destinations & Nights) — the
    * default scope shown before the exec types anything. Ignored once `query`
@@ -407,6 +417,11 @@ export async function searchHotelRoomsForBuilder(
    * property would be saved and then be invisible the next time it was needed.
    */
   requireSeasonalRate: boolean = true,
+  /** "double"/"triple"/"quad" match hotel_rooms.max_adults exactly; "quad_plus"
+   * is 5+. A rate row with no linked room can't be classified either way, so
+   * it's excluded whenever this filter is set — same reasoning as mealClause
+   * dropping rows that can't satisfy the question being asked. */
+  sharingFilter?: SharingFilter | null,
 ): Promise<{ rows: HotelRoomResult[]; total: number; hiddenNoSeasonRate: number }> {
   const city = cityOrDestinationName.split(",")[0]?.trim();
   const q = query.trim();
@@ -417,6 +432,13 @@ export async function searchHotelRoomsForBuilder(
     : mealFilter && mealFilter.length > 0
       ? { meal_type: { covered_meals: { hasEvery: mealFilter } } }
       : {};
+  const roomClause = sharingFilter
+    ? {
+        room: {
+          max_adults: sharingFilter === "quad_plus" ? { gte: 5 } : SHARING_MAX_ADULTS[sharingFilter],
+        },
+      }
+    : {};
   const hotelFilters = {
     is_active: true,
     ...(starFilter ? { stay_type: starFilter } : {}),
@@ -458,6 +480,7 @@ export async function searchHotelRoomsForBuilder(
             }),
       },
       ...mealClause,
+      ...roomClause,
     },
     select: HOTEL_ROOM_SELECT,
   });
@@ -479,6 +502,7 @@ export async function searchHotelRoomsForBuilder(
         hotel: { ...hotelFilters, location: { latitude: { not: null }, longitude: { not: null } } },
         ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
         ...mealClause,
+        ...roomClause,
       },
       select: HOTEL_ROOM_SELECT,
     });
