@@ -847,8 +847,13 @@ export async function fetchPackagePageData(
       transfers,
       attractions: day.itinerary_attractions,
       notes: day.itinerary_notes,
-      meals: day.meals,
-      excluded_meals: day.excluded_meals,
+      // meals has no DB default (see the model comment) — a real SQL NULL
+      // is possible despite the generated `String[]` type claiming
+      // otherwise, same class of gap active_meals had (package-pricing.
+      // service.ts). excluded_meals does have a default but is guarded too,
+      // since an explicit update can still null it out.
+      meals: day.meals ?? [],
+      excluded_meals: day.excluded_meals ?? [],
       _numNights: stay?.num_nights ?? 1,
     };
   });
