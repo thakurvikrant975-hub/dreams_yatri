@@ -26,7 +26,7 @@ import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
 import { cn } from "@/app/lib/utils";
 import {
   searchHotelRoomsForBuilder, getHotelRoomByIdForBuilder, getSiblingHotelRoomsForBuilder,
-  type HotelRoomResult, type HotelSortOption,
+  type HotelRoomResult, type HotelSortOption, type SharingFilter,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
 import {
@@ -75,6 +75,17 @@ const DEFAULT_RADIUS_KM = 25;
 // the catalog — matches HOTEL_CAT_LABEL in HotelRoomPicker.tsx (that
 // component is unused post-rewrite, but the label map is still the source of
 // truth for what these keys mean).
+// Room capacity, read off hotel_rooms.max_adults — "how many adults this
+// room is meant for", the same figure shown in the capacity tooltip on each
+// result card. Single-select, like Rating/Type: a room has one max_adults
+// value, so it can't match two sharing types at once.
+const SHARING_FILTER_CHIPS: { value: SharingFilter; label: string }[] = [
+  { value: "double",    label: "Double Sharing" },
+  { value: "triple",    label: "Triple Sharing" },
+  { value: "quad",      label: "Quad Sharing" },
+  { value: "quad_plus", label: "Quad+" },
+];
+
 const CATEGORY_FILTER_CHIPS: { value: string; label: string }[] = [
   { value: "hotel",      label: "Hotel" },
   { value: "resort",     label: "Resort" },
@@ -171,11 +182,12 @@ export function HotelReplaceView({ day }: { day: number }) {
   const [noMealsOnly, setNoMealsOnly] = useState(false);
   const [starFilter, setStarFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [sharingFilter, setSharingFilter] = useState<SharingFilter | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const mealFilterKey = mealFilter.join(",");
-  const activeFilterCount = (starFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + mealFilter.length
-    + (noMealsOnly ? 1 : 0) + (radiusKm !== DEFAULT_RADIUS_KM ? 1 : 0);
+  const activeFilterCount = (starFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + (sharingFilter ? 1 : 0)
+    + mealFilter.length + (noMealsOnly ? 1 : 0) + (radiusKm !== DEFAULT_RADIUS_KM ? 1 : 0);
 
   // This day's actual calendar date — so the price shown is what this room
   // would actually cost on THIS night, not a flat catalog rate that may be
@@ -204,7 +216,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, noMealsOnly, dayDateISO, radiusKm);
+        const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, 1, starFilter, categoryFilter, mealFilter, sortBy, noMealsOnly, dayDateISO, radiusKm, undefined, sharingFilter);
         if (token === reqRef.current) {
           setResults(rows);
           setPage(1);
@@ -218,7 +230,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, query, coords, sortBy, mealFilterKey, noMealsOnly, starFilter, categoryFilter, dayDateISO, radiusKm]);
+  }, [city, query, coords, sortBy, mealFilterKey, noMealsOnly, starFilter, categoryFilter, sharingFilter, dayDateISO, radiusKm]);
 
   const hasMore = results.length < total;
 
@@ -227,7 +239,7 @@ export function HotelReplaceView({ day }: { day: number }) {
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, noMealsOnly, dayDateISO, radiusKm);
+      const { rows, total: t } = await searchHotelRoomsForBuilder(city, query, coords, nextPage, starFilter, categoryFilter, mealFilter, sortBy, noMealsOnly, dayDateISO, radiusKm, undefined, sharingFilter);
       setResults((prev) => [...prev, ...rows]);
       setPage(nextPage);
       setTotal(t);
@@ -378,7 +390,7 @@ export function HotelReplaceView({ day }: { day: number }) {
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => { setStarFilter(null); setCategoryFilter(null); setMealFilter([]); setNoMealsOnly(false); setRadiusKm(DEFAULT_RADIUS_KM); }}
+                onClick={() => { setStarFilter(null); setCategoryFilter(null); setSharingFilter(null); setMealFilter([]); setNoMealsOnly(false); setRadiusKm(DEFAULT_RADIUS_KM); }}
                 className="text-[10.5px] font-medium text-dashboard-error/75 hover:text-dashboard-error"
               >
                 Clear all
@@ -418,6 +430,18 @@ export function HotelReplaceView({ day }: { day: number }) {
                 onClick={() => setCategoryFilter((f) => (f === c.value ? null : c.value))}
               >
                 {c.label}
+              </Chip>
+            ))}
+          </FilterRow>
+
+          <FilterRow label="Sharing">
+            {SHARING_FILTER_CHIPS.map((s) => (
+              <Chip
+                key={s.value}
+                selected={sharingFilter === s.value}
+                onClick={() => setSharingFilter((f) => (f === s.value ? null : s.value))}
+              >
+                {s.label}
               </Chip>
             ))}
           </FilterRow>

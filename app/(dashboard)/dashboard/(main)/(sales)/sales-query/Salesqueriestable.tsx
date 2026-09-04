@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
-    CalendarClock, Eye, Phone, Mail,
+    CalendarClock, Eye, Phone, Mail, PhoneCall,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
     CircleX, Package, Plus, Focus,
@@ -21,6 +21,7 @@ import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge, PackageVerificationBadge, PackageSentBadge, HotelRequestBadge, LibraryStatusBadge } from "./Salesquerybadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
+import { CallLogDialog } from "./CallLogDialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
@@ -129,6 +130,23 @@ function ActionCell({
                     it over, so it stays available even on a closed one. */}
                 {!isTeamLead && !closed && !converted && (
                     <>
+                                {/* Log Call */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span onClick={(e) => e.stopPropagation()}>
+                                            <CallLogDialog queryId={query.id} leadName={query.name}>
+                                                <Button
+                                                    variant="ghost" size="icon"
+                                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-950/30"
+                                                >
+                                                    <PhoneCall className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </CallLogDialog>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Log Call</TooltipContent>
+                                </Tooltip>
+
                                 {/* Package Requirements */}
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -377,6 +395,18 @@ export function SalesQueriesTable({
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                             <Mail className="h-3 w-3" />
                             <span className="truncate max-w-[160px]">{q.email}</span>
+                        </div>
+                    )}
+                    {/* Call count — how many times this lead has been called,
+                        logged via the "Log Call" action. Hidden at 0 so a
+                        never-called lead doesn't carry a stray badge. */}
+                    {q.callLogCount > 0 && (
+                        <div
+                            title={`${q.callLogCount} call${q.callLogCount !== 1 ? "s" : ""} logged`}
+                            className="flex items-center gap-1 text-[11px] text-green-600"
+                        >
+                            <PhoneCall className="h-3 w-3" />
+                            <span>{q.callLogCount} call{q.callLogCount !== 1 ? "s" : ""}</span>
                         </div>
                     )}
                 </div>
