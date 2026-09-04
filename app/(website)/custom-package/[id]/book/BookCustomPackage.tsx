@@ -162,11 +162,17 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
                   {summary.destination && (
                     <Text size="sm" intent="secondary" weight="medium" className="block">{summary.destination}</Text>
                   )}
-                  <div className="mt-2 grid grid-cols-3 gap-3">
+                  {/* Rows, not three columns. Beside a 144px cover on a 390px
+                      screen this row had ~158px to divide three ways, so the
+                      labels wrapped and the one fact a client checks before
+                      paying rendered as "15 De…". A row per fact reads at any
+                      width; max-w-sm keeps the label and its value together on
+                      a wide card instead of pushing them to opposite ends. */}
+                  <dl className="mt-2 max-w-sm divide-y divide-(--border-muted) border-t border-(--border-muted)">
                     <Detail label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
                     <Detail label="Nights" value={String(summary.nights)} />
                     <Detail label="Travellers" value={String(summary.travellers)} />
-                  </div>
+                  </dl>
                 </div>
               </div>
 
@@ -198,22 +204,26 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
           {/* ── The decision, kept in view ───────────────────────────── */}
           <aside className="lg:sticky lg:top-20 flex flex-col gap-4">
             <Card className="overflow-hidden">
-              <div className="px-5 py-4 border-b border-(--border-muted) flex items-center justify-between gap-3">
-                <Text size="sm" intent="secondary">Package total</Text>
-                <div className="flex items-baseline gap-2">
+              {/* The label on its own line, then every figure on the next.
+                  Side by side, the was-price, the payable one and the badge
+                  had to share a rail with the words "Package total", which is
+                  why the badge had been pushed out into a bordered strip of
+                  its own with nothing else in it. Together they read as one
+                  statement: this is the price, this is what came off it. */}
+              <div className="px-5 py-4 border-b border-(--border-muted)">
+                <Text size="sm" intent="secondary" className="block">Package total</Text>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
                   {summary.discount && (
                     <span className="text-sm text-neutral-400 line-through tabular-nums">
                       {money(summary.currency, summary.discount.originalPrice)}
                     </span>
                   )}
                   <Text size="base" weight="bold" intent="primary">{money(summary.currency, summary.total)}</Text>
+                  {summary.discount && (
+                    <SavingsBadge amount={summary.discount.label} prefix="" className="shrink-0 mx-1.5" />
+                  )}
                 </div>
               </div>
-              {summary.discount && (
-                <div className="px-5 py-2 border-b border-(--border-muted) flex justify-end">
-                  <SavingsBadge amount={summary.discount.label} prefix="" className="shrink-0 mx-1.5" />
-                </div>
-              )}
 
               {summary.mustPayFull ? (
                 <div className="px-5 py-4 border-b border-(--border-muted)">
@@ -273,9 +283,13 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0">
-      <Text size="xs" intent="muted" className="block">{label}</Text>
-      <Text size="sm" weight="semibold" intent="primary" className="block truncate">{value}</Text>
+    <div className="flex items-baseline justify-between gap-4 py-1.5">
+      <dt className="shrink-0"><Text size="xs" intent="muted">{label}</Text></dt>
+      {/* min-w-0 + truncate stays as the backstop for a value nobody
+          anticipated; with a row to itself it no longer fires on a date. */}
+      <dd className="min-w-0 text-right">
+        <Text size="sm" weight="semibold" intent="primary" className="block truncate">{value}</Text>
+      </dd>
     </div>
   );
 }
