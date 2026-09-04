@@ -137,5 +137,43 @@ check("today's intake, all placed", mails.receivedAssigned, 48);
 check("nothing from today left waiting", mails.receivedUnassigned, 0);
 check("no earlier lead left waiting either", mails.unassignedYesterday + mails.unassignedOlder, 0);
 
+// ── The panel's own screenshot, reproduced ────────────────────────────────
+// 57 in today and all placed, 14 earlier leads picked up today, and 10 earlier
+// ones still waiting (4 from yesterday, 6 from before). The waiting figure used
+// to be the only thing the panel said about earlier days, so it could report a
+// backlog without ever saying whether the rest had been dealt with. These two
+// are now shown side by side, and this pins the pairing.
+console.log("\nearlier days, picked up vs still waiting:");
+const panel: AssignmentLead[] = [];
+for (let i = 0; i < 57; i++) {
+  panel.push(lead({
+    createdAt: "2026-09-02T04:00:00Z", assignedTo: `m${i % 5}`,
+    assignedToName: `Exec ${i % 5}`, assignedAt: "2026-09-02T05:00:00Z",
+  }));
+}
+for (let i = 0; i < 14; i++) {
+  panel.push(lead({
+    createdAt: "2026-09-01T14:00:00Z", assignedTo: `m${i % 5}`,
+    assignedToName: `Exec ${i % 5}`, assignedAt: "2026-09-02T04:30:00Z",
+  }));
+}
+for (let i = 0; i < 4; i++) panel.push(lead({ createdAt: "2026-09-01T14:00:00Z" }));
+for (let i = 0; i < 6; i++) panel.push(lead({ createdAt: "2026-08-29T14:00:00Z" }));
+
+const p = summariseTodaysAssignments(panel, NOW);
+check("handed out today", p.handedOutToday, 71);
+check("of today's leads", p.handedOutFromToday, 57);
+check("earlier leads picked up today", p.carriedOver, 14);
+check("today's intake all placed", p.receivedAssigned, 57);
+check("nothing from today waiting", p.receivedUnassigned, 0);
+check("earlier leads still waiting", p.unassignedYesterday + p.unassignedOlder, 10);
+check("  of which yesterday", p.unassignedYesterday, 4);
+check("  of which older", p.unassignedOlder, 6);
+// The pairing the panel now shows: picked up today and still waiting are two
+// separate facts about earlier days, NOT a split of one population — an
+// earlier lead assigned on an earlier day is in neither.
+check("the two earlier-day figures do not pretend to be a total",
+  p.carriedOver + p.unassignedYesterday + p.unassignedOlder, 24);
+
 console.log(failures === 0 ? "\nall good" : `\n${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

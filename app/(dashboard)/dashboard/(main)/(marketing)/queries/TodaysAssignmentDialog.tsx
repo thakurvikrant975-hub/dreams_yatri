@@ -133,25 +133,60 @@ export function TodaysAssignmentDialog({ queries }: { queries: PackageQuery[] })
                         )}
                     </div>
 
-                    {/* The backlog neither figure above can show. Leads arrive
-                        all evening and the day turns at IST midnight, so last
-                        night's unassigned leads belong to "yesterday" by the
-                        time anyone opens this — and appeared in no figure at
-                        all, which is exactly where leads went missing. */}
-                    {backlog > 0 && (
-                        <div className="flex items-start gap-2.5 rounded-lg border border-dashboard-warning/40 bg-dashboard-warning/5 px-3 py-2.5">
-                            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-dashboard-warning" />
-                            <div className="min-w-0">
-                                <p className="text-xs font-medium text-dashboard-base-content">
-                                    {backlog} earlier lead{backlog === 1 ? "" : "s"} still waiting for an owner
-                                </p>
-                                <p className="mt-0.5 text-[11px] text-dashboard-base-content/50">
-                                    {unassignedYesterday > 0 && `${unassignedYesterday} from yesterday (${yesterdayLabel})`}
-                                    {unassignedYesterday > 0 && unassignedOlder > 0 && ", "}
-                                    {unassignedOlder > 0 && `${unassignedOlder} from days before ${yesterdayLabel}`}
-                                    {" — these came in on earlier days, so neither figure above counts them."}
-                                </p>
+                    {/* Leads from earlier days, given the same two-tile shape as
+                        today's intake above.
+
+                        The waiting half used to be the only thing shown here, as a
+                        warning — so the panel could say "10 earlier leads waiting"
+                        without ever saying whether the rest had been picked up.
+                        Someone checking that yesterday's leads had been dealt with
+                        had to infer it from the carried-over figure in the top card.
+
+                        Deliberately NOT labelled as a split of a total: these two
+                        do not add up to a population. An earlier lead assigned on
+                        an earlier day is in neither figure, and this is a panel
+                        about today. */}
+                    {(carriedOver > 0 || backlog > 0) && (
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-content/50 mb-2">
+                                Leads from earlier days
+                            </p>
+                            <div className="grid grid-cols-2 gap-2.5">
+                                <div className="flex items-center gap-2.5 rounded-lg border border-dashboard-base-300 px-3 py-2">
+                                    <UserCheck className="size-4 shrink-0 text-dashboard-info" />
+                                    <div className="min-w-0">
+                                        <p className="text-base font-bold leading-none text-dashboard-base-content tabular-nums">
+                                            {carriedOver}
+                                        </p>
+                                        <p className="mt-1 text-[11px] text-dashboard-base-content/50">picked up today</p>
+                                    </div>
+                                </div>
+                                <div className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 ${backlog > 0 ? "border-dashboard-warning/50 bg-dashboard-warning/5" : "border-dashboard-base-300"}`}>
+                                    <Clock className={`size-4 shrink-0 ${backlog > 0 ? "text-dashboard-warning" : "text-dashboard-base-content/40"}`} />
+                                    <div className="min-w-0">
+                                        <p className="text-base font-bold leading-none text-dashboard-base-content tabular-nums">
+                                            {backlog}
+                                        </p>
+                                        <p className="mt-1 text-[11px] text-dashboard-base-content/50">still waiting</p>
+                                    </div>
+                                </div>
                             </div>
+
+                            {backlog > 0 ? (
+                                <p className="mt-2 flex items-start gap-1.5 text-[11px] text-dashboard-base-content/50">
+                                    <AlertTriangle className="mt-0.5 size-3 shrink-0 text-dashboard-warning" />
+                                    <span>
+                                        {unassignedYesterday > 0 && `${unassignedYesterday} from yesterday (${yesterdayLabel})`}
+                                        {unassignedYesterday > 0 && unassignedOlder > 0 && ", "}
+                                        {unassignedOlder > 0 && `${unassignedOlder} from days before ${yesterdayLabel}`}
+                                        {" — these came in on earlier days, so the figures above them count neither."}
+                                    </span>
+                                </p>
+                            ) : (
+                                <p className="mt-2 text-[11px] text-dashboard-base-content/50">
+                                    Nothing from an earlier day is still waiting.
+                                </p>
+                            )}
                         </div>
                     )}
 
