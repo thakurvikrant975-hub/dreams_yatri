@@ -11,33 +11,41 @@ function check(what: string, got: unknown, want: unknown) {
   if (!ok) failures++;
   console.log(`  ${ok ? "✓" : "✗"} ${what}: ${JSON.stringify(got)}${ok ? "" : ` (expected ${JSON.stringify(want)})`}`);
 }
-const rule = (o: Partial<{ maxGroupSize: number | null; blockedDestinations: string[]; blockedSources: QuerySource[] }> = {}) => ({
+const rule = (o: Partial<{ maxGroupSize: number | null; allowedDestinations: string[]; blockedSources: QuerySource[] }> = {}) => ({
   maxGroupSize: o.maxGroupSize ?? null,
-  blockedDestinations: o.blockedDestinations ?? [],
+  allowedDestinations: o.allowedDestinations ?? [],
   blockedSources: o.blockedSources ?? [],
 });
+// `in` rather than `??` so a case can say "this lead has no destination" and
+// mean it — with ?? an explicit null quietly became the default.
 const lead = (o: Partial<{ groupSize: number | null; destination: string | null; source: QuerySource }> = {}) => ({
-  groupSize: o.groupSize ?? null,
-  destination: o.destination ?? "Goa",
+  groupSize: "groupSize" in o ? o.groupSize ?? null : null,
+  destination: "destination" in o ? o.destination ?? null : "Goa",
   source: (o.source ?? "WEBSITE_FORM") as QuerySource,
 });
 
 console.log("no restrictions set — the agency takes what it is given:");
 check("a big Ladakh Meta lead passes", leadQualifies(lead({ groupSize: 40, destination: "Ladakh", source: "META" }), rule()), true);
+check("so does one with no destination at all", leadQualifies(lead({ destination: null }), rule()), true);
 
-console.log("\nthe manager's example — up to 15 travellers, no Ladakh, no Meta:");
-const r = rule({ maxGroupSize: 15, blockedDestinations: ["Ladakh"], blockedSources: ["META"] });
+console.log("\nup to 15 travellers, only Goa and Kerala, no Meta:");
+const r = rule({ maxGroupSize: 15, allowedDestinations: ["Goa", "Kerala"], blockedSources: ["META"] });
 check("a family of 4 to Goa from the website", leadQualifies(lead({ groupSize: 4, destination: "Goa" }), r), true);
+check("Kerala is on the list too", leadQualifies(lead({ destination: "Kerala" }), r), true);
 check("16 travellers is over the limit", leadQualifies(lead({ groupSize: 16 }), r), false);
 check("15 exactly is within it", leadQualifies(lead({ groupSize: 15 }), r), true);
-check("Ladakh is held back", leadQualifies(lead({ destination: "Ladakh" }), r), false);
-check("case and spacing do not matter", leadQualifies(lead({ destination: " ladakh " }), r), false);
+check("Ladakh is not on the list", leadQualifies(lead({ destination: "Ladakh" }), r), false);
+check("case and spacing do not matter", leadQualifies(lead({ destination: " goa " }), r), true);
 check("a Meta lead is held back", leadQualifies(lead({ source: "META" }), r), false);
-check("a WhatsApp lead is not", leadQualifies(lead({ source: "WHATSAPP" }), r), true);
+check("a WhatsApp lead to Goa is not", leadQualifies(lead({ destination: "Goa", source: "WHATSAPP" }), r), true);
 check("filters combine — Goa but Meta still fails", leadQualifies(lead({ destination: "Goa", source: "META" }), r), false);
 // Most leads arrive with no group size; treating unknown as too big would
 // starve the agency over a fact the customer never gave.
-check("unknown group size passes a size limit", leadQualifies(lead({ groupSize: null }), r), true);
+check("unknown group size passes a size limit", leadQualifies(lead({ groupSize: 4, destination: "Goa" }), r), true);
+// But an allowlist is the other way round: a lead we cannot place has not
+// been shown to be one we agreed to sell.
+check("a lead with no destination is NOT sold under an allowlist", leadQualifies(lead({ destination: null }), r), false);
+check("a new catalogue destination is not sold by accident", leadQualifies(lead({ destination: "Andaman Islands" }), r), false);
 
 console.log("\nwhere their lead lands in a 7..14 window:");
 check("too early at 6", fallsOnThisLead(6, 7, 14, 0.001), false);

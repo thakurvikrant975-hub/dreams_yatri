@@ -1,0 +1,11 @@
+-- The destination filter becomes an allowlist.
+--
+-- "Hold these back" meant the list had to grow every time a destination was
+-- added to the catalogue, and forgetting to add one sold it by accident. What
+-- we are willing to sell is the short, deliberate list, so that is what the
+-- lead manager now writes. Empty still means no restriction.
+--
+-- A rename rather than a drop and add: it keeps the column's position and
+-- default, and there is nothing to convert (no agency has been configured in
+-- production yet).
+ALTER TABLE "partner_lead_rules" RENAME COLUMN "blockedDestinations" TO "allowedDestinations";

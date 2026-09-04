@@ -45,7 +45,7 @@ function AgencyRow({ agency }: { agency: PartnerAgencySetting }) {
     const [gapMin, setGapMin] = useState(agency.gapMin.toString());
     const [gapMax, setGapMax] = useState(agency.gapMax.toString());
     const [maxGroupSize, setMaxGroupSize] = useState(agency.maxGroupSize?.toString() ?? "");
-    const [destinations, setDestinations] = useState(agency.blockedDestinations.join(", "));
+    const [destinations, setDestinations] = useState(agency.allowedDestinations.join(", "));
     const [sources, setSources] = useState<QuerySource[]>(agency.blockedSources);
     const [saving, setSaving] = useState(false);
 
@@ -62,7 +62,7 @@ function AgencyRow({ agency }: { agency: PartnerAgencySetting }) {
             gapMin: num(gapMin, 7),
             gapMax: num(gapMax, 14),
             maxGroupSize: maxGroupSize.trim() === "" ? null : num(maxGroupSize, 1),
-            blockedDestinations: destinations.split(",").map((d) => d.trim()).filter(Boolean),
+            allowedDestinations: destinations.split(",").map((d) => d.trim()).filter(Boolean),
             blockedSources: sources,
         });
         setSaving(false);
@@ -111,8 +111,13 @@ function AgencyRow({ agency }: { agency: PartnerAgencySetting }) {
             </div>
 
             <div className="space-y-1">
-                <Label className="text-[11px] text-dashboard-base-content/60">Destinations to hold back</Label>
-                <Input value={destinations} onChange={(e) => setDestinations(e.target.value)} placeholder="e.g. Ladakh, Kashmir — comma separated" />
+                <Label className="text-[11px] text-dashboard-base-content/60">Destinations they may receive</Label>
+                <Input value={destinations} onChange={(e) => setDestinations(e.target.value)} placeholder="e.g. Goa, Kerala — comma separated" />
+                <p className="text-[11px] text-dashboard-base-content/45">
+                    {destinations.trim()
+                        ? "Only these destinations go to this agency; a lead for anywhere else stays in-house, as does one with no destination."
+                        : "Empty means no restriction — any destination may go to this agency."}
+                </p>
             </div>
 
             <div className="space-y-1.5">
