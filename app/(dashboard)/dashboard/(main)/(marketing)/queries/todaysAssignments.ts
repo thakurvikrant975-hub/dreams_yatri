@@ -22,10 +22,15 @@ export type TodaysAssignments = {
     totalReceivedToday: number;
     receivedAssigned: number;
     receivedUnassigned: number;
-    /** Assignments made today, whenever the lead itself came in. */
+    /** Assignments made today, whenever the lead itself came in. This is the
+     * figure that reconciles with the day's assignment mails, so it leads the
+     * panel: every mail sent out today is one of these, and nothing else is. */
     handedOutToday: number;
     /** How many of those were leads that came in before today. */
     carriedOver: number;
+    /** And how many were leads that came in today. Splits `handedOutToday`
+     * with `carriedOver` — the two add back up to it. */
+    handedOutFromToday: number;
     /** Still with nobody, from yesterday's intake. Leads keep arriving after
      * the office closes, and the day rolls over at IST midnight — so at 9am
      * the real backlog is last night's, not this morning's. */
@@ -99,5 +104,6 @@ export function summariseTodaysAssignments(
         receivedUnassigned,
         handedOutToday: assignedToday.length,
         carriedOver: assignedToday.filter((q) => !onToday(q.createdAt)).length,
+        handedOutFromToday: assignedToday.filter((q) => onToday(q.createdAt)).length,
     };
 }

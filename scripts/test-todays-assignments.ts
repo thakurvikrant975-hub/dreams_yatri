@@ -61,7 +61,8 @@ check("of those, still unassigned", s.receivedUnassigned, 2);
 check("the two split back to received", s.receivedAssigned + s.receivedUnassigned, s.totalReceivedToday);
 check("handed out today", s.handedOutToday, 43);
 check("of those, carried over from earlier days", s.carriedOver, 13);
-check("today's own leads among them", s.handedOutToday - s.carriedOver, 30);
+check("today's own leads among them", s.handedOutFromToday, 30);
+check("the split adds back up to the handovers", s.handedOutFromToday + s.carriedOver, s.handedOutToday);
 check("bars sum to the handovers", s.rows.reduce((n, r) => n + r.count, 0), s.handedOutToday);
 
 // ── The IST midnight edges ────────────────────────────────────────────────
@@ -108,6 +109,33 @@ check("from yesterday", backlog.unassignedYesterday, 2);
 check("from before that", backlog.unassignedOlder, 1);
 check("today's own unassigned stays in today's tile", backlog.receivedUnassigned, 1);
 check("an assigned lead is not backlog", backlog.unassignedYesterday + backlog.unassignedOlder, 3);
+
+// ── The day the manager checked against his inbox ─────────────────────────
+// 48 leads in today and all of them handed out, plus 14 of the previous
+// days' leads: 62 assignment mails. The panel now leads with 62 precisely
+// because that is the number the inbox can be counted against — 48 could
+// not be, and reading it as the day's total is what looked like a mismatch.
+console.log("\nreconciling against the assignment mails:");
+const inbox: AssignmentLead[] = [];
+for (let i = 0; i < 48; i++) {
+  inbox.push(lead({
+    createdAt: "2026-09-02T04:00:00Z", assignedTo: `m${i % 6}`,
+    assignedToName: `Exec ${i % 6}`, assignedAt: "2026-09-02T05:30:00Z",
+  }));
+}
+for (let i = 0; i < 14; i++) {
+  inbox.push(lead({
+    createdAt: "2026-09-01T14:00:00Z", assignedTo: `m${i % 6}`,
+    assignedToName: `Exec ${i % 6}`, assignedAt: "2026-09-02T04:15:00Z",
+  }));
+}
+const mails = summariseTodaysAssignments(inbox, NOW);
+check("mails sent today", mails.handedOutToday, 62);
+check("of today's leads", mails.handedOutFromToday, 48);
+check("that came in earlier", mails.carriedOver, 14);
+check("today's intake, all placed", mails.receivedAssigned, 48);
+check("nothing from today left waiting", mails.receivedUnassigned, 0);
+check("no earlier lead left waiting either", mails.unassignedYesterday + mails.unassignedOlder, 0);
 
 console.log(failures === 0 ? "\nall good" : `\n${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);
