@@ -429,9 +429,12 @@ export default function StatusView({
         <div className="screen-space py-8">
             {overall === 'IN_PROGRESS' && <StatusAutoRefresh />}
 
-            {/* grid-cols-1: see the note in custom-package/[id]/book —
-                an implicit `auto` track sizes to max-content and body clips
-                the overflow instead of scrolling it. */}
+            {/* grid-cols-1 is load-bearing below lg. With no column
+                declared the grid falls back to one implicit `auto` track,
+                which sizes to its items' max-content rather than to the
+                container — and body's `overflow-x: clip` then cuts the excess
+                instead of scrolling it. Tailwind's grid-cols-1 is
+                repeat(1, minmax(0,1fr)), the track that cannot blow out. */}
             <div className="grid gap-5 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
                 {/* ── LEFT column ───────────────────────────────────────────── */}
                 <div className="flex flex-col gap-4">

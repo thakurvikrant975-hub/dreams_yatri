@@ -113,12 +113,16 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
   }
 
   return (
-    // Same page chrome the catalogue's review uses: grey ground, a dark bar
-    // naming the step, then a two-column grid with the decision pinned in a
-    // 360px rail. A client who books a live package one week and a custom
-    // quote the next should not have to learn a second layout for the same
-    // act — and the rail is what keeps the amount and the button in view
-    // while they read down the trip.
+    // Grey ground, a dark bar naming the step, then one 500px column: what
+    // is being bought, the itinerary it came from, and the decision — in the
+    // order they are read, at a width that is the same on a phone and on a
+    // desktop.
+    //
+    // This used to be a two-column grid with the decision pinned in a 360px
+    // rail. The rail earns its keep on a page you scroll — it keeps the
+    // amount and the button in view while you read — but there are three
+    // short cards here and nothing to scroll past, so on a wide screen it
+    // bought nothing and left most of the page empty.
     <div className="bg-neutral-100 min-h-screen pb-16">
       <div className="bg-surface-inverse text-white">
         <div className="screen-space flex flex-wrap items-center justify-between gap-3 py-3.5">
@@ -130,38 +134,46 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
       </div>
 
       <div className="screen-space pt-5">
-        {/* grid-cols-1 is load-bearing below lg. Without an explicit
-            single column the grid falls back to one implicit `auto`
-            track, which sizes to its items' max-content instead of the
-            container: at 390px the track measured 599px, and since
-            body is `overflow-x: clip` the excess was silently cut
-            rather than scrolled — the amount and the confirm button
-            were off-screen with no way to reach them. Tailwind's
-            grid-cols-1 is repeat(1, minmax(0,1fr)), which is exactly
-            the track that cannot blow out. */}
-        <div className="grid gap-5 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+        {/* min-w-0 so the column can be narrower than its contents want to
+            be. Without it a flex column sizes to its items' max-content and
+            body's `overflow-x: clip` cuts the excess instead of scrolling it
+            — which is how the amount and the confirm button ended up off the
+            right edge of a 390px screen with no way to reach them. */}
+        <div className="mx-auto flex w-full min-w-0 max-w-[500px] flex-col gap-4">
 
           {/* ── What is being bought ─────────────────────────────────── */}
-          <div className="flex flex-col gap-4">
+          <>
             <div className="rounded-xl bg-white shadow-sm overflow-hidden">
               <div className="flex gap-4 p-5">
                 {summary.coverImage && (
                   /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
                   <img
                     src={summary.coverImage} alt=""
-                    className="h-24 w-36 shrink-0 rounded-lg object-cover bg-neutral-100"
+                    // Smaller on a phone. Beside a 144px cover, a 358px card
+                    // leaves ~158px for the title, the badge, the destination
+                    // and three rows of facts — and the title clamped to
+                    // "Bikaner testing…" even across two lines. 112px gives it
+                    // back the ~190px it needs to read.
+                    className="h-20 w-28 sm:h-24 sm:w-36 shrink-0 rounded-lg object-cover bg-neutral-100"
                   />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <Heading level={3} weight="semibold" className="truncate">{summary.title}</Heading>
+                  {/* The title gets the width to itself, and clamps at two
+                      lines rather than one. In a 500px column beside a cover
+                      there is no line on which a package name and a badge both
+                      fit: sharing one, "Bikaner testing desert safari package"
+                      arrived as "Bikaner testing…" on the page where someone
+                      confirms what they are buying. The badge is a label, not
+                      a heading — it reads just as well on the line below. */}
+                  <Heading level={3} weight="semibold" className="line-clamp-2">{summary.title}</Heading>
+                  <div className="flex items-center justify-between gap-3">
+                    {summary.destination && (
+                      <Text size="sm" intent="secondary" weight="medium" className="min-w-0 truncate">{summary.destination}</Text>
+                    )}
                     <span className="shrink-0 rounded-md border border-primary-200 px-2 py-0.5 text-[11px] font-semibold text-primary-600">
                       Tailored
                     </span>
                   </div>
-                  {summary.destination && (
-                    <Text size="sm" intent="secondary" weight="medium" className="block">{summary.destination}</Text>
-                  )}
                   {/* Rows, not three columns. Beside a 144px cover on a 390px
                       screen this row had ~158px to divide three ways, so the
                       labels wrapped and the one fact a client checks before
@@ -199,11 +211,10 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
                 Read the full itinerary again
               </Link>
             </div>
-          </div>
+          </>
 
-          {/* ── The decision, kept in view ───────────────────────────── */}
-          <aside className="lg:sticky lg:top-20 flex flex-col gap-4">
-            <Card className="overflow-hidden">
+          {/* ── The decision ─────────────────────────────────────────── */}
+          <Card className="overflow-hidden">
               {/* The label on its own line, then every figure on the next.
                   Side by side, the was-price, the payable one and the badge
                   had to share a rail with the words "Package total", which is
@@ -272,9 +283,8 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
                 </Button>
 
                 {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
-              </div>
-            </Card>
-          </aside>
+            </div>
+          </Card>
         </div>
       </div>
     </div>
