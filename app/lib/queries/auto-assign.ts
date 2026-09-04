@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/app/generated/prisma";
 import { getBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
+import { pickPartnerForLead } from "./partner-share";
 
 export const ACTIVE_PIPELINE_STATUSES = [
   "ASSIGNED",
@@ -15,7 +16,7 @@ export const ACTIVE_PIPELINE_STATUSES = [
 ] as const;
 
 export type AutoAssignResult =
-  | { assigned: true; memberId: string; memberName: string }
+  | { assigned: true; memberId: string; memberName: string; partner?: boolean }
   | { assigned: false; reason: string };
 
 /**
@@ -38,6 +39,51 @@ export async function autoAssignLead(queryId: string): Promise<AutoAssignResult>
       },
     });
     return { assigned: false, reason: "Auto-assign is turned off" };
+  }
+
+  /*
+   * Some leads are sold on rather than worked in-house, and this is where
+   * that fork happens — before the team rotation, because whether a lead is
+   * the agency's is decided by their pacing and not by how loaded our own
+   * executives happen to be.
+   *
+   * Everything about it is the lead manager's to set, and it does nothing at
+   * all until they set a daily cap. A lead that does not qualify, or simply
+   * is not the one the pacing lands on, falls straight through to the team
+   * below — as does any failure here: an agency lookup going wrong must never
+   * cost us a lead.
+   */
+  try {
+    const lead = await db.package_queries.findUnique({
+      where: { id: queryId },
+      select: { id: true, groupSize: true, destination: true, source: true, createdAt: true },
+    });
+    if (lead) {
+      const partner = await pickPartnerForLead(lead);
+      if (partner) {
+        await db.package_queries.update({
+          where: { id: queryId },
+          data: {
+            assignedTo: partner.memberId,
+            assignedAt: new Date(),
+            assignedToName: partner.memberName,
+            status: "ASSIGNED",
+          },
+        });
+        await db.queryTimeline.create({
+          data: {
+            queryId,
+            event: `Auto-assigned to partner agency ${partner.memberName}`,
+            actorName: "System",
+          },
+        });
+        revalidatePath("/dashboard/queries");
+        revalidatePath("/dashboard/sales-query");
+        return { assigned: true, memberId: partner.memberId, memberName: partner.memberName, partner: true };
+      }
+    }
+  } catch (e) {
+    console.error("[autoAssignLead] partner share failed, keeping the lead in-house:", e);
   }
 
   const members = await db.teamMember.findMany({

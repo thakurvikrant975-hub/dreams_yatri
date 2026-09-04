@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { UserCheck, UserX, ChevronsUpDown, Loader2, Search, TrendingUp, Briefcase, BarChart2 } from "lucide-react";
+import { UserCheck, UserX, ChevronsUpDown, Loader2, Search, TrendingUp, Briefcase, BarChart2, Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -201,7 +201,8 @@ export function AssignQueryDropdown({
                 <div className="px-3 py-2.5 border-b">
                     <p className="text-xs font-semibold text-foreground">Assign to Sales Team</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Active pipeline · total leads · conversion rate shown per member
+                        Active pipeline · total leads · conversion rate shown per member.
+                        Agencies are marked.
                     </p>
                 </div>
 
@@ -270,6 +271,14 @@ export function AssignQueryDropdown({
                                                 )}>
                                                     {member.name}
                                                 </p>
+                                                {member.isPartnerAgency && (
+                                                    <span
+                                                        title="An outside agency — this lead leaves the building"
+                                                        className="flex items-center gap-1 text-[10px] font-semibold text-dashboard-secondary bg-dashboard-secondary/10 rounded px-1.5 py-0.5 shrink-0"
+                                                    >
+                                                        <Handshake className="h-2.5 w-2.5" /> Agency
+                                                    </span>
+                                                )}
                                                 {isSelected && (
                                                     <span className="text-[10px] font-semibold text-primary bg-primary/10 rounded px-1 py-0.5 shrink-0">
                                                         Assigned

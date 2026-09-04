@@ -71,6 +71,26 @@ export default async function proxy(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  if (pathname.startsWith("/partner")) {
+    // The partner portal. Its cookie is Path-scoped to /partner, so a partner
+    // session is not merely unprivileged elsewhere on the site — it is never
+    // sent there at all, and a dashboard session is never sent here.
+    const isAuthPage = pathname === "/partner/login";
+
+    const token = await getToken({
+      req,
+      secret: process.env.AUTH_SECRET,
+      cookieName: "dy.partner.session-token",
+    });
+
+    if (isAuthPage && token) {
+      return NextResponse.redirect(new URL("/partner/leads", req.url));
+    }
+    if (!isAuthPage && !token) {
+      return NextResponse.redirect(new URL("/partner/login", req.url));
+    }
+  }
+
   if (pathname.startsWith("/hotel-connect")) {
     // Redirect away to the dashboard if already logged in.
     const isAuthPage =

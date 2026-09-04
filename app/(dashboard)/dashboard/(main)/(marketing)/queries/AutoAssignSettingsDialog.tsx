@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Settings2, Loader2 } from "lucide-react";
+import { Settings2, Loader2, Handshake } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Input } from "../../components/ui/input";
@@ -10,7 +10,141 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
     DialogTrigger,
 } from "../../components/ui/dialog";
-import { updateAutoAssignMemberSetting, type AutoAssignMemberSetting } from "./actions";
+import { Label } from "../../components/ui/label";
+import {
+    updateAutoAssignMemberSetting, updatePartnerAgencySetting,
+    type AutoAssignMemberSetting, type PartnerAgencySetting,
+} from "./actions";
+import type { QuerySource } from "@/app/generated/prisma";
+
+/** The sources a manager may hold back, labelled as the rest of the dashboard
+ * labels them. */
+const SOURCES: { value: QuerySource; label: string }[] = [
+    { value: "WEBSITE_FORM", label: "Website Form" },
+    { value: "LANDING_PAGE", label: "Landing Page" },
+    { value: "WHATSAPP", label: "WhatsApp Meta" },
+    { value: "WHATSAPP_GOOGLE", label: "WhatsApp Google" },
+    { value: "META", label: "Meta" },
+    { value: "PHONE_CALL", label: "Phone Call" },
+    { value: "REFERRAL", label: "Referral" },
+    { value: "OTHER", label: "Other" },
+];
+
+/**
+ * One agency's share of the day.
+ *
+ * Not a variant of the executive row above it: an exec's min/max bound how
+ * much work one person carries at once, while an agency is bought from — so
+ * many leads a day, spread out, and only the ones we choose to sell. Saved on
+ * an explicit press rather than per keystroke, because these settings decide
+ * what leaves the building.
+ */
+function AgencyRow({ agency }: { agency: PartnerAgencySetting }) {
+    const [active, setActive] = useState(agency.active);
+    const [dailyCap, setDailyCap] = useState(agency.dailyCap.toString());
+    const [gapMin, setGapMin] = useState(agency.gapMin.toString());
+    const [gapMax, setGapMax] = useState(agency.gapMax.toString());
+    const [maxGroupSize, setMaxGroupSize] = useState(agency.maxGroupSize?.toString() ?? "");
+    const [destinations, setDestinations] = useState(agency.blockedDestinations.join(", "));
+    const [sources, setSources] = useState<QuerySource[]>(agency.blockedSources);
+    const [saving, setSaving] = useState(false);
+
+    const num = (v: string, fallback: number) => {
+        const n = parseInt(v, 10);
+        return v.trim() === "" || Number.isNaN(n) ? fallback : Math.max(0, n);
+    };
+
+    async function save() {
+        setSaving(true);
+        const r = await updatePartnerAgencySetting(agency.id, {
+            active,
+            dailyCap: num(dailyCap, 0),
+            gapMin: num(gapMin, 7),
+            gapMax: num(gapMax, 14),
+            maxGroupSize: maxGroupSize.trim() === "" ? null : num(maxGroupSize, 1),
+            blockedDestinations: destinations.split(",").map((d) => d.trim()).filter(Boolean),
+            blockedSources: sources,
+        });
+        setSaving(false);
+        if (r.success) toast.success(r.message);
+        else toast.error(r.message);
+    }
+
+    return (
+        <div className="space-y-4 px-4 py-4">
+            <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-dashboard-base-content">
+                        <Handshake className="size-3.5 text-dashboard-secondary" />
+                        {agency.name}
+                    </p>
+                    <p className="text-[11px] text-dashboard-base-content/50">
+                        {agency.givenToday} of {agency.dailyCap || "—"} given today
+                    </p>
+                </div>
+                <Switch checked={active} onCheckedChange={setActive} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                    <Label className="text-[11px] text-dashboard-base-content/60">Leads per day</Label>
+                    <Input value={dailyCap} onChange={(e) => setDailyCap(e.target.value)} inputMode="numeric" placeholder="0" />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[11px] text-dashboard-base-content/60">Every … leads</Label>
+                    <Input value={gapMin} onChange={(e) => setGapMin(e.target.value)} inputMode="numeric" placeholder="7" />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[11px] text-dashboard-base-content/60">… to</Label>
+                    <Input value={gapMax} onChange={(e) => setGapMax(e.target.value)} inputMode="numeric" placeholder="14" />
+                </div>
+            </div>
+            <p className="-mt-2 text-[11px] text-dashboard-base-content/45">
+                Their next lead lands a random {gapMin || 7}–{gapMax || 14} leads after the last, up
+                to {dailyCap || 0} a day, so they get a spread of the day rather than the first
+                arrivals.
+            </p>
+
+            <div className="space-y-1">
+                <Label className="text-[11px] text-dashboard-base-content/60">Largest group they may get</Label>
+                <Input value={maxGroupSize} onChange={(e) => setMaxGroupSize(e.target.value)} inputMode="numeric" placeholder="No limit" />
+            </div>
+
+            <div className="space-y-1">
+                <Label className="text-[11px] text-dashboard-base-content/60">Destinations to hold back</Label>
+                <Input value={destinations} onChange={(e) => setDestinations(e.target.value)} placeholder="e.g. Ladakh, Kashmir — comma separated" />
+            </div>
+
+            <div className="space-y-1.5">
+                <Label className="text-[11px] text-dashboard-base-content/60">Sources to hold back</Label>
+                <div className="flex flex-wrap gap-1.5">
+                    {SOURCES.map((src) => {
+                        const blocked = sources.includes(src.value);
+                        return (
+                            <button
+                                key={src.value}
+                                type="button"
+                                onClick={() => setSources(blocked ? sources.filter((v) => v !== src.value) : [...sources, src.value])}
+                                className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors cursor-pointer ${
+                                    blocked
+                                        ? "border-dashboard-error/40 bg-dashboard-error/10 text-dashboard-error line-through"
+                                        : "border-dashboard-base-300 text-dashboard-base-content/60 hover:bg-dashboard-base-200/60"
+                                }`}
+                            >
+                                {src.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <Button type="button" size="sm" onClick={save} disabled={saving} className="w-full gap-1.5">
+                {saving && <Loader2 className="size-3.5 animate-spin" />}
+                Save agency settings
+            </Button>
+        </div>
+    );
+}
 
 /** One row's local edit state — separate from the server-confirmed value so
  * a debounced number input can keep typing feel responsive without firing
@@ -92,7 +226,12 @@ function MemberRow({ member }: { member: AutoAssignMemberSetting }) {
     );
 }
 
-export function AutoAssignSettingsDialog({ initialMembers }: { initialMembers: AutoAssignMemberSetting[] }) {
+export function AutoAssignSettingsDialog({
+    initialMembers, initialAgencies = [],
+}: {
+    initialMembers: AutoAssignMemberSetting[];
+    initialAgencies?: PartnerAgencySetting[];
+}) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -118,8 +257,23 @@ export function AutoAssignSettingsDialog({ initialMembers }: { initialMembers: A
                         No Sales Executives found.
                     </p>
                 ) : (
-                    <div className="flex-1 overflow-y-auto rounded-lg border border-dashboard-base-300 -mx-1">
-                        {initialMembers.map((m) => <MemberRow key={m.id} member={m} />)}
+                    <div className="flex-1 overflow-y-auto -mx-1 space-y-4">
+                        <div className="rounded-lg border border-dashboard-base-300">
+                            {initialMembers.map((m) => <MemberRow key={m.id} member={m} />)}
+                        </div>
+
+                        {/* Agencies last: they are the exception to everything
+                            above, and a manager reads the team first. */}
+                        {initialAgencies.length > 0 && (
+                            <div>
+                                <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-dashboard-base-content/50">
+                                    Partner agencies
+                                </p>
+                                <div className="divide-y divide-dashboard-base-300 rounded-lg border border-dashboard-base-300">
+                                    {initialAgencies.map((a) => <AgencyRow key={a.id} agency={a} />)}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </DialogContent>

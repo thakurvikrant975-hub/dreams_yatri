@@ -208,7 +208,6 @@ model Booking {
    * bookings — and it records which of the quoted prices was accepted. Null
    * for a single-stay package or a catalog booking, which carries its stay in
    * stay_slug instead.
-   *
    * Deliberately not a foreign key: the option can be renamed or removed on
    * the package afterwards, and a booking must neither cascade away with it
    * nor block its deletion. The label is frozen alongside the id for the same
@@ -757,16 +756,67 @@ model Department {
 }
 
 model TeamRole {
-  id          String       @id @default(cuid())
-  name        String       @unique @db.VarChar(100)
-  description String?      @db.VarChar(500)
-  permissions Json         @default("[]")
-  pageAccess  Json         @default("[]")
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  members     TeamMember[]
+  id              String       @id @default(cuid())
+  name            String       @unique @db.VarChar(100)
+  description     String?      @db.VarChar(500)
+  permissions     Json         @default("[]")
+  pageAccess      Json         @default("[]")
+  /**
+   * Marks a role as belonging to an outside agency we sell leads to, rather
+   * than to our own staff.
+   * A flag rather than a name match (the way "Sales Executive" is found
+   * elsewhere): this one decides who may sign in at the partner portal and
+   * whose leads are counted as sold rather than worked in-house, and a role
+   * rename must not silently open or close either.
+   */
+  isPartnerAgency Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  members         TeamMember[]
 
   @@map("team_roles")
+}
+
+/**
+ * How many leads one partner agency may be given automatically, how they are
+ * spaced through the day, and which leads qualify.
+ * One row per agency member. Kept beside the member rather than on it: these
+ * settings mean nothing for our own staff, and an agency is a TeamMember only
+ * so that assignment, auto-assign, the timeline and every report keep working
+ * through the one `assignedTo` column they already use.
+ * Everything here is the lead manager's to set. The defaults hand over
+ * nothing — dailyCap 0 — so the feature is inert until someone chooses a
+ * number.
+ */
+model PartnerLeadRule {
+  id       String     @id @default(cuid())
+  memberId String     @unique
+  member   TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  /// Most leads auto-assignment may hand this agency in one IST day. 0 = none.
+  dailyCap Int @default(0)
+  /**
+   * How far apart their leads are drawn from the day's intake: the next one
+   * lands a random gapMin..gapMax leads after their last. Spacing rather
+   * than "the first N of the day", so an agency gets a spread of the day's
+   * traffic instead of whatever happens to arrive at breakfast.
+   */
+  gapMin   Int @default(7)
+  gapMax   Int @default(14)
+
+  // ── Which leads qualify. Every filter set must pass; all are optional,
+  //    and none set means the agency takes whatever the pacing gives it.
+  /// Largest group this agency may be given. Null = any size.
+  maxGroupSize        Int?
+  /// Destination names held back from this agency.
+  blockedDestinations String[]      @default([])
+  /// Lead sources held back — e.g. keep paid Meta leads in-house.
+  blockedSources      QuerySource[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("partner_lead_rules")
 }
 
 /**
@@ -832,6 +882,8 @@ model TeamMember {
    * auth-dashboard.ts's jwt callback.
    */
   sessionVersion         Int               @default(0)
+  /// Set only on an agency member — see PartnerLeadRule.
+  partnerLeadRule        PartnerLeadRule?
   joiningDate            DateTime?
   lastLoginAt            DateTime?
   createdById            String?
@@ -1173,7 +1225,7 @@ model HotelOwnerNotification {
  * count updates without a poll or a page reload.
  */
 model Notification {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   recipientId String
   recipient   TeamMember @relation(fields: [recipientId], references: [id], onDelete: Cascade)
   type        String
@@ -1181,7 +1233,7 @@ model Notification {
   body        String?
   link        String?
   readAt      DateTime?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime   @default(now())
 
   @@index([recipientId, createdAt])
   @@index([recipientId, readAt])
@@ -2429,17 +2481,17 @@ model package_stay_categories {
 }
 
 model package_pricing {
-  id                Int                     @id @default(autoincrement())
+  id                Int                      @id @default(autoincrement())
   package_id        Int
   duration_id       Int
   stay_category_id  Int
-  gst_percentage    Decimal                 @default(5) @db.Decimal(5, 2)
+  gst_percentage    Decimal                  @default(5) @db.Decimal(5, 2)
   /// The margin that applies on every date no season covers — the floor the
   /// seasonal calendar below is layered on top of, never replaced by it.
-  margin_percentage Decimal                 @default(10) @db.Decimal(5, 2)
-  duration          package_durations       @relation(fields: [duration_id], references: [id])
-  package           packages                @relation(fields: [package_id], references: [id])
-  stay_category     package_stay_categories @relation(fields: [stay_category_id], references: [id])
+  margin_percentage Decimal                  @default(10) @db.Decimal(5, 2)
+  duration          package_durations        @relation(fields: [duration_id], references: [id])
+  package           packages                 @relation(fields: [package_id], references: [id])
+  stay_category     package_stay_categories  @relation(fields: [stay_category_id], references: [id])
   seasons           package_pricing_season[]
 
   @@unique([package_id, duration_id, stay_category_id])
@@ -2717,12 +2769,16 @@ model LeadRequest {
   status           LeadRequestStatus @default(PENDING)
   requestedById    String
   requestedByName  String
-  /** Required when status is REJECTED — enforced in the action, not here. */
+  /**
+   * Required when status is REJECTED — enforced in the action, not here.
+   */
   rejectionReason  String?
   decidedAt        DateTime?
   decidedById      String?
   decidedByName    String?
-  /** Set once accepted — the package_queries row this request became. */
+  /**
+   * Set once accepted — the package_queries row this request became.
+   */
   resultingQueryId String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -2792,7 +2848,6 @@ model custom_packages {
   infantAges              Int[]                         @default([])
   /**
    * The age boundaries this package is priced by, editable per package.
-   *
    * The industry defaults are infant 0–2, child 3–12, adult 13+, and that is
    * what a new package starts with. They are NOT universal: plenty of
    * properties treat under-5s as infants (no bed, no charge) and start
@@ -2800,7 +2855,6 @@ model custom_packages {
    * 11. Costing was resolving that difference by hand, off a note in the
    * itinerary, on a package whose per-person figure had already been
    * computed against the hard-coded line.
-   *
    * Both are INCLUSIVE upper bounds: a traveller is an infant at or below
    * infantMaxAge, a child from there to childMaxAge, an adult above it. The
    * band a traveller lands in — not the box the exec typed them into —
@@ -3348,7 +3402,6 @@ model custom_itineraries {
    * The catalog rate per extra mattress at the moment the room was picked
    * (hotel_room_pricing.extra_bed_rate), snapshotted for the same reason the
    * capacities above are — but with a second job the others don't have.
-   *
    * Mattresses are priced live from the rate row, and that row very often
    * has no extra-bed rate on it at all. The mattresses were then added to the
    * itinerary and charged at nothing, with no way for the exec to see it: the
@@ -3562,7 +3615,6 @@ enum TemplateApprovalStatus {
  * status, price overrides), since none of that means anything once this is
  * reused for a different client. Goes through the same team-leader review as
  * ActivityTemplate, but as one package-level approval rather than per-activity.
- *
  * Approval is scoped to the *submitter's* team leader only — submittedByTeamId
  * is snapshotted at submit time so the review queue can tell every team
  * leader apart from just the one who's allowed to act (their own team's
@@ -3840,9 +3892,11 @@ enum Gender {
   PREFER_NOT_TO_SAY
 }
 
-/** The honorific shown before a parent's name — kept as its own field so the
+/**
+ * The honorific shown before a parent's name — kept as its own field so the
  * name itself stays plain text ("Ramesh Kumar", not "Late Mr. Ramesh Kumar")
- * while the UI can still prefix it consistently. */
+ * while the UI can still prefix it consistently.
+ */
 enum NameTitle {
   MR
   MRS

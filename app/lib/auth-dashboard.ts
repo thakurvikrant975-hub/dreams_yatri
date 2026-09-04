@@ -69,9 +69,10 @@ async authorize(credentials) {
         departmentId:   true,
         teamRole: {
           select: {
-            name:        true,
-            permissions: true,
-            pageAccess:  true,
+            name:            true,
+            permissions:     true,
+            pageAccess:      true,
+            isPartnerAgency: true,
           },
         },
       },
@@ -90,6 +91,22 @@ async authorize(credentials) {
   if (!member.isActive) {
     const err = new CredentialsSignin("Account deactivated");
     err.code = "account_inactive";
+    throw err;
+  }
+
+  /*
+   * An outside agency never holds a staff session.
+   *
+   * An agency is a team_members row so that assignment and reporting work
+   * through the columns they already use — which means it has an email and a
+   * password this very form would otherwise accept. It signs in at the
+   * partner portal instead, and is refused here before the password is even
+   * checked. Answered as an unknown account rather than "wrong door", so the
+   * staff login cannot be used to discover who our partners are.
+   */
+  if (member.teamRole?.isPartnerAgency) {
+    const err = new CredentialsSignin("No account found");
+    err.code = "user_not_found";
     throw err;
   }
 

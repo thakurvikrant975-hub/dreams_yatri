@@ -10,7 +10,10 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getQueries, getRejectionReasons, getAutoAssignSetting, getAutoAssignMemberSettings } from "./actions";
+import {
+    getQueries, getRejectionReasons, getAutoAssignSetting,
+    getAutoAssignMemberSettings, getPartnerAgencySettings,
+} from "./actions";
 import { QueriesTable } from "./Queriestable";
 import { AddQueryDialog } from "./Addquerydialog";
 import { AutoAssignToggle } from "./AutoAssignToggle";
@@ -79,9 +82,10 @@ async function QueriesData() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function QueriesPage() {
-    const [autoAssignEnabled, autoAssignMembers] = await Promise.all([
+    const [autoAssignEnabled, autoAssignMembers, partnerAgencies] = await Promise.all([
         getAutoAssignSetting(),
         getAutoAssignMemberSettings(),
+        getPartnerAgencySettings(),
     ]);
 
     return (
@@ -107,7 +111,7 @@ export default async function QueriesPage() {
                 actions={
                     <div className="flex items-center gap-3">
                         <AutoAssignToggle initialEnabled={autoAssignEnabled} />
-                        <AutoAssignSettingsDialog initialMembers={autoAssignMembers} />
+                        <AutoAssignSettingsDialog initialMembers={autoAssignMembers} initialAgencies={partnerAgencies} />
                         <Button asChild variant="outline" size="sm" className="gap-1.5">
                             <Link href="/dashboard/queries/rejection-reasons">
                                 <XCircle className="size-3.5" /> Rejection Reasons

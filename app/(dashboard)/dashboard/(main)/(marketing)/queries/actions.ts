@@ -21,6 +21,7 @@ function toTitleCase(s: string): string {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 import { phoneKey, PHONE_KEY_SQL } from "@/app/lib/phone";
+import { istDayBounds } from "@/app/lib/ist-window";
 
 export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
@@ -213,6 +214,10 @@ export type SalesMember = {
     totalQueries: number;
     /** Queries that ended as CONVERTED */
     convertedQueries: number;
+    /** An outside agency we sell leads to rather than one of our own execs.
+     * Assigned exactly the same way — the picker only needs to say which is
+     * which, so a manager knows a lead is leaving the building. */
+    isPartnerAgency: boolean;
 };
 
 export type DestinationOption = { id: number; name: string; slug: string };
@@ -343,13 +348,27 @@ export async function getAllRejectionReasons(): Promise<RejectionReason[]> {
  * whole sales floor. Omitted, this is the original unscoped list. */
 export async function getSalesMembers(salesTeamId?: string): Promise<SalesMember[]> {
     // FIX 1: Only active sales team members
+    /*
+     * Our own executives, plus any partner agency.
+     *
+     * An agency is handed leads through the same column and the same action,
+     * so it belongs in the same picker — a lead manager choosing where a lead
+     * goes should see every destination in one list. Scoping to a team is a
+     * Team Leader's own roster, which never includes an agency.
+     */
     const members = await db.teamMember.findMany({
         where: {
-            teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } },
+            OR: [
+                { teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } } },
+                ...(salesTeamId ? [] : [{ teamRole: { isPartnerAgency: true } }]),
+            ],
             isActive: true, // ← was missing; was returning inactive members too
             ...(salesTeamId ? { salesTeamId } : {}),
         },
-        select: { id: true, name: true, email: true, profilePicUrl: true },
+        select: {
+            id: true, name: true, email: true, profilePicUrl: true,
+            teamRole: { select: { isPartnerAgency: true } },
+        },
         orderBy: { name: "asc" },
     });
 
@@ -397,11 +416,12 @@ export async function getSalesMembers(salesTeamId?: string): Promise<SalesMember
     const totalMap     = Object.fromEntries(totalCounts.map((c)     => [c.assignedTo!, c._count.id]));
     const convertedMap = Object.fromEntries(convertedCounts.map((c) => [c.assignedTo!, c._count.id]));
 
-    return members.map((m) => ({
+    return members.map(({ teamRole, ...m }) => ({
         ...m,
         activeQueries:    activeMap[m.id]    ?? 0,
         totalQueries:     totalMap[m.id]     ?? 0,
         convertedQueries: convertedMap[m.id] ?? 0,
+        isPartnerAgency:  teamRole?.isPartnerAgency ?? false,
     }));
 }
 
@@ -549,6 +569,122 @@ export async function getAutoAssignMemberSettings(): Promise<AutoAssignMemberSet
         max: m.autoAssignMax,
         activeCount: countMap.get(m.id) ?? 0,
     }));
+}
+
+/**
+ * A partner agency's share of the day's leads, as the lead manager sets it.
+ *
+ * Deliberately a different shape from a sales executive's min/max: those bound
+ * how much work one person carries at a time, while an agency is bought from
+ * — so many a day, spread out, and only the leads we choose to sell.
+ */
+export type PartnerAgencySetting = {
+    id: string;
+    name: string;
+    email: string;
+    /** In the rotation at all (the same per-member switch execs have). */
+    active: boolean;
+    dailyCap: number;
+    gapMin: number;
+    gapMax: number;
+    maxGroupSize: number | null;
+    blockedDestinations: string[];
+    blockedSources: QuerySource[];
+    /** Handed over so far today (IST) — the figure dailyCap is measured
+     * against, shown so a manager can see where the day stands. */
+    givenToday: number;
+};
+
+export async function getPartnerAgencySettings(): Promise<PartnerAgencySetting[]> {
+    const members = await db.teamMember.findMany({
+        where: { teamRole: { isPartnerAgency: true }, isActive: true },
+        select: {
+            id: true, name: true, email: true, autoAssignActive: true,
+            partnerLeadRule: true,
+        },
+        orderBy: { name: "asc" },
+    });
+    if (members.length === 0) return [];
+
+    const { start, end } = istDayBounds();
+    const given = await db.package_queries.groupBy({
+        by: ["assignedTo"],
+        where: {
+            assignedTo: { in: members.map((m) => m.id) },
+            deletedAt: null,
+            assignedAt: { gte: start, lte: end },
+        },
+        _count: { id: true },
+    });
+    const givenMap = new Map(given.map((g) => [g.assignedTo as string, g._count.id]));
+
+    return members.map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        active: m.autoAssignActive,
+        // An agency with no rule row yet reads as "set up but selling
+        // nothing", which is the safe thing for it to mean.
+        dailyCap: m.partnerLeadRule?.dailyCap ?? 0,
+        gapMin: m.partnerLeadRule?.gapMin ?? 7,
+        gapMax: m.partnerLeadRule?.gapMax ?? 14,
+        maxGroupSize: m.partnerLeadRule?.maxGroupSize ?? null,
+        blockedDestinations: m.partnerLeadRule?.blockedDestinations ?? [],
+        blockedSources: m.partnerLeadRule?.blockedSources ?? [],
+        givenToday: givenMap.get(m.id) ?? 0,
+    }));
+}
+
+export async function updatePartnerAgencySetting(
+    memberId: string,
+    input: {
+        active: boolean;
+        dailyCap: number;
+        gapMin: number;
+        gapMax: number;
+        maxGroupSize: number | null;
+        blockedDestinations: string[];
+        blockedSources: QuerySource[];
+    },
+): Promise<ActionResult> {
+    try {
+        if (input.dailyCap < 0) return { success: false, message: "Leads per day can't be negative" };
+        if (input.gapMin < 1 || input.gapMax < 1) return { success: false, message: "The gap has to be at least 1 lead" };
+        if (input.gapMin > input.gapMax) return { success: false, message: "The smallest gap can't be bigger than the largest" };
+        if (input.maxGroupSize != null && input.maxGroupSize < 1) {
+            return { success: false, message: "Group size limit has to be at least 1" };
+        }
+
+        const member = await db.teamMember.findUnique({
+            where: { id: memberId },
+            select: { teamRole: { select: { isPartnerAgency: true } } },
+        });
+        if (!member?.teamRole?.isPartnerAgency) {
+            return { success: false, message: "That member is not a partner agency" };
+        }
+
+        const data = {
+            dailyCap: input.dailyCap,
+            gapMin: input.gapMin,
+            gapMax: input.gapMax,
+            maxGroupSize: input.maxGroupSize,
+            blockedDestinations: input.blockedDestinations.map((d) => d.trim()).filter(Boolean),
+            blockedSources: input.blockedSources,
+        };
+        await db.$transaction([
+            db.teamMember.update({ where: { id: memberId }, data: { autoAssignActive: input.active } }),
+            db.partnerLeadRule.upsert({
+                where: { memberId },
+                update: data,
+                create: { memberId, ...data },
+            }),
+        ]);
+        revalidatePath("/dashboard/queries");
+        return { success: true, data: undefined, message: "Saved" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
+    }
 }
 
 export async function updateAutoAssignMemberSetting(
