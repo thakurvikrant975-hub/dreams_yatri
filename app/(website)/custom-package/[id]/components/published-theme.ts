@@ -170,6 +170,59 @@ export const PUBLISHED_THEME = `
   .itinerary-print-area[data-published]:not([data-exporting]) .text-lg { font-size: 20px; }
   .itinerary-print-area[data-published]:not([data-exporting]) .text-xl { font-size: 22px; }
 
+  /* ── Type, back down again on a phone ─────────────────────────────────
+     The step up above is for a screen held at arm's length showing the
+     document at its designed measure. A phone is neither: 390px carries
+     less than half the 210mm the sizes were drawn against, so the same
+     type that reads comfortably on a laptop arrives oversized — a title
+     wrapping across three lines, a client's name filling the card.
+
+     So the scale is restated a third time, below the printed sizes rather
+     than above them, and the display sizes are cut hardest because they
+     are the ones the narrow measure punishes. Same selectors as the block
+     above, later in the file, so they simply win inside the query.
+     Listed rather than scaled, for the same reason as above: any one of
+     them can be tuned without moving the rest. */
+  @media (max-width: 639.98px) {
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[7px\\] { font-size: 7px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[7\\.5px\\] { font-size: 7.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[8px\\] { font-size: 8px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[8\\.5px\\] { font-size: 8.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[9px\\] { font-size: 9px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[9\\.5px\\] { font-size: 9.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[10px\\] { font-size: 9.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[10\\.5px\\] { font-size: 10px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[11px\\] { font-size: 10.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[11\\.5px\\] { font-size: 11px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[12px\\] { font-size: 11px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[12\\.5px\\] { font-size: 11.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[13px\\] { font-size: 12px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[13\\.5px\\] { font-size: 12px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[14px\\] { font-size: 12.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[14\\.5px\\] { font-size: 12.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[15px\\] { font-size: 13px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[16px\\] { font-size: 13.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[18px\\] { font-size: 15px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[20px\\] { font-size: 16px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[22px\\] { font-size: 17px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[34px\\] { font-size: 25px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-\\[36px\\] { font-size: 26px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-xs { font-size: 11px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-sm { font-size: 12px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-base { font-size: 13.5px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-lg { font-size: 15px; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .text-xl { font-size: 16px; }
+
+    /* Three sizes in the document are set inline — the day number, the
+       lead price and the per-standard price — so a plain rule cannot
+       reach them. They carry a hook class for exactly this; !important is
+       what it takes to outrank a style attribute, and it is confined to
+       this query. */
+    .itinerary-print-area[data-published]:not([data-exporting]) .doc-day-number { font-size: 24px !important; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .doc-price-lead { font-size: 21px !important; }
+    .itinerary-print-area[data-published]:not([data-exporting]) .doc-price-option { font-size: 14.5px !important; }
+  }
+
   /* ── Masthead contacts, collapsed on a phone ──────────────────────────
      The helpline and email sit beside the logo on paper, where the measure
      is 210mm and there is always room. At 390px they wrap onto their own

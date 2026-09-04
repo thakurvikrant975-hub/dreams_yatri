@@ -2953,7 +2953,7 @@ function DayCardPreview({
         style={{ borderBottom: `1px solid ${DOC.rule}` }}
       >
         <span
-          className={cn(DISPLAY, "shrink-0 font-bold leading-none")}
+          className={cn(DISPLAY, "doc-day-number shrink-0 font-bold leading-none")}
           style={{
             fontSize: "32px",
             color: DOC.accent,
@@ -4455,7 +4455,7 @@ export function ItineraryDocument({
                         </div>
                       )}
                       <p
-                        className={cn(DISPLAY, "font-bold text-white leading-none font-heading")}
+                        className={cn(DISPLAY, "doc-price-lead font-bold text-white leading-none font-heading")}
                         style={{ fontSize: "28px", letterSpacing: "-0.02em" }}
                       >
                         {priceStr}
@@ -4492,7 +4492,7 @@ export function ItineraryDocument({
                                 </span>
                               )}
                             </p>
-                            <p className={cn(DISPLAY, "font-bold text-white leading-tight font-heading mt-0.5")} style={{ fontSize: "17px" }}>
+                            <p className={cn(DISPLAY, "doc-price-option font-bold text-white leading-tight font-heading mt-0.5")} style={{ fontSize: "17px" }}>
                               {/* Zero means no rate behind those nights yet,
                                   not a free stay — saying "on request" is the
                                   only honest reading, and printing 0 would
