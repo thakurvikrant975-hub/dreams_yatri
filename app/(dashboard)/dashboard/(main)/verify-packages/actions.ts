@@ -112,6 +112,7 @@ export async function approveCustomPackage(packageId: string): Promise<ActionRes
             data: {
                 verified: true,
                 verifiedAt: new Date(),
+                everVerifiedAt: new Date(),
                 verifiedBy: actor?.id ?? null,
                 verifiedByName: actor?.name ?? null,
                 rejectedAt: null, rejectedBy: null, rejectedByName: null, rejectionReasonId: null, rejectionNote: null,

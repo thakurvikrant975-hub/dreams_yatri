@@ -997,6 +997,14 @@ export interface QueryDetail {
     verified:        boolean;
     verifiedAt:      Date | null;
     verifiedByName:  string | null;
+    /** Set the first time costing ever approved this package — never cleared
+     * by a later rejection/revision, unlike `verified`. Gates Save to
+     * Library independently of whether the package has since been sent. */
+    everVerifiedAt:  Date | null;
+    /** This package's PackageTemplate.status, joined in separately by
+     * sourcePackageId (no FK between the tables) — null if it's never been
+     * submitted to the library at all. See saveCustomPackageToLibrary. */
+    libraryStatus:   "PENDING" | "APPROVED" | "REJECTED" | null;
     rejectedAt:      Date | null;
     rejectedByName:  string | null;
     rejectionNote:   string | null;
@@ -2092,6 +2100,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       verified:        true,
       verifiedAt:      true,
       verifiedByName:  true,
+      everVerifiedAt:  true,
       rejectedAt:      true,
       rejectedByName:  true,
       rejectionNote:   true,
@@ -2230,6 +2239,15 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
   const { query, itineraries, tickets, addOns, ...pkgRest } = pkg;
   const { execEmail, execDesignation } = await resolveExecInfo(query?.assignedTo ?? null);
 
+  // Most recent submission wins — a rejected one doesn't block a resubmit
+  // (see saveCustomPackageToLibrary), so there can be more than one row for
+  // the same source package over time.
+  const libraryTemplate = await db.packageTemplate.findFirst({
+    where: { sourcePackageId: packageId },
+    orderBy: { submittedAt: "desc" },
+    select: { status: true },
+  });
+
   return {
     id:             query?.id ?? null,
     name:           query?.name ?? null,
@@ -2251,6 +2269,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
     execDesignation,
     customPackage: {
       ...pkgRest,
+      libraryStatus: libraryTemplate?.status ?? null,
       stops: pkgRest.stops.map((s) => ({ ...s, image: s.image ?? undefined })),
       itineraries: itineraries.map(normalizeItinerary),
       tickets: tickets.map(normalizeTicket),

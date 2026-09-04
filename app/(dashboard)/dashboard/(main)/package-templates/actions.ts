@@ -140,7 +140,7 @@ async function buildSnapshotFromPackage(customPackageId: string) {
     where: { id: customPackageId },
     select: {
       id: true, title: true, description: true, coverImage: true, destination: true,
-      totalDays: true, totalNights: true, verified: true,
+      totalDays: true, totalNights: true, verified: true, everVerifiedAt: true,
       inclusions: true, exclusions: true, termsNotes: true, termsConditions: true,
       paymentPolicy: true, amendmentPolicy: true,
       stops: {
@@ -218,7 +218,11 @@ export async function saveCustomPackageToLibrary(
   const built = await buildSnapshotFromPackage(customPackageId);
   if (!built) return { success: false, error: "Package not found" };
   const { pkg, snapshot, flattenedActivities } = built;
-  if (!pkg.verified) return { success: false, error: "Only a costing-approved package can be saved to the library" };
+  // everVerifiedAt (not the live `verified` flag) — once costing has ever
+  // signed off on this package, saving to the library stays available even
+  // after it's since been sent to the client or reworked, which resets
+  // `verified` back to false.
+  if (!pkg.everVerifiedAt) return { success: false, error: "Only a costing-approved package can be saved to the library" };
 
   const existing = await db.packageTemplate.findFirst({
     where: { sourcePackageId: customPackageId, status: { not: "REJECTED" } },

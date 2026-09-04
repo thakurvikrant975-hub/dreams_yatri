@@ -280,6 +280,71 @@ function SpecialNote({ text }: { text?: string }) {
   );
 }
 
+/** Save to Library, plus a small status line for the submission it made.
+ *
+ * Gated on `everVerifiedAt` by the caller, not the live `verified`/`status`
+ * fields — once costing has approved a package, this stays available no
+ * matter what happens afterward (sent to the client, pulled back for
+ * revision, etc.), rather than disappearing the moment it's no longer in
+ * the exact "just approved, not yet sent" window.
+ *
+ * The button itself disables while a submission is PENDING or already
+ * APPROVED (can't save twice) and re-enables on REJECTED so it can be
+ * retried — see saveCustomPackageToLibrary's own `status: { not: "REJECTED" }`
+ * duplicate check, which this mirrors. */
+function SaveToLibraryControl({
+  packageId, title, description, destination, libraryStatus, onSuccess, compact,
+}: {
+  packageId: string;
+  title: string;
+  description: string;
+  destination: string;
+  libraryStatus: "PENDING" | "APPROVED" | "REJECTED" | null;
+  onSuccess: () => void;
+  compact?: boolean;
+}) {
+  const canSave = libraryStatus !== "PENDING" && libraryStatus !== "APPROVED";
+  const status = libraryStatus === "APPROVED"
+    ? { label: "Approved into library", icon: CheckCircle, className: "text-dashboard-success" }
+    : libraryStatus === "REJECTED"
+      ? { label: "Rejected — you can resubmit", icon: XCircle, className: "text-red-600" }
+      : libraryStatus === "PENDING"
+        ? { label: "Pending library review", icon: Clock, className: "text-amber-600" }
+        : null;
+
+  return (
+    <div className={cn("flex flex-col gap-1", compact ? "items-start" : "items-end")}>
+      <SaveToLibraryDialog
+        packageId={packageId}
+        title={title}
+        description={description}
+        destination={destination}
+        onSuccess={onSuccess}
+      >
+        <Button
+          variant="outline"
+          size={compact ? "sm" : "default"}
+          className={cn(
+            "border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content",
+            compact ? "h-8 gap-1.5 rounded-md" : "gap-2",
+          )}
+          disabled={!canSave}
+        >
+          <BookOpen size={compact ? 13 : 14} />
+          <span className={compact ? "hidden sm:inline text-xs" : undefined}>
+            {libraryStatus === "REJECTED" ? "Resave to Library" : "Save to Library"}
+          </span>
+        </Button>
+      </SaveToLibraryDialog>
+      {status && (
+        <span className={cn("flex items-center gap-1 text-[11px]", status.className)}>
+          <status.icon size={11} /> {status.label}
+        </span>
+      )}
+    </div>
+  );
+}
+
 
 
 
@@ -528,7 +593,6 @@ export default function PackageBuilderDetailPage() {
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
   const [isSharing, startShare] = useTransition();
-  const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [isSavingToTemplate, startSaveToTemplate] = useTransition();
   // Approve/Reject a library template — only ever shown on a template's own
   // working copy (isTemplateWorkingCopy below), the one place this is done
@@ -1639,10 +1703,13 @@ Rules:
 
   // ── Save to Library — costing-approved packages only, see PackageTemplate ──
   // Submission itself (with the title/description/destination the dialog
-  // lets an exec adjust) lives in SaveToLibraryDialog; this just records that
-  // it happened so both trigger buttons flip to "Saved to Library".
-  function handleSavedToLibrary() {
-    setSavedToLibrary(true);
+  // lets an exec adjust) lives in SaveToLibraryDialog; this re-fetches so
+  // `query.customPackage.libraryStatus` reflects the real PENDING row that
+  // was just created, rather than a local flag that would forget it on
+  // reload and couldn't tell pending/approved/rejected apart.
+  async function handleSavedToLibrary() {
+    const fresh = await getPackageDetail(packageId);
+    if (fresh) syncPricingFromFresh(fresh);
   }
 
   // ── Save to Template — only on a library-template working copy, see
@@ -2079,6 +2146,11 @@ Rules:
   const isLocked = query.customPackage?.status === "READY";
   const pkgVerified = query.customPackage?.verified ?? false;
   const pkgSent = query.customPackage?.status === "SENT";
+  // Whether costing has EVER approved this package — unlike pkgVerified,
+  // this stays true through a later send, revision or rework, so Save to
+  // Library doesn't disappear the moment either happens. See everVerifiedAt.
+  const everApproved = !!query.customPackage?.everVerifiedAt;
+  const libraryStatus = query.customPackage?.libraryStatus ?? null;
   // A hidden working copy created off a PackageTemplate's snapshot so a team
   // leader can edit its content here (see getOrCreateTemplateWorkingCopy,
   // package-templates/actions.ts) — never a real booking. Mark Ready/Share/
@@ -2330,23 +2402,6 @@ Rules:
                     <span className="hidden sm:inline text-xs">Request Revision</span>
                   </Button>
                 </RequestRevisionDialog>
-                <SaveToLibraryDialog
-                  packageId={packageId}
-                  title={form.title}
-                  description={form.description}
-                  destination={form.destination}
-                  onSuccess={handleSavedToLibrary}
-                >
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
-                    disabled={savedToLibrary}
-                  >
-                    <BookOpen size={13} />
-                    <span className="hidden sm:inline text-xs">{savedToLibrary ? "Saved to Library" : "Save to Library"}</span>
-                  </Button>
-                </SaveToLibraryDialog>
                 <Button
                   size="sm"
                   className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
@@ -2382,6 +2437,22 @@ Rules:
                   {savedOk ? "Saved!" : "Save Draft"}
                 </span>
               </Button>
+            )}
+
+            {/* Independent of the branching above — once costing has EVER
+                approved this package, the option to save it into the
+                library stays available no matter what state it's since
+                moved to (sent, reworked, ...). See everApproved. */}
+            {everApproved && !isTemplateWorkingCopy && (
+              <SaveToLibraryControl
+                packageId={packageId}
+                title={form.title}
+                description={form.description}
+                destination={form.destination}
+                libraryStatus={libraryStatus}
+                onSuccess={handleSavedToLibrary}
+                compact
+              />
             )}
 
             {/* Running total, always visible. The breakdown still lives on the
@@ -2760,22 +2831,6 @@ Rules:
                     Request Revision
                   </Button>
                 </RequestRevisionDialog>
-                <SaveToLibraryDialog
-                  packageId={packageId}
-                  title={form.title}
-                  description={form.description}
-                  destination={form.destination}
-                  onSuccess={handleSavedToLibrary}
-                >
-                  <Button
-                    variant="outline"
-                    className="gap-2 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content"
-                    disabled={savedToLibrary}
-                  >
-                    <BookOpen size={14} />
-                    {savedToLibrary ? "Saved to Library" : "Save to Library"}
-                  </Button>
-                </SaveToLibraryDialog>
                 <Button
                   className="gap-2 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90"
                   onClick={handleShareClick}
@@ -2820,6 +2875,21 @@ Rules:
                     Mark Ready
                   </Button>
                 )}
+              </div>
+            )}
+
+            {/* Independent of the branching above — see the toolbar's own
+                copy of this comment for why. */}
+            {everApproved && !isTemplateWorkingCopy && (
+              <div className="flex justify-end pb-6">
+                <SaveToLibraryControl
+                  packageId={packageId}
+                  title={form.title}
+                  description={form.description}
+                  destination={form.destination}
+                  libraryStatus={libraryStatus}
+                  onSuccess={handleSavedToLibrary}
+                />
               </div>
             )}
               </div>

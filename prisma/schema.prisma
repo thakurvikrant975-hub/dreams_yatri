@@ -3001,6 +3001,14 @@ model custom_packages {
   verifiedBy              String?
   verifiedByName          String?
   /**
+   * Set the first time costing approves this package and, unlike verifiedAt,
+   * never cleared by a later rejection/rework/revision — "was this ever
+   * approved," not "is it currently approved." Same convention as sentAt
+   * below. Gates Save to Library so the option survives rework and sending
+   * to the client instead of disappearing the moment either happens.
+   */
+  everVerifiedAt          DateTime?
+  /**
    * Set when the verification team sends a package's pricing back for
    * rework instead of verifying it — mirrors package_queries' structured
    * rejectionReasonId + free-text rejectionNote pattern. Cleared again

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
@@ -18,6 +18,7 @@ import {
 import { DateRangePicker } from "../../components/ui/date-range-picker";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
+import { MinNumberFilter } from "../../components/dashboard/MinNumberFilter";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge, PackageVerificationBadge, PackageSentBadge, HotelRequestBadge, LibraryStatusBadge } from "./Salesquerybadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
@@ -238,6 +239,9 @@ export function SalesQueriesTable({
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
     const [filterAssignedTo, setFilterAssignedTo] = useState<"all" | "unassigned" | string>("all");
+    const [filterDestination, setFilterDestination] = useState("all");
+    const [minCost, setMinCost] = useState<number | null>(null);
+    const [minGroupSize, setMinGroupSize] = useState<number | null>(null);
     const [page, setPage] = useState(1);
 
     // ── Focus Mode — hides Converted/Closed queries so the list is only
@@ -337,13 +341,29 @@ export function SalesQueriesTable({
         const matchFocus = !focusMode
             || (!isClosedStatus(q.status as SalesQueryStatus) && !isConvertedStatus(q.status as SalesQueryStatus));
 
-        return matchSearch && matchStatus && matchAssignedTo && matchFocus;
+        const matchDestination = filterDestination === "all" || q.destination === filterDestination;
+        // A query can carry several packages (e.g. budget options) — "cost
+        // at least X" matches if any one of them clears the bar, same as
+        // asking "does this lead have a package that costs at least X".
+        const matchCost = minCost === null
+            || q.customPackages.some((p) => p.totalPrice !== null && p.totalPrice >= minCost);
+        const matchGroupSize = minGroupSize === null || (q.groupSize !== null && q.groupSize >= minGroupSize);
+
+        return matchSearch && matchStatus && matchAssignedTo && matchFocus
+            && matchDestination && matchCost && matchGroupSize;
     });
+
+    const destinationOptions = useMemo(() => {
+        const seen = new Set<string>();
+        for (const q of queries) if (q.destination) seen.add(q.destination);
+        return Array.from(seen).sort().map((d) => ({ label: d, value: d }));
+    }, [queries]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-    const isFiltering = search !== "" || filterStatus !== "all" || filterAssignedTo !== "all" || focusMode;
+    const isFiltering = search !== "" || filterStatus !== "all" || filterAssignedTo !== "all" || focusMode
+        || filterDestination !== "all" || minCost !== null || minGroupSize !== null;
 
     // Open = not Converted, not Closed — what Focus Mode narrows down to.
     // Computed off the full `queries` set (not `filtered`) so the count on
@@ -864,6 +884,7 @@ export function SalesQueriesTable({
 
                 {/* Filters */}
                 <TableFilters
+                    collapsible
                     search={search}
                     onSearchChange={(v) => { setSearch(v); setPage(1); }}
                     searchPlaceholder="Search by name, phone, email, destination..."
@@ -907,8 +928,30 @@ export function SalesQueriesTable({
                                 ...teamMembers.map((m) => ({ label: m.name, value: m.id })),
                             ],
                         }] : []),
+                        {
+                            value: filterDestination,
+                            onChange: (v) => { setFilterDestination(v); setPage(1); },
+                            placeholder: "All Destinations",
+                            width: "w-44",
+                            options: destinationOptions,
+                        },
                     ]}
-                />
+                >
+                    <MinNumberFilter
+                        label="Cost ≥"
+                        prefix="₹"
+                        value={minCost}
+                        onChange={(v) => { setMinCost(v); setPage(1); }}
+                        placeholder="Any"
+                    />
+                    <MinNumberFilter
+                        label="Persons ≥"
+                        value={minGroupSize}
+                        onChange={(v) => { setMinGroupSize(v); setPage(1); }}
+                        placeholder="Any"
+                        width="w-36"
+                    />
+                </TableFilters>
 
                 {search && (
                     <div className="flex items-center gap-2 px-1">
