@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { useMemberNotifications } from "@/app/lib/ably-client";
 import {
@@ -49,6 +50,16 @@ export function NotificationBell({
     // panel just carries the higher count until someone actually opens it,
     // rather than eagerly loading a list nobody's looking at yet.
     setItems((prev) => (prev ? [{ ...n, readAt: null }, ...prev] : prev));
+
+    // A lead request landing in the queue is time-sensitive for whoever
+    // reviews it — surfaced as a toast (on top of the bell) so it isn't
+    // missed just because the panel is closed.
+    if (n.type === "LEAD_REQUEST_SUBMITTED") {
+      toast.info(n.title, {
+        description: n.body ?? undefined,
+        action: n.link ? { label: "Review", onClick: () => router.push(n.link!) } : undefined,
+      });
+    }
   });
 
   async function toggleOpen() {

@@ -107,10 +107,10 @@ export default async function DashboardLayout({
   // the whole dashboard — every user hits this on every page load, right
   // after login redirects here. Same "swallow and log" contract as this
   // function's sibling, broadcastVerificationCounts().
-  const { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending } =
+  const { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending, leadRequestsPending } =
     await computeVerificationCounts().catch((e) => {
       console.error("[dashboard layout] verification counts failed, defaulting to 0:", e);
-      return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0 };
+      return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0, leadRequestsPending: 0 };
     });
 
   // Same "never take the dashboard down over a cosmetic badge" contract as
@@ -157,6 +157,7 @@ export default async function DashboardLayout({
           bookingsUnconfirmed={bookingsUnconfirmed}
           packagesPending={packagesPending}
           hotelRequestsPending={hotelRequestsPending}
+          leadRequestsPending={leadRequestsPending}
         />
       </div>
 

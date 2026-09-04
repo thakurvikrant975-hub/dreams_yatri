@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import type { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
 import { toTitleCase } from "@/app/lib/utils";
 import { actionError } from "@/app/lib/action-error";
@@ -10,6 +11,7 @@ import {
 } from "../(marketing)/queries/actions";
 import { createLog } from "../lib/logger";
 import { notifyMember } from "@/app/services/notifications/notify";
+import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { phoneKey, PHONE_KEY_SQL } from "@/app/lib/phone";
 
 export type LeadRequestFormState = {
@@ -25,6 +27,25 @@ const leadRequestSchema = z.object({
   destination: z.string().trim().min(1, "Destination is required"),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
 });
+
+/** Who should hear about a freshly submitted request — every active member
+ * whose role can actually see the Lead Requests page (empty pageAccess means
+ * unrestricted, same rule the sidebar/layout enforce elsewhere), minus the
+ * requester themself. There's no separate "lead manager" role in this
+ * schema — page access IS the access-control model here. */
+async function getLeadRequestNotifyRecipients(excludeId?: string): Promise<string[]> {
+  const members = await db.teamMember.findMany({
+    where: { isActive: true },
+    select: { id: true, teamRole: { select: { pageAccess: true } } },
+  });
+  return members
+    .filter((m) => m.id !== excludeId)
+    .filter((m) => {
+      const access = Array.isArray(m.teamRole?.pageAccess) ? (m.teamRole!.pageAccess as unknown as string[]) : [];
+      return access.length === 0 || access.includes("/dashboard/lead-requests");
+    })
+    .map((m) => m.id);
+}
 
 // ── Sales exec: submit a request ────────────────────────────────────────────
 
@@ -64,6 +85,16 @@ export async function createLeadRequest(
       metadata: { operation: "create_lead_request" },
     });
 
+    const recipients = await getLeadRequestNotifyRecipients(teamMemberId);
+    await Promise.all(recipients.map((recipientId) => notifyMember({
+      recipientId,
+      type: "LEAD_REQUEST_SUBMITTED",
+      title: `${teamMemberName ?? "A team member"} requested to add a lead`,
+      body: `${request.name} — ${request.destination}`,
+      link: "/dashboard/lead-requests",
+    })));
+    await broadcastVerificationCounts();
+
     revalidatePath("/dashboard/request-lead");
     revalidatePath("/dashboard/lead-requests");
     return { success: true, message: `Request for ${request.name} sent to the lead manager` };
@@ -95,14 +126,55 @@ export type LeadRequestRow = Awaited<ReturnType<typeof db.leadRequest.findMany>>
   duplicate: ExistingQueryMatch | null;
 };
 
-export async function getLeadRequestsQueue(): Promise<LeadRequestRow[]> {
-  const requests = await db.leadRequest.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+export type LeadRequestsFilter = "all" | "pending" | "accepted" | "rejected";
 
-  const duplicates = await Promise.all(requests.map((r) => checkExistingQueryByPhone(r.phone)));
-  return requests.map((r, i) => ({ ...r, duplicate: duplicates[i] }));
+export type LeadRequestStats = { total: number; pending: number; accepted: number; rejected: number };
+
+export async function getLeadRequestsQueue(params: {
+  page: number;
+  limit: number;
+  search: string;
+  filter: LeadRequestsFilter;
+}): Promise<{ rows: LeadRequestRow[]; totalCount: number; stats: LeadRequestStats }> {
+  const { page, limit, search, filter } = params;
+
+  const searchWhere: Prisma.LeadRequestWhereInput = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { phone: { contains: search, mode: "insensitive" } },
+          { destination: { contains: search, mode: "insensitive" } },
+          { requestedByName: { contains: search, mode: "insensitive" } },
+        ],
+      }
+    : {};
+
+  const filterWhere: Prisma.LeadRequestWhereInput =
+    filter === "pending" ? { status: "PENDING" } :
+    filter === "accepted" ? { status: "ACCEPTED" } :
+    filter === "rejected" ? { status: "REJECTED" } :
+    {};
+
+  const where: Prisma.LeadRequestWhereInput = { ...searchWhere, ...filterWhere };
+
+  const [rows, totalCount, total, pending, accepted, rejected] = await Promise.all([
+    db.leadRequest.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    db.leadRequest.count({ where }),
+    db.leadRequest.count(),
+    db.leadRequest.count({ where: { status: "PENDING" } }),
+    db.leadRequest.count({ where: { status: "ACCEPTED" } }),
+    db.leadRequest.count({ where: { status: "REJECTED" } }),
+  ]);
+
+  const duplicates = await Promise.all(rows.map((r) => checkExistingQueryByPhone(r.phone)));
+  const requests = rows.map((r, i) => ({ ...r, duplicate: duplicates[i] }));
+
+  return { rows: requests, totalCount, stats: { total, pending, accepted, rejected } };
 }
 
 /** Lead manager or costing manager jotting a note on a request while it's
@@ -271,6 +343,7 @@ export async function acceptLeadRequest(id: string): Promise<{ success: boolean;
       action: "UPDATE", entity: "lead_request", entityId: id, entitySlug: request.name,
       metadata: { operation: "accept_lead_request" },
     });
+    await broadcastVerificationCounts();
 
     revalidatePath("/dashboard/lead-requests");
     revalidatePath("/dashboard/queries");
@@ -300,6 +373,7 @@ export async function acceptAllLeadRequests(): Promise<{ success: boolean; accep
       action: "BULK_ACTION", entity: "lead_request",
       metadata: { operation: "accept_all_lead_requests", accepted, skipped },
     });
+    await broadcastVerificationCounts();
 
     revalidatePath("/dashboard/lead-requests");
     revalidatePath("/dashboard/queries");
@@ -337,6 +411,7 @@ export async function rejectLeadRequest(id: string, reason: string): Promise<{ s
       action: "UPDATE", entity: "lead_request", entityId: id, entitySlug: request.name,
       metadata: { operation: "reject_lead_request", reason: trimmed },
     });
+    await broadcastVerificationCounts();
 
     await notifyMember({
       recipientId: request.requestedById,

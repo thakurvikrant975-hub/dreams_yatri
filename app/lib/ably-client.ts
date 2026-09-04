@@ -77,7 +77,7 @@ export function useConversationChannel(
   }, [bookingId, hotelId]);
 }
 
-export type VerificationCounts = { hotelsPending: number; cabsPending: number; bookingsUnconfirmed: number; packagesPending: number; hotelRequestsPending: number };
+export type VerificationCounts = { hotelsPending: number; cabsPending: number; bookingsUnconfirmed: number; packagesPending: number; hotelRequestsPending: number; leadRequestsPending: number };
 
 /**
  * Subscribes to the shared dashboard "pending verification" counts channel
