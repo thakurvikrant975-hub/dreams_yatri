@@ -162,6 +162,14 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
           // base beds alone and over-reports the room count to the client.
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
           accommodationExtraBedRate: true,
+          // Not a price and not a join the page makes — the document reads it
+          // as one bit: "this stay came from the catalog", which is what tells
+          // it the stored `accommodation` is the machine-composed
+          // "Hotel — Room" string and may be split (see splitRoomOut in
+          // ItineraryDocument). Nulled here, the client's copy kept the room in
+          // the heading and repeated the hotel on every room row — the exact
+          // layout the builder was changed to stop showing.
+          roomPricingId: true,
           roomsCount: true, extraRooms: true,
           notesType: true,
           notesTitle: true,
@@ -335,7 +343,7 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
       accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
       accommodationExtraBedRate: it.accommodationExtraBedRate ?? null,
-      roomPricingId:             null,
+      roomPricingId:             it.roomPricingId,
       roomsCount:                it.roomsCount ?? null,
       extraRooms:                parseRoomSelections(it.extraRooms),
       hotelCheckIn:              it.hotelCheckIn ?? "",
