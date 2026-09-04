@@ -168,6 +168,11 @@ export type PackageQuery = {
      * — null until sent. A query can have more than one package (see
      * duplicateCustomPackageIntoDraft); this is whichever one was sent first. */
     packageSentAt: Date | null;
+    /** The quoted total price of the package built for this query — null until
+     * a package exists. Same "whichever was sent first" package as
+     * packageSentAt; falls back to the first package on file if none has
+     * been sent yet. */
+    packagePrice: number | null;
 };
 
 // Aliases for backwards compatibility
@@ -762,17 +767,21 @@ export async function getQueries(): Promise<PackageQuery[]> {
                     _count: { select: { package_queries: true } },
                 },
             },
-            custom_packages: { select: { sentAt: true } },
+            custom_packages: { select: { sentAt: true, totalPrice: true } },
         },
         orderBy: { createdAt: "desc" },
     }) as any[];
 
-    return queries.map((q) => ({
-        ...q,
-        rejectionReason: q.rejection_reasons ?? null,
-        totalLeadQueries: q.lead_profiles?._count?.package_queries ?? 1,
-        packageSentAt: q.custom_packages?.find((p: { sentAt: Date | null }) => p.sentAt)?.sentAt ?? null,
-    })) as PackageQuery[];
+    return queries.map((q) => {
+        const sentPackage = q.custom_packages?.find((p: { sentAt: Date | null }) => p.sentAt);
+        return {
+            ...q,
+            rejectionReason: q.rejection_reasons ?? null,
+            totalLeadQueries: q.lead_profiles?._count?.package_queries ?? 1,
+            packageSentAt: sentPackage?.sentAt ?? null,
+            packagePrice: (sentPackage ?? q.custom_packages?.[0])?.totalPrice ?? null,
+        };
+    }) as PackageQuery[];
 }
 
 // ── Status transitions ────────────────────────────────────────────────────────

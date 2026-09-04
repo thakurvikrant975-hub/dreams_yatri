@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import { formatDistanceToNow, formatDistanceStrict, format } from "date-fns";
 import {
     CheckCircle2,
@@ -25,6 +25,7 @@ import { AssignQueryDropdown } from "./Assignquerydropdown";
 import { DeleteQueryDialog } from "./Deletequerydialog";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 import { TodaysAssignmentDialog } from "./TodaysAssignmentDialog";
+import { cn } from "@/app/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,49 @@ const SOURCE_FILTER_OPTIONS = [
     { label: "Referral", value: "REFERRAL" },
     { label: "Other", value: "OTHER" },
 ];
+
+// ── Numeric threshold filter ─────────────────────────────────────────────────
+
+/** A "min value" filter — package cost and group size are both "show me
+ * queries at or above X" asks, so one small control covers both instead of
+ * writing it twice with a different prefix. */
+function MinNumberFilter({
+    label, value, onChange, prefix, placeholder, width = "w-40",
+}: {
+    label: string;
+    value: number | null;
+    onChange: (v: number | null) => void;
+    prefix?: string;
+    placeholder?: string;
+    width?: string;
+}) {
+    const active = value !== null;
+    return (
+        <div className={cn(
+            "flex items-center gap-1.5 h-10 px-3 rounded-lg border transition-colors",
+            "border-dashboard-base-300 bg-dashboard-base-100 focus-within:border-dashboard-primary",
+            active && "border-dashboard-primary/50 bg-dashboard-primary/5",
+            width,
+        )}>
+            <span className={cn("text-xs whitespace-nowrap", active ? "text-dashboard-primary" : "text-dashboard-base-content/50")}>
+                {label}
+            </span>
+            {prefix && <span className="text-xs text-dashboard-base-content/40">{prefix}</span>}
+            <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={value ?? ""}
+                placeholder={placeholder}
+                onChange={(e) => {
+                    const v = e.target.value.trim();
+                    onChange(v === "" ? null : Math.max(0, Number(v)));
+                }}
+                className="w-full min-w-0 bg-transparent outline-none text-sm tabular-nums text-dashboard-base-content placeholder:text-dashboard-base-content/35"
+            />
+        </div>
+    );
+}
 
 // ── Action Cell ───────────────────────────────────────────────────────────────
 
@@ -161,6 +205,9 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
     const [filterSource, setFilterSource] = useState("all");
     const [filterVerified, setFilterVerified] = useState("all");
     const [filterAssigned, setFilterAssigned] = useState("all");
+    const [filterDestination, setFilterDestination] = useState("all");
+    const [minCost, setMinCost] = useState<number | null>(null);
+    const [minGroupSize, setMinGroupSize] = useState<number | null>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
@@ -204,9 +251,21 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         const matchAssigned = filterAssigned === "all"
             || (filterAssigned === "assigned" && !!q.assignedTo)
             || (filterAssigned === "unassigned" && !q.assignedTo);
+        const matchDestination = filterDestination === "all" || q.destination === filterDestination;
+        // No package/price on file yet never satisfies a "cost at least X"
+        // ask — an unpriced query isn't "cheap", it just hasn't been quoted.
+        const matchCost = minCost === null || (q.packagePrice !== null && q.packagePrice >= minCost);
+        const matchGroupSize = minGroupSize === null || (q.groupSize !== null && q.groupSize >= minGroupSize);
 
-        return matchSearch && matchStatus && matchSource && matchVerified && matchAssigned;
+        return matchSearch && matchStatus && matchSource && matchVerified && matchAssigned
+            && matchDestination && matchCost && matchGroupSize;
     });
+
+    const destinationOptions = useMemo(() => {
+        const seen = new Set<string>();
+        for (const q of queries) if (q.destination) seen.add(q.destination);
+        return Array.from(seen).sort().map((d) => ({ label: d, value: d }));
+    }, [queries]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
     const safePage = Math.min(page, totalPages);
@@ -217,7 +276,8 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         setPage(1);
     }
     const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all"
-        || filterVerified !== "all" || filterAssigned !== "all";
+        || filterVerified !== "all" || filterAssigned !== "all" || filterDestination !== "all"
+        || minCost !== null || minGroupSize !== null;
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const submitted = queries.filter((q) => q.status === "SUBMITTED").length;
@@ -303,7 +363,7 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                     {/* Folded in from the old standalone "Group / Date" column —
                         same info, shown as small icon chips instead of its own
                         column, to keep the table from scrolling horizontally. */}
-                    {(q.groupSize || q.travelDate) && (
+                    {(q.groupSize || q.travelDate || q.packagePrice) && (
                         <div className="flex items-center gap-2 text-[11px] text-dashboard-base-content/60 pt-0.5">
                             {q.groupSize && (
                                 <span className="flex items-center gap-0.5">
@@ -313,6 +373,11 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                             {q.travelDate && (
                                 <span className="flex items-center gap-0.5">
                                     <CalendarDays className="h-2.5 w-2.5" /> {format(new Date(q.travelDate), "dd MMM yy")}
+                                </span>
+                            )}
+                            {q.packagePrice && (
+                                <span className="flex items-center gap-0.5">
+                                    ₹{q.packagePrice.toLocaleString("en-IN")}
                                 </span>
                             )}
                         </div>
@@ -492,6 +557,7 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
 
                 {/* ── Filters ── */}
                 <TableFilters
+                    collapsible
                     search={search}
                     onSearchChange={(v) => { setSearch(v); setPage(1); }}
                     searchPlaceholder="Search by name, phone, email, destination, assignee..."
@@ -532,8 +598,30 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                                 { label: "Unassigned", value: "unassigned" },
                             ],
                         },
+                        {
+                            value: filterDestination,
+                            onChange: (v) => { setFilterDestination(v); setPage(1); },
+                            placeholder: "All Destinations",
+                            width: "w-44",
+                            options: destinationOptions,
+                        },
                     ]}
-                />
+                >
+                    <MinNumberFilter
+                        label="Cost ≥"
+                        prefix="₹"
+                        value={minCost}
+                        onChange={(v) => { setMinCost(v); setPage(1); }}
+                        placeholder="Any"
+                    />
+                    <MinNumberFilter
+                        label="Persons ≥"
+                        value={minGroupSize}
+                        onChange={(v) => { setMinGroupSize(v); setPage(1); }}
+                        placeholder="Any"
+                        width="w-36"
+                    />
+                </TableFilters>
 
                 {/* ── Active search hint ── */}
                 {search && (
