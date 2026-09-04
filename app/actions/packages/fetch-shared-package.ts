@@ -162,13 +162,8 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
           // base beds alone and over-reports the room count to the client.
           accommodationMaxAdults: true, accommodationMaxChildren: true, accommodationExtraBedCapacity: true,
           accommodationExtraBedRate: true,
-          // Not a price and not a join the page makes — the document reads it
-          // as one bit: "this stay came from the catalog", which is what tells
-          // it the stored `accommodation` is the machine-composed
-          // "Hotel — Room" string and may be split (see splitRoomOut in
-          // ItineraryDocument). Nulled here, the client's copy kept the room in
-          // the heading and repeated the hotel on every room row — the exact
-          // layout the builder was changed to stop showing.
+          // Read for one bit only — see stayIsCatalog below. The id itself
+          // never leaves this function.
           roomPricingId: true,
           roomsCount: true, extraRooms: true,
           notesType: true,
@@ -343,7 +338,18 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       accommodationMaxChildren:  it.accommodationMaxChildren ?? null,
       accommodationExtraBedCapacity: it.accommodationExtraBedCapacity ?? null,
       accommodationExtraBedRate: it.accommodationExtraBedRate ?? null,
-      roomPricingId:             it.roomPricingId,
+      // Withheld on purpose, exactly as getStayOptionsForDocument withholds
+      // the stay rows' own: this page hands whatever it returns straight to
+      // the browser, and an internal catalog id is not the client's business.
+      roomPricingId:             null,
+      // What the document actually wanted from it. `accommodation` is stored
+      // as the machine-composed "Hotel — Room" string for a catalog stay, and
+      // this is what tells the document it may split the two (splitRoomOut in
+      // ItineraryDocument). Without it the client's copy kept the room in the
+      // heading, dropped that room from the list below, and repeated the hotel
+      // on every remaining row — the layout the builder was changed to stop
+      // showing.
+      stayIsCatalog:             it.roomPricingId != null,
       roomsCount:                it.roomsCount ?? null,
       extraRooms:                parseRoomSelections(it.extraRooms),
       hotelCheckIn:              it.hotelCheckIn ?? "",

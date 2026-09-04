@@ -2886,7 +2886,7 @@ function DayCardPreview({
   // A catalog room owns its own name, location and specs; a hand-typed stay
   // owns nothing but what was typed. Editing the former in the document would
   // leave the day describing one hotel while priced against another.
-  const fromCatalog = day.roomPricingId != null;
+  const fromCatalog = day.stayIsCatalog ?? day.roomPricingId != null;
   const catalogLock = "From the hotel catalog — use Replace to pick a different room.";
   const extraRooms = (day.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
   // The stay is a hotel and the rooms booked in it — two facts, and the card

@@ -1120,6 +1120,13 @@ export interface DayItinerary {
    * package price be computed from real, date/occupancy-aware hotel rates
    * instead of typed in by hand. Null when the hotel was entered as free text. */
   roomPricingId:      number | null;
+  /** Whether the stay came from the catalog, where the loader cannot hand over
+   * `roomPricingId` itself. The client's published page is the case: it needs
+   * the same "is this catalog-owned" answer the builder derives from the id,
+   * but publishing an internal catalog id to the browser is the thing
+   * getStayOptionsForDocument already refuses to do. Absent everywhere else,
+   * where the id is present and the answer is derived from it. */
+  stayIsCatalog?:     boolean;
   /** Overrides the auto-computed (adults+children ÷ room capacity) room
    * count for roomPricingId above — set when the exec explicitly says how
    * many of that room type are needed. Null/undefined keeps the
