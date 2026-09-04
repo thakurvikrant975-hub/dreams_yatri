@@ -429,7 +429,10 @@ export default function StatusView({
         <div className="screen-space py-8">
             {overall === 'IN_PROGRESS' && <StatusAutoRefresh />}
 
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
+            {/* grid-cols-1: see the note in custom-package/[id]/book —
+                an implicit `auto` track sizes to max-content and body clips
+                the overflow instead of scrolling it. */}
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
                 {/* ── LEFT column ───────────────────────────────────────────── */}
                 <div className="flex flex-col gap-4">
                     {/* Trip header */}

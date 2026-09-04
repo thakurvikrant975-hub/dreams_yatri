@@ -130,7 +130,16 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
       </div>
 
       <div className="screen-space pt-5">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+        {/* grid-cols-1 is load-bearing below lg. Without an explicit
+            single column the grid falls back to one implicit `auto`
+            track, which sizes to its items' max-content instead of the
+            container: at 390px the track measured 599px, and since
+            body is `overflow-x: clip` the excess was silently cut
+            rather than scrolled — the amount and the confirm button
+            were off-screen with no way to reach them. Tailwind's
+            grid-cols-1 is repeat(1, minmax(0,1fr)), which is exactly
+            the track that cannot blow out. */}
+        <div className="grid gap-5 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
 
           {/* ── What is being bought ─────────────────────────────────── */}
           <div className="flex flex-col gap-4">
