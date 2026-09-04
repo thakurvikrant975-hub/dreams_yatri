@@ -6,15 +6,21 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import {
     Loader2, Send, MapPin, User, Mail, Phone, Inbox,
-    Clock3, CheckCircle2, XCircle, ArrowRight,
-    Search, Check, ChevronsUpDown,
+    Clock3, CheckCircle2, XCircle, ArrowRight, Plus,
+    Search, Check, ChevronsUpDown, StickyNote,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { Textarea } from "../components/ui/textarea";
 import {
     Popover, PopoverContent, PopoverTrigger,
 } from "@/app/components/ui/popover";
+import {
+    Dialog, DialogContent, DialogHeader,
+    DialogTitle, DialogDescription,
+} from "../components/ui/dialog";
+import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { cn } from "@/app/lib/utils";
 import { PhoneInput } from "../(marketing)/queries/PhoneInput";
 import { createLeadRequest, type LeadRequestFormState } from "../lead-requests/actions";
@@ -26,6 +32,7 @@ type MyRequest = {
     phone: string;
     email: string | null;
     destination: string;
+    notes: string | null;
     status: "PENDING" | "ACCEPTED" | "REJECTED";
     rejectionReason: string | null;
     createdAt: Date;
@@ -203,18 +210,24 @@ function DestinationPicker({
     );
 }
 
-export function RequestLeadForm({
-    requests, destinations,
+/**
+ * The "New request" dialog — a popup rather than an always-visible form, so
+ * the table of past requests gets the page and sending a new one is a
+ * deliberate action, matching how Add Query works on the queries page.
+ */
+function NewRequestDialog({
+    open, onOpenChange, destinations,
 }: {
-    requests: MyRequest[];
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
     destinations: DestinationOption[];
 }) {
     const router = useRouter();
     const [state, action, isPending] = useActionState(createLeadRequest, initial);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
+    const [notes, setNotes] = useState("");
     const [destination, setDestination] = useState("");
-    const [filter, setFilter] = useState<StatusFilter>("ALL");
     const formRef = useRef<HTMLFormElement>(null);
 
     useEffect(() => {
@@ -222,13 +235,104 @@ export function RequestLeadForm({
         if (state.success) {
             toast.success(state.message);
             formRef.current?.reset();
-            setName(""); setEmail(""); setDestination("");
+            setName(""); setEmail(""); setDestination(""); setNotes("");
             router.refresh();
+            onOpenChange(false);
         } else {
             toast.error(state.message);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state]);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+                <form ref={formRef} action={action}>
+                    <DialogHeader className="px-5 pt-5 pb-4 border-b border-dashboard-base-300">
+                        <DialogTitle>New request</DialogTitle>
+                        <DialogDescription asChild>
+                            {/* Each step keeps its own leading arrow on one line, so a
+                                wrap never strands an arrow at the end of a line. */}
+                            <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                <span>You send</span>
+                                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                    <ArrowRight className="h-3 w-3 shrink-0" />the manager reviews
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                    <ArrowRight className="h-3 w-3 shrink-0" />it lands in your queue
+                                </span>
+                            </p>
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+                        <Field label="Client name" icon={User} htmlFor="name" error={state.errors?.name}>
+                            <Input
+                                id="name" name="name" value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="Full name" required autoComplete="off"
+                                aria-invalid={!!state.errors?.name}
+                            />
+                        </Field>
+
+                        <Field label="Phone number" icon={Phone} error={state.errors?.phone}>
+                            <PhoneInput name="phone" defaultValue="" />
+                        </Field>
+
+                        <Field label="Destination" icon={MapPin} error={state.errors?.destination}>
+                            <input type="hidden" name="destination" value={destination} />
+                            <DestinationPicker
+                                value={destination}
+                                onChange={setDestination}
+                                destinations={destinations}
+                                invalid={!!state.errors?.destination}
+                            />
+                        </Field>
+
+                        <Field label="Email" icon={Mail} htmlFor="email" optional error={state.errors?.email}>
+                            <Input
+                                id="email" name="email" type="email" value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="client@example.com" autoComplete="off"
+                                aria-invalid={!!state.errors?.email}
+                            />
+                        </Field>
+
+                        <Field label="Notes" icon={StickyNote} htmlFor="notes" optional error={state.errors?.notes}>
+                            <Textarea
+                                id="notes" name="notes" value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Anything the lead manager should know before deciding…"
+                                rows={3}
+                                className="resize-none text-sm"
+                                aria-invalid={!!state.errors?.notes}
+                            />
+                        </Field>
+                    </div>
+
+                    <div className="border-t border-dashboard-base-300 bg-dashboard-base-200/30 px-5 py-4">
+                        <Button type="submit" disabled={isPending} className="w-full gap-1.5">
+                            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                            {isPending ? "Sending…" : "Send request"}
+                        </Button>
+                        <p className="mt-2 text-center text-[11px] text-dashboard-base-content/45">
+                            You will be notified when the lead manager decides.
+                        </p>
+                    </div>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export function RequestLeadForm({
+    requests, destinations,
+}: {
+    requests: MyRequest[];
+    destinations: DestinationOption[];
+}) {
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [filter, setFilter] = useState<StatusFilter>("ALL");
 
     const counts = useMemo(() => ({
         ALL: requests.length,
@@ -239,91 +343,107 @@ export function RequestLeadForm({
 
     const visible = filter === "ALL" ? requests : requests.filter((r) => r.status === filter);
 
-    return (
-        <div className="grid gap-5 lg:grid-cols-[minmax(340px,400px)_1fr] items-start">
-
-            {/* ── Send a request ────────────────────────────────────────── */}
-            <form
-                ref={formRef}
-                action={action}
-                className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden"
-            >
-                <div className="px-5 pt-5 pb-4 border-b border-dashboard-base-300">
-                    <h2 className="text-sm font-semibold text-dashboard-base-content">New request</h2>
-                    {/* The whole flow in one line — an exec should not have to
-                        ask anyone what happens after they press Send. */}
-                    {/* Each step keeps its own leading arrow on one line, so a
-                        wrap never strands an arrow at the end of a line. */}
-                    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-dashboard-base-content/50">
-                        <span>You send</span>
-                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                            <ArrowRight className="h-3 w-3 shrink-0" />the manager reviews
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                            <ArrowRight className="h-3 w-3 shrink-0" />it lands in your queue
-                        </span>
-                    </p>
+    const columns: ColumnDef<MyRequest>[] = useMemo(() => [
+        {
+            header: "Client",
+            width: "w-[22%]",
+            cell: (r) => (
+                <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[11px] font-semibold text-dashboard-primary">
+                        {initials(r.name)}
+                    </span>
+                    <span className="min-w-0 truncate font-medium">{r.name}</span>
                 </div>
-
-                <div className="p-5 space-y-4">
-                    <Field label="Client name" icon={User} htmlFor="name" error={state.errors?.name}>
-                        <Input
-                            id="name" name="name" value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Full name" required autoComplete="off"
-                            aria-invalid={!!state.errors?.name}
-                        />
-                    </Field>
-
-                    <Field label="Phone number" icon={Phone} error={state.errors?.phone}>
-                        <PhoneInput name="phone" defaultValue="" />
-                    </Field>
-
-                    <Field label="Destination" icon={MapPin} error={state.errors?.destination}>
-                        <input type="hidden" name="destination" value={destination} />
-                        <DestinationPicker
-                            value={destination}
-                            onChange={setDestination}
-                            destinations={destinations}
-                            invalid={!!state.errors?.destination}
-                        />
-                    </Field>
-
-                    <Field label="Email" icon={Mail} htmlFor="email" optional error={state.errors?.email}>
-                        <Input
-                            id="email" name="email" type="email" value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="client@example.com" autoComplete="off"
-                            aria-invalid={!!state.errors?.email}
-                        />
-                    </Field>
+            ),
+            sortKey: (r) => r.name,
+        },
+        {
+            header: "Contact",
+            cell: (r) => (
+                <div className="space-y-0.5 text-xs text-dashboard-base-content/70">
+                    <p className="flex items-center gap-1 tabular-nums"><Phone className="h-3 w-3" />{r.phone}</p>
+                    {r.email && <p className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{r.email}</p>}
                 </div>
-
-                <div className="border-t border-dashboard-base-300 bg-dashboard-base-200/30 px-5 py-4">
-                    <Button type="submit" disabled={isPending} className="w-full gap-1.5">
-                        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {isPending ? "Sending…" : "Send request"}
-                    </Button>
-                    {/* Sets the expectation the old page left unanswered: an
-                        exec does not have to sit on this page waiting. */}
-                    <p className="mt-2 text-center text-[11px] text-dashboard-base-content/45">
-                        You will be notified when the lead manager decides.
-                    </p>
-                </div>
-            </form>
-
-            {/* ── What you have sent ────────────────────────────────────── */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
-                <div className="px-5 pt-5 pb-4 border-b border-dashboard-base-300 flex items-start justify-between gap-4 flex-wrap">
-                    <div>
-                        <h2 className="text-sm font-semibold text-dashboard-base-content">Your requests</h2>
-                        <p className="mt-1 text-[11px] text-dashboard-base-content/50">
-                            {counts.PENDING > 0
-                                ? `${counts.PENDING} waiting on the lead manager`
-                                : "Nothing waiting on the lead manager"}
+            ),
+        },
+        {
+            header: "Destination",
+            cell: (r) => (
+                <span className="inline-flex items-center gap-1 text-sm">
+                    <MapPin className="h-3.5 w-3.5 text-dashboard-base-content/40" />{r.destination}
+                </span>
+            ),
+            sortKey: (r) => r.destination,
+        },
+        {
+            header: "Notes",
+            width: "w-[22%]",
+            cell: (r) => r.notes ? (
+                <p className="line-clamp-2 max-w-xs text-xs text-dashboard-base-content/65" title={r.notes}>
+                    {r.notes}
+                </p>
+            ) : (
+                <span className="text-xs text-dashboard-base-content/30">—</span>
+            ),
+        },
+        {
+            header: "Status",
+            align: "center",
+            cell: (r) => {
+                const s = STATUS[r.status];
+                const Icon = s.icon;
+                return (
+                    <span className={cn(
+                        "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                        s.chip,
+                    )}>
+                        <Icon className="h-3 w-3" />
+                        {s.label}
+                    </span>
+                );
+            },
+            sortKey: (r) => r.status,
+        },
+        {
+            header: "Sent",
+            cell: (r) => (
+                <span className="text-xs text-dashboard-base-content/55">
+                    {formatDistanceToNow(new Date(r.createdAt), { addSuffix: true })}
+                </span>
+            ),
+            sortKey: (r) => r.createdAt,
+        },
+        {
+            header: "Outcome",
+            width: "w-[20%]",
+            cell: (r) => (
+                <div className="space-y-1">
+                    <p className="text-xs text-dashboard-base-content/55">{STATUS[r.status].outcome}</p>
+                    {r.status === "REJECTED" && r.rejectionReason && (
+                        <p className="rounded-md border-l-2 border-dashboard-error/40 bg-dashboard-error/5 px-2 py-1 text-[11px] text-dashboard-base-content/70">
+                            {r.rejectionReason}
                         </p>
-                    </div>
+                    )}
+                </div>
+            ),
+        },
+    ], []);
 
+    return (
+        <div className="space-y-5">
+            <NewRequestDialog open={dialogOpen} onOpenChange={setDialogOpen} destinations={destinations} />
+
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                    <h2 className="text-sm font-semibold text-dashboard-base-content">Your requests</h2>
+                    <p className="mt-1 text-[11px] text-dashboard-base-content/50">
+                        {counts.PENDING > 0
+                            ? `${counts.PENDING} waiting on the lead manager`
+                            : "Nothing waiting on the lead manager"}
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
                     {/* Counts double as the filter — the number an exec wants is
                         also the way to see just those. */}
                     {requests.length > 0 && (
@@ -352,77 +472,36 @@ export function RequestLeadForm({
                             })}
                         </div>
                     )}
+
+                    <Button type="button" size="sm" className="gap-1.5" onClick={() => setDialogOpen(true)}>
+                        <Plus className="h-4 w-4" /> New request
+                    </Button>
                 </div>
-
-                {requests.length === 0 ? (
-                    <div className="px-5 py-16 text-center">
-                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-dashboard-base-200">
-                            <Inbox className="h-5 w-5 text-dashboard-base-content/40" />
-                        </div>
-                        <p className="text-sm font-medium text-dashboard-base-content">No requests yet</p>
-                        <p className="mx-auto mt-1 max-w-xs text-xs text-dashboard-base-content/50">
-                            Send your first client across using the form. You will see the lead
-                            manager&apos;s decision here.
-                        </p>
-                    </div>
-                ) : visible.length === 0 ? (
-                    <p className="px-5 py-16 text-center text-sm text-dashboard-base-content/50">
-                        No {STATUS[filter as MyRequest["status"]].label.toLowerCase()} requests.
-                    </p>
-                ) : (
-                    <ul className="divide-y divide-dashboard-base-300">
-                        {visible.map((r) => {
-                            const s = STATUS[r.status];
-                            const Icon = s.icon;
-                            return (
-                                <li key={r.id} className="flex items-start gap-3 px-5 py-4">
-                                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[11px] font-semibold text-dashboard-primary">
-                                        {initials(r.name)}
-                                    </span>
-
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <p className="truncate text-sm font-medium text-dashboard-base-content">{r.name}</p>
-                                                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-dashboard-base-content/55">
-                                                    <span className="inline-flex items-center gap-1">
-                                                        <MapPin className="h-3 w-3" />{r.destination}
-                                                    </span>
-                                                    <span className="text-dashboard-base-content/25">·</span>
-                                                    <span className="tabular-nums">{r.phone}</span>
-                                                </p>
-                                            </div>
-
-                                            <span className={cn(
-                                                "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                                                s.chip,
-                                            )}>
-                                                <Icon className="h-3 w-3" />
-                                                {s.label}
-                                            </span>
-                                        </div>
-
-                                        {/* What actually happened to it, in words —
-                                            a status alone left execs asking where
-                                            an accepted lead had gone. */}
-                                        <p className="mt-1.5 text-[11px] text-dashboard-base-content/45">
-                                            {s.outcome}
-                                            <span className="text-dashboard-base-content/25"> · </span>
-                                            sent {formatDistanceToNow(new Date(r.createdAt), { addSuffix: true })}
-                                        </p>
-
-                                        {r.status === "REJECTED" && r.rejectionReason && (
-                                            <p className="mt-2 rounded-md border-l-2 border-dashboard-error/40 bg-dashboard-error/5 px-2.5 py-1.5 text-xs text-dashboard-base-content/70">
-                                                {r.rejectionReason}
-                                            </p>
-                                        )}
-                                    </div>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
             </div>
+
+            {requests.length === 0 ? (
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-16 text-center">
+                    <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-dashboard-base-200">
+                        <Inbox className="h-5 w-5 text-dashboard-base-content/40" />
+                    </div>
+                    <p className="text-sm font-medium text-dashboard-base-content">No requests yet</p>
+                    <p className="mx-auto mt-1 max-w-xs text-xs text-dashboard-base-content/50">
+                        Send your first client across using “New request”. You will see the lead
+                        manager&apos;s decision here.
+                    </p>
+                </div>
+            ) : (
+                <DataTable
+                    data={visible}
+                    columns={columns}
+                    rowKey={(r) => r.id}
+                    emptyState={
+                        <p className="text-sm text-dashboard-base-content/50">
+                            No {STATUS[filter as MyRequest["status"]]?.label.toLowerCase() ?? ""} requests.
+                        </p>
+                    }
+                />
+            )}
         </div>
     );
 }

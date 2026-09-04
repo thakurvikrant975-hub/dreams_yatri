@@ -52,19 +52,28 @@ export function PhoneInput({ name, defaultValue, placeholder = "98765 43210", cl
 
     async function handlePaste() {
         try {
-            const text        = await navigator.clipboard.readText();
-            let   cleaned     = text.replace(/[\s\-().]/g, "");
-            const withoutPlus = cleaned.startsWith("+") ? cleaned.slice(1) : cleaned;
+            const text    = await navigator.clipboard.readText();
+            let   cleaned = text.replace(/[\s\-().]/g, "");
 
-            const matchedCountry = [...COUNTRY_CODES]
-                .sort((a, b) => b.dial.length - a.dial.length)
-                .find(c => withoutPlus.startsWith(c.dial.replace("+", "")));
+            // Only treat this as "dial code + number" when the text was
+            // actually copied with a leading "+" — a plain local number like
+            // "8219979481" happens to start with "82" (South Korea)'s dial
+            // code, and blindly matching against it silently rewrote the
+            // country and truncated the number.
+            if (cleaned.startsWith("+")) {
+                const withoutPlus = cleaned.slice(1);
+                const matchedCountry = [...COUNTRY_CODES]
+                    .sort((a, b) => b.dial.length - a.dial.length)
+                    .find(c => withoutPlus.startsWith(c.dial.replace("+", "")));
 
-            if (matchedCountry) {
-                cleaned = withoutPlus.slice(matchedCountry.dial.replace("+", "").length);
-                setCountryCode(matchedCountry.code);
+                if (matchedCountry) {
+                    cleaned = withoutPlus.slice(matchedCountry.dial.replace("+", "").length);
+                    setCountryCode(matchedCountry.code);
+                } else {
+                    cleaned = withoutPlus;
+                }
             } else {
-                cleaned = withoutPlus;
+                cleaned = cleaned.replace(/\D/g, "");
             }
 
             setNumber(cleaned);

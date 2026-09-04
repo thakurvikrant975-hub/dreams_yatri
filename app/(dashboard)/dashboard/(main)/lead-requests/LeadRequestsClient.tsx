@@ -4,11 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { AlertTriangle, Ban, Check, CheckCheck, Clock, MapPin, Phone, Mail } from "lucide-react";
+import { AlertTriangle, Ban, Check, CheckCheck, Clock, MapPin, Phone, Mail, StickyNote, Save } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
-import { acceptAllLeadRequests, acceptLeadRequest, rejectLeadRequest, type LeadRequestRow } from "./actions";
+import {
+    acceptAllLeadRequests, acceptLeadRequest, rejectLeadRequest,
+    updateLeadRequestReviewNote, type LeadRequestRow,
+} from "./actions";
 
 const STATUS_STYLES: Record<string, string> = {
     PENDING: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
@@ -30,6 +33,67 @@ function DuplicateBanner({ duplicate }: { duplicate: LeadRequestRow["duplicate"]
                 {formatDistanceToNow(new Date(duplicate.createdAt), { addSuffix: true })}.
                 Check it&apos;s not a duplicate before accepting.
             </p>
+        </div>
+    );
+}
+
+/**
+ * A note either the lead manager or the costing manager can leave on a
+ * request while it's still in the queue — saved independently of
+ * accept/reject so it isn't lost, and carried onto the resulting query as a
+ * QueryNote the moment the request is accepted.
+ */
+function ReviewNote({ request }: { request: LeadRequestRow }) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const [note, setNote] = useState(request.reviewNote ?? "");
+    // Resets the draft when the saved note changes underneath us (e.g. this
+    // row's router.refresh() after Save) without an effect — set during
+    // render, per React's "adjusting state when a prop changes" pattern.
+    const [syncedNote, setSyncedNote] = useState(request.reviewNote ?? "");
+    if (syncedNote !== (request.reviewNote ?? "")) {
+        setSyncedNote(request.reviewNote ?? "");
+        setNote(request.reviewNote ?? "");
+    }
+
+    const dirty = note.trim() !== (request.reviewNote ?? "").trim();
+
+    function save() {
+        startTransition(async () => {
+            const result = await updateLeadRequestReviewNote(request.id, note);
+            if (result.success) {
+                toast.success("Note saved");
+                router.refresh();
+            } else {
+                toast.error(result.error ?? "Failed to save note");
+            }
+        });
+    }
+
+    return (
+        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/30 p-2.5 space-y-2">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-dashboard-base-content/50">
+                <StickyNote className="h-3 w-3" /> Reviewer note
+            </p>
+            <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Note for whoever picks this up after approval…"
+                rows={2}
+                className="text-sm resize-none bg-dashboard-base-100"
+            />
+            {dirty && (
+                <div className="flex justify-end">
+                    <Button
+                        type="button" size="sm" variant="outline"
+                        className="h-7 text-xs gap-1"
+                        disabled={isPending}
+                        onClick={save}
+                    >
+                        <Save className="h-3 w-3" /> {isPending ? "Saving…" : "Save note"}
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }
@@ -83,6 +147,12 @@ function RequestRow({ request }: { request: LeadRequestRow }) {
                     <p className="text-[11px] text-dashboard-base-content/45 mt-1">
                         Requested by {request.requestedByName} · {formatDistanceToNow(new Date(request.createdAt), { addSuffix: true })}
                     </p>
+                    {request.notes && (
+                        <p className="mt-1.5 flex items-start gap-1.5 rounded-md border-l-2 border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-1.5 text-xs text-dashboard-base-content/70">
+                            <StickyNote className="h-3 w-3 mt-0.5 shrink-0 text-dashboard-base-content/40" />
+                            <span>{request.notes}</span>
+                        </p>
+                    )}
                     {request.status === "REJECTED" && request.rejectionReason && (
                         <p className="text-xs text-red-700 dark:text-red-400 mt-1.5">
                             Rejected by {request.decidedByName}: &quot;{request.rejectionReason}&quot;
@@ -91,6 +161,12 @@ function RequestRow({ request }: { request: LeadRequestRow }) {
                     {request.status === "ACCEPTED" && (
                         <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1.5 flex items-center gap-1">
                             <Check className="h-3 w-3" /> Accepted by {request.decidedByName}
+                        </p>
+                    )}
+                    {request.status !== "PENDING" && request.reviewNote && (
+                        <p className="mt-1.5 flex items-start gap-1.5 rounded-md border-l-2 border-dashboard-base-content/20 bg-dashboard-base-200/40 px-2.5 py-1.5 text-xs text-dashboard-base-content/70">
+                            <StickyNote className="h-3 w-3 mt-0.5 shrink-0 text-dashboard-base-content/40" />
+                            <span>{request.reviewNote}</span>
                         </p>
                     )}
                 </div>
@@ -118,6 +194,8 @@ function RequestRow({ request }: { request: LeadRequestRow }) {
             </div>
 
             <DuplicateBanner duplicate={request.duplicate} />
+
+            {request.status === "PENDING" && <ReviewNote request={request} />}
 
             {rejecting && (
                 <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/20 p-3 space-y-2">

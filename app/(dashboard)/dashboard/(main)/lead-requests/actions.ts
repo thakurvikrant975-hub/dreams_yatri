@@ -23,6 +23,7 @@ const leadRequestSchema = z.object({
   phone: z.string().trim().min(6, "Enter a valid phone number").max(20),
   email: z.string().trim().email("Enter a valid email").optional().or(z.literal("")),
   destination: z.string().trim().min(1, "Destination is required"),
+  notes: z.string().trim().max(2000).optional().or(z.literal("")),
 });
 
 // ── Sales exec: submit a request ────────────────────────────────────────────
@@ -36,6 +37,7 @@ export async function createLeadRequest(
     phone: formData.get("phone"),
     email: formData.get("email") || "",
     destination: formData.get("destination"),
+    notes: formData.get("notes") || "",
   });
   if (!parsed.success) {
     return { success: false, message: "Please check the fields below", errors: parsed.error.flatten().fieldErrors };
@@ -51,6 +53,7 @@ export async function createLeadRequest(
         phone: parsed.data.phone.replace(/\s+/g, ""),
         email: parsed.data.email || null,
         destination: parsed.data.destination,
+        notes: parsed.data.notes || null,
         requestedById: teamMemberId,
         requestedByName: teamMemberName ?? "Unknown",
       },
@@ -102,6 +105,31 @@ export async function getLeadRequestsQueue(): Promise<LeadRequestRow[]> {
   return requests.map((r, i) => ({ ...r, duplicate: duplicates[i] }));
 }
 
+/** Lead manager or costing manager jotting a note on a request while it's
+ * still in the queue — independent of accept/reject so it isn't lost if the
+ * reviewer wants to think it over first. Carried onto the resulting query as
+ * a QueryNote when the request is accepted. */
+export async function updateLeadRequestReviewNote(id: string, note: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { teamMemberId } = await getCurrentActor();
+    if (!teamMemberId) return { success: false, error: "Unauthorized" };
+
+    const request = await db.leadRequest.findUnique({ where: { id }, select: { id: true } });
+    if (!request) return { success: false, error: "Request not found" };
+
+    await db.leadRequest.update({
+      where: { id },
+      data: { reviewNote: note.trim() || null },
+    });
+
+    revalidatePath("/dashboard/lead-requests");
+    return { success: true };
+  } catch (e) {
+    console.error(e);
+    return { success: false, error: "Something went wrong" };
+  }
+}
+
 // ── Accept — same creation path Add Query uses ──────────────────────────────
 
 /** Everything Add Query's createManualQuery does after its own validation —
@@ -120,6 +148,7 @@ async function createQueryFromLeadRequest(input: {
   name: string; phone: string; email: string | null; destination: string;
   requestedById: string; requestedByName: string;
   decidedById?: string; decidedByName?: string;
+  notes?: string | null; reviewNote?: string | null;
 }): Promise<{ success: true; queryId: string } | { success: false; error: string }> {
   const cleanPhone = input.phone.replace(/\s+/g, "");
   const normalizedPhone = cleanPhone.replace(/[\-().+]/g, "");
@@ -173,6 +202,20 @@ async function createQueryFromLeadRequest(input: {
     { source: "lead_request" },
   );
 
+  // Carry both notes over so they're on the query from the moment it exists,
+  // rather than the manager having to retype what was already written on
+  // the request.
+  if (input.notes?.trim()) {
+    await db.queryNote.create({
+      data: { queryId: query.id, authorId: input.requestedById, content: input.notes.trim() },
+    });
+  }
+  if (input.reviewNote?.trim()) {
+    await db.queryNote.create({
+      data: { queryId: query.id, authorId: input.decidedById ?? "system", content: input.reviewNote.trim() },
+    });
+  }
+
   return { success: true, queryId: query.id };
 }
 
@@ -180,6 +223,7 @@ async function acceptOne(
   request: {
     id: string; status: string; name: string; phone: string; email: string | null; destination: string;
     requestedById: string; requestedByName: string;
+    notes?: string | null; reviewNote?: string | null;
   },
   decidedById: string, decidedByName: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -189,6 +233,7 @@ async function acceptOne(
     name: request.name, phone: request.phone, email: request.email, destination: request.destination,
     requestedById: request.requestedById, requestedByName: request.requestedByName,
     decidedById, decidedByName,
+    notes: request.notes, reviewNote: request.reviewNote,
   });
   if (!created.success) return { ok: false, error: created.error };
 

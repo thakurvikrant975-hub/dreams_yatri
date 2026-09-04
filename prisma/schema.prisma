@@ -2777,6 +2777,18 @@ model LeadRequest {
   requestedById    String
   requestedByName  String
   /**
+   * Free text the requester adds when sending the request — e.g. context the
+   * lead manager should know before deciding. Carried over onto the
+   * resulting package_queries row as a QueryNote once accepted.
+   */
+  notes            String?
+  /**
+   * Free text a reviewer (lead manager or costing manager) adds while the
+   * request sits in the queue. Also carried over as a QueryNote on accept,
+   * so a note added during review is already there once the query exists.
+   */
+  reviewNote       String?
+  /**
    * Required when status is REJECTED — enforced in the action, not here.
    */
   rejectionReason  String?
