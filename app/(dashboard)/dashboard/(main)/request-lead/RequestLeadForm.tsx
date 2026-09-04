@@ -21,7 +21,7 @@ import {
     DialogTitle, DialogDescription,
 } from "../components/ui/dialog";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
-import { cn } from "@/app/lib/utils";
+import { cn, capitalizeWords } from "@/app/lib/utils";
 import { PhoneInput } from "../(marketing)/queries/PhoneInput";
 import { createLeadRequest, type LeadRequestFormState } from "../lead-requests/actions";
 import type { DestinationOption } from "../(marketing)/queries/actions";
@@ -269,7 +269,7 @@ function NewRequestDialog({
                         <Field label="Client name" icon={User} htmlFor="name" error={state.errors?.name}>
                             <Input
                                 id="name" name="name" value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e) => setName(capitalizeWords(e.target.value))}
                                 placeholder="Full name" required autoComplete="off"
                                 aria-invalid={!!state.errors?.name}
                             />
