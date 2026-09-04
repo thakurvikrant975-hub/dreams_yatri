@@ -617,7 +617,8 @@ export type PartnerAgencySetting = {
     gapMin: number;
     gapMax: number;
     maxGroupSize: number | null;
-    blockedDestinations: string[];
+    /** The only destinations this agency may be given; empty means any. */
+    allowedDestinations: string[];
     blockedSources: QuerySource[];
     /** Handed over so far today (IST) — the figure dailyCap is measured
      * against, shown so a manager can see where the day stands. */
@@ -659,7 +660,7 @@ export async function getPartnerAgencySettings(): Promise<PartnerAgencySetting[]
         gapMin: m.partnerLeadRule?.gapMin ?? 7,
         gapMax: m.partnerLeadRule?.gapMax ?? 14,
         maxGroupSize: m.partnerLeadRule?.maxGroupSize ?? null,
-        blockedDestinations: m.partnerLeadRule?.blockedDestinations ?? [],
+        allowedDestinations: m.partnerLeadRule?.allowedDestinations ?? [],
         blockedSources: m.partnerLeadRule?.blockedSources ?? [],
         givenToday: givenMap.get(m.id) ?? 0,
     }));
@@ -681,7 +682,8 @@ export async function updatePartnerAgencySetting(
         gapMin: number;
         gapMax: number;
         maxGroupSize: number | null;
-        blockedDestinations: string[];
+        /** The only destinations this agency may be given; empty means any. */
+    allowedDestinations: string[];
         blockedSources: QuerySource[];
     },
 ): Promise<ActionResult> {
@@ -706,7 +708,7 @@ export async function updatePartnerAgencySetting(
             gapMin: input.gapMin,
             gapMax: input.gapMax,
             maxGroupSize: input.maxGroupSize,
-            blockedDestinations: input.blockedDestinations.map((d) => d.trim()).filter(Boolean),
+            allowedDestinations: input.allowedDestinations.map((d) => d.trim()).filter(Boolean),
             blockedSources: input.blockedSources,
         };
         await db.$transaction([

@@ -10,7 +10,8 @@ import type { QuerySource } from "@/app/generated/prisma";
 
 export type PartnerRule = {
   maxGroupSize: number | null;
-  blockedDestinations: string[];
+  /** The only destinations this agency may be given; empty means any. */
+  allowedDestinations: string[];
   blockedSources: QuerySource[];
 };
 
@@ -31,9 +32,23 @@ export type QualifyingLead = {
 export function leadQualifies(lead: QualifyingLead, rule: PartnerRule): boolean {
   if (rule.maxGroupSize != null && lead.groupSize != null && lead.groupSize > rule.maxGroupSize) return false;
   if (rule.blockedSources.includes(lead.source)) return false;
-  if (lead.destination && rule.blockedDestinations.some(
-    (d) => d.trim().toLowerCase() === lead.destination!.trim().toLowerCase(),
-  )) return false;
+
+  /*
+   * The destination allowlist reads the opposite way to the size limit above,
+   * on purpose.
+   *
+   * A size limit is a ceiling: a lead we cannot measure has not been shown to
+   * exceed it, so it passes. An allowlist is a statement of what we are
+   * willing to sell: a lead with no destination, or one that is not on the
+   * list, has not been shown to belong to it, so it does not go. Selling a
+   * lead the manager never named is the mistake worth avoiding here.
+   */
+  if (rule.allowedDestinations.length > 0) {
+    const wanted = lead.destination?.trim().toLowerCase();
+    if (!wanted) return false;
+    if (!rule.allowedDestinations.some((d) => d.trim().toLowerCase() === wanted)) return false;
+  }
+
   return true;
 }
 

@@ -808,8 +808,15 @@ model PartnerLeadRule {
   //    and none set means the agency takes whatever the pacing gives it.
   /// Largest group this agency may be given. Null = any size.
   maxGroupSize        Int?
-  /// Destination names held back from this agency.
-  blockedDestinations String[]      @default([])
+  /**
+   * The only destinations this agency may be given. Empty means no
+   * restriction — every destination is fair game.
+   *
+   * An allowlist rather than a blocklist: what we are willing to sell is a
+   * short, deliberate list, while what we are not is everything else and
+   * grows every time a destination is added to the catalogue.
+   */
+  allowedDestinations String[]      @default([])
   /// Lead sources held back — e.g. keep paid Meta leads in-house.
   blockedSources      QuerySource[] @default([])
 
