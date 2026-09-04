@@ -23,7 +23,8 @@ import Link from "next/link";
 import { useModal } from "@/app/hooks/useModals";
 import Button from "@/app/components/ui/Button";
 import Card from "@/app/components/ui/Card";
-import { ArrowRight, CalendarCheck, Route, Wallet } from "lucide-react";
+import { Calendar, ChevronRight, Moon, Users, Wallet } from "lucide-react";
+import { possessive } from "@/app/lib/possessive";
 import { Heading, Text } from "@/app/components/ui/Typography";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { createCustomPackageBookingDraft } from "@/app/actions/payment/booking.actions";
@@ -37,7 +38,14 @@ export type BookSummary = {
   coverImage: string | null;
   travelDate: string | null;
   nights: number;
+  days: number;
   travellers: number;
+  /** Who the trip is for, for the cover's handwritten line. */
+  clientName: string | null;
+  /** "1 Adult, 1 Child, 1 Infant" — the party as the itinerary's own stats
+   *  card states it, infants included. `travellers` is the paying count and
+   *  is not the same number. */
+  paxLine: string;
   currency: string;
   /** What is being bought — the chosen option's price, or the package's own. */
   total: number;
@@ -134,6 +142,97 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
         </div>
       </div>
 
+      {/* The way back to the thing being bought. This was a card of its own —
+          a heading, a sentence and a link, for one destination — which is more
+          furniture than a back-link deserves. A breadcrumb says the same thing
+          in one line and says it where people look for it. */}
+      <nav aria-label="Breadcrumb" className="screen-space pt-4">
+        <ol className="mx-auto flex w-full max-w-[500px] items-center gap-1.5 text-xs">
+          <li>
+            <Link href={`/custom-package/${summary.packageId}`} className="font-medium text-neutral-500 transition-colors hover:text-primary-600">
+              Your itinerary
+            </Link>
+          </li>
+          <li aria-hidden="true" className="text-neutral-300"><ChevronRight size={13} /></li>
+          <li aria-current="page" className="font-semibold text-neutral-800">Review booking</li>
+        </ol>
+      </nav>
+
+      {/* ── The cover, as the itinerary itself opens ──────────────────────────
+          The same lockup the client just came from: their name in script over
+          the title, the duration beside it, and the trip's three facts on a
+          card that overlaps the photo's bottom edge. It was a 500px card with
+          a thumbnail in it, which made the page they were leaving and the page
+          they were paying on look like two different products.
+
+          Full-bleed photo, but the words on it keep the column's measure, so
+          the lockup's left edge and the payment card's line up. */}
+      <div className="relative mt-4 h-56 w-full overflow-hidden bg-neutral-800 sm:h-72">
+        {summary.coverImage && (
+          /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
+          <img src={summary.coverImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        )}
+        {/* A scrim, not a flat tint: the words sit at the bottom and a photo
+            that is bright exactly there is the one that eats them. */}
+        <div className="absolute inset-0 bg-linear-to-t from-neutral-950/85 via-neutral-950/45 to-neutral-950/10" />
+        <div className="screen-space absolute inset-x-0 bottom-0 pb-8 sm:pb-10">
+          <div className="mx-auto w-full max-w-[500px]">
+            {summary.clientName && (
+              // Overlapping the title's cap height by a few px is what makes
+              // the two a lockup rather than two stacked lines; leading-[1.3]
+              // is what keeps that overlap from becoming a collision, since
+              // the script's descenders run well past its em box.
+              <span
+                aria-hidden="true"
+                className="-mb-1 ml-0.5 block w-max -rotate-2 origin-bottom-left text-[26px] font-bold leading-[1.3] text-primary-400 sm:text-[30px]"
+                style={{ fontFamily: "var(--font-script)", textShadow: "0 1px 3px rgba(0,0,0,0.55)" }}
+              >
+                {possessive(summary.clientName)}
+              </span>
+            )}
+            <h1
+              className="font-heading text-[26px] font-bold leading-[1.08] text-white sm:text-[32px]"
+              style={{ letterSpacing: "-0.02em", textWrap: "balance", textShadow: "0 2px 6px rgba(0,0,0,0.6)" }}
+            >
+              {summary.title}
+            </h1>
+            {summary.days > 0 && (
+              <div className="mt-2.5 flex items-center gap-3">
+                <span className="inline-flex items-center gap-2.5 rounded-pill border border-primary-100 bg-primary-400/5 px-3 py-1 font-heading text-[13px] font-bold text-white ring-[0.12em] ring-inset ring-primary-400">
+                  {summary.days} Day{summary.days !== 1 ? "s" : ""}
+                  <span className="h-3.5 w-px bg-primary-300" />
+                  {summary.nights} Night{summary.nights !== 1 ? "s" : ""}
+                </span>
+                <span className="font-heading text-[17px] font-bold leading-none text-white">TRIP</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="screen-space">
+        {/* Overlapping the cover, exactly as it does on the itinerary — it is
+            what stops the photo from ending in a hard line across the page. */}
+        {/* relative z-10, as the itinerary's own stats card carries: the hero
+            above is a positioned element, so without it the overlapping third
+            of this card paints underneath the photo and the three labels
+            simply vanish. */}
+        <div className="relative z-10 mx-auto -mt-7 w-full max-w-[500px]">
+          <div className="grid grid-cols-3 overflow-hidden rounded-xl bg-white shadow-lg shadow-neutral-300/60 ring-1 ring-inset ring-(--border-default)">
+            <Stat icon={Calendar} label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
+            <Stat icon={Moon} label="Duration" value={`${summary.days}D / ${summary.nights}N`} />
+            <Stat icon={Users} label="Travellers" value={summary.paxLine} />
+          </div>
+          {/* Named only when the package quoted more than one, so a client who
+              never had a choice is not shown one they did not make. */}
+          {summary.optionLabel && (
+            <Text size="xs" intent="secondary" className="mt-2.5 block text-center">
+              Stay standard: <span className="font-medium text-neutral-700">{summary.optionLabel}</span>
+            </Text>
+          )}
+        </div>
+      </div>
+
       <div className="screen-space pt-5">
         {/* min-w-0 so the column can be narrower than its contents want to
             be. Without it a flex column sizes to its items' max-content and
@@ -141,76 +240,6 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
             — which is how the amount and the confirm button ended up off the
             right edge of a 390px screen with no way to reach them. */}
         <div className="mx-auto flex w-full min-w-0 max-w-[500px] flex-col gap-4">
-
-          {/* ── What is being bought ─────────────────────────────────── */}
-          <>
-            <SectionCard icon={CalendarCheck} title="Your trip">
-              {/* The cover across the top, not a thumbnail beside the text.
-                  Sitting in the row it forced everything else into what was
-                  left — ~158px on a 390px screen, three facts and a title
-                  fighting over it — and still left a block of empty card
-                  under itself, because a 96px image cannot fill a row as tall
-                  as its neighbour. Full width it costs nothing, shows the
-                  trip properly, and hands the whole measure back. */}
-              {summary.coverImage && (
-                /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
-                <img
-                  src={summary.coverImage} alt=""
-                  className="h-36 w-full object-cover bg-neutral-100 sm:h-44"
-                />
-              )}
-              <div className="px-5 py-4">
-                {/* Clamped at two lines: a package name can be any length and
-                    a card header is not the place to print all of it. */}
-                <Heading level={3} weight="semibold" className="line-clamp-2">{summary.title}</Heading>
-                <div className="mt-0.5 flex items-center justify-between gap-3">
-                  {summary.destination && (
-                    <Text size="sm" intent="secondary" weight="medium" className="min-w-0 truncate">{summary.destination}</Text>
-                  )}
-                  <span className="shrink-0 rounded-md border border-primary-200 px-2 py-0.5 text-[11px] font-semibold text-primary-600">
-                    Tailored
-                  </span>
-                </div>
-                {/* A row per fact rather than three columns. Columns gave the
-                    travel date ~42px on a phone and printed it as "15 De…" —
-                    the one fact a client checks before paying. */}
-                <dl className="mt-3 divide-y divide-(--border-muted) border-t border-(--border-muted)">
-                  <Detail label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
-                  <Detail label="Nights" value={String(summary.nights)} />
-                  <Detail label="Travellers" value={String(summary.travellers)} />
-                </dl>
-              </div>
-
-              {/* Named only when the package quoted more than one, so a client
-                  who never had a choice is not shown one they did not make. */}
-              {summary.optionLabel && (
-                <div className="border-t border-(--border-muted) bg-neutral-50/60 px-5 py-3">
-                  <Text size="xs" intent="secondary">
-                    Stay standard: <span className="font-medium text-neutral-700">{summary.optionLabel}</span>
-                  </Text>
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard icon={Route} title="Your itinerary">
-              <div className="px-5 py-4">
-                <Text size="xs" intent="secondary" className="block">
-                  Everything your travel manager put together is on the quote you came from.
-                </Text>
-                {/* A row, not a text link. This is the one way back to the
-                    thing being bought, and a 14px link under a paragraph is
-                    the easiest control on the page to miss — and the hardest
-                    to hit with a thumb. */}
-                <Link
-                  href={`/custom-package/${summary.packageId}`}
-                  className="group mt-3 flex items-center justify-between gap-3 rounded-lg border border-(--border-muted) px-4 py-3 transition-colors hover:border-primary-300 hover:bg-primary-50/50"
-                >
-                  <Text size="sm" weight="semibold" intent="primary">Read the full itinerary</Text>
-                  <ArrowRight size={16} className="shrink-0 text-primary-500 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </div>
-            </SectionCard>
-          </>
 
           {/* ── The decision ─────────────────────────────────────────── */}
           <SectionCard icon={Wallet} title="Payment">
@@ -295,6 +324,28 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
   );
 }
 
+/** One cell of the trip-stats card — the same three facts, drawn the same
+ *  way, as the StatCell on the itinerary this page came from. */
+function Stat({ icon: Icon, label, value }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col justify-center px-3 py-3 sm:px-4 sm:py-3.5">
+      <p className="mb-1 flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-neutral-500/90 sm:text-[13px]">
+        <Icon size={14} className="shrink-0 text-neutral-400/90" /> {label}
+      </p>
+      {/* truncate, not wrap: three cells share 500px and "1 Adult, 1 Child,
+          1 Infant" is the one that overruns. The full party is restated in
+          the payment card's own copy. */}
+      <p className="truncate font-heading text-[13px] font-bold leading-tight text-neutral-900 sm:text-[15px]">
+        {value}
+      </p>
+    </div>
+  );
+}
+
 /** The page's one card.
  *
  * Three cards were being drawn three ways — two hand-rolled
@@ -326,18 +377,6 @@ function SectionCard({ icon: Icon, title, children }: {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
-      <dt className="shrink-0"><Text size="xs" intent="muted">{label}</Text></dt>
-      {/* min-w-0 + truncate stays as the backstop for a value nobody
-          anticipated; with a row to itself it no longer fires on a date. */}
-      <dd className="min-w-0 text-right">
-        <Text size="sm" weight="semibold" intent="primary" className="block truncate">{value}</Text>
-      </dd>
-    </div>
-  );
-}
 
 /** Same control the catalogue's review uses, so the choice looks identical
  *  whichever way a client arrived at it. */

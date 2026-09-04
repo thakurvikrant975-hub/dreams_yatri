@@ -25,6 +25,7 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
+import { possessive } from "@/app/lib/possessive";
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { StarAndCrescentIcon, MapPinIcon, RoadHorizonIcon } from "@phosphor-icons/react";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
@@ -222,20 +223,6 @@ const DEFAULT_DOCUMENT_DISCLAIMER = "This is a custom itinerary, subject to avai
  * raw phone/email back to them on their own document. */
 function refCode(queryId: string): string {
   return queryId.slice(-8).toUpperCase();
-}
-
-/**
- * "Suraj Kumar" → "Suraj's". First name only: the cover's eyebrow reads as a
- * spoken phrase ("Suraj's … journey") and a full legal name there sounds like a
- * form field rather than a trip someone is about to take.
- *
- * A name already ending in s takes the bare apostrophe ("Chris'"), which is the
- * convention the client is most likely to see their own name written in.
- */
-function possessive(name: string): string {
-  const first = name.trim().split(/\s+/)[0] ?? "";
-  if (!first) return "";
-  return /s$/i.test(first) ? `${first}'` : `${first}'s`;
 }
 
 type RouteStep = { label: string; nights?: number; kind: "pickup" | "drop" | "stop" };
