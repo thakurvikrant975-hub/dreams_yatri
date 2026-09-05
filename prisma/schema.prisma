@@ -837,16 +837,54 @@ model PartnerLeadRule {
  * treat `members` as the complete roster with no leader special-casing.
  */
 model SalesTeam {
-  id          String       @id @default(cuid())
-  name        String       @unique @db.VarChar(100)
-  leaderId    String?      @unique
-  leader      TeamMember?  @relation("SalesTeamLeader", fields: [leaderId], references: [id])
-  members     TeamMember[] @relation("SalesTeamMembers")
+  id          String        @id @default(cuid())
+  name        String        @unique @db.VarChar(100)
+  leaderId    String?       @unique
+  leader      TeamMember?   @relation("SalesTeamLeader", fields: [leaderId], references: [id])
+  members     TeamMember[]  @relation("SalesTeamMembers")
+  targets     SalesTarget[]
   createdById String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@map("sales_teams")
+}
+
+/**
+ * A Sales Manager's monthly target for either one sales executive/TL
+ * (teamMemberId set) or a whole SalesTeam (salesTeamId set) — never both,
+ * enforced in the action layer rather than a DB constraint since Prisma has
+ * no native "exactly one of" check. Team and individual targets are
+ * intentionally independent numbers, not auto-summed — a team's target
+ * doesn't have to equal the sum of its members' so a manager isn't forced to
+ * rebalance every individual target whenever the team number changes (or
+ * someone joins/leaves mid-month).
+ *
+ * Both metrics are optional so a manager can set just a revenue goal, just a
+ * conversion-count goal, or both. "Actual" is computed elsewhere (see
+ * sales-team-analytics-actions.ts) from confirmed Bookings — this model only
+ * holds the goal, not the outcome.
+ */
+model SalesTarget {
+  id               String      @id @default(cuid())
+  year             Int
+  month            Int // 1–12
+  teamMemberId     String?
+  salesTeamId      String?
+  revenueTarget    Float?
+  conversionTarget Int?
+  setById          String?
+  setByName        String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  teamMember       TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  salesTeam        SalesTeam?  @relation(fields: [salesTeamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamMemberId, year, month])
+  @@unique([salesTeamId, year, month])
+  @@index([year, month])
+  @@map("sales_targets")
 }
 
 model TeamMember {
@@ -940,6 +978,7 @@ model TeamMember {
   teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
   salesTeam              SalesTeam?        @relation("SalesTeamMembers", fields: [salesTeamId], references: [id])
   ledSalesTeam           SalesTeam?        @relation("SalesTeamLeader")
+  salesTargets           SalesTarget[]
 
   @@index([email])
   @@index([employeeId])
@@ -2799,6 +2838,16 @@ model LeadRequest {
    * Set once accepted — the package_queries row this request became.
    */
   resultingQueryId String?
+  /**
+   * How this lead reached the requester. Reuses QuerySource (only PHONE_CALL
+   * and OTHER are offered in the form) so it carries straight onto the
+   * resulting package_queries row's own `source` without a mapping step.
+   */
+  source           QuerySource       @default(PHONE_CALL)
+  /**
+   * Required only when source is OTHER — what "Others" actually means.
+   */
+  sourceOther      String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 

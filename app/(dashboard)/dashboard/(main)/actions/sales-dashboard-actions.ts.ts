@@ -4,7 +4,7 @@
 
 import { db } from "@/app/lib/db";
 import { $Enums } from "@/app/generated/prisma";
-import { istDayBounds, istMonthBounds, istWeekStart } from "@/app/lib/ist-window";
+import { istDayBounds, istMonthBounds, istWeekStart, istYearMonth } from "@/app/lib/ist-window";
 
 export interface SalesDashboardData {
   assignedTotal: number;
@@ -12,7 +12,11 @@ export interface SalesDashboardData {
   followUpsDueToday: number;
   followUpsOverdue: number;
   confirmedThisMonth: number;
-  monthlyTarget: number;
+  totalRevenue: number;
+  /** Null when the Sales Manager hasn't set a target for this member yet
+   * this month — distinct from a target of zero. */
+  monthlyTarget: number | null;
+  revenueTarget: number | null;
   recentQueries: {
     id: string;
     name: string;
@@ -51,14 +55,17 @@ export async function getSalesDashboardData(
     $Enums.QueryStatus.VERIFIED,
   ];
 
+  const { year: targetYear, month: targetMonth } = istYearMonth(now);
+
   const [
     assignedTotal,
     newThisWeek,
     followUpsDueToday,
     followUpsOverdue,
-    confirmedThisMonth,
+    confirmedBookings,
     recentQueries,
     todayFollowUps,
+    target,
   ] = await Promise.all([
     db.package_queries.count({
       where: { assignedTo: memberId, deletedAt: null },
@@ -92,19 +99,18 @@ export async function getSalesDashboardData(
       },
     }),
 
-db.package_queries.count({
-  where: {
-    assignedTo: memberId,
-    deletedAt: null,
-    status: {
-      in: ["PAYMENT_INITIATED", "CONVERTED"],
-    },
-    verifiedAt: {
-      gte: monthStart,
-      lte: monthEnd,
-    },
-  },
-}),
+    // Confirmed bookings this member closed this month — same definition
+    // the Sales Manager's team analytics and the Targets page use, so this
+    // number always means the same thing everywhere it's shown.
+    db.booking.aggregate({
+      where: {
+        currentAssigneeId: memberId,
+        status: "CONFIRMED",
+        createdAt: { gte: monthStart, lte: monthEnd },
+      },
+      _count: { _all: true },
+      _sum: { totalAmount: true },
+    }),
 
     db.package_queries.findMany({
       where: { assignedTo: memberId, deletedAt: null },
@@ -138,6 +144,10 @@ db.package_queries.count({
         status: true,
       },
     }),
+
+    db.salesTarget.findUnique({
+      where: { teamMemberId_year_month: { teamMemberId: memberId, year: targetYear, month: targetMonth } },
+    }),
   ]);
 
   return {
@@ -145,8 +155,10 @@ db.package_queries.count({
     newThisWeek,
     followUpsDueToday,
     followUpsOverdue,
-    confirmedThisMonth,
-    monthlyTarget: 20,
+    confirmedThisMonth: confirmedBookings._count._all,
+    totalRevenue: Number(confirmedBookings._sum.totalAmount ?? 0),
+    monthlyTarget: target?.conversionTarget ?? null,
+    revenueTarget: target?.revenueTarget ?? null,
     recentQueries,
     todayFollowUps,
   };

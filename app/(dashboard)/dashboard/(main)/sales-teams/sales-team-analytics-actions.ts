@@ -3,11 +3,8 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
 
-// Same monthly target hardcode as actions/sales-target-actions.ts — replace
-// with a DB lookup when a SalesTarget model exists.
-const MONTHLY_TARGET = 20;
 const CONVERTED_STATUSES = ["CONVERTED", "PAYMENT_INITIATED"] as const;
-import { istMonthBounds } from "@/app/lib/ist-window";
+import { istMonthBounds, istYearMonth } from "@/app/lib/ist-window";
 
 export type MemberPerformance = {
   id: string;
@@ -15,7 +12,8 @@ export type MemberPerformance = {
   employeeId: string;
   confirmedThisMonth: number;
   totalRevenue: number;
-  monthlyTarget: number;
+  revenueTarget: number | null;
+  conversionTarget: number | null;
   queriesThisMonth: number;
   convertedThisMonth: number;
   conversionRate: number; // 0-100, rounded
@@ -29,6 +27,8 @@ export type TeamPerformance = {
   members: MemberPerformance[];
   teamConfirmedThisMonth: number;
   teamTotalRevenue: number;
+  teamRevenueTarget: number | null;
+  teamConversionTarget: number | null;
   teamQueriesThisMonth: number;
   teamConvertedThisMonth: number;
   teamConversionRate: number;
@@ -63,7 +63,12 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
   const rangeStart = fromStr ? new Date(`${fromStr}T00:00:00+05:30`) : monthStart;
   const rangeEnd   = toStr   ? new Date(`${toStr}T23:59:59.999+05:30`) : monthEnd;
 
-  const [teams, bookingsGrouped, queriesGrouped, convertedGrouped, pendingGrouped, unassignedRaw] = await Promise.all([
+  // Targets are keyed by calendar month, not an arbitrary range — a custom
+  // date range still looks up whichever month it starts in, same as the
+  // Sales Manager's set-targets page would for that range.
+  const { year: targetYear, month: targetMonth } = istYearMonth(rangeStart);
+
+  const [teams, bookingsGrouped, queriesGrouped, convertedGrouped, pendingGrouped, unassignedRaw, memberTargets, teamTargets] = await Promise.all([
     db.salesTeam.findMany({
       include: {
         leader: { select: { id: true, name: true } },
@@ -116,24 +121,30 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
       where: { salesTeamId: null, isActive: true },
       select: { id: true, name: true, employeeId: true },
     }),
+    db.salesTarget.findMany({ where: { year: targetYear, month: targetMonth, teamMemberId: { not: null } } }),
+    db.salesTarget.findMany({ where: { year: targetYear, month: targetMonth, salesTeamId: { not: null } } }),
   ]);
 
   const byBookingMember = new Map(bookingsGrouped.map((g) => [g.currentAssigneeId as string, g]));
   const byQueriesMember = new Map(queriesGrouped.map((g) => [g.assignedTo as string, g._count._all]));
   const byConvertedMember = new Map(convertedGrouped.map((g) => [g.assignedTo as string, g._count._all]));
   const byPendingMember = new Map(pendingGrouped.map((g) => [g.assignedTo as string, g._count._all]));
+  const byMemberTarget = new Map(memberTargets.map((t) => [t.teamMemberId as string, t]));
+  const byTeamTarget = new Map(teamTargets.map((t) => [t.salesTeamId as string, t]));
 
   const toPerf = (m: { id: string; name: string; employeeId: string }): MemberPerformance => {
     const booking = byBookingMember.get(m.id);
     const queriesThisMonth = byQueriesMember.get(m.id) ?? 0;
     const convertedThisMonth = byConvertedMember.get(m.id) ?? 0;
+    const target = byMemberTarget.get(m.id);
     return {
       id: m.id,
       name: m.name,
       employeeId: m.employeeId,
       confirmedThisMonth: booking?._count._all ?? 0,
       totalRevenue: Number(booking?._sum.totalAmount ?? 0),
-      monthlyTarget: MONTHLY_TARGET,
+      revenueTarget: target?.revenueTarget ?? null,
+      conversionTarget: target?.conversionTarget ?? null,
       queriesThisMonth,
       convertedThisMonth,
       conversionRate: queriesThisMonth > 0 ? Math.round((convertedThisMonth / queriesThisMonth) * 100) : 0,
@@ -145,6 +156,7 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
     const members = t.members.map(toPerf);
     const teamQueriesThisMonth = members.reduce((s, m) => s + m.queriesThisMonth, 0);
     const teamConvertedThisMonth = members.reduce((s, m) => s + m.convertedThisMonth, 0);
+    const teamTarget = byTeamTarget.get(t.id);
     return {
       teamId: t.id,
       teamName: t.name,
@@ -152,6 +164,8 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
       members,
       teamConfirmedThisMonth: members.reduce((s, m) => s + m.confirmedThisMonth, 0),
       teamTotalRevenue: members.reduce((s, m) => s + m.totalRevenue, 0),
+      teamRevenueTarget: teamTarget?.revenueTarget ?? null,
+      teamConversionTarget: teamTarget?.conversionTarget ?? null,
       teamQueriesThisMonth,
       teamConvertedThisMonth,
       teamConversionRate: teamQueriesThisMonth > 0 ? Math.round((teamConvertedThisMonth / teamQueriesThisMonth) * 100) : 0,

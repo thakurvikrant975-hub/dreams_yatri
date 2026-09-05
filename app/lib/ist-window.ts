@@ -47,3 +47,10 @@ export function istMonthBounds(at: Date = new Date()): { start: Date; end: Date 
     const { y, m } = istDateParts(at);
     return { start: istMidnight(y, m, 1), end: new Date(istMidnight(y, m + 1, 1).getTime() - 1) };
 }
+
+/** The IST calendar year/month (1–12) an instant falls in — for keying
+ * month-scoped rows like SalesTarget by (year, month) rather than a range. */
+export function istYearMonth(at: Date = new Date()): { year: number; month: number } {
+    const { y, m } = istDateParts(at);
+    return { year: y, month: m + 1 };
+}

@@ -7,12 +7,13 @@ import { formatDistanceToNow } from "date-fns";
 import {
     Loader2, Send, MapPin, User, Mail, Phone, Inbox,
     Clock3, CheckCircle2, XCircle, ArrowRight, Plus,
-    Search, Check, ChevronsUpDown, StickyNote,
+    Search, Check, ChevronsUpDown, StickyNote, PhoneCall,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import {
     Popover, PopoverContent, PopoverTrigger,
 } from "@/app/components/ui/popover";
@@ -228,6 +229,8 @@ function NewRequestDialog({
     const [email, setEmail] = useState("");
     const [notes, setNotes] = useState("");
     const [destination, setDestination] = useState("");
+    const [source, setSource] = useState<"" | "PHONE_CALL" | "OTHER">("");
+    const [sourceOther, setSourceOther] = useState("");
     const formRef = useRef<HTMLFormElement>(null);
 
     useEffect(() => {
@@ -235,7 +238,7 @@ function NewRequestDialog({
         if (state.success) {
             toast.success(state.message);
             formRef.current?.reset();
-            setName(""); setEmail(""); setDestination(""); setNotes("");
+            setName(""); setEmail(""); setDestination(""); setNotes(""); setSource(""); setSourceOther("");
             router.refresh();
             onOpenChange(false);
         } else {
@@ -296,6 +299,34 @@ function NewRequestDialog({
                                 placeholder="client@example.com" autoComplete="off"
                                 aria-invalid={!!state.errors?.email}
                             />
+                        </Field>
+
+                        <Field label="Source" icon={PhoneCall} error={state.errors?.source}>
+                            <input type="hidden" name="source" value={source} />
+                            <Select value={source} onValueChange={(v) => setSource(v as "PHONE_CALL" | "OTHER")}>
+                                <SelectTrigger
+                                    className={cn(
+                                        CONTROL_CLASS,
+                                        "h-10",
+                                        !!state.errors?.source && "border-dashboard-error ring-1 ring-dashboard-error/20",
+                                    )}
+                                >
+                                    <SelectValue placeholder="How did this lead come in?" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="PHONE_CALL">Call</SelectItem>
+                                    <SelectItem value="OTHER">Others</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {source === "OTHER" && (
+                                <Input
+                                    name="sourceOther" value={sourceOther}
+                                    onChange={(e) => setSourceOther(e.target.value)}
+                                    placeholder="Specify the source" required autoComplete="off"
+                                    aria-invalid={!!state.errors?.sourceOther}
+                                    className="mt-1.5"
+                                />
+                            )}
                         </Field>
 
                         <Field label="Notes" icon={StickyNote} htmlFor="notes" optional error={state.errors?.notes}>
