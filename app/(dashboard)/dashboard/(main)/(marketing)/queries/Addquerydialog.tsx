@@ -71,6 +71,10 @@ const SOURCES = [
 
 const initial: ManualQueryFormState = { success: false, message: "" };
 
+// Sentinel for "Other" in the destination Select — negative so it can never
+// collide with a real destination id (Prisma autoincrement starts at 1).
+const OTHER_DEST_ID = -1;
+
 // ── Dialog ────────────────────────────────────────────────────────────────────
 
 export function AddQueryDialog() {
@@ -123,7 +127,7 @@ export function AddQueryDialog() {
     }, [open]);
 
     useEffect(() => {
-        if (!selectedDestId) { setPackages([]); setSelectedPkgTitle(""); return; }
+        if (!selectedDestId || selectedDestId === OTHER_DEST_ID) { setPackages([]); setSelectedPkgTitle(""); return; }
         setLoadingPkgs(true);
         setSelectedPkgTitle("");
         getPackagesByDestination(selectedDestId)
@@ -160,6 +164,11 @@ export function AddQueryDialog() {
     }, [state]);
 
     function handleDestChange(value: string) {
+        if (value === "__other__") {
+            setSelectedDestId(OTHER_DEST_ID);
+            setSelectedDestName("");
+            return;
+        }
         const [idStr, ...rest] = value.split("::");
         setSelectedDestId(parseInt(idStr));
         setSelectedDestName(rest.join("::"));
@@ -291,7 +300,7 @@ export function AddQueryDialog() {
                                 Destination <span className="text-dashboard-base-content/40">(optional)</span>
                             </Label>
                             <Select
-                                value={selectedDestId ? `${selectedDestId}::${selectedDestName}` : ""}
+                                value={selectedDestId === OTHER_DEST_ID ? "__other__" : selectedDestId ? `${selectedDestId}::${selectedDestName}` : ""}
                                 onValueChange={handleDestChange}
                                 disabled={loadingDests}
                             >
@@ -318,8 +327,20 @@ export function AddQueryDialog() {
                                             No destinations found
                                         </SelectItem>
                                     )}
+                                    <SelectItem value="__other__" className="text-sm text-dashboard-base-content focus:bg-dashboard-base-200 rounded-lg">
+                                        Other
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
+                            {selectedDestId === OTHER_DEST_ID && (
+                                <Input
+                                    autoFocus
+                                    value={selectedDestName}
+                                    onChange={(e) => setSelectedDestName(e.target.value)}
+                                    placeholder="Type the destination"
+                                    className="h-9 text-sm rounded-lg mt-1.5"
+                                />
+                            )}
                             <FieldError errors={state.errors} field="destination" />
                         </div>
 
@@ -331,7 +352,7 @@ export function AddQueryDialog() {
                             <Select
                                 value={selectedPkgTitle}
                                 onValueChange={setSelectedPkgTitle}
-                                disabled={!selectedDestId || loadingPkgs}
+                                disabled={!selectedDestId || selectedDestId === OTHER_DEST_ID || loadingPkgs}
                             >
                                 <SelectTrigger className="h-9 text-sm rounded-lg bg-dashboard-base-100 border-dashboard-base-300 text-dashboard-base-content focus:ring-dashboard-primary/30 focus:border-dashboard-primary disabled:opacity-50">
                                     {loadingPkgs ? (
@@ -339,7 +360,7 @@ export function AddQueryDialog() {
                                             <Loader2 className="h-3 w-3 animate-spin" /> Loading...
                                         </span>
                                     ) : (
-                                        <SelectValue placeholder={!selectedDestId ? "Select destination first" : "Select package"} />
+                                        <SelectValue placeholder={selectedDestId === OTHER_DEST_ID ? "No catalog packages for a custom destination" : !selectedDestId ? "Select destination first" : "Select package"} />
                                     )}
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-dashboard-base-300 bg-dashboard-base-100">

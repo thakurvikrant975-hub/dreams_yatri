@@ -24,7 +24,11 @@ function DashCardHeader({ children }: { children: React.ReactNode }) {
 }
 
 function MemberRow({ member }: { member: MemberPerformance }) {
-  const pct = member.monthlyTarget > 0 ? Math.min(100, Math.round((member.confirmedThisMonth / member.monthlyTarget) * 100)) : 0;
+  const hasConversionTarget = member.conversionTarget !== null && member.conversionTarget > 0;
+  const pct = hasConversionTarget
+    ? Math.min(100, Math.round((member.confirmedThisMonth / member.conversionTarget!) * 100))
+    : 0;
+  const hasRevenueTarget = member.revenueTarget !== null && member.revenueTarget > 0;
   return (
     <div className="px-4 py-2.5 border-t border-dashboard-base-300 space-y-1.5">
       <div className="flex items-center gap-3">
@@ -34,9 +38,11 @@ function MemberRow({ member }: { member: MemberPerformance }) {
         </div>
         <div className="text-right shrink-0">
           <p className="text-sm font-semibold text-dashboard-base-content">
-            {member.confirmedThisMonth}/{member.monthlyTarget}
+            {member.confirmedThisMonth}{hasConversionTarget ? `/${member.conversionTarget}` : ""}
           </p>
-          <p className="text-xs text-dashboard-base-content/45">{fmtCurrency(member.totalRevenue)}</p>
+          <p className="text-xs text-dashboard-base-content/45">
+            {fmtCurrency(member.totalRevenue)}{hasRevenueTarget ? ` / ${fmtCurrency(member.revenueTarget!)}` : ""}
+          </p>
         </div>
         <div className="w-16 h-1.5 rounded-full bg-dashboard-base-300 overflow-hidden shrink-0">
           <div className="h-full bg-dashboard-primary" style={{ width: `${pct}%` }} />
@@ -95,7 +101,9 @@ export function SalesManagerAnalytics({ data }: { data: SalesTeamAnalytics }) {
                 )}
               </DashCardHeader>
               <div className="flex items-center justify-between px-4 py-2 text-xs text-dashboard-base-content/60 bg-dashboard-base-200/40">
-                <span>{team.teamConfirmedThisMonth} confirmed · {fmtCurrency(team.teamTotalRevenue)}</span>
+                <span>
+                  {team.teamConfirmedThisMonth}{team.teamConversionTarget ? `/${team.teamConversionTarget}` : ""} confirmed · {fmtCurrency(team.teamTotalRevenue)}{team.teamRevenueTarget ? ` / ${fmtCurrency(team.teamRevenueTarget)}` : ""}
+                </span>
                 <span>{team.teamQueriesThisMonth} queries · {team.teamConversionRate}% conv · {team.teamPendingFollowUps} pending</span>
               </div>
               {team.members.length === 0 ? (

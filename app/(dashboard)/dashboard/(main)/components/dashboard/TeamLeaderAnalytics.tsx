@@ -284,6 +284,36 @@ export function TeamLeaderAnalytics({ teamData, leaderboard, from, to, viewerTea
             </DashCard>
           ) : (
             <>
+              {(() => {
+                const myTeam = leaderboard.teams.find((t) => t.teamId === viewerTeamId);
+                if (!myTeam || (myTeam.teamRevenueTarget === null && myTeam.teamConversionTarget === null)) return null;
+                return (
+                  <DashCard>
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                      <p className="flex items-center gap-1.5 text-sm font-medium text-dashboard-base-content">
+                        <Trophy className="h-3.5 w-3.5 text-dashboard-primary" /> This month&apos;s team target
+                      </p>
+                      <div className="flex items-center gap-4 text-xs text-dashboard-base-content/70">
+                        {myTeam.teamConversionTarget !== null && (
+                          <span>
+                            <span className="font-semibold text-dashboard-base-content">{myTeam.teamConfirmedThisMonth}</span>
+                            {" "}/ {myTeam.teamConversionTarget} bookings
+                          </span>
+                        )}
+                        {myTeam.teamRevenueTarget !== null && (
+                          <span>
+                            <span className="font-semibold text-dashboard-base-content">
+                              {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(myTeam.teamTotalRevenue)}
+                            </span>
+                            {" "}/ {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(myTeam.teamRevenueTarget)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </DashCard>
+                );
+              })()}
+
               <StatGrid cols={5}>
                 <StatCard
                   label="Today's Leads" value={teamData.summary.todayLeads} icon={Phone}

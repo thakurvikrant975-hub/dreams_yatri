@@ -116,14 +116,15 @@ function Sparks({ color }: { color: string }) {
 
 async function SalesTargetContent({ memberId }: { memberId: string }) {
   const data = await getSalesDashboardData(memberId);
+  const hasTarget = data.monthlyTarget !== null && data.monthlyTarget > 0;
 
-  const pct = Math.min(100, Math.round(
-    (data.confirmedThisMonth / Math.max(1, data.monthlyTarget)) * 100
-  ));
-  const totalRevenue = 0;
+  const pct = hasTarget
+    ? Math.min(100, Math.round((data.confirmedThisMonth / data.monthlyTarget!) * 100))
+    : 0;
+  const totalRevenue = data.totalRevenue;
 
   const tier       = getTier(pct);
-  const isChampion = pct >= 100;
+  const isChampion = hasTarget && pct >= 100;
 
   return (
     <>
@@ -161,7 +162,9 @@ async function SalesTargetContent({ memberId }: { memberId: string }) {
       `}</style>
 
       <BadgeShell
-        ariaLabel={`Sales target: ${pct}% — ${data.confirmedThisMonth} of ${data.monthlyTarget} bookings`}
+        ariaLabel={hasTarget
+          ? `Sales target: ${pct}% — ${data.confirmedThisMonth} of ${data.monthlyTarget} bookings`
+          : `${data.confirmedThisMonth} bookings confirmed this month — no target set`}
         className={`inline-flex items-center gap-2.5 pl-2.5 pr-3.5 py-[6px] rounded-full border relative overflow-hidden select-none transition-transform duration-200 ease-out ${tier.badgeBorder} ${tier.badgeBg}`}
       >
         {/* Champion sparkles */}
@@ -194,7 +197,7 @@ async function SalesTargetContent({ memberId }: { memberId: string }) {
             <span className="text-xs text-dashboard-base-content/50">/</span>
 
             <span className="text-xs text-dashboard-base-content/50">
-              {data.monthlyTarget} bookings
+              {hasTarget ? `${data.monthlyTarget} bookings` : "no target set"}
             </span>
 
             {totalRevenue > 0 && (

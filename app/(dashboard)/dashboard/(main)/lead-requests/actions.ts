@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { Prisma } from "@/app/generated/prisma";
+import type { Prisma, QuerySource } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
 import { toTitleCase } from "@/app/lib/utils";
 import { actionError } from "@/app/lib/action-error";
@@ -26,7 +26,13 @@ const leadRequestSchema = z.object({
   email: z.string().trim().email("Enter a valid email").optional().or(z.literal("")),
   destination: z.string().trim().min(1, "Destination is required"),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
-});
+  message: z.string().trim().max(2000).optional().or(z.literal("")),
+  source: z.enum(["PHONE_CALL", "OTHER"], { message: "Source is required" }),
+  sourceOther: z.string().trim().max(200).optional().or(z.literal("")),
+}).refine(
+  (data) => data.source !== "OTHER" || !!data.sourceOther,
+  { message: "Specify the source", path: ["sourceOther"] },
+);
 
 /** Who should hear about a freshly submitted request — every active member
  * whose role can actually see the Lead Requests page (empty pageAccess means
@@ -59,6 +65,9 @@ export async function createLeadRequest(
     email: formData.get("email") || "",
     destination: formData.get("destination"),
     notes: formData.get("notes") || "",
+    message: formData.get("message") || "",
+    source: formData.get("source"),
+    sourceOther: formData.get("sourceOther") || "",
   });
   if (!parsed.success) {
     return { success: false, message: "Please check the fields below", errors: parsed.error.flatten().fieldErrors };
@@ -75,6 +84,9 @@ export async function createLeadRequest(
         email: parsed.data.email || null,
         destination: parsed.data.destination,
         notes: parsed.data.notes || null,
+        message: parsed.data.message || null,
+        source: parsed.data.source,
+        sourceOther: parsed.data.source === "OTHER" ? parsed.data.sourceOther || null : null,
         requestedById: teamMemberId,
         requestedByName: teamMemberName ?? "Unknown",
       },
@@ -225,7 +237,8 @@ async function createQueryFromLeadRequest(input: {
   name: string; phone: string; email: string | null; destination: string;
   requestedById: string; requestedByName: string;
   decidedById?: string; decidedByName?: string;
-  notes?: string | null; reviewNote?: string | null;
+  notes?: string | null; reviewNote?: string | null; message?: string | null;
+  source: QuerySource;
 }): Promise<{ success: true; queryId: string } | { success: false; error: string }> {
   const cleanPhone = input.phone.replace(/\s+/g, "");
   const normalizedPhone = cleanPhone.replace(/[\-().+]/g, "");
@@ -262,7 +275,11 @@ async function createQueryFromLeadRequest(input: {
       phone: cleanPhone,
       email: input.email,
       destination: input.destination,
-      source: "OTHER",
+      // Voice of the customer, in their own words — same field Add Query's
+      // "Notes / Message" writes to, so it shows up everywhere a query's
+      // message already does (package builder sidebar, the detail sheets).
+      message: input.message?.trim() || null,
+      source: input.source,
       status: "ASSIGNED",
       verified: false,
       leadProfileId: profile.id,
@@ -300,7 +317,8 @@ async function acceptOne(
   request: {
     id: string; status: string; name: string; phone: string; email: string | null; destination: string;
     requestedById: string; requestedByName: string;
-    notes?: string | null; reviewNote?: string | null;
+    notes?: string | null; reviewNote?: string | null; message?: string | null;
+    source: QuerySource;
   },
   decidedById: string, decidedByName: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -310,7 +328,8 @@ async function acceptOne(
     name: request.name, phone: request.phone, email: request.email, destination: request.destination,
     requestedById: request.requestedById, requestedByName: request.requestedByName,
     decidedById, decidedByName,
-    notes: request.notes, reviewNote: request.reviewNote,
+    notes: request.notes, reviewNote: request.reviewNote, message: request.message,
+    source: request.source,
   });
   if (!created.success) return { ok: false, error: created.error };
 

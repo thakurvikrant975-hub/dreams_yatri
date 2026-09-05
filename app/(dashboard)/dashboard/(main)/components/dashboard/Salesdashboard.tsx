@@ -77,7 +77,8 @@ function DashCardHeader({ children }: { children: React.ReactNode }) {
 async function SalesDashboardContent({ member }: { member: CurrentMember }) {
   const data = await getSalesDashboardData(member.id);
 
-  const targetPct    = Math.min(100, Math.round((data.confirmedThisMonth / Math.max(1, data.monthlyTarget)) * 100));
+  const hasTarget    = data.monthlyTarget !== null && data.monthlyTarget > 0;
+  const targetPct    = hasTarget ? Math.min(100, Math.round((data.confirmedThisMonth / data.monthlyTarget!) * 100)) : 0;
   const progressColor = getProgressColor(targetPct);
 
   return (
@@ -103,10 +104,10 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
           muted={data.followUpsOverdue === 0}
         />
         <StatCard
-          label="Confirmed this month" value={data.confirmedThisMonth} sub={`Target: ${data.monthlyTarget}`}
+          label="Confirmed this month" value={data.confirmedThisMonth} sub={hasTarget ? `Target: ${data.monthlyTarget}` : "No target set"}
           icon={CheckCircle2} iconColor="bg-dashboard-success/10" iconText="text-dashboard-success"
-          highlight={data.confirmedThisMonth >= data.monthlyTarget}
-          trend={data.confirmedThisMonth > 0 ? { value: `${targetPct}% of target`, positive: targetPct >= 50 } : undefined}
+          highlight={hasTarget && data.confirmedThisMonth >= data.monthlyTarget!}
+          trend={hasTarget && data.confirmedThisMonth > 0 ? { value: `${targetPct}% of target`, positive: targetPct >= 50 } : undefined}
         />
       </StatGrid>
 

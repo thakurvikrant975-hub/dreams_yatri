@@ -7,12 +7,14 @@ import { formatDistanceToNow } from "date-fns";
 import {
     Loader2, Send, MapPin, User, Mail, Phone, Inbox,
     Clock3, CheckCircle2, XCircle, ArrowRight, Plus,
-    Search, Check, ChevronsUpDown, StickyNote,
+    Search, Check, ChevronsUpDown, StickyNote, PhoneCall, MessageSquare,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import {
     Popover, PopoverContent, PopoverTrigger,
 } from "@/app/components/ui/popover";
@@ -33,6 +35,7 @@ type MyRequest = {
     email: string | null;
     destination: string;
     notes: string | null;
+    message: string | null;
     status: "PENDING" | "ACCEPTED" | "REJECTED";
     rejectionReason: string | null;
     createdAt: Date;
@@ -134,12 +137,39 @@ function DestinationPicker({
 }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
+    // Self-contained rather than a value the parent tracks: picking "Other"
+    // just switches this control into a free-text input, and whatever gets
+    // typed becomes `value` directly — the destination column is already a
+    // plain string everywhere, so no separate "other" field is needed.
+    const [customMode, setCustomMode] = useState(false);
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         if (!q) return destinations;
         return destinations.filter((d) => d.name.toLowerCase().includes(q));
     }, [destinations, search]);
+
+    if (customMode) {
+        return (
+            <div className="space-y-1">
+                <Input
+                    autoFocus
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder="Type the destination"
+                    aria-invalid={invalid}
+                    className={cn(invalid && "border-dashboard-error ring-1 ring-dashboard-error/20")}
+                />
+                <button
+                    type="button"
+                    onClick={() => { setCustomMode(false); onChange(""); }}
+                    className="text-[11px] text-dashboard-primary hover:underline cursor-pointer"
+                >
+                    ← Choose from the list instead
+                </button>
+            </div>
+        );
+    }
 
     return (
         <Popover
@@ -205,6 +235,17 @@ function DestinationPicker({
                         );
                     })}
                 </div>
+
+                <button
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    onClick={() => { setCustomMode(true); onChange(""); setOpen(false); setSearch(""); }}
+                    className="flex w-full items-center gap-2 border-t border-dashboard-base-300 px-3 py-2 text-left text-sm text-dashboard-base-content/70 transition-colors cursor-pointer hover:bg-dashboard-base-200/60"
+                >
+                    <Plus className="h-3.5 w-3.5 shrink-0" />
+                    <span className="flex-1">Other — type your own</span>
+                </button>
             </PopoverContent>
         </Popover>
     );
@@ -227,7 +268,10 @@ function NewRequestDialog({
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [notes, setNotes] = useState("");
+    const [message, setMessage] = useState("");
     const [destination, setDestination] = useState("");
+    const [source, setSource] = useState<"" | "PHONE_CALL" | "OTHER">("");
+    const [sourceOther, setSourceOther] = useState("");
     const formRef = useRef<HTMLFormElement>(null);
 
     useEffect(() => {
@@ -235,7 +279,7 @@ function NewRequestDialog({
         if (state.success) {
             toast.success(state.message);
             formRef.current?.reset();
-            setName(""); setEmail(""); setDestination(""); setNotes("");
+            setName(""); setEmail(""); setDestination(""); setNotes(""); setMessage(""); setSource(""); setSourceOther("");
             router.refresh();
             onOpenChange(false);
         } else {
@@ -298,16 +342,79 @@ function NewRequestDialog({
                             />
                         </Field>
 
-                        <Field label="Notes" icon={StickyNote} htmlFor="notes" optional error={state.errors?.notes}>
-                            <Textarea
-                                id="notes" name="notes" value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Anything the lead manager should know before deciding…"
-                                rows={3}
-                                className="resize-none text-sm"
-                                aria-invalid={!!state.errors?.notes}
-                            />
+                        <Field label="Source" icon={PhoneCall} error={state.errors?.source}>
+                            <input type="hidden" name="source" value={source} />
+                            <Select value={source} onValueChange={(v) => setSource(v as "PHONE_CALL" | "OTHER")}>
+                                <SelectTrigger
+                                    className={cn(
+                                        CONTROL_CLASS,
+                                        "h-10",
+                                        !!state.errors?.source && "border-dashboard-error ring-1 ring-dashboard-error/20",
+                                    )}
+                                >
+                                    <SelectValue placeholder="How did this lead come in?" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="PHONE_CALL">Call</SelectItem>
+                                    <SelectItem value="OTHER">Others</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {source === "OTHER" && (
+                                <Input
+                                    name="sourceOther" value={sourceOther}
+                                    onChange={(e) => setSourceOther(e.target.value)}
+                                    placeholder="Specify the source" required autoComplete="off"
+                                    aria-invalid={!!state.errors?.sourceOther}
+                                    className="mt-1.5"
+                                />
+                            )}
                         </Field>
+
+                        {/* Two distinct, optional fields sharing one control: "Notes"
+                            is context for the lead manager, "Message" is the
+                            client's own words (VOC) — kept as tabs rather than two
+                            stacked textareas so the dialog doesn't grow taller, and
+                            because they're rarely both filled in at once. Both stay
+                            mounted (forceMount) so switching tabs never drops
+                            whatever was typed in the other one. */}
+                        <div className="space-y-1.5">
+                            <Tabs defaultValue="notes">
+                                <TabsList variant="line" className="w-full">
+                                    <TabsTrigger value="notes" className="gap-1.5">
+                                        <StickyNote className="h-3.5 w-3.5" /> Notes
+                                        {notes.trim() && <span className="h-1 w-1 rounded-full bg-dashboard-primary" />}
+                                    </TabsTrigger>
+                                    <TabsTrigger value="message" className="gap-1.5">
+                                        <MessageSquare className="h-3.5 w-3.5" /> Message
+                                        {message.trim() && <span className="h-1 w-1 rounded-full bg-dashboard-primary" />}
+                                    </TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="notes" forceMount className="mt-2 space-y-1 data-[state=inactive]:hidden">
+                                    <Textarea
+                                        id="notes" name="notes" value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="Anything the lead manager should know before deciding…"
+                                        rows={3}
+                                        className="resize-none text-sm"
+                                        aria-invalid={!!state.errors?.notes}
+                                    />
+                                    <p className="text-[11px] text-dashboard-base-content/40">Optional — context for the lead manager, not shown to the client.</p>
+                                </TabsContent>
+                                <TabsContent value="message" forceMount className="mt-2 space-y-1 data-[state=inactive]:hidden">
+                                    <Textarea
+                                        id="message" name="message" value={message}
+                                        onChange={(e) => setMessage(e.target.value)}
+                                        placeholder="What did the client actually say? e.g. “Looking for a 5N Bali honeymoon in December, budget around 1.5L”"
+                                        rows={3}
+                                        className="resize-none text-sm"
+                                        aria-invalid={!!state.errors?.message}
+                                    />
+                                    <p className="text-[11px] text-dashboard-base-content/40">Optional — in the client&apos;s own words. Shown on the query once approved.</p>
+                                </TabsContent>
+                            </Tabs>
+                            {state.errors?.notes?.length ? <p className="text-xs text-dashboard-error">{state.errors.notes[0]}</p> : null}
+                            {state.errors?.message?.length ? <p className="text-xs text-dashboard-error">{state.errors.message[0]}</p> : null}
+                        </div>
                     </div>
 
                     <div className="border-t border-dashboard-base-300 bg-dashboard-base-200/30 px-5 py-4">
@@ -377,10 +484,21 @@ export function RequestLeadForm({
         },
         {
             header: "Notes",
-            width: "w-[22%]",
+            width: "w-[16%]",
             cell: (r) => r.notes ? (
                 <p className="line-clamp-2 max-w-xs text-xs text-dashboard-base-content/65" title={r.notes}>
                     {r.notes}
+                </p>
+            ) : (
+                <span className="text-xs text-dashboard-base-content/30">—</span>
+            ),
+        },
+        {
+            header: "Message",
+            width: "w-[16%]",
+            cell: (r) => r.message ? (
+                <p className="line-clamp-2 max-w-xs text-xs italic text-dashboard-base-content/65" title={r.message}>
+                    &quot;{r.message}&quot;
                 </p>
             ) : (
                 <span className="text-xs text-dashboard-base-content/30">—</span>
