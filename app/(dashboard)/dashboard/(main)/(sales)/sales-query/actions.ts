@@ -247,7 +247,7 @@ export async function getSalesQueryById(id: string) {
 
     // A Team Leader can see every follow-up logged on the query (not just
     // their own), same as they can see every team member's queries.
-    return db.package_queries.findUnique({
+    const query = await db.package_queries.findUnique({
         where: { id },
         include: {
             queryFollowUps: {
@@ -260,6 +260,24 @@ export async function getSalesQueryById(id: string) {
             custom_packages:  { select: CUSTOM_PACKAGE_SELECT, orderBy: { createdAt: "desc" } },
         },
     });
+    if (!query) return null;
+
+    // QueryNote only stores authorId — resolve it to a display name the same
+    // way hotels/cab-pricing/permits/etc. batch-resolve actorId → name, so
+    // the sales exec sees who left each note instead of a bare id.
+    const authorIds = Array.from(new Set(query.notes.map((n) => n.authorId).filter((aid) => aid !== "system")));
+    const authors = authorIds.length > 0
+        ? await db.teamMember.findMany({ where: { id: { in: authorIds } }, select: { id: true, name: true } })
+        : [];
+    const nameById = new Map(authors.map((a) => [a.id, a.name]));
+
+    return {
+        ...query,
+        notes: query.notes.map((n) => ({
+            ...n,
+            authorName: n.authorId === "system" ? "System" : (nameById.get(n.authorId) ?? null),
+        })),
+    };
 }
 
 export async function getMyFollowUpForQuery(packageQueryId: string): Promise<FollowUp | null> {

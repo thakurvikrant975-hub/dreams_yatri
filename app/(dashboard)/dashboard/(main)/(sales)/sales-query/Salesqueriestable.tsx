@@ -58,7 +58,7 @@ type SalesQueryWithDetails = SalesQueryRow & {
         createdById: string | null;
         createdByName: string | null;
     }>;
-    notes: Array<{ id: string; content: string; createdAt: Date }>;
+    notes: Array<{ id: string; content: string; createdAt: Date; authorName?: string | null }>;
 };
 
 type Props = {
@@ -412,6 +412,21 @@ export function SalesQueriesTable({
                                 title="Requirements filled"
                                 className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0"
                             />
+                        )}
+                        {/* Notes left on this query (e.g. by the lead manager when
+                            assigning it) — easy to miss otherwise since they sit
+                            inside the detail sheet. Clicking opens straight to
+                            them instead of making the exec hunt for a tab. */}
+                        {q._count.notes > 0 && (
+                            <button
+                                type="button"
+                                title={`${q._count.notes} note${q._count.notes !== 1 ? "s" : ""} on this query — click to view`}
+                                onClick={(e) => { e.stopPropagation(); openDetail(q); }}
+                                className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-blue-300 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 transition-colors cursor-pointer hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-900/40"
+                            >
+                                <StickyNote className="h-2.5 w-2.5" />
+                                {q._count.notes}
+                            </button>
                         )}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">

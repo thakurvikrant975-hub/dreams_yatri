@@ -7,7 +7,7 @@ import {
     Phone, Mail, MapPin, Users, Calendar,
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
-    Package, CheckCircle2, FileText, Heart, Plus, Loader2,
+    Package, CheckCircle2, FileText, Heart, Plus, Loader2, StickyNote,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -69,7 +69,7 @@ type FollowUpItem = {
 
 type SalesQueryWithDetails = SalesQuery & {
     followUps: FollowUpItem[];
-    notes: Array<{ id: string; content: string; createdAt: Date }>;
+    notes: Array<{ id: string; content: string; createdAt: Date; authorName?: string | null }>;
 };
 
 type Props = {
@@ -330,6 +330,37 @@ export function SalesQueryDetailSheet({
                                 {format(new Date(query.assignedAt), "dd MMM yyyy")} at{" "}
                                 {format(new Date(query.assignedAt), "hh:mm a")}
                             </p>
+                        </div>
+                    )}
+
+                    {/* Notes — e.g. context the lead manager left when assigning
+                        this query. Shown right here, before the fold, rather
+                        than buried further down the sheet: this is exactly what
+                        the notes-count badge on the row promises when clicked,
+                        so it needs to be the first thing the exec sees, not
+                        something they have to scroll to find. Hidden entirely
+                        when there's nothing to show, so most queries don't
+                        carry an empty section. */}
+                    {query.notes.length > 0 && (
+                        <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-900 dark:bg-blue-950/20">
+                            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">
+                                <StickyNote className="h-3.5 w-3.5" />
+                                Notes ({query.notes.length})
+                            </p>
+                            <div className="space-y-2">
+                                {query.notes.map((note) => (
+                                    <div
+                                        key={note.id}
+                                        className="rounded-md border border-blue-100 bg-white/70 px-2.5 py-2 dark:border-blue-900/50 dark:bg-black/20"
+                                    >
+                                        <p className="text-sm leading-relaxed text-foreground/90">{note.content}</p>
+                                        <p className="mt-1 text-[10px] text-muted-foreground">
+                                            {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })}
+                                            {note.authorName && <span className="ml-1 font-medium">· {note.authorName}</span>}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
