@@ -958,6 +958,40 @@ export async function addNote(queryId: string, formData: FormData): Promise<Acti
     }
 }
 
+/** The client's own message/VOC — `package_queries.message`, the same field
+ * Add Query's "Notes / Message" writes to and a lead request's "Message"
+ * tab carries onto the query once accepted. Editable rather than
+ * append-only like QueryNote: this is meant to read as the one current
+ * record of what the client said, not a running log, so the sales exec
+ * refines it in place (e.g. after actually getting them on the phone)
+ * instead of piling up near-duplicate notes. */
+export async function updateQueryMessage(queryId: string, message: string): Promise<ActionResult> {
+    const trimmed = message.trim();
+    if (trimmed.length > 2000) {
+        return { success: false, message: "Message is too long" };
+    }
+
+    try {
+        const { actor } = await getCurrentActor();
+
+        await db.package_queries.update({
+            where: { id: queryId },
+            data: { message: trimmed || null },
+        });
+
+        await logTimeline(queryId, `✏️ Client's message updated`, actor?.id, actor?.name ?? undefined, {
+            preview: trimmed.slice(0, 80),
+        });
+
+        revalidatePath("/dashboard/queries");
+        revalidatePath("/dashboard/sales-query");
+        return { success: true, data: undefined, message: "Message updated" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
+    }
+}
+
 // ── Rejection reasons CRUD ────────────────────────────────────────────────────
 
 const reasonSchema = z.object({

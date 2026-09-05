@@ -1,12 +1,13 @@
 "use client";
 
-import { useTransition, useRef } from "react";
+import { useTransition, useRef, useState } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { istDateTime } from "../../lead-report/ist";
 import {
     Phone, Mail, MapPin, Users, Calendar,
     CheckCircle2, XCircle, StickyNote,
     ExternalLink, Globe, PhoneCall, UserCheck,
+    MessageSquare, Save,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -18,7 +19,7 @@ import {
 } from "../../components/ui/sheet";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "../../components/dashboard/CustomBadges";
-import { verifyQuery, addNote } from "./actions";
+import { verifyQuery, addNote, updateQueryMessage } from "./actions";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { CallAttemptDialog } from "./Callattemptdialog";
 import type { PackageQuery, RejectionReason } from "./actions";
@@ -76,6 +77,98 @@ function timelineDot(event: string) {
     if (event.includes("👤") || event.includes("Assigned"))    return "bg-violet-500";
     if (event.includes("created") || event.includes("manual")) return "bg-primary";
     return "bg-muted-foreground/40";
+}
+
+/**
+ * The client's own words (package_queries.message — same field Add Query's
+ * "Notes / Message" writes to, and a lead request's "Message" tab carries
+ * over on approval). Editable in place rather than logged like Internal
+ * Notes below: it's meant to read as the one current record of what the
+ * client said, refined as the exec learns more, not a running history.
+ */
+function ClientMessageCard({
+    queryId, message, onSaved,
+}: {
+    queryId: string;
+    message: string | null;
+    onSaved?: () => void;
+}) {
+    const [isPending, startTransition] = useTransition();
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(message ?? "");
+    const [synced, setSynced] = useState(message ?? "");
+    if (!editing && synced !== (message ?? "")) {
+        setSynced(message ?? "");
+        setDraft(message ?? "");
+    }
+
+    function save() {
+        startTransition(async () => {
+            const r = await updateQueryMessage(queryId, draft);
+            if (r.success) {
+                setEditing(false);
+                onSaved?.();
+            } else {
+                toast.error(r.message);
+            }
+        });
+    }
+
+    return (
+        <div className="mt-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 dark:border-violet-900 dark:bg-violet-950/20">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-400">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Client&apos;s Message
+                </p>
+                {!editing && (
+                    <button
+                        type="button"
+                        onClick={() => setEditing(true)}
+                        title="Edit"
+                        className="text-violet-600 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-300 cursor-pointer"
+                    >
+                        <Pencil className="h-3 w-3" />
+                    </button>
+                )}
+            </div>
+
+            {editing ? (
+                <div className="space-y-2">
+                    <Textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        placeholder="What did the client say?"
+                        rows={3}
+                        autoFocus
+                        className="resize-none border-violet-200 bg-white/70 text-sm dark:border-violet-900/50 dark:bg-black/20"
+                    />
+                    <div className="flex items-center gap-2">
+                        <Button size="sm" className="h-7 gap-1 text-xs" disabled={isPending} onClick={save}>
+                            <Save className="h-3 w-3" /> {isPending ? "Saving…" : "Save"}
+                        </Button>
+                        <Button
+                            size="sm" variant="ghost" className="h-7 text-xs"
+                            disabled={isPending}
+                            onClick={() => { setEditing(false); setDraft(message ?? ""); }}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </div>
+            ) : message ? (
+                <p className="text-sm italic leading-relaxed text-foreground/90">&quot;{message}&quot;</p>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="text-xs text-violet-600 hover:underline dark:text-violet-400 cursor-pointer"
+                >
+                    + Add what the client said
+                </button>
+            )}
+        </div>
+    );
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -290,12 +383,6 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 <InfoRow icon={Users}    label="Group Size"  value={query.groupSize ? `${query.groupSize} people` : null} />
                                 <InfoRow icon={Calendar} label="Travel Date" value={query.travelDate ? format(new Date(query.travelDate), "dd MMM yyyy") : null} />
                             </div>
-                            {query.message && (
-                                <div className="mt-3 rounded-lg bg-muted/50 border p-3">
-                                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1.5">Message</p>
-                                    <p className="text-sm text-foreground/80 leading-relaxed">{query.message}</p>
-                                </div>
-                            )}
                         </section>
 
                         <Separator />
@@ -370,6 +457,8 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 <Separator />
                             </>
                         )}
+
+                        <ClientMessageCard queryId={query.id} message={query.message} onSaved={onRefresh} />
 
                         {/* Internal Notes */}
                         <section>

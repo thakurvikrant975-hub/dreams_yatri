@@ -6,7 +6,7 @@ import {
     CheckCircle2,
     Phone, MapPin, StickyNote,
     Inbox, UserCheck, Send, Clock, TrendingUp,
-    Ticket, Users, CalendarDays,
+    Ticket, Users, CalendarDays, MessageSquare,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -385,9 +385,19 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
             align: "center",
             sortKey: (q) => q._count.notes ?? 0,
             cell: (q) => (
-                <div className="flex items-center justify-center gap-1 text-xs text-dashboard-base-content/75">
-                    <StickyNote className="h-3 w-3" />
-                    {q._count.notes}
+                <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center gap-1 text-xs text-dashboard-base-content/75">
+                        <StickyNote className="h-3 w-3" />
+                        {q._count.notes}
+                    </div>
+                    {/* Client's own message/VOC — a separate field from the notes
+                        above, so it gets its own icon rather than folding into
+                        the count next to it. */}
+                    {q.message && (
+                        <span title={`"${q.message}"`}>
+                            <MessageSquare className="h-3 w-3 text-violet-500" />
+                        </span>
+                    )}
                 </div>
             ),
         },

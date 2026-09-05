@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import {
     AlertTriangle, Ban, Check, CheckCheck, ChevronDown, ChevronUp,
-    Clock, ClipboardList, MapPin, Phone, Mail, StickyNote, Save, XCircle,
+    Clock, ClipboardList, MapPin, Phone, Mail, StickyNote, Save, XCircle, MessageSquare,
 } from "lucide-react";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableRow, TableCell } from "../components/ui/table";
@@ -149,6 +149,12 @@ function RequestDetailPanel({ request }: { request: LeadRequestRow }) {
                 <p className="flex items-start gap-1.5 rounded-md border-l-2 border-dashboard-primary/30 bg-dashboard-primary/5 px-2.5 py-1.5 text-xs text-dashboard-base-content/70">
                     <StickyNote className="h-3 w-3 mt-0.5 shrink-0 text-dashboard-base-content/40" />
                     <span>{request.notes}</span>
+                </p>
+            )}
+            {request.message && (
+                <p className="flex items-start gap-1.5 rounded-md border-l-2 border-violet-400/50 bg-violet-500/5 px-2.5 py-1.5 text-xs italic text-dashboard-base-content/70">
+                    <MessageSquare className="h-3 w-3 mt-0.5 shrink-0 text-violet-500/70" />
+                    <span>&quot;{request.message}&quot;</span>
                 </p>
             )}
 
@@ -307,6 +313,11 @@ export function LeadRequestsTable({
                         {r.notes && (
                             <span title={r.notes} className="shrink-0">
                                 <StickyNote className="size-3.5 text-dashboard-primary" />
+                            </span>
+                        )}
+                        {r.message && (
+                            <span title={`"${r.message}"`} className="shrink-0">
+                                <MessageSquare className="size-3.5 text-violet-500" />
                             </span>
                         )}
                     </div>

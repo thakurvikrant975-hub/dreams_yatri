@@ -7,7 +7,7 @@ import {
     CalendarClock, Eye, Phone, Mail, PhoneCall,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
-    CircleX, Package, Plus, Focus,
+    CircleX, Package, Plus, Focus, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -426,6 +426,18 @@ export function SalesQueriesTable({
                             >
                                 <StickyNote className="h-2.5 w-2.5" />
                                 {q._count.notes}
+                            </button>
+                        )}
+                        {/* Client's own message/VOC — distinct from the internal
+                            notes badge above, so it gets its own icon. */}
+                        {q.message && (
+                            <button
+                                type="button"
+                                title={`Client said: "${q.message}" — click to view`}
+                                onClick={(e) => { e.stopPropagation(); openDetail(q); }}
+                                className="inline-flex shrink-0 items-center rounded-full border border-violet-300 bg-violet-50 p-1 text-violet-700 transition-colors cursor-pointer hover:bg-violet-100 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-400 dark:hover:bg-violet-900/40"
+                            >
+                                <MessageSquare className="h-2.5 w-2.5" />
                             </button>
                         )}
                     </div>

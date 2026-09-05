@@ -49,6 +49,7 @@ import {
     getDestinationsForQuery  as _getDestinationsForQuery,
     getPackagesByDestination as _getPackagesByDestination,
     assignQuery        as _assignQuery,
+    updateQueryMessage as _updateQueryMessage,
 } from "../../(marketing)/queries/actions";
 
 // Async wrapper re-exports — satisfies "use server" (only async fns exported)
@@ -82,6 +83,9 @@ export async function assignQuery(
     setStatus = false,   // default false for sales — avoids overwriting mid-funnel status
 ): Promise<ActionResult> {
     return _assignQuery(queryId, memberId, setStatus);
+}
+export async function updateQueryMessage(queryId: string, message: string): Promise<ActionResult> {
+    return _updateQueryMessage(queryId, message);
 }
 
 /** Whether the logged-in actor leads a SalesTeam — drives the "My Queries" vs

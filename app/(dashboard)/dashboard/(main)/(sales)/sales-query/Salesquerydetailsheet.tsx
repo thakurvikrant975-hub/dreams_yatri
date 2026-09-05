@@ -8,9 +8,11 @@ import {
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
     Package, CheckCircle2, FileText, Heart, Plus, Loader2, StickyNote,
+    MessageSquare, Pencil, Save,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
+import { Textarea } from "../../components/ui/textarea";
 import { Separator } from "../../components/ui/separator";
 import {
     Sheet, SheetContent, SheetHeader,
@@ -21,13 +23,13 @@ import { Badge } from "../../components/ui/badge";
 import {
   QueryStatusBadge, QuerySourceBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
-import { CloseQueryDialog } from "./Closequerydialog"; 
+import { CloseQueryDialog } from "./Closequerydialog";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { PackageVerificationBadge, PackageSentBadge, HotelRequestBadge } from "./Salesquerybadges";
 import { DeletePackageDialog } from "./Deletepackagedialog";
-import { reopenSalesQuery, getCallLogsForQuery } from "./actions";
+import { reopenSalesQuery, getCallLogsForQuery, updateQueryMessage } from "./actions";
 import { readRequirements } from "./requirements";
 import type { SentPackageInfo, CallLogEntry, CallLogStatus } from "./actions";
 import { CloseReason, RejectionReason } from "../../(marketing)/queries/actions";
@@ -140,6 +142,103 @@ function InfoRow({
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">{label}</p>
                 <p className="text-sm font-medium mt-0.5 break-all">{value}</p>
             </div>
+        </div>
+    );
+}
+
+/**
+ * The client's own words (package_queries.message — same field Add Query's
+ * "Notes / Message" writes to, and a lead request's "Message" tab carries
+ * over on approval). Editable in place: the exec often only has the real
+ * wording after actually getting the client on the phone, so this refines
+ * one current value rather than logging entries like the notes list below.
+ */
+function ClientMessageCard({
+    queryId, message, onSaved,
+}: {
+    queryId: string;
+    message: string | null;
+    onSaved?: () => void;
+}) {
+    const [isPending, startTransition] = useTransition();
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(message ?? "");
+    // Resets the draft when the saved value changes underneath us (e.g. a
+    // different query opened, or a save completes and onRefresh lands new
+    // props) — same "adjust state during render" pattern as the lead
+    // request queue's own ReviewNote. Skipped while actively editing so a
+    // save-in-flight doesn't yank the textarea out from under the exec.
+    const [synced, setSynced] = useState(message ?? "");
+    if (!editing && synced !== (message ?? "")) {
+        setSynced(message ?? "");
+        setDraft(message ?? "");
+    }
+
+    function save() {
+        startTransition(async () => {
+            const r = await updateQueryMessage(queryId, draft);
+            if (r.success) {
+                setEditing(false);
+                onSaved?.();
+            } else {
+                toast.error(r.message);
+            }
+        });
+    }
+
+    return (
+        <div className="mt-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 dark:border-violet-900 dark:bg-violet-950/20">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-400">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Client&apos;s Message
+                </p>
+                {!editing && (
+                    <button
+                        type="button"
+                        onClick={() => setEditing(true)}
+                        title="Edit"
+                        className="text-violet-600 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-300 cursor-pointer"
+                    >
+                        <Pencil className="h-3 w-3" />
+                    </button>
+                )}
+            </div>
+
+            {editing ? (
+                <div className="space-y-2">
+                    <Textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        placeholder="What did the client say?"
+                        rows={3}
+                        autoFocus
+                        className="resize-none border-violet-200 bg-white/70 text-sm dark:border-violet-900/50 dark:bg-black/20"
+                    />
+                    <div className="flex items-center gap-2">
+                        <Button size="sm" className="h-7 gap-1 text-xs" disabled={isPending} onClick={save}>
+                            <Save className="h-3 w-3" /> {isPending ? "Saving…" : "Save"}
+                        </Button>
+                        <Button
+                            size="sm" variant="ghost" className="h-7 text-xs"
+                            disabled={isPending}
+                            onClick={() => { setEditing(false); setDraft(message ?? ""); }}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </div>
+            ) : message ? (
+                <p className="text-sm italic leading-relaxed text-foreground/90">&quot;{message}&quot;</p>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="text-xs text-violet-600 hover:underline dark:text-violet-400 cursor-pointer"
+                >
+                    + Add what the client said
+                </button>
+            )}
         </div>
     );
 }
@@ -332,6 +431,8 @@ export function SalesQueryDetailSheet({
                             </p>
                         </div>
                     )}
+
+                    <ClientMessageCard queryId={query.id} message={query.message} onSaved={onRefresh} />
 
                     {/* Notes — e.g. context the lead manager left when assigning
                         this query. Shown right here, before the fold, rather
@@ -541,14 +642,6 @@ export function SalesQueryDetailSheet({
                                     }
                                 />
                             </div>
-                            {query.message && (
-                                <div className="mt-3 rounded-lg bg-muted/50 border p-3">
-                                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1.5">
-                                        Message
-                                    </p>
-                                    <p className="text-sm text-foreground/80 leading-relaxed">{query.message}</p>
-                                </div>
-                            )}
                         </section>
 
                         {/* Package Requirements Summary */}

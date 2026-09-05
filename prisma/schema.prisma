@@ -2822,6 +2822,14 @@ model LeadRequest {
    */
   notes            String?
   /**
+   * Voice of the customer — what the client actually said, in their own
+   * words, as captured by the requester. Carried over onto the resulting
+   * package_queries row's own `message` field once accepted (the same field
+   * Add Query's "Notes / Message" writes to), rather than becoming a
+   * QueryNote — this is the client's words, not a team note about them.
+   */
+  message          String?
+  /**
    * Free text a reviewer (lead manager or costing manager) adds while the
    * request sits in the queue. Also carried over as a QueryNote on accept,
    * so a note added during review is already there once the query exists.
