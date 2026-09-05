@@ -370,18 +370,28 @@ export async function getStayOptionsForDocument(packageId: string) {
     ? pricingPartyOf({ ...pkgState, adults: pkgState.adults })
     : { adults: 0, children: 0 };
 
-  // Live figures, for the options not yet frozen — and ONLY for those. A
-  // stored price always wins where there is one, so on a settled package with
-  // every option priced the result was computed and then thrown away.
+  // Live figures for a DRAFT, and only for a DRAFT.
   //
-  // That is the whole cost of this read. computeStayOptionPricing prices the
-  // cabs once and then every option's hotels, night by night, against the
-  // catalog — and this action is what the client's published page calls, on a
-  // route that renders per request. Every view of a sent quote ran the pricing
-  // engine to answer a question the stored figures had already answered.
-  const needsLive = editable
-    || options.some((o) => o.totalPrice == null || o.pricePerPerson == null);
-  const priced = needsLive
+  // A settled package used to fall back to a live computation for any option
+  // whose stored figure was missing, and that fallback quoted prices nobody
+  // could buy. createBookingFromCustomPackage reads the STORED figure and
+  // refuses an option that has none ("That option isn't priced yet") — quite
+  // rightly, since recomputing at checkout would charge today's catalog rates
+  // for last week's quote. So the client compared three confident numbers and
+  // was refused on every one of them. markPackageReady swallows a failed
+  // freeze on the grounds that "a standard with no stored figure falls back to
+  // a live computation wherever it is shown", which was true everywhere except
+  // the one place it mattered.
+  //
+  // Unpriced now means unpriced: null reaches the document, which already
+  // renders it as "On request". The client is told the truth instead of a
+  // figure the next click rejects.
+  //
+  // It also ends a per-request pricing run on a public route.
+  // computeStayOptionPricing prices the cabs once and then every option's
+  // hotels, night by night, against the catalog — and a sent quote with one
+  // unfrozen option paid that cost on every single view.
+  const priced = editable
     ? await computeStayOptionPricing(packageId).catch(() => [])
     : [];
   const livePrice = new Map(priced.map((p) => [p.id, p]));
@@ -393,10 +403,10 @@ export async function getStayOptionsForDocument(packageId: string) {
     isRecommended: o.isRecommended,
     totalPrice: editable
       ? livePrice.get(o.id)?.totalPrice ?? o.totalPrice ?? null
-      : o.totalPrice ?? livePrice.get(o.id)?.totalPrice ?? null,
+      : o.totalPrice ?? null,
     pricePerPerson: editable
       ? livePrice.get(o.id)?.pricePerPerson ?? o.pricePerPerson ?? null
-      : o.pricePerPerson ?? livePrice.get(o.id)?.pricePerPerson ?? null,
+      : o.pricePerPerson ?? null,
     byDay: Object.fromEntries(o.stays.map((s) => [s.itinerary.day, {
       hotel: s.accommodation,
       // Stay rows are copies of day rows, so they inherit the day row's

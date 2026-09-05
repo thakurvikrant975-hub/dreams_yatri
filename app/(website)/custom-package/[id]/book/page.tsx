@@ -44,6 +44,13 @@ export default async function BookCustomPackagePage({
   // — which is exactly what the service does with the same input.
   const recommendedId = options.find((o) => o.isRecommended)?.id ?? null;
   const chosen = option ? options.find((o) => o.id === option) ?? null : null;
+  // An option the service will refuse must not get a review page that quotes a
+  // price for it. createBookingFromCustomPackage reads the STORED figure and
+  // turns away any option that has none — recommended or not — so a review
+  // step here that fell back to the package's total was walking the client to
+  // a Pay button that could only fail.
+  if (chosen && (chosen.totalPrice ?? 0) <= 0) notFound();
+
   const useOptionPrice = chosen != null && chosen.id !== recommendedId && (chosen.totalPrice ?? 0) > 0;
 
   const total = useOptionPrice ? chosen!.totalPrice! : Number(data.totalPrice || 0);

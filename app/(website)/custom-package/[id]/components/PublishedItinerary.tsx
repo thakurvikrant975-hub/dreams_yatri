@@ -125,6 +125,7 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
     multi ? (options.find((o) => o.isRecommended) ?? options[0]).id : null,
   );
   const chosen = options.find((o) => o.id === chosenId) ?? null;
+  const recommendedId = options.find((o) => o.isRecommended)?.id ?? null;
 
   const { handleBookNow, submitting, error } = useBookCustomPackage(packageId, chosenId);
   // Only meaningful against the package's own total. A client who has picked a
@@ -134,15 +135,29 @@ function BookingBar({ form, packageId }: { form: PreviewData; packageId: string 
   // client who has switched to another standard is being quoted that column's
   // price, and neither figure was computed against it — so both are withheld
   // rather than shown against a number they do not belong to.
-  const onPackagePrice = !(multi && chosen && chosen.id !== options.find((o) => o.isRecommended)?.id);
+  const onPackagePrice = !(multi && chosen && chosen.id !== recommendedId);
   const deposit = onPackagePrice ? form.bookingDeposit ?? null : null;
   const discount = onPackagePrice ? form.discount ?? null : null;
   const totalPax = form.adults + form.children;
 
   // The chosen option's price leads once there is a choice, because that is the
-  // number this button is about to charge. Falls back to the package's own,
-  // which is all a single-stay package has.
-  const priceValue = chosen?.totalPrice ?? (form.totalPrice ? Number(form.totalPrice) : null);
+  // number this button is about to charge — and it has to be the same number
+  // createBookingFromCustomPackage will arrive at, or the bar quotes a figure
+  // the next click rejects.
+  //
+  // Two rules, both taken from that service:
+  //   · an option with no STORED price is refused outright, recommended or
+  //     not, so it is not bookable here either. It used to fall through to the
+  //     package's own total, which put a price and a live Book button on an
+  //     option checkout would then turn away.
+  //   · the recommended option is charged at the package's total; every other
+  //     one at its own.
+  const packageTotal = form.totalPrice ? Number(form.totalPrice) : null;
+  const priceValue = multi
+    ? ((chosen?.totalPrice ?? 0) > 0
+        ? (chosen!.id === recommendedId ? packageTotal : chosen!.totalPrice!)
+        : null)
+    : packageTotal;
   const priceStr = priceValue
     ? `${form.currency} ${priceValue.toLocaleString("en-IN")}`
     : "To be confirmed";
