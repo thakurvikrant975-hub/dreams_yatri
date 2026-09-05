@@ -137,12 +137,39 @@ function DestinationPicker({
 }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
+    // Self-contained rather than a value the parent tracks: picking "Other"
+    // just switches this control into a free-text input, and whatever gets
+    // typed becomes `value` directly — the destination column is already a
+    // plain string everywhere, so no separate "other" field is needed.
+    const [customMode, setCustomMode] = useState(false);
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         if (!q) return destinations;
         return destinations.filter((d) => d.name.toLowerCase().includes(q));
     }, [destinations, search]);
+
+    if (customMode) {
+        return (
+            <div className="space-y-1">
+                <Input
+                    autoFocus
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder="Type the destination"
+                    aria-invalid={invalid}
+                    className={cn(invalid && "border-dashboard-error ring-1 ring-dashboard-error/20")}
+                />
+                <button
+                    type="button"
+                    onClick={() => { setCustomMode(false); onChange(""); }}
+                    className="text-[11px] text-dashboard-primary hover:underline cursor-pointer"
+                >
+                    ← Choose from the list instead
+                </button>
+            </div>
+        );
+    }
 
     return (
         <Popover
@@ -208,6 +235,17 @@ function DestinationPicker({
                         );
                     })}
                 </div>
+
+                <button
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    onClick={() => { setCustomMode(true); onChange(""); setOpen(false); setSearch(""); }}
+                    className="flex w-full items-center gap-2 border-t border-dashboard-base-300 px-3 py-2 text-left text-sm text-dashboard-base-content/70 transition-colors cursor-pointer hover:bg-dashboard-base-200/60"
+                >
+                    <Plus className="h-3.5 w-3.5 shrink-0" />
+                    <span className="flex-1">Other — type your own</span>
+                </button>
             </PopoverContent>
         </Popover>
     );
