@@ -8,6 +8,9 @@ import { createHotelBooking } from "./create-hotel-booking.service";
 import { createBookingFromCustomPackage } from "./create-booking-from-custom-package.service";
 import { createBalanceOrderForBooking } from "./balance-payment.service";
 import { cancelBooking, previewCancellation } from "./cancel-booking.service";
+import { finalizeCapturedPayment } from "./finalize.service";
+import { runPaymentConfirmedEffects } from "./confirmation-effects";
+import { getProvider } from "@/app/lib/payments/registry";
 import { changeTravelDate, previewDateChange } from "./change-date.service";
 import type { CheckoutInput } from "@/app/actions/quote/checkout-schema";
 import type { GatewayId } from "@/app/lib/payments/types";
@@ -147,9 +150,38 @@ export async function createPackageBooking(
 }
 
 /**
- * Verify the browser checkout callback signature (defense-in-depth / UX). Stores
- * the signature on the Payment but does NOT finalize money — the webhook owns
- * that. Returns the bookingId so the client can route to the confirmation page.
+ * The browser coming back from checkout — and, now, the moment the booking is
+ * actually confirmed.
+ *
+ * This used to verify the signature, store it, and stop, on the principle that
+ * "the webhook owns the money". The principle is sound and the webhook still
+ * owns it; the problem was that nothing else did. With the webhook the only
+ * path that could finalize, a webhook that never arrived — wrong URL, a secret
+ * rotated on one side, an event not subscribed — left a customer who had
+ * genuinely paid staring at "Confirming your payment…" indefinitely, with
+ * their money taken and no invoice, no confirmation email, no notification to
+ * the exec who sold it and no handoff to ops. Every one of those hangs off
+ * runPaymentConfirmedEffects, which only runs when a payment is finalized.
+ * One missing webhook silently disabled all of it.
+ *
+ * So this is now a third finalize path beside the webhook and the reconcile
+ * cron, and the fastest of the three: the customer is confirmed while the page
+ * is still loading rather than up to 15 minutes later. All three call the same
+ * finalizeCapturedPayment inside a transaction, which is idempotent — whichever
+ * arrives second gets "already" and does nothing.
+ *
+ * Two things it does NOT do:
+ *
+ *   · trust the caller. The signature is HMAC(order_id|payment_id) with our
+ *     key secret, so only Razorpay could have produced it — but it proves the
+ *     payment exists, not that the money settled. A payment left `authorized`
+ *     rather than `captured` would otherwise mark a booking paid against funds
+ *     nobody has taken, so the gateway is asked directly before anything moves.
+ *
+ *   · own the outcome. If the state is anything but captured this returns
+ *     success with the bookingId and lets the confirmation page keep polling —
+ *     the webhook and the cron are still behind it. A slow capture is not an
+ *     error to show the customer.
  */
 export async function verifyCheckoutPayment(input: {
     orderId: string;
@@ -163,11 +195,40 @@ export async function verifyCheckoutPayment(input: {
 
     const payment = await db.payment.findUnique({
         where: { gatewayOrderId: input.orderId },
-        select: { id: true, userId: true, bookingId: true },
+        select: { id: true, userId: true, bookingId: true, gateway: true },
     });
     if (!payment || payment.userId !== user.id) return { success: false, reason: "not_found" };
 
     await db.payment.update({ where: { id: payment.id }, data: { gatewaySignature: input.signature } });
+
+    // Best-effort throughout: the money is already taken and the webhook and
+    // the reconcile cron both still cover this booking. Nothing below may turn
+    // a successful payment into an error on the customer's screen.
+    try {
+        const status = await getProvider(payment.gateway as GatewayId).fetchChargeStatus(input.orderId);
+        if (status.state === "captured" && status.gatewayPaymentId) {
+            const fin = await db.$transaction((tx) =>
+                finalizeCapturedPayment(tx, {
+                    paymentId: payment.id,
+                    gatewayPaymentId: status.gatewayPaymentId!,
+                    method: status.method ?? null,
+                    webhookEventId: null,
+                }),
+            );
+            // The same effects the webhook and reconcile run, from the same
+            // helper rather than a copy — see the note on its own definition
+            // about the two callers that had already drifted apart once.
+            await runPaymentConfirmedEffects({
+                confirmInitial: fin.result === "finalized" && fin.purpose === "INITIAL",
+                isNewCapture: fin.result === "finalized",
+                bookingId: fin.result === "finalized" ? fin.bookingId : undefined,
+                paymentId: payment.id,
+            });
+        }
+    } catch (err) {
+        console.error("[verifyCheckoutPayment] finalize failed", err);
+    }
+
     return { success: true, bookingId: payment.bookingId };
 }
 

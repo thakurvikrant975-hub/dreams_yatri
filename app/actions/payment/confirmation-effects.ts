@@ -4,6 +4,7 @@ import { notifyBookingConfirmed, notifyPaymentReceived } from "@/app/services/no
 import { confirmHotelReservationForBooking } from "./hotel-confirmation";
 import { broadcastVerificationCounts } from "@/app/services/verification-counts.service";
 import { publishBookingWon } from "@/app/lib/ably";
+import { notifyMember } from "@/app/services/notifications/notify";
 
 /**
  * Everything that must happen once a payment is genuinely captured, in one
@@ -82,12 +83,37 @@ async function notifySalesAgentBookingWon(bookingId: string): Promise<void> {
         }))?.title ?? null;
     }
 
+    const title = b.package?.title ?? customTitle ?? b.destination?.name ?? "a trip";
+    const amount = `${b.currency} ${Math.round(b.totalAmount_paise / 100).toLocaleString("en-IN")}`;
+
+    // The celebration, live. Ephemeral by design — it is the confetti.
     await publishBookingWon(b.salesAgentId, {
         bookingId: b.id,
         bookingNumber: b.bookingNumber,
-        packageTitle: b.package?.title ?? customTitle ?? b.destination?.name ?? "a trip",
+        packageTitle: title,
         clientName: b.user?.name ?? null,
         amountPaise: b.totalAmount_paise,
         currency: b.currency,
+    });
+
+    // And the record of it, which is the part that has to survive.
+    //
+    // publishBookingWon is a single Ably publish to the exec's own channel: it
+    // reaches them if they happen to have the dashboard open at that second,
+    // and is gone otherwise. A client pays at 11pm, or the exec is on a call,
+    // or their laptop is shut — and the one event they most want to see is the
+    // one nobody ever saw. notifyMember is the write path the bell reads (see
+    // its own note: "every event that used to only fire a client-side toast
+    // now also creates one of these"), and this event was never moved onto it.
+    //
+    // Persisted second so a failure here cannot cost the live toast, and
+    // notifyMember swallows its own errors — the payment is already captured
+    // and nothing about telling someone may undo that.
+    await notifyMember({
+        recipientId: b.salesAgentId,
+        type: "BOOKING_WON",
+        title: `Booking won — ${amount}`,
+        body: `${b.user?.name ? `${b.user.name} · ` : ""}${title} · ${b.bookingNumber}`,
+        link: `/dashboard/package-bookings/${b.id}`,
     });
 }
