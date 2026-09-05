@@ -3818,6 +3818,57 @@ const PRINT_STYLES = `
   .itinerary-print-area[data-exporting] .builder-only,
   .itinerary-print-area[data-published] .builder-only { display: none !important; }
 
+  /* ── The sheet's own layout, independent of the window ────────────────────
+     The document is a fixed 210mm sheet, but its wide layout is expressed in
+     "lg:" utilities — and a media query answers to the VIEWPORT, never to the
+     element. That made the printed sheet's layout a function of the browser
+     window that happened to export it, which it must never be.
+
+     It broke in two ways at once, and the second was the ugly one:
+
+       · html2canvas evaluates media queries against its "windowWidth" option.
+         pdfExport passed the sheet's own width (210mm ≈ 794px), so every "lg:"
+         rule was out of range in the clone and the PDF came out in the phone
+         layout — the client and travel-manager cards stacked, hotel photos
+         under their details instead of beside them, 3mm gutters on a sheet
+         drawn for 10mm.
+
+       · findUnsafeRanges measures the LIVE DOM — an exec's desktop window,
+         where "lg:" is on — and those measurements decide where the pages are
+         cut. Measuring one layout and painting another put every page break in
+         the wrong place: cards sliced through the middle and their backgrounds
+         left stranded on the previous page as white rectangles over the text.
+
+     So the layer is turned on explicitly for the duration of the capture,
+     by class name, rather than left to a query that cannot see the sheet.
+     data-exporting is set before anything is measured, so the live DOM and the
+     clone now agree whatever the window is doing.
+
+     Only the layout utilities are listed. The "lg:" rules that reveal builder
+     affordances on hover are deliberately left off — .builder-only above has
+     already removed what they act on.
+
+     Specificity does the overriding: [data-exporting] plus the class is (0,2,0)
+     against a bare utility's (0,1,0), so "lg:flex-row" beats the "flex-col"
+     sitting next to it without !important. */
+  .itinerary-print-area[data-exporting] .lg\\:px-\\[10mm\\]  { padding-inline: 10mm; }
+  .itinerary-print-area[data-exporting] .lg\\:pl-\\[19px\\]  { padding-left: 19px; }
+  .itinerary-print-area[data-exporting] .lg\\:flex-row     { flex-direction: row; }
+  .itinerary-print-area[data-exporting] .lg\\:items-end    { align-items: flex-end; }
+  .itinerary-print-area[data-exporting] .lg\\:justify-between { justify-content: space-between; }
+  .itinerary-print-area[data-exporting] .lg\\:gap-10       { gap: 2.5rem; }
+  .itinerary-print-area[data-exporting] .lg\\:grid-cols-2  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .itinerary-print-area[data-exporting] .lg\\:grid-cols-3  { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .itinerary-print-area[data-exporting] .lg\\:w-50         { width: 12.5rem; }
+  .itinerary-print-area[data-exporting] .lg\\:w-auto       { width: auto; }
+  .itinerary-print-area[data-exporting] .lg\\:block        { display: block; }
+  /* Same shape Tailwind's own divide-x generates — the rule is on the parent
+     but the border lands on every child after the first. */
+  .itinerary-print-area[data-exporting] .lg\\:divide-x > :not([hidden]) ~ :not([hidden]) {
+    border-inline-start-width: 1px;
+    border-inline-end-width: 0;
+  }
+
   /* Edit affordances that survive on screen because they're gated on the
      editable flag rather than marked .builder-only. None of them render
      without the builder's

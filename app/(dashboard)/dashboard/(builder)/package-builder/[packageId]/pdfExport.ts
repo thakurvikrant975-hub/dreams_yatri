@@ -470,7 +470,9 @@ async function captureMapsSeparately(root: HTMLElement, scale: number): Promise<
       scale,
       useCORS: true,
       backgroundColor: null,
-      windowWidth: container.offsetWidth,
+      // Same reason as the main capture below: the clone has to lay out under
+      // the same media queries the live map was measured under.
+      windowWidth: window.innerWidth,
     });
     patches.push({
       top: rect.top - rootRect.top,
@@ -900,7 +902,23 @@ async function captureToPdfPagesInner(root: HTMLElement, scale: number): Promise
       scale,
       useCORS: true,
       backgroundColor: "#ffffff",
-      windowWidth: rootWidthPx,
+      // The window the CLONE believes it is in — html2canvas evaluates media
+      // queries against this, not against the element being captured.
+      //
+      // It used to be the sheet's own width (210mm ≈ 794px), which is not a
+      // window anyone has ever had. Every rule keyed above that width was
+      // therefore off in the clone and on in the live DOM — and the live DOM
+      // is what findUnsafeRanges measured to decide where the pages get cut.
+      // Two different layouts, one set of page breaks: cards sliced through
+      // the middle, their backgrounds stranded on the previous page.
+      //
+      // The real window keeps the clone and the measurements in step whatever
+      // that window is. The sheet's own layout no longer depends on it either
+      // way — see the [data-exporting] rules in ItineraryDocument's
+      // PRINT_STYLES, which pin the wide layout on by class name — but these
+      // two must agree regardless, because anything else responsive that ever
+      // lands in this document would break the same way.
+      windowWidth: window.innerWidth,
     });
   } finally {
     undoShims();
