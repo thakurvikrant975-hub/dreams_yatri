@@ -25,7 +25,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Loader2, Wallet } from "lucide-react";
 import { ItineraryDocument, type PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { useBookCustomPackage } from "./useBookCustomPackage";
@@ -83,30 +83,60 @@ export function PublishedItinerary({ form, packageId, booking }: {
 
 /** The client keeps this link and reopens it after paying, so the bar has to
  * answer "did that go through?" and give them somewhere to go. Leaving a live
- * "Book Now" here is also how one trip gets paid for twice. */
+ * "Book Now" here is also how one trip gets paid for twice.
+ *
+ * Two states, because a deposit is not the end of the transaction. Paid in
+ * full, this is a receipt and nothing more. With a balance still owed it is
+ * the only bill the client is ever shown — they keep this link, not the
+ * booking URL, so a bar that said "you're booked!" and offered nothing but
+ * "View booking" was the last thing standing between us and the rest of the
+ * money. /bookings/[id]/pay already bills the outstanding leg (see its
+ * BALANCE branch); it just had no way in from here. */
 function PaidBar({ booking }: { booking: SharedPackageBooking }) {
+  const owes = booking.balanceAmount > 0;
+  const amount = `${booking.currency} ${booking.balanceAmount.toLocaleString("en-IN")}`;
+
   return (
-    <div className="no-print sticky bottom-0 z-50 mt-6 border-t border-success-200 bg-success-50/95 backdrop-blur px-4 py-3">
-      <div className="mx-auto w-full max-w-4xl flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success-100 text-success-700">
-            <Check size={17} strokeWidth={3} />
+    <div className={`no-print sticky bottom-0 z-50 mt-6 border-t px-4 py-3 backdrop-blur ${owes ? "border-warning-200 bg-warning-50/95" : "border-success-200 bg-success-50/95"
+      }`}>
+      <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${owes ? "bg-warning-100 text-warning-700" : "bg-success-100 text-success-700"
+            }`}>
+            {owes ? <Wallet size={16} /> : <Check size={17} strokeWidth={3} />}
           </span>
           <span className="min-w-0">
-            <span className="block text-sm font-bold text-success-900">
-              Payment received — you&apos;re booked!
+            <span className={`block text-sm font-bold ${owes ? "text-warning-900" : "text-success-900"}`}>
+              {owes ? `Balance due — ${amount}` : "Payment received — you're booked!"}
             </span>
-            <span className="block text-xs text-success-800/80">
+            <span className={`block truncate text-xs ${owes ? "text-warning-800/80" : "text-success-800/80"}`}>
               {booking.paidLabel} · Booking {booking.bookingNumber}
+              {owes && booking.balanceDueDate && ` · due by ${formatDueDate(booking.balanceDueDate)}`}
             </span>
           </span>
         </div>
-        <Link
-          href={`/bookings/${booking.id}`}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-success-700 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-success-800"
-        >
-          View booking &amp; invoice <ArrowRight size={15} />
-        </Link>
+        {owes ? (
+          <div className="flex shrink-0 items-center gap-3">
+            {/* The receipt stays reachable — the client still needs what they
+                have already paid for, not only what they owe. */}
+            <Link href={`/bookings/${booking.id}`} className="text-xs font-semibold text-warning-800 underline-offset-2 hover:underline">
+              View booking
+            </Link>
+            <Link
+              href={`/bookings/${booking.id}/pay`}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-warning-700 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-warning-800"
+            >
+              Pay {amount} <ArrowRight size={15} />
+            </Link>
+          </div>
+        ) : (
+          <Link
+            href={`/bookings/${booking.id}`}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-success-700 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-success-800"
+          >
+            View booking &amp; invoice <ArrowRight size={15} />
+          </Link>
+        )}
       </div>
     </div>
   );

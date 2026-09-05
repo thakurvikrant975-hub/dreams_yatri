@@ -399,6 +399,10 @@ export type SharedPackageBooking = {
     id: string;
     bookingNumber: string;
     paidLabel: string;
+    /** What is still owed on it, in rupees. 0 once the trip is paid for. */
+    balanceAmount: number;
+    balanceDueDate: string | null;
+    currency: string;
 };
 
 /**
@@ -423,12 +427,22 @@ export async function getSharedPackageBooking(packageId: string): Promise<Shared
             status: { notIn: ["CANCELLED", "REJECTED"] },
         },
         orderBy: { createdAt: "desc" },
-        select: { id: true, bookingNumber: true, paymentStatus: true },
+        select: {
+            id: true, bookingNumber: true, paymentStatus: true, currency: true,
+            // What the bar needs to decide whether it is a receipt or still a
+            // bill — see PaidBar. balanceAmount_paise is the same figure the
+            // pay route bills for, rather than one recomputed here from the
+            // total and what has landed, so the two cannot disagree.
+            balanceAmount_paise: true, balanceDueDate: true,
+        },
     });
     if (!booking) return null;
     return {
         id: booking.id,
         bookingNumber: booking.bookingNumber,
         paidLabel: booking.paymentStatus === "FULLY_PAID" ? "Paid in full" : "Deposit paid",
+        balanceAmount: Math.round(booking.balanceAmount_paise / 100),
+        balanceDueDate: booking.balanceDueDate ? booking.balanceDueDate.toISOString().slice(0, 10) : null,
+        currency: booking.currency,
     };
 }
