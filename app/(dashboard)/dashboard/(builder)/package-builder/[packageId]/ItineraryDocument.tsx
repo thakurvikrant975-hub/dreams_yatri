@@ -25,6 +25,7 @@ import { uploadImageFile } from "@/app/lib/uploadImageFile";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { splitManualHotelName } from "@/app/services/hotel-name-utils";
+import { possessive } from "@/app/lib/possessive";
 import { CheckInIcon, CheckOutIcon } from "@/app/components/icons/cusomIcon";
 import { StarAndCrescentIcon, MapPinIcon, RoadHorizonIcon } from "@phosphor-icons/react";
 import { planRoomOccupancy } from "@/app/lib/room-capacity";
@@ -222,20 +223,6 @@ const DEFAULT_DOCUMENT_DISCLAIMER = "This is a custom itinerary, subject to avai
  * raw phone/email back to them on their own document. */
 function refCode(queryId: string): string {
   return queryId.slice(-8).toUpperCase();
-}
-
-/**
- * "Suraj Kumar" → "Suraj's". First name only: the cover's eyebrow reads as a
- * spoken phrase ("Suraj's … journey") and a full legal name there sounds like a
- * form field rather than a trip someone is about to take.
- *
- * A name already ending in s takes the bare apostrophe ("Chris'"), which is the
- * convention the client is most likely to see their own name written in.
- */
-function possessive(name: string): string {
-  const first = name.trim().split(/\s+/)[0] ?? "";
-  if (!first) return "";
-  return /s$/i.test(first) ? `${first}'` : `${first}'s`;
 }
 
 type RouteStep = { label: string; nights?: number; kind: "pickup" | "drop" | "stop" };
@@ -1183,7 +1170,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
 
 /** Indent that aligns a sub-section's content under its DaySubHead label —
  * the 11px icon plus the 8px gap it sits in. */
-const SUBHEAD_INDENT = "sm:pl-[19px]";
+const SUBHEAD_INDENT = "lg:pl-[19px]";
 
 function ActivityRow({
   activity, dayNumber, activityIndex, onImageChange, onCaptionChange,
@@ -2521,7 +2508,7 @@ function StayColumns({
       {/* Evenly split, so one category reads as a full-width stay and three
           share the page. Four would leave each photo too narrow to show
           anything, which is why the category list is capped at three. */}
-      <div className={cn("grid gap-2.5 grid-cols-1", shown.length === 1 ? "" : shown.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+      <div className={cn("grid gap-2.5 grid-cols-1", shown.length === 1 ? "" : shown.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3")}>
         {shown.map((c) => {
           const cell = c.byDay?.[day] ?? { hotel: null };
           const { manualHotelName: hotelName, manualRoomName: roomName } = splitManualHotelName(cell.hotel ?? "");
@@ -3100,7 +3087,7 @@ function DayCardPreview({
                   // for costing review must not offer the affordance at all,
                   // rather than offering one that silently does nothing.
                   />
-                  <div className={cn("flex flex-col sm:flex-row gap-5 sm:gap-10", SUBHEAD_INDENT)}>
+                  <div className={cn("flex flex-col lg:flex-row gap-5 lg:gap-10", SUBHEAD_INDENT)}>
                     <div className="flex-1 min-w-0 space-y-1.5">
                       {/* Stars sit with the NAME, not out on the section rule.
                     They rate this property — parked at the right-hand edge of
@@ -3231,12 +3218,12 @@ function DayCardPreview({
                     </div>
 
                     {hasPhotos && (
-                      <div className="w-50 shrink-0 space-y-1">
+                      <div className="lg:w-50 shrink-0 space-y-1 w-full">
                         {(day.accommodationPhoto || onImageChange) && (
-                          <div className="group/img relative">
+                          <div className="group/img relative w-full ">
                             {day.accommodationPhoto ? (
                               /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                              <img src={day.accommodationPhoto} alt="Hotel" className="w-full sm:w-50 aspect-video rounded-lg object-cover" />
+                              <img src={day.accommodationPhoto} alt="Hotel" className="w-full lg:w-50 aspect-video rounded-lg object-cover" />
                             ) : (
                               <div className="w-50 aspect-video rounded-lg border-2 border-dashed border-neutral-200 bg-neutral-50 flex items-center justify-center">
                                 <ImageIcon size={16} className="text-neutral-300" />
@@ -3548,7 +3535,7 @@ function HeroCover({
               <Pencil size={15} />
             </button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Change Cover Image</DialogTitle>
               <DialogDescription>
@@ -3591,7 +3578,7 @@ function HeroCover({
             trip-stats card below carries them — nested the other way round
             the two would land a few millimetres apart on a wide window, which
             is worse than not aligning them at all. */}
-        <div className="screen-space px-[3mm] sm:px-[10mm]">
+        <div className="screen-space px-[3mm] lg:px-[10mm]">
           {/* The client's own name, handwritten, sitting on top of the title —
             so the cover reads as one phrase, "Suraj's / Alleppey & Kochi
             Weekend Escape", and the document looks addressed to a person
@@ -3783,7 +3770,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 text-[12px] text-slate-500">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-2 pt-5 text-[12px] text-slate-500">
           <p>© {new Date().getFullYear()} Dreams Yatri. All rights reserved.</p>
           <p>{disclaimer}</p>
         </div>
@@ -4100,16 +4087,16 @@ export function ItineraryDocument({
             it gives the page a top edge to hang from, so the hero below reads
             as a plate set into the document rather than as the page itself. */}
           <header
-            className="px-[3mm] sm:px-[10mm] pt-5 pb-3.5 h-full"
+            className="px-[3mm] lg:px-[10mm] pt-5 pb-3.5 h-full"
             style={{ borderBottom: `1px solid ${DOC.rule}` }}
           >
             {/* The rule above spans the window; this row is what stops at the
                 measure. Same shape as the site's own header. */}
-            <div className="screen-space flex flex-col sm:flex-row items-start sm:items-end sm:justify-between h-full">
+            <div className="screen-space flex flex-col lg:flex-row items-start lg:items-end lg:justify-between h-full">
               {/* The logo shares its line with the contacts toggle on a phone.
                   Above sm the toggle is hidden, leaving this wrapper holding
                   the logo alone — the layout the masthead always had. */}
-              <div className="flex w-full items-center justify-between sm:w-auto sm:block">
+              <div className="flex w-full items-center justify-between lg:w-auto lg:block">
                 {/* Colour via className, not style: DyLogo forwards only className,
                   and its mask is painted with bg-current — a background-color,
                   which html2canvas-pro resolves from oklch just fine (it's the
@@ -4158,7 +4145,7 @@ export function ItineraryDocument({
           />
 
           {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-          <div className="screen-space relative z-10 px-[3mm] sm:px-[10mm]" style={{ marginTop: "-13mm" }}>
+          <div className="screen-space relative z-10 px-[3mm] lg:px-[10mm]" style={{ marginTop: "-13mm" }}>
             <div
               className="rounded-md grid grid-cols-3 overflow-hidden bg-white shadow-lg shadow-neutral-200/85"
 
@@ -4183,12 +4170,12 @@ export function ItineraryDocument({
             cut because a page-tall block has nowhere to move to — slicing
             straight through the card that was actually being split. Cards
             below declare their own, at a size a page can hold. */}
-          <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7 ">
+          <main className="screen-space px-[3mm] lg:px-[10mm] pt-7 pb-2 space-y-7 ">
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination
               || form.description.trim() || builder?.canEdit) && (
                 <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
                   {(form.clientName || form.execName) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x divide-neutral-200/85">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-x divide-neutral-200/85">
                       {/* Prepared For — the client this itinerary is going to */}
                       <div className="p-3.5">
                         <p className="text-[11px] font-bold text-primary-600/90 uppercase tracking-widest mb-1.5 flex items-center"> <span className="text-[20px] leading-[30px]">🤩</span> &nbsp; Prepared With Love For </p>
@@ -4331,7 +4318,7 @@ export function ItineraryDocument({
               the price. The number lands last, after the client has read
               everything it buys — rather than before the summary, where it was
               being quoted against a trip they hadn't finished reading. */}
-            <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
               <div className="rounded-lg border border-neutral-200 overflow-hidden shadow-lg shadow-neutral-200/80 bg-white">
                 {/* Same card chrome as the ticket/add-on cards above: a gradient
                   bar closed by a hairline, and a ringed icon tile. The tint is
@@ -4433,7 +4420,13 @@ export function ItineraryDocument({
                     </h2>
                   </div>
 
-                  <div className="flex flex-wrap items-end justify-between gap-2">
+                  {/* flex-wrap alone put the total block on its own line but
+                      left `text-right` on it, so on a phone the label, the
+                      struck figure and the payable one each sat ragged in the
+                      middle of the card, aligned to nothing. Stacked and
+                      left-aligned below lg; the side-by-side reading is only
+                      possible where both halves actually fit. */}
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-end justify-between gap-2">
                     <div className="space-y-1">
                       <p className="text-[15px] text-white font-medium">{paxLine}</p>
                       {perPersonStr && <p className="text-[13.5px] text-white/80">{perPersonStr}</p>}
@@ -4441,13 +4434,18 @@ export function ItineraryDocument({
                         <p className="text-[12px] text-white/70">Infant charges as applicable / on request</p>
                       )}
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <p className="text-[12px] text-white/85 mb-1">Total package price</p>
                       {/* The saving stated plainly above the payable figure. A
                           struck-through number alone reads as a correction; the
                           badge says it is a concession. */}
                       {form.discount && (
-                        <div className="flex items-center justify-end gap-2.5 mb-1.5 pr-1">
+                        // pr-2.5, not pr-1: SavingsBadge paints its right
+                        // serration 9px OUTSIDE its own box, so 4px of padding
+                        // left it hanging over the card's edge once the row is
+                        // right-aligned. justify-start below lg, where the
+                        // block is left-aligned with the rest.
+                        <div className="flex items-center justify-start sm:justify-end gap-2.5 mb-1.5 pr-2.5">
                           <span className="text-[15px] text-white/70 line-through">
                             {form.currency} {Math.round(form.discount.originalPrice).toLocaleString("en-IN")}
                           </span>
@@ -4471,9 +4469,24 @@ export function ItineraryDocument({
                       Absent entirely on a package quoted at one standard. */}
                   {(form.stayOptions?.length ?? 0) > 1 && (
                     <div className="mt-3 pt-3 grid gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.14)" }}>
+                      {/* Side by side is the whole point — three prices are
+                          being compared — but only where a column is wide
+                          enough to hold one. At 390px a third of this card is
+                          ~100px: "INR 1,56,280" broke across two lines and the
+                          Recommended pill overflowed its own cell into the
+                          neighbour's price. Stacked below sm, where each
+                          standard gets the full width and reads on one line.
+
+                          sm, not lg, on purpose: pdfExport captures with
+                          `windowWidth: root.offsetWidth` — the 210mm sheet,
+                          ~794px — and that is the width the CLONE's media
+                          queries are evaluated against. A `lg:` rule is off at
+                          794px, so it would have stacked these in the printed
+                          PDF too. Anything in this document that must survive
+                          the export has to key off sm or below. */}
                       <div className={cn(
-                        "grid gap-2",
-                        (form.stayOptions?.length ?? 0) === 2 ? "grid-cols-2" : "grid-cols-3",
+                        "grid gap-2 grid-cols-1",
+                        (form.stayOptions?.length ?? 0) === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3",
                       )}>
                         {(form.stayOptions ?? []).map((c) => (
                           <div
@@ -4484,10 +4497,15 @@ export function ItineraryDocument({
                               border: `1px solid ${c.isRecommended ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)"}`,
                             }}
                           >
-                            <p className="flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-widest text-white/80">
-                              {c.label}
+                            {/* flex-wrap and min-w-0: the label is free text
+                                the exec typed ("Beachfront Wing"), so even a
+                                full-width cell can run out of room beside the
+                                pill. Wrapping keeps both inside the cell
+                                instead of printing one across its neighbour. */}
+                            <p className="flex flex-wrap items-center gap-1 text-[10.5px] font-bold uppercase tracking-widest text-white/80">
+                              <span className="min-w-0 break-words">{c.label}</span>
                               {c.isRecommended && (
-                                <span className="rounded-full bg-white/85 px-1.5 py-px text-[9.5px] font-bold text-neutral-900">
+                                <span className="shrink-0 rounded-full bg-white/85 px-1.5 py-px text-[9.5px] font-bold text-neutral-900">
                                   Recommended
                                 </span>
                               )}

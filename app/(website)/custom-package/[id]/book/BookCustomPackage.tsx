@@ -23,6 +23,8 @@ import Link from "next/link";
 import { useModal } from "@/app/hooks/useModals";
 import Button from "@/app/components/ui/Button";
 import Card from "@/app/components/ui/Card";
+import { Calendar, ChevronRight, Moon, Users, Wallet } from "lucide-react";
+import { possessive } from "@/app/lib/possessive";
 import { Heading, Text } from "@/app/components/ui/Typography";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { createCustomPackageBookingDraft } from "@/app/actions/payment/booking.actions";
@@ -36,7 +38,14 @@ export type BookSummary = {
   coverImage: string | null;
   travelDate: string | null;
   nights: number;
+  days: number;
   travellers: number;
+  /** Who the trip is for, for the cover's handwritten line. */
+  clientName: string | null;
+  /** "1 Adult, 1 Child, 1 Infant" — the party as the itinerary's own stats
+   *  card states it, infants included. `travellers` is the paying count and
+   *  is not the same number. */
+  paxLine: string;
   currency: string;
   /** What is being bought — the chosen option's price, or the package's own. */
   total: number;
@@ -113,12 +122,16 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
   }
 
   return (
-    // Same page chrome the catalogue's review uses: grey ground, a dark bar
-    // naming the step, then a two-column grid with the decision pinned in a
-    // 360px rail. A client who books a live package one week and a custom
-    // quote the next should not have to learn a second layout for the same
-    // act — and the rail is what keeps the amount and the button in view
-    // while they read down the trip.
+    // Grey ground, a dark bar naming the step, then one 500px column: what
+    // is being bought, the itinerary it came from, and the decision — in the
+    // order they are read, at a width that is the same on a phone and on a
+    // desktop.
+    //
+    // This used to be a two-column grid with the decision pinned in a 360px
+    // rail. The rail earns its keep on a page you scroll — it keeps the
+    // amount and the button in view while you read — but there are three
+    // short cards here and nothing to scroll past, so on a wide screen it
+    // bought nothing and left most of the page empty.
     <div className="bg-neutral-100 min-h-screen pb-16">
       <div className="bg-surface-inverse text-white">
         <div className="screen-space flex flex-wrap items-center justify-between gap-3 py-3.5">
@@ -129,82 +142,138 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
         </div>
       </div>
 
-      <div className="screen-space pt-5">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+      {/* ── The cover, as the itinerary itself opens ──────────────────────────
+          The same lockup the client just came from: their name in script over
+          the title, the duration beside it, and the trip's three facts on a
+          card that overlaps the photo's bottom edge. It was a 500px card with
+          a thumbnail in it, which made the page they were leaving and the page
+          they were paying on look like two different products.
 
-          {/* ── What is being bought ─────────────────────────────────── */}
-          <div className="flex flex-col gap-4">
-            <div className="rounded-xl bg-white shadow-sm overflow-hidden">
-              <div className="flex gap-4 p-5">
-                {summary.coverImage && (
-                  /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
-                  <img
-                    src={summary.coverImage} alt=""
-                    className="h-24 w-36 shrink-0 rounded-lg object-cover bg-neutral-100"
-                  />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <Heading level={3} weight="semibold" className="truncate">{summary.title}</Heading>
-                    <span className="shrink-0 rounded-md border border-primary-200 px-2 py-0.5 text-[11px] font-semibold text-primary-600">
-                      Tailored
-                    </span>
-                  </div>
-                  {summary.destination && (
-                    <Text size="sm" intent="secondary" weight="medium" className="block">{summary.destination}</Text>
-                  )}
-                  <div className="mt-2 grid grid-cols-3 gap-3">
-                    <Detail label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
-                    <Detail label="Nights" value={String(summary.nights)} />
-                    <Detail label="Travellers" value={String(summary.travellers)} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Named only when the package quoted more than one, so a client
-                  who never had a choice is not shown one they did not make. */}
-              {summary.optionLabel && (
-                <div className="border-t border-(--border-muted) px-5 py-3">
-                  <Text size="xs" intent="secondary">
-                    Stay standard: <span className="font-medium text-neutral-700">{summary.optionLabel}</span>
-                  </Text>
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-xl bg-white shadow-sm px-5 py-4">
-              <Text size="sm" weight="semibold" intent="primary" className="block mb-1">Your itinerary</Text>
-              <Text size="xs" intent="secondary" className="block">
-                Everything your travel manager put together is on the quote you came from.
-              </Text>
-              <Link
-                href={`/custom-package/${summary.packageId}`}
-                className="mt-2 inline-block text-sm font-medium text-primary-500 hover:underline"
+          Full-bleed photo, but the words on it keep the column's measure, so
+          the lockup's left edge and the payment card's line up. */}
+      <div className="relative mt-4 h-56 w-full overflow-hidden bg-neutral-800 sm:h-72">
+        {summary.coverImage && (
+          /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
+          <img src={summary.coverImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        )}
+        {/* A scrim, not a flat tint: the words sit at the bottom and a photo
+            that is bright exactly there is the one that eats them. */}
+        <div className="absolute inset-0 bg-linear-to-t from-neutral-950/85 via-neutral-950/45 to-neutral-950/10" />
+        <div className="screen-space absolute inset-x-0 bottom-0 pb-8 sm:pb-10">
+          <div className="mx-auto w-full max-w-4xl">
+            {summary.clientName && (
+              // Overlapping the title's cap height by a few px is what makes
+              // the two a lockup rather than two stacked lines; leading-[1.3]
+              // is what keeps that overlap from becoming a collision, since
+              // the script's descenders run well past its em box.
+              <span
+                aria-hidden="true"
+                className="-mb-1 ml-0.5 block w-max -rotate-2 origin-bottom-left text-[26px] font-bold leading-[1.3] text-primary-400 sm:text-[30px]"
+                style={{ fontFamily: "var(--font-script)", textShadow: "0 1px 3px rgba(0,0,0,0.55)" }}
               >
-                Read the full itinerary again
-              </Link>
-            </div>
+                {possessive(summary.clientName)}
+              </span>
+            )}
+            <h1
+              className="font-heading text-[26px] font-bold leading-[1.08] text-white sm:text-[32px]"
+              style={{ letterSpacing: "-0.02em", textWrap: "balance", textShadow: "0 2px 6px rgba(0,0,0,0.6)" }}
+            >
+              {summary.title}
+            </h1>
+            {summary.days > 0 && (
+              <div className="mt-2.5 flex items-center gap-3">
+                <span className="inline-flex items-center gap-2.5 rounded-pill border border-primary-100 bg-primary-400/5 px-3 py-1 font-heading text-[13px] font-bold text-white ring-[0.12em] ring-inset ring-primary-400">
+                  {summary.days} Day{summary.days !== 1 ? "s" : ""}
+                  <span className="h-3.5 w-px bg-primary-300" />
+                  {summary.nights} Night{summary.nights !== 1 ? "s" : ""}
+                </span>
+                <span className="font-heading text-[17px] font-bold leading-none text-white">TRIP</span>
+              </div>
+            )}
           </div>
+        </div>
+      </div>
 
-          {/* ── The decision, kept in view ───────────────────────────── */}
-          <aside className="lg:sticky lg:top-20 flex flex-col gap-4">
-            <Card className="overflow-hidden">
-              <div className="px-5 py-4 border-b border-(--border-muted) flex items-center justify-between gap-3">
-                <Text size="sm" intent="secondary">Package total</Text>
-                <div className="flex items-baseline gap-2">
+      <div className="screen-space">
+        {/* Overlapping the cover, exactly as it does on the itinerary — it is
+            what stops the photo from ending in a hard line across the page. */}
+        {/* relative z-10, as the itinerary's own stats card carries: the hero
+            above is a positioned element, so without it the overlapping third
+            of this card paints underneath the photo and the three labels
+            simply vanish. */}
+        <div className="relative z-10 mx-auto -mt-7 w-full max-w-4xl">
+          <div className="grid grid-cols-3 overflow-hidden rounded-xl bg-white shadow-lg shadow-neutral-300/60 ring-1 ring-inset ring-(--border-default)">
+            <Stat icon={Calendar} label="Travel date" value={summary.travelDate ? formatDate(summary.travelDate) : "—"} />
+            <Stat icon={Moon} label="Duration" value={`${summary.days}D / ${summary.nights}N`} />
+            <Stat icon={Users} label="Travellers" value={summary.paxLine} />
+          </div>
+          {/* Named only when the package quoted more than one, so a client who
+              never had a choice is not shown one they did not make. */}
+          {summary.optionLabel && (
+            <Text size="xs" intent="secondary" className="mt-2.5 block">
+              Stay standard: <span className="font-medium text-neutral-700">{summary.optionLabel}</span>
+            </Text>
+          )}
+        </div>
+      </div>
+
+      {/* The way back to the thing being bought. This was a card of its own —
+          a heading, a sentence and a link, for one destination — which is more
+          furniture than a back-link deserves.
+
+          Under the cover rather than over it: the cover IS the page's opening,
+          and a crumb trail above it would push the one image on the page below
+          the fold to say something the reader does not need until they have
+          finished looking. */}
+      <nav aria-label="Breadcrumb" className="screen-space pt-4">
+        <ol className="mx-auto flex w-full max-w-4xl items-center gap-1.5 text-xs">
+          <li>
+            <Link href={`/custom-package/${summary.packageId}`} className="font-medium text-neutral-500 transition-colors hover:text-primary-600">
+              Your itinerary
+            </Link>
+          </li>
+          <li aria-hidden="true" className="text-neutral-300"><ChevronRight size={13} /></li>
+          <li aria-current="page" className="font-semibold text-neutral-800">Review booking</li>
+        </ol>
+      </nav>
+
+      <div className="screen-space pt-5">
+        {/* max-w-4xl — 56rem, the same measure --doc-content-width gives the
+            itinerary this page came from (see published-theme.ts) and the
+            same one that page's own booking bar stops at. A different width
+            here made the two read as two products.
+
+            min-w-0 so the column can be narrower than its contents want to
+            be. Without it a flex column sizes to its items' max-content and
+            body's `overflow-x: clip` cuts the excess instead of scrolling it
+            — which is how the amount and the confirm button ended up off the
+            right edge of a 390px screen with no way to reach them. */}
+        <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4">
+
+          {/* ── The decision ─────────────────────────────────────────── */}
+          <SectionCard icon={Wallet} title="Payment">
+              {/* The label on its own line, then every figure on the next.
+                  Side by side, the was-price, the payable one and the badge
+                  had to share a rail with the words "Package total", which is
+                  why the badge had been pushed out into a bordered strip of
+                  its own with nothing else in it. Together they read as one
+                  statement: this is the price, this is what came off it. */}
+              <div className="px-5 py-4 border-b border-(--border-muted)">
+                <Text size="sm" intent="secondary" className="block">Package total</Text>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
                   {summary.discount && (
                     <span className="text-sm text-neutral-400 line-through tabular-nums">
                       {money(summary.currency, summary.discount.originalPrice)}
                     </span>
                   )}
-                  <Text size="base" weight="bold" intent="primary">{money(summary.currency, summary.total)}</Text>
+                  <Text size="xl" weight="bold" intent="primary" className="font-heading tracking-tight">
+                    {money(summary.currency, summary.total)}
+                  </Text>
+                  {summary.discount && (
+                    <SavingsBadge amount={summary.discount.label} prefix="" className="shrink-0 mx-1.5" />
+                  )}
                 </div>
               </div>
-              {summary.discount && (
-                <div className="px-5 py-2 border-b border-(--border-muted) flex justify-end">
-                  <SavingsBadge amount={summary.discount.label} prefix="" className="shrink-0 mx-1.5" />
-                </div>
-              )}
 
               {summary.mustPayFull ? (
                 <div className="px-5 py-4 border-b border-(--border-muted)">
@@ -231,7 +300,10 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
               )}
 
               <div className="px-5 py-4">
-                <Text size="sm" weight="semibold" intent="primary" className="block mb-2">Confirm &amp; Book</Text>
+                {/* An eyebrow, not a second heading: the card is already
+                    titled "Payment", and two same-weight headings inside one
+                    card read as two cards that failed to separate. */}
+                <Text size="xs" weight="semibold" intent="muted" className="mb-2 block uppercase tracking-wide">Confirm &amp; book</Text>
                 <label className="flex items-start gap-2.5 cursor-pointer select-none">
                   <input
                     type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)}
@@ -253,23 +325,67 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
                 </Button>
 
                 {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
-              </div>
-            </Card>
-          </aside>
+            </div>
+          </SectionCard>
         </div>
       </div>
     </div>
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+/** One cell of the trip-stats card — the same three facts, drawn the same
+ *  way, as the StatCell on the itinerary this page came from. */
+function Stat({ icon: Icon, label, value }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="min-w-0">
-      <Text size="xs" intent="muted" className="block">{label}</Text>
-      <Text size="sm" weight="semibold" intent="primary" className="block truncate">{value}</Text>
+    <div className="flex min-w-0 flex-col justify-center px-3 py-3 sm:px-4 sm:py-3.5">
+      <p className="mb-1 flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-neutral-500/90 sm:text-[13px]">
+        <Icon size={14} className="shrink-0 text-neutral-400/90" /> {label}
+      </p>
+      {/* truncate, not wrap: three cells share 500px and "1 Adult, 1 Child,
+          1 Infant" is the one that overruns. The full party is restated in
+          the payment card's own copy. */}
+      <p className="truncate font-heading text-[13px] font-bold leading-tight text-neutral-900 sm:text-[15px]">
+        {value}
+      </p>
     </div>
   );
 }
+
+/** The page's one card.
+ *
+ * Three cards were being drawn three ways — two hand-rolled
+ * `rounded-xl bg-white shadow-sm` divs and one <Card>, whose elevated
+ * variant carries a heavier shadow and an inset ring. Side by side in a
+ * single column that reads as a mistake rather than a hierarchy.
+ *
+ * The header is the catalogue review's own Section idiom (an icon tile and a
+ * title over a hairline, then a padded body), because this page is
+ * deliberately a mirror of that one — see the note at the top of this file.
+ * An icon rather than that page's step number: these are three things to
+ * read, not three steps to complete, and only the last one asks for
+ * anything. */
+function SectionCard({ icon: Icon, title, children }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center gap-2.5 border-b border-(--border-muted) px-5 py-3.5">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 ring-1 ring-inset ring-primary-100">
+          <Icon size={15} />
+        </span>
+        <Heading level={4} weight="semibold">{title}</Heading>
+      </div>
+      {children}
+    </Card>
+  );
+}
+
 
 /** Same control the catalogue's review uses, so the choice looks identical
  *  whichever way a client arrived at it. */

@@ -27,6 +27,20 @@ const UNDO = process.argv.includes("--undo");
 
 const DISCOUNT = { type: "PERCENT" as const, value: 10 };
 
+/** A travel date, because without one the package cannot be booked at all.
+ *
+ *  Not cosmetic: computePaymentSchedule needs a date to split a deposit from a
+ *  balance, so both the review step (page.tsx notFound()s) and the service
+ *  (createBookingFromCustomPackage, "doesn't have a travel date set yet")
+ *  refuse a dateless package outright. A fixture meant for looking at the
+ *  booking pages has to carry one.
+ *
+ *  Far enough out to land on the DEPOSIT path rather than FULL — the balance
+ *  window is 15 days before travel — so the review step actually offers the
+ *  deposit/full choice and the booking bar grows its "Book with X — balance Y
+ *  by Z" line. Near travel all of that collapses to one figure. */
+const TRAVEL_DATE = "2026-12-15";
+
 /** The two standards added on top of whatever the package already quotes.
  *  Real Bikaner properties and real rooms — the roomPricingIds are live
  *  hotel_room_pricing rows, which is what lets the columns price themselves. */
@@ -125,6 +139,7 @@ async function main() {
     await db.custom_packages.update({
       where: { id: PACKAGE_ID },
       data: {
+        travelDate: null,
         discountType: null, discountValue: null,
         totalPrice: listPrice, pricePerPerson: listPrice,
         pricingSnapshot: { ...snap, discountType: null, discountValue: null, discountAmount: 0,
@@ -175,6 +190,7 @@ async function main() {
   await db.custom_packages.update({
     where: { id: PACKAGE_ID },
     data: {
+      travelDate: new Date(`${TRAVEL_DATE}T00:00:00.000Z`),
       discountType: DISCOUNT.type,
       discountValue: DISCOUNT.value,
       totalPrice: discount.finalPrice,
@@ -195,6 +211,7 @@ async function main() {
   });
   console.log(`[discount] ${DISCOUNT.value}% — ${pkg.currency} ${listPrice.toLocaleString("en-IN")}` +
     ` → ${discount.finalPrice.toLocaleString("en-IN")} (${discount.amount.toLocaleString("en-IN")} off)`);
+  console.log(`[travel]   ${TRAVEL_DATE} — the booking pages need a date to schedule against`);
   console.log(`[done] /custom-package/${PACKAGE_ID}`);
 }
 

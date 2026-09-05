@@ -61,7 +61,18 @@ export default async function BookCustomPackagePage({
     coverImage: data.coverImage || null,
     travelDate: data.travelDate || null,
     nights: data.totalNights,
+    days: data.totalDays,
     travellers: data.adults + data.children,
+    // The cover's lockup is addressed to a person — see the hero on the
+    // itinerary this page came from.
+    clientName: data.clientName || null,
+    // As entered, not as classified: this is the client's own description of
+    // who is travelling, and it is what the itinerary's own stats card shows.
+    paxLine: [
+      `${data.adults} Adult${data.adults !== 1 ? "s" : ""}`,
+      data.children > 0 ? `${data.children} Child${data.children !== 1 ? "ren" : ""}` : null,
+      data.infants > 0 ? `${data.infants} Infant${data.infants !== 1 ? "s" : ""}` : null,
+    ].filter(Boolean).join(", "),
     currency: data.currency,
     total,
     optionId: chosen?.id ?? null,
