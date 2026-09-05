@@ -1170,7 +1170,7 @@ function DaySubHead({ icon: Icon, label, meta, onEdit }: {
 
 /** Indent that aligns a sub-section's content under its DaySubHead label —
  * the 11px icon plus the 8px gap it sits in. */
-const SUBHEAD_INDENT = "sm:pl-[19px]";
+const SUBHEAD_INDENT = "lg:pl-[19px]";
 
 function ActivityRow({
   activity, dayNumber, activityIndex, onImageChange, onCaptionChange,
@@ -2508,7 +2508,7 @@ function StayColumns({
       {/* Evenly split, so one category reads as a full-width stay and three
           share the page. Four would leave each photo too narrow to show
           anything, which is why the category list is capped at three. */}
-      <div className={cn("grid gap-2.5 grid-cols-1", shown.length === 1 ? "" : shown.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+      <div className={cn("grid gap-2.5 grid-cols-1", shown.length === 1 ? "" : shown.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3")}>
         {shown.map((c) => {
           const cell = c.byDay?.[day] ?? { hotel: null };
           const { manualHotelName: hotelName, manualRoomName: roomName } = splitManualHotelName(cell.hotel ?? "");
@@ -3087,7 +3087,7 @@ function DayCardPreview({
                   // for costing review must not offer the affordance at all,
                   // rather than offering one that silently does nothing.
                   />
-                  <div className={cn("flex flex-col sm:flex-row gap-5 sm:gap-10", SUBHEAD_INDENT)}>
+                  <div className={cn("flex flex-col lg:flex-row gap-5 lg:gap-10", SUBHEAD_INDENT)}>
                     <div className="flex-1 min-w-0 space-y-1.5">
                       {/* Stars sit with the NAME, not out on the section rule.
                     They rate this property — parked at the right-hand edge of
@@ -3218,12 +3218,12 @@ function DayCardPreview({
                     </div>
 
                     {hasPhotos && (
-                      <div className="w-50 shrink-0 space-y-1">
+                      <div className="lg:w-50 shrink-0 space-y-1 w-full">
                         {(day.accommodationPhoto || onImageChange) && (
-                          <div className="group/img relative">
+                          <div className="group/img relative w-full ">
                             {day.accommodationPhoto ? (
                               /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                              <img src={day.accommodationPhoto} alt="Hotel" className="w-full sm:w-50 aspect-video rounded-lg object-cover" />
+                              <img src={day.accommodationPhoto} alt="Hotel" className="w-full lg:w-50 aspect-video rounded-lg object-cover" />
                             ) : (
                               <div className="w-50 aspect-video rounded-lg border-2 border-dashed border-neutral-200 bg-neutral-50 flex items-center justify-center">
                                 <ImageIcon size={16} className="text-neutral-300" />
@@ -3535,7 +3535,7 @@ function HeroCover({
               <Pencil size={15} />
             </button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Change Cover Image</DialogTitle>
               <DialogDescription>
@@ -3578,7 +3578,7 @@ function HeroCover({
             trip-stats card below carries them — nested the other way round
             the two would land a few millimetres apart on a wide window, which
             is worse than not aligning them at all. */}
-        <div className="screen-space px-[3mm] sm:px-[10mm]">
+        <div className="screen-space px-[3mm] lg:px-[10mm]">
           {/* The client's own name, handwritten, sitting on top of the title —
             so the cover reads as one phrase, "Suraj's / Alleppey & Kochi
             Weekend Escape", and the document looks addressed to a person
@@ -3770,7 +3770,7 @@ function DocumentFooter({ form }: { form: PreviewData }) {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-5 text-[12px] text-slate-500">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-2 pt-5 text-[12px] text-slate-500">
           <p>© {new Date().getFullYear()} Dreams Yatri. All rights reserved.</p>
           <p>{disclaimer}</p>
         </div>
@@ -4087,16 +4087,16 @@ export function ItineraryDocument({
             it gives the page a top edge to hang from, so the hero below reads
             as a plate set into the document rather than as the page itself. */}
           <header
-            className="px-[3mm] sm:px-[10mm] pt-5 pb-3.5 h-full"
+            className="px-[3mm] lg:px-[10mm] pt-5 pb-3.5 h-full"
             style={{ borderBottom: `1px solid ${DOC.rule}` }}
           >
             {/* The rule above spans the window; this row is what stops at the
                 measure. Same shape as the site's own header. */}
-            <div className="screen-space flex flex-col sm:flex-row items-start sm:items-end sm:justify-between h-full">
+            <div className="screen-space flex flex-col lg:flex-row items-start lg:items-end lg:justify-between h-full">
               {/* The logo shares its line with the contacts toggle on a phone.
                   Above sm the toggle is hidden, leaving this wrapper holding
                   the logo alone — the layout the masthead always had. */}
-              <div className="flex w-full items-center justify-between sm:w-auto sm:block">
+              <div className="flex w-full items-center justify-between lg:w-auto lg:block">
                 {/* Colour via className, not style: DyLogo forwards only className,
                   and its mask is painted with bg-current — a background-color,
                   which html2canvas-pro resolves from oklch just fine (it's the
@@ -4145,7 +4145,7 @@ export function ItineraryDocument({
           />
 
           {/* ── Floating trip-stats card, overlapping the hero's wave edge ───── */}
-          <div className="screen-space relative z-10 px-[3mm] sm:px-[10mm]" style={{ marginTop: "-13mm" }}>
+          <div className="screen-space relative z-10 px-[3mm] lg:px-[10mm]" style={{ marginTop: "-13mm" }}>
             <div
               className="rounded-md grid grid-cols-3 overflow-hidden bg-white shadow-lg shadow-neutral-200/85"
 
@@ -4170,12 +4170,12 @@ export function ItineraryDocument({
             cut because a page-tall block has nowhere to move to — slicing
             straight through the card that was actually being split. Cards
             below declare their own, at a size a page can hold. */}
-          <main className="screen-space px-[3mm] sm:px-[10mm] pt-7 pb-2 space-y-7 ">
+          <main className="screen-space px-[3mm] lg:px-[10mm] pt-7 pb-2 space-y-7 ">
             {(form.clientName || form.execName || routeSteps.length > 0 || form.destination
               || form.description.trim() || builder?.canEdit) && (
                 <div className="rounded-lg ring-1 ring-inset ring-neutral-200 bg-white overflow-hidden shadow-lg shadow-neutral-200/80" style={{ breakInside: "avoid" }}>
                   {(form.clientName || form.execName) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x divide-neutral-200/85">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-x divide-neutral-200/85">
                       {/* Prepared For — the client this itinerary is going to */}
                       <div className="p-3.5">
                         <p className="text-[11px] font-bold text-primary-600/90 uppercase tracking-widest mb-1.5 flex items-center"> <span className="text-[20px] leading-[30px]">🤩</span> &nbsp; Prepared With Love For </p>
@@ -4318,7 +4318,7 @@ export function ItineraryDocument({
               the price. The number lands last, after the client has read
               everything it buys — rather than before the summary, where it was
               being quoted against a trip they hadn't finished reading. */}
-            <div className="grid grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ breakInside: "avoid" }}>
               <div className="rounded-lg border border-neutral-200 overflow-hidden shadow-lg shadow-neutral-200/80 bg-white">
                 {/* Same card chrome as the ticket/add-on cards above: a gradient
                   bar closed by a hairline, and a ringed icon tile. The tint is
