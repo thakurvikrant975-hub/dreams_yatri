@@ -313,6 +313,15 @@ export function LeadRequestsTable({
                     <div className="mt-0.5 flex items-center gap-1 text-[11px] text-dashboard-neutral">
                         <MapPin className="size-3 shrink-0" /> {r.destination}
                     </div>
+                    {r.duplicate && (
+                        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+                            <AlertTriangle className="size-3 shrink-0" />
+                            Duplicate of <span className="font-medium">{r.duplicate.name}</span> —{" "}
+                            {r.duplicate.assignedToName
+                                ? <>assigned to <span className="font-medium">{r.duplicate.assignedToName}</span></>
+                                : "not yet assigned"}
+                        </div>
+                    )}
                 </div>
             ),
         },

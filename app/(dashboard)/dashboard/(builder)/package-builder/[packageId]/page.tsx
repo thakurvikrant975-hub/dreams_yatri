@@ -2633,7 +2633,7 @@ Rules:
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside ref={previewPaneRef} className="print-reset block flex-1 min-w-0 overflow-auto h-full bg-dashboard-base-200">
-          <div className="print-reset px-3 py-4 pb-20 lg:px-6 lg:py-8" style={{ zoom: previewZoom }}>
+          <div className="print-reset px-3 pb-20 lg:px-6" style={{ zoom: previewZoom }}>
             <BuilderErrorBoundary label="The preview">
             <ItineraryDocument
               form={previewForm}

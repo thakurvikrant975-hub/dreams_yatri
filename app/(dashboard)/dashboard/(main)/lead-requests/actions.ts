@@ -171,7 +171,12 @@ export async function getLeadRequestsQueue(params: {
     db.leadRequest.count({ where: { status: "REJECTED" } }),
   ]);
 
-  const duplicates = await Promise.all(rows.map((r) => checkExistingQueryByPhone(r.phone)));
+  // Exclude resultingQueryId so an accepted request doesn't match the very
+  // query it just became — without this every ACCEPTED row would show a
+  // "duplicate" that's just itself.
+  const duplicates = await Promise.all(
+    rows.map((r) => checkExistingQueryByPhone(r.phone, r.resultingQueryId ?? undefined)),
+  );
   const requests = rows.map((r, i) => ({ ...r, duplicate: duplicates[i] }));
 
   return { rows: requests, totalCount, stats: { total, pending, accepted, rejected } };

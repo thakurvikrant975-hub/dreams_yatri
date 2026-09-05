@@ -1268,7 +1268,7 @@ export type ExistingQueryMatch = {
     createdAt:      Date;
 };
 
-export async function checkExistingQueryByPhone(phone: string): Promise<ExistingQueryMatch | null> {
+export async function checkExistingQueryByPhone(phone: string, excludeQueryId?: string): Promise<ExistingQueryMatch | null> {
     const normalized = phone.replace(/[\s\-().+]/g, "");
     if (normalized.length < 6) return null;
 
@@ -1280,16 +1280,21 @@ export async function checkExistingQueryByPhone(phone: string): Promise<Existing
      * one spelling, so a lead saved as "+91 98765 43210" was invisible to a
      * check on "9876543210" — and a duplicate hint that misses reads as
      * "this one is new", which is the answer that causes the damage.
+     *
+     * excludeQueryId lets a caller rule out a query that IS this same
+     * record (e.g. the one a lead request turned into on acceptance) so the
+     * "duplicate" it reports back is always a genuinely different lead, not
+     * the row comparing itself against what it just created.
      */
     const rows = await db.$queryRawUnsafe<{
         name: string; status: QueryStatus; assignedToName: string | null; createdAt: Date;
     }[]>(
         `SELECT name, status, "assignedToName", "createdAt"
            FROM package_queries
-          WHERE ${PHONE_KEY_SQL} = $1 AND "deletedAt" IS NULL
+          WHERE ${PHONE_KEY_SQL} = $1 AND "deletedAt" IS NULL ${excludeQueryId ? `AND id != $2` : ""}
           ORDER BY "createdAt" DESC
           LIMIT 1;`,
-        phoneKey(normalized),
+        ...(excludeQueryId ? [phoneKey(normalized), excludeQueryId] : [phoneKey(normalized)]),
     );
 
     const latest = rows[0];
