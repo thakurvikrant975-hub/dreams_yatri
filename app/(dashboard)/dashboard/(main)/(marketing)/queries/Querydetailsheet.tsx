@@ -119,7 +119,7 @@ function ClientMessageCard({
             <div className="mb-1.5 flex items-center justify-between gap-2">
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-400">
                     <MessageSquare className="h-3.5 w-3.5" />
-                    Client&apos;s Message
+                    VOC
                 </p>
                 {!editing && (
                     <button

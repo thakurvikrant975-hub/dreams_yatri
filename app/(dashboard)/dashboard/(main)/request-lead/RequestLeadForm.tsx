@@ -371,8 +371,8 @@ function NewRequestDialog({
                         </Field>
 
                         {/* Two distinct, optional fields sharing one control: "Notes"
-                            is context for the lead manager, "Message" is the
-                            client's own words (VOC) — kept as tabs rather than two
+                            is context for the lead manager, "VOC" is the
+                            client's own words — kept as tabs rather than two
                             stacked textareas so the dialog doesn't grow taller, and
                             because they're rarely both filled in at once. Both stay
                             mounted (forceMount) so switching tabs never drops
@@ -385,7 +385,7 @@ function NewRequestDialog({
                                         {notes.trim() && <span className="h-1 w-1 rounded-full bg-dashboard-primary" />}
                                     </TabsTrigger>
                                     <TabsTrigger value="message" className="gap-1.5">
-                                        <MessageSquare className="h-3.5 w-3.5" /> Message
+                                        <MessageSquare className="h-3.5 w-3.5" /> VOC
                                         {message.trim() && <span className="h-1 w-1 rounded-full bg-dashboard-primary" />}
                                     </TabsTrigger>
                                 </TabsList>
@@ -494,7 +494,7 @@ export function RequestLeadForm({
             ),
         },
         {
-            header: "Message",
+            header: "VOC",
             width: "w-[16%]",
             cell: (r) => r.message ? (
                 <p className="line-clamp-2 max-w-xs text-xs italic text-dashboard-base-content/65" title={r.message}>
