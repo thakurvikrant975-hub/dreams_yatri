@@ -58,10 +58,24 @@ const EXEC_EMAIL = process.env.TEST_EXEC_EMAIL ?? "chirag@dreamsyatri.com";
  *  floor before raising it. */
 const TEST_PRICE = Number(process.env.TEST_PRICE ?? 1);
 
-/** Loud enough that nobody mistakes it for a real quote, and stable enough to
- *  be the idempotency key — re-running never creates a second package. */
-const PACKAGE_TITLE = "[TEST — DO NOT BOOK] ₹1 Payment Gateway Test";
-const LEAD_NAME = "[TEST — DO NOT CONTACT] Payment Gateway Test Lead";
+/** How many independent test links to stand up. One is not enough to test
+ *  with: Booking.sourceQueryId is @unique, so a query can carry at most ONE
+ *  booking ever, and createBookingFromCustomPackage refuses a second package
+ *  on a query that already has one ("You already have a booking for this
+ *  trip, made from a different quote"). So each link needs its own lead —
+ *  five packages hung off one lead would give exactly one usable test. */
+const COUNT = Math.max(1, Number(
+  process.argv.find((a) => a.startsWith("--count="))?.split("=")[1] ?? process.env.TEST_COUNT ?? 1,
+));
+
+/** Loud enough that nobody mistakes these for real quotes, and stable enough
+ *  to be the idempotency key — re-running updates #1..#N in place rather than
+ *  leaving a second set behind. */
+const PACKAGE_TITLE = (n: number) => `[TEST — DO NOT BOOK] ₹1 Payment Gateway Test #${n}`;
+const LEAD_NAME = (n: number) => `[TEST — DO NOT CONTACT] Payment Gateway Test Lead #${n}`;
+/** Matches every numbered fixture, for the teardown and the existence checks. */
+const PACKAGE_PREFIX = "[TEST — DO NOT BOOK] ₹1 Payment Gateway Test";
+const LEAD_PREFIX = "[TEST — DO NOT CONTACT] Payment Gateway Test Lead";
 
 function step(msg: string) {
   console.log(`${COMMIT ? "  ✓" : "  ·"} ${msg}`);
@@ -86,12 +100,13 @@ async function findExec() {
 }
 
 async function teardown() {
-  const lead = await db.package_queries.findFirst({ where: { name: LEAD_NAME }, select: { id: true } });
-  const pkgs = await db.custom_packages.findMany({
-    where: { title: PACKAGE_TITLE },
-    select: { id: true },
+  const leads = await db.package_queries.findMany({
+    where: { name: { startsWith: LEAD_PREFIX } }, select: { id: true },
   });
-  console.log(`\n  test packages: ${pkgs.length}   test lead: ${lead ? lead.id : "none"}`);
+  const pkgs = await db.custom_packages.findMany({
+    where: { title: { startsWith: PACKAGE_PREFIX } }, select: { id: true },
+  });
+  console.log(`\n  test packages: ${pkgs.length}   test leads: ${leads.length}`);
 
   // A booking made against the link holds it by packageUrl, and Booking has no
   // cascade from custom_packages — so a paid test would be orphaned rather
@@ -110,13 +125,13 @@ async function teardown() {
   if (!COMMIT) { console.log("\n  Re-run with --commit to apply.\n"); return; }
 
   for (const p of pkgs) await db.custom_packages.delete({ where: { id: p.id } });
-  if (lead) {
+  for (const lead of leads) {
     await db.queryTimeline.deleteMany({ where: { queryId: lead.id } });
     await db.queryNote.deleteMany({ where: { queryId: lead.id } });
     // Only if nothing else was built from it in the meantime.
     const others = await db.custom_packages.count({ where: { queryId: lead.id } });
     if (others === 0) await db.package_queries.delete({ where: { id: lead.id } });
-    else console.log(`  · lead kept — ${others} other package(s) still reference it`);
+    else console.log(`  · lead ${lead.id} kept — ${others} other package(s) reference it`);
   }
   console.log("\n  Removed.\n");
 }
@@ -146,13 +161,17 @@ async function main() {
     select: { thumbnail: true },
   });
 
-  const existingLead = await db.package_queries.findFirst({ where: { name: LEAD_NAME }, select: { id: true } });
-  const existingPkg = await db.custom_packages.findFirst({ where: { title: PACKAGE_TITLE }, select: { id: true } });
   const date = travelDate();
 
   if (!COMMIT) {
-    console.log(`\n  Would ${existingLead ? "reuse" : "create"} lead        ${LEAD_NAME}`);
-    console.log(`  Would ${existingPkg ? "update" : "create"} package     ${PACKAGE_TITLE}`);
+    console.log(`\n  ${COUNT} independent link(s) — one lead each, because a query`);
+    console.log("  can only ever carry one booking:\n");
+    for (let n = 1; n <= COUNT; n++) {
+      const l = await db.package_queries.findFirst({ where: { name: LEAD_NAME(n) }, select: { id: true } });
+      const k = await db.custom_packages.findFirst({ where: { title: PACKAGE_TITLE(n) }, select: { id: true } });
+      console.log(`    #${n}  lead ${l ? "reuse " : "create"}   package ${k ? `update ${k.id}` : "create"}`);
+    }
+    console.log();
     step(`assignedTo       ${member.name} (${member.id}) → booking.salesAgentId`);
     step(`totalPrice       ₹${TEST_PRICE}, margin 0%, GST 0%`);
     step(`travelDate       ${date.toISOString().slice(0, 10)} (90 days out)`);
@@ -163,6 +182,11 @@ async function main() {
     console.log("\n  Re-run with --commit to apply.\n");
     return;
   }
+
+  const links: { n: number; id: string }[] = [];
+  for (let n = 1; n <= COUNT; n++) {
+  const existingLead = await db.package_queries.findFirst({ where: { name: LEAD_NAME(n) }, select: { id: true } });
+  const existingPkg = await db.custom_packages.findFirst({ where: { title: PACKAGE_TITLE(n) }, select: { id: true } });
 
   // ── The lead ──────────────────────────────────────────────────────────────
   // Its assignedTo is the whole point: createBookingFromCustomPackage copies it
@@ -175,7 +199,7 @@ async function main() {
     })
     : await db.package_queries.create({
       data: {
-        name: LEAD_NAME,
+        name: LEAD_NAME(n),
         phone: "7807727100",
         countryCode: "IN",
         email: "hello@dreamyatri.com",
@@ -227,7 +251,7 @@ async function main() {
 
   const data = {
     queryId: lead.id,
-    title: PACKAGE_TITLE,
+    title: PACKAGE_TITLE(n),
     description: "Internal payment-gateway test package. Do not book.",
     coverImage: donor?.thumbnail ?? null,
     destination: "Goa",
@@ -291,10 +315,19 @@ async function main() {
   await db.package_queries.update({ where: { id: lead.id }, data: { status: "PACKAGE_SENT" } });
   step("package_queries  status=PACKAGE_SENT");
 
+  links.push({ n, id: pkg.id });
+  }
+
+  // NEXT_PUBLIC_BASE_URL is what the receipt email builds its invoice link
+  // from too, so a wrong value here is a wrong value in the client's inbox.
   const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-  console.log(`\n  Share link:  ${base}/custom-package/${pkg.id}`);
-  console.log(`  Review step: ${base}/custom-package/${pkg.id}/book`);
-  console.log(`  Credit goes to: ${member.name} (booking.salesAgentId)\n`);
+  if (!/^https:\/\//.test(base)) {
+    console.log(`\n  ⚠ NEXT_PUBLIC_BASE_URL is "${base}" — the links below use it, and so`);
+    console.log("    does the invoice link in every receipt email this sends.");
+  }
+  console.log(`\n  ${links.length} link(s), credited to ${member.name} (booking.salesAgentId):\n`);
+  for (const l of links) console.log(`    #${l.n}  ${base}/custom-package/${l.id}`);
+  console.log();
   console.log("  Watch the server log for [confirmed] lines — every effect after");
   console.log("  capture is best-effort and failures are logged, not surfaced.\n");
 }
