@@ -50,6 +50,11 @@ import { db, dbTarget } from "./_db";
 
 const COMMIT = process.argv.includes("--commit");
 const TEARDOWN = process.argv.includes("--teardown");
+/** Also remove the bookings made against these links, and the payments under
+ *  them. Off by default and named explicitly, because Payment deliberately
+ *  does NOT cascade from Booking in the schema — a booking delete cannot
+ *  quietly take financial records with it, and neither should this. */
+const WITH_BOOKINGS = process.argv.includes("--with-bookings");
 
 /** Which exec should receive the "your trip just landed" notification. */
 const EXEC_EMAIL = process.env.TEST_EXEC_EMAIL ?? "chirag@dreamsyatri.com";
@@ -117,12 +122,41 @@ async function teardown() {
       select: { id: true, bookingNumber: true, status: true },
     })
     : [];
+  const bookingIds = bookings.map((b) => b.id);
+  const payments = bookingIds.length
+    ? await db.payment.findMany({
+      where: { bookingId: { in: bookingIds } },
+      select: { id: true, amount_paise: true, status: true, gatewayPaymentId: true },
+    })
+    : [];
+
   if (bookings.length) {
-    console.log(`\n  ⚠ ${bookings.length} booking(s) were made against this link and are NOT removed:`);
+    console.log(`\n  ${bookings.length} booking(s) made against these links:`);
     for (const b of bookings) console.log(`      ${b.bookingNumber}  ${b.status}  (${b.id})`);
-    console.log("    Delete those by hand first if you want a clean slate.");
+    const paise = payments.reduce((t, x) => t + x.amount_paise, 0);
+    console.log(`\n  ${payments.length} payment(s) under them, ₹${(paise / 100).toLocaleString("en-IN")} total:`);
+    for (const x of payments) console.log(`      ${x.status}  ₹${(x.amount_paise / 100).toLocaleString("en-IN")}  ${x.gatewayPaymentId ?? "—"}`);
+    if (!WITH_BOOKINGS) {
+      console.log("\n  NOT removed — pass --with-bookings to include them.");
+      console.log("  Without it the package delete below will fail: Booking.packageUrl is");
+      console.log("  only a string, but these bookings would be left pointing at nothing.");
+    } else {
+      console.log("\n  WILL be removed. Note this deletes the local records only —");
+      console.log("  the gateway still holds those captures. Refund at Razorpay separately");
+      console.log("  if the money matters; for ₹1 test rows it usually does not.");
+    }
   }
   if (!COMMIT) { console.log("\n  Re-run with --commit to apply.\n"); return; }
+
+  if (WITH_BOOKINGS && bookingIds.length) {
+    // Payment and TripDocument are the two relations that do NOT cascade from
+    // Booking — see the schema. They have to go first and by name, which is
+    // the point: nothing here removes a financial record by accident.
+    const delPayments = await db.payment.deleteMany({ where: { bookingId: { in: bookingIds } } });
+    const delDocs = await db.tripDocument.deleteMany({ where: { bookingId: { in: bookingIds } } });
+    const delBookings = await db.booking.deleteMany({ where: { id: { in: bookingIds } } });
+    console.log(`  ✓ payments ${delPayments.count}   trip documents ${delDocs.count}   bookings ${delBookings.count}`);
+  }
 
   for (const p of pkgs) await db.custom_packages.delete({ where: { id: p.id } });
   for (const lead of leads) {
