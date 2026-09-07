@@ -204,7 +204,10 @@ function DayCard({
           <ChevronRight className="h-3 w-3 text-muted-foreground/40 group-hover:opacity-0 transition-opacity" />
         </div>
 
-        <p className="text-xs font-medium line-clamp-2 mb-2">{day.title}</p>
+        <p className="text-xs font-medium line-clamp-2 mb-1">{day.title}</p>
+        {day.description && (
+          <p className="text-[10px] text-muted-foreground line-clamp-2 mb-1.5">{day.description}</p>
+        )}
 
         {occupiedBy ? (
           <div className="flex items-center gap-1 mt-1">
@@ -422,6 +425,11 @@ function AIItineraryDialog({
         const res = await handleUpsertDayMeta(packageId, durationId, routeId, dayNum, {
           title: finalTitle,
           description: finalDescription,
+          // upsertDayMeta resets meals/excluded_meals to [] when omitted —
+          // carry the day's existing meal plan through so applying an AI
+          // response doesn't silently wipe it.
+          meals: existing?.meals ?? [],
+          excluded_meals: existing?.excluded_meals ?? [],
         });
         if (res.success) {
           itineraryId = res.data.id;
@@ -916,7 +924,13 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
           <ItineraryDaySidebar
             key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}
             open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
+            // Clearing openDay (not just hiding via sidebarOpen) unmounts the
+            // sidebar on close — its title/description/etc. are local state
+            // seeded once from the `day` prop on mount, so without this,
+            // reopening the same day after e.g. an AI Itinerary Builder
+            // overwrite would show what was there before, not what just got
+            // written to the database.
+            onClose={() => { setSidebarOpen(false); setOpenDay(null); }}
             packageId={packageId}
             destinationId={destinationId}
             durationId={selectedDurationId}
