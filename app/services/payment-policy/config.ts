@@ -26,12 +26,22 @@ export const DEFAULT_PAYMENT_POLICY: PaymentPolicyConfig = {
     balanceDueDaysBeforeTravel: 15,
     // ₹5,000 — "Book Now Pay Later": deposit = max(25%, ₹5,000).
     //
-    // Halved from ₹10,000. The floor is what a trip must clear before it can
-    // be split at all, so it decides who is allowed to pay in two parts: at
-    // ₹10,000 that was only trips over ₹40,000, which put every short or
-    // shoulder-season booking on pay-in-full. At ₹5,000 the split opens up
-    // from ₹20,000. Anything cheaper than the floor still resolves to a single
-    // FULL leg — a deposit larger than the trip is not a deposit.
+    // Halved from ₹10,000. The floor does two separate things, and it is easy
+    // to conflate them:
+    //
+    //   Who may split at all — anything ABOVE the floor, because the engine
+    //     falls back to one FULL leg only once the deposit covers the total
+    //     (FULL_DEPOSIT_COVERS_TOTAL). So halving it moved that line from
+    //     ₹10,000 to ₹5,000, which is the change that matters: short and
+    //     shoulder-season trips between the two were on pay-in-full before.
+    //   Where the deposit stops being flat — at 4x the floor, where 25%
+    //     overtakes it: ₹40,000 before, ₹20,000 now. Below that everyone pays
+    //     the same ₹5,000 up front; above it they pay a quarter.
+    //
+    // A trip cheaper than the floor still resolves to a single FULL leg — a
+    // deposit larger than the trip is not a deposit. That is why the ₹1 test
+    // packages charged ₹1 in one go: the floor was never bypassed for them,
+    // it simply cannot exceed the total.
     minDepositPaise: 500_000,
 };
 
