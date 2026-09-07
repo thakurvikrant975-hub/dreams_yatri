@@ -10,7 +10,7 @@ import { db } from "@/app/lib/db";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 import { tryCreateBookingFromConvertedQuery } from "@/app/lib/bookings/create-from-query";
-import { getLeaderScope } from "@/app/lib/sales-teams/leader-scope";
+import { getLeaderScope, isSalesManagerRole } from "@/app/lib/sales-teams/leader-scope";
 
 // ── Import shared types from marketing actions ────────────────────────────────
 // Types are erased at runtime so this import is safe even across route groups.
@@ -88,29 +88,47 @@ export async function updateQueryMessage(queryId: string, message: string): Prom
     return _updateQueryMessage(queryId, message);
 }
 
-/** Whether the logged-in actor leads a SalesTeam — drives the "My Queries" vs
- * "Team Queries" view on the sales-query page. */
+/** Whether the logged-in actor should see the "Team Queries" oversight view
+ * rather than just their own — either a Team Leader (leads a SalesTeam) or
+ * a Sales Manager (leader of every Team Leader, sees the whole floor). */
 export async function isSalesTeamLeader(): Promise<boolean> {
+    if (await isSalesManagerRole()) return true;
     const scope = await getLeaderScope();
     return !!scope?.ledTeamId;
 }
 
-/** The Team Leader's own roster — feeds the reassign picker on "Team
- * Queries" so a leader can only hand a query to someone on their team, not
- * the whole sales floor. Empty for anyone who doesn't lead a team. */
+/** True specifically for a Sales Manager, as distinct from a Team Leader —
+ * lets the page pick the right heading/copy ("every executive" vs "your
+ * team") without recomputing the role check itself. */
+export async function isSalesManager(): Promise<boolean> {
+    return isSalesManagerRole();
+}
+
+/** The roster that feeds the reassign picker on "Team Queries" — every
+ * Sales Executive company-wide for a Sales Manager (she oversees every
+ * Team Leader, not just one team), or the Team Leader's own roster so a
+ * leader can only hand a query to someone on their own team. Empty for
+ * anyone who is neither. */
 export async function getMyTeamMembers(): Promise<SalesMember[]> {
+    if (await isSalesManagerRole()) return _getSalesMembers();
     const scope = await getLeaderScope();
     if (!scope?.ledTeamId) return [];
     return _getSalesMembers(scope.ledTeamId);
 }
 
-/** Reassign a query to another member of the caller's own SalesTeam.
+/** Reassign a query to another member of the caller's own SalesTeam — or,
+ * for a Sales Manager, to anyone on the sales floor, since she oversees
+ * every team rather than one.
  *
  * A Team Leader oversees a specific team, not the whole sales floor — this
  * re-derives that scope server-side rather than trusting the memberId the
  * client sends, the same reasoning resolveWorkspaceCaps re-derives package
  * capabilities instead of trusting what the UI last showed. */
 export async function reassignToTeamMember(queryId: string, memberId: string | null): Promise<ActionResult> {
+    if (await isSalesManagerRole()) {
+        return _assignQuery(queryId, memberId, false);
+    }
+
     const scope = await getLeaderScope();
     if (!scope?.ledTeamId) return { success: false, message: "Only a team leader can reassign a query." };
 
@@ -159,8 +177,10 @@ const CUSTOM_PACKAGE_SELECT = {
     },
 } as const;
 
-/** Returns queries assigned to the currently logged-in sales exec — or, for a
- * Team Leader, every query assigned to anyone on their SalesTeam (themselves
+/** Returns queries assigned to the currently logged-in sales exec — every
+ * query assigned to anyone at all for a Sales Manager (she leads every Team
+ * Leader, so her view spans the whole floor, not one team), or, for a Team
+ * Leader, every query assigned to anyone on their SalesTeam (themselves
  * included, since SalesTeam.members always includes the leader).
  *
  * `from`/`to` (YYYY-MM-DD) scope by `assignedAt`, not `createdAt` — this page
@@ -173,7 +193,8 @@ const CUSTOM_PACKAGE_SELECT = {
  * Omit both for the "All Time" view. */
 export async function getSalesQueries(from?: string, to?: string): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
-    const scope = await getLeaderScope();
+    const isManager = await isSalesManagerRole();
+    const scope = isManager ? null : await getLeaderScope();
 
     const teamMemberIds = scope?.ledTeamId
         ? (await db.teamMember.findMany({
@@ -185,9 +206,14 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
     const queries = await db.package_queries.findMany({
         where: {
             deletedAt: null,
-            ...(teamMemberIds
-                ? { assignedTo: { in: teamMemberIds } }
-                : teamMemberId ? { assignedTo: teamMemberId } : {}),
+            // Company-wide for a Sales Manager (still "assigned to someone" —
+            // an unassigned lead belongs to the marketing queue, not here),
+            // else the Team Leader's own team, else just this exec.
+            ...(isManager
+                ? { assignedTo: { not: null } }
+                : teamMemberIds
+                    ? { assignedTo: { in: teamMemberIds } }
+                    : teamMemberId ? { assignedTo: teamMemberId } : {}),
             ...(from && to
                 ? { assignedAt: { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59.999`) } }
                 : {}),

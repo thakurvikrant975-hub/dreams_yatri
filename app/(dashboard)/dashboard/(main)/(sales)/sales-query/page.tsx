@@ -7,7 +7,7 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getSalesQueries, getCloseReasons, getRejectionReasons, isSalesTeamLeader, getMyTeamMembers } from "./actions";
+import { getSalesQueries, getCloseReasons, getRejectionReasons, isSalesTeamLeader, isSalesManager, getMyTeamMembers } from "./actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
@@ -98,7 +98,11 @@ export default async function SalesQueryPage({
     const isAllTime = sp.range === "all";
     const from = isAllTime ? undefined : (sp.from ?? firstOfMonthStr());
     const to = isAllTime ? undefined : (sp.to ?? todayStr());
-    const isTeamLead = await isSalesTeamLeader();
+    const [isTeamLead, isManager] = await Promise.all([isSalesTeamLeader(), isSalesManager()]);
+    const heading = isManager ? "All Queries" : isTeamLead ? "Team Queries" : "My Queries";
+    const description = isManager
+        ? "Every query assigned to any executive, across every team"
+        : isTeamLead ? "All queries assigned to your team" : "All queries assigned to you";
 
     return (
         <div className="space-y-6">
@@ -109,14 +113,14 @@ export default async function SalesQueryPage({
                     </BreadcrumbItem>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>
-                        <BreadcrumbPage>{isTeamLead ? "Team Queries" : "My Queries"}</BreadcrumbPage>
+                        <BreadcrumbPage>{heading}</BreadcrumbPage>
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
 
             <PageHeader
-                title={isTeamLead ? "Team Queries" : "My Queries"}
-                description={isTeamLead ? "All queries assigned to your team" : "All queries assigned to you"}
+                title={heading}
+                description={description}
                 icon={TrendingUp}
             />
 
