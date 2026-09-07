@@ -33,7 +33,7 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
         select: {
             bookingNumber: true, paymentPlan: true, startDate: true, endDate: true, travellers: true,
             totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
-            user: { select: { email: true } }, package: { select: { title: true } },
+            contactEmail: true, user: { select: { email: true } }, package: { select: { title: true } },
             hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } },
         },
     });
@@ -46,7 +46,7 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
         travelStartDate: isoDate(b.startDate), travelEndDate: isoDate(b.endDate), travellers: b.travellers,
     };
 
-    await sendBookingEmail(b.user?.email, bookingConfirmationEmail({
+    await sendBookingEmail(b.user?.email ?? b.contactEmail, bookingConfirmationEmail({
         ...base, isFull,
         paidPaise: isFull ? b.totalAmount_paise : b.advanceAmount_paise,
         balancePaise: isFull ? 0 : b.balanceAmount_paise,
@@ -76,10 +76,10 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
 export async function notifyGuestHotelConfirmed(bookingId: string): Promise<void> {
     const b = await db.booking.findUnique({
         where: { id: bookingId },
-        select: { bookingNumber: true, user: { select: { email: true } }, hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } } },
+        select: { bookingNumber: true, contactEmail: true, user: { select: { email: true } }, hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } } },
     });
     if (!b) return;
-    await sendBookingEmail(b.user?.email, hotelBookingConfirmedEmail({
+    await sendBookingEmail(b.user?.email ?? b.contactEmail, hotelBookingConfirmedEmail({
         bookingNumber: b.bookingNumber,
         hotelName: b.hotelBookings[0]?.hotel.name ?? "Your hotel",
         voucherUrl: voucherUrl(bookingId),
@@ -87,15 +87,15 @@ export async function notifyGuestHotelConfirmed(bookingId: string): Promise<void
 }
 
 export async function notifyCancellation(bookingId: string, refundablePaise: number, feePaise: number): Promise<void> {
-    const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, user: { select: { email: true } }, package: { select: { title: true } }, hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } } } });
+    const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, contactEmail: true, user: { select: { email: true } }, package: { select: { title: true } }, hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } } } });
     if (!b) return;
-    await sendBookingEmail(b.user?.email, cancellationEmail({ bookingNumber: b.bookingNumber, packageTitle: tripTitle(b), refundablePaise, feePaise }));
+    await sendBookingEmail(b.user?.email ?? b.contactEmail, cancellationEmail({ bookingNumber: b.bookingNumber, packageTitle: tripTitle(b), refundablePaise, feePaise }));
 }
 
 export async function notifyRefund(bookingId: string, refundAmountPaise: number): Promise<void> {
-    const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, user: { select: { email: true } }, package: { select: { title: true } }, hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } } } });
+    const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, contactEmail: true, user: { select: { email: true } }, package: { select: { title: true } }, hotelBookings: { take: 1, select: { hotel: { select: { name: true } } } } } });
     if (!b) return;
-    await sendBookingEmail(b.user?.email, refundConfirmedEmail({ bookingNumber: b.bookingNumber, packageTitle: tripTitle(b), refundAmountPaise }));
+    await sendBookingEmail(b.user?.email ?? b.contactEmail, refundConfirmedEmail({ bookingNumber: b.bookingNumber, packageTitle: tripTitle(b), refundAmountPaise }));
 }
 
 /** Customer-facing: every hotel and cab for the booking has just been verified
@@ -134,9 +134,9 @@ export async function notifyHotelsAndCabsConfirmed(bookingId: string): Promise<v
 
 /** Fulfilment status update — trip fully confirmed (READY) or an item needs an alternative (ATTENTION). */
 export async function notifyFulfillmentChange(bookingId: string, kind: "READY" | "ATTENTION", itemLabel?: string): Promise<void> {
-    const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, user: { select: { email: true } }, package: { select: { title: true } } } });
+    const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, contactEmail: true, user: { select: { email: true } }, package: { select: { title: true } } } });
     if (!b) return;
-    await sendBookingEmail(b.user?.email, tripStatusEmail({ kind, bookingNumber: b.bookingNumber, packageTitle: b.package?.title ?? "Your package", itemLabel, statusUrl: bookingStatusUrl(bookingId) }));
+    await sendBookingEmail(b.user?.email ?? b.contactEmail, tripStatusEmail({ kind, bookingNumber: b.bookingNumber, packageTitle: b.package?.title ?? "Your package", itemLabel, statusUrl: bookingStatusUrl(bookingId) }));
 }
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -184,7 +184,7 @@ export async function notifyPaymentReceived(paymentId: string): Promise<void> {
             totalStr:       formatPaiseRoundedUp(v.total),
             paidStr:        formatPaiseRoundedUp(v.paid),
             balanceStr:     formatPaiseRoundedUp(v.balance),
-            invoiceUrl:     `${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/bookings/${p.booking.id}/invoice`,
+            invoiceUrl:     `${SITE_URL()}/bookings/${p.booking.id}/invoice`,
         },
     };
 
