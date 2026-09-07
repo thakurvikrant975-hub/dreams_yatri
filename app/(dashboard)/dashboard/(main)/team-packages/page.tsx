@@ -19,9 +19,16 @@ export default async function TeamPackagesPage({
     const rawLim = parseInt(sp.limit ?? "20", 10);
     const limit  = (VALID_LIMITS as readonly number[]).includes(rawLim) ? rawLim : 20;
     const search = (sp.search ?? "").trim();
+    // Defaults to "pending" rather than "all" — the queue's job is to surface
+    // what still needs review; a Team Leader/Sales Manager opening this page
+    // wants to see what's waiting on them, not their whole history.
     const filter = (VALID_FILTERS as readonly string[]).includes(sp.filter ?? "")
         ? (sp.filter as typeof VALID_FILTERS[number])
-        : "all";
+        : "pending";
+    const destination = (sp.destination ?? "").trim();
+    const from = (sp.from ?? "").trim();
+    const to   = (sp.to ?? "").trim();
+    const minPrice = sp.minPrice ? Number(sp.minPrice) : null;
 
     return (
         <TeamPackagesClient
@@ -29,6 +36,10 @@ export default async function TeamPackagesPage({
             limit={limit}
             search={search}
             filter={filter}
+            destination={destination}
+            from={from}
+            to={to}
+            minPrice={minPrice}
         />
     );
 }

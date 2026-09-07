@@ -8,6 +8,8 @@ import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
+import { MinNumberFilter } from "../components/dashboard/MinNumberFilter";
+import { DateRangePicker } from "../components/ui/date-range-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 export type PackageRow = {
@@ -101,6 +103,11 @@ export function TeamPackagesTable({
     limit,
     search,
     filter,
+    destination,
+    from: dateFrom,
+    to: dateTo,
+    minPrice,
+    destinationOptions,
     scopeLabel,
 }: {
     packages: PackageRow[];
@@ -111,6 +118,11 @@ export function TeamPackagesTable({
     limit: number;
     search: string;
     filter: string;
+    destination: string;
+    from: string;
+    to: string;
+    minPrice: number | null;
+    destinationOptions: string[];
     scopeLabel: string;
 }) {
     const router = useRouter();
@@ -250,6 +262,7 @@ export function TeamPackagesTable({
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
+                    collapsible
                     search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search package title, client name or phone…"
@@ -266,8 +279,29 @@ export function TeamPackagesTable({
                                 { label: "Rejected",       value: "rejected" },
                             ],
                         },
+                        {
+                            value: destination,
+                            onChange: (v) => updateParam("destination", v),
+                            placeholder: "All Destinations",
+                            width: "w-44",
+                            options: destinationOptions.map((d) => ({ label: d, value: d })),
+                        },
                     ]}
-                />
+                >
+                    <DateRangePicker
+                        from={dateFrom}
+                        to={dateTo}
+                        onFromChange={(v) => updateParam("from", v)}
+                        onToChange={(v) => updateParam("to", v)}
+                    />
+                    <MinNumberFilter
+                        label="Price ≥"
+                        prefix="₹"
+                        value={minPrice}
+                        onChange={(v) => updateParam("minPrice", v === null ? "" : String(v))}
+                        placeholder="Any"
+                    />
+                </TableFilters>
                 <Select
                     value={String(limit)}
                     onValueChange={(v) => {
