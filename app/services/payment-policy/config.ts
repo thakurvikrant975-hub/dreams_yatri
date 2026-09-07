@@ -24,7 +24,15 @@ export interface PaymentPolicyConfig {
 export const DEFAULT_PAYMENT_POLICY: PaymentPolicyConfig = {
     depositPercent: 25,
     balanceDueDaysBeforeTravel: 15,
-    minDepositPaise: 1_000_000, // ₹10,000 — "Book Now Pay Later": deposit = max(25%, ₹10,000)
+    // ₹5,000 — "Book Now Pay Later": deposit = max(25%, ₹5,000).
+    //
+    // Halved from ₹10,000. The floor is what a trip must clear before it can
+    // be split at all, so it decides who is allowed to pay in two parts: at
+    // ₹10,000 that was only trips over ₹40,000, which put every short or
+    // shoulder-season booking on pay-in-full. At ₹5,000 the split opens up
+    // from ₹20,000. Anything cheaper than the floor still resolves to a single
+    // FULL leg — a deposit larger than the trip is not a deposit.
+    minDepositPaise: 500_000,
 };
 
 function envNumber(key: string): number | undefined {

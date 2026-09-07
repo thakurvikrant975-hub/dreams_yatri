@@ -39,12 +39,14 @@ console.log("Payment policy:");
 
 // 2) Exact cutoff (daysUntil == 15) → FULL.
 {
-    const s = computePaymentSchedule({ totalPaise: 1_000_000, travelDate: "2026-06-17", now: NOW });
+    // ₹60,000, well clear of the floor: this block is about the DATE cutoff,
+    // so the total must not be able to force FULL on its own.
+    const s = computePaymentSchedule({ totalPaise: 6_000_000, travelDate: "2026-06-17", now: NOW });
     check("exactly 15 days → FULL", s.plan === "FULL" && s.reason === "FULL_NEAR_TRAVEL");
     check("FULL daysUntilTravel == 15", s.daysUntilTravel === 15);
-    check("FULL: deposit = total, balance 0", s.depositPaise === 1_000_000 && s.balancePaise === 0);
+    check("FULL: deposit = total, balance 0", s.depositPaise === 6_000_000 && s.balancePaise === 0);
     check("FULL: balanceDueDate null", s.balanceDueDate === null);
-    check("FULL: single leg", s.installments.length === 1 && s.installments[0].amountPaise === 1_000_000);
+    check("FULL: single leg", s.installments.length === 1 && s.installments[0].amountPaise === 6_000_000);
 }
 
 // 3) Just past cutoff (16 days) → DEPOSIT.
@@ -79,14 +81,23 @@ check("past → FULL (daysUntil < 0)", (() => { const s = computePaymentSchedule
 
 // 6) Floor RAISES a small-percentage deposit (still < total → DEPOSIT).
 {
-    const s = computePaymentSchedule({ totalPaise: 2_000_000, travelDate: "2026-08-01", now: NOW }); // ₹20k: 25% = ₹5,000 < ₹10,000 floor < total
-    check("floor raises deposit to ₹10,000", s.depositPaise === 1_000_000 && s.plan === "DEPOSIT");
-    check("floor-raised balance", s.balancePaise === 1_000_000);
+    const s = computePaymentSchedule({ totalPaise: 1_200_000, travelDate: "2026-08-01", now: NOW }); // ₹12k: 25% = ₹3,000 < ₹5,000 floor < total
+    check("floor raises deposit to ₹5,000", s.depositPaise === 500_000 && s.plan === "DEPOSIT");
+    check("floor-raised balance", s.balancePaise === 700_000);
+}
+
+// 6b) The boundary the ₹5,000 floor moves: a ₹20,000 trip now splits, where
+//     under the old ₹10,000 floor 25% (₹5,000) was below the floor and the
+//     floor was half the trip. This is the case the change exists for.
+{
+    const s = computePaymentSchedule({ totalPaise: 2_000_000, travelDate: "2026-08-01", now: NOW });
+    check("₹20,000 splits at the new floor", s.plan === "DEPOSIT" && s.depositPaise === 500_000);
+    check("₹20,000 balance", s.balancePaise === 1_500_000);
 }
 
 // 7) Floor covers whole (cheap trip) → FULL.
 {
-    const s = computePaymentSchedule({ totalPaise: 150_000, travelDate: "2026-08-01", now: NOW }); // ₹1,500 < ₹10,000 floor → full
+    const s = computePaymentSchedule({ totalPaise: 150_000, travelDate: "2026-08-01", now: NOW }); // ₹1,500 < ₹5,000 floor → full
     check("cheap trip → FULL_DEPOSIT_COVERS_TOTAL", s.plan === "FULL" && s.reason === "FULL_DEPOSIT_COVERS_TOTAL");
     check("cheap trip single leg = total", s.installments.length === 1 && s.installments[0].amountPaise === 150_000);
 }
@@ -106,7 +117,7 @@ check("malformed date throws", throws(() => computePaymentSchedule({ totalPaise:
 check("impossible date throws", throws(() => computePaymentSchedule({ totalPaise: 1000, travelDate: "2026-02-30", now: NOW })));
 
 // 10) Config resolution + validation.
-check("defaults are 25/15/1000000", DEFAULT_PAYMENT_POLICY.depositPercent === 25 && DEFAULT_PAYMENT_POLICY.balanceDueDaysBeforeTravel === 15 && DEFAULT_PAYMENT_POLICY.minDepositPaise === 1_000_000);
+check("defaults are 25/15/500000", DEFAULT_PAYMENT_POLICY.depositPercent === 25 && DEFAULT_PAYMENT_POLICY.balanceDueDaysBeforeTravel === 15 && DEFAULT_PAYMENT_POLICY.minDepositPaise === 500_000);
 check("resolveConfig override wins", resolveConfig({ depositPercent: 40 }).depositPercent === 40);
 check("resolveConfig percent 0 throws", throws(() => resolveConfig({ depositPercent: 0 })));
 check("resolveConfig percent 101 throws", throws(() => resolveConfig({ depositPercent: 101 })));
