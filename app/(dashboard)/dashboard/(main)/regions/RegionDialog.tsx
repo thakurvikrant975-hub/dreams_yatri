@@ -208,6 +208,7 @@ function BasicInfoStep({ region }: { region?: Region }) {
 function ImagesStep() {
   const { stepData, setStepData } = useMultiStep();
   const data = stepData["images"] ?? {};
+  const regionName = ((stepData["basic"]?.name as string) ?? "").trim();
 
   const coverImages = (data.cover     as PickedImage[]) ?? [];
   const thumbImages = (data.thumbnail as PickedImage[]) ?? [];
@@ -228,6 +229,7 @@ function ImagesStep() {
           maxFiles={1}
           label="Upload Cover Image"
           hint="Wide banner image · JPG, PNG, WebP"
+          entityName={regionName ? `${regionName} Cover` : undefined}
         />
       </div>
 
@@ -245,6 +247,7 @@ function ImagesStep() {
           maxFiles={1}
           label="Upload Thumbnail"
           hint="Card image · JPG, PNG, WebP"
+          entityName={regionName ? `${regionName} Thumbnail` : undefined}
         />
       </div>
     </div>

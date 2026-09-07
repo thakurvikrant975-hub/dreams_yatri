@@ -328,6 +328,7 @@ export function DetailsTab({
             <ImagePicker
               folder="hotels" value={thumbnail} onChange={setThumbnail}
               maxFiles={1} label="Upload Thumbnail" hint="400×250 recommended · JPG, PNG, WebP"
+              entityName={hotelName ? `${hotelName} Thumbnail` : undefined}
             />
             <input type="hidden" name="thumbnail" value={thumbnail[0]?.key ?? ""} />
           </div>

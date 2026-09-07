@@ -21,6 +21,10 @@ type Props = {
      * upload request is even sent — for callers that need a stricter limit
      * than the shared default (e.g. HR document scans). */
     maxSizeMB?: number;
+    /** What this image actually depicts (hotel name, activity name, etc.) —
+     * used to name the stored file instead of the visitor's raw upload
+     * filename, which is often meaningless (e.g. a clipboard paste). */
+    entityName?: string;
 };
 
 export function ImageUpload({
@@ -31,6 +35,7 @@ export function ImageUpload({
     folder,
     aspectRatio = "video",
     maxSizeMB,
+    entityName,
 }: Props) {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -60,6 +65,7 @@ export function ImageUpload({
             const body = new FormData();
             body.append("file", file);
             body.append("folder", folder);
+            if (entityName) body.append("name", entityName);
 
             const res = await fetch("/api/upload", { method: "POST", body });
             const data = await res.json();

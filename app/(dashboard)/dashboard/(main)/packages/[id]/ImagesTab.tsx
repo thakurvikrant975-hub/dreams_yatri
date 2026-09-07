@@ -46,9 +46,11 @@ function fullUrl(key: string) {
 
 export function ImagesTab({
   packageId,
+  packageTitle,
   initialImages,
 }: {
   packageId: number;
+  packageTitle: string;
   initialImages: DBImage[];
 }) {
   const [staged, setStaged] = useState<PickedImage[]>([]);
@@ -172,6 +174,7 @@ async function handleSetPrimary(imageId: number) {
           maxFiles={20}
           label="Upload package images"
           hint="JPG, PNG, WebP"
+          entityName={packageTitle}
         />
         {isAdding && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground justify-end">

@@ -291,6 +291,7 @@ function VehicleSheet({
                 maxFiles={1}
                 label="Upload Vehicle Photo"
                 hint="JPG, PNG, WebP"
+                entityName={form.name || undefined}
               />
             </div>
 

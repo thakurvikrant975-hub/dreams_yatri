@@ -356,6 +356,7 @@ function ImagesStep() {
   const thumbImg = (data.thumbnail as UploadedImage | null) ?? null;
   const coverImg = (data.cover     as UploadedImage | null) ?? null;
   const thumbMissing = !thumbImg?.key;
+  const regionName = ((stepData["basic"]?.name as string) ?? "").trim();
 
   return (
     <div className="space-y-6">
@@ -376,6 +377,7 @@ function ImagesStep() {
           onChange={(img) => setStepData("images", { ...data, thumbnail: img })}
           label="Upload Thumbnail"
           aspectRatio="video"
+          entityName={regionName ? `${regionName} Thumbnail` : undefined}
         />
         {thumbMissing && (
           <p className="flex items-center gap-1.5 text-xs text-destructive">
@@ -403,6 +405,7 @@ function ImagesStep() {
           onChange={(img) => setStepData("images", { ...data, cover: img })}
           label="Upload Cover Image"
           aspectRatio="wide"
+          entityName={regionName ? `${regionName} Cover` : undefined}
         />
       </div>
     </div>

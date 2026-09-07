@@ -914,7 +914,8 @@ function RoomForm({
           </Label>
           <ImagePicker
             folder="hotels" value={form.images} onChange={(imgs) => update("images", imgs)}
-            maxFiles={8} label="Add Room Photos" hint="JPG, PNG, WebP" />
+            maxFiles={8} label="Add Room Photos" hint="JPG, PNG, WebP"
+            entityName={form.name || undefined} />
         </div>
       )}
 
@@ -1095,6 +1096,7 @@ function RoomImagesSection({
         maxFiles={10}
         label="Add Room Photos"
         hint="JPG, PNG, WebP"
+        entityName={room.name}
       />
 
       {picks.length > 0 && (

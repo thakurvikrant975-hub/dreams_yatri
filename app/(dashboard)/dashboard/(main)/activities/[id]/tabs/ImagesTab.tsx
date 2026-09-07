@@ -296,6 +296,7 @@ export function ImagesTab({
                         maxFiles={10}
                         label="Upload Activity Photos"
                         hint="JPG, PNG, WebP"
+                        entityName={activityName}
                     />
                     {isPending && (
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground justify-end">

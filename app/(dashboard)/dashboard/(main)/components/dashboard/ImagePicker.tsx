@@ -36,6 +36,10 @@ type Props = {
     autoUpload?: boolean;   // upload immediately on drop/select (default: true)
     className?: string;
     previewAspect?: string; // Tailwind aspect-* class for the thumbnail previews, e.g. "aspect-3/4"
+    /** What these images actually depict (hotel name, activity name, etc.) —
+     * used to name the stored files instead of the visitor's raw upload
+     * filename, which is often meaningless (e.g. a clipboard paste). */
+    entityName?: string;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -57,10 +61,12 @@ const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "im
 async function uploadFile(
     file: File,
     folder: string,
+    nameHint?: string,
 ): Promise<{ key: string; url: string }> {
     const body = new FormData();
     body.append("file", file);
     body.append("folder", folder);
+    if (nameHint) body.append("name", nameHint);
 
     const res = await fetch("/api/upload", { method: "POST", body });
     const data = await res.json();
@@ -223,6 +229,7 @@ export function ImagePicker({
     autoUpload = true,
     className,
     previewAspect = "aspect-square",
+    entityName,
 }: Props) {
     const [isDragOver, setIsDragOver] = useState(false);
     const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -257,10 +264,14 @@ export function ImagePicker({
 
         // Upload each file
         const uploaded = [...value, ...newImages];
+        const basePosition = value.length;
 
-        for (const img of newImages) {
+        for (const [i, img] of newImages.entries()) {
             try {
-                const { key, url } = await uploadFile(img.file!, folder);
+                const nameHint = entityName
+                    ? (maxFiles > 1 ? `${entityName} ${basePosition + i + 1}` : entityName)
+                    : undefined;
+                const { key, url } = await uploadFile(img.file!, folder, nameHint);
 
                 // Revoke old object URL
                 URL.revokeObjectURL(img.url);

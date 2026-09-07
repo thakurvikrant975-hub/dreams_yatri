@@ -244,6 +244,7 @@ export function ActivityImagesSheet({
               maxFiles={10}
               label="Upload Activity Photos"
               hint="JPG, PNG, WebP · Upload multiple at once"
+              entityName={activity.name}
             />
             {newPicks.length > 0 && (
               <div className="flex justify-end">

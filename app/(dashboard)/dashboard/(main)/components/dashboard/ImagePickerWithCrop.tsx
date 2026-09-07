@@ -17,6 +17,7 @@ type CropQueueItem = {
     id:   string;
     file: File;
     src:  string; // blob URL shown in CropDialog
+    name?: string; // nameHint for the upload, derived from entityName + position
 };
 
 type Folder =
@@ -34,6 +35,10 @@ type Props = {
     hint?:         string;
     className?:    string;
     previewAspect?: string;
+    /** What these images actually depict (hotel name, activity name, etc.) —
+     * used to name the stored files instead of the visitor's raw upload
+     * filename, which is often meaningless (e.g. a clipboard paste). */
+    entityName?:   string;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -42,10 +47,11 @@ const ALLOWED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/av
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
-async function uploadFile(file: File, folder: string): Promise<{ key: string; url: string }> {
+async function uploadFile(file: File, folder: string, nameHint?: string): Promise<{ key: string; url: string }> {
     const body = new FormData();
     body.append("file", file);
     body.append("folder", folder);
+    if (nameHint) body.append("name", nameHint);
     const res  = await fetch("/api/upload", { method: "POST", body });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Upload failed");
@@ -165,6 +171,7 @@ export function ImagePickerWithCrop({
     hint,
     className,
     previewAspect,
+    entityName,
 }: Props) {
     const [cropQueue,  setCropQueue]  = useState<CropQueueItem[]>([]);
     const [isDragOver, setIsDragOver] = useState(false);
@@ -194,10 +201,14 @@ export function ImagePickerWithCrop({
         const toAdd = arr.slice(0, Math.max(0, slots));
         if (toAdd.length === 0) return;
 
-        const items: CropQueueItem[] = toAdd.map(file => ({
+        const basePosition = value.length + cropQueue.length;
+        const items: CropQueueItem[] = toAdd.map((file, i) => ({
             id:  uid(),
             file,
             src: URL.createObjectURL(file),
+            name: entityName
+                ? (maxFiles > 1 ? `${entityName} ${basePosition + i + 1}` : entityName)
+                : undefined,
         }));
         setCropQueue(prev => [...prev, ...items]);
     }, [value.length, cropQueue.length, maxFiles]);
@@ -230,7 +241,7 @@ export function ImagePickerWithCrop({
 
         // Upload — read latest value via ref to avoid stale closures
         try {
-            const { key, url } = await uploadFile(croppedFile, folder);
+            const { key, url } = await uploadFile(croppedFile, folder, current.name);
             URL.revokeObjectURL(tempUrl);
             const latest = valueRef.current;
             const idx    = latest.findIndex(i => i.id === itemId);
