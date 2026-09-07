@@ -37,43 +37,46 @@ export type TeamTargetRow = {
   id: string;
   name: string;
   leaderName: string | null;
-  memberCount: number;
   target: TargetValues;
+  /** This team's own roster, grouped here rather than in a separate flat
+   * list — the leader is included (a SalesTeam leader is also a normal
+   * member of their own team, see the model's doc comment). */
+  members: MemberTargetRow[];
 };
 
 export type SalesTargetsPageData = {
   year: number;
   month: number;
   teams: TeamTargetRow[];
-  /** Every active sales-side member — team leaders included, since a leader
-   * is also a normal member of their own team (see SalesTeam's doc comment)
-   * — so a Sales Manager can set an individual target for anyone, whether
-   * or not they're on a team yet. */
-  members: MemberTargetRow[];
+  /** Sales-ish members (Sales Executive / Team Leader by role, or already
+   * assigned once) who aren't currently on any SalesTeam — kept as its own
+   * group rather than folded into a team so a manager can still set their
+   * individual target before they're placed on a team. */
+  unassigned: MemberTargetRow[];
 };
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
 
 /** Rosters + this month's (or a chosen month's) existing targets, for the
- * Sales Manager's set-targets page. Only "sales-ish" members are listed —
+ * Sales Manager's set-targets page — grouped team-wise, each team's own
+ * executives nested under it, so the page reads the same way the org does
+ * rather than as one flat list of names. Only "sales-ish" members show up —
  * Sales Executive, Team Leader, and anyone already on a SalesTeam — the same
- * population Sales Teams/analytics already treat as the sales org, so this
- * page doesn't ask a manager to set a target for e.g. an Ops or Hotel
- * Department member who happens to have no team. */
+ * population Sales Teams/analytics already treat as the sales org. */
 export async function getSalesTargetsPageData(year: number, month: number): Promise<SalesTargetsPageData> {
-  const [teams, members, memberTargets, teamTargets] = await Promise.all([
+  const [teams, unassignedMembers, memberTargets, teamTargets] = await Promise.all([
     db.salesTeam.findMany({
       include: {
         leader: { select: { id: true, name: true } },
-        members: { select: { id: true } },
+        members: { select: { id: true, name: true, employeeId: true, teamRole: { select: { name: true } } } },
       },
       orderBy: { name: "asc" },
     }),
     db.teamMember.findMany({
       where: {
         isActive: true,
+        salesTeamId: null,
         OR: [
-          { salesTeamId: { not: null } },
           { teamRole: { name: { contains: "sales", mode: "insensitive" } } },
           { teamRole: { name: { contains: "team leader", mode: "insensitive" } } },
         ],
@@ -88,6 +91,17 @@ export async function getSalesTargetsPageData(year: number, month: number): Prom
   const memberTargetById = new Map(memberTargets.map((t) => [t.teamMemberId as string, t]));
   const teamTargetById = new Map(teamTargets.map((t) => [t.salesTeamId as string, t]));
 
+  const toMemberRow = (m: { id: string; name: string; employeeId: string; teamRole: { name: string } | null }): MemberTargetRow => {
+    const target = memberTargetById.get(m.id);
+    return {
+      id: m.id,
+      name: m.name,
+      employeeId: m.employeeId,
+      roleName: m.teamRole?.name ?? null,
+      target: { revenueTarget: target?.revenueTarget ?? null, conversionTarget: target?.conversionTarget ?? null },
+    };
+  };
+
   return {
     year,
     month,
@@ -97,20 +111,11 @@ export async function getSalesTargetsPageData(year: number, month: number): Prom
         id: t.id,
         name: t.name,
         leaderName: t.leader?.name ?? null,
-        memberCount: t.members.length,
         target: { revenueTarget: target?.revenueTarget ?? null, conversionTarget: target?.conversionTarget ?? null },
+        members: t.members.map(toMemberRow),
       };
     }),
-    members: members.map((m) => {
-      const target = memberTargetById.get(m.id);
-      return {
-        id: m.id,
-        name: m.name,
-        employeeId: m.employeeId,
-        roleName: m.teamRole?.name ?? null,
-        target: { revenueTarget: target?.revenueTarget ?? null, conversionTarget: target?.conversionTarget ?? null },
-      };
-    }),
+    unassigned: unassignedMembers.map(toMemberRow),
   };
 }
 
