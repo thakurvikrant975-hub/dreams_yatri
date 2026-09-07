@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
         const formData = await req.formData();
         const file = formData.get("file") as File | null;
         const folder = formData.get("folder") as string | null;
+        const nameHint = (formData.get("name") as string | null) ?? undefined;
 
         if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
         if (!folder) return NextResponse.json({ error: "No folder provided" }, { status: 400 });
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
             file: buffer,
             folder: folder as any,
             fileName: file.name,
+            nameHint,
             contentType: file.type,
         });
 

@@ -155,7 +155,7 @@ export default async function PackageBuilderPage({
 
         {/* Tab 2 — Images (ASSET POOL) */}
         <TabsContent value="images" className="pt-6">
-          <ImagesTab packageId={pkg.id} initialImages={pkg.images} />
+          <ImagesTab packageId={pkg.id} packageTitle={pkg.title} initialImages={pkg.images} />
         </TabsContent>
 
         {/* Tab 3 — Route Builder */}

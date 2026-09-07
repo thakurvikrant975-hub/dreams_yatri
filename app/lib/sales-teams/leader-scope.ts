@@ -50,6 +50,22 @@ export type PackageReviewScope =
   | { kind: "company" }
   | { kind: "none" };
 
+/** True when the signed-in member's role name contains "sales manager" —
+ * same case-insensitive substring match getPackageReviewScope already uses
+ * for its own "company" scope, so a role rename or new "Senior Sales
+ * Manager"-style variant stays in sync across every feature that checks
+ * for this role instead of drifting between separate exact-match lists. */
+export async function isSalesManagerRole(): Promise<boolean> {
+  const session = await dashboardAuth();
+  if (!session?.user?.email) return false;
+
+  const me = await db.teamMember.findUnique({
+    where: { email: session.user.email },
+    select: { teamRole: { select: { name: true } } },
+  });
+  return (me?.teamRole?.name ?? "").trim().toLowerCase().includes("sales manager");
+}
+
 export async function getPackageReviewScope(): Promise<PackageReviewScope> {
   const session = await dashboardAuth();
   if (!session?.user?.email) return { kind: "none" };

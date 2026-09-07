@@ -129,11 +129,13 @@ function ImageThumb({
 function CategoryBlock({
   category,
   hotel_id,
+  hotel_name,
   onUpdate,
   onRemove,
 }: {
   category: DBCategory;
   hotel_id: number;
+  hotel_name: string;
   onUpdate: (updatedImages: DBImage[], categoryId: number) => void;
   onRemove: (categoryId: number) => void;
 }) {
@@ -282,6 +284,7 @@ function CategoryBlock({
             maxFiles={10}
             label={`Add ${category.name} Photos`}
             hint="JPG, PNG, WebP"
+            entityName={`${hotel_name} ${category.name}`}
           />
 
           {isPending && (
@@ -299,9 +302,11 @@ function CategoryBlock({
 
 export function ImagesTab({
   hotel_id,
+  hotel_name,
   categories: initialCategories,
 }: {
   hotel_id:   number;
+  hotel_name: string;
   categories: DBCategory[];
 }) {
   const [categories, setCategories] = useState<DBCategory[]>(initialCategories);
@@ -369,7 +374,7 @@ export function ImagesTab({
         <div className="space-y-3">
           <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Required</h3>
           {requiredCategories.map(cat => (
-            <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id}
+            <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id} hotel_name={hotel_name}
               onUpdate={handleCategoryUpdate} onRemove={handleCategoryRemove} />
           ))}
         </div>
@@ -379,7 +384,7 @@ export function ImagesTab({
         <div className="space-y-3">
           <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Room Photos</h3>
           {roomCategories.map(cat => (
-            <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id}
+            <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id} hotel_name={hotel_name}
               onUpdate={handleCategoryUpdate} onRemove={handleCategoryRemove} />
           ))}
         </div>
@@ -389,7 +394,7 @@ export function ImagesTab({
         <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Custom Categories</h3>
 
         {hotelCategories.map(cat => (
-          <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id}
+          <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id} hotel_name={hotel_name}
             onUpdate={handleCategoryUpdate} onRemove={handleCategoryRemove} />
         ))}
 

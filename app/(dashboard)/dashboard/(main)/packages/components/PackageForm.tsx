@@ -361,6 +361,7 @@ export function PackageForm({
             setThumbnailImage(img);
             update("thumbnail", img?.key ?? null);
           }}
+          entityName={data.title ? `${data.title} Thumbnail` : undefined}
         />
       </div>
       <FieldError message={errors.thumbnail} />

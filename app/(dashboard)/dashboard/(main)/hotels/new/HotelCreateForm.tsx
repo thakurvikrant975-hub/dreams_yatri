@@ -424,6 +424,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
               value={thumbnail}
               onChange={setThumbnail}
               label="Upload Thumbnail"
+              entityName={name ? `${name} Thumbnail` : undefined}
             />
           </div>
 
