@@ -2971,7 +2971,7 @@ function DayCardPreview({
         </div>
       </div>
 
-      <div className="px-3.5 py-3 space-y-3">
+      <div className="px-3.5 py-3 space-y-8 lg:space-y-7">
         {/* Rendered even when empty in the builder, so there's something to
             click; still hidden entirely on the client-facing document. */}
         <EditableText
